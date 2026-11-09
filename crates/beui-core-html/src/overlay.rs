@@ -361,8 +361,14 @@ impl Layer {
             return;
         }
         let name = self.anchor_target();
-        let styles = anchored_styles(self.placement.get(), name.as_deref());
+        let placement = self.placement.get().against(&self.anchor.borrow());
+        let styles = anchored_styles(placement, name.as_deref());
         for property in PLACED {
+            // `measured` places a menu: leave where it put it, or each placing would move it
+            // and ask for another frame.
+            if placement == Placement::Menu && matches!(property, "left" | "top") {
+                continue;
+            }
             let value = styles
                 .iter()
                 .find(|(name, _)| *name == property)
@@ -809,7 +815,7 @@ mod web {
     }
 
     fn fit(layer: &Layer) {
-        let placement = layer.placement.get();
+        let placement = layer.placement.get().against(&layer.anchor.borrow());
         let room = anchor_rect(layer).and_then(|anchor| {
             beui_types::layer::room_beside(crate::dom::viewport(), anchor, placement)
         });
@@ -819,7 +825,7 @@ mod web {
     }
 
     fn measured(layer: &Layer, dialog: &web_sys::Element) {
-        let placement = layer.placement.get();
+        let placement = layer.placement.get().against(&layer.anchor.borrow());
         if matches!(
             placement,
             Placement::Center | Placement::Fill | Placement::Edge(_)
@@ -829,9 +835,11 @@ mod web {
         let Some(anchor) = anchor_rect(layer) else {
             return;
         };
-        for property in PLACED {
-            if !matches!(property, "width" | "height" | "max-width" | "max-height") {
-                set_style(layer.parts.dialog, property, None);
+        if placement != Placement::Menu {
+            for property in PLACED {
+                if !matches!(property, "width" | "height" | "max-width" | "max-height") {
+                    set_style(layer.parts.dialog, property, None);
+                }
             }
         }
         let size = crate::dom::client_rect(dialog).size();
@@ -969,7 +977,7 @@ mod web {
         }
         fit(layer);
         let anchors = anchors_supported();
-        if !anchors || layer.placement.get() == Placement::Menu {
+        if !anchors || layer.placement.get().against(&layer.anchor.borrow()) == Placement::Menu {
             measured(layer, &dialog);
         }
         point_beak(layer, &dialog, anchors);
