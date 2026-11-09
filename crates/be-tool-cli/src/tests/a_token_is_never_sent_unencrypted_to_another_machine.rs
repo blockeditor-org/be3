@@ -9,6 +9,7 @@ async fn a_token_is_never_sent_unencrypted_to_another_machine() {
         phrase: String::new(),
         authorization: None,
         cache: std::env::temp_dir(),
+        boat_id: None,
     };
     let error = connect(&settings).await.err().unwrap();
     assert!(error.contains("not https"), "{error}");

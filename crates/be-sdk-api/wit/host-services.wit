@@ -143,6 +143,36 @@ interface host-services {
     /// Deletes an agent `create-block-agent` made.
     remove-agent: async func(agent: account-id) -> result<_, failure>;
 
+    /// Where a `be` of the host's own build comes from (`terminal-host-binary`).
+    record terminal-host-download {
+        /// The deployment's copy of `be`, under its `data/{build}/be-{triple}/be`.
+        url: string,
+        /// Its SHA-256, lower-case hex, to check once downloaded.
+        sha256: string,
+    }
+
+    /// A deployed build's `be` is downloaded; a development build's is its
+    /// bytes, built on this machine.
+    variant terminal-host-source {
+        download(terminal-host-download),
+        bytes(list<u8>),
+    }
+
+    /// The `be` of the host's own build for one architecture, and the
+    /// `build-info.json` to put beside it, which names the build to the
+    /// server.
+    record terminal-host-be {
+        source: terminal-host-source,
+        build-info: string,
+    }
+
+    /// Where to get `be` of the host's own build for a Linux machine of `arch`
+    /// (`x86_64` or `arm64`), for a terminal host the app installs on a
+    /// machine of its own (guides/terminal.md). A development build without
+    /// one built fails naming what to build. Denied unless the app's manifest
+    /// sets `block_agents`.
+    terminal-host-binary: async func(arch: string) -> result<terminal-host-be, failure>;
+
     /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;
 

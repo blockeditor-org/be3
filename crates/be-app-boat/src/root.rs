@@ -8,6 +8,7 @@ use uuid::Uuid;
 mod list;
 mod sign_in;
 mod state;
+mod terminals;
 mod ui;
 
 #[cfg(test)]

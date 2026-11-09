@@ -3,13 +3,14 @@
 
 use be_sdk_beui::beui::icons::{
     ICON_CIRCLE_PLAY, ICON_CIRCLE_STOP, ICON_CLOUD_OFF, ICON_REFRESH_CW, ICON_SAILBOAT,
-    ICON_TRIANGLE_ALERT,
+    ICON_SQUARE_TERMINAL, ICON_TRIANGLE_ALERT, ICON_UNPLUG,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Align, Direction, NodeId, Overflow};
 
 use super::state::{KeyStanding, State};
+use super::terminals::TerminalStatus;
 use super::ui::{SECTION_SPACING, SPACING};
 use crate::api::{self, Action, BoatError, Phase, Sandbox};
 use crate::time;
@@ -139,6 +140,163 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
             <List spacing=SPACING>
                 <ForEach keys={ids} view={rows} />
             </List>
+            <GoneTerminals state />
+        </List>
+    }
+}
+
+/// The viewer's terminals whose sandbox the list no longer shows, each offering to remove it,
+/// which removes its agent too.
+#[component]
+fn GoneTerminals(state: State) -> NodeId {
+    let gone = create_memo(move || state.gone_terminals());
+    let shown = create_memo(move || gone.with(|gone| !gone.is_empty()));
+    let blocks = create_memo(move || {
+        gone.with(|gone| gone.iter().map(|(block, _)| *block).collect::<Vec<_>>())
+    });
+    let rows = move |block: uuid::Uuid| {
+        let sandbox = create_memo(move || {
+            gone.with(|gone| {
+                gone.iter()
+                    .find(|(gone, _)| *gone == block)
+                    .map(|(_, sandbox)| sandbox.clone())
+                    .unwrap_or_default()
+            })
+        });
+        let text = create_memo(move || {
+            format!(
+                "The terminal of {}, which the list no longer shows",
+                sandbox.get()
+            )
+        });
+        view! {
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <Text color=TextColor::Muted>
+                    <Icon glyph=ICON_SQUARE_TERMINAL />
+                </Text>
+                <ListItem grow=1.0>
+                    <Text style=TextStyle::CAPTION>{text}</Text>
+                </ListItem>
+                <Button
+                    label="Remove"
+                    variant=ButtonVariant::Ghost
+                    @test_id={format!("boat.gone.{block}.remove")}
+                    on_click={move || state.disconnect_terminal(block)}
+                />
+            </List>
+        }
+    };
+    view! {
+        <List spacing=Space::None>
+            <Show condition={shown}>
+                <List spacing=SPACING @test_id="boat.gone">
+                    <ForEach keys={blocks} view={rows} />
+                </List>
+            </Show>
+        </List>
+    }
+}
+
+/// A sandbox's terminal: Connect while it runs and the viewer sees none, and otherwise the
+/// terminal's standing with Open, and Disconnect for the viewer's own.
+#[component]
+fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>) -> NodeId {
+    let sandbox = store(id);
+    let shown = create_memo(move || sandbox.with(|sandbox| state.terminal_of(sandbox)));
+    let block = create_memo(move || shown.with(|shown| shown.as_ref().map(|shown| shown.block)));
+    let own = create_memo(move || shown.with(|shown| shown.as_ref().is_some_and(|shown| shown.own)));
+    let status = create_memo(move || {
+        let block = block.get()?;
+        state
+            .terminal_status
+            .with(|status| status.get(&block).cloned())
+    });
+    let has_terminal = create_memo(move || block.get().is_some());
+    let connectable = create_memo(move || {
+        block.get().is_none() && phase.get() == Phase::Running && state.account().is_some()
+    });
+    let text = create_memo(move || match status.get() {
+        Some(TerminalStatus::Connecting) => "Connecting the terminal…".to_owned(),
+        Some(TerminalStatus::Reconnecting) => "Terminal offline, reconnecting…".to_owned(),
+        Some(TerminalStatus::Failed(message)) => format!("The terminal could not connect: {message}"),
+        _ if !own.get() => "Terminal, shared with you".to_owned(),
+        _ => "Terminal".to_owned(),
+    });
+    let color = create_memo(move || match status.get() {
+        Some(TerminalStatus::Failed(_)) => TextColor::Danger,
+        Some(TerminalStatus::Connecting | TerminalStatus::Reconnecting) => TextColor::Muted,
+        _ => TextColor::Default,
+    });
+    let failed = create_memo(move || matches!(status.get(), Some(TerminalStatus::Failed(_))));
+    let busy = create_memo(move || {
+        matches!(
+            status.get(),
+            Some(TerminalStatus::Connecting | TerminalStatus::Reconnecting)
+        )
+    });
+    let disconnectable = create_memo(move || own.get() && !busy.get());
+    let retryable = create_memo(move || failed.get() && phase.get() == Phase::Running);
+    let part = move |part: &str| sandbox.with(|id| format!("boat.sandbox.{id}.terminal.{part}"));
+    let open = move || {
+        if let Some(block) = block.get_untracked() {
+            state.open_terminal(block);
+        }
+    };
+    let disconnect = move || {
+        if let Some(block) = block.get_untracked() {
+            state.disconnect_terminal(block);
+        }
+    };
+    let retry = move || {
+        if let Some(block) = block.get_untracked() {
+            state.retry_terminal(block);
+        }
+    };
+    let connect = move || {
+        state.connect_terminal(sandbox.with(Clone::clone), name.get_untracked());
+    };
+    view! {
+        <List spacing=Space::None>
+            <Show condition={has_terminal}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Text color=TextColor::Muted>
+                        <Icon glyph=ICON_SQUARE_TERMINAL />
+                    </Text>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION color={color} @test_id={part("status")}>
+                            {text}
+                        </Text>
+                    </ListItem>
+                    <Show condition={retryable}>
+                        <Button
+                            label="Retry"
+                            variant=ButtonVariant::Ghost
+                            @test_id={part("retry")}
+                            on_click={retry}
+                        />
+                    </Show>
+                    <Show condition={disconnectable}>
+                        <Button
+                            label="Disconnect"
+                            glyph=ICON_UNPLUG
+                            variant=ButtonVariant::Ghost
+                            @test_id={part("disconnect")}
+                            on_click={disconnect}
+                        />
+                    </Show>
+                    <Button label="Open" @test_id={part("open")} on_click={open} />
+                </List>
+            </Show>
+            <Show condition={connectable}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Button
+                        label="Connect a terminal"
+                        glyph=ICON_SQUARE_TERMINAL
+                        @test_id={part("connect")}
+                        on_click={connect}
+                    />
+                </List>
+            </Show>
         </List>
     }
 }
@@ -161,6 +319,9 @@ fn KeyNotice(state: State) -> NodeId {
         Some(KeyStanding::Refused) => {
             "boat.dev no longer accepts this key. Make a new one and reconnect.".to_owned()
         }
+        Some(KeyStanding::Lacking) => "This boat.dev key can't connect terminals: it lacks the \
+                                       exec and file.write actions. Make a new one and reconnect."
+            .to_owned(),
         _ => String::new(),
     });
     let urgent = create_memo(move || {
@@ -282,6 +443,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
         state.act(id.with(Clone::clone), Action::Resume);
     };
     let stop = move || state.act(id.with(Clone::clone), Action::Stop);
+    let sandbox_id = id.with(Clone::clone);
     view! {
         <Frame
             fill=ColorRole::Control
@@ -317,6 +479,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                         />
                     </Show>
                 </List>
+                <TerminalLine state id={sandbox_id} phase name />
                 <Show condition={asking}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ListItem grow=1.0>

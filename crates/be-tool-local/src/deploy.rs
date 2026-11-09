@@ -179,6 +179,12 @@ fn run(options: &mut Options) -> Result<(), String> {
         ));
     }
     println!("deploying build {build}");
+    let storage = setting(
+        "BE3_DEPLOY_STORAGE",
+        "https://la.storage.bunnycdn.com/be-app",
+    );
+    let mirror = setting("BE3_DEPLOY_MIRROR", "https://be3.pfg.pw");
+    let terminal_hosts = terminal_hosts(&options.be, &build, &mirror)?;
     if !options.skip_downloads && !options.dry_run {
         for (platform, file) in &mut options.downloads {
             if platform == "android" {
@@ -187,17 +193,20 @@ fn run(options: &mut Options) -> Result<(), String> {
                 }
                 let key = crate::apk_sign::release_key()?;
                 let output = options.repository.join("target/deploy/be-host-android.apk");
-                crate::apk_sign::finalize(file, &output, &key, &options.apk_metadata)?;
+                let metadata = options.repository.join("target/deploy/build-info.json");
+                let read = std::fs::read(&options.apk_metadata).map_err(|error| {
+                    format!("cannot read {}: {error}", options.apk_metadata.display())
+                })?;
+                std::fs::create_dir_all(options.repository.join("target/deploy"))
+                    .map_err(|error| format!("cannot make target/deploy: {error}"))?;
+                std::fs::write(&metadata, with_terminal_hosts(&read, &terminal_hosts)?)
+                    .map_err(|error| format!("cannot write {}: {error}", metadata.display()))?;
+                crate::apk_sign::finalize(file, &output, &key, &metadata)?;
                 *file = output;
             }
         }
     }
 
-    let storage = setting(
-        "BE3_DEPLOY_STORAGE",
-        "https://la.storage.bunnycdn.com/be-app",
-    );
-    let mirror = setting("BE3_DEPLOY_MIRROR", "https://be3.pfg.pw");
     let needs_storage = !options.dry_run
         && (!options.skip_be
             || !options.skip_downloads
@@ -285,6 +294,10 @@ fn run(options: &mut Options) -> Result<(), String> {
             let name = format!("be-host-{platform}.{}", extension.unwrap_or("zip"));
             let bytes = std::fs::read(file)
                 .map_err(|error| format!("cannot read {}: {error}", file.display()))?;
+            let bytes = match platform.as_str() {
+                "android" => bytes,
+                _ => archive_with_terminal_hosts(&bytes, &terminal_hosts)?,
+            };
             let sha256 = store.put(
                 &file.display().to_string(),
                 &format!("data/{build}/app/{name}"),
@@ -435,6 +448,104 @@ fn run(options: &mut Options) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Where this build's `be` will be on the mirror for each Linux architecture, and its SHA-256,
+/// which the app's bundles carry in their `build-info.json` (`terminal_hosts`) so a host can
+/// install a terminal host of its own build (guides/terminal.md).
+fn terminal_hosts(
+    be: &[(String, PathBuf)],
+    build: &str,
+    mirror: &str,
+) -> Result<Vec<be_lib_build_id::TerminalHostBinary>, String> {
+    be.iter()
+        .filter_map(|(triple, bundle)| {
+            let (arch, _) = be_lib_build_id::TERMINAL_HOST_ARCHES
+                .iter()
+                .find(|(_, known)| known == triple)?;
+            Some((*arch, triple, bundle))
+        })
+        .map(|(arch, triple, bundle)| {
+            let path = bundle.join("be");
+            let bytes = std::fs::read(&path)
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+            Ok(be_lib_build_id::TerminalHostBinary {
+                arch: arch.to_owned(),
+                url: format!("{mirror}/data/{build}/be-{triple}/be"),
+                sha256: hex(&Sha256::digest(&bytes)),
+            })
+        })
+        .collect()
+}
+
+/// A bundle's `build-info.json` naming where this build's `be` is, keeping every other field.
+fn with_terminal_hosts(
+    json: &[u8],
+    terminal_hosts: &[be_lib_build_id::TerminalHostBinary],
+) -> Result<Vec<u8>, String> {
+    let mut metadata: serde_json::Value = serde_json::from_slice(json)
+        .map_err(|error| format!("invalid build metadata: {error}"))?;
+    let object = metadata
+        .as_object_mut()
+        .ok_or("the build metadata is not a JSON object")?;
+    object.insert(
+        "terminal_hosts".to_owned(),
+        serde_json::to_value(terminal_hosts).map_err(|error| error.to_string())?,
+    );
+    let mut written = serde_json::to_vec(&metadata).map_err(|error| error.to_string())?;
+    written.push(b'\n');
+    Ok(written)
+}
+
+/// A download's zip with every `build-info.json` in it naming where this build's `be` is;
+/// every other entry is copied as it is.
+fn archive_with_terminal_hosts(
+    archive: &[u8],
+    terminal_hosts: &[be_lib_build_id::TerminalHostBinary],
+) -> Result<Vec<u8>, String> {
+    use std::io::{Cursor, Write};
+    use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
+
+    let mut read =
+        ZipArchive::new(Cursor::new(archive)).map_err(|error| format!("a download: {error}"))?;
+    let mut written = ZipWriter::new(Cursor::new(Vec::new()));
+    for index in 0..read.len() {
+        let mut entry = read
+            .by_index(index)
+            .map_err(|error| format!("a download: {error}"))?;
+        let name = entry.name().to_owned();
+        let metadata = name == be_lib_build_id::FILE
+            || name.ends_with(&format!("/{}", be_lib_build_id::FILE));
+        if !metadata {
+            drop(entry);
+            let raw = read
+                .by_index_raw(index)
+                .map_err(|error| format!("a download: {error}"))?;
+            written
+                .raw_copy_file(raw)
+                .map_err(|error| format!("a download: {error}"))?;
+            continue;
+        }
+        let mut json = Vec::new();
+        entry
+            .read_to_end(&mut json)
+            .map_err(|error| format!("{name}: {error}"))?;
+        let permissions = entry.unix_mode().unwrap_or(0o644);
+        drop(entry);
+        written
+            .start_file(
+                name.as_str(),
+                SimpleFileOptions::default().unix_permissions(permissions),
+            )
+            .map_err(|error| format!("{name}: {error}"))?;
+        written
+            .write_all(&with_terminal_hosts(&json, terminal_hosts)?)
+            .map_err(|error| format!("{name}: {error}"))?;
+    }
+    Ok(written
+        .finish()
+        .map_err(|error| format!("a download: {error}"))?
+        .into_inner())
 }
 
 struct Store<'a> {

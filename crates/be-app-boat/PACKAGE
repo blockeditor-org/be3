@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-sdk-beui:be-sdk-beui",
                 "//crates/be-type-boat:be-type-boat",
+                "//crates/be-type-terminal:be-type-terminal",
                 "//crates/beui:beui",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_json-1.0.150",

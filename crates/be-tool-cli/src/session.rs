@@ -17,6 +17,9 @@ pub struct Settings {
     pub phrase: String,
     pub authorization: Option<String>,
     pub cache: PathBuf,
+    /// The boat.dev sandbox a terminal host was installed for, as the credentials an app
+    /// handed it say (`boat_id`): a fork of that sandbox, whose `BOAT_ID` differs, runs none.
+    pub boat_id: Option<String>,
 }
 
 impl Settings {
@@ -111,7 +114,24 @@ impl Settings {
                         .map(|cache| cache.join("be3").join("be"))
                 })
                 .ok_or("set BE3_CACHE to a directory be can keep the objects it reads in")?,
+            boat_id: bundle
+                .as_ref()
+                .and_then(|bundle| bundle["boat_id"].as_str())
+                .map(|id| id.trim().to_owned())
+                .filter(|id| !id.is_empty()),
         })
+    }
+
+    /// Refuses a machine that is not the boat.dev sandbox the credentials were installed for,
+    /// given its `BOAT_ID`; a machine that doesn't say passes.
+    pub fn check_machine(&self, boat_id: Option<&str>) -> Result<(), String> {
+        match (&self.boat_id, boat_id.map(str::trim).filter(|id| !id.is_empty())) {
+            (Some(installed), Some(here)) if installed != here => Err(format!(
+                "this is boat.dev sandbox {here}, not {installed}, which this terminal host was \
+                 installed for: a fork runs no terminal of its own until one is connected to it"
+            )),
+            _ => Ok(()),
+        }
     }
 
     fn credentials(&self) -> Credentials {
