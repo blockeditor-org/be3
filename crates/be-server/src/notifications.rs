@@ -149,10 +149,8 @@ impl ServerStore {
         account: Uuid,
         organization: Uuid,
     ) -> Result<Vec<PushEndpoint>, ServerError> {
-        self.with_database(move |_, database| {
-            endpoints_of(database, account, organization)
-        })
-        .await
+        self.with_database(move |_, database| endpoints_of(database, account, organization))
+            .await
     }
 
     pub(crate) async fn notify_mode(

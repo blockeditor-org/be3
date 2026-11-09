@@ -2201,10 +2201,7 @@ impl Client {
                     prelude?;
                     let identity = connection.identity()?;
                     connection.pusher.check(&endpoint)?;
-                    connection
-                        .store
-                        .register_endpoint(identity, endpoint)
-                        .await
+                    connection.store.register_endpoint(identity, endpoint).await
                 }
                 .await;
                 self.reply(reply, registered);

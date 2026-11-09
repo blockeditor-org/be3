@@ -430,8 +430,7 @@ impl Pusher {
             let address = job.endpoint.address.clone();
             let pusher = Arc::clone(&self);
             let sent =
-                tokio::task::spawn_blocking(move || pusher.send(&job.endpoint, &job.message))
-                    .await;
+                tokio::task::spawn_blocking(move || pusher.send(&job.endpoint, &job.message)).await;
             match sent {
                 Ok(Sent::Delivered) => {}
                 Ok(Sent::Gone) => {

@@ -35,7 +35,10 @@ async fn a_notification_opens_only_for_the_blocks_members() {
         author: "Owner".to_owned(),
         text: "x".repeat(crate::MAX_NOTIFICATION_TEXT + 10),
     };
-    let sealed = owner.seal_notification(inside, &notification).await.unwrap();
+    let sealed = owner
+        .seal_notification(inside, &notification)
+        .await
+        .unwrap();
     assert!(
         !sealed.windows(5).any(|window| window == b"Plans"),
         "a notification travels sealed"

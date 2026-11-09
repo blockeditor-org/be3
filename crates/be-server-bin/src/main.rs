@@ -178,9 +178,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
                 config.public_url = Some(arguments.next().ok_or("--public-url needs a URL")?);
             }
             "--fcm-credentials" => {
-                let file = arguments
-                    .next()
-                    .ok_or("--fcm-credentials needs a file")?;
+                let file = arguments.next().ok_or("--fcm-credentials needs a file")?;
                 let json = std::fs::read_to_string(&file)
                     .map_err(|error| format!("reading {file}: {error}"))?;
                 config.push.fcm = Some(be_server::push::FcmConfig::from_service_account(&json)?);
