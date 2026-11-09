@@ -89,15 +89,18 @@ of setup (clone, the cargo bootstrap, buck2 and the relay). 8 builds at once fro
 workers on CPU. A `small` scheduler used at most 0.7 of its 2 vCPU and under 1 GB. 2 large workers were as fast or faster
 than 4 default ones when warm (141-190 s), single runs.
 
-## Scaling on the queue (written, not yet running)
+## Scaling on the queue (collector deployed; scaling under load not yet measured)
 
 The controller in this branch scales on NativeLink's queue depth, as NativeLink's docs advise, and not on CPU: worker CPU
 cannot say whether work is waiting (the 8-build run above averaged 45-72% busy and crossed the scale-up threshold once).
 NativeLink exports `execution.active.count` by `execution.stage` over gRPC OTLP, an OpenTelemetry collector
 (`scheduler/otelcol.yaml`, `nl-otelcol.service`, downloaded by setup-scheduler.sh against GitHub's published digest) serves it
 as `nativelink_execution_active_count`, and the workers take a fixed number of actions at once (`max_inflight_tasks` in
-worker-direct.json5) so that extra work queues. What is done: the parsing is tested, the units and configs are written, the
-controller reads the queue and scales to `ceil((queued + executing) / slots)` with burst workers that expire. What is not:
-none of it has run, because the tooling used here would not download and run the collector. Deploying it is the setup
-script's steps by hand on the scheduler, after which the 8-build run above should be repeated to compare with these numbers
-(and `max_inflight_tasks` tuned: 8 per 4 vCPU is a guess).
+worker-direct.json5) so that extra work queues. The controller scales to `ceil((queued + executing) / slots)` with burst
+workers that expire.
+
+Deployed on `nl-sched-small` (otelcol-contrib 0.165.0, sha256-checked). Verified: metrics flow, and a test build showed
+`queued=1` then `executing=1` (34 s build, 2 remote actions). Not done: no multi-build run happened with the new controller
+(the day's start allowance was below the controller's reserve), so scale-up under real queueing is unobserved. Next: repeat
+the 8-build run (`scripts/internal/nativelink/bench/run-timings.sh`) when about 50 starts are free, compare with the CPU
+numbers above, and tune `max_inflight_tasks` (8 per 4 vCPU is a guess).
