@@ -1509,7 +1509,12 @@ impl TestClient {
 }
 
 /// A member of `owner`'s personal organization who is `owner`'s contact and may view `block`.
-async fn viewer_of(harness: &Harness, owner: &mut TestClient, block: Uuid, email: &str) -> (TestClient, Uuid) {
+async fn viewer_of(
+    harness: &Harness,
+    owner: &mut TestClient,
+    block: Uuid,
+    email: &str,
+) -> (TestClient, Uuid) {
     let mut member = harness.client().await;
     let account = member.register(email).await;
     member.personal().await;
