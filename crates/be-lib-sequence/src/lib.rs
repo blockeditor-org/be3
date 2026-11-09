@@ -313,7 +313,8 @@ impl<T: Clone> Sequence<T> {
             {
                 end += 1;
             }
-            let mut run = Vec::with_capacity(placed[at..end].iter().map(|(_, items)| items.len()).sum());
+            let mut run =
+                Vec::with_capacity(placed[at..end].iter().map(|(_, items)| items.len()).sum());
             for (_, items) in &placed[at..end] {
                 run.extend_from_slice(items);
             }
