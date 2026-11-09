@@ -211,6 +211,9 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         </Text>
                                     </Frame>
                                 </Show>
+                                <Show condition={filtering}>
+                                    <ContentHits editor hits={content} />
+                                </Show>
                                 <Show condition={failed}>
                                     <Frame padding=PADDING>
                                         <Text style=TextStyle::CAPTION color=TextColor::Danger>
@@ -268,9 +271,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         }
                                     }</Tree>
                                 </ListItem>
-                                <Show condition={filtering}>
-                                    <ContentHits editor hits={content} />
-                                </Show>
                             </List>
                         </Frame>
                     </BackSlide>

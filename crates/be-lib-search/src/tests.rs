@@ -14,6 +14,7 @@ use crate::{
 
 mod a_put_without_text_survives_a_merge_with_compaction_or_reindexing;
 mod a_query_reads_few_blocks_while_skipping_a_common_term;
+mod a_snippet_marks_each_match_around_the_first;
 mod a_reindexed_document_no_longer_matches_its_old_words;
 mod compaction_gives_the_same_answers_as_one_index_built_from_scratch;
 mod corrupt_parts_are_errors_not_panics;

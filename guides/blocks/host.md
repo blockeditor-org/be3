@@ -213,6 +213,50 @@ metadata, or uses `SetMetadata` on a block with no content yet;
 `describe_implicitly` keeps an open block's derived metadata current until it
 is saved.
 
+## Search
+
+Full-text search over names and content (`be-host-stack/src/search.rs`; what is
+left: plans/search.md). The server never reads content, so clients build the
+index and search it locally.
+
+- **One index per root block** (a workspace, My files): a block of
+  `be_block_graph::SEARCH_INDEX_TYPE` under the root, named by its
+  `SEARCH_INDEX` metadata, so it is held by the root and never listed among its
+  children. Its access is exactly the root's, whatever its own authorship says
+  (`BlockNode::is_search_index`, `level_below`), so a block shared alone never
+  reads its tree's text through it. The server holds to the type and parent,
+  since it cannot read metadata: an index lies under a block, one held per
+  block, takes no grants of its own, and making or dropping it needs Edit on
+  the root. It rotates with the root's subtree like any block below it.
+- **The content** is `be_block::search_index::SearchIndexContent`, a
+  `be_lib_search::Index` kept as the block's parts: the header first (all a
+  replica loads, `Loads::FirstPart`), then every part the header names, read by
+  range. Two sides merge by parts (`MergeParts`, the union `Index::merge`
+  makes); it is registered with the host's own types (`be-sdk-type-host`).
+- **Indexing.** A head this device's session moves (`Host::status` with
+  `owner`) queues the block (`Searching::sealed`). Each round of the worker's
+  loop takes the queued blocks whose root it may edit, reads each one's name
+  from the mirror and its text from the type's plain file while that is text,
+  and hands each index one batch in a task, which applies it to the index's
+  newest head and seals the commit into the outbox: it is saved offline-first,
+  published by the next drain, and two devices' batches meet as a diverged
+  block that merges by parts. A root with no index gets one, made by the first
+  device that seals a commit under it. Metadata-held blocks (settings, edit
+  kinds, indexes) and detached ones are never indexed.
+- **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches
+  an owner shows and `searched` answers each (`search_revision` counts
+  answers). A search runs in a task over the index of every root the account
+  views in the mirror (or of `within`'s root), reading only the parts it needs
+  with `Peer::read_part`, and again whenever one of those indexes' heads moves.
+  The loop then cuts the shown hits' snippets (`Query::snippet`) from their
+  blocks' text, kept per block and head, and drops hits the mirror shows
+  detached, unviewable or outside `within`; it lists each hit block
+  (`Owner::Search`) and shows a hit only once the mirror holds it.
+- **Apps** watch a search with `search-watch` (`Editor::search` in
+  be-sdk-beui); the file tree's filter lists the hits under "In content", and
+  be-host's quick open (`found_blocks` in `compositor/palette.rs`) lists them
+  after the blocks whose names match.
+
 ## Creating, seeding and replacing
 
 - **Creating.** `create-block` carries the first content, written as the first
