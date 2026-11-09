@@ -6,7 +6,10 @@ fn a_terminal_whose_build_is_missing_gets_it_again() {
     let block = boat.connected(Uuid::new_v4());
     boat.resumed();
     // The link names this build, but its `be` is gone: the check says `none`.
-    boat.checked(block, &said("present\nnone\nconnected\nfailed\n1800000000\n"));
+    boat.checked(
+        block,
+        &said("present\nnone\nconnected\nfailed\n1800000000\n"),
+    );
     let (reply, _) = boat.host_call("the token rotated", |call| match call {
         HostCall::RotateAgentToken { reply, agent } => Ok((reply, agent)),
         call => Err(call),

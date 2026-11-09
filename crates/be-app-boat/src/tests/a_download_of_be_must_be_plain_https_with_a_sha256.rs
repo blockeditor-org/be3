@@ -11,7 +11,10 @@ fn a_download_of_be_must_be_plain_https_with_a_sha256() {
         "https://be3.example/be'; rm -rf ~; '",
         "https://be3.example/be\\",
     ] {
-        assert!(be_command("tree", Uuid::nil(), Some(url), BE_SHA256).is_err(), "{url}");
+        assert!(
+            be_command("tree", Uuid::nil(), Some(url), BE_SHA256).is_err(),
+            "{url}"
+        );
     }
     for hash in [
         "",
