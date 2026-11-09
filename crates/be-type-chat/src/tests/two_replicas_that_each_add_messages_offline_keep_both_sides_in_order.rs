@@ -3,25 +3,13 @@ use super::*;
 #[test]
 fn two_replicas_that_each_add_messages_offline_keep_both_sides_in_order() {
     let base = sent(&ChatContent::default(), ADA, &["hello", "anyone here?"]);
-    let ours = sent(&base, ADA, &["I'll be offline", "back soon"]);
-    let theirs = sent(&base, BO, &["hi Ada", "yes", "on the train"]);
+    let offline = sent(&base, ADA, &["I'll be offline", "back soon"]);
+    let published = sent(&base, BO, &["hi Ada", "yes", "on the train"]);
 
-    let (chat, conflicts) = merged(&base, &ours, &theirs);
+    // The device that was offline merges its messages onto the head others published.
+    let (chat, conflicts) = merged(&base, &offline, &published);
 
     assert_eq!(conflicts, 0);
-    assert_eq!(
-        bodies(&chat),
-        [
-            "hello",
-            "anyone here?",
-            "I'll be offline",
-            "back soon",
-            "hi Ada",
-            "yes",
-            "on the train"
-        ]
-    );
-    let (chat, _) = merged(&base, &theirs, &ours);
     assert_eq!(
         bodies(&chat),
         [
@@ -33,6 +21,20 @@ fn two_replicas_that_each_add_messages_offline_keep_both_sides_in_order() {
             "I'll be offline",
             "back soon"
         ],
-        "merged from the other side, its own messages come first"
+        "what was published stays where everyone saw it, and the offline run follows it"
+    );
+    let (chat, _) = merged(&base, &published, &offline);
+    assert_eq!(
+        bodies(&chat),
+        [
+            "hello",
+            "anyone here?",
+            "I'll be offline",
+            "back soon",
+            "hi Ada",
+            "yes",
+            "on the train"
+        ],
+        "whichever side is published comes first"
     );
 }

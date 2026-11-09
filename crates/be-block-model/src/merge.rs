@@ -602,8 +602,9 @@ fn merge_order(
     order
 }
 
-/// A `merge_appends` list's order: what was in the base merges as any list's does, and then
-/// come the items only ours added, then those only theirs added, each in its side's order.
+/// A `merge_appends` list's order, published first: what theirs holds (the published head, in
+/// every merge a replica or `be sync` makes) keeps its place, merged with what ours changed of
+/// the base, and the items only ours added come after all of it, in our order.
 fn append_order(
     before: &[ObjectId],
     mine: &[ObjectId],
@@ -617,9 +618,9 @@ fn append_order(
             .copied()
             .collect()
     };
-    let mut order = merge_order(before, &in_base(mine), &in_base(other), conflicts);
+    let mut order = merge_order(before, &in_base(mine), other, conflicts);
     let mut placed: HashSet<ObjectId> = order.iter().copied().collect();
-    for id in mine.iter().chain(other) {
+    for id in mine {
         if placed.insert(*id) {
             order.push(*id);
         }

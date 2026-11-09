@@ -2458,6 +2458,7 @@ dependencies = [
  "be-block",
  "be-block-commit",
  "be-block-model",
+ "be-block-store",
  "be-sdk-type-guest",
  "serde",
  "serde_bytes",

@@ -7,8 +7,8 @@ fn deleting_a_message_removes_it_with_its_edit_and_reactions() {
     let chat = edited(
         &chat,
         [
-            ChatContent::edit(typo, ADA, 5, "typo fixed"),
-            ChatContent::react(typo, BO, "thumbs-up", 6),
+            chat.edit(typo, ADA, 5, "typo fixed"),
+            chat.react(typo, BO, "thumbs-up", 6),
         ],
     );
     assert_eq!(chat.body(typo).as_deref(), Some("typo fixed"));

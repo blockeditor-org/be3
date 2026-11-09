@@ -10,7 +10,7 @@ fn reactions_show_under_a_message_with_their_counts() {
         (other, "party-popper"),
         (other, "heart"),
     ] {
-        chat.arrive(ChatContent::react(release, author, reaction, MORNING));
+        chat.arrive(chat.content().react(release, author, reaction, MORNING));
     }
     chat.click(&format!("chat.message.{release}.reaction.heart"));
     chat.click(&format!("chat.message.{thanks}.react"));
@@ -27,6 +27,12 @@ fn reactions_show_under_a_message_with_their_counts() {
             .label(&format!("chat.message.{release}.reaction.heart")),
         "\u{e0f2} 2",
         "the heart's icon and its count"
+    );
+    assert_eq!(
+        chat.editor
+            .accessible_label(&format!("chat.message.{release}.reaction.heart"))
+            .as_deref(),
+        Some("Heart, 2")
     );
     assert!(
         chat.editor

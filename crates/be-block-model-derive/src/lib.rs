@@ -141,6 +141,7 @@ fn derive(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         .map(|ident| format_ident!("{}", ident.to_string().to_uppercase()))
         .collect();
     let mut properties = Vec::new();
+    let mut checks = Vec::new();
     for ((field, ident), ty) in fields.iter().zip(&idents).zip(&types) {
         let attributes = field_attributes(field)?;
         let stored_name = attributes
@@ -149,6 +150,12 @@ fn derive(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         let aliases = &attributes.aliases;
         let critical = attributes.critical;
         let merge_appends = attributes.merge_appends;
+        if merge_appends {
+            checks.push(quote! {
+                fn merges_appends<T: ::be_block_model::MergesAppends>() {}
+                merges_appends::<#ty>();
+            });
+        }
         let old_names: Vec<_> = attributes.from_old.iter().map(|(name, _)| name).collect();
         let converts: Vec<_> = attributes.from_old.iter().map(|(_, path)| path).collect();
         properties.push(quote! {
@@ -205,6 +212,7 @@ fn derive(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             }
 
             fn kind() -> ::be_block_model::Kind {
+                #({ #checks })*
                 ::be_block_model::Kind {
                     name: #kind_name,
                     format: #format,

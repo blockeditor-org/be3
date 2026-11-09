@@ -32,7 +32,7 @@ pub use be_block_model_derive::Model;
 pub use be_lib_sequence::marks;
 pub use be_lib_sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
 pub use byte_string::{Bytes, bytes};
-pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
+pub use field::{Count, Field, FieldRef, Item, List, Map, MergesAppends, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use items::Items;

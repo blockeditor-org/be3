@@ -31,40 +31,57 @@ fn appended(document: &Document<Log>, anchor: Anchor, texts: &[&str]) -> Documen
 }
 
 #[test]
-fn a_list_that_merges_appends_puts_each_sides_additions_after_the_others() {
+fn a_list_that_merges_appends_keeps_the_published_side_and_puts_ours_after_it() {
     let base = appended(&Document::default(), Anchor::End, &["a", "b"]);
     let first = base.root().lines[0].id;
     let first_card = base.root().cards[0].id;
-    let ours = appended(&base, Anchor::End, &["ours 1", "ours 2"]);
+    let early = |document: &mut Document<Log>, text: &str| {
+        document.apply(
+            &[
+                Log::LINES
+                    .insert(ObjectId::ROOT, Anchor::After(first), &card(text))
+                    .1,
+                Log::CARDS
+                    .insert(ObjectId::ROOT, Anchor::After(first_card), &card(text))
+                    .1,
+            ]
+            .into_iter()
+            .collect(),
+        );
+    };
+    let mut ours = base.clone();
+    early(&mut ours, "ours early");
+    let ours = appended(&ours, Anchor::End, &["ours 1", "ours 2"]);
     let mut theirs = appended(&base, Anchor::End, &["theirs 1"]);
-    theirs.apply(
-        &[
-            Log::LINES
-                .insert(ObjectId::ROOT, Anchor::After(first), &card("theirs early"))
-                .1,
-            Log::CARDS
-                .insert(
-                    ObjectId::ROOT,
-                    Anchor::After(first_card),
-                    &card("theirs early"),
-                )
-                .1,
-        ]
-        .into_iter()
-        .collect(),
-    );
+    early(&mut theirs, "theirs early");
 
     let (merged, conflicts) = Document::merge(&base, &ours, &theirs);
 
     assert_eq!(conflicts, 0);
     assert_eq!(
         texts(&merged.root().lines),
-        ["a", "b", "ours 1", "ours 2", "theirs early", "theirs 1"],
-        "a list that merges appends keeps each side's run whole, ours first"
+        [
+            "a",
+            "theirs early",
+            "b",
+            "theirs 1",
+            "ours early",
+            "ours 1",
+            "ours 2"
+        ],
+        "the published side keeps its order and ours follows all of it"
     );
     assert_eq!(
         texts(&merged.root().cards),
-        ["a", "theirs early", "b", "ours 1", "ours 2", "theirs 1"],
+        [
+            "a",
+            "ours early",
+            "theirs early",
+            "b",
+            "ours 1",
+            "ours 2",
+            "theirs 1"
+        ],
         "any other list puts an insert after the sibling it was made after"
     );
 }

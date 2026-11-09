@@ -7,16 +7,16 @@ fn edits_and_reactions_made_offline_on_both_sides_are_kept_by_message() {
     let ours = edited(
         &base,
         [
-            ChatContent::edit(noon, ADA, 3, "half past twelve"),
-            ChatContent::react(lunch, ADA, "heart", 3),
+            base.edit(noon, ADA, 3, "half past twelve"),
+            base.react(lunch, ADA, "heart", 3),
         ],
     );
     let theirs = sent(
         &edited(
             &base,
             [
-                ChatContent::react(lunch, BO, "heart", 4),
-                ChatContent::react(noon, BO, "thumbs-up", 4),
+                base.react(lunch, BO, "heart", 4),
+                base.react(noon, BO, "thumbs-up", 4),
             ],
         ),
         BO,

@@ -1,5 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use accesskit::Role;
+use accesskit::{Node, Role};
 use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
@@ -25,7 +25,11 @@ pub fn ToggleButton(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     action: Option<Action>,
+    /// What assistive technology hears, when the label alone would not say it (a count
+    /// beside an icon); its role should be `Role::Button`.
+    accessibility: Option<Prop<Node>>,
 ) -> NodeId {
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
     view! {
         <Toggle
             api
@@ -36,6 +40,7 @@ pub fn ToggleButton(
             role=Role::Button
             action
             disabled
+            accessibility={accessibility}
         >|handle: ToggleHandle|
             <ToggleButtonFace handle />
         </Toggle>

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use be_sdk_beui::be_block::ObjectId;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
@@ -7,8 +9,9 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ContentProjection, Editor};
-use be_type_chat::{ChatContent, Message};
+use be_sdk_beui::beui::accesskit::{Node, Role};
+use be_sdk_beui::{ContentProjection, Editor, utc_offset};
+use be_type_chat::{ChatContent, Message, Shown};
 use beui::{Align, Direction};
 use uuid::Uuid;
 
@@ -58,12 +61,15 @@ pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
     let me = editor.blocks().account_id();
     let rows = chat.project_keyed(move |content: &ChatContent, rows| {
-        rows.reconcile_owned(
-            content
-                .messages()
-                .into_iter()
-                .filter_map(|id| Some((id, row(content, me, id)?))),
-        );
+        let shown = content.shown();
+        let by_id: HashMap<ObjectId, &Shown> =
+            shown.iter().map(|message| (message.id, message)).collect();
+        let today = local_date(now());
+        let rows_now: Vec<(ObjectId, Row)> = shown
+            .iter()
+            .map(|message| (message.id, row(&by_id, message, me, today)))
+            .collect();
+        rows.reconcile_owned(rows_now);
     });
     let ids = rows.keys();
     let empty = create_memo(move || ids.with(Vec::is_empty));
@@ -73,6 +79,33 @@ pub fn Chat(editor: Editor) -> NodeId {
         editing: create_signal(None),
         picking: create_signal(None),
     };
+    // A message replied to or being edited can be deleted, here or elsewhere.
+    create_effect(move || {
+        ids.with(|ids| {
+            if composer
+                .replying
+                .get_untracked()
+                .is_some_and(|id| !ids.contains(&id))
+            {
+                composer.replying.set(None);
+            }
+            if composer
+                .editing
+                .get_untracked()
+                .is_some_and(|id| !ids.contains(&id))
+            {
+                composer.editing.set(None);
+                composer.draft.set(String::new());
+            }
+            if composer
+                .picking
+                .get_untracked()
+                .is_some_and(|id| !ids.contains(&id))
+            {
+                composer.picking.set(None);
+            }
+        });
+    });
     let block = editor.block_id();
     let send = move || submit(&chat, block, me, composer);
     let replying = create_memo(move || {
@@ -173,35 +206,35 @@ pub fn Chat(editor: Editor) -> NodeId {
     }
 }
 
-fn row(content: &ChatContent, me: Uuid, id: ObjectId) -> Option<Row> {
-    let message = content.message(id)?;
-    let reply =
-        message.reply_to.map(
-            |quoted| match (content.message(quoted), content.body(quoted)) {
-                (Some(quoted), Some(body)) => {
-                    format!("{}: {}", author(quoted.author, me), excerpt(&body))
-                }
-                _ => "A deleted message".to_owned(),
-            },
-        );
-    let reactions = content
-        .reactions(id)
-        .into_iter()
+fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64) -> Row {
+    let reply = message.message.reply_to.map(|quoted| {
+        match shown.get(&quoted) {
+            Some(quoted) => format!(
+                "{}: {}",
+                author(quoted.message.author, me),
+                excerpt(&quoted.body)
+            ),
+            None => "A deleted message".to_owned(),
+        }
+    });
+    let reactions = message
+        .reactions
+        .iter()
         .map(|(reaction, authors)| Reacted {
-            reaction,
+            reaction: reaction.clone(),
             count: authors.len(),
             mine: authors.contains(&me),
         })
         .collect();
-    Some(Row {
-        author: author(message.author, me),
-        mine: message.author == me,
-        time: time(message.time),
-        body: content.body(id).unwrap_or_default(),
-        edited: content.edit_of(id).is_some(),
+    Row {
+        author: author(message.message.author, me),
+        mine: message.message.author == me,
+        time: time(message.message.time, today),
+        body: message.body.clone(),
+        edited: message.edited,
         reply,
         reactions,
-    })
+    }
 }
 
 /// No host service names members yet, so others show by their account's first digits.
@@ -212,10 +245,31 @@ fn author(account: Uuid, me: Uuid) -> String {
     }
 }
 
-fn time(millis: i64) -> String {
-    DateTime::from_unix(millis.div_euclid(1000))
-        .time
-        .format(HourCycle::H24)
+const SECONDS_PER_DAY: i64 = 86_400;
+
+/// Seconds since the epoch in the device's time zone.
+fn local_seconds(millis: i64) -> i64 {
+    millis.div_euclid(1000) + i64::from(utc_offset())
+}
+
+/// The local day `millis` falls on, counted from the epoch.
+fn local_date(millis: i64) -> i64 {
+    local_seconds(millis).div_euclid(SECONDS_PER_DAY)
+}
+
+/// When a message was written in local time, with its date unless that was today.
+fn time(millis: i64, today: i64) -> String {
+    let at = DateTime::from_unix(local_seconds(millis));
+    let clock = at.time.format(HourCycle::H24);
+    match local_date(millis) == today {
+        true => clock,
+        false => format!(
+            "{} {} {} {clock}",
+            at.date.day,
+            &at.date.month_name()[..3],
+            at.date.year
+        ),
+    }
 }
 
 fn excerpt(body: &str) -> String {
@@ -238,7 +292,9 @@ fn submit(chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
     }
     match composer.editing.get_untracked() {
         Some(message) => {
-            chat.operate(ChatContent::edit(message, me, now(), body));
+            if let Ok(edit) = chat.read(|content| content.edit(message, me, now(), body)) {
+                chat.operate(edit);
+            }
             composer.editing.set(None);
         }
         None => {
@@ -254,9 +310,12 @@ fn submit(chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
 }
 
 fn toggle_reaction(chat: &Chat, me: Uuid, message: ObjectId, reaction: &str, mine: bool) {
-    match mine {
-        true => chat.operate(ChatContent::unreact(message, me, reaction)),
-        false => chat.operate(ChatContent::react(message, me, reaction, now())),
+    let change = chat.read(|content| match mine {
+        true => content.unreact(message, me, reaction, now()),
+        false => content.react(message, me, reaction, now()),
+    });
+    if let Ok(change) = change {
+        chat.operate(change);
     }
 }
 
@@ -305,6 +364,15 @@ fn MessageRow(
         let count = create_memo(move || held.get().0.to_string());
         let pressed = create_memo(move || held.get().1);
         let glyph = be_sdk_beui::beui::icons::named(&reaction);
+        let said = REACTIONS
+            .iter()
+            .find(|(offered, _, _)| *offered == reaction)
+            .map_or_else(|| reaction.clone(), |(_, _, said)| (*said).to_owned());
+        let accessible = create_memo(move || {
+            let mut node = Node::new(Role::Button);
+            node.set_label(format!("{said}, {}", count.get()));
+            node
+        });
         view! {
             <ToggleButton
                 label={count}
@@ -312,6 +380,7 @@ fn MessageRow(
                 pressed={Binding::new(pressed, move |_| {
                     toggle_reaction(&chat, me, id, &reaction, pressed.get_untracked());
                 })}
+                accessibility={accessible}
                 @test_id={format!("chat.message.{id}.reaction.{name_for_id}")}
             />
         }
@@ -366,7 +435,10 @@ fn MessageRow(
                         size=ButtonSize::Small
                         @test_id={format!("chat.message.{id}.reply")}
                         on_click={move || {
-                            composer.editing.set(None);
+                            if composer.editing.get_untracked().is_some() {
+                                composer.editing.set(None);
+                                composer.draft.set(String::new());
+                            }
                             composer.replying.set(Some(id));
                         }}
                     />

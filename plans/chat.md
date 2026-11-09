@@ -16,8 +16,9 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
   `ChatContent` is written by hand, wrapping the header `Document<ChatHeader>`
   (its only part, `Loads::FirstPart`) and forwarding `LiveEdit`, `Merge` and
   `Undo` to it. The header holds the messages (a `merge_appends` list),
-  `edits`, `deletions` and `reactions` keyed by message id, and an empty
-  `segments` index. Each message stores the hash of the last message its
+  `edits`, `deletions` and `reactions` (`LatestMap`s) keyed by message id, and
+  an empty `segments` index. Sending and deleting are not undoable; an edit by
+  anyone but the message's author is ignored. Each message stores the hash of the last message its
   author saw (`seen`) and an empty signature; `Message::signed_bytes`,
   `MessageEdit::signed_bytes`, `Deletion::signed_bytes` and
   `ReactionKey::signed_bytes` define what a signature will cover
@@ -28,10 +29,15 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
   "Member" and their account's first digits, since no host service names
   members to an app yet. Attachments are in the model but the editor cannot
   add or show them yet.
+- **Member names.** Apps have no way to learn a member's name: the `contacts`
+  watch is the shell's alone. Step 1b or a later one needs a host service that
+  names the accounts in a block's members (contacts by their card, others by
+  what the server says, marked unverified), with no framework types.
 - **Loading.** A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads
   only its first part, and its editors read the rest by range
   (`LiveContent::read_range`; guides/blocks/apps.md, "Reading a range"). Every
-  `Blob` loads that way, a content type written by hand rather than derived. A
+  `Blob` and `ChatContent` load that way, content types written by hand rather
+  than derived. A
   save reuses the parts it never loaded, and publishing sends only what
   changed. Documents save as parts but load whole.
 - **References per part.** A part's node lists the blocks its own bytes
@@ -42,7 +48,10 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
 - **Access.** Posting needs Edit, which also allows changing others' messages.
   A grant must name a contact, so a chat only ever reaches contacts.
 - **Merging.** A `List` merge puts an insert after the sibling it was made
-  after (guides/blocks/content_types.md). Publishing is a compare-and-swap on
+  after, except in a `merge_appends` list such as chat's messages, which keeps
+  the published side as it is and puts what only the merging device added
+  after it (guides/blocks/content_types.md). Edits, deletions and reactions are
+  `LatestMap`s, so the later write of a key wins and none conflicts. Publishing is a compare-and-swap on
   the head: a device whose publish is rejected merges again on the new head,
   so a merge never has to give the same result from both sides.
 
@@ -89,9 +98,13 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
 ### Sending offline
 
 - A message written offline goes into the document like any edit, and goes out
-  through the ordinary three-way merge. Chat's merge puts the messages only one
-  side added after all of the other side's, ours first, keeping their order: a
-  model attribute on a `List` (`merge_appends`), not a merge written for chat.
+  through the ordinary three-way merge. Chat's merge is published first: the
+  messages already on the published head (theirs, in every merge a replica or
+  `be sync` makes) keep their place, and the merging device's own new messages
+  go after all of them, in their order: a model attribute on a `List`
+  (`merge_appends`), not a merge written for chat. In a live session the owner
+  sequences each send, an insert at the end, so a message lands after those
+  sequenced before it, the same order.
 - An offline device never closes segments. The online side may have closed
   one since the base, moving a message an offline edit or reaction names into
   a segment. Edits, deletions and reactions are kept by message id whether the

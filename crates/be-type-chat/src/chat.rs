@@ -3,8 +3,11 @@ use be_block::{
     Stored, Undo,
 };
 use be_block_commit::MergeResult;
+use std::collections::BTreeMap;
+
 use be_block_model::{
-    Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, Series, Step, Touched,
+    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Series,
+    Step, Touched,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -13,19 +16,22 @@ use crate::signed::{MessageHash, Signed};
 
 /// The chat's header, the first part of its stored form and the only one 1a writes: the
 /// recent messages, and every edit, deletion and reaction, kept apart from the messages and
-/// keyed by message id, so a message that moves into a segment keeps them.
+/// keyed by message id, so a message that moves into a segment keeps them. Those three are
+/// `LatestMap`s: the later write of a key wins whichever side made it, so an edit, deletion or
+/// reaction made offline on two devices never conflicts.
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 #[model(kind = "chat")]
 pub struct ChatHeader {
-    /// Each side's messages stay together when two replicas merge, ours first.
+    /// When a device merges what it wrote offline onto the published head, the published
+    /// messages keep their place and its own follow them.
     #[model(merge_appends)]
     pub messages: List<Message>,
     /// The latest edit of each message, by its id.
-    pub edits: Map<ObjectId, MessageEdit>,
+    pub edits: LatestMap<ObjectId, MessageEdit>,
     /// Each message deleted, by its id. The message itself is removed (it stays in version
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
-    pub deletions: Map<ObjectId, Deletion>,
-    pub reactions: Map<ReactionKey, Reaction>,
+    pub deletions: LatestMap<ObjectId, Deletion>,
+    pub reactions: LatestMap<ReactionKey, Reaction>,
     /// The closed segments, oldest first. None is closed yet.
     pub segments: Series<Segment>,
 }
@@ -165,6 +171,19 @@ impl ReactionKey {
 
 impl Root for ChatHeader {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6368_6174_2d62_6c6f_636b_2d74_7970_6531);
+
+    /// Sending and deleting are not undone: a message others may have read is taken back by
+    /// deleting it, which leaves a `Deletion`, and once it is in a segment it could not be
+    /// put back. Edits, deletions and reactions are `LatestMap` stamps, which never undo.
+    fn undoable(change: &Change) -> bool {
+        !matches!(
+            change,
+            Change::Insert { .. }
+                | Change::Remove { .. }
+                | Change::RemoveIf { .. }
+                | Change::Move { .. }
+        )
+    }
 }
 
 /// A chat block's content, written by hand rather than derived, as `Blob` is: it wraps the
@@ -174,6 +193,17 @@ impl Root for ChatHeader {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ChatContent {
     header: Document<ChatHeader>,
+}
+
+/// A message as an editor shows it: what it says now and who reacted how.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Shown {
+    pub id: ObjectId,
+    pub message: Message,
+    pub body: String,
+    pub edited: bool,
+    /// Each reaction's name with who reacted, by name.
+    pub reactions: Vec<(String, Vec<Uuid>)>,
 }
 
 impl ChatContent {
@@ -190,18 +220,30 @@ impl ChatContent {
         self.header.read::<Message>(id)
     }
 
+    fn edits(&self) -> LatestMap<ObjectId, MessageEdit> {
+        self.header.field(ObjectId::ROOT, ChatHeader::EDITS)
+    }
+
+    fn deletions(&self) -> LatestMap<ObjectId, Deletion> {
+        self.header.field(ObjectId::ROOT, ChatHeader::DELETIONS)
+    }
+
+    fn reaction_map(&self) -> LatestMap<ReactionKey, Reaction> {
+        self.header.field(ObjectId::ROOT, ChatHeader::REACTIONS)
+    }
+
+    /// The latest edit of `message` by its own author: an edit by anyone else is not one (a
+    /// signature would not verify), and a deleted message has none.
     pub fn edit_of(&self, message: ObjectId) -> Option<MessageEdit> {
-        self.header
-            .field(ObjectId::ROOT, ChatHeader::EDITS)
+        let author = self.message(message)?.author;
+        self.edits()
             .get(&message)
+            .filter(|edit| edit.author == author)
             .cloned()
     }
 
     pub fn deletion_of(&self, message: ObjectId) -> Option<Deletion> {
-        self.header
-            .field(ObjectId::ROOT, ChatHeader::DELETIONS)
-            .get(&message)
-            .cloned()
+        self.deletions().get(&message).cloned()
     }
 
     /// What a message says now: its latest edit's body, or what it was sent with.
@@ -210,25 +252,29 @@ impl ChatContent {
         Some(self.edit_of(message).map_or(sent.body, |edit| edit.body))
     }
 
-    /// Each reaction to `message` with who reacted, in the order of the reactions' names.
+    /// Each reaction to `message` with who reacted, by the reactions' names.
     pub fn reactions(&self, message: ObjectId) -> Vec<(String, Vec<Uuid>)> {
-        let mut grouped: Vec<(String, Vec<Uuid>)> = Vec::new();
-        for key in self.reaction_keys(message) {
-            match grouped.iter_mut().find(|(name, _)| *name == key.reaction) {
-                Some((_, authors)) => authors.push(key.author),
-                None => grouped.push((key.reaction, vec![key.author])),
-            }
-        }
-        grouped.sort_by(|(left, _), (right, _)| left.cmp(right));
-        grouped
+        let mut grouped = grouped_reactions(&self.reaction_map(), &self.deletions());
+        grouped.remove(&message).unwrap_or_default()
     }
 
-    fn reaction_keys(&self, message: ObjectId) -> Vec<ReactionKey> {
-        self.header
-            .field(ObjectId::ROOT, ChatHeader::REACTIONS)
-            .keys()
-            .filter(|key| key.message == message)
-            .cloned()
+    /// Every recent message as an editor shows it, reading each map once.
+    pub fn shown(&self) -> Vec<Shown> {
+        let edits = self.edits();
+        let mut reactions = grouped_reactions(&self.reaction_map(), &self.deletions());
+        self.messages()
+            .into_iter()
+            .filter_map(|id| {
+                let message = self.message(id)?;
+                let edit = edits.get(&id).filter(|edit| edit.author == message.author);
+                Some(Shown {
+                    id,
+                    body: edit.map_or_else(|| message.body.clone(), |edit| edit.body.clone()),
+                    edited: edit.is_some(),
+                    reactions: reactions.remove(&id).unwrap_or_default(),
+                    message,
+                })
+            })
             .collect()
     }
 
@@ -248,15 +294,16 @@ impl ChatContent {
         (id, change.into())
     }
 
-    pub fn edit(message: ObjectId, author: Uuid, time: i64, body: impl Into<String>) -> Edit {
+    pub fn edit(&self, message: ObjectId, author: Uuid, time: i64, body: impl Into<String>) -> Edit {
         let edit = MessageEdit {
             author,
             time,
             body: body.into(),
             signature: Signature::default(),
         };
+        let stamp = self.edits().next(&message, stamp_time(time), author);
         ChatHeader::EDITS
-            .put(ObjectId::ROOT, &message, Some(&edit))
+            .put(ObjectId::ROOT, &message, Some(&edit), stamp)
             .into()
     }
 
@@ -267,45 +314,99 @@ impl ChatContent {
             time,
             signature: Signature::default(),
         };
-        let mut changes =
-            vec![ChatHeader::DELETIONS.put(ObjectId::ROOT, &message, Some(&deletion))];
+        let at = stamp_time(time);
+        let (edits, deletions, reactions) = (self.edits(), self.deletions(), self.reaction_map());
+        let mut changes = vec![ChatHeader::DELETIONS.put(
+            ObjectId::ROOT,
+            &message,
+            Some(&deletion),
+            deletions.next(&message, at, author),
+        )];
         if self.message(message).is_some() {
             changes.push(Change::remove(message));
         }
-        if self.edit_of(message).is_some() {
-            changes.push(ChatHeader::EDITS.put(ObjectId::ROOT, &message, None));
+        if edits.contains_key(&message) {
+            let stamp = edits.next(&message, at, author);
+            changes.push(ChatHeader::EDITS.put(ObjectId::ROOT, &message, None, stamp));
         }
         changes.extend(
-            self.reaction_keys(message)
-                .iter()
-                .map(|key| ChatHeader::REACTIONS.put(ObjectId::ROOT, key, None)),
+            reactions
+                .keys()
+                .filter(|key| key.message == message)
+                .map(|key| {
+                    let stamp = reactions.next(key, at, author);
+                    ChatHeader::REACTIONS.put(ObjectId::ROOT, key, None, stamp)
+                }),
         );
         changes.into_iter().collect()
     }
 
-    pub fn react(message: ObjectId, author: Uuid, reaction: impl Into<String>, time: i64) -> Edit {
+    pub fn react(
+        &self,
+        message: ObjectId,
+        author: Uuid,
+        reaction: impl Into<String>,
+        time: i64,
+    ) -> Edit {
         let key = ReactionKey {
             message,
             author,
             reaction: reaction.into(),
         };
+        let stamp = self.reaction_map().next(&key, stamp_time(time), author);
         let reaction = Reaction {
             time,
             signature: Signature::default(),
         };
         ChatHeader::REACTIONS
-            .put(ObjectId::ROOT, &key, Some(&reaction))
+            .put(ObjectId::ROOT, &key, Some(&reaction), stamp)
             .into()
     }
 
-    pub fn unreact(message: ObjectId, author: Uuid, reaction: impl Into<String>) -> Edit {
+    pub fn unreact(
+        &self,
+        message: ObjectId,
+        author: Uuid,
+        reaction: impl Into<String>,
+        time: i64,
+    ) -> Edit {
         let key = ReactionKey {
             message,
             author,
             reaction: reaction.into(),
         };
-        ChatHeader::REACTIONS.put(ObjectId::ROOT, &key, None).into()
+        let stamp = self.reaction_map().next(&key, stamp_time(time), author);
+        ChatHeader::REACTIONS
+            .put(ObjectId::ROOT, &key, None, stamp)
+            .into()
     }
+}
+
+fn stamp_time(time: i64) -> u64 {
+    u64::try_from(time).unwrap_or(0)
+}
+
+/// Reactions grouped by message and then by name, leaving out those to deleted messages.
+fn grouped_reactions(
+    reactions: &LatestMap<ReactionKey, Reaction>,
+    deletions: &LatestMap<ObjectId, Deletion>,
+) -> BTreeMap<ObjectId, Vec<(String, Vec<Uuid>)>> {
+    let mut grouped: BTreeMap<ObjectId, BTreeMap<String, Vec<Uuid>>> = BTreeMap::new();
+    for key in reactions
+        .keys()
+        .filter(|key| !deletions.contains_key(&key.message))
+    {
+        grouped
+            .entry(key.message)
+            .or_default()
+            .entry(key.reaction.clone())
+            .or_default()
+            .push(key.author);
+    }
+    grouped
+        .into_iter()
+        .map(|(message, names)| (message, names.into_iter().collect()))
+        .collect()
 }
 
 impl BlockContent for ChatContent {
