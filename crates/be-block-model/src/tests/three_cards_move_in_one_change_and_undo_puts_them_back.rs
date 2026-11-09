@@ -20,11 +20,19 @@ fn three_cards_move_in_one_change_and_undo_puts_them_back() {
 
     let refused = |document: &Document<Board>, texts: &[&str], anchor: Anchor| {
         document
-            .step(&Column::CARDS.move_range(todo, card_ids(document, texts), anchor).into())
+            .step(
+                &Column::CARDS
+                    .move_range(todo, card_ids(document, texts), anchor)
+                    .into(),
+            )
             .is_none()
     };
     assert!(
-        refused(&document, &["b", "c", "d"], Anchor::After(card_id(&document, "c"))),
+        refused(
+            &document,
+            &["b", "c", "d"],
+            Anchor::After(card_id(&document, "c"))
+        ),
         "a range cannot move inside itself"
     );
     assert!(

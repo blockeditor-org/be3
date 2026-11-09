@@ -22,6 +22,7 @@ use crate::{
     editor::{EditorMirror, FromEditor, Gesture, ToEditor},
 };
 
+mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_file_maps_to_a_block_and_back;
@@ -38,7 +39,6 @@ mod a_followers_edit_too_large_to_relay_lands_once;
 mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
 mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
-mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;

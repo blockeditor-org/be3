@@ -43,5 +43,8 @@ fn a_range_someone_split_meanwhile_does_not_move() {
         "a card removed from between them does not keep them apart"
     );
     document.apply(&step.undo());
-    assert_eq!(columns(&document), owned(&[("Todo", &["a", "b", "d", "e"])]));
+    assert_eq!(
+        columns(&document),
+        owned(&[("Todo", &["a", "b", "d", "e"])])
+    );
 }
