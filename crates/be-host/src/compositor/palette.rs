@@ -48,13 +48,18 @@ pub(crate) struct OpenableBlock {
     pub(crate) id: Uuid,
     pub(crate) block_type: Uuid,
     pub(crate) name: String,
-    /// Where it is: the name of the block holding it.
-    pub(crate) place: String,
+    /// What the row says under the name: where the block is (the name of the block holding
+    /// it), or a search hit's matched text.
+    pub(crate) detail: String,
 }
 
-/// Where quick open's rows come from, given what was typed. The host's own lists the blocks it
-/// has loaded, those open in an editor first; a search (plans/search.md) answers with its hits.
-pub(crate) type BlockSource = Rc<dyn Fn(&str) -> Vec<OpenableBlock>>;
+/// Where quick open's rows come from. Handed what is typed and a count of the times quick open
+/// opened (a source reads what it lists again then), it answers the blocks to offer, filtered
+/// and in order: the palette keeps that order (`PaletteItem::ranked`), so a source can be a
+/// search answering as its results arrive (plans/search.md). The host's own,
+/// `loaded_blocks`, lists the blocks its graph holds.
+pub(crate) type BlockSource =
+    Rc<dyn Fn(ReadSignal<String>, ReadSignal<u64>) -> Memo<Vec<OpenableBlock>>>;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Shown {
@@ -69,13 +74,12 @@ pub(crate) fn HostPalette(
     let open = create_signal(false);
     let shown = create_signal(Shown::Actions);
     let query = create_signal(String::new());
+    let opened = create_signal(0u64);
     let actions = create_signal(Rc::new(Vec::<Row>::new()));
+    let found = blocks(query.read_only(), opened.read_only());
     let rows = create_memo(move || match shown.get() {
         Shown::Actions => actions.get(),
-        Shown::Blocks { from } => {
-            let typed = query.get();
-            Rc::new(block_rows(blocks(&typed), from))
-        }
+        Shown::Blocks { from } => Rc::new(block_rows(found.get(), from)),
     });
     let items = create_memo(move || {
         rows.with(|rows| rows.iter().map(|row| row.item.clone()).collect::<Vec<_>>())
@@ -91,6 +95,7 @@ pub(crate) fn HostPalette(
                     .and_then(super::desktop::catcher)
                     .and_then(|catcher| catcher.block);
                 shown.set(Shown::Blocks { from });
+                opened.update(|count| *count += 1);
             }
         }
         open.set(true);
@@ -184,14 +189,17 @@ fn leaves_to_program(event: KeyEvent) -> bool {
 }
 
 fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
+    let count = blocks.len();
     blocks
         .into_iter()
-        .map(|block| Row {
+        .enumerate()
+        .map(|(at, block)| Row {
             item: PaletteItem {
                 key: block.id.to_string(),
                 title: block.name,
-                detail: block.place,
+                detail: block.detail,
                 glyph: Some(ICON_FILE),
+                ranked: Some(u32::try_from(count - at).unwrap_or(u32::MAX)),
                 ..PaletteItem::default()
             },
             run: Run::Open {
@@ -203,10 +211,39 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
         .collect()
 }
 
-/// The blocks the host has loaded that may be viewed and that an editor shows (named after
-/// themselves, else their type), those open in an editor first. Quick open ranks them by what
-/// was typed.
-fn loaded_blocks(_typed: &str) -> Vec<OpenableBlock> {
+/// The host's own quick open: the blocks its graph holds, read again each time quick open
+/// opens, that sit in a folder or at the top (not detached), may be viewed and that an editor
+/// shows (named after themselves, else their type), those open in an editor first, fuzzily
+/// matched against what is typed.
+fn loaded_blocks(typed: ReadSignal<String>, opened: ReadSignal<u64>) -> Memo<Vec<OpenableBlock>> {
+    let loaded = create_memo(move || {
+        opened.get();
+        untrack(graph_blocks)
+    });
+    create_memo(move || {
+        let typed = typed.get();
+        loaded.with(|blocks| {
+            if typed.trim().is_empty() {
+                return blocks.clone();
+            }
+            let mut scored: Vec<(u32, &OpenableBlock)> = blocks
+                .iter()
+                .filter_map(|block| {
+                    let item = PaletteItem {
+                        title: block.name.clone(),
+                        detail: block.detail.clone(),
+                        ..PaletteItem::default()
+                    };
+                    Some((item.fuzzy_score(&typed)?, block))
+                })
+                .collect();
+            scored.sort_by(|(a, _), (b, _)| b.cmp(a));
+            scored.into_iter().map(|(_, block)| block.clone()).collect()
+        })
+    })
+}
+
+fn graph_blocks() -> Vec<OpenableBlock> {
     let editors = super::editors::editors();
     let open: Vec<Uuid> = editors.with(|open| open.keys().copied().collect());
     let registry = editors.registry();
@@ -215,20 +252,21 @@ fn loaded_blocks(_typed: &str) -> Vec<OpenableBlock> {
             .nodes()
             .filter(|node| node.access.can_view())
             .filter_map(|node| {
-                let type_name = registry.display_name(node.content_type)?;
-                let name = node.metadata.name().unwrap_or_else(|| type_name.to_owned());
-                let place = match node.parent {
-                    Some(be_block_graph::BlockParent::Block(parent)) => graph
+                let detail = match node.parent? {
+                    be_block_graph::BlockParent::Block(parent) => graph
                         .get(parent)
                         .and_then(|parent| parent.metadata.name())
                         .unwrap_or_default(),
-                    _ => String::new(),
+                    be_block_graph::BlockParent::Root => String::new(),
+                    be_block_graph::BlockParent::Detached => return None,
                 };
+                let type_name = registry.display_name(node.content_type)?;
+                let name = node.metadata.name().unwrap_or_else(|| type_name.to_owned());
                 Some(OpenableBlock {
                     id: node.id,
                     block_type: node.content_type,
                     name,
-                    place,
+                    detail,
                 })
             })
             .collect()
@@ -329,7 +367,7 @@ fn host_rows() -> Vec<Row> {
     let path = try_with_document(|document| document.focus_ancestry()).unwrap_or_default();
     let mut actions: Vec<Action> = active_actions_from(&path)
         .into_iter()
-        .filter(|action| action.id() != "host.palette" && action.is_alive())
+        .filter(Action::is_alive)
         .collect();
     actions.sort_by_key(|action| !action.is_enabled());
     actions

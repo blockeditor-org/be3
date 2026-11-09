@@ -131,7 +131,10 @@ worker").
   answers from the index once it exists.
 - Quick open lists search hits: a `BlockSource` for be-host's palette
   (`be-host/src/compositor/palette.rs`, guides/apps/editor.md, Actions and the
-  palette) that answers what was typed from the index.
+  palette), a memo of the hits for the query signal it is handed, in the
+  index's order, each with its matched text as `detail`. Opening a hit at its
+  location needs `OpenableBlock` and `EditorAction::OpenBlock` to carry one;
+  neither does yet.
 - Opening a hit opens the block at its document and highlights the match where
   the editor supports a location.
 

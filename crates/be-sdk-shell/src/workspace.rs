@@ -1040,7 +1040,7 @@ impl Workspace {
         )
     }
 
-    /// Starts a new file in My files, as the files' add menu does.
+    /// Starts a new file where a file made without a chosen place goes.
     pub fn new_file(&self) {
         self.create_in(BlockParent::Root);
     }

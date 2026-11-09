@@ -430,8 +430,7 @@ pub(crate) enum UiCommand {
     KeepDisplay(u64),
     RevertDisplay(u64),
     LockScreen,
-    /// Cycles the host's theme through the system's, light and dark, in its own preference
-    /// layer.
+    /// Cycles the theme setting through the system's, light and dark.
     CycleTheme,
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Unlock(be_host_base::password::Password),

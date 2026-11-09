@@ -2870,6 +2870,23 @@ impl HostCore {
         };
     }
 
+    /// Moves the theme setting on from the system's to light, dark and back, written to the
+    /// layer the Settings app would write it to; `sync_ui_settings` applies it as it applies
+    /// a change made there.
+    fn cycle_theme(&mut self) {
+        let setting = DisplaySettings::theme_setting();
+        let this_device = self.display.layers().this_device.unwrap_or_default();
+        let layer = setting.layer(&this_device);
+        let next = match self.display.applied().and_then(|settings| setting.get(settings)) {
+            None => Some(beui::ThemeKind::Light),
+            Some(beui::ThemeKind::Light) => Some(beui::ThemeKind::Dark),
+            Some(_) => None,
+        };
+        let edit: local_settings::LayerEdit<DisplaySettings> =
+            std::rc::Rc::new(move |own: &DisplaySettings| setting.set(own, next));
+        self.display.commit(&self.host_state, vec![(layer, edit)]);
+    }
+
     fn answer_display(&mut self, round: u64, keep: bool) {
         let display::Prompt::Asking { round: asked, .. } = display::prompt(host::now()) else {
             return;
@@ -3297,15 +3314,7 @@ impl HostCore {
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
             UiCommand::DismissToast(id) => notices::dismiss(id),
-            UiCommand::CycleTheme => {
-                let mut layer = context.preference_layer(beui::PreferenceSource::Program);
-                layer.theme = match layer.theme {
-                    None => Some(beui::ThemeKind::Light),
-                    Some(beui::ThemeKind::Light) => Some(beui::ThemeKind::Dark),
-                    Some(_) => None,
-                };
-                context.set_preference_layer(beui::PreferenceSource::Program, layer);
-            }
+            UiCommand::CycleTheme => self.cycle_theme(),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
             #[cfg(target_os = "linux")]

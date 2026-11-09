@@ -188,15 +188,19 @@ every shown view's of an instance with the placing view's first. Ids repeat acro
 has its Undo; the innermost lists first), never within one. Choosing one gives
 the focus back to that view and runs it in the view it came from. The host's own
 live actions follow (switch account, lock, the theme, which cycles the
-system's, light and dark in the host's preference layer). A containing app's
+display settings' theme through the system's, light and dark, written as the
+Settings app writes it and applied by `sync_ui_settings`). A containing app's
 chords do not reach it while a child has the focus
 (plans/deferred/command_palette_shortcuts.md).
 
 `open-palette(instance, blocks)` is quick open: the workspace's Ctrl+P (while
 the workspace itself has the focus) asks for it, and the host lists blocks to
-open from a `BlockSource` (`palette.rs`), by default the named blocks its graph
-has loaded, those open in an editor first; plans/search.md swaps in search
-hits. The workspace's other commands (Settings, Show files, New file) are its
+open from a `BlockSource` (`palette.rs`): handed the query and a count of
+openings, it answers a memo of blocks already filtered and ordered, which the
+palette keeps (`PaletteItem::ranked`). The default, `loaded_blocks`, reads the
+graph's placed, viewable blocks of a type an editor shows each time quick
+open opens (open ones first) and matches them fuzzily; plans/search.md swaps in
+search hits. The workspace's other commands (Settings, Show files, New file) are its
 own actions, and the tab keys and Split right, Split down and Close tab are
 beui-dock-host's (guides/beui/docking.md).
 
