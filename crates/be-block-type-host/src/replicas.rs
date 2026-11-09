@@ -235,6 +235,14 @@ impl Merged {
     }
 }
 
+/// A block's searchable text, as its type answered `search-text`.
+#[derive(Debug)]
+pub struct Searched {
+    pub documents: Vec<be_sdk_type_api::SearchDocument>,
+    /// The parts the type read, in the order it asked.
+    pub read: Vec<be_block_store::PartRef>,
+}
+
 #[derive(Clone, Copy)]
 enum Asked {
     Content,
@@ -1425,6 +1433,49 @@ impl<H: Host> Replicas<H> {
             conflicts: merged.conflicts as usize,
             read: Vec::new(),
         }))
+    }
+
+    /// A commit's searchable text (`be_block::BlockContent::search_text`): only the documents
+    /// `keys` names (none for every one), and none of the bodies of documents whose source is
+    /// in `indexed`. The type is handed its first part when it loads only that and reads only
+    /// the parts it needs. None when the type has no module or failed; the first read that
+    /// failed is the error.
+    pub async fn search_text(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        content_type: Uuid,
+        manifest: &be_block_store::Manifest,
+        keys: Option<Vec<String>>,
+        indexed: &[be_block_store::PartRef],
+    ) -> Result<Option<Searched>, ClientError> {
+        let peer = ctx.0;
+        let Some(kind) = self.kind(content_type).await else {
+            return Ok(None);
+        };
+        let Some(module) = self.modules.module_of(content_type) else {
+            return Ok(None);
+        };
+        let content = be_sdk_type_api::Loaded::of(match kind.first_part {
+            true => peer.load_first_part(manifest).await?,
+            false => peer.load_manifest(manifest).await?,
+        });
+        let scope = types::Scope::of([&content]);
+        let indexed = indexed.iter().copied().map(Into::into).collect();
+        let (answer, mut scope) = self
+            .ask_reading(ctx, module, scope, |connection| {
+                replicas::search_text(connection, content_type, content, keys, indexed)
+            })
+            .await;
+        if let Some(failed) = scope.take_failure() {
+            return Err(failed);
+        }
+        Ok(match answer {
+            Ok(Ok(documents)) => Some(Searched {
+                documents,
+                read: scope.read().to_vec(),
+            }),
+            _ => None,
+        })
     }
 
     pub async fn merge_diverged(

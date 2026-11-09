@@ -1,6 +1,7 @@
 # Search
 
-Depends on: plans/search_library.md.
+Depends on: none for steps 1 to 4; step 5 on plans/search_library.md (more
+types).
 
 Full-text search over names and content. The server never reads content
 (guides/the_new_block_stack.md, goal 5), so clients build the index, encrypt
