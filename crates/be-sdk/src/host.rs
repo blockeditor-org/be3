@@ -512,7 +512,8 @@ pub struct EditorHost {
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
-    changes: Rc<Cell<u64>>,
+    on_changed: Rc<crate::state::Callbacks<(), dyn Fn()>>,
+    reads: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
@@ -624,6 +625,7 @@ impl EditorHost {
     }
 
     pub fn revision(&self, pushed: Pushed) -> u64 {
+        self.read();
         self.pushed[pushed as usize].get()
     }
 
@@ -657,12 +659,30 @@ impl EditorHost {
         made
     }
 
-    pub fn changes(&self) -> u64 {
-        self.changes.get() + self.graph.deferred()
+    /// Runs `run` whenever anything the editor mirrors from the host changes, or the graph
+    /// defers a change until the next frame: an editor's frame checks nothing on the host
+    /// unless this said so.
+    pub fn on_changed(&self, run: impl Fn() + 'static) -> Subscription {
+        let run: Rc<dyn Fn()> = Rc::new(run);
+        let own = self.on_changed.add((), Rc::clone(&run));
+        let graph = self.graph.on_deferred(run);
+        Subscription::new(move || drop((own, graph)))
     }
 
     fn changed(&self) {
-        self.changes.set(self.changes.get() + 1);
+        for run in self.on_changed.all() {
+            run();
+        }
+    }
+
+    /// How many times an editor read the host's mirrored state on a frame. Tests count it to
+    /// check a frame with nothing pushed reads nothing.
+    pub fn reads(&self) -> u64 {
+        self.reads.get()
+    }
+
+    fn read(&self) {
+        self.reads.set(self.reads.get() + 1);
     }
 
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
@@ -883,6 +903,7 @@ impl EditorHost {
     }
 
     pub fn watch_revision_of(&self, watch: TypeId) -> u64 {
+        self.read();
         self.watches
             .borrow()
             .revisions
@@ -1209,6 +1230,7 @@ impl EditorHost {
     }
 
     pub fn editable(&self) -> bool {
+        self.read();
         self.editable.get()
     }
 
@@ -1281,6 +1303,7 @@ impl EditorHost {
     }
 
     pub fn updated_content(&self) -> Vec<Option<Uuid>> {
+        self.read();
         self.content_updates.borrow().keys().copied().collect()
     }
 
@@ -1644,6 +1667,7 @@ impl EditorHost {
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
+        self.read();
         let view = self.shown_view()?;
         match self.drops.borrow().get(&view)?.dragged {
             Some(Dragged::Block(drag)) => Some(drag),
@@ -1652,6 +1676,7 @@ impl EditorHost {
     }
 
     pub fn files(&self) -> Option<FileDrop> {
+        self.read();
         let view = self.shown_view()?;
         match &self.drops.borrow().get(&view)?.dragged {
             Some(Dragged::Files(drop)) => Some(drop.clone()),
@@ -1990,10 +2015,12 @@ impl EditorHost {
     }
 
     pub fn chrome_shown(&self) -> bool {
+        self.read();
         self.chrome.get().unwrap_or(true)
     }
 
     pub fn placed_content(&self) -> Option<Rect> {
+        self.read();
         self.placed_content.get()
     }
 
@@ -2120,6 +2147,7 @@ impl EditorHost {
     }
 
     pub fn frame_anchor(&self) -> Option<Rect> {
+        self.read();
         self.frame_anchor.get()
     }
 
@@ -2179,6 +2207,7 @@ impl EditorHost {
     }
 
     pub fn presenting(&self) -> bool {
+        self.read();
         self.presenting.get()
     }
 
@@ -2366,6 +2395,7 @@ impl EditorHost {
     }
 
     pub fn flush_graph(&self) {
+        self.read();
         self.graph.flush();
     }
 

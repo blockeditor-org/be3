@@ -5,15 +5,6 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
-## 1. Push, don't poll
-
-Each piece of host state the editor mirrors already notifies its own
-subscribers (`Mirror` in `be-sdk-beui/src/editor.rs`), but `Editor::begin_frame`
-still compares the host's change counter (`host().changes()`) every frame
-before syncing the mirror. Make it fully push-based, so a frame does no
-checking at all. Done: a test with a host that counts calls shows a frame with
-no pushes calls nothing on the host.
-
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,

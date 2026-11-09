@@ -284,7 +284,7 @@ pub(crate) struct GraphState {
     revision: Cell<u64>,
     changed_queries: RefCell<BTreeSet<BlockQuery>>,
     changed_blocks: RefCell<BTreeSet<Uuid>>,
-    deferred: Cell<u64>,
+    on_deferred: Callbacks<(), dyn Fn()>,
     ready: RefCell<Option<Rc<dyn Fn() -> bool>>>,
     commands: RefCell<Vec<GraphCommand>>,
     on_query: Callbacks<BlockQuery, dyn Fn()>,
@@ -302,7 +302,7 @@ impl Default for GraphState {
             revision: Cell::default(),
             changed_queries: RefCell::default(),
             changed_blocks: RefCell::default(),
-            deferred: Cell::default(),
+            on_deferred: Callbacks::default(),
             ready: RefCell::default(),
             commands: RefCell::default(),
             on_query: Callbacks::default(),
@@ -320,7 +320,11 @@ impl GraphState {
         let ready = self.ready.borrow().clone();
         match ready.is_none_or(|ready| ready()) {
             true => self.announce(),
-            false => self.deferred.set(self.deferred.get() + 1),
+            false => {
+                for run in self.on_deferred.all() {
+                    run();
+                }
+            }
         }
     }
 
@@ -341,8 +345,8 @@ impl GraphState {
         }
     }
 
-    pub(crate) fn deferred(&self) -> u64 {
-        self.deferred.get()
+    pub(crate) fn on_deferred(&self, run: Rc<dyn Fn()>) -> Subscription {
+        self.on_deferred.add((), run)
     }
 
     pub(crate) fn flush(&self) {
