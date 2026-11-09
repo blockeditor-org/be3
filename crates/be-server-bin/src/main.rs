@@ -105,7 +105,7 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn run() -> Result<(), Box<dyn Error>> {
+async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut arguments = env::args().skip(1).peekable();
     match arguments.peek().map(String::as_str) {
         Some("backup-key") => {
