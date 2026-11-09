@@ -4,7 +4,7 @@ use beui::Key;
 #[test]
 fn a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on() {
     // Shorter than the menu page: a menu that fits in the window covers its button instead.
-    let mut test = alone(Vec2::new(WIDE.x, 300.0), Page::Menus);
+    let mut test = alone(Vec2::new(WIDE.x, 520.0), Page::Menus);
     reveal(&mut test, "demo.new");
     test.click("demo.new");
     test.click("demo.new.more");

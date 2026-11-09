@@ -94,11 +94,24 @@ pub enum Placement {
     InsideBottomStart,
     InsideBottomEnd,
     CenterOn,
-    Popover { gap: u16, margin: u16 },
+    Popover {
+        gap: u16,
+        margin: u16,
+    },
     Edge(LayerEdge),
 }
 
 impl Placement {
+    /// The placement an overlay is laid out with against `anchor`: a menu opened from a bar
+    /// (`OverlayAnchor::Band`) opens just past the whole bar and never covers it, so it is
+    /// placed as `BelowStart` there; every other placement is itself.
+    pub fn against(self, anchor: &OverlayAnchor) -> Placement {
+        match (self, anchor) {
+            (Placement::Menu, OverlayAnchor::Band { .. }) => Placement::BelowStart,
+            (placement, _) => placement,
+        }
+    }
+
     /// Whether an overlay with this placement leaves its window when the window has a
     /// `LayerSpace`: anchored placements, `Center` and `Edge` sheets do; `At` (windows),
     /// `Fill` and the `Inside*` placements (toasts, `Floating`) stay. An escaping `Center`
@@ -460,10 +473,7 @@ impl OverlayAnchor {
 
 pub fn banded(node: Rect, band: Rect, placement: Placement) -> Rect {
     match placement {
-        Placement::BelowStart
-        | Placement::Menu
-        | Placement::Above
-        | Placement::Popover { .. } => {
+        Placement::BelowStart | Placement::Menu | Placement::Above | Placement::Popover { .. } => {
             Rect::from_min_max(pos2(node.min.x, band.min.y), pos2(node.max.x, band.max.y))
         }
         Placement::RightStart => {

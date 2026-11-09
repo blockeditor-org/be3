@@ -52,13 +52,7 @@ fn only_a_menu_covers_its_anchor_when_neither_side_has_room() {
         (0.0, 200.0),
         "anything else anchored below (a completion, a tooltip) takes the roomier side and ends at its anchor"
     );
-    let (top, bottom) = placed(
-        Placement::Popover {
-            gap: 4,
-            margin: 8,
-        },
-        250.0,
-    );
+    let (top, bottom) = placed(Placement::Popover { gap: 4, margin: 8 }, 250.0);
     assert!(
         bottom <= 200.0 || top >= 200.0,
         "a popover keeps clear of its anchor too: {top}..{bottom}"

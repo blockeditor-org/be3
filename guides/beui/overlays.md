@@ -49,7 +49,9 @@ what it holds), so it never covers its anchor: completions, tooltips and
 popovers keep their input or button in view. `Placement::Menu`, which menus
 (`MenuPopup`, context menus) and selects use, instead covers its anchor when
 neither side has room, as low as the window allows, and shrinks only when it
-is taller than the window (`layer::resolve_rect`, `layer::room_beside`). The
+is taller than the window (`layer::resolve_rect`, `layer::room_beside`); a
+menu anchored to a bar's `Band` opens past the whole bar and never covers it
+(`Placement::against`). The
 HTML core places a `Menu` from its measured size, since CSS anchor positioning
 cannot cover the anchor.
 
