@@ -3,8 +3,8 @@
 //!
 //! **Indexing.** A head this device's session moved (`Host::status` while it owns the session)
 //! queues its block (`Searching::dirty`). Each round of the worker's loop (`step`) takes the
-//! queued blocks whose root it may edit, reads their text with the type's plain file
-//! (`to-file`, until types answer `search-text`) and the name from the mirror, and hands each
+//! queued blocks whose root it may edit, reads their documents' text with `search-text` and
+//! the block's name from the mirror, and hands each
 //! index one batch in a task (`write`), which applies it to the index's local head and seals
 //! the commit into the outbox, so it is saved offline-first and published by the next drain;
 //! two devices' batches meet as a diverged block and merge by parts. A root with no index gets
@@ -12,8 +12,8 @@
 //!
 //! **Searching.** `want` names the searches an owner shows. A search runs in a task over the
 //! index of every root the account views in the open organization (`run`), reading only the
-//! parts it needs; the loop then cuts each shown hit's snippet from its block's text, kept per
-//! block and head, and answers. A search runs again when an index it read moves.
+//! parts it needs; the loop then cuts each shown hit's snippet from its document's text
+//! (`search-text` with its key), kept per document and head, and answers. A search runs again when an index it read moves.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
@@ -47,7 +47,7 @@ const HITS: usize = 50;
 /// Hits a search answers with a snippet.
 const SHOWN: usize = 20;
 
-/// Texts kept for snippets, by block and head, before the oldest are let go.
+/// Texts kept for snippets, by document and head, before they are all let go.
 const TEXTS: usize = 256;
 
 /// A search an owner shows: words, `"quoted phrases"`, the last word a prefix
@@ -108,7 +108,8 @@ pub struct Searching {
     wanted: HashMap<Owner, Vec<SearchAsk>>,
     answers: HashMap<SearchAsk, Answer>,
     running: HashSet<SearchAsk>,
-    texts: HashMap<(Uuid, Option<CommitId>), Option<String>>,
+    /// Documents' text for snippets, by block, key and head.
+    texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
     /// Counts answers that changed, for askers to read again.
     pub revision: u64,
     /// Set by a test that writes as a device without an indexer.
@@ -153,14 +154,6 @@ impl Searching {
         let mut shown = self.answers.get(asked)?.shown.clone()?;
         shown.complete = self.dirty.is_empty() && self.writing.is_empty();
         Some(shown)
-    }
-}
-
-/// The document a whole block is.
-fn doc(block: Uuid) -> DocId {
-    DocId {
-        block: block.as_bytes().to_vec(),
-        key: String::new(),
     }
 }
 
@@ -285,9 +278,9 @@ async fn index(
     for (index, blocks) in batches {
         let mut batch = Batch::default();
         for block in &blocks {
-            if let Some(put) = put_of(peer, shared, replicas, *block).await {
-                batch.put.push(put);
-            }
+            batch
+                .put
+                .extend(puts_of(peer, shared, replicas, *block).await);
         }
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
@@ -309,62 +302,99 @@ async fn index(
     moved
 }
 
-/// What a block's document holds now: its name and the text of its plain file, at its head.
-async fn put_of(
+/// What a block's documents hold at its head: its name, and each document its type answers
+/// `search-text` with. A type that answers nothing is found by its name alone.
+async fn puts_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     block: Uuid,
-) -> Option<Put> {
-    let (content_type, name, head) = {
+) -> Vec<Put> {
+    let Some((content_type, name, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        let node = held.graph.get(block)?;
-        (
-            node.content_type,
-            node.metadata.name().unwrap_or_default(),
-            node.head,
-        )
+        held.graph.get(block).map(|node| {
+            (
+                node.content_type,
+                node.metadata.name().unwrap_or_default(),
+                node.head,
+            )
+        })
+    }) else {
+        return Vec::new();
     };
-    let head = peer.local_head(block).or(head)?;
-    let commit = peer.load_commit(head).await.ok()?;
-    let body = text_of(peer, shared, replicas, block, content_type)
-        .await
-        .unwrap_or_default();
-    Some(Put {
-        doc: doc(block),
-        commit: be_lib_search::Commit {
-            time: commit.time,
-            id: *head.hash().as_bytes(),
-        },
-        source: None,
-        text: Some(Text { name, body }),
-    })
+    let Some(head) = peer.local_head(block).or(head) else {
+        return Vec::new();
+    };
+    let Ok(commit) = peer.load_commit(head).await else {
+        return Vec::new();
+    };
+    let at = be_lib_search::Commit {
+        time: commit.time,
+        id: *head.hash().as_bytes(),
+    };
+    let mut documents = documents_of(peer, shared, replicas, content_type, &commit, None).await;
+    if !documents.iter().any(|document| document.key.is_empty()) {
+        documents.push(be_sdk_type_api::SearchDocument {
+            key: String::new(),
+            source: None,
+            name: None,
+            body: Some(String::new()),
+        });
+    }
+    documents
+        .into_iter()
+        .map(|document| Put {
+            doc: DocId {
+                block: block.as_bytes().to_vec(),
+                key: document.key.clone(),
+            },
+            commit: at,
+            source: None,
+            text: Some(Text {
+                name: match document.key.is_empty() {
+                    true => name.clone(),
+                    false => document.name.unwrap_or_default(),
+                },
+                body: document.body.unwrap_or_default(),
+            }),
+        })
+        .collect()
 }
 
-/// A block's searchable text: its plain file, when that is text. Until types answer
-/// `search-text` (plans/search_library.md), this is how text and markdown are read.
+/// A commit's searchable documents, as its type answers `search-text` (only `keys`, when
+/// some are named); none when the type answers nothing or could not be asked.
+async fn documents_of(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    replicas: &mut Replicas,
+    content_type: Uuid,
+    commit: &be_block_commit::Commit,
+    keys: Option<Vec<String>>,
+) -> Vec<be_sdk_type_api::SearchDocument> {
+    replicas
+        .search_text((peer, shared), content_type, &commit.manifest, keys, &[])
+        .await
+        .map(|searched| searched.documents)
+        .unwrap_or_default()
+}
+
+/// A document's text at a block's head, for a snippet.
 async fn text_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     block: Uuid,
     content_type: Uuid,
+    key: &str,
 ) -> Option<String> {
-    let open = match replicas.is_open(block) {
-        true => replicas.content((peer, shared), block).await,
-        false => None,
-    };
-    let bytes = match open {
-        Some(bytes) => bytes,
-        None => crate::worker::stored(peer, block).await.ok()??,
-    };
-    let file = replicas
-        .to_file((peer, shared), content_type, bytes)
+    let head = peer.newest_head(block).await.ok().flatten()?;
+    let commit = peer.load_commit(head).await.ok()?;
+    let keys = Some(vec![key.to_owned()]);
+    documents_of(peer, shared, replicas, content_type, &commit, keys)
         .await
-        .ok()??;
-    file.media_type
-        .starts_with("text/")
-        .then(|| String::from_utf8_lossy(&file.bytes).into_owned())
+        .into_iter()
+        .find(|document| document.key == key)?
+        .body
 }
 
 /// Reads a range of a saved part through a peer.
@@ -621,7 +651,15 @@ async fn show(
             if hits.len() >= SHOWN {
                 break;
             }
-            let text = cached_text(peer, shared, replicas, found.block, content_type, head).await;
+            let text = cached_text(
+                peer,
+                shared,
+                replicas,
+                (found.block, &found.key),
+                content_type,
+                head,
+            )
+            .await;
             let snippet = query.snippet(text.as_deref().unwrap_or_default());
             hits.push(SearchHit {
                 block: found.block,
@@ -649,7 +687,7 @@ async fn cached_text(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
-    block: Uuid,
+    (block, key): (Uuid, &str),
     content_type: Uuid,
     head: Option<CommitId>,
 ) -> Option<String> {
@@ -658,15 +696,15 @@ async fn cached_text(
         .unwrap_or_else(PoisonError::into_inner)
         .search
         .texts
-        .get(&(block, head))
+        .get(&(block, key.to_owned(), head))
     {
         return text.clone();
     }
-    let text = text_of(peer, shared, replicas, block, content_type).await;
+    let text = text_of(peer, shared, replicas, block, content_type, key).await;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if held.search.texts.len() >= TEXTS {
         held.search.texts.clear();
     }
-    held.search.texts.insert((block, head), text.clone());
+    held.search.texts.insert((block, key.to_owned(), head), text.clone());
     text
 }

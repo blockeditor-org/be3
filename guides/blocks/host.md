@@ -236,7 +236,8 @@ index and search it locally.
 - **Indexing.** A head this device's session moves (`Host::status` with
   `owner`) queues the block (`Searching::sealed`). Each round of the worker's
   loop takes the queued blocks whose root it may edit, reads each one's name
-  from the mirror and its text from the type's plain file while that is text,
+  from the mirror and its documents' text at its head with `search-text`
+  (`Replicas::search_text`; a type that answers nothing is found by its name),
   and hands each index one batch in a task, which applies it to the index's
   newest head and seals the commit into the outbox: it is saved offline-first,
   published by the next drain, and two devices' batches meet as a diverged
@@ -249,7 +250,8 @@ index and search it locally.
   views in the mirror (or of `within`'s root), reading only the parts it needs
   with `Peer::read_part`, and again whenever one of those indexes' heads moves.
   The loop then cuts the shown hits' snippets (`Query::snippet`) from their
-  blocks' text, kept per block and head, and drops hits the mirror shows
+  documents' text (`search-text` with the hit's key), kept per document and
+  head, and drops hits the mirror shows
   detached, unviewable or outside `within`; it lists each hit block
   (`Owner::Search`) and shows a hit only once the mirror holds it.
 - **Apps** watch a search with `search-watch` (`Editor::search` in
