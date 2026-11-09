@@ -8,10 +8,13 @@ use uuid::Uuid;
 mod list;
 mod sign_in;
 mod state;
+mod terminals;
 mod ui;
 
 #[cfg(test)]
 pub(crate) use state::{CACHE, Listed};
+#[cfg(test)]
+pub(crate) use terminals::{be_command, sha256};
 
 pub struct BoatRoot;
 

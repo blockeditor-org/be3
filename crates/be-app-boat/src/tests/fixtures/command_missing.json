@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "type": "command.finished",
+  "success": true,
+  "commandId": "cmd_7f3k9m2q",
+  "exitCode": 0,
+  "signal": null,
+  "oomKilled": false,
+  "stdout": "missing\ntree\nnone\ninactive\n",
+  "stderr": "",
+  "stdoutTruncated": false,
+  "stderrTruncated": false,
+  "timedOut": false,
+  "cwd": "/home/user",
+  "startedAt": "2026-03-02T09:00:01.120Z",
+  "finishedAt": "2026-03-02T09:00:01.184Z"
+}

@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "type": "file.upload_url",
+  "url": "http://box-node-5f1e2d3c4b5a6978.on.boat.dev/_files/upload?token=signed-upload-token",
+  "method": "PUT",
+  "path": "/home/user/.local/lib/be3/be.part",
+  "expiresAt": "2026-03-02T09:15:01.000Z"
+}

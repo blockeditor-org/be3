@@ -164,8 +164,10 @@ impl Instances {
     }
 
     /// Blocks' agents are only for an app whose manifest sets `block_agents`, and an agent only
-    /// for the block the instance shows or one below it, so an app cannot mint credentials for
-    /// another place the person manages.
+    /// for the block the instance shows or one below it, or a block the app made that still sits
+    /// alone in the person's Unfiled (a terminal the boat app made,
+    /// `be_host_stack::made_by_app_in_unfiled`), so an app cannot mint credentials for another
+    /// place the person manages.
     fn refuses_block_agents(&self, instance: EditorInstanceId, call: &Call) -> bool {
         match call {
             Call::CreateBlockAgent { block, .. } => {
@@ -175,13 +177,19 @@ impl Instances {
                     .and_then(|entry| entry.role.block())
                     .map(|own| own.id);
                 let block = Uuid::from_bytes(*block);
+                let made_here = !self.app_id.is_empty()
+                    && be_host_stack::made_by_app_in_unfiled(block, &self.app_id);
                 !self.block_agents
-                    || own.is_none_or(|own| {
-                        !be_host_stack::with_graph(|graph| graph.is_within(block, own))
-                            .unwrap_or(false)
-                    })
+                    || (!made_here
+                        && own.is_none_or(|own| {
+                            !be_host_stack::with_graph(|graph| graph.is_within(block, own))
+                                .unwrap_or(false)
+                        }))
             }
-            Call::RotateAgentToken { .. } | Call::RemoveAgent { .. } => !self.block_agents,
+            Call::RotateAgentToken { .. }
+            | Call::RemoveAgent { .. }
+            | Call::TerminalHostBinary { .. }
+            | Call::TerminalHostBuild { .. } => !self.block_agents,
             _ => false,
         }
     }
@@ -491,6 +499,16 @@ impl Instances {
                 be_host_stack::remove_block_agent(Uuid::from_bytes(agent), move |removed| {
                     answering.send_or_fail(removed)
                 });
+            }
+            Call::TerminalHostBinary { reply, arch } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::terminal_host::binary(arch, move |answer| {
+                    answering.send_or_fail(answer)
+                });
+            }
+            Call::TerminalHostBuild { reply } => {
+                let answering = self.answering(instance, reply);
+                answering.send_or_fail(be_host_stack::terminal_host::build_info());
             }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);

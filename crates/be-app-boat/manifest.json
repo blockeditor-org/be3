@@ -33,5 +33,6 @@
     }
   },
   "entry_point": "boat.wasm",
-  "network": ["*"]
+  "network": ["*"],
+  "block_agents": true
 }

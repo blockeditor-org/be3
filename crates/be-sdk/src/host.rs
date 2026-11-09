@@ -21,8 +21,8 @@ use be_sdk_api::{
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
     FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId,
-    ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe, ViewChange,
+    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -1837,6 +1837,23 @@ impl EditorHost {
     /// Deletes an agent `create_block_agent` made.
     pub fn remove_agent(&self, agent: Uuid) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::remove_agent(agent.into_bytes())))
+    }
+
+    /// Where to get `be` of the host's own build for a Linux machine of `arch` (`x86_64` or
+    /// `arm64`): a download to check against its SHA-256, or a development build's bytes.
+    /// Needs the manifest's `block_agents`.
+    pub fn terminal_host_binary(
+        &self,
+        arch: impl Into<String>,
+    ) -> Asked<Result<TerminalHostBe, Failure>> {
+        let arch = arch.into();
+        Asked::of(self.ask(|| host_services::terminal_host_binary(arch)))
+    }
+
+    /// The `build-info.json` a `be` of the host's own build carries, to compare with the one a
+    /// machine runs. Needs the manifest's `block_agents`.
+    pub fn terminal_host_build(&self) -> Asked<Result<String, Failure>> {
+        Asked::of(self.ask(host_services::terminal_host_build))
     }
 
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {

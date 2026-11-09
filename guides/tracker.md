@@ -99,7 +99,8 @@ rows.
   it for `be` to write in. Removing the agent deletes its account and what was sealed to it.
 - **A block's agent.** For a program that hosts one block from a machine trusted less than the
   person's devices, such as a terminal host in a cloud VM, an app with `"block_agents": true`
-  calls `create-block-agent` for its own block or one below it (guides/apps/host_services.md).
+  calls `create-block-agent` for its own block, one below it, or one it made that still
+  sits alone in the person's Unfiled (guides/apps/host_services.md).
   The server (`create-agent` with `bound-to`, which needs Manage on the block) grants the agent
   Edit there, and it reaches that block and the blocks under it and nothing else:
   `blocks::Visibility` answers no access outside them, so every key, object, listing and session

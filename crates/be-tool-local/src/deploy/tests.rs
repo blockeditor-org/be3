@@ -3,4 +3,5 @@ use super::*;
 mod a_versioned_artifact_cannot_be_replaced_with_different_bytes;
 mod download_pages_discourage_crawlers;
 mod download_pages_escape_values_and_preserve_download_links;
+mod the_downloads_name_where_this_builds_be_is;
 mod the_web_entry_point_preserves_links_and_selects_one_build;

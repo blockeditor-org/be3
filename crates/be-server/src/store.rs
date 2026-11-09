@@ -1722,7 +1722,7 @@ fn require_agent_of(
         .optional()?;
     let Some(bound) = found else {
         return Err(ServerError::Refused(
-            ErrorCode::InvalidRequest,
+            ErrorCode::AgentNotFound,
             "that account is not an agent of this organization".into(),
         ));
     };

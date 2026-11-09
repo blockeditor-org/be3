@@ -12,13 +12,15 @@ use serde::{Deserialize, Serialize};
 pub(crate) const API: &str = "https://boat.dev/api/v1";
 /// The dashboard's API Keys tab, where a person makes a key.
 pub(crate) const API_KEYS: &str = "https://boat.dev/dashboard?tab=api-keys";
-/// What a key needs for the list, start and stop, and for `GET /me`, named as boat's key
-/// scopes name them (`https://docs.boat.dev/api-keys/scopes.md`).
-pub(crate) const ACTIONS: [&str; 4] = [
+/// What a key needs for the list, start and stop, `GET /me`, and a terminal's commands and
+/// files, named as boat's key scopes name them (`https://docs.boat.dev/api-keys/scopes.md`).
+pub(crate) const ACTIONS: [&str; 6] = [
     "sandbox.read",
     "sandbox.resume",
     "sandbox.stop",
     "account.read",
+    "exec",
+    "file.write",
 ];
 /// The longest a key may live, and what the sign-in page asks for.
 pub(crate) const KEY_DAYS: i64 = 365;
@@ -150,6 +152,8 @@ pub(crate) enum BoatError {
     Reconnect { expired: bool },
     /// boat refused or failed the request.
     Refused { status: u16, message: String },
+    /// The sandbox refused a file sent to an upload URL, or the URL was not one to send it to.
+    Upload(String),
 }
 
 impl std::fmt::Display for BoatError {
@@ -160,7 +164,7 @@ impl std::fmt::Display for BoatError {
             Self::Reconnect { expired: false } => {
                 formatter.write_str("boat.dev no longer accepts this key")
             }
-            Self::Refused { message, .. } => formatter.write_str(message),
+            Self::Refused { message, .. } | Self::Upload(message) => formatter.write_str(message),
         }
     }
 }
@@ -329,6 +333,135 @@ pub(crate) fn act(
         .with_body(b"{}".to_vec());
     let host = host.clone();
     async move { Some(send::<Ignored>(host, request).await?.map(|_| ())) }
+}
+
+/// What a command run in a sandbox answered.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub(crate) struct Ran {
+    pub exit_code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+    pub timed_out: bool,
+}
+
+impl Ran {
+    /// The command's output if it succeeded, and otherwise why it failed.
+    pub(crate) fn succeeded(self) -> Result<String, BoatError> {
+        if self.exit_code == Some(0) && !self.timed_out {
+            return Ok(self.stdout);
+        }
+        let said = [self.stderr.trim(), self.stdout.trim()]
+            .into_iter()
+            .find(|said| !said.is_empty())
+            .and_then(|said| said.lines().last())
+            .unwrap_or_default()
+            .to_owned();
+        let message = match (self.timed_out, said.is_empty()) {
+            (true, _) => "A command in the sandbox took too long".to_owned(),
+            (false, true) => "A command in the sandbox failed".to_owned(),
+            (false, false) => format!("A command in the sandbox failed: {said}"),
+        };
+        Err(BoatError::Refused {
+            status: 200,
+            message,
+        })
+    }
+}
+
+/// `POST /sandboxes/{id}/commands`: runs `command` with `sh` as the sandbox's `user`, waiting
+/// at most `timeout` seconds. boat keeps every command and its output, so no secret goes in
+/// one: secrets go in files (`write_file`).
+pub(crate) fn command(
+    host: &EditorHost,
+    account: &Account,
+    sandbox: &str,
+    command: &str,
+    timeout: u32,
+) -> impl Future<Output = Option<Result<String, BoatError>>> + 'static {
+    let body = serde_json::json!({ "command": command, "timeoutSeconds": timeout });
+    let request = account
+        .request(Request::post(format!(
+            "{API}/sandboxes/{}/commands",
+            encoded(sandbox)
+        )))
+        .header("Content-Type", "application/json")
+        .with_body(body.to_string().into_bytes());
+    let host = host.clone();
+    async move { Some(send::<Ran>(host, request).await?.and_then(Ran::succeeded)) }
+}
+
+/// `PUT /sandboxes/{id}/files`: writes `content` to `path`, under `/home/user` or `/tmp`.
+pub(crate) fn write_file(
+    host: &EditorHost,
+    account: &Account,
+    sandbox: &str,
+    path: &str,
+    content: &str,
+) -> impl Future<Output = Option<Result<(), BoatError>>> + 'static {
+    let body = serde_json::json!({ "path": path, "content": content, "encoding": "utf8" });
+    let request = account
+        .request(Request::put(format!(
+            "{API}/sandboxes/{}/files",
+            encoded(sandbox)
+        )))
+        .header("Content-Type", "application/json")
+        .with_body(body.to_string().into_bytes());
+    let host = host.clone();
+    async move { Some(send::<Ignored>(host, request).await?.map(|_| ())) }
+}
+
+#[derive(Deserialize)]
+struct UploadUrl {
+    url: String,
+}
+
+/// Writes `bytes` to `path` however large: `POST /sandboxes/{id}/files/upload-url`, then the
+/// bytes `PUT` to the URL it answers, which takes no key.
+pub(crate) fn upload(
+    host: &EditorHost,
+    account: &Account,
+    sandbox: &str,
+    path: &str,
+    bytes: Vec<u8>,
+) -> impl Future<Output = Option<Result<(), BoatError>>> + 'static {
+    let body = serde_json::json!({ "path": path });
+    let request = account
+        .request(Request::post(format!(
+            "{API}/sandboxes/{}/files/upload-url",
+            encoded(sandbox)
+        )))
+        .header("Content-Type", "application/json")
+        .with_body(body.to_string().into_bytes());
+    let host = host.clone();
+    async move {
+        let upload: UploadUrl = match send(host.clone(), request).await? {
+            Ok(upload) => upload,
+            Err(error) => return Some(Err(error)),
+        };
+        if !upload.url.starts_with("https://") {
+            return Some(Err(BoatError::Upload(
+                "boat.dev answered an upload URL that is not https".to_owned(),
+            )));
+        }
+        let put = Request::put(upload.url)
+            .header("Content-Type", "application/octet-stream")
+            .with_body(bytes);
+        let response = match host.fetch(put).await? {
+            Ok(response) => response,
+            Err(failure) => return Some(Err(BoatError::Offline(failure.to_string()))),
+        };
+        let status = response.head.status;
+        if let Err(failure) = response.bytes().await? {
+            return Some(Err(BoatError::Offline(failure.to_string())));
+        }
+        Some(match (200..300).contains(&status) {
+            true => Ok(()),
+            false => Err(BoatError::Upload(format!(
+                "The sandbox refused the upload of be: HTTP {status}"
+            ))),
+        })
+    }
 }
 
 /// `text` as a URL's query value or path segment.

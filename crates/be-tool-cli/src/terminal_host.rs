@@ -39,6 +39,10 @@ pub struct HostOptions {
     pub command: Vec<String>,
     pub machine: String,
     pub user: String,
+    /// A file the host keeps its standing in (`BE3_TERMINAL_STATUS`): `connected`, or
+    /// `offline` and why, so whoever installed it can tell a working host from one whose
+    /// token was revoked.
+    pub status: Option<std::path::PathBuf>,
 }
 
 impl HostOptions {
@@ -54,10 +58,14 @@ impl HostOptions {
             .into_iter()
             .find_map(|name| std::env::var(name).ok())
             .unwrap_or_default();
+        let status = std::env::var_os("BE3_TERMINAL_STATUS")
+            .filter(|path| !path.is_empty())
+            .map(std::path::PathBuf::from);
         Self {
             command,
             machine,
             user,
+            status,
         }
     }
 }
@@ -121,11 +129,18 @@ impl Host {
             let ended = match connect().await {
                 Ok((peer, block)) => {
                     connected = true;
+                    self.report("connected");
                     self.serve(peer, block, sources(), shutdown.as_mut()).await
                 }
-                Err(error) if !connected => return Err(error),
+                Err(error) if !connected => {
+                    self.report(&format!("offline {error}"));
+                    return Err(error);
+                }
                 Err(error) => Ended::Refused(error),
             };
+            if let Ended::Refused(error) | Ended::Disconnected(error) = &ended {
+                self.report(&format!("offline {error}"));
+            }
             let error = match ended {
                 Ended::Shutdown => return Ok(()),
                 Ended::Refused(error) => error,
@@ -148,6 +163,14 @@ impl Host {
                 }
             }
             retry = (retry * 2).min(LONGEST_RETRY);
+        }
+    }
+
+    /// Writes the host's standing to its status file, if it keeps one.
+    fn report(&self, standing: &str) {
+        if let Some(path) = &self.options.status {
+            let line = standing.lines().next().unwrap_or_default();
+            let _ = std::fs::write(path, format!("{line}\n"));
         }
     }
 

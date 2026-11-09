@@ -21,6 +21,7 @@ mod nudge;
 pub mod offline_choice;
 mod replicas;
 pub mod revisions;
+pub mod terminal_host;
 #[cfg(feature = "testing")]
 pub mod testing;
 pub mod types;
@@ -917,6 +918,26 @@ pub fn identity() -> Option<(Uuid, Uuid)> {
 /// blocks made without a place the person chose go.
 pub fn unfiled() -> Option<Uuid> {
     identity().map(|(account, organization)| be_block::unfiled(organization, account))
+}
+
+/// Whether `block` is one an app made, `app_id` by its `CREATED_BY`, that still sits where it
+/// was made: directly in the signed-in account's own Unfiled, authored by that account, with
+/// nothing below it. `CREATED_BY` alone proves nothing: anyone who may edit a block can set
+/// it, and it stays on a block wherever it moves; only the account itself places blocks in its
+/// Unfiled, and a block moved out of it or filed into is no longer the app's alone.
+pub fn made_by_app_in_unfiled(block: Uuid, app_id: &str) -> bool {
+    let Some((account, organization)) = identity() else {
+        return false;
+    };
+    let unfiled = be_block::unfiled(organization, account);
+    with_graph(|graph| {
+        graph.get(block).is_some_and(|node| {
+            node.parent == Some(be_block_graph::BlockParent::Block(unfiled))
+                && node.author == Some(account)
+                && node.metadata.get(&be_block::CREATED_BY).as_deref() == Some(app_id)
+        }) && !graph.has_children(block)
+    })
+    .unwrap_or(false)
 }
 
 pub fn stale_revision() -> u64 {

@@ -11,6 +11,34 @@ use uuid::Uuid;
 pub struct BoatSettings {
     /// Keyed by `Boat::organization`, empty for a key of the person's own account.
     pub keys: Map<String, BoatKey>,
+    /// The terminals this account connected to sandboxes, keyed by terminal block id, with
+    /// the credentials of each one's agent: `be` signs in only with its recovery phrase, and a
+    /// rotation answers only a new token, so they are kept to write again after a resume.
+    pub terminals: Map<String, TerminalAgent>,
+}
+
+/// A terminal host's agent in a sandbox (guides/terminal.md): the agent, the credentials
+/// handed to the sandbox (`BlockAgent::credentials`, its token the latest), and where it runs.
+#[derive(Clone, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct TerminalAgent {
+    pub agent: String,
+    pub credentials: String,
+    pub sandbox: String,
+    /// The boat.dev organization whose key reaches the sandbox, as `Boat::organization`.
+    pub organization: String,
+}
+
+/// Leaves the credentials out, so they never reach a log.
+impl std::fmt::Debug for TerminalAgent {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TerminalAgent")
+            .field("agent", &self.agent)
+            .field("sandbox", &self.sandbox)
+            .field("organization", &self.organization)
+            .finish_non_exhaustive()
+    }
 }
 
 /// A boat.dev API key and what the person said about it when they pasted it.
@@ -46,6 +74,16 @@ impl BoatSettings {
             .put(ObjectId::ROOT, &organization.to_owned(), key)
             .into()
     }
+
+    pub fn terminal(&self, block: uuid::Uuid) -> Option<&TerminalAgent> {
+        self.terminals.get(&block.to_string())
+    }
+
+    pub fn set_terminal(block: uuid::Uuid, terminal: Option<&TerminalAgent>) -> Edit {
+        Self::TERMINALS
+            .put(ObjectId::ROOT, &block.to_string(), terminal)
+            .into()
+    }
 }
 
 impl Layered for BoatSettings {
@@ -55,6 +93,7 @@ impl Layered for BoatSettings {
     fn over(&self, lower: &Self) -> Self {
         Self {
             keys: union(&self.keys, &lower.keys),
+            terminals: union(&self.terminals, &lower.terminals),
         }
     }
 }

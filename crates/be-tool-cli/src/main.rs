@@ -152,6 +152,7 @@ async fn host_terminal(
     target: &str,
     command: &[String],
 ) -> Result<String, String> {
+    settings.check_machine(std::env::var("BOAT_ID").ok().as_deref())?;
     let mut host = Host::new(HostOptions::here(command.to_vec()))?;
     let connect = async || {
         let tracker = Tracker::new(connect_live(settings).await?, sources(settings));
