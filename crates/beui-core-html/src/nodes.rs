@@ -42,6 +42,38 @@ pub fn focusables_within(node: NodeId) -> Vec<NodeId> {
     }
 }
 
+/// The laid-out `Text` nodes with text below `node`, in document order, as natively.
+pub fn texts_within(node: NodeId) -> Vec<NodeId> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        fn walk(dom: &web_sys::Node, found: &mut Vec<NodeId>) {
+            let mut next = dom.first_child();
+            while let Some(child) = next {
+                match crate::dom::node_of(&child) {
+                    Some(node) if crate::document::kind(node) == Some("Text") => {
+                        let shown = crate::measure::rect(node).is_some();
+                        if shown && child.text_content().is_some_and(|text| !text.is_empty()) {
+                            found.push(node);
+                        }
+                    }
+                    _ => walk(&child, found),
+                }
+                next = child.next_sibling();
+            }
+        }
+        let mut found = Vec::new();
+        if let Some(dom) = crate::dom::dom(node) {
+            walk(&dom, &mut found);
+        }
+        found
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = node;
+        Vec::new()
+    }
+}
+
 pub fn focus_into(node: NodeId) {
     if let Some(first) = focusables_within(node).first() {
         crate::focus::set_focus(Some(*first));

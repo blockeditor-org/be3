@@ -4,7 +4,7 @@ use std::ops::Range;
 use beui_core_html::{overlay, scroll};
 
 use crate::reactive::NodeId;
-use crate::types::{CaretHandle, Color, Dismiss, ScrollPosition};
+use crate::types::{CaretHandle, Color, Dismiss, ScrollPosition, TextCaret, TextMark};
 
 pub(crate) fn exists(node: NodeId) -> bool {
     beui_core_html::document::contains(node)
@@ -90,22 +90,34 @@ pub(crate) fn on_steer(node: NodeId, handler: impl FnMut(()) + 'static) {
     }
 }
 
-pub(crate) fn row_offset<K: Clone + Hash + Eq + 'static>(_node: NodeId, _key: &K) -> Option<f32> {
-    None
+pub(crate) fn row_offset<K: Clone + Hash + Eq + 'static>(node: NodeId, key: &K) -> Option<f32> {
+    super::virtual_list::row_offset(node, key)
 }
 
-pub(crate) fn texts_within(_node: NodeId) -> Vec<NodeId> {
-    Vec::new()
+pub(crate) fn texts_within(node: NodeId) -> Vec<NodeId> {
+    beui_core_html::nodes::texts_within(node)
 }
 
 pub(crate) fn text(node: NodeId) -> String {
     beui_core_html::nodes::text(node)
 }
 
-pub(crate) fn set_text_selection(_node: NodeId, _selection: Option<(Range<usize>, Color)>) {}
+pub(crate) fn set_text_selection(node: NodeId, selection: Option<(Range<usize>, Color)>) {
+    if let Some(model) = beui_core_html::text::model(node) {
+        model.set_selection(selection.map(|(range, color)| TextMark::new(range, color)));
+    }
+}
 
-pub(crate) fn set_text_selection_handles(
-    _node: NodeId,
-    _handles: Vec<(usize, CaretHandle, Color)>,
-) {
+pub(crate) fn set_text_selection_handles(node: NodeId, handles: Vec<(usize, CaretHandle, Color)>) {
+    if let Some(model) = beui_core_html::text::model(node) {
+        model.set_handles(
+            handles
+                .into_iter()
+                .map(|(at, handle, color)| TextCaret {
+                    handle: Some(handle),
+                    ..TextCaret::new(at, color, 0.0)
+                })
+                .collect(),
+        );
+    }
 }
