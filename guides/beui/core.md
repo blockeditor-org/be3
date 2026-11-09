@@ -163,7 +163,11 @@ them:
   draws it onto an offscreen layer and paints that at the opacity
   (`group.rs`), and a painting holds it as a `Content::Group` the rasterizer
   composites the same way, so overlapping shapes inside do not show through
-  each other. Edge fades (`fade_edges`) still fade shape by shape.
+  each other. Only the group's bounds within the damage are cleared, drawn and
+  painted, and a group holding one shape that cannot overlap itself takes the
+  opacity into its colour when the display is recorded (`paint.rs`, `folded`)
+  instead. A punch inside a group also erases the target beneath it at the
+  group's opacity. Edge fades (`fade_edges`) still fade shape by shape.
 - **Checking paint.** Tests repaint every frame from scratch and fail when the
   retained painting differs or changed outside the damage (`verify_paint`).
   `BEUI_OVER_REPAINT=1` reports frames that damage over four times what
