@@ -3,9 +3,10 @@
 //!
 //! A script uses only commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`,
 //! `ids`, `find`, `wait`, `gone`, `click` (also `double`, `right`, `middle`), `move`,
-//! `down`/`up`, `drag`, `wheel` (a tick is 40 pixels in the browser), `type`, `key` and
-//! `resize WxH`. Text metrics differ between the cores, so a script names nodes by test id or by
-//! text the screen writes itself; a screen checking a layout prints what it `measure`s in a
+//! `down`/`up`, `drag`, `wheel` (a tick is 40 pixels in the browser), `type`, `key`,
+//! `clipboard TEXT` (then `key ctrl+v` pastes it), `back` and `resize WxH`. Text metrics
+//! differ between the cores, so a script names nodes by test id or by text the screen writes
+//! itself; a screen checking a layout prints what it `measure`s in a
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
 //! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's).
@@ -79,8 +80,14 @@ pub fn Fixture(name: String) -> Root {
         "virtual_list" => view! {
             <VirtualListFixture />
         },
+        "paste" => view! {
+            <PasteFixture />
+        },
         "text_hooks" => view! {
             <TextHooksFixture />
+        },
+        "back" => view! {
+            <BackFixture />
         },
         "canvas" => view! {
             <CanvasFixture />
@@ -397,6 +404,46 @@ fn TextHooksFixture() -> NodeId {
                 }}
             />
             <Text color={INK}>{read}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn PasteFixture() -> NodeId {
+    let pasted = create_signal(String::from("nothing"));
+    let report = create_memo(move || format!("Pasted {}", pasted.get()));
+    view! {
+        <List spacing=12.0>
+            <Interactive
+                @test_id="paste.target"
+                focusable=true
+                ime=true
+                pastes={vec!["text/html".to_owned(), "text/plain".to_owned()]}
+                on_paste={move |clip: beui::ClipItem| {
+                    pasted.set(format!("{} {}", clip.format, String::from_utf8_lossy(&clip.data)));
+                }}
+            >
+                <Frame width=160.0 height=30.0 fill={BLUE} />
+            </Interactive>
+            <Text color={INK}>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn BackFixture() -> NodeId {
+    let catching = create_signal(true);
+    let backs = create_signal(0_u32);
+    let report = create_memo(move || format!("Backs {}", backs.get()));
+    on_back(catching, move |gesture: beui::BackGesture| {
+        if gesture == beui::BackGesture::Invoked {
+            backs.update(|backs| *backs += 1);
+        }
+    });
+    view! {
+        <List spacing=12.0>
+            <beui::styled::Checkbox label="Catch back" checked={catching} />
+            <Text color={INK}>{report}</Text>
         </List>
     }
 }

@@ -1,0 +1,8 @@
+# Going back reaches an enabled on_back handler, and keeps reaching it, rather
+# than leaving the page.
+clock stop
+wait 'value="Backs 0"'
+back
+wait 'value="Backs 1"'
+back
+wait 'value="Backs 2"'
