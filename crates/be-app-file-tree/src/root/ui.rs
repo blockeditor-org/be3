@@ -4,12 +4,12 @@ use std::collections::HashSet;
 use be_sdk_beui::BlockParent;
 use be_sdk_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
+use be_sdk_beui::beui::clipboard::formats;
 use be_sdk_beui::beui::icons::{
     Glyph, ICON_DOWNLOAD, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::clipboard::formats;
 use be_sdk_beui::beui::{ClipItem, Color32, NodeId, Rect};
 use be_sdk_beui::{AdministratorWatch, BlockFilter, Drag, Editor, phone_layout};
 use be_sdk_database::tags::{ShownTag, TagChip};

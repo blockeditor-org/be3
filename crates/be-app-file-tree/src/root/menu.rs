@@ -1,11 +1,11 @@
 use be_sdk_beui::be_block::{self, BlockContent, SettingsContent};
-use be_sdk_beui::beui::icons::{
-    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE,
-    ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS, ICON_SHARE_2,
-    ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
-};
 use be_sdk_beui::beui::ClipItem;
 use be_sdk_beui::beui::clipboard::Blocks;
+use be_sdk_beui::beui::icons::{
+    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP,
+    ICON_PALETTE, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS,
+    ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{BlockParent, Editor};
@@ -506,8 +506,6 @@ pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
         return;
     };
     let ids: Vec<Uuid> = blocks.blocks.iter().map(|block| block.id).collect();
-    let asked = editor
-        .host()
-        .paste_blocks(&ids, BlockParent::Block(folder));
+    let asked = editor.host().paste_blocks(&ids, BlockParent::Block(folder));
     let _ = editor.then(asked, |_| ());
 }
