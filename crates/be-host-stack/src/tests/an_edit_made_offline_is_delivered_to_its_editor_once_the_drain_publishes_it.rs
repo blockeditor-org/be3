@@ -1,5 +1,4 @@
 use super::*;
-use be_sdk_type_guest::editor::ToEditor;
 
 #[test]
 fn an_edit_made_offline_is_delivered_to_its_editor_once_the_drain_publishes_it() {
@@ -19,20 +18,12 @@ fn an_edit_made_offline_is_delivered_to_its_editor_once_the_drain_publishes_it()
 
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
-    editor.until(
-        "was told the server lacks what this device holds",
-        |editor| {
-            editor
-                .received
-                .iter()
-                .any(|message| matches!(message, ToEditor::Published(false)))
-        },
-    );
     editor.operate(Counter::add(3));
     editor.until("the edit made offline was confirmed", |editor| {
         editor.mirror.pending() == 0
     });
     flush();
+    editor.pump();
     assert_eq!(
         (editor.mirror.sent(), editor.mirror.delivered()),
         (2, 1),

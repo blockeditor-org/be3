@@ -51,6 +51,7 @@ impl Harness {
             .register(be_type_chat::registrations());
         harness.editor.hold(None, content);
         harness.editor.set_size(vec2(480.0, 560.0));
+        harness.editor.presence_visible(true);
         harness.run();
         harness
     }
@@ -79,9 +80,12 @@ impl Harness {
         self.type_text(text);
     }
 
+    /// Writes and sends `text`, and lets the server take it.
     fn send(&mut self, text: &str) {
         self.write(text);
         self.click("chat.send");
+        self.editor.advance(std::time::Duration::from_millis(500));
+        self.run();
     }
 
     fn content(&self) -> ChatContent {
@@ -90,16 +94,6 @@ impl Harness {
 
     fn id(&self, index: usize) -> ObjectId {
         self.content().messages()[index]
-    }
-
-    /// The test ids of the messages shown as sending.
-    fn sending(&self) -> Vec<String> {
-        self.editor
-            .test_ids()
-            .iter()
-            .map(|(id, _)| id.to_owned())
-            .filter(|id| id.ends_with(".sending"))
-            .collect()
     }
 
     fn bodies(&self) -> Vec<String> {

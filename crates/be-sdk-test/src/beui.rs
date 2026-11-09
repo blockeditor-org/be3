@@ -2265,6 +2265,18 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.up(to, PointerButton::Primary);
     }
 
+    /// Takes the keyboard from the editor, as when its window loses the focus (`drive blur`);
+    /// `focus` gives it back. An app hears only changes, and a test's views never had the
+    /// keyboard given, so this gives it first.
+    pub fn blur(&mut self) {
+        self.drive("focus", &[], &[]);
+        self.drive("blur", &[], &[]);
+    }
+
+    pub fn focus(&mut self) {
+        self.drive("focus", &[], &[]);
+    }
+
     pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
         self.drive_at(
             "scroll",

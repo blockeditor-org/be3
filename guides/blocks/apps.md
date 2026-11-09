@@ -25,20 +25,21 @@ the instance and the replica.
   block; the host attaches it then, with `editable` from the account's access
   (sent again when that changes).
 - Host to app: `Snapshot { content_type, bytes, length, session, unsettled,
-  applied }`, where `length` is the whole stored form's,
+  applied, held }`, where `length` is the whole stored form's,
   where `applied` counts operations *this instance* sent that the snapshot
   holds, which is how an app tells its own unacknowledged edits from others';
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
-  operation that goes beneath them, the rebased `beneath`); `Published`
-(below, "Delivered"); `Presence`;
-  `PeerMessages`; `Range`.
+  operation that goes beneath them, the rebased `beneath`); `Held` (below,
+  "Delivered"); `Presence`; `PeerMessages`; `Range`.
 - `write-content` writes content outright, since it may name a block nothing
   follows (guides/blocks/host.md, "Creating, seeding and replacing").
 
 On the app side, `editor.block_content::<C>()` is a `ContentProjection` built
 on `be_sdk_type_guest::editor::EditorMirror<C>`. `operate` applies to what the
 view sees and queues for the host. A `mine` operation coming back only
-confirms; another's is applied on top, or beneath this instance's in-flight
+confirms, and only that this device's replica took the edit: it confirms at
+once, before any owner accepted it (on a follower it is still `unsettled`), so
+it says nothing of whether the server holds it (below, "Delivered"); another's is applied on top, or beneath this instance's in-flight
 edit (`LiveEdit::apply_beneath`). Only another instance's unsettled operation
 arriving while this one has an edit in flight rebuilds the view. Applying
 reports what it touched (`LiveEdit::apply_touching`), and projections run only
@@ -48,44 +49,23 @@ before then.
 
 ### Delivered
 
-`Published(bool)` is the one frame the host writes itself rather than the
-replica (be-block-type-host's `Replicas::tell_published`): false while what
-this device sequences of the block does not reach the server (offline, in a
-session it made up, commits of the block in the outbox, or appends to its own
-journal alone that no commit since holds), true again once that clears, as
-after the drain publishes them. An editor attached while it is false is told
-so. `EditorMirror` numbers the operations it sends (`sent`) and counts them
-`delivered`: confirmed while published, or frozen at the false until the next
-true. `ContentProjection::sent` and `delivered` (a signal) are how an editor
-shows what it sent as still sending (chat's "Sending"); be-sdk-test's
-`ContentStore::set_published` sends the frame in an editor test.
-
-`editor.content_of::<C>(block)` reads and edits another block the same way;
-the host opens that block's replica on the first frame, read-only unless the
-account may edit it, and closes it when nothing holds it.
-`editor.related_content::<C>(memo)` follows whichever block a memo names (a
-database view follows its database and schema). Revision previews and blocks
-still uploading are answered with a host-made `Snapshot` with no session
-state. Dynamic artifacts use `EditorHost::content_of` and
-`EditorHost::replace_content`. `be_sdk_beui` re-exports `be_block`.
-
-### Reading a range
-
-A type that loads only its first part (`be_block::Loads::FirstPart`, such as
-`Blob`) leaves the rest of its stored form
-in the store: the replica, its followers and every editor's `Snapshot` hold
-only that part's bytes, and `Snapshot::length` says how long the whole is. An
-editor reads the rest with `LiveContent::read_range(offset, length, done)`,
-which sends `FromEditor::Read { token, offset, length }`; the replica answers
-`ToEditor::Range { token, result }` from the parts it holds, unsaved ones
-included, and the type module's `read-part` host call for the parts it left in
-the store (guides/type_modules.md). `FromEditor::PutPart { token, bytes }`
-goes the other way: the replica puts the bytes as a part of the block and
-answers `ToEditor::PartPut { token, result }` with its ref, for an operation
-to name (guides/type_modules.md, "Parts named by hash"). Offsets are into the whole stored form.
-A blob editor uses `ContentProjection::payload()` instead, a signal of the
-payload that reads it once per snapshot (so a header edit reads nothing) and
-holds what a host-made snapshot already carried.
+The replica tells each editor how many of its operations the server holds:
+`ToEditor::Held(count)`, counted as `Snapshot::applied` is, and `Snapshot::held`.
+It sends it only while the server holds everything the replica does, after the
+confirmations of what it counts. As owner that is every operation it sequenced
+in a journal append the host answered as held (`append` answers whether the
+server took the entries) or in a commit published to the server; as follower,
+every edit made here accepted by the owner (an owner with others in its
+session appends and relays in one call). Not while commits wait in this
+device's outbox (`publish-outcome.kept`, and `opening.kept`) until the host
+says they are `drained`, nor while its own journal holds what the server lacks
+(appended offline, or `opening.journal-kept`) until a commit holding it
+reaches the server. A drain the server refuses leaves them unsent, so nothing
+it held is counted. `EditorMirror` numbers the operations it sends (`sent`)
+and counts the held ones `delivered`; `ContentProjection::sent` and
+`delivered` (a signal) are how an editor shows what it sent as still sending
+(chat's "Sending"). In an editor test, be-sdk-test's `ContentStore::set_online`
+answers appends and seals as kept on the device until it is set online again.
 
 ## State and change callbacks
 

@@ -28,19 +28,24 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
   "Member" and their account's first digits, since no host service names
   members to an app yet. Attachments are in the model but the editor cannot
   add or show them yet.
-- **Sending state (1b).** A message shows "Sending" until the operation that
-  sent it is delivered (`ContentProjection::sent` and `delivered`,
-  guides/blocks/apps.md): confirmed in the session while the device reaches the
-  server, or, sent offline, once the host says a commit holding it is published
-  (`ToEditor::Published`). The editor keeps which of its sends are undelivered
-  only while it is open: one reopened offline shows what it sent before as sent.
+- **Sending state (1b).** A message shows "Sending" until the server holds
+  the operation that sent it (`ContentProjection::sent` and `delivered`,
+  guides/blocks/apps.md "Delivered"): sequenced by the owner and appended to
+  the server's journal, or, sent offline, once a commit holding it is
+  published. The editor keeps which of its sends are undelivered only while it
+  is open: one reopened shows what it sent before as sent. The Done check was a
+  be-host-tests test; `drive` has no way to cut the server, so be-host-stack's
+  `an_edit_made_offline_is_delivered_to_its_editor_once_the_drain_publishes_it`
+  and a chat painting stand in. A `drive` command that cuts the server would
+  let a host test cover it.
 - **Unread counts (1c).** Where the account read each chat up to is the
-  owner-only settings kind `ChatReads` (a `ReadUpTo` per chat: the message and
-  its time, for when it is deleted), never in the chat. `ChatContent::unread`
-  counts others' messages after it. The editor reads the chat while it is
-  scrolled to its newest message, and otherwise shows "N new messages" above
-  the message box, which scrolls to the end. The count lives only in the
-  editor: no sidebar or block row shows it yet.
+  owner-only settings kind `ChatReads`, one place per device, never in the
+  chat; the furthest place counts, by message order (a deleted message's
+  `Deletion` names the one before it), so a device behind never takes reading
+  back. `ChatContent::unread` counts others' messages after it. The editor
+  reads the chat while it is shown, has the keyboard and is scrolled to its
+  newest message, and otherwise shows "N new messages" above the message box,
+  which scrolls to the end. No sidebar or block row shows the count yet.
 - **Member names.** Apps have no way to learn a member's name: the `contacts`
   watch is the shell's alone. A later step needs a host service that
   names the accounts in a block's members (contacts by their card, others by

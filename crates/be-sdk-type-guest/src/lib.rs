@@ -377,6 +377,8 @@ impl Module {
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
                 lost_edits: opening.lost_edits,
+                kept: opening.kept,
+                journal_kept: opening.journal_kept,
                 from_file: kind.from_file,
                 now,
             })
@@ -531,7 +533,16 @@ impl Module {
                     ops::with_parent(replica, || host::publish(expected, merging, content));
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {
-                        Ok(PublishOutcome::Published(head)) => HeadEvent::Published { token, head },
+                        Ok(PublishOutcome::Published(head)) => HeadEvent::Published {
+                            token,
+                            head,
+                            held: true,
+                        },
+                        Ok(PublishOutcome::Kept(head)) => HeadEvent::Published {
+                            token,
+                            head,
+                            held: false,
+                        },
                         Ok(PublishOutcome::Rejected(head)) => HeadEvent::Rejected { token, head },
                         Err(error) => HeadEvent::Failed { token, error },
                     })
@@ -617,7 +628,18 @@ impl Module {
                 generation,
                 entries,
                 relay,
-            } => ops::with_parent(replica, || host::append(generation, entries, relay)).detach(),
+            } => {
+                let through = entries
+                    .iter()
+                    .map(|entry| entry.sequence)
+                    .max()
+                    .unwrap_or_default();
+                let pending = ops::with_parent(replica, || host::append(generation, entries, relay));
+                self.answer_later(replica, pending, move |held| Input::Appended {
+                    through,
+                    held: held == Ok(true),
+                });
+            }
             Effect::Rebase {
                 replica,
                 generation,
@@ -860,6 +882,11 @@ impl replicas::GuestReplica for OpenReplica {
     fn attach(&self, editor: EditorId, editable: bool) -> impl Future<Output = ()> + 'static {
         self.module
             .input(self.id, Input::Attach { editor, editable });
+        ready(())
+    }
+
+    fn drained(&self) -> impl Future<Output = ()> + 'static {
+        self.module.input(self.id, Input::Drained);
         ready(())
     }
 

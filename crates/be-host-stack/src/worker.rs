@@ -999,7 +999,6 @@ impl Session<'_> {
             moved |= pumped;
             moved |= self.replicas.pump((peer, shared)).await;
             moved |= self.settle_outbox().await;
-            self.replicas.tell_published((peer, shared));
             rekey_changed(peer, self.replicas, &mut keyed);
             let before = version_revisions(shared);
             self.refresh_versions().await;
@@ -1074,18 +1073,20 @@ impl Session<'_> {
         if self.replicas.take_kept() {
             self.tasks.0.sync(peer, shared);
         }
-        if self.tasks.0.take_drained() {
-            self.replicas.retell_published();
+        for block in self.tasks.0.take_published() {
+            self.replicas.drained(block);
         }
         let diverged = self.tasks.0.take_diverged();
         let merged = !diverged.is_empty();
         for (block, remote) in diverged {
-            if let Err(error) = self
+            match self
                 .replicas
                 .merge_diverged((peer, shared), block, remote)
                 .await
             {
-                record(shared, error);
+                Ok(_) if peer.pending_commits(block).is_empty() => self.replicas.drained(block),
+                Ok(_) => {}
+                Err(error) => record(shared, error),
             }
         }
         if !self.rejoin || self.tasks.0.syncing() {
@@ -1146,7 +1147,6 @@ impl Session<'_> {
         self.tasks.0.contacts(peer, shared);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
-        self.replicas.retell_published();
         self.settle_outbox().await;
         for (block, content_type) in self.wanted.blocks() {
             open_wanted(
@@ -1174,18 +1174,38 @@ fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     held.connection = None;
 }
 
+/// Publishes the outbox: answers the blocks that diverged, and those whose kept commits all
+/// reached the server.
 async fn drain_outbox(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
-) -> Vec<(Uuid, Option<CommitId>)> {
+) -> (Vec<(Uuid, Option<CommitId>)>, Vec<Uuid>) {
     let mut diverged = Vec::new();
+    let mut published = Vec::new();
     if peer.pending().operations == 0 {
-        return diverged;
+        return (diverged, published);
     }
     match peer.drain(|_| false).await {
         Ok(drained) => {
+            // A block any of whose commits was refused or set aside keeps them unsent.
+            let missed: std::collections::HashSet<Uuid> = drained
+                .iter()
+                .filter_map(|outcome| match outcome {
+                    be_block_client::Drained::Diverged { block, .. }
+                    | be_block_client::Drained::Refused { block, .. }
+                    | be_block_client::Drained::Failed { block }
+                    | be_block_client::Drained::Unsent { block } => Some(*block),
+                    _ => None,
+                })
+                .collect();
             for outcome in drained {
                 match outcome {
+                    be_block_client::Drained::Published { block, .. }
+                    | be_block_client::Drained::Created { block }
+                        if !missed.contains(&block) && peer.pending_commits(block).is_empty() =>
+                    {
+                        published.push(block);
+                    }
                     be_block_client::Drained::Diverged { block, remote, .. } => {
                         diverged.push((block, remote));
                     }
@@ -1208,7 +1228,7 @@ async fn drain_outbox(
         Err(error) => record(shared, error),
     }
     report(peer, shared);
-    diverged
+    (diverged, published)
 }
 
 fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
@@ -2787,9 +2807,9 @@ const STORAGE_FAILED: &str = "The server stopped saying how much storage this ac
 struct Outbox {
     draining: bool,
     again: bool,
-    /// A drain ended since `take_drained` last asked.
-    drained: bool,
     diverged: Vec<(Uuid, Option<CommitId>)>,
+    /// Blocks whose kept commits all reached the server (`Replicas::drained`).
+    published: Vec<Uuid>,
 }
 
 impl Tasks {
@@ -2831,10 +2851,10 @@ impl Tasks {
         );
         self.spawn(async move {
             loop {
-                let diverged = drain_outbox(&peer, &shared).await;
+                let (diverged, published) = drain_outbox(&peer, &shared).await;
                 let mut held = outbox.borrow_mut();
                 held.diverged.extend(diverged);
-                held.drained = true;
+                held.published.extend(published);
                 if !std::mem::take(&mut held.again) || !peer.is_attached() {
                     held.draining = false;
                     break;
@@ -2848,8 +2868,8 @@ impl Tasks {
         self.outbox.borrow().draining
     }
 
-    fn take_drained(&self) -> bool {
-        std::mem::take(&mut self.outbox.borrow_mut().drained)
+    fn take_published(&self) -> Vec<Uuid> {
+        std::mem::take(&mut self.outbox.borrow_mut().published)
     }
 
     fn take_diverged(&self) -> Vec<(Uuid, Option<CommitId>)> {

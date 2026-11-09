@@ -63,6 +63,8 @@ pub(crate) struct Opened {
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
     pub(crate) lost_edits: bool,
+    pub(crate) kept: bool,
+    pub(crate) journal_kept: bool,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -112,6 +114,12 @@ pub(crate) enum Input {
         token: Token,
         result: Result<Resume, String>,
     },
+    /// The host's answer to an append of entries up to `through`.
+    Appended {
+        through: u64,
+        held: bool,
+    },
+    Drained,
     Close,
     Claim,
     Change {
@@ -410,6 +418,18 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     ranges: Vec<RangeRead>,
     /// Parts editors asked to put, by the token of the host call: the editor and its token.
     puts: BTreeMap<Token, (EditorId, u64)>,
+    /// What the server lacks of what this replica holds, for `ToEditor::Held`: sequenced
+    /// operations whose append is unanswered, up to this sequence number;
+    awaiting_through: Option<u64>,
+    /// operations only this device's journal holds (appended offline, or opened from its own
+    /// journal), up to this one, until a commit holding them reaches the server;
+    lost_through: Option<u64>,
+    /// commits this device kept in its outbox, until the host says they are `drained`, and the
+    /// last sequence number they hold.
+    kept_commits: bool,
+    kept_through: u64,
+    /// The `ToEditor::Held` each editor was last told.
+    told_held: BTreeMap<EditorId, u64>,
     out: Vec<Effect>,
 }
 
@@ -433,6 +453,8 @@ where
             Input::PartRead { token, result } => self.answer_part_read(token, result),
             Input::PartPut { token, result } => self.answer_part_put(token, result),
             Input::Resumed { token, result } => self.answer_resume(token, result),
+            Input::Appended { through, held } => self.appended(through, held),
+            Input::Drained => self.drained(),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
                 | HeadEvent::Rejected { .. }
@@ -486,6 +508,15 @@ where
 {
     pub(crate) fn new(opened: Opened) -> Self {
         let empty = C::default();
+        let lost_through = match opened.journal_kept {
+            true => opened.journal.as_ref().map(|journal| {
+                journal
+                    .entries
+                    .last()
+                    .map_or(journal.base.sequence, |entry| entry.sequence)
+            }),
+            false => None,
+        };
         Self {
             id: opened.replica,
             content_type: opened.content_type,
@@ -552,6 +583,11 @@ where
             reported: Reported::default(),
             ranges: Vec::new(),
             puts: BTreeMap::new(),
+            awaiting_through: None,
+            lost_through,
+            kept_commits: opened.kept,
+            kept_through: 0,
+            told_held: BTreeMap::new(),
             out: Vec::new(),
         }
     }
@@ -579,6 +615,7 @@ where
             }
             false => self.beaten = None,
         }
+        self.tell_held();
         self.report();
         out.append(&mut self.out);
     }
@@ -646,6 +683,10 @@ where
     /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded.
     fn sequenced(&mut self, op: SessionOp) {
         self.last_edit = Some(self.now);
+        self.awaiting_through = Some(
+            self.awaiting_through
+                .map_or(op.sequence, |through| through.max(op.sequence)),
+        );
         self.unappended.push(op);
         match self.alone() {
             true => {
@@ -820,6 +861,7 @@ where
             Input::Attach { editor, editable } => self.attach(editor, editable),
             Input::Detach { editor } => {
                 self.editors.remove(&editor);
+                self.told_held.remove(&editor);
             }
             Input::Head(HeadEvent::Moved {
                 head,
@@ -829,7 +871,9 @@ where
             | Input::Read { .. }
             | Input::PartRead { .. }
             | Input::PartPut { .. }
-            | Input::Resumed { .. } => {}
+            | Input::Resumed { .. }
+            | Input::Appended { .. }
+            | Input::Drained => {}
             Input::Lease {
                 session,
                 resynchronize,
@@ -1241,8 +1285,19 @@ where
 
     fn answer_awaited(&mut self, event: HeadEvent) {
         match (self.waiting.take(), event) {
-            (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, .. }) => {
+            (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, held, .. }) => {
+                let sealing = matches!(then, AfterPublish::Seal { .. });
                 self.published(then, Some(head));
+                match held {
+                    true if sealing => self.server_holds(self.sealed),
+                    true => {}
+                    false => {
+                        self.kept_commits = true;
+                        if sealing {
+                            self.kept_through = self.kept_through.max(self.sealed);
+                        }
+                    }
+                }
             }
             (Some(Wait::Publish { then, .. }), HeadEvent::Rejected { head, .. }) => {
                 self.rejected(then, head);
@@ -2064,6 +2119,7 @@ where
     }
 
     fn snapshot_to(&mut self, editor: EditorId) {
+        let applied = self.acknowledged.get(&editor).copied().unwrap_or_default();
         let settled = self.projected.settled();
         let bytes = settled.encode();
         let length = match C::LOADS {
@@ -2081,9 +2137,74 @@ where
                 .iter()
                 .map(C::encode_operation)
                 .collect(),
-            applied: self.acknowledged.get(&editor).copied().unwrap_or_default(),
+            applied,
+            held: self.server_holds_all().then_some(applied),
         };
+        if snapshot.held.is_some() {
+            self.told_held.insert(editor, applied);
+        }
         self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
+    }
+
+    /// Whether the server holds everything this replica does: as owner, every operation it
+    /// sequenced is in a journal append the server answered or in a commit published to it; as
+    /// follower, the owner accepted every edit made here (the server relays what an owner with
+    /// others in its session appends). Neither, while commits wait in this device's outbox or
+    /// its own journal holds what the server lacks.
+    fn server_holds_all(&self) -> bool {
+        self.loaded
+            && !self.kept_commits
+            && self.lost_through.is_none()
+            && match &self.role {
+                Role::Owner(_) => {
+                    self.awaiting_through.is_none()
+                        && self.unappended.is_empty()
+                        && self.held.is_empty()
+                }
+                Role::Follower(_) => self.unsettled() == 0,
+            }
+    }
+
+    /// The server holds every operation up to `sequence`.
+    fn server_holds(&mut self, sequence: u64) {
+        if self.awaiting_through.is_some_and(|through| through <= sequence) {
+            self.awaiting_through = None;
+        }
+        if self.lost_through.is_some_and(|through| through <= sequence) {
+            self.lost_through = None;
+        }
+    }
+
+    fn appended(&mut self, through: u64, held: bool) {
+        match held {
+            true => self.server_holds(through),
+            false => {
+                self.lost_through = Some(self.lost_through.map_or(through, |lost| lost.max(through)));
+                if self.awaiting_through.is_some_and(|awaiting| awaiting <= through) {
+                    self.awaiting_through = None;
+                }
+            }
+        }
+    }
+
+    fn drained(&mut self) {
+        self.kept_commits = false;
+        self.server_holds(self.kept_through);
+    }
+
+    /// Tells each editor how many of its operations the server holds, once it holds all this
+    /// replica does: after the confirmations of those operations, so the count covers them.
+    fn tell_held(&mut self) {
+        if !self.server_holds_all() {
+            return;
+        }
+        let editors: Vec<EditorId> = self.editors.keys().copied().collect();
+        for editor in editors {
+            let applied = self.acknowledged.get(&editor).copied().unwrap_or_default();
+            if self.told_held.insert(editor, applied) != Some(applied) {
+                self.tell_editor(editor, &ToEditor::Held(applied));
+            }
+        }
     }
 
     fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {

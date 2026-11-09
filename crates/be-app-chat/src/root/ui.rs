@@ -131,8 +131,8 @@ pub fn Chat(editor: Editor) -> NodeId {
     let scroll = ComponentRef::<ScrollApi>::new();
     let at_end = create_signal(true);
     let unread = unread_count(editor, chat, block, me, at_end);
-    let has_unread = create_memo(move || unread.get() > 0);
-    let unread_label = create_memo(move || match unread.get() {
+    let has_unread = create_memo(move || unread.get().is_some_and(|count| count > 0));
+    let unread_label = create_memo(move || match unread.get().unwrap_or_default() {
         1 => "1 new message".to_owned(),
         count => format!("{count} new messages"),
     });
@@ -252,31 +252,45 @@ pub fn Chat(editor: Editor) -> NodeId {
     }
 }
 
-/// How many messages others sent since this account last read the chat, kept in its
-/// owner-only `ChatReads` so every device it uses agrees. The chat is read while it is
-/// scrolled to its newest message.
+/// How many messages others sent since this account last read the chat, none until its
+/// owner-only `ChatReads` loaded. Each device keeps its own place there and the furthest
+/// counts, so every device the account uses agrees. The chat is read while it is scrolled to its
+/// newest message, shown, and has the keyboard: a chat left open in a window behind others is
+/// not.
 fn unread_count(
     editor: Editor,
     chat: Chat,
     block: Uuid,
     me: Uuid,
     at_end: Signal<bool>,
-) -> Memo<usize> {
+) -> Memo<Option<usize>> {
     let reads = LayeredSettings::<ChatReads>::this_device(editor);
-    let read = reads.effective();
+    let (read, ready) = (reads.effective(), reads.ready());
+    let device = editor.host().client_id();
     let unread = create_memo(move || {
-        let read = read.with(|reads| reads.read_up_to(block).cloned());
-        chat.read(|content| content.unread(read.as_ref(), me))
-            .unwrap_or_default()
+        if !ready.get() {
+            return None;
+        }
+        let places = read.with(|reads| reads.read_up_to(block));
+        chat.read(|content| content.unread(&places, me)).ok()
     });
+    let shown = editor.presence_visible();
+    let keyboard = use_keyboard();
     create_effect(move || {
-        if !at_end.get() || unread.get() == 0 {
+        if !at_end.get() || !shown.get() || !keyboard.get() || unread.get().is_none() {
             return;
         }
-        let Ok(Some(newest)) = chat.read(ChatContent::newest) else {
+        let here = read.with(|reads| reads.read_here(block, device));
+        let newest = chat.read(|content| {
+            content
+                .newest()
+                .filter(|newest| content.reads_further(*newest, here))
+        });
+        let Ok(Some(newest)) = newest else {
             return;
         };
-        let edit: KeptEdit<ChatReads> = Rc::new(move |_| ChatReads::set_read(block, &newest));
+        let edit: KeptEdit<ChatReads> =
+            Rc::new(move |_| ChatReads::set_read(block, device, newest));
         // Not yet loaded, it is written on the next change instead.
         let _ = reads.write_all(SettingsLayer::EveryDevice, &[edit]);
     });

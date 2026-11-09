@@ -57,6 +57,7 @@ mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod an_abandoned_lease_is_claimed;
+mod an_edit_is_delivered_once_the_server_holds_it_not_when_its_replica_confirms_it;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
@@ -344,6 +345,8 @@ fn opening(
         session,
         journal: None,
         lost_edits: false,
+        kept: false,
+        journal_kept: false,
     }
 }
 
@@ -970,7 +973,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 entries,
                 relay,
             } => {
-                self.to(device, |host| reply.send(host, &()));
+                self.to(device, |host| reply.send(host, &true));
                 if relay {
                     let participants = self.lease.state().participants.clone();
                     for entry in &entries {

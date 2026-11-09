@@ -1,31 +1,22 @@
 use be_sdk_beui::be_block::Root;
-use be_sdk_beui::beui::vec2;
 use be_type_chat::{ChatReads, ChatReadsContent};
 
 use super::*;
 
+const PHONE: Uuid = Uuid::from_u128(0x9407_0000_0000_4000_8000_0000_0000_0005);
+
 #[test]
 fn reading_on_one_device_clears_the_count_on_another() {
-    let lines: Vec<(Uuid, String)> = (0..12)
-        .map(|line| match line % 2 {
-            0 => (ROSA, format!("Line {line} of the minutes")),
-            _ => (ME, format!("Noted, line {line}")),
-        })
-        .collect();
-    let lines: Vec<(Uuid, &str)> = lines
-        .iter()
-        .map(|(author, body)| (*author, body.as_str()))
-        .collect();
-    let mut laptop = Harness::new(&lines);
+    let mut laptop = Harness::new(&[
+        (ROSA, "Minutes are up"),
+        (ME, "Thanks, reading now"),
+    ]);
     assert!(
         !laptop.editor.shown("chat.unread"),
-        "a chat opened at its newest message is read"
+        "a chat shown at its newest message with the keyboard is read"
     );
 
-    let last = laptop.id(11);
-    laptop
-        .editor
-        .scroll(format!("chat.message.{last}"), vec2(0.0, -400.0));
+    laptop.editor.blur();
     laptop.run();
     for body in ["Two more things", "Who takes the notes next week?"] {
         laptop.arrive(
@@ -39,12 +30,11 @@ fn reading_on_one_device_clears_the_count_on_another() {
         laptop
             .editor
             .label("chat.unread")
-            .ends_with("2 new messages")
+            .ends_with("2 new messages"),
+        "a chat in a window without the keyboard is not read"
     );
-    laptop.snapshot("a_chat_scrolled_back_counts_the_messages_since");
+    laptop.snapshot("a_chat_not_in_front_counts_the_messages_since");
 
-    // The phone, at the newest message, reads the chat: its write reaches the laptop's
-    // owner-only settings as any synced edit does.
     let reads = laptop
         .editor
         .store()
@@ -59,10 +49,21 @@ fn reading_on_one_device_clears_the_count_on_another() {
         })
         .expect("the laptop keeps where it read in its owner-only settings");
     assert!(laptop.editor.store().owner_only(reads));
+    let first = laptop.id(0);
+    laptop
+        .editor
+        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(CHAT, PHONE, first));
+    laptop.run();
+    assert!(
+        laptop.editor.shown("chat.unread"),
+        "the phone, behind, takes no reading back"
+    );
+
+    // The phone reads the chat: its place syncs to the laptop as any edit does.
     let newest = laptop.content().newest().expect("the chat has messages");
     laptop
         .editor
-        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(CHAT, &newest));
+        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(CHAT, PHONE, newest));
     laptop.run();
     assert!(
         !laptop.editor.shown("chat.unread"),

@@ -67,6 +67,9 @@ pub struct Snapshot {
     )]
     pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
+    /// `ToEditor::Held` as of the snapshot, when the server holds everything it does; none
+    /// while it lacks some.
+    pub held: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -113,12 +116,12 @@ pub enum ToEditor {
         token: u64,
         result: Result<be_block::PartRef, String>,
     },
-    /// From the host rather than the replica: whether what this device sequences reaches the
-    /// server. False once the device is offline, and while it holds edits the server lacks
-    /// (sequenced offline, or commits in its outbox); true again once a commit holding them is
-    /// published. An editor counts what it sent before a false as delivered, and what it sends
-    /// after as sending until the next true (`EditorMirror::delivered`).
-    Published(bool),
+    /// Of the operations this instance sent the replica since its last snapshot (as
+    /// `Snapshot::applied` counts them), how many the server holds: sequenced by the session's
+    /// owner and appended to the server's journal or published in a commit. The replica sends it
+    /// in order with the operations it confirms, only once the server holds everything it does,
+    /// so the count covers everything before it.
+    Held(u64),
 }
 
 mod range_result {
@@ -218,7 +221,8 @@ pub struct EditorMirror<C: LiveEdit> {
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
     puts: Vec<(u64, Result<be_block::PartRef, String>)>,
     sent: u64,
-    published: bool,
+    /// Operations sent before the replica's current count began (`Snapshot::applied`).
+    counted_from: u64,
     delivered: u64,
 }
 
@@ -241,7 +245,7 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             ranges: Vec::new(),
             puts: Vec::new(),
             sent: 0,
-            published: true,
+            counted_from: 0,
             delivered: 0,
         }
     }
@@ -340,19 +344,19 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.sent
     }
 
-    fn confirmed_count(&self) -> u64 {
-        self.sent - self.pending.len() as u64
-    }
-
-    /// How many of the operations this mirror sent are delivered: confirmed by the session's
-    /// owner while what this device sequences reaches the server, or published since
-    /// (`ToEditor::Published`). An operation sequenced offline is delivered once a commit
+    /// How many of the operations this mirror sent the server holds (`ToEditor::Held`): the
+    /// session's owner sequenced them and the server took its journal entry or a commit holding
+    /// them. The replica confirming an operation is not enough: it confirms an edit at once,
+    /// before any owner accepted it. An operation made offline is delivered once a commit
     /// holding it is published.
     pub fn delivered(&self) -> u64 {
-        match self.published {
-            true => self.confirmed_count(),
-            false => self.delivered,
-        }
+        self.delivered
+    }
+
+    fn held(&mut self, held: u64) {
+        self.delivered = self
+            .delivered
+            .max((self.counted_from + held).min(self.sent));
     }
 
     pub fn presence(&self) -> &[PeerPresence] {
@@ -411,11 +415,8 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.puts.push((token, result));
                 None
             }
-            ToEditor::Published(published) => {
-                if self.published && !published {
-                    self.delivered = self.confirmed_count();
-                }
-                self.published = published;
+            ToEditor::Held(held) => {
+                self.held(held);
                 None
             }
         }
@@ -443,6 +444,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.acknowledged = snapshot.applied;
         for _ in 0..taken.min(self.pending.len() as u64) {
             self.pending.pop_front();
+        }
+        self.counted_from = (self.sent - self.pending.len() as u64).saturating_sub(snapshot.applied);
+        if let Some(held) = snapshot.held {
+            self.held(held);
         }
         self.confirmed = Some(Settling::new(settled, unsettled));
         self.length = snapshot.length;

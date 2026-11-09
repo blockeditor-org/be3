@@ -94,6 +94,8 @@ struct Inner {
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
     left: BTreeSet<BlockQuery>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
+    offline: bool,
+    kept: BTreeSet<Uuid>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
@@ -130,6 +132,8 @@ impl Default for Inner {
             answered: BTreeMap::new(),
             left: BTreeSet::new(),
             deferred: None,
+            offline: false,
+            kept: BTreeSet::new(),
             known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
@@ -269,7 +273,14 @@ impl Inner {
                 if let Some(held) = self.blocks.get_mut(&block) {
                     held.head = Some(head);
                 }
-                reply.send(&mut self.host, &Ok(PublishOutcome::Published(head)));
+                let outcome = match self.offline {
+                    true => {
+                        self.kept.insert(block);
+                        PublishOutcome::Kept(head)
+                    }
+                    false => PublishOutcome::Published(head),
+                };
+                reply.send(&mut self.host, &Ok(outcome));
             }
             Call::Stash { reply, content, .. } => {
                 let commit = self.write(content.bytes);
@@ -318,10 +329,13 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
+            Call::Append { reply, .. } => {
+                let held = !self.offline;
+                reply.send(&mut self.host, &held);
+            }
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
-            | Call::Append { reply, .. }
             | Call::RebaseJournal { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::History { reply, .. }
@@ -368,6 +382,8 @@ impl Inner {
                 session: session(),
                 journal: None,
                 lost_edits: false,
+                kept: false,
+                journal_kept: false,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {
@@ -798,23 +814,23 @@ impl ContentStore {
         }
     }
 
-    /// Tells the block's editors whether the server holds all this device holds of it, as a
-    /// host does (`ToEditor::Published`): false as for edits made offline, true once they are
-    /// published.
-    pub fn set_published(&self, block: Option<Uuid>, published: bool) {
-        let key = self.key(block);
+    /// Takes this device off the server or puts it back, as for an editor's sending state:
+    /// offline, journal appends are answered as kept on the device alone and a seal as kept in
+    /// the outbox (`publish-outcome.kept`); back online, the replicas holding kept commits are
+    /// told they are `drained`.
+    pub fn set_online(&self, online: bool) {
         let mut inner = self.0.borrow_mut();
-        let editors: Vec<EditorId> = inner
-            .attached
-            .get(&key)
-            .into_iter()
-            .flatten()
-            .copied()
-            .collect();
-        let frame = ToEditor::Published(published).encode();
-        for editor in editors {
-            inner.outbox.push((key, editor, frame.clone()));
+        inner.offline = !online;
+        if !online {
+            return;
         }
+        let kept: Vec<Uuid> = std::mem::take(&mut inner.kept).into_iter().collect();
+        for block in kept {
+            if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
+                replica.drained(&mut inner.host);
+            }
+        }
+        inner.run();
     }
 
     /// Holds the editor's operations back until called with false, to test what the editor

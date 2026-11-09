@@ -74,6 +74,7 @@ impl HostContent {
             session: self.session,
             unsettled: self.unsettled,
             applied: self.applied,
+            held: None,
         }
     }
 }
@@ -1264,7 +1265,7 @@ impl EditorHost {
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
             | ToEditor::PartPut { .. }
-            | ToEditor::Published(_)) => {
+            | ToEditor::Held(_)) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
