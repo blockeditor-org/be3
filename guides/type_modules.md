@@ -204,7 +204,9 @@ decoded it and a `PartReader`; a merged value hands unchanged parts back as
 `Part::Reused`, so the commit uploads only what the merge changed. Equal refs
 mean equal bytes, but not the other way round (the same bytes
 written anew under another epoch have another ref), so a merge that must know reads the bytes. The answer may reuse
-only parts of the sides (`Scope::admits`); a merge that reused any other, or
+only parts of the sides (`Scope::admits`), and writing it seals again any it
+reuses from another block (version control combining checkouts;
+decisions/reused_parts_keep_their_key.md); a merge that reused any other, or
 whose reads failed (offline, a missing key), is not written: the read failure
 comes back as the `ClientError`.
 

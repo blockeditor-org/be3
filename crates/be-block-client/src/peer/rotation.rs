@@ -88,6 +88,18 @@ impl<S: ObjectStore> Peer<S> {
         }
         self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
             .await?;
+        // A head's reused parts keep the epoch that sealed them
+        // (decisions/reused_parts_keep_their_key.md), so every data key must be rewrapped under
+        // the new scope keys for anyone let in later. A device that does not trust one of them
+        // (an administrator's, through escrow) leaves the rotation pending for one that does.
+        if let Some(node) = walked.iter().find(|node| {
+            self.keys
+                .keys_of(node.id, KeyKind::Data)
+                .iter()
+                .any(|row| !self.keys.trusted(row.id))
+        }) {
+            return Err(ClientError::Untrusted(node.id));
+        }
         let top_scope = super::scope_of(&top)?;
         let outer = match top_scope == top.id {
             true => None,
@@ -129,9 +141,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             let under = current(&fresh, node_scope)?;
             for row in self.keys.keys_of(node.id, KeyKind::Data) {
-                if self.keys.trusted(row.id) {
-                    keys.wrapped.push(self.keys.wrap(row.id, under)?);
-                }
+                keys.wrapped.push(self.keys.wrap(row.id, under)?);
             }
             let (_, minted) = self.keys.mint_data(node.id, under)?;
             keys.extend(minted);

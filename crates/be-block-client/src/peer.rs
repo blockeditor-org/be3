@@ -782,7 +782,37 @@ impl<S: ObjectStore> Peer<S> {
         parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, ClientError> {
         let key = self.sealing_key(block).await?;
-        Ok(self.commits.vault().write(key, content_type, parts)?)
+        let parts = parts.into();
+        let vault = self.commits.vault();
+        // A reused part keeps the key that sealed it if that is one of this block's epochs; a
+        // part of another block (a checkout filled from another's snapshot, a merge reusing
+        // its sides' parts) is sealed again under this block's key, so nobody needs the other
+        // block's key to read this one (decisions/reused_parts_keep_their_key.md). A reused
+        // part this device never read names its key in its top object: fetch those first, so
+        // only another block's parts are fetched whole.
+        let own: HashSet<Uuid> = self
+            .keys
+            .keys_of(block, KeyKind::Data)
+            .into_iter()
+            .map(|row| row.id)
+            .chain([key])
+            .collect();
+        let own = |sealed: Uuid| own.contains(&sealed);
+        let tops: Vec<Hash> = vault
+            .foreign_parts(&own, &parts)?
+            .iter()
+            .map(|part| part.hash())
+            .collect();
+        self.fetch(&tops).await?;
+        for part in vault.foreign_parts(&own, &parts)? {
+            let manifest = Manifest {
+                content_type,
+                root: Some(part),
+            };
+            self.fetch_range(&manifest, 0, u64::MAX).await?;
+        }
+        let parts = vault.adopt(key, &own, parts)?;
+        Ok(vault.write(key, content_type, parts)?)
     }
 
     pub fn account(&self) -> Uuid {
@@ -1798,20 +1828,24 @@ impl<S: ObjectStore> Peer<S> {
             }
         };
         let wrapped_under = |key: Uuid| self.keys.wrapped_by(key).contains(&WrappedBy::Key(under));
-        // A head's reused parts keep the key they were sealed under, any older epoch
-        // (decisions/reused_parts_keep_their_key.md), so a move wraps every epoch this device
-        // trusts, not only the current one: a device that reads the head holds them all.
-        let unwrapped = |block: Uuid| {
-            self.keys
-                .keys_of(block, KeyKind::Data)
-                .into_iter()
-                .filter(|row| self.keys.trusted(row.id) && !wrapped_under(row.id))
-                .map(|row| row.id)
-                .collect::<Vec<Uuid>>()
+        // A head's reused parts keep the epoch that sealed them
+        // (decisions/reused_parts_keep_their_key.md), so a move wraps every epoch of each moved
+        // block not yet wrapped under its destination, and walks the whole subtree to find
+        // them. One this device does not trust (escrow) or lacks would leave the head
+        // unreadable in the new scope, so the move is refused instead.
+        let unwrapped = |block: Uuid| -> Result<Vec<Uuid>, ClientError> {
+            let mut unwrapped = Vec::new();
+            for row in self.keys.keys_of(block, KeyKind::Data) {
+                if wrapped_under(row.id) {
+                    continue;
+                }
+                if !self.keys.trusted(row.id) {
+                    return Err(ClientError::Untrusted(block));
+                }
+                unwrapped.push(row.id);
+            }
+            Ok(unwrapped)
         };
-        if moved.key.is_some_and(wrapped_under) && unwrapped(block).is_empty() {
-            return Ok(keys);
-        }
         let mut level = vec![moved];
         while !level.is_empty() {
             let mut below = Vec::new();
@@ -1828,7 +1862,7 @@ impl<S: ObjectStore> Peer<S> {
                     }
                     continue;
                 }
-                for key in unwrapped(node.id) {
+                for key in unwrapped(node.id)? {
                     keys.wrapped.push(self.keys.wrap(key, under)?);
                 }
                 if !node.key.is_some_and(wrapped_under) {

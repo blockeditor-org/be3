@@ -38,12 +38,19 @@ fn taking_a_share_back_rotates_its_keys_and_seals_what_follows_under_the_new_one
     wait_until("opened the block", |shared| {
         shared.blocks.contains_key(&block)
     });
+    let before = node(block).and_then(|node| node.head);
     set_access(block, guest.session.account, be_block_graph::Access::None);
     flush();
     assert_eq!(status().error, None);
-    // The rotation reseals nothing it already wrote (decisions/reused_parts_keep_their_key.md):
-    // what is written after it is sealed under the new key.
-    let before = node(block).and_then(|node| node.head);
+    // The open session's forced seal writes only what the content does not hand back as
+    // `Part::Reused`, and a text document hands back every part it did not change, so it
+    // publishes nothing (decisions/reused_parts_keep_their_key.md). What is written after the
+    // rotation is sealed under the new key.
+    assert_eq!(
+        node(block).and_then(|node| node.head),
+        before,
+        "the forced seal of unchanged parts published a commit"
+    );
     let mut editor = Editor::<be_type_text::TextContent>::attach(block);
     type_into(&mut editor, 0, "then ");
     flush();

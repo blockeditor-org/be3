@@ -47,10 +47,10 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   (`KeyBook::absorb`). A read meeting an unknown key refetches once, then fails
   with `ClientError::Locked`; `Peer::learn` fetches rows for blocks that appear
   later.
-- **Moving and sharing.** `Peer::set_parent` into another scope rewraps the
-  moved DEKs (old epochs too) under the destination KEK, gives each block a
-  fresh DEK and rewraps scope roots inside, all in one `SetParent`. A move
-  within a scope or to Recently Deleted changes no keys. `Peer::share` grants
+- **Moving and sharing.** `Peer::set_parent` into another scope gives each
+  block a fresh DEK and rewraps under the destination KEK every DEK epoch not
+  wrapped there yet (below, "Rotation") and the scope roots inside, all in one
+  `SetParent`. A move to Recently Deleted changes no keys. `Peer::share` grants
   and makes the block a scope root sealed to the grantee's verified key.
 
 ### Rotation
@@ -65,21 +65,25 @@ on connect, `ContactsChanged`, `KeyWorkChanged` and after its own changes.
 
 `Peer::rotate` sends one `Rotate` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
-whole. Content is not resealed: the owner of a live session on a rekeyed block
-seals once more (`Session::rekey`), which seals only the parts it writes new
-under the new key, and every reused part keeps the epoch it was sealed under
-(decisions/reused_parts_keep_their_key.md). Since every data key is rewrapped
-under the new scope epoch, a viewer let in after the rotation still opens them. A rotation nobody can do yet
-waits until a client that may edit the block tends. A kind open inside
+whole. Content is not resealed. A part a block hands back as `Part::Reused`
+keeps the epoch of that block that sealed it
+(decisions/reused_parts_keep_their_key.md), so a head can need any older epoch,
+and a viewer let in after the rotation opens it through the rewrapped keys. The
+owner of a live session on a rekeyed block seals once more
+(`Session::rekey`): a type that hands back every unchanged part publishes
+nothing, and one that writes whole bytes seals them under the new key.
+
+A rotation or move that would leave an epoch unwrapped is refused
+(`ClientError::Untrusted`): every data key of each block it covers must be one
+this device trusts, which an administrator's device holding the keys only
+through escrow does not, so `tend` reports it and leaves the rotation for a
+device that does. A move walks the whole subtree, wrapping each epoch not yet
+wrapped under the destination. A rotation nobody can do yet waits until a
+client that may edit the block and trusts its keys tends. A kind open inside
 (guides/settings.md) is also offered by any viewer to its own contacts among
 the viewers, since the owner's editors may know none of them.
 
-A move into another scope rewraps every data key of each moved block the
-device trusts, not only its current one, since a head can be sealed under any
-older epoch; a device that reads the head holds them all. Not built yet: the
-move lists the subtree a level at a time, and old data keys this device cannot
-open (or holds only through escrow) are not rewrapped, so that history stays
-closed to the new scope.
+Not built yet: a move lists the subtree a level at a time.
 
 ### Escrow (company organizations)
 
@@ -180,7 +184,11 @@ escrow keys are used only when pinned or signed down from a pinned one.
 It still decides, and devices trust it for: which held key is a block's current
 data key and which epoch is newest (so a server colluding with someone who lost
 access, or a demoted administrator, can keep a device writing under a key that
-person knows); grants, membership and roles (a device seals to any verified
+person knows, and what that device writes stays under it for as long as later
+saves reuse it); serving objects only to those who may view them (a reused
+part keeps its epoch, so a server colluding with someone who lost access can
+hand them every part of the current head no save has rewritten since, not only
+history up to the removal); grants, membership and roles (a device seals to any verified
 contact the server lists as granted, and the escrow secret to any verified
 contact it lists as an administrator); which blocks an account knows exist;
 and the graph's shape, sizes and timings.

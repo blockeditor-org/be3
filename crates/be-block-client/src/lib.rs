@@ -138,6 +138,9 @@ pub enum ClientError {
     Encoding(String),
     Contended,
     Locked(uuid::Uuid),
+    /// A rotation or move needs a data key of this block that this device holds only through
+    /// escrow, or not at all, so it leaves the work to a device that trusts every epoch.
+    Untrusted(uuid::Uuid),
     Unexpected,
     Incompatible { ours: String, theirs: String },
     NoBuild(String),
@@ -166,6 +169,10 @@ impl fmt::Display for ClientError {
             }
             Self::Locked(_) => formatter.write_str(
                 "this block is locked: its key has not been shared with this account yet",
+            ),
+            Self::Untrusted(block) => write!(
+                formatter,
+                "this device does not hold every key of block {block} as its own (some came only through escrow), so a device of someone who does must rotate or move it"
             ),
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
             Self::Incompatible { ours, theirs } => write!(

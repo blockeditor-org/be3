@@ -218,7 +218,7 @@ impl<S: ObjectStore> Vault<S> {
                 for range in split(bytes, self.chunker) {
                     let length =
                         u32::try_from(range.len()).map_err(|_| StoreError::ChunkTooLarge)?;
-                    let hash = self.put_sealed(key, &sealing.seal(key, &bytes[range]))?;
+                    let hash = self.put_sealed(&sealing.seal(key, &bytes[range]))?;
                     chunks.push(PartRef::Chunk(ChunkRef { hash, length }));
                 }
                 self.group(key, sealing, chunks)
@@ -292,9 +292,12 @@ impl<S: ObjectStore> Vault<S> {
         }
     }
 
-    /// The key one object was sealed under. A tree mixes keys (a reused part keeps the key it
-    /// was sealed under), but a part a write made new is sealed whole under one key, so the
-    /// key of a part's top object is its own, not its reused parts'.
+    /// The key one object was sealed under, which every sealed object names. A block's tree
+    /// mixes its own epochs (a reused part keeps the key that sealed it), and a new node can
+    /// point at parts under older keys, but a part reused from another block is always
+    /// resealed whole (`adopt`), so a part's top object says whose it is. Kept for what
+    /// `adopt` and `foreign_parts` look up (the reused tops of each write), not for what this
+    /// vault writes.
     pub fn sealed_under(&self, hash: Hash) -> Result<Uuid, StoreError> {
         if let Some(key) = self.sealed.read().expect("never poisoned").get(&hash) {
             return Ok(*key);
@@ -311,18 +314,114 @@ impl<S: ObjectStore> Vault<S> {
         Ok(key)
     }
 
-    fn put_sealed(&self, key: Uuid, sealed: &[u8]) -> Result<Hash, StoreError> {
-        let hash = self.store.put(sealed)?;
-        self.sealed
-            .write()
-            .expect("never poisoned")
-            .insert(hash, key);
-        Ok(hash)
+    fn put_sealed(&self, sealed: &[u8]) -> Result<Hash, StoreError> {
+        self.store.put(sealed)
+    }
+
+    /// The reused parts of `part` whose top object a key `own` does not accept sealed: parts
+    /// of another block, which `adopt` reseals and so needs every object of. A part whose top
+    /// object is missing is listed too, since whose it is is unknown.
+    pub fn foreign_parts(
+        &self,
+        own: &dyn Fn(Uuid) -> bool,
+        part: &Part<'_>,
+    ) -> Result<Vec<PartRef>, StoreError> {
+        let mut foreign = Vec::new();
+        let mut parts = vec![part];
+        while let Some(part) = parts.pop() {
+            match part {
+                Part::Bytes(_) => {}
+                Part::Reused(reused) => {
+                    let theirs = match self.store.has(reused.hash())? {
+                        true => !own(self.sealed_under(reused.hash())?),
+                        false => true,
+                    };
+                    if theirs {
+                        foreign.push(*reused);
+                    }
+                }
+                Part::Node {
+                    parts: children, ..
+                } => parts.extend(children),
+            }
+        }
+        Ok(foreign)
+    }
+
+    /// `part` with every reused part another block's key sealed (a top object `own` does not
+    /// accept) sealed again whole under `key`, so a block never needs another block's key to
+    /// be read (decisions/reused_parts_keep_their_key.md). Its own reused parts stay as they
+    /// are, under whichever of its epochs sealed them.
+    pub fn adopt<'a>(
+        &self,
+        key: Uuid,
+        own: &dyn Fn(Uuid) -> bool,
+        part: Part<'a>,
+    ) -> Result<Part<'a>, StoreError> {
+        Ok(match part {
+            Part::Reused(reused) if !own(self.sealed_under(reused.hash())?) => {
+                let sealing = self.keys.get(key).ok_or(StoreError::MissingKey(key))?;
+                Part::Reused(self.reseal(key, &sealing, reused)?)
+            }
+            Part::Node { parts, references } => Part::Node {
+                parts: parts
+                    .into_iter()
+                    .map(|child| self.adopt(key, own, child))
+                    .collect::<Result<_, _>>()?,
+                references,
+            },
+            part => part,
+        })
+    }
+
+    /// Seals every object of a saved part again under `key`.
+    fn reseal(
+        &self,
+        key: Uuid,
+        sealing: &ContentKey,
+        part: PartRef,
+    ) -> Result<PartRef, StoreError> {
+        match part {
+            PartRef::Chunk(chunk) => {
+                let sealed = self
+                    .store
+                    .get(chunk.hash)?
+                    .ok_or(StoreError::MissingObject(chunk.hash))?;
+                let plain = self.open(&sealed)?;
+                if plain.len() != chunk.length as usize {
+                    return Err(StoreError::Corrupt);
+                }
+                let hash = self.put_sealed(&sealing.seal(key, &plain))?;
+                Ok(PartRef::Chunk(ChunkRef {
+                    hash,
+                    length: chunk.length,
+                }))
+            }
+            PartRef::Chunks(held) | PartRef::Node(held) => {
+                let node = self.node(held)?;
+                let mut parts = Vec::with_capacity(node.parts.len());
+                for child in node.parts {
+                    parts.push(self.reseal(key, sealing, child)?);
+                }
+                let resealed = self.put_node(
+                    key,
+                    sealing,
+                    Node {
+                        parts,
+                        references: node.references,
+                    },
+                )?;
+                Ok(match part {
+                    PartRef::Chunks(_) => PartRef::Chunks(resealed),
+                    _ => PartRef::Node(resealed),
+                })
+            }
+        }
     }
 
     fn put_node(&self, key: Uuid, sealing: &ContentKey, node: Node) -> Result<NodeRef, StoreError> {
         let length = node.parts.iter().map(|part| part.length()).sum();
-        let hash = self.put_sealed(key, &sealing.seal(key, &encode_value(&node)?))?;
+        let hash = self.put_sealed(&sealing.seal(key, &encode_value(&node)?))?;
         Ok(NodeRef { hash, length })
     }
 

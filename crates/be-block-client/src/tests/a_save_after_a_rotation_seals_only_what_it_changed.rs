@@ -97,12 +97,48 @@ async fn a_save_after_a_rotation_seals_only_what_it_changed() {
         }
     }
 
+    leaver
+        .refresh_keys(Some(vec![block, team]))
+        .await
+        .unwrap();
+    assert!(
+        !leaver.keys().has(new_key),
+        "the section written after the rotation is under a key the leaver never gets"
+    );
+    let reused = vault
+        .objects(&manifest(second))
+        .unwrap()
+        .into_iter()
+        .find(|hash| !new.contains(hash))
+        .expect("the head reuses objects under the old key");
+    assert!(
+        !leaver.try_fetch(reused).await.unwrap(),
+        "the server refuses the leaver an object of the head it still holds the old key of"
+    );
+
+    share(&owner, team, &leaver).await;
+    owner
+        .grant(team, leaver.account(), Access::None)
+        .await
+        .unwrap();
+    owner.tend().await.unwrap();
+    let third_key = owner.summary(block).await.unwrap().key.unwrap();
+    assert_ne!(third_key, new_key, "the second rotation gave the block a newer key");
+    let mut sections = owner.open::<Sections>(block).await.unwrap().unwrap();
+    sections.set(5, "FIVE");
+    owner
+        .save(block, &sections, owner.local_head(block))
+        .await
+        .unwrap()
+        .published()
+        .expect("the edit after the second rotation publishes");
+
     let viewer = harness.member(&owner, "viewer@example.com").await;
     share(&owner, team, &viewer).await;
     assert_eq!(
         read(&viewer, block).await,
-        texts(&[(4, "FOUR")]),
-        "a viewer let in after the rotation reads the parts under the old key too"
+        texts(&[(4, "FOUR"), (5, "FIVE")]),
+        "a viewer let in after two rotations reads the parts under each of the three epochs"
     );
 
     let other = workspace(&owner, "Other").await;
@@ -114,7 +150,7 @@ async fn a_save_after_a_rotation_seals_only_what_it_changed() {
         .unwrap();
     assert_eq!(
         read(&elsewhere, block).await,
-        texts(&[(4, "FOUR")]),
+        texts(&[(4, "FOUR"), (5, "FIVE")]),
         "a member of the scope the block moved into reads every epoch its head is under"
     );
 
@@ -128,7 +164,7 @@ async fn a_save_after_a_rotation_seals_only_what_it_changed() {
         .expect("the save after the move publishes");
     assert_eq!(
         read(&elsewhere, block).await,
-        texts(&[(4, "FOUR"), (7, "SEVEN")]),
+        texts(&[(4, "FOUR"), (5, "FIVE"), (7, "SEVEN")]),
         "a save after the move stays readable in the new scope"
     );
     harness.stop().await;

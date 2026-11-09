@@ -161,7 +161,11 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
     assert_eq!(text(&laptop, secret).await, "a key for elsewhere");
 
     rotate_later(&harness, &member, settings);
-    admin.tend().await.unwrap();
+    let refused = admin.tend().await;
+    assert!(
+        matches!(refused, Err(ClientError::Untrusted(_))),
+        "an administrator holding the member's settings keys only through escrow left the rotation to the member: {refused:?}"
+    );
     rotate_later(&harness, &member, secret);
     member.tend().await.unwrap();
     assert!(admin.key_work().await.unwrap().rotations.is_empty());

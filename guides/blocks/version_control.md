@@ -16,8 +16,10 @@ rewritten, conflicts are data, and every operation can be undone.
   a `be_block_vcs::Tree`: one entry per block of the versioned subtree, keyed by
   local id (type, parent, metadata, references, content manifest), plus the
   tree's unresolved conflicts. Entries reuse the blocks' own manifests, so an
-  unchanged block stores nothing new and a checkout publishes a first commit
-  without downloading it.
+  unchanged block stores nothing new. A checkout's blocks are new blocks with
+  keys of their own, so its first commit downloads what it copies and seals it
+  again under them (`Peer::write_content`, decisions/reused_parts_keep_their_key.md),
+  and a checkout shared alone is readable without the one it came from.
 - A **change** is the line of snapshots sharing a `ChangeId`
   (`Commit::change`); rewriting keeps the change id and makes a new commit id.
   A commit with none is its own change (`Commit::change_id`).
