@@ -1,5 +1,6 @@
 use super::*;
 
+mod a_build_server_address_gives_the_host_and_the_token;
 mod a_crate_has_a_test_target_unless_its_macro_is_told_not_to;
 mod a_local_build_is_any_spelling_of_the_local_platforms;
 mod a_tar_file_is_found_by_its_long_name;
@@ -8,3 +9,4 @@ mod cksum_matches_posix;
 mod pins_read_shell_assignments;
 mod quiet_keeps_what_explains_a_failure;
 mod run_reads_the_command_buck2_wrote;
+mod the_running_scheduler_is_chosen_before_a_stopped_one;

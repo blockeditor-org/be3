@@ -1,0 +1,21 @@
+[Unit]
+Description=NativeLink cache and remote execution scheduler (be3)
+After=network-online.target wg-quick@wg-sch.service nl-otelcol.service
+Wants=wg-quick@wg-sch.service nl-otelcol.service
+StartLimitIntervalSec=0
+
+[Service]
+User=nativelink
+Group=nativelink
+EnvironmentFile=/etc/nativelink/server.env
+# Metrics to the collector next door, every 5 s: the controller scales on the queue they report.
+Environment=OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317
+Environment=OTEL_METRIC_EXPORT_INTERVAL=5000
+ExecStartPre=+/usr/local/bin/nl-small-restore.sh
+ExecStart=/usr/local/bin/nativelink /etc/nativelink/server.json5
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

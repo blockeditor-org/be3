@@ -454,4 +454,57 @@ alias(
     actual = ":caddy-" + _caddy_host,
 )
 
+# What the browser tests run on a worker (web_drive_test and page_test, buck/program/drive.bzl): Node, Playwright's two
+# packages as buck/program/browser-tests' lockfile pins them (the integrity there is these files'), and the headless
+# Chromium that Playwright version installs (its browsers.json: chromium-headless-shell revision 1243, Chrome
+# 153.0.8010.12). The libraries Chromium loads that the workers' image lacks come from buck/sysroot:amd64-browser.
+http_archive(
+    name = "node",
+    sha256 = "1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce",
+    size_bytes = 31029996,
+    strip_prefix = "node-v22.23.4-linux-x64",
+    urls = ["https://nodejs.org/dist/v22.23.4/node-v22.23.4-linux-x64.tar.xz"],
+    visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "playwright-core",
+    sha256 = "208593d4e1bcd8f8fe5f869cad1cc332dc7f1d70dc1d58c102dc3ac36e30f26c",
+    size_bytes = 3123044,
+    strip_prefix = "package",
+    type = "tar.gz",
+    urls = ["https://registry.npmjs.org/playwright-core/-/playwright-core-1.63.0.tgz"],
+)
+
+http_archive(
+    name = "playwright",
+    sha256 = "195a5ee9bfed7c6e9c03965950e32e5e4dbedaa02e740e5a530eb4b87dae050c",
+    size_bytes = 899597,
+    strip_prefix = "package",
+    type = "tar.gz",
+    urls = ["https://registry.npmjs.org/playwright/-/playwright-1.63.0.tgz"],
+)
+
+http_archive(
+    name = "chrome-headless-shell",
+    sha256 = "a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d",
+    size_bytes = 119809080,
+    strip_prefix = "chrome-headless-shell-linux64",
+    urls = ["https://cdn.playwright.dev/builds/cft/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip"],
+    visibility = ["PUBLIC"],
+)
+
+# Where Node looks for `playwright` (NODE_PATH), laid out as npm would.
+genrule(
+    name = "playwright-modules",
+    cmd = """
+        set -eu
+        mkdir -p $OUT/playwright $OUT/playwright-core
+        cp -R $(location :playwright)/. $OUT/playwright/
+        cp -R $(location :playwright-core)/. $OUT/playwright-core/
+    """,
+    out = "node_modules",
+    visibility = ["PUBLIC"],
+)
+
 package_fix()

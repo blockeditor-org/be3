@@ -1,0 +1,84 @@
+// NativeLink worker, "direct" variant: objects of 16 KB and up are read straight from Bunny with a
+// READ-ONLY key (Bunny S3 read-only password), so a fresh fleet downloads in parallel through each
+// worker's own link instead of through the server's single one. Small objects and every write
+// still go to the server. Misses in Bunny fall back to the server.
+{
+  stores: [
+    { name: "SERVER_CAS", grpc: { instance_name: "", endpoints: [{ address: "grpc://10.99.0.1:50052" }], store_type: "cas" } },
+    { name: "SERVER_AC",  grpc: { instance_name: "", endpoints: [{ address: "grpc://10.99.0.1:50052" }], store_type: "ac" } },
+    {
+      name: "BUNNY_RO",
+      experimental_cloud_object_store: {
+        provider: "aws",
+        region: "de",
+        endpoint: "https://de-s3.storage.bunnycdn.com",
+        force_path_style: true,
+        bucket: "be-nativelink-s3",
+        key_prefix: "cas/",
+        access_key_id: "be-nativelink-s3",
+        secret_access_key: "${BUNNY_S3_RO_SECRET}",
+        retry: { max_retries: 6, delay: 0.3, jitter: 0.5 },
+        // Bunny allows 500 requests/s per zone, shared with the server and every other worker.
+        max_concurrent_requests: 32,
+        max_concurrent_reads: 24,
+        adaptive_read_concurrency: true,
+      },
+    },
+    {
+      // Bunny first; the read-only direction means nothing is ever written to it from here.
+      name: "LARGE_CAS",
+      fast_slow: {
+        fast: { ref_store: { name: "BUNNY_RO" } },
+        fast_direction: "read_only",
+        slow: { ref_store: { name: "SERVER_CAS" } },
+      },
+    },
+    {
+      name: "SPLIT_CAS",
+      size_partitioning: {
+        size: "16kb",
+        lower_store: { ref_store: { name: "SERVER_CAS" } },
+        upper_store: { ref_store: { name: "LARGE_CAS" } },
+      },
+    },
+    {
+      name: "WORKER_FAST_SLOW_STORE",
+      fast_slow: {
+        // Must be a filesystem store: the worker hardlinks from it into action dirs.
+        fast: {
+          filesystem: {
+            content_path: "/work/cas/content",
+            temp_path: "/work/cas/tmp",
+            eviction_policy: { max_bytes: 15000000000 },
+          },
+        },
+        fast_direction: "get",
+        slow: { ref_store: { name: "SPLIT_CAS" } },
+      },
+    },
+  ],
+  workers: [
+    {
+      local: {
+        worker_api_endpoint: { uri: "grpc://10.99.0.1:50061" },
+        cas_fast_slow_store: "WORKER_FAST_SLOW_STORE",
+        upload_action_result: { ac_store: "SERVER_AC" },
+        work_directory: "/work/run",
+        // How many actions a worker runs at once. Past it, work waits in the scheduler's queue, and the queue's depth is
+        // what the controller scales on (nl-controller.py reads this number to turn depth into workers).
+        // One per CPU of a large worker (NL_WORKER_TYPE in nl-controller.py). Two per CPU made a verify after a
+        // be-lib-geometry change take 474 s on 2 workers instead of 216 s: the big compiles every other action waits
+        // for ran on half a CPU.
+        max_inflight_tasks: 8,
+        // Actions start with an empty environment; the toolchain scripts use `env bash`.
+        additional_environment: { PATH: { value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" } },
+        platform_properties: {
+          OSFamily: { values: ["Linux"] },
+          "container-image": { values: ["docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549"] },
+        },
+      },
+    },
+  ],
+  servers: [],
+  global: { max_open_files: 65536 },
+}

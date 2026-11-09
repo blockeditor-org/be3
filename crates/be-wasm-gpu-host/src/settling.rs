@@ -9,8 +9,13 @@ pub type Wake = Arc<dyn Fn() + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 enum State {
-    Pending,
-    Mapped { range: Range<u64>, writable: bool },
+    /// Waiting for the map numbered so: a buffer unmapped and mapped again can still hear its
+    /// earlier map's callback, which must not settle the later one.
+    Pending(u64),
+    Mapped {
+        range: Range<u64>,
+        writable: bool,
+    },
 }
 
 #[derive(Default)]
@@ -18,9 +23,14 @@ struct Held {
     states: HashMap<u32, State>,
     work: HashMap<u64, bool>,
     tickets: u64,
+    maps: u64,
     pending: usize,
     lost: Option<String>,
     stopped: bool,
+    /// Whether the background poller is inside `device.poll`, and how many of its polls have
+    /// ended: a poll that has ended has run every callback it found settled.
+    polling: bool,
+    rounds: u64,
 }
 
 #[derive(Default)]
@@ -134,7 +144,7 @@ impl Settling {
         let pending = held
             .states
             .values()
-            .filter(|state| **state == State::Pending)
+            .filter(|state| matches!(state, State::Pending(_)))
             .count();
         held.pending -= pending;
         held.states.clear();
@@ -153,7 +163,7 @@ impl Settling {
     pub(crate) fn state(&self, buffer: u32) -> abi::MapState {
         match self.shared.held().states.get(&buffer) {
             None => abi::MapState::Unmapped,
-            Some(State::Pending) => abi::MapState::Pending,
+            Some(State::Pending(_)) => abi::MapState::Pending,
             Some(State::Mapped { .. }) => abi::MapState::Mapped,
         }
     }
@@ -166,16 +176,19 @@ impl Settling {
         mode: abi::MapMode,
         range: Range<u64>,
     ) -> Result<(), String> {
-        {
+        let number = {
             let mut held = self.shared.held();
             if held.states.contains_key(&handle) {
                 return Err(format!(
                     "buffer {handle} was asked to map while it is mapped or mapping"
                 ));
             }
-            held.states.insert(handle, State::Pending);
+            held.maps += 1;
+            let number = held.maps;
+            held.states.insert(handle, State::Pending(number));
             held.pending += 1;
-        }
+            number
+        };
         let shared = Arc::clone(&self.shared);
         let wake = self.wake.clone();
         let writable = mode == abi::MapMode::Write;
@@ -187,7 +200,7 @@ impl Settling {
         buffer.map_async(mode, range, move |result| {
             {
                 let mut held = shared.held();
-                if held.states.get(&handle) == Some(&State::Pending) {
+                if held.states.get(&handle) == Some(&State::Pending(number)) {
                     held.pending -= 1;
                     match result {
                         Ok(()) => held.states.insert(
@@ -247,9 +260,31 @@ impl Settling {
 
     pub(crate) fn forget(&mut self, buffer: u32) {
         let mut held = self.shared.held();
-        if held.states.remove(&buffer) == Some(State::Pending) {
+        if let Some(State::Pending(_)) = held.states.remove(&buffer) {
             held.pending -= 1;
         }
+    }
+
+    /// Polls the device, waiting for the work submitted so far when `wait` is set. wgpu runs a
+    /// submission's map and work-done callbacks on whichever thread's poll saw it finish, once
+    /// that poll lets go of the device. So a wait that finds the queue empty because the
+    /// background poller saw the work finish also waits for that poller's round to end, after
+    /// which every callback the work owed has run.
+    pub(crate) fn poll(&self, device: &wgpu::Device, wait: bool) -> Result<(), wgpu::PollError> {
+        if !wait {
+            return device.poll(wgpu::PollType::Poll).map(|_| ());
+        }
+        device.poll(wgpu::PollType::wait_indefinitely())?;
+        let mut held = self.shared.held();
+        let round = held.rounds;
+        while held.polling && held.rounds == round {
+            held = self
+                .shared
+                .changed
+                .wait(held)
+                .unwrap_or_else(|held| held.into_inner());
+        }
+        Ok(())
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -278,8 +313,14 @@ impl Settling {
                         if held.stopped {
                             return;
                         }
+                        held.polling = true;
                     }
                     let _ = device.poll(wgpu::PollType::wait_indefinitely());
+                    let mut held = shared.held();
+                    held.polling = false;
+                    held.rounds += 1;
+                    drop(held);
+                    shared.changed.notify_all();
                 }
             })
             .ok();

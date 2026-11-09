@@ -10,6 +10,7 @@ mod cargo;
 mod deploy;
 mod download;
 mod lock;
+mod nativelink;
 mod nsc;
 mod pins;
 mod platform;

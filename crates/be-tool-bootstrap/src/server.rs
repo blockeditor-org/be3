@@ -10,7 +10,8 @@ use be_lib_prompt::{Choice, Saved, choose, config_directory, interactive, save_p
 
 use crate::{Result, repository};
 
-const SERVERS: [&str; 5] = [
+const SERVERS: [&str; 6] = [
+    "nativelink",
     "api.be3.pfg.pw",
     "blocks.pfg.pw",
     "namespace",
@@ -46,7 +47,20 @@ pub fn configure(buck2: &Path) -> Result<()> {
     let server = server()?;
     let (engine, storage, header);
     let (mut engine_address, mut storage_address, mut tls);
-    if server == "local" {
+    if server == "nativelink" {
+        // Always through the relay, sending HTTP/1.1, which is all boat's edge carries gRPC as.
+        let token;
+        (engine, token) = crate::nativelink::connect()?;
+        storage = engine.clone();
+        (engine_address, storage_address) = relay::ensure(&engine, &storage, true)?;
+        header = if token.is_empty() {
+            String::new()
+        } else {
+            format!("Authorization:Bearer {token}")
+        };
+        tls = false;
+        proxy = None;
+    } else if server == "local" {
         engine = local_address()?;
         storage = engine.clone();
         engine_address = engine.clone();
@@ -87,7 +101,7 @@ pub fn configure(buck2: &Path) -> Result<()> {
         tls = true;
     }
     if proxy.is_some() {
-        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage)?;
+        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage, false)?;
         engine_address = engine_relay;
         storage_address = storage_relay;
         tls = false;
@@ -202,6 +216,7 @@ fn ask_for_server(saved: &Path) -> Option<String> {
         .map(|server| Choice {
             label: server,
             detail: match *server {
+                "nativelink" => "our NativeLink build server on boat (needs its address and token)",
                 "namespace" => "Namespace's remote execution",
                 "api.be3.pfg.pw" => "our own NativeLink server",
                 "blocks.pfg.pw" => "our NativeLink build VM, behind blocks.pfg.pw",
@@ -484,7 +499,8 @@ pub mod relay {
         !crc
     }
 
-    pub fn ensure(engine: &str, storage: &str) -> Result<(String, String)> {
+    /// Builds scripts/internal/re-relay if this source has not been built, and returns the binary and its version.
+    fn build() -> Result<(PathBuf, u32)> {
         let source = repository().join("scripts/internal/re-relay");
         let go = Command::new("go").args(["env", "GOEXE"]).output();
         let suffix = match go {
@@ -492,8 +508,8 @@ pub mod relay {
                 String::from_utf8_lossy(&output.stdout).trim().to_owned()
             }
             _ => {
-                return Err("go was not found on PATH. HTTPS_PROXY is set, and buck2 reaches the build server through \
-                            it with scripts/internal/re-relay, which needs Go 1.24 or newer."
+                return Err("go was not found on PATH. buck2 reaches the build server through scripts/internal/re-relay, \
+                            which needs Go 1.24 or newer."
                     .to_owned());
             }
         };
@@ -530,6 +546,13 @@ pub mod relay {
             std::fs::rename(&partial, &relay)
                 .map_err(|error| format!("could not write {}: {error}", relay.display()))?;
         }
+        Ok((relay, version))
+    }
+
+    /// Starts, or finds running, a relay to each of `engine` and `storage` and returns their local addresses. `http1`
+    /// sends every call as HTTP/1.1 (re-relay's `-http1`).
+    pub fn ensure(engine: &str, storage: &str, http1: bool) -> Result<(String, String)> {
+        let (relay, version) = build()?;
         let path = repository().to_string_lossy().into_owned();
         let port = 20000 + cksum(path.as_bytes()) % 2000 * 2;
         let engine_address = format!("127.0.0.1:{port}");
@@ -543,9 +566,10 @@ pub mod relay {
                     listen,
                     "-upstream",
                     upstream,
+                    if http1 { "-http1=true" } else { "-http1=false" },
                     "-version",
                 ])
-                .arg(format!("{version}-{upstream}"))
+                .arg(format!("{version}-{upstream}-{http1}"))
                 .arg("-log")
                 .arg(&log)
                 .status()

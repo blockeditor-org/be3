@@ -102,7 +102,10 @@ rebuilds nothing else:
   such as a local build's (guides/running/local_buck2.md).
 - **An HTTPS proxy relay.** buck2's remote execution client never reads `HTTPS_PROXY`, so when it
   is set `./scripts/buck` builds `scripts/internal/re-relay` with Go (1.24+) and runs two relays
-  on ports picked from the checkout's path; errors go to `target/re-relay.log`.
+  on ports picked from the checkout's path; errors go to `target/re-relay.log`. The `nativelink`
+  server always goes through them, with `-http1` (guides/build_server.md). A relay remembers which blobs the
+  server holds and answers `FindMissingBlobs` about them itself, and holds back a caller asking
+  about a blob another is uploading, so a slow link carries each blob once (`cas.go`).
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
   download, and does not retry; the wrapper runs the command three times in all
   (`BE3_BUCK_ATTEMPTS`). For `run` it retries the build, not the program: it builds with
@@ -206,9 +209,10 @@ again while every passing one still comes from the cache.
 - Tests that draw (beui-renderer-wgpu, be-host-wayland, beui-platform-drm, ...) use lavapipe from
   `buck/sysroot:amd64-test` (`amd64-xr` adds Monado). The workers replace `LD_LIBRARY_PATH`, so a
   test's `env` that names it reaches the test through the launcher's `--library-path`.
-- **Browser tests** (`web_drive_test` and `page_test` in buck/program/drive.bzl) run on this
-  machine, since workers have no browser, and need Node, `playwright` and Chromium
-  (guides/testing_a_gui.md, 7).
+- **Browser tests** (`web_drive_test` and `page_test` in buck/program/drive.bzl) run on a worker like any
+  test, with Node, Playwright and Playwright's headless Chromium as pinned downloads (buck/tools) and the
+  libraries Chromium loads that the workers' image lacks from `buck/sysroot:amd64-browser`
+  (guides/testing_a_gui.md, 7). Nothing is installed on the machine that builds.
 - **Compile-fail tests** live in `compile_fail/`, outside `crates/` so `build //crates/...` does not
   fail on them: `compile_fail(name, deps)` passes when every line marked
   `//~ ERROR <part of message>` has that error and no other line has one.

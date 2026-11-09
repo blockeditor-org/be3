@@ -1,0 +1,31 @@
+# Receives NativeLink's OpenTelemetry (gRPC to localhost:4317, which is where its exporters go by default) and serves the
+# metrics as Prometheus text on 127.0.0.1:8889, where the controller reads
+# nativelink_execution_active_count{execution_stage="queued"|"executing"}: the actions waiting for a worker and the
+# ones running. Traces and logs are accepted and dropped.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+exporters:
+  prometheus:
+    endpoint: 127.0.0.1:8889
+    namespace: nativelink
+    metric_expiration: 2m
+  nop:
+service:
+  telemetry:
+    metrics:
+      level: none
+    logs:
+      level: warn
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      exporters: [nop]
+    logs:
+      receivers: [otlp]
+      exporters: [nop]

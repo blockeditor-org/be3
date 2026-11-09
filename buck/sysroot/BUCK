@@ -38,6 +38,25 @@ test_runtime = [
     "xkb-data",
 ]
 
+# What the browser tests' headless Chromium loads and the workers' image lacks, as `ldd` reports it inside the
+# image worker_properties names: the X extensions, ALSA, ATK and AT-SPI, D-Bus, GBM, NSS and NSPR, and xkbcommon.
+# Its own set, so that a change here moves neither the compiles' key nor the other tests'.
+browser_runtime = [
+    "libasound2t64",
+    "libatk-bridge2.0-0t64",
+    "libatk1.0-0t64",
+    "libatspi2.0-0t64",
+    "libdbus-1-3",
+    "libgbm1",
+    "libnspr4",
+    "libnss3",
+    "libxcomposite1",
+    "libxdamage1",
+    "libxfixes3",
+    "libxkbcommon0",
+    "libxrandr2",
+]
+
 # What beui-layer-xr's smoke test adds to that: the OpenXR loader, and Monado's
 # runtime and service, which it runs with the null compositor on lavapipe.
 # Armadillo, which Monado's OpenCV links, is the one library outside the
@@ -73,6 +92,7 @@ deb_lock(
     indexes = indexes,
     sets = {
         "amd64": ("amd64", wanted),
+        "amd64-browser": ("amd64", browser_runtime),
         "amd64-test": ("amd64", test_runtime),
         "amd64-xr": ("amd64", xr_runtime),
         "arm64": ("arm64", wanted),
@@ -85,6 +105,12 @@ deb_lock(
 deb_downloads(packages)
 
 sysroot(name = "amd64", packages = packages, set_name = "amd64")
+
+sysroot(
+    name = "amd64-browser",
+    packages = packages,
+    set_name = "amd64-browser",
+)
 
 sysroot(
     name = "amd64-test",

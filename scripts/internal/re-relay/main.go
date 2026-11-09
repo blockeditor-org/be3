@@ -13,12 +13,18 @@
 //
 // ensure returns once a relay of that version is listening, starting one in
 // the background if there is none, and replacing one of another version.
+//
+// -http1 sends every call as HTTP/1.1, for an upstream whose front carries
+// gRPC only that way: the NativeLink build server on boat, whose hosted port
+// blocks gRPC over HTTP/2 (guides/build_server.md). It is used there with or
+// without a proxy.
 package main
 
 import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"flag"
 	"fmt"
@@ -54,15 +60,16 @@ func main() {
 	version := flags.String("version", "", "what ensure expects a running relay to answer")
 	logPath := flags.String("log", "", "where a relay ensure starts writes its errors")
 	connections := flags.Int("connections", 128, "at most this many connections to the upstream at once")
+	http1 := flags.Bool("http1", false, "send every call as HTTP/1.1")
 	flags.Parse(os.Args[2:])
 	if *upstream == "" {
 		fail("-upstream is required")
 	}
 	switch os.Args[1] {
 	case "serve":
-		serve(*listen, *upstream, *version, *connections)
+		serve(*listen, *upstream, *version, *connections, *http1)
 	case "ensure":
-		ensure(*listen, *upstream, *version, *logPath, *connections)
+		ensure(*listen, *upstream, *version, *logPath, *connections, *http1)
 	default:
 		fail("usage: re-relay serve|ensure [flags]")
 	}
@@ -73,7 +80,7 @@ func fail(format string, args ...any) {
 	os.Exit(1)
 }
 
-func ensure(listen, upstream, version, logPath string, connections int) {
+func ensure(listen, upstream, version, logPath string, connections int, http1 bool) {
 	local := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 5 * time.Second}
 	base := "http://" + listen + controlPath
 	resp, err := local.Get(base)
@@ -96,7 +103,7 @@ func ensure(listen, upstream, version, logPath string, connections int) {
 		fail("%v", err)
 	}
 	command := exec.Command(self, "serve", "-listen", listen, "-upstream", upstream,
-		"-version", version, "-connections", strconv.Itoa(connections))
+		"-version", version, "-connections", strconv.Itoa(connections), "-http1="+strconv.FormatBool(http1))
 	detach(command)
 	if logPath != "" {
 		log, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -118,15 +125,18 @@ func ensure(listen, upstream, version, logPath string, connections int) {
 	}
 }
 
-func serve(listen, upstream, version string, connections int) {
+func serve(listen, upstream, version string, connections int, http1 bool) {
 	transport := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:   true,
+		ForceAttemptHTTP2:   !http1,
 		MaxConnsPerHost:     connections,
 		MaxIdleConns:        connections,
 		MaxIdleConnsPerHost: connections,
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  true,
+	}
+	if http1 {
+		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 	}
 
 	listener, err := net.Listen("tcp", listen)
@@ -147,8 +157,9 @@ func serve(listen, upstream, version string, connections int) {
 			os.Exit(0)
 		}()
 	})
+	cache := newCASCache()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		relay(transport, upstream, w, r)
+		relay(transport, upstream, cache, w, r)
 	})
 
 	server.Protocols = new(http.Protocols)
@@ -192,10 +203,14 @@ var resumable = map[string]bool{
 	"/build.bazel.remote.execution.v2.Execution/WaitExecution": true,
 }
 
-func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r *http.Request) {
+func relay(transport *http.Transport, upstream string, cache *casCache, w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		grpcError(w, 14, "re-relay: reading the request: "+err.Error())
+		return
+	}
+	send := func(body []byte) (*http.Response, string) { return call(transport, upstream, r, body) }
+	if cache.handle(w, r, body, send) {
 		return
 	}
 
