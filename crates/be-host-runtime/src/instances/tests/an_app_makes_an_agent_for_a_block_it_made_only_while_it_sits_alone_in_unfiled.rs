@@ -46,12 +46,18 @@ fn an_app_makes_an_agent_for_a_block_it_made_only_while_it_sits_alone_in_unfiled
 
     let terminal = Uuid::now_v7();
     made(terminal, unfiled, "be3.boat");
-    assert!(!ask(terminal), "a block the app made in Unfiled gets an agent");
+    assert!(
+        !ask(terminal),
+        "a block the app made in Unfiled gets an agent"
+    );
 
     let folder = Uuid::now_v7();
     made(folder, BlockParent::Root, "be3.files");
     be_host_stack::set_parent(terminal, BlockParent::Block(folder));
-    assert!(ask(terminal), "the same block moved out of Unfiled does not");
+    assert!(
+        ask(terminal),
+        "the same block moved out of Unfiled does not"
+    );
 
     let tagged = Uuid::now_v7();
     made(tagged, BlockParent::Block(folder), "be3.boat");

@@ -13,7 +13,10 @@ fn a_development_build_uploads_its_own_be() {
         format!("https://boat.dev/api/v1/sandboxes/{RUNNING}/files/upload-url")
     );
     let body: serde_json::Value = serde_json::from_slice(&asked.request.body).unwrap();
-    assert_eq!(body["path"], "/home/user/.local/lib/be3/builds/tree/be.part");
+    assert_eq!(
+        body["path"],
+        "/home/user/.local/lib/be3/builds/tree/be.part"
+    );
     boat.answer(&asked, 200, UPLOAD_URL);
 
     boat.test
@@ -41,20 +44,4 @@ fn a_development_build_uploads_its_own_be() {
     );
     boat.write_answered("/home/user/.local/lib/be3/builds/tree/build-info.json");
     boat.install_answered(block, true);
-}
-
-#[test]
-fn an_upload_url_that_is_not_https_is_refused() {
-    let mut boat = Boat::listing(SANDBOXES);
-    boat.connect_terminal(Uuid::new_v4());
-    boat.ran("uname -m", UNAME);
-    boat.answer_be(TerminalHostSource::Bytes(b"\x7fELF be".to_vec()));
-    let asked = boat.fetch();
-    boat.answer(&asked, 200, UPLOAD_URL_HTTP);
-    assert!(!boat.test.has_fetches(), "nothing is sent to an http URL");
-    assert!(
-        boat.label(&format!("boat.sandbox.{RUNNING}.terminal.status"))
-            .contains("not https")
-    );
-    assert!(!boat.test.shown("boat.reconnect"), "the key is not to blame");
 }

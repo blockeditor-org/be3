@@ -14,6 +14,7 @@ use be_sdk_test::{BeuiTest, Fetch, HostCall};
 use be_type_boat::{BoatContent, BoatSettings, BoatSettingsContent};
 use uuid::Uuid;
 
+use super::*;
 use crate::root::{BoatRoot, CACHE, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
@@ -25,12 +26,13 @@ mod a_key_without_exec_offers_reconnect_when_connecting;
 mod a_long_list_is_read_page_by_page;
 mod a_refused_start_says_why_until_dismissed;
 mod a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token;
-mod a_terminal_whose_agent_cannot_be_removed_is_kept;
-mod another_editors_token_or_another_build_is_put_right;
 mod a_terminal_of_a_sandbox_no_longer_listed_can_be_removed;
+mod a_terminal_whose_agent_cannot_be_removed_is_kept;
 mod an_empty_list_says_so;
 mod an_expired_key_offers_reconnect;
 mod an_unchanged_list_is_not_kept_again_until_it_ages;
+mod an_upload_url_that_is_not_https_is_refused;
+mod another_editors_token_or_another_build_is_put_right;
 mod connecting_a_terminal_installs_its_host_in_the_sandbox;
 mod connecting_checks_the_key_and_keeps_it_for_its_owner_alone;
 mod on_the_web_it_says_it_is_not_available;

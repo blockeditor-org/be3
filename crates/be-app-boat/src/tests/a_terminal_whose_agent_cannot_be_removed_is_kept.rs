@@ -14,8 +14,10 @@ fn a_terminal_whose_agent_cannot_be_removed_is_kept() {
         call => Err(call),
     });
     boat.ran("sudo systemctl disable --now", DONE);
-    boat.test
-        .answer(reply, Err(Failure::Failed("be3 can't be reached".to_owned())));
+    boat.test.answer(
+        reply,
+        Err(Failure::Failed("be3 can't be reached".to_owned())),
+    );
     boat.test.run();
     boat.test.settle();
 
