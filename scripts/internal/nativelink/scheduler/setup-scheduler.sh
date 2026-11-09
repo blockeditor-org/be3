@@ -17,11 +17,13 @@ CONF
 )
 install -d /etc/systemd/system/wg-quick@wg-sch.service.d; install -m0644 wg-quick-retry.conf /etc/systemd/system/wg-quick@wg-sch.service.d/retry.conf; systemctl daemon-reload
 systemctl enable --now wg-quick@wg-sch
-install -m0755 nativelink /usr/local/bin/nativelink; install -m0755 nl-small-pack.sh nl-small-restore.sh add-peer.sh remove-peer.sh /usr/local/bin/
+install -m0755 nativelink /usr/local/bin/nativelink; install -m0755 nl-small-pack.sh nl-small-restore.sh add-peer.sh remove-peer.sh nl-tunnel.py /usr/local/bin/
 # NativeLink + the Bunny full-access key (delivered by the environment as ~/nl-bunny.env)
 install -d -m0750 -g nativelink /etc/nativelink
 install -m0640 -g nativelink /home/user/nl-bunny.env /etc/nativelink/server.env; chmod 600 /home/user/nl-bunny.env
 install -m0640 -g nativelink server.json5 /etc/nativelink/server.json5
-install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer /etc/systemd/system/
-systemctl daemon-reload; systemctl enable --now nativelink-server   # the pack timer is enabled at cutover
+install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer nl-tunnel.service /etc/systemd/system/
+systemctl daemon-reload; systemctl enable --now nativelink-server nl-tunnel
+# The tunnel listens on 127.0.0.1:8099. Exposing it is one manual step, by someone allowed to:  host 8099 --localhost
+# and `host url 8099` prints the address (with its token) that clients keep as BE3_NL_URL.   # the pack timer is enabled at cutover
 sleep 6; systemctl is-active nativelink-server; ss -tlnp | grep -c -E "10.100.0.1:5(2|0)"

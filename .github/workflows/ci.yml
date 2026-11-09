@@ -34,11 +34,10 @@ env:
 # build server as it can. It is also the gate: ci is
 # the one check the ruleset on main requires, on the pull request and on the
 # merge group GitHub's merge queue builds from it. It runs the pull
-# request's code, so it holds no credential beyond the build server's boat key
-# (BE3_NL_KEY) and the tracker's header, which a build can already read. The
-# boat key can run the registration script on the scheduler VM, which is more
-# than the gateway header ever allowed (guides/build_server.md says what and
-# how to narrow it). This workflow also runs on the code of
+# request's code, so it holds no credential beyond the build server's address
+# and a boat key that can only wake its scheduler (BE3_NL_URL, BE3_NL_KEY), and
+# the tracker's header, all of which a build can already read. This workflow
+# also runs on the code of
 # pull requests opened before it changed, so it hands that code no secret it
 # did not hand it before, and writes none into the checkout.
 # The jobs after it each run nothing from the pull request and hold the one
@@ -71,17 +70,16 @@ jobs:
   # token to build with and no token to comment with, so it has no previews.
   ci:
     name: ci
-    # A boat VM, not a GitHub-hosted runner: the build server (guides/build_server.md) is reached over WireGuard
-    # at an IPv6 address, which GitHub-hosted runners cannot reach. It needs the boat CI GitHub App installed on
-    # the organization; until then the job waits for a runner and never starts. boat-small is 2 vCPU and 4 GB,
-    # which the browser tests below may outgrow; boat is 4 vCPU and 8 GB.
-    runs-on: boat
+    runs-on: ubuntu-24.04
     env:
-      # The build server: NativeLink on boat. BE3_NL_KEY is a boat key limited to the nl-scheduler environment
-      # that can read and resume the scheduler and run the registration script on it. It is on this job alone,
-      # because it runs the pull request's code and a build can read it; a pull request from a fork sees an
-      # empty value and ./scripts/buck says so rather than building. guides/build_server.md has what it can do.
+      # The build server: NativeLink on boat, reached through a tunnel over boat's HTTPS proxy
+      # (guides/build_server.md). BE3_NL_URL is the proxy's address with its token, which is what lets a build use
+      # the server, as the gateway's header used to. BE3_NL_KEY is a boat key that can only read and resume the
+      # scheduler VM, so a build can wake it. Both are on this job alone, because it runs the pull request's code
+      # and a build can read them; a pull request from a fork sees empty values and ./scripts/buck says so rather
+      # than building.
       BE3_BUILD_SERVER: nativelink
+      BE3_NL_URL: ${{ secrets.BE3_NL_URL }}
       BE3_NL_KEY: ${{ secrets.BE3_NL_KEY }}
       # The pinned bootstrap predates the nativelink server and would refuse its name, so this job runs the
       # checkout's own, built with cargo (guides/bootstrap.md, Recovery). Remove it once a release that knows
@@ -165,11 +163,6 @@ jobs:
             buck/program/browser-tests/node_modules/.bin/playwright install --with-deps chromium
           fi
 
-      # The build server is reached over a WireGuard tunnel that ./scripts/buck brings up (guides/build_server.md).
-      - name: Install WireGuard's tools
-        if: ${{ !cancelled() }}
-        run: sudo apt-get install -y -qq wireguard-tools
-
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
         env:
@@ -245,7 +238,7 @@ jobs:
         id: collect
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: |
-          rm -f .buckconfig.local .gateway-authorization .build-server-key.* .nl-key buck/android/ci-keystore.base64
+          rm -f .buckconfig.local .gateway-authorization .build-server-key.* .nl-key .nl-url buck/android/ci-keystore.base64
           git add --all
           if git diff --cached --quiet; then
             echo 'Verification changed nothing.'

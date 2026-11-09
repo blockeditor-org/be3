@@ -18,7 +18,7 @@ release is built from (guides/bootstrap.md).
 
 | `BE3_BUILD_SERVER` | Server | Key | In a Claude Code cloud session |
 |---|---|---|---|
-| `nativelink` (default, and CI's) | our NativeLink server on boat, reached over WireGuard | a boat key, `BE3_NL_KEY` | not working: no WireGuard, set `BE3_BUILD_SERVER=api.be3.pfg.pw` |
+| `nativelink` (default, and CI's) | our NativeLink server on boat, through a WebSocket tunnel | its address `BE3_NL_URL`, and a boat key `BE3_NL_KEY` to wake it | works through the proxy once the address is set; needs Go |
 | `api.be3.pfg.pw` | our NativeLink server | gateway header | works with no setup |
 | `blocks.pfg.pw` | our NativeLink build VM, behind its own gateway over WireGuard | its gateway's header | works once the proxy adds the gateway header for it |
 | `namespace` | Namespace's remote execution, no longer reachable | gateway header, to its waker | not working |
@@ -52,24 +52,29 @@ itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KE
 ## The NativeLink server on boat (`nativelink`)
 
 Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A small `nl-scheduler` VM runs
-NativeLink (CAS, action cache, scheduler) and `nl-controller.py`; boat VMs named `nl-w-*` in the `nl-worker`
-environment run the actions, each NativeLink's worker inside the image `worker_properties` names. Scheduler, workers
-and clients meet in a WireGuard network, 10.100.0.0/24: the scheduler is 10.100.0.1 and serves buck2 on port 50052.
+NativeLink (CAS, action cache, scheduler), `nl-controller.py` and `nl-tunnel.py`; boat VMs named `nl-w-*` in the
+`nl-worker` environment run the actions, each NativeLink's worker inside the image `worker_properties` names. The
+scheduler and the workers meet in a WireGuard network, 10.100.0.0/24: the scheduler is 10.100.0.1 and serves buck2 on
+port 50052.
 
-- **A client** (this tool, `crates/be-tool-bootstrap/src/nativelink.rs`) wakes the scheduler through boat's API,
-  makes a WireGuard key of its own once (`~/.config/be3/nl-wireguard-key`), registers the public key by running
-  `nl-register-client.sh` on the scheduler, brings up the `wg-be3` interface, and checks that port 50052 answers. It
-  needs Linux, root or sudo without a password, `wg` (wireguard-tools), curl, and `BE3_NL_KEY` (or `nl-key` in
-  ~/.config/be3 or `.nl-key` in the checkout): a boat key limited to the `nl-scheduler` environment with the actions
-  `sandbox.read`, `sandbox.resume` and `exec`. `BE3_NL_SCHEDULER` names another scheduler by name prefix.
-  **That key can run any command on the scheduler**, which holds the full-access Bunny key and the key that creates
-  workers; give it to nothing that runs code you do not trust. The planned fix is a registration endpoint that
-  takes only a public key.
-- **The controller** notices a build (a client connected to port 50052), keeps 4 workers alive while it runs by
-  extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. A new VM is
-  placed at random and about half cannot reach the scheduler (see below), so it creates twice as many as it needs and
-  keeps the first that complete a WireGuard handshake. Its key is limited to the `nl-worker` environment (create,
-  read, update, delete-own).
+- **A client reaches it through a tunnel**, so it needs no root, no WireGuard and no IPv6, and it works through an
+  HTTPS proxy. Boat's hosted-port proxy puts the scheduler's port 8099 behind a token and carries WebSockets but
+  blocks gRPC, so `nl-tunnel.py` on the scheduler accepts a WebSocket and connects it to NativeLink, and
+  scripts/internal/re-relay (`ensure-tunnel`, tunnel.go) listens on 127.0.0.1 here and carries each TCP connection
+  buck2 opens inside one WebSocket. buck2's HTTP/2 goes through untouched. The bootstrap
+  (`crates/be-tool-bootstrap/src/nativelink.rs`) points buck2 at that local address, and builds the relay with Go
+  (1.24 or newer; Go fetches the toolchain itself when it is older).
+- **Two secrets**, each an environment variable, a file in ~/.config/be3, or a file at the checkout's root.
+  `BE3_NL_URL` (`nl-url`, `.nl-url`) is the hosted port's address with its token, as `host url 8099` prints it on the
+  scheduler: it is what lets a build use the server, so treat it as the gateway's header was. `BE3_NL_KEY` (`nl-key`,
+  `.nl-key`) is a boat key limited to the `nl-scheduler` environment with the actions `sandbox.read` and
+  `sandbox.resume`; it only wakes the scheduler when boat has stopped it, so a running scheduler needs the address
+  alone. `BE3_NL_SCHEDULER` names another scheduler to wake by name prefix.
+- **The controller** notices a build (a connection from the tunnel on port 50052), keeps 4 workers alive while it runs
+  by extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. Boat
+  places a new VM at random and about half cannot reach the scheduler (below), so it creates twice as many workers as
+  it needs and keeps the first that complete a WireGuard handshake. Its own boat key is limited to the `nl-worker`
+  environment (create, read, update, delete-own).
 - **Storage**: the workers read objects of 16 KB and up straight from the Bunny zone `be-nativelink-s3` with its
   read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
   action cache in /tmp, persisted as one packed Bunny object every 5 minutes and restored on boot, and writes
@@ -79,21 +84,20 @@ and clients meet in a WireGuard network, 10.100.0.0/24: the scheduler is 10.100.
 
 Things that are not obvious:
 
-- **Boat's network** blackholes about half of the VM pairs, both ways and for good, with no pattern we found. A client
-  that cannot reach the scheduler fails with a message saying so; run it on a new VM. Once boat's cache of a stopped
-  VM runs out, resuming starts a fresh machine at a random place, so the scheduler can land somewhere no client
-  reaches (forking it again, which the client does not do yet, picks a new place).
+- **Boat's network** blackholes about half of the VM pairs, both ways and for good, with no pattern we found. That
+  does not touch clients, whose traffic goes through boat's proxy, but it does touch the scheduler and its workers,
+  which is why workers are over-provisioned. A scheduler that boat resumed as a new machine can land where its workers
+  cannot reach it; stopping and resuming it again, or forking it, picks another place.
 - **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
   including the ones it deletes at once. A cold fleet is up to 8 starts.
-- **GitHub-hosted runners** cannot reach it: they have no IPv6. CI runs on `runs-on: boat`, which needs the boat CI
-  GitHub App on the organization.
-- **Claude Code cloud sessions** cannot run WireGuard and are not supported yet.
+- **Exposing the tunnel is one manual step** on the scheduler, `host 8099 --localhost`; the address keeps working
+  across stop and resume, but a new scheduler has a new one.
 - **After a restore** (boat stopped the VM and started a new machine) enabled services start before the disk has its
   files, so the units retry (`wg-quick-retry.conf`) instead of failing for good.
 
-The CI secret is `BE3_NL_KEY`, the key above. Setting up the VMs again: `scheduler/setup-scheduler.sh` on a VM made in
-the `nl-scheduler` environment, then the controller (`nl-controller.service`, its worker files in /opt/nl/worker, its
-boat key logged in under /var/lib/nl-controller/sk-home); each file's first lines say what it does.
+Setting the VMs up again: `scheduler/setup-scheduler.sh` on a VM made in the `nl-scheduler` environment, then the
+controller (`nl-controller.service`, its worker files in /opt/nl/worker, its boat key logged in under
+/var/lib/nl-controller/sk-home); each file's first lines say what it does.
 
 ## When a build keeps failing
 

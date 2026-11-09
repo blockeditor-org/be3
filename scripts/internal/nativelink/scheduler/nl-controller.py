@@ -36,7 +36,7 @@ TICK = int(os.environ.get("NL_TICK", "15"))
 HANDSHAKE_WAIT = int(os.environ.get("NL_HANDSHAKE_WAIT", "60"))        # a good worker handshakes within ~25 s of creation
 MAX_CREATES_PER_HOUR = int(os.environ.get("NL_MAX_CREATES_PER_HOUR", "24"))   # a runaway-loop guard, not a budget
 FRONTEND_PORT = os.environ.get("NL_FRONTEND_PORT", "50052")
-CLIENT_RANGE = (20, 49)     # 10.100.0.20-49: client identities
+CLIENT_RANGE = (20, 49)     # 10.100.0.20-49: a client that joined the WireGuard network itself
 WORKER_RANGE = (51, 99)     # 10.100.0.51-99: workers
 NET = "10.100.0."
 WG_IF = "wg-sch"
@@ -82,13 +82,16 @@ def hub_ipv6():
 
 
 def build_running():
-    """Is a client connected to the frontend port? Workers connect too, but from their own address range."""
+    """Is a client connected to the frontend port? A client reaches it through nl-tunnel.py, whose connections come
+    from this VM itself; the workers connect too, but from their own address range."""
     _, out, _ = run(["ss", "-Htn", "state", "established", f"( sport = :{FRONTEND_PORT} )"])
     for line in out.splitlines():
         cols = line.split()
         if len(cols) < 4:
             continue
         peer = cols[3].rsplit(":", 1)[0]
+        if peer in (f"{NET}1", "127.0.0.1", "::1", "[::1]"):
+            return True
         if peer.startswith(NET) and CLIENT_RANGE[0] <= int(peer.rsplit(".", 1)[1]) <= CLIENT_RANGE[1]:
             return True
     return False
@@ -102,17 +105,6 @@ def registry():
         return {f[0]: (f[1], f[2]) for f in (l.split() for l in open(REGISTRY) if l.strip())}
     except OSError:
         return {}
-
-
-def lease_times():
-    try:
-        return {f[0]: int(f[3]) for f in (l.split() for l in open(REGISTRY) if l.strip()) if len(f) > 3}
-    except OSError:
-        return {}
-
-
-CLIENT_LEASE_UNUSED = 900        # a client that registered but never handshook
-CLIENT_LEASE_IDLE = 8 * 3600     # a client silent this long registers again for its next build
 
 
 def conf_peers():
@@ -236,15 +228,7 @@ def spawn(missing):
 
 def reap_and_extend(workers, active):
     names = {w["name"] for w in workers}
-    peers, age = wg_peers()
-    for name, started in lease_times().items():
-        if not name.startswith("c-") or name not in peers:
-            continue
-        silent = age.get(peers[name][0])
-        if (silent is None and time.time() - started > CLIENT_LEASE_UNUSED) or (silent is not None and silent > CLIENT_LEASE_IDLE):
-            log(f"  dropping the lease of the idle client {name}")
-            if not DRY:
-                run(["/usr/local/bin/remove-peer.sh", name])
+    peers, _ = wg_peers()
     # The running interface must match the config file: drop any peer that is no longer in the file.
     _, live, _ = run(["wg", "show", WG_IF, "peers"])
     known = {pub for pub, _ in peers.values()} | conf_peers()[0]

@@ -1,0 +1,14 @@
+[Unit]
+Description=WebSocket bridge to the build server, for clients that cannot run WireGuard
+After=nativelink-server.service wg-quick@wg-sch.service
+Wants=wg-quick@wg-sch.service
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/nl-tunnel.py
+DynamicUser=yes
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

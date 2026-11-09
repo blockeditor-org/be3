@@ -46,7 +46,10 @@ var hopByHop = map[string]bool{
 
 func main() {
 	if len(os.Args) < 2 {
-		fail("usage: re-relay serve|ensure [flags]")
+		fail("usage: re-relay serve|ensure|serve-tunnel|ensure-tunnel [flags]")
+	}
+	if tunnelCommand(os.Args[1], os.Args[2:]) {
+		return
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 	listen := flags.String("listen", "127.0.0.1:18980", "the address buck2 is pointed at")

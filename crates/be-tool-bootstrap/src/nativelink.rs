@@ -1,31 +1,37 @@
-//! The NativeLink build server on boat (guides/build_server.md): wake its scheduler VM, register this machine's
-//! WireGuard key with it, bring the tunnel up and check that it carries traffic. The scheduler has a fixed address
-//! inside the tunnel, so what comes back is a plain host:port for buck2, the same as the `local` server's.
+//! The NativeLink build server on boat (guides/build_server.md). buck2 reaches it through a tunnel: the scheduler VM
+//! serves a WebSocket bridge on a port boat hosts behind a token, and scripts/internal/re-relay carries each of
+//! buck2's TCP connections to it inside one WebSocket. That needs no root, no WireGuard and no IPv6, and it works
+//! through an HTTPS proxy, so it works on a GitHub-hosted runner and in a Claude Code cloud session.
 //!
-//! One boat key does all of it (`BE3_NL_KEY`, or `nl-key` in ~/.config/be3): it reads and resumes the scheduler
-//! sandbox and runs `nl-register-client.sh` on it. Boat limits it to the `nl-scheduler` environment.
+//! Two secrets: `BE3_NL_URL` is the hosted port's address with its token, as `host url` prints it on the scheduler;
+//! `BE3_NL_KEY` is a boat key (limited to the `nl-scheduler` environment, actions `sandbox.read` and
+//! `sandbox.resume`) that wakes the scheduler when boat has stopped it. A running scheduler needs only the address.
 
 use std::io::Write as _;
-use std::net::{SocketAddr, TcpStream};
-use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use be_lib_prompt::{Saved, config_directory, save_private};
+use be_lib_prompt::Saved;
 use serde_json::{Value, json};
 
 use crate::download::curl_error;
+use crate::server::relay;
 use crate::{Result, repository};
 
-/// The scheduler inside the tunnel, and the port NativeLink serves buck2 on.
-pub const ADDRESS: &str = "10.100.0.1:50052";
-const TUNNEL: &str = "10.100.0.0/24";
-const INTERFACE: &str = "wg-be3";
 const API: &str = "https://boat.dev/api/v1";
 const SCHEDULER_PREFIX: &str = "nl-sched";
-/// Names another scheduler to use, such as a staging one.
+/// Names another scheduler to wake, such as a staging one.
 const SCHEDULER_VARIABLE: &str = "BE3_NL_SCHEDULER";
 const RUNNING: [&str; 3] = ["ready", "idle", "running"];
+
+pub fn address() -> Saved<'static> {
+    Saved {
+        variable: "BE3_NL_URL",
+        name: "nl-url",
+        what: "NativeLink build server address",
+        checkout: Some(repository()),
+    }
+}
 
 pub fn key() -> Saved<'static> {
     Saved {
@@ -36,61 +42,83 @@ pub fn key() -> Saved<'static> {
     }
 }
 
-/// Makes the scheduler reachable from this machine and returns its address for buck2.
+/// Makes the scheduler reachable from this machine and returns the local address buck2 is pointed at.
 pub fn connect() -> Result<String> {
-    if !cfg!(target_os = "linux") {
-        return Err("The NativeLink build server is reached over WireGuard, which this tool sets up on Linux only.\n\
-                    BE3_BUILD_SERVER picks another server (guides/build_server.md)."
+    let saved = address();
+    let why = "buck2 builds on the NativeLink build server, and needs its address (guides/build_server.md).";
+    let Some(url) = saved.stored().or_else(|| saved.ask(why)) else {
+        return Err("buck2 builds on the NativeLink build server, and there is no address for it. Set\n\
+             BE3_NL_URL, or write it to .nl-url at the root of the checkout or to ~/.config/be3/nl-url.\n\
+             guides/build_server.md says where to get it."
             .to_owned());
-    }
-    // Steady state: the tunnel is up and the scheduler answers.
-    if reachable(Duration::from_secs(2)) {
-        return Ok(ADDRESS.to_owned());
-    }
-    let saved = key();
-    let why = "buck2 builds on the NativeLink build server, and needs its boat key (guides/build_server.md).";
-    let Some(key) = saved.stored().or_else(|| saved.ask(why)) else {
-        return Err(
-            "buck2 builds on the NativeLink build server, and there is no boat key for it. Set\n\
-             BE3_NL_KEY, or write the key to .nl-key at the root of the checkout or to\n\
-             ~/.config/be3/nl-key. guides/build_server.md says how to make one."
-                .to_owned(),
-        );
     };
-    let boat = Boat { key };
+    let (websocket, cookie) = parse_tunnel_url(&url)?;
+    let first = match relay::ensure_tunnel(&websocket, &cookie) {
+        Ok(listen) => return Ok(listen),
+        Err(error) => error,
+    };
+    // Not answering: boat may have stopped the scheduler. Wake it if there is a key to.
+    let key = key();
+    let Some(key) = key.stored() else {
+        return Err(format!(
+            "The build server did not answer: {first}\n\
+             If boat stopped the scheduler, BE3_NL_KEY (a boat key that can resume it) wakes it\n\
+             (guides/build_server.md)."
+        ));
+    };
     eprintln!("Waking the build server's scheduler...");
-    let scheduler = boat.wake()?;
-    let registration = register(&boat, &scheduler)?;
-    bring_up(&registration)?;
-    let deadline = Instant::now() + Duration::from_secs(25);
+    Boat { key }.wake()?;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let mut last = first;
     while Instant::now() < deadline {
-        if reachable(Duration::from_secs(2)) {
-            return Ok(ADDRESS.to_owned());
+        match relay::ensure_tunnel(&websocket, &cookie) {
+            Ok(listen) => return Ok(listen),
+            Err(error) => last = error,
         }
-        std::thread::sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(4));
     }
     Err(format!(
-        "The build server's scheduler is awake but this machine cannot reach it over WireGuard ({ADDRESS}).\n\
-         Boat places each new VM at random and about half cannot reach the scheduler (a boat network\n\
-         problem that does not clear by itself on that VM). Run this on a new VM, or set\n\
-         BE3_BUILD_SERVER to another server (guides/build_server.md)."
+        "The build server's scheduler is awake but did not answer: {last}\n\
+         Boat can take a minute to route to a resumed VM; run it again, or set BE3_BUILD_SERVER to another \
+         server (guides/build_server.md)."
     ))
 }
 
-fn reachable(timeout: Duration) -> bool {
-    let Ok(address) = ADDRESS.parse::<SocketAddr>() else {
-        return false;
+/// The tunnel's WebSocket address and the proxy's token cookie, from the hosted port's address as `host url`
+/// prints it (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).
+pub fn parse_tunnel_url(url: &str) -> Result<(String, String)> {
+    let url = url.trim();
+    let (scheme, rest) = url
+        .split_once("://")
+        .ok_or_else(|| "BE3_NL_URL is not an address: it should start with https://".to_owned())?;
+    let websocket = match scheme {
+        "https" | "wss" => "wss",
+        "http" | "ws" => "ws",
+        _ => {
+            return Err(format!(
+                "BE3_NL_URL has the scheme {scheme}, which is not https"
+            ));
+        }
     };
-    TcpStream::connect_timeout(&address, timeout).is_ok()
+    let (location, query) = rest.split_once('?').unwrap_or((rest, ""));
+    let token = query
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("_token="))
+        .unwrap_or_default();
+    let location = location.trim_end_matches('/');
+    if location.is_empty() || location.contains(char::is_whitespace) {
+        return Err("BE3_NL_URL has no host".to_owned());
+    }
+    let cookie = if token.is_empty() {
+        String::new()
+    } else {
+        format!("_port_auth={token}")
+    };
+    Ok((format!("{websocket}://{location}/"), cookie))
 }
 
 struct Boat {
     key: String,
-}
-
-/// What boat reports about the scheduler once it runs.
-struct Scheduler {
-    id: String,
 }
 
 impl Boat {
@@ -129,7 +157,7 @@ impl Boat {
     }
 
     /// Finds the scheduler sandbox and resumes it if it is stopped.
-    fn wake(&self) -> Result<Scheduler> {
+    fn wake(&self) -> Result<()> {
         let prefix = std::env::var(SCHEDULER_VARIABLE)
             .ok()
             .filter(|name| {
@@ -173,7 +201,7 @@ impl Boat {
             let (status, info) = self.call("GET", &format!("/sandboxes/{id}"), None)?;
             let sandbox = info.get("sandbox").unwrap_or(&info);
             if status == 200 && running(sandbox) {
-                return Ok(Scheduler { id });
+                return Ok(());
             }
             if Instant::now() > deadline {
                 return Err(
@@ -210,204 +238,4 @@ fn curl_quote(text: &str) -> String {
     text.replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
-}
-
-/// What the scheduler tells a client it registered.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Registration {
-    pub ip: String,
-    pub hub_key: String,
-    pub endpoint: String,
-}
-
-pub fn parse_registration(output: &str) -> Option<Registration> {
-    let value = |name: &str| {
-        output
-            .lines()
-            .find_map(|line| line.strip_prefix(name)?.strip_prefix('='))
-            .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty())
-    };
-    Some(Registration {
-        ip: value("ip")?,
-        hub_key: value("hub_pubkey")?,
-        endpoint: value("endpoint")?,
-    })
-}
-
-/// This machine's name at the scheduler: the same machine keeps its address between builds.
-fn client_name() -> String {
-    let host = std::env::var("HOSTNAME")
-        .ok()
-        .filter(|host| !host.is_empty())
-        .or_else(|| std::fs::read_to_string("/etc/hostname").ok())
-        .unwrap_or_else(|| "client".to_owned());
-    let clean: String = host
-        .trim()
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '.' || c == '-' {
-                c
-            } else {
-                '-'
-            }
-        })
-        .take(40)
-        .collect();
-    format!("c-{clean}")
-}
-
-fn private_key_file() -> std::path::PathBuf {
-    config_directory().join("nl-wireguard-key")
-}
-
-/// Makes this machine's WireGuard key once, and returns its public half.
-fn public_key() -> Result<String> {
-    let path = private_key_file();
-    if !path.is_file() {
-        let output = Command::new("wg")
-            .arg("genkey")
-            .output()
-            .map_err(wireguard_error)?;
-        if !output.status.success() {
-            return Err(format!(
-                "wg genkey failed: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            ));
-        }
-        save_private(&path, &String::from_utf8_lossy(&output.stdout))
-            .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-    }
-    let mut child = Command::new("wg")
-        .arg("pubkey")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .map_err(wireguard_error)?;
-    let private = std::fs::read_to_string(&path)
-        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(private.as_bytes());
-    }
-    let output = child.wait_with_output().map_err(wireguard_error)?;
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
-}
-
-fn wireguard_error(error: std::io::Error) -> String {
-    if error.kind() == std::io::ErrorKind::NotFound {
-        "wg was not found on PATH. Install WireGuard's tools (sudo apt-get install wireguard-tools).".to_owned()
-    } else {
-        format!("could not run wg: {error}")
-    }
-}
-
-fn register(boat: &Boat, scheduler: &Scheduler) -> Result<Registration> {
-    let name = client_name();
-    let public = public_key()?;
-    let command = format!("sudo /usr/local/bin/nl-register-client.sh {name} {public}");
-    let (status, answer) = boat.call(
-        "POST",
-        &format!("/sandboxes/{}/commands", scheduler.id),
-        Some(&json!({ "command": command, "timeoutSeconds": 60 })),
-    )?;
-    if status != 200 {
-        return Err(api_error(
-            "register this machine with the build server",
-            status,
-            &answer,
-        ));
-    }
-    if answer["exitCode"].as_i64() != Some(0) {
-        return Err(format!(
-            "The build server refused to register this machine: {}",
-            answer["stderr"].as_str().unwrap_or_default().trim()
-        ));
-    }
-    parse_registration(answer["stdout"].as_str().unwrap_or_default())
-        .ok_or_else(|| "The build server's registration answer was not understood.".to_owned())
-}
-
-/// Runs a command as root: directly when this is root, else through sudo without a prompt.
-fn privileged(program: &str, args: &[&str]) -> Result<()> {
-    let root = Command::new("id")
-        .arg("-u")
-        .output()
-        .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).trim() == "0");
-    let mut command = if root {
-        Command::new(program)
-    } else {
-        let mut command = Command::new("sudo");
-        command.args(["-n", program]);
-        command
-    };
-    let output = command
-        .args(args)
-        .output()
-        .map_err(|error| format!("could not run {program}: {error}"))?;
-    if output.status.success() {
-        return Ok(());
-    }
-    Err(format!(
-        "{program} {} failed: {}\nThe WireGuard tunnel to the build server needs root, or sudo without a password.",
-        args.join(" "),
-        String::from_utf8_lossy(&output.stderr).trim()
-    ))
-}
-
-/// Creates the tunnel interface if it is missing and points it at the scheduler as it is now.
-fn bring_up(registration: &Registration) -> Result<()> {
-    let exists = Command::new("ip")
-        .args(["link", "show", INTERFACE])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success());
-    if !exists {
-        privileged("ip", &["link", "add", INTERFACE, "type", "wireguard"])?;
-    }
-    let key_file = private_key_file();
-    let key_file: &Path = key_file.as_path();
-    privileged(
-        "wg",
-        &[
-            "set",
-            INTERFACE,
-            "private-key",
-            &key_file.display().to_string(),
-            "peer",
-            &registration.hub_key,
-            "endpoint",
-            &registration.endpoint,
-            "allowed-ips",
-            TUNNEL,
-            "persistent-keepalive",
-            "25",
-        ],
-    )?;
-    // A different scheduler (a replacement, a staging one) has another key: drop every peer but the current one.
-    let stale: Vec<String> = Command::new("wg")
-        .args(["show", INTERFACE, "peers"])
-        .output()
-        .map(|output| {
-            String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .map(str::to_owned)
-                .filter(|peer| *peer != registration.hub_key)
-                .collect()
-        })
-        .unwrap_or_default();
-    for peer in &stale {
-        privileged("wg", &["set", INTERFACE, "peer", peer, "remove"])?;
-    }
-    privileged(
-        "ip",
-        &[
-            "address",
-            "replace",
-            &format!("{}/24", registration.ip),
-            "dev",
-            INTERFACE,
-        ],
-    )?;
-    privileged("ip", &["link", "set", INTERFACE, "up"])
 }
