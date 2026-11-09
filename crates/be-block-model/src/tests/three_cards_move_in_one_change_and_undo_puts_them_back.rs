@@ -18,7 +18,10 @@ fn three_cards_move_in_one_change_and_undo_puts_them_back() {
     );
 
     let step = undone(&mut document, &shift.into());
-    assert_eq!(columns(&document), owned(&[("Todo", &["a", "e", "b", "c", "d"])]));
+    assert_eq!(
+        columns(&document),
+        owned(&[("Todo", &["a", "e", "b", "c", "d"])])
+    );
     let after = document.clone();
 
     document.apply(&step.undo());

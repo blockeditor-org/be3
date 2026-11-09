@@ -51,7 +51,8 @@ fn formatted(text: &LiveText<FieldOf<Note>>, index: usize, key: &str) -> bool {
 }
 
 fn send(text: &LiveText<FieldOf<Note>>, content: &mut Content<Note>) -> Vec<be_block::Edit> {
-    let operations = text.take_outgoing()
+    let operations = text
+        .take_outgoing()
         .into_iter()
         .filter_map(|outgoing| match outgoing {
             Outgoing::Edit(edit) => Some(edit),
