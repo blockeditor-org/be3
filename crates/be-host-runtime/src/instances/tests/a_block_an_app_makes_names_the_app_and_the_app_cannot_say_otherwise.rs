@@ -22,7 +22,7 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
             reply: reply(next_op()),
             block: made.into_bytes(),
             block_type: CounterContent::CONTENT_TYPE.into_bytes(),
-            parent: be_sdk_api::BlockLocation::Detached,
+            parent: be_sdk_api::BlockLocation::Root,
             defined: be_host_stack::app_graph::wire_entries(&claimed.defined),
             content: None,
             owner_only: false,
@@ -30,17 +30,9 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     );
     be_host_stack::flush();
 
-    let global = be_host_stack::wait_until(|shared| {
-        shared
-            .graph
-            .query(be_host_stack::Query::Detached)
-            .into_iter()
-            .find(|node| node.metadata.contains(&be_block::CREATED_BY))
-            .map(|node| node.id)
-    });
-    let created_by = || {
-        be_host_stack::node(global).and_then(|node| node.metadata.get(&be_block::CREATED_BY))
-    };
+    let global = be_host_stack::wait_until(|shared| shared.graph.get(made).map(|_| made));
+    let created_by =
+        || be_host_stack::node(global).and_then(|node| node.metadata.get(&be_block::CREATED_BY));
     assert_eq!(
         created_by().as_deref(),
         Some("example.maker"),

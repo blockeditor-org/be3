@@ -23,10 +23,17 @@ fn unfiled_lists_what_no_one_placed_and_moves_the_unused_to_recently_deleted() {
     let shell = unfiled(0x20, "Shell", Some("boat.dev"));
     let grid = unfiled(0x30, "Compiled grid", Some("be3.logic-grid"));
     let note = unfiled(0x40, "Note", None);
+    assert!(
+        fixture.test.shown("file-tree.unfiled.row"),
+        "Unfiled is a section of the files pane"
+    );
+    fixture.test.click("file-tree.unfiled.chevron");
+    fixture.settle();
     fixture.host.set_blocks(
         BlockQuery::Unfiled,
         vec![shell.clone(), grid.clone(), note.clone()],
     );
+    fixture.settle();
     fixture
         .host
         .set_blocks(BlockQuery::Backrefs(shell.id), vec![dev_vms.clone()]);
@@ -36,12 +43,6 @@ fn unfiled_lists_what_no_one_placed_and_moves_the_unused_to_recently_deleted() {
     fixture
         .host
         .set_blocks(BlockQuery::Backrefs(note.id), Vec::new());
-    assert!(
-        fixture.test.shown("file-tree.unfiled.row"),
-        "Unfiled is a section of the files pane"
-    );
-    fixture.test.click("file-tree.unfiled.chevron");
-    fixture.settle();
     fixture.settle();
 
     let top =
