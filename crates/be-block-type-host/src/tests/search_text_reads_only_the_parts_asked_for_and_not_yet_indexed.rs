@@ -21,7 +21,8 @@ fn search_text_reads_only_the_parts_asked_for_and_not_yet_indexed() {
             .expect("the commit loads")
             .manifest;
         let parts = section_parts(&peer, &manifest).await;
-        let mut search = async |keys: Option<Vec<String>>, indexed: Vec<be_block_store::PartRef>| {
+        let mut search = async |keys: Option<Vec<String>>,
+                                indexed: Vec<be_block_store::PartRef>| {
             replicas
                 .search_text(
                     (&peer, &shared),
@@ -48,7 +49,10 @@ fn search_text_reads_only_the_parts_asked_for_and_not_yet_indexed() {
                 .collect::<Vec<_>>(),
             "one document per section, from its part"
         );
-        assert_eq!(every.read, parts, "the type loads its header and reads each part once");
+        assert_eq!(
+            every.read, parts,
+            "the type loads its header and reads each part once"
+        );
 
         let one = search(Some(vec!["3".to_owned()]), Vec::new()).await;
         assert_eq!(
@@ -60,7 +64,11 @@ fn search_text_reads_only_the_parts_asked_for_and_not_yet_indexed() {
                 body: Some("three".to_owned()),
             }]
         );
-        assert_eq!(one.read, vec![parts[3]], "asked for one key, it reads only that part");
+        assert_eq!(
+            one.read,
+            vec![parts[3]],
+            "asked for one key, it reads only that part"
+        );
 
         let indexed: Vec<_> = parts
             .iter()
