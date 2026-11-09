@@ -630,7 +630,10 @@ impl Registry {
         let info = |action: &Action, live: bool| ActionInfo {
             id: action.id().to_owned(),
             label: action.label().get(),
-            glyph: action.glyph().and_then(|glyph| glyph.name()).map(str::to_owned),
+            glyph: action
+                .glyph()
+                .and_then(|glyph| glyph.name())
+                .map(str::to_owned),
             shortcut: action.shortcuts().first().map(|chord| chord.key_chord()),
             enabled: action.enabled().get(),
             checked: action.checked().map(|checked| checked.get()),
