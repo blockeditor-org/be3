@@ -185,8 +185,13 @@ impl Simulation {
         self.peers[side.index()].seen
     }
 
+    /// Whether `side` took in an edit from elsewhere since last asked. Its undo entries
+    /// cannot span one, so it also ends its open group.
     pub fn take_external(&mut self, side: Side) -> bool {
-        std::mem::take(&mut self.peers[side.index()].external)
+        let peer = &mut self.peers[side.index()];
+        let external = std::mem::take(&mut peer.external);
+        peer.group_open &= !external;
+        external
     }
 
     pub fn hold(&mut self, held: bool, now: Instant) {

@@ -378,12 +378,11 @@ impl Tree {
             } => self.relocate(*object, *place, *anchor, *client),
             Change::MoveRange {
                 place,
-                first,
-                last,
+                objects,
                 anchor,
             } => self.list_mut(*place).is_some_and(|items| {
                 let after = items.resolve(*anchor);
-                items.shift_range(*first, *last, after)
+                items.shift_range(objects, after)
             }),
         }
     }
@@ -622,21 +621,20 @@ impl Tree {
             } => self.inverse_move(*object, *place, *anchor, *client),
             Change::MoveRange {
                 place,
-                first,
-                last,
+                objects,
                 anchor,
             } => {
                 let items = self.list(*place)?;
                 let after = items.resolve(*anchor);
-                items.shifts_range(*first, *last, after).then(|| {
+                let first = *objects.first()?;
+                items.shifts_range(objects, after).then(|| {
                     let range = |anchor| Change::MoveRange {
                         place: *place,
-                        first: *first,
-                        last: *last,
+                        objects: objects.clone(),
                         anchor,
                     };
                     (
-                        range(items.anchor_of(*first)),
+                        range(items.anchor_of(first)),
                         range(after.map_or(Anchor::Start, Anchor::Behind)),
                     )
                 })

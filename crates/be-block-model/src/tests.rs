@@ -39,6 +39,7 @@ mod a_peer_edit_under_local_edits_touches_only_what_either_changed;
 mod a_pending_edit_of_any_kind_carries_over_onto_content_loaded_afresh;
 mod a_property_only_a_newer_build_knows_survives_an_older_build_saving;
 mod a_register_that_cannot_read_without_one_of_its_fields_is_reported;
+mod a_range_someone_split_meanwhile_does_not_move;
 mod a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_card;
 mod a_renamed_property_still_reads_its_old_name;
 mod a_reshape_keeps_every_cell_at_its_coordinates;
@@ -47,6 +48,7 @@ mod a_series_appended_on_both_sides_merges_to_both;
 mod a_series_grows_by_sending_only_what_was_appended;
 mod a_series_saves_as_an_array_and_reads_a_list_saved_as_a_register;
 mod a_stored_grid_whose_size_overflows_reads_as_blank;
+mod a_stream_that_repeats_its_parts_without_end_is_refused;
 mod a_text_field_keeps_bytes_that_are_not_utf8;
 mod a_text_field_saves_its_bytes_and_reloads_with_fresh_positions;
 mod a_text_value_travels_as_one_byte_string;
@@ -103,6 +105,7 @@ mod rich_text_saves_its_formatting_as_byte_ranges_and_reloads_it;
 mod saving_the_same_document_twice_gives_the_same_parts;
 mod setting_a_field_of_a_removed_card_changes_nothing;
 mod strokes_into_different_grids_undo_separately;
+mod stored_parts_are_found_by_place_and_checked;
 mod text_changed_on_different_lines_on_each_side_merges_cleanly;
 mod text_changed_on_the_same_line_on_each_side_conflicts_with_markers;
 mod the_same_value_put_under_a_key_on_both_sides_merges_without_a_conflict;
@@ -511,4 +514,17 @@ fn from_parts<R: Model>(root: &crate::DocumentPart) -> Document<R> {
     let mut bytes = Vec::new();
     root.write(&mut bytes);
     Document::from_bytes(&bytes).expect("the parts load")
+}
+
+fn todo_column(cards: &[&str]) -> (Document<Board>, ObjectId) {
+    let document = Document::new(&Board {
+        columns: [column("Todo", cards)].into_iter().collect(),
+        ..Board::default()
+    });
+    let todo = document.root().columns[0].id;
+    (document, todo)
+}
+
+fn card_ids(document: &Document<Board>, texts: &[&str]) -> Vec<ObjectId> {
+    texts.iter().map(|text| card_id(document, text)).collect()
 }

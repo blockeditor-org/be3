@@ -367,15 +367,14 @@ fn live_text(
                 }
                 let _ = content.read(|content| document.adopt(content));
                 if document.take_external_edit() {
-                    area.external_edit();
+                    area.sync();
                 }
                 return;
             }
             let first = !adopted.get();
             match document.sync(&content.live(), &editor.host(), state.block_id(), first) {
                 Synced::Waiting => return,
-                Synced::External => area.external_edit(),
-                Synced::Unchanged => area.sync(),
+                Synced::External | Synced::Unchanged => area.sync(),
             }
             adopted.set(true);
             let revision = beui_text_editor_core::Document::revision(document.as_ref());
