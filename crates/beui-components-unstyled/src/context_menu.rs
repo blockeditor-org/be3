@@ -51,7 +51,8 @@ pub fn ContextMenu(
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     /// `Placement::Menu`, or `BelowStart` for a menu that must keep clear of what it opened
     /// from, such as a bar.
-    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = Placement::Menu)]
+    placement: Prop<Placement>,
     on_close: ClickCallback,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
