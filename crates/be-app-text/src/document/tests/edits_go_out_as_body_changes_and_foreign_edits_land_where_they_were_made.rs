@@ -1,4 +1,5 @@
 use super::*;
+use be_sdk_text::live_text::Outgoing;
 use be_type_text::TextBlock;
 
 #[test]
@@ -8,8 +9,10 @@ fn edits_go_out_as_body_changes_and_foreign_edits_land_where_they_were_made() {
     document.adopt(&content);
 
     document.edit(Vec::new(), &mut |edit| edit.replace(5, 0, b" big"));
-    for edit in document.take_operations() {
-        content.apply(&edit);
+    for outgoing in document.take_outgoing() {
+        if let Outgoing::Edit(edit) = outgoing {
+            content.apply(&edit);
+        }
     }
     assert_eq!(TextBlock::text(&content), "hello big world");
 

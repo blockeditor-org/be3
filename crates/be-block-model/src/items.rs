@@ -218,6 +218,31 @@ impl Items {
             && self.sequence.previous(at) != before
     }
 
+    /// Moves the slots from `first` to `last`, both included, with what lies between them,
+    /// to behind `after`, in one sequence move.
+    pub fn shift_range(&mut self, first: ObjectId, last: ObjectId, after: Option<Pos>) -> bool {
+        let Some((first, last)) = self.range(first, last) else {
+            return false;
+        };
+        self.sequence
+            .apply(&SeqOp::Move { first, last, after })
+            .is_some()
+    }
+
+    /// Whether `shift_range` would move anything.
+    pub(crate) fn shifts_range(&self, first: ObjectId, last: ObjectId, after: Option<Pos>) -> bool {
+        self.range(first, last).is_some_and(|(first, last)| {
+            self.sequence
+                .applies(&SeqOp::<ObjectId>::Move { first, last, after })
+        })
+    }
+
+    fn range(&self, first: ObjectId, last: ObjectId) -> Option<(Pos, Pos)> {
+        self.index_of(first)?;
+        self.index_of(last)?;
+        Some((*self.slots.get(&first)?, *self.slots.get(&last)?))
+    }
+
     pub(crate) fn stays(&self, id: ObjectId, after: Option<Pos>) -> bool {
         self.slots
             .get(&id)
