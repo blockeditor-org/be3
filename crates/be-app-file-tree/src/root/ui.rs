@@ -9,13 +9,14 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Color32, NodeId, Rect};
+use be_sdk_beui::beui::clipboard::formats;
+use be_sdk_beui::beui::{ClipItem, Color32, NodeId, Rect};
 use be_sdk_beui::{AdministratorWatch, BlockFilter, Drag, Editor, phone_layout};
 use be_sdk_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter};
-use super::menu::{RowMenu, RowTools};
+use super::menu::{RowMenu, RowTools, paste_into};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use super::toolbar::{Adding, FilesToolbar};
@@ -52,6 +53,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         inspected_from,
         zoom,
         renaming,
+        tree_api: tree_ref,
     };
     let rows = tree.rows();
     let focused_block = editor.focused_block();
@@ -230,6 +232,13 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         }}
                                         editing={renaming.editing()}
                                         reorder=true
+                                        pastes={move |_: RowKey| vec![formats::BLOCKS.to_owned()]}
+                                        on_paste={move |(key, pasted): (RowKey, ClipItem)| {
+                                            let row = tree.rows().with_untracked(|rows| {
+                                                rows.iter().find(|row| row.key == key).cloned()
+                                            });
+                                            paste_into(editor, row, pasted)
+                                        }}
                                         on_select={open}
                                         on_expand={expand}
                                         on_reveal={reveal}
