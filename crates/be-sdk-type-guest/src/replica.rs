@@ -884,14 +884,7 @@ where
     }
 
     fn written(&self, content: &C) -> Written {
-        let (bytes, parts) = be_sdk_type_api::written_shape(&content.parts())
-            .unwrap_or_else(|| (content.encode(), Vec::new()));
-        Written {
-            bytes,
-            parts,
-            references: content.references_in(self.organization),
-            derived: be_block::derived_metadata(content),
-        }
+        crate::written(content, self.organization)
     }
 
     fn read(&mut self, commits: Vec<Option<CommitId>>, then: Then) {

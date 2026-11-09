@@ -5,12 +5,14 @@ use std::{
     rc::Rc,
 };
 
-use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
+use be_block::{
+    BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History,
+};
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
     Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
-    Merged, Opening, Plain, PlainFile, PublishOutcome, ReorderChild, ReplaceChild, ReplicaId,
-    SessionState, TypeInfo,
+    Loaded, Merged, MergedParts, Opening, Plain, PlainFile, PublishOutcome, ReorderChild,
+    ReplaceChild, ReplicaId, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, Pending, Sender},
     types::Failure,
@@ -24,6 +26,7 @@ mod entropy;
 mod file;
 mod record;
 mod replica;
+pub mod sections;
 pub mod wire;
 
 pub use be_sdk_type_api as api;
@@ -41,6 +44,13 @@ type FromFileFn = fn(Option<&[u8]>, &str, Vec<u8>, u64) -> Option<Vec<u8>>;
 
 type MergeFn = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Result<(Vec<u8>, usize), String>;
 
+type MergePartsFn = fn(
+    [Option<Loaded>; 3],
+    Uuid,
+    PartReader,
+)
+    -> std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>>;
+
 type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>;
 
 type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
@@ -53,6 +63,7 @@ pub struct Registration {
     plain: fn(Opened) -> Box<dyn AnyReplica>,
     blank: fn() -> Vec<u8>,
     merge: MergeFn,
+    merge_parts: Option<MergePartsFn>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
     replay: ReplayFn,
     child: ChildFn,
@@ -72,11 +83,13 @@ impl Registration {
                 schema: be_block::schema_fingerprint::<C>(),
                 undo: false,
                 plain: Plain::None,
+                merges_parts: false,
             },
             open: open::<C, NoHistory>,
             plain: open::<C, NoHistory>,
             blank: || C::default().encode(),
             merge: merge::<C>,
+            merge_parts: None,
             describe: describe_bytes::<C>,
             replay: replica::replay::<C>,
             child: child::<C>,
@@ -98,6 +111,16 @@ impl Registration {
     pub fn without_undo(mut self) -> Self {
         self.info.undo = false;
         self.open = self.plain;
+        self
+    }
+
+    /// Merges by parts (`MergeParts`) outside a session; the content must load only its first
+    /// part.
+    pub fn merge_parts<C: MergeParts + Default>(mut self) -> Self {
+        assert_eq!(self.info.content_type, C::CONTENT_TYPE);
+        assert_eq!(C::LOADS, Loads::FirstPart);
+        self.info.merges_parts = true;
+        self.merge_parts = Some(merge_parts::<C>);
         self
     }
 
@@ -151,6 +174,63 @@ fn merge<C: Merge + Default>(
             MergeResult::Conflicted { value, conflicts } => (value.encode(), conflicts.max(1)),
         },
     )
+}
+
+fn merge_parts<C: MergeParts + Default>(
+    sides: [Option<Loaded>; 3],
+    organization: Uuid,
+    parts: PartReader,
+) -> std::pin::Pin<Box<dyn Future<Output = Result<(Written, usize), String>>>> {
+    Box::pin(async move {
+        let [base, ours, theirs] = sides.map(|side| match side {
+            Some(loaded) => {
+                let stored = loaded
+                    .into_stored()
+                    .ok_or_else(|| "the host loaded parts that form no tree".to_owned())?;
+                C::from_stored(&stored).map_err(|error| error.to_string())
+            }
+            None => Ok(C::default()),
+        });
+        let (value, conflicts) = match C::merge_parts(base?, ours?, theirs?, parts).await? {
+            MergeResult::Clean(value) => (value, 0),
+            MergeResult::Conflicted { value, conflicts } => (value, conflicts.max(1)),
+        };
+        Ok((written(&value, organization), conflicts))
+    })
+}
+
+/// Content as a commit writes it: its parts, unchanged ones by their refs, and what it
+/// references and derives.
+pub(crate) fn written<C: BlockContent>(content: &C, organization: Uuid) -> Written {
+    let (bytes, parts) = be_sdk_type_api::written_shape(&content.parts())
+        .unwrap_or_else(|| (content.encode(), Vec::new()));
+    Written {
+        bytes,
+        parts,
+        references: content.references_in(organization),
+        derived: be_block::derived_metadata(content),
+    }
+}
+
+/// Reads parts with `read-part` under the stateless request being served, which the host
+/// allows only for the parts of the `loaded` content that request was handed. Made while
+/// the request's future runs, before its first await or after.
+pub fn request_parts() -> PartReader {
+    let request = ops::request();
+    PartReader::new(move |part, offset, length| {
+        let range = be_sdk_type_api::ByteRange { offset, length };
+        let read = || host::read_part(part.into(), range);
+        let pending = match request {
+            Some(request) => ops::with_parent(request, read),
+            None => read(),
+        };
+        Box::pin(async move {
+            pending
+                .await
+                .map_err(|error| error.to_string())
+                .and_then(|read| read)
+        })
+    })
 }
 
 fn child<C: LiveEdit + Default>(
@@ -652,6 +732,29 @@ impl replicas::Guest for Module {
                     .map_err(Failure::Malformed)
             }),
         )
+    }
+
+    fn merge_parts(
+        &self,
+        content_type: Uuid,
+        base: Option<Loaded>,
+        ours: Option<Loaded>,
+        theirs: Option<Loaded>,
+        organization: Uuid,
+    ) -> impl Future<Output = Result<MergedParts, Failure>> + 'static {
+        let merge = self.with_kind(content_type, |kind| kind.merge_parts);
+        async move {
+            let merge = merge.ok_or(Failure::UnknownType)?.ok_or_else(|| {
+                Failure::Malformed("this type merges whole values, with merge3".to_owned())
+            })?;
+            let (content, conflicts) = merge([base, ours, theirs], organization, request_parts())
+                .await
+                .map_err(Failure::Malformed)?;
+            Ok(MergedParts {
+                content,
+                conflicts: conflicts.try_into().unwrap_or(u32::MAX),
+            })
+        }
     }
 
     fn replay(

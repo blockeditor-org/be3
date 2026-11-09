@@ -1,0 +1,319 @@
+//! `Sections`, a block type for tests of types that load and merge by parts: ten sections of
+//! bytes, each saved as a part of its own after a header of their lengths, which is the first
+//! part and all a replica loads. Its plain file is one line per section (`*.sections`).
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+use be_block::{
+    BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
+    Stored,
+};
+use be_block_commit::MergeResult;
+use be_sdk_type_api::PlainFile;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::FileForm;
+
+pub const SECTIONS: usize = 10;
+
+const HEADER: usize = SECTIONS * 4;
+
+#[derive(Clone, Debug)]
+enum Section {
+    Held {
+        bytes: Vec<u8>,
+        /// The part it was loaded from, which a save reuses.
+        saved: Option<PartRef>,
+    },
+    Unloaded(PartRef),
+}
+
+impl Section {
+    fn saved(&self) -> Option<PartRef> {
+        match self {
+            Self::Held { saved, .. } => *saved,
+            Self::Unloaded(saved) => Some(*saved),
+        }
+    }
+
+    fn length(&self) -> u64 {
+        match self {
+            Self::Held { bytes, .. } => bytes.len() as u64,
+            Self::Unloaded(saved) => saved.length(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Sections {
+    sections: Vec<Section>,
+}
+
+impl Default for Sections {
+    fn default() -> Self {
+        Self::of(&[""; SECTIONS])
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SetSection {
+    pub index: usize,
+    pub bytes: Vec<u8>,
+}
+
+/// Every part a `Sections` merge in this process read, in order, so a test can check what a
+/// merge read (filtering to its own block's parts, since tests share the process).
+static READ: Mutex<Vec<PartRef>> = Mutex::new(Vec::new());
+
+pub fn parts_read() -> Vec<PartRef> {
+    READ.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+impl Sections {
+    pub fn of(texts: &[&str; SECTIONS]) -> Self {
+        Self {
+            sections: texts
+                .iter()
+                .map(|text| Section::Held {
+                    bytes: text.as_bytes().to_vec(),
+                    saved: None,
+                })
+                .collect(),
+        }
+    }
+
+    pub fn set(&mut self, index: usize, text: &str) {
+        self.apply(&SetSection {
+            index,
+            bytes: text.as_bytes().to_vec(),
+        });
+    }
+
+    /// A section's bytes; none while it is not loaded.
+    pub fn section(&self, index: usize) -> Option<&[u8]> {
+        match self.sections.get(index)? {
+            Section::Held { bytes, .. } => Some(bytes),
+            Section::Unloaded(_) => None,
+        }
+    }
+
+    /// The part a section was loaded from.
+    pub fn saved(&self, index: usize) -> Option<PartRef> {
+        self.sections.get(index)?.saved()
+    }
+
+    fn header(&self) -> Vec<u8> {
+        self.sections
+            .iter()
+            .flat_map(|section| (section.length() as u32).to_le_bytes())
+            .collect()
+    }
+}
+
+impl BlockContent for Sections {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x5ec7_1095_0000_4000_8000_7e57_0000_0010);
+
+    const LOADS: Loads = Loads::FirstPart;
+
+    /// Leaves out the bytes of sections not loaded: only `parts` writes such content whole.
+    fn encode(&self) -> Vec<u8> {
+        let mut bytes = self.header();
+        for section in &self.sections {
+            if let Section::Held { bytes: held, .. } = section {
+                bytes.extend_from_slice(held);
+            }
+        }
+        bytes
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
+        let header = bytes.get(..HEADER).ok_or(ContentError::Truncated)?;
+        let mut at = HEADER;
+        let mut sections = Vec::with_capacity(SECTIONS);
+        for length in header.chunks_exact(4) {
+            let length = u32::from_le_bytes(length.try_into().unwrap_or_default()) as usize;
+            let held = bytes.get(at..at + length).ok_or(ContentError::Truncated)?;
+            at += length;
+            sections.push(Section::Held {
+                bytes: held.to_vec(),
+                saved: None,
+            });
+        }
+        Ok(Self { sections })
+    }
+
+    fn parts(&self) -> Part<'_> {
+        let mut parts = vec![Part::from(self.header())];
+        parts.extend(self.sections.iter().map(|section| match section {
+            Section::Held {
+                saved: Some(saved), ..
+            }
+            | Section::Unloaded(saved) => Part::Reused(*saved),
+            Section::Held { bytes, saved: None } => Part::from(bytes.as_slice()),
+        }));
+        Part::node(parts)
+    }
+
+    fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
+        let Some(root) = stored
+            .root
+            .as_ref()
+            .filter(|root| root.children.len() == SECTIONS + 1)
+        else {
+            return Self::decode(&stored.bytes);
+        };
+        Ok(Self {
+            sections: root.children[1..]
+                .iter()
+                .map(|part| match stored.holds(part) {
+                    true => Section::Held {
+                        bytes: stored.bytes_of(part).to_vec(),
+                        saved: Some(part.reference),
+                    },
+                    false => Section::Unloaded(part.reference),
+                })
+                .collect(),
+        })
+    }
+}
+
+impl LiveEdit for Sections {
+    type Op = SetSection;
+
+    fn apply(&mut self, operation: &SetSection) {
+        if let Some(section) = self.sections.get_mut(operation.index) {
+            *section = Section::Held {
+                bytes: operation.bytes.clone(),
+                saved: None,
+            };
+        }
+    }
+}
+
+/// One section's three sides as bytes: a side that equals the base gives way to the other,
+/// and two different changes keep ours as a conflict.
+fn merge_bytes(base: &[u8], ours: &[u8], theirs: &[u8]) -> (Vec<u8>, bool) {
+    if ours == base || ours == theirs {
+        return (theirs.to_vec(), false);
+    }
+    if theirs == base {
+        return (ours.to_vec(), false);
+    }
+    (ours.to_vec(), true)
+}
+
+fn merged(sections: Vec<Section>, conflicts: usize) -> MergeResult<Sections> {
+    let value = Sections { sections };
+    match conflicts {
+        0 => MergeResult::Clean(value),
+        conflicts => MergeResult::Conflicted { value, conflicts },
+    }
+}
+
+impl Merge for Sections {
+    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
+        let mut conflicts = 0;
+        let mut sections = Vec::with_capacity(SECTIONS);
+        for index in 0..SECTIONS {
+            let side = |content: &Self| content.sections[index].clone();
+            let (base, ours, theirs) = (side(base), side(ours), side(theirs));
+            sections.push(match (&base, &ours, &theirs) {
+                (
+                    Section::Held { bytes: base, .. },
+                    Section::Held { bytes: ours, .. },
+                    Section::Held { bytes: theirs, .. },
+                ) => {
+                    let (bytes, conflicted) = merge_bytes(base, ours, theirs);
+                    conflicts += usize::from(conflicted);
+                    Section::Held { bytes, saved: None }
+                }
+                _ if ours.saved().is_some() && ours.saved() == base.saved() => theirs,
+                _ if theirs.saved().is_some() && theirs.saved() == base.saved() => ours,
+                _ => {
+                    conflicts += 1;
+                    ours
+                }
+            });
+        }
+        merged(sections, conflicts)
+    }
+}
+
+impl MergeParts for Sections {
+    /// A section saved as one part on every side is kept as that part, unread. Any other is
+    /// merged from its bytes, reading each side's part once (sides that share a part share
+    /// the read), since a part's ref changes when it is sealed under a new key while its
+    /// bytes stay the same; it is written anew.
+    fn merge_parts(
+        base: Self,
+        ours: Self,
+        theirs: Self,
+        parts: PartReader,
+    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static {
+        async move {
+            let mut read: HashMap<PartRef, Vec<u8>> = HashMap::new();
+            let mut conflicts = 0;
+            let mut sections = Vec::with_capacity(SECTIONS);
+            for index in 0..SECTIONS {
+                let sides = [&base, &ours, &theirs].map(|side| side.sections[index].clone());
+                let saved = sides[0].saved();
+                if saved.is_some() && sides.iter().all(|side| side.saved() == saved) {
+                    sections.push(sides[0].clone());
+                    continue;
+                }
+                let mut bytes = Vec::with_capacity(3);
+                for side in sides {
+                    bytes.push(match side {
+                        Section::Held { bytes, .. } => bytes,
+                        Section::Unloaded(part) => {
+                            if !read.contains_key(&part) {
+                                READ.lock()
+                                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                    .push(part);
+                                read.insert(part, parts.read_all(part).await?);
+                            }
+                            read[&part].clone()
+                        }
+                    });
+                }
+                let (bytes, conflicted) = merge_bytes(&bytes[0], &bytes[1], &bytes[2]);
+                conflicts += usize::from(conflicted);
+                sections.push(Section::Held { bytes, saved: None });
+            }
+            Ok(merged(sections, conflicts))
+        }
+    }
+}
+
+impl FileForm for Sections {
+    fn to_file(&self) -> Option<PlainFile> {
+        let mut bytes = Vec::new();
+        for index in 0..SECTIONS {
+            bytes.extend_from_slice(self.section(index)?);
+            bytes.push(b'\n');
+        }
+        Some(PlainFile {
+            bytes,
+            name: None,
+            extension: "sections".to_owned(),
+            media_type: "text/plain".to_owned(),
+        })
+    }
+
+    fn from_file(_: Option<&Self>, _: &str, bytes: Vec<u8>, _: u64) -> Option<Self> {
+        let text = String::from_utf8(bytes).ok()?;
+        let mut lines = text.lines();
+        let texts: [&str; SECTIONS] = std::array::from_fn(|_| lines.next().unwrap_or_default());
+        Some(Self::of(&texts))
+    }
+
+    fn claims(name: &str, _: &[u8]) -> bool {
+        name.ends_with(".sections")
+    }
+}
+
+crate::be_block_types![Sections { file, merge_parts }];

@@ -1,7 +1,6 @@
 # Search: the index library and text extraction
 
-Depends on: plans/large_blocks.md step 2 (`read-part` under stateless
-requests).
+Depends on: none.
 
 The piece `plans/search.md` builds the index block from besides the index
 crate (`crates/be-lib-search`, done): a type-module request that answers a
@@ -36,7 +35,9 @@ search-text: async func(
 
 `content` is the commit as `loaded` (the first part's bytes and the part
 list); a type that loads only its first part reads the others with
-`read-part` (served under stateless requests by large_blocks step 2). `keys`
+`read-part` under the request (guides/type_modules.md, "Merging by parts": the
+host asks with `ask_reading` and a `Scope` of the commit it loaded, and the
+guest reads with `request_parts()`). `keys`
 asks for those documents only, so a snippet reads one part of a large block;
 none answers every document. `indexed` names parts the indexer already holds
 text for: documents from them come back without a body and without reading the

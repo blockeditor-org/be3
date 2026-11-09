@@ -8,11 +8,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block_client::Clock;
+use be_block_client::{Clock, Peer};
+use be_block_store::ObjectStore;
 
-use be_sdk_type_api::ops::wire::Decode;
+use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
-    Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
+    ByteRange, Change, ClientId, Description, Failure, Loaded, Plain, PlainFile, SessionTag,
+    TypeInfo, Written,
     embed::{exports::replicas, host::Call},
     ops::{Backlog, Connection, Incoming, OpError, OpId, Outcome, Outlets, Reply, Side, Ticket},
 };
@@ -27,6 +29,7 @@ pub struct Kind {
     pub frozen: bool,
     pub schema: String,
     pub plain: Plain,
+    pub merges_parts: bool,
     pub blank: Vec<u8>,
     pub described: Description,
 }
@@ -204,6 +207,80 @@ fn failed(content_type: Uuid, failure: Failure) -> String {
     match failure {
         Failure::UnknownType => unknown(content_type),
         Failure::Malformed(error) => error,
+    }
+}
+
+/// What a module refused a stateless request's `read-part` of a part outside it is told.
+pub const OUTSIDE_REQUEST: &str =
+    "a stateless request reads only the parts of the commits it was handed";
+
+/// The parts a stateless request may read with `read-part`: those of the `loaded` content it
+/// was handed, so a module reads nothing of a block, or of another, that it was not asked
+/// about. Any stateless request that hands a module content loaded by parts asks with one
+/// (`Modules::ask_reading`, `Replicas::ask_reading`).
+#[derive(Clone, Debug, Default)]
+pub struct Scope(HashSet<be_block_store::PartRef>);
+
+impl Scope {
+    pub fn of<'a>(handed: impl IntoIterator<Item = &'a Loaded>) -> Self {
+        Self(
+            handed
+                .into_iter()
+                .flat_map(|loaded| &loaded.parts)
+                .map(|part| part.part.into())
+                .collect(),
+        )
+    }
+
+    pub fn allows(&self, part: be_block_store::PartRef) -> bool {
+        self.0.contains(&part)
+    }
+
+    /// A call the module made under the request: a read of one of its parts to serve, or
+    /// nothing once it is answered here (a read outside it is refused, and so is any other
+    /// call). An `error` comes back for the host to report.
+    pub fn take(&self, connection: &mut Connection, op: OpId, call: Call) -> Under {
+        match call {
+            Call::ReadPart { reply, part, range } => {
+                let part = be_block_store::PartRef::from(part);
+                match self.allows(part) {
+                    true => Under::Read(PartRead { reply, part, range }),
+                    false => {
+                        reply.send(connection, &Err(OUTSIDE_REQUEST.to_owned()));
+                        Under::Answered
+                    }
+                }
+            }
+            Call::Error { message, .. } => {
+                connection.complete(op, Outcome::Err(OpError::Canceled));
+                Under::Error(message)
+            }
+            _ => {
+                connection.complete(op, Outcome::Err(OpError::Canceled));
+                Under::Answered
+            }
+        }
+    }
+}
+
+pub enum Under {
+    Read(PartRead),
+    Error(String),
+    Answered,
+}
+
+/// A `read-part` a scope allows, for the host to read and answer.
+pub struct PartRead {
+    pub reply: Reply<Result<Vec<u8>, String>, wire::Fallible<wire::Bytes, wire::Plain>>,
+    pub part: be_block_store::PartRef,
+    pub range: ByteRange,
+}
+
+impl PartRead {
+    pub async fn read<S: ObjectStore>(&self, peer: &Peer<S>) -> Result<Vec<u8>, String> {
+        peer.read_part(self.part, self.range.offset, self.range.length)
+            .await
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -458,6 +535,7 @@ impl Modules {
                 frozen: info.frozen,
                 schema: info.schema,
                 plain: info.plain,
+                merges_parts: info.merges_parts,
                 blank,
                 described: match described {
                     Ok(Ok(description)) => description,
@@ -737,6 +815,63 @@ impl Modules {
             .unwrap_or(Err(OpError::Canceled))
     }
 
+    /// `ask`, serving the `read-part`s the module makes under the request from `peer`, of the
+    /// parts `scope` allows.
+    pub async fn ask_reading<S: ObjectStore, T, E: Decode<T>>(
+        &mut self,
+        module: usize,
+        peer: &Peer<S>,
+        scope: &Scope,
+        call: impl FnOnce(&mut Connection) -> Ticket<T, E>,
+    ) -> Result<T, OpError> {
+        let generation = self.modules[module].generation;
+        let Some(ticket) = self.call(module, call) else {
+            return Err(OpError::Canceled);
+        };
+        loop {
+            let held = &self.modules[module];
+            if held.worker.is_none() || held.generation != generation {
+                return Err(OpError::Canceled);
+            }
+            let mut answer = None;
+            let mut reads = Vec::new();
+            for (from, heard) in self.collect() {
+                match heard {
+                    Heard::Completed { op, outcome } if from == module && op == ticket.op() => {
+                        answer = Some(outcome);
+                    }
+                    Heard::Call {
+                        op,
+                        parent: Some(parent),
+                        call,
+                    } if from == module && parent == ticket.op() => {
+                        let held = &mut self.modules[module];
+                        match scope.take(&mut held.connection, op, call) {
+                            Under::Read(read) => reads.push(read),
+                            Under::Error(message) => {
+                                eprintln!("the type module {}: {message}", held.source.name);
+                            }
+                            Under::Answered => {}
+                        }
+                        self.flush(module);
+                    }
+                    heard => self.backlog.push_back((from, heard)),
+                }
+            }
+            if let Some(outcome) = answer {
+                return ticket.decode(outcome);
+            }
+            let served = !reads.is_empty();
+            for read in reads {
+                let result = read.read(peer).await;
+                self.call(module, |connection| read.reply.send(connection, &result));
+            }
+            if !served {
+                self.notified().await;
+            }
+        }
+    }
+
     async fn ask_type<T, E: Decode<Result<T, Failure>>>(
         &mut self,
         content_type: Uuid,
@@ -820,6 +955,31 @@ impl Modules {
         })
         .await
         .map(|merged| (merged.bytes, merged.conflicts > 0))
+    }
+
+    /// `merge3` for a type that merges by parts (`Kind::merges_parts`): the module reads the
+    /// parts it needs from `peer`, only of these sides.
+    pub async fn merge_parts<S: ObjectStore>(
+        &mut self,
+        peer: &Peer<S>,
+        content_type: Uuid,
+        [base, ours, theirs]: [Option<Loaded>; 3],
+        organization: Uuid,
+    ) -> Result<(Written, bool), String> {
+        let Some(module) = self.module_of(content_type) else {
+            return Err(unknown(content_type));
+        };
+        let scope = Scope::of([&base, &ours, &theirs].into_iter().flatten());
+        match self
+            .ask_reading(module, peer, &scope, |connection| {
+                replicas::merge_parts(connection, content_type, base, ours, theirs, organization)
+            })
+            .await
+        {
+            Ok(Ok(merged)) => Ok((merged.content, merged.conflicts > 0)),
+            Ok(Err(failure)) => Err(failed(content_type, failure)),
+            Err(error) => Err(format!("the type module answered: {error}")),
+        }
     }
 
     pub async fn to_files(

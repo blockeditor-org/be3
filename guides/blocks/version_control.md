@@ -57,8 +57,9 @@ falls back to the block with that id, so references out of the tree work.
 
 `crates/be-host-stack/src/version.rs` runs them in the worker: adopt, save
 (finish), checkout, switch, branch, combine, bring in (`be_block_vcs::merge`
-over the trees, then each type's `Merge::merge3` for blocks both sides
-changed, leaving `before`, `yours` and `incoming` copies of a conflicted block
+over the trees, then `Replicas::merge` for blocks both sides changed, which
+is each type's `Merge::merge3` or, for a type that merges by parts, its
+`MergeParts` (guides/type_modules.md, "Merging by parts"), leaving `before`, `yours` and `incoming` copies of a conflicted block
 under the checkout), resolve, undo, fork, pull and push. It answers a
 `version-watch` with each shown repository's and checkout's `version-status`,
 recomputed when the mirror changes, and holds followed checkouts' trees in the

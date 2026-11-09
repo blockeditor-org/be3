@@ -22,7 +22,8 @@ registry (`be_block_type_host::modules`, sources listed in
 `be-host-stack/src/types.rs`) starts an app's module only once a block of its
 types needs it, so `be_host_stack::kind_of` is `None` until then and the worker
 asks `Replicas::kind`, which starts the module. Merging, describing and
-validating are requests to the module (`Replicas::merge`, `describe`). A block
+validating are requests to the module (`Replicas::merge`, by parts for a type
+that merges by parts, guides/type_modules.md "Merging by parts"; `describe`). A block
 whose type no module has has no content in the host (`be_host_stack::provided`).
 
 ## Blocks saved by another build

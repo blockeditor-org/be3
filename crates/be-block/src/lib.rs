@@ -269,5 +269,40 @@ pub trait Merge: BlockContent {
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self>;
 }
 
+/// Reads a range of a saved part's bytes, for content that loaded only its first part
+/// (`Loads::FirstPart`): the host's `read-part`.
+#[derive(Clone)]
+pub struct PartReader(std::rc::Rc<dyn Fn(PartRef, u64, u64) -> PartRead>);
+
+pub type PartRead = std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>>>>;
+
+impl PartReader {
+    pub fn new(read: impl Fn(PartRef, u64, u64) -> PartRead + 'static) -> Self {
+        Self(std::rc::Rc::new(read))
+    }
+
+    pub fn read(&self, part: PartRef, offset: u64, length: u64) -> PartRead {
+        (self.0)(part, offset, length)
+    }
+
+    /// The whole part.
+    pub fn read_all(&self, part: PartRef) -> PartRead {
+        self.read(part, 0, part.length())
+    }
+}
+
+/// `merge3` over parts, for content that loads only its first part: each side as
+/// `from_stored` decoded it from that part, reading whatever else it needs with `parts`. The
+/// merged value hands back the parts it kept as they were as `Part::Reused`, so writing it
+/// uploads only what the merge changed (guides/type_modules.md, "Merging by parts").
+pub trait MergeParts: Merge {
+    fn merge_parts(
+        base: Self,
+        ours: Self,
+        theirs: Self,
+        parts: PartReader,
+    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static;
+}
+
 #[cfg(test)]
 mod tests;

@@ -1,7 +1,7 @@
 # Chat
 
-Depends on: plans/large_blocks.md (`merge3` over parts), for step 1d only;
-steps 1a to 1c start at once. Owner-only settings, for step 1c, have landed
+Depends on: none; merging by parts (guides/type_modules.md, "Merging by
+parts"), which step 1d uses, has landed. Owner-only settings, for step 1c, have landed
 (guides/settings.md, Owner only). plans/notifications.md for step 2.
 
 A chat block: a group conversation that is an ordinary block, made and shared

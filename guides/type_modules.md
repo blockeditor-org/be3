@@ -112,8 +112,9 @@ The module imports `host` and exports `replicas`. `replicas.start(entropy)`
 comes first: it answers the module's types, and seeds the module's randomness,
 since a pure guest has none.
 
-Stateless requests (`blank`, `merge3`, `describe`, `to-file`, `claims`,
-`apply`) are answered in the step that asks. `apply` is how a host that
+Stateless requests (`blank`, `merge3`, `merge-parts`, `describe`, `to-file`,
+`claims`, `apply`) are answered in the step that asks, except `merge-parts`,
+which reads parts first (below, "Merging by parts"). `apply` is how a host that
 publishes commits rather than joining a session edits a block (`be sync`,
 version control).
 
@@ -186,6 +187,45 @@ be-sdk-test's store refuses. Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
 flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
+
+### Merging by parts
+
+Outside a session (`Replicas::merge`, which `merge_diverged` and version
+control's combine call, and `be sync`) the host merges a block with whichever
+request its type has. `merge3` takes each side's whole bytes and answers
+`merged`, the Rust `Merge::merge3` over whole values. A type that loads only its
+first part and implements `be_block::MergeParts` registers it
+(`Registration::merge_parts`, `be_block_types![T { merge_parts }]`), which sets
+`type-info.merges-parts`; the host then calls `merge-parts` with each side as
+`loaded` (the first part's bytes and the part list, or content not saved yet as
+its bytes and no parts) and gets `merged-parts`: a `written` whose `reused`
+parts the merge kept as they were, with its references and derived metadata,
+and `conflicts`. `MergeParts::merge_parts` gets each side as `from_stored`
+decoded it and a `PartReader`; a merged value hands unchanged parts back as
+`Part::Reused`, so the commit uploads only what the merge changed. Equal refs
+mean equal bytes, but not the other way round (a rotation reseals a part under
+a new ref), so a merge that must know reads the bytes. The in-session merges of
+a replica (a rejected seal, a head written offline) still use `Merge::merge3`
+on the values it loaded.
+
+**`read-part` under a stateless request.** A call a module makes while serving
+a stateless request has that request as its parent (`ops::guest::request()`
+with `with_parent`; `be_sdk_type_guest::request_parts()` is the reader). The
+host serves only `read-part` there, and only of the parts of the `loaded`
+content it handed the request: it asks with `Replicas::ask_reading` or
+`Modules::ask_reading` and a `Scope` (`Scope::of` the sides), refuses a read of
+any other part with `OUTSIDE_REQUEST`, and refuses every other call. Any
+stateless request that hands a module `loaded` content asks this way. `be sync`
+hands base and theirs as their commits' first parts and ours as the file's
+bytes, and reads the merged commit's reused parts whole, since it becomes a
+file.
+
+Tests use `be_sdk_type_guest::sections::Sections`, ten sections each a part
+after a header of their lengths, which logs the parts its merges read
+(`parts_read`): be-block-type-host's
+`a_merge_over_parts_reads_only_the_parts_each_side_changed` and
+`a_stateless_request_reads_only_parts_of_the_commits_it_was_handed`, and
+be-block-sync's `a_type_that_merges_by_parts_merges_edits_on_both_sides`.
 
 ## Peers
 
