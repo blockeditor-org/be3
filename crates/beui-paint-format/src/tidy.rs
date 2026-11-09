@@ -276,9 +276,7 @@ fn transparent(primitive: &Primitive) -> bool {
             .iter()
             .all(|triangle| triangle.corners.iter().all(|corner| corner.color[3] == 0)),
         Content::Callback(_) => false,
-        Content::Group(group) => {
-            group.opacity <= 0.0 || group.primitives.iter().all(transparent)
-        }
+        Content::Group(group) => group.opacity <= 0.0 || group.primitives.iter().all(transparent),
     }
 }
 
