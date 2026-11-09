@@ -74,6 +74,10 @@ pub struct Deletion {
     pub author: Uuid,
     pub time: i64,
     pub signature: Signature,
+    /// The message before it when it was deleted, so a place kept by message id (where
+    /// someone read up to) is found by order once it is gone. Not signed: it says nothing the
+    /// order did not.
+    pub after: Option<ObjectId>,
 }
 
 /// One person's reaction to a message: present while they keep it. `reaction` names a Lucide
@@ -279,6 +283,72 @@ impl ChatContent {
             .collect()
     }
 
+    /// The newest message, as where someone who read it has read up to.
+    pub fn newest(&self) -> Option<ObjectId> {
+        self.messages().last().copied()
+    }
+
+    /// How many of `messages` (the recent ones, in order) someone who read up to `read` has
+    /// read: up to it while it is here; once deleted, up to the message before it, by the
+    /// `Deletion` it left. None when this replica knows nothing of it: another device read a
+    /// message not yet here, so everything here is read.
+    fn read_through(&self, messages: &[ObjectId], read: ObjectId) -> Option<usize> {
+        let deletions = self.deletions();
+        let mut at = read;
+        for _ in 0..=deletions.len() {
+            if let Some(index) = messages.iter().position(|id| *id == at) {
+                return Some(index + 1);
+            }
+            match deletions.get(&at)?.after {
+                Some(before) => at = before,
+                None => return Some(0),
+            }
+        }
+        Some(0)
+    }
+
+    /// Whether `read` is further on than `than`: what reading up to it would move forward.
+    pub fn reads_further(&self, read: ObjectId, than: Option<ObjectId>) -> bool {
+        let messages = self.messages();
+        let Some(read) = self.read_through(&messages, read) else {
+            return false;
+        };
+        than.is_none_or(|than| {
+            self.read_through(&messages, than)
+                .is_some_and(|than| read > than)
+        })
+    }
+
+    /// Whether `place` is known here and not further on than `than`: a place reading up to
+    /// `than` makes it count for nothing.
+    pub fn behind(&self, place: ObjectId, than: ObjectId) -> bool {
+        let messages = self.messages();
+        match (
+            self.read_through(&messages, place),
+            self.read_through(&messages, than),
+        ) {
+            (Some(place), Some(than)) => place <= than,
+            _ => false,
+        }
+    }
+
+    /// How many messages others sent after the furthest of `reads` (where each device read up
+    /// to): every one of others' messages when nothing was read.
+    pub fn unread(&self, reads: impl IntoIterator<Item = ObjectId>, me: Uuid) -> usize {
+        let messages = self.messages();
+        let mut from = 0;
+        for read in reads {
+            match self.read_through(&messages, read) {
+                Some(through) => from = from.max(through),
+                None => return 0,
+            }
+        }
+        messages[from..]
+            .iter()
+            .filter(|id| self.header.field(**id, Message::AUTHOR) != me)
+            .count()
+    }
+
     pub fn hash(&self, chat: Uuid, message: ObjectId) -> Option<MessageHash> {
         Some(self.message(message)?.hash(chat, message))
     }
@@ -316,10 +386,17 @@ impl ChatContent {
 
     /// Removes `message` with its edit and reactions, and records who deleted it.
     pub fn delete(&self, message: ObjectId, author: Uuid, time: i64) -> Edit {
+        let messages = self.messages();
+        let after = messages
+            .iter()
+            .position(|id| *id == message)
+            .and_then(|at| at.checked_sub(1))
+            .map(|before| messages[before]);
         let deletion = Deletion {
             author,
             time,
             signature: Signature::default(),
+            after,
         };
         let at = stamp_time(time);
         let (edits, deletions, reactions) = (self.edits(), self.deletions(), self.reaction_map());

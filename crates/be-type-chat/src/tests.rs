@@ -14,6 +14,7 @@ mod deleting_a_message_removes_it_with_its_edit_and_reactions;
 mod edits_and_reactions_made_offline_on_both_sides_are_kept_by_message;
 mod the_same_edit_or_reaction_made_on_two_devices_keeps_the_later_without_a_conflict;
 mod two_replicas_that_each_add_messages_offline_keep_both_sides_in_order;
+mod unread_counts_from_the_furthest_message_read_by_order_not_by_claimed_time;
 
 const CHAT: Uuid = Uuid::from_u128(0xc4a7);
 const ADA: Uuid = Uuid::from_u128(0xada);

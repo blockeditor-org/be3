@@ -1,18 +1,19 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block::{ObjectId, SettingsLayer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
+    Glyph, ICON_ARROW_DOWN, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
     ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ContentProjection, Editor, utc_offset};
-use be_type_chat::{ChatContent, Message, Shown};
-use beui::{Align, Direction};
+use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, utc_offset};
+use be_type_chat::{ChatContent, ChatReads, Message, Shown};
+use beui::{Align, Direction, ScrollPosition};
 use uuid::Uuid;
 
 type Chat = ContentProjection<ChatContent>;
@@ -108,6 +109,14 @@ pub fn Chat(editor: Editor) -> NodeId {
     });
     let block = editor.block_id();
     let send = move || submit(&chat, block, me, composer);
+    let scroll = ComponentRef::<ScrollApi>::new();
+    let at_end = create_signal(true);
+    let unread = unread_count(editor, chat, block, me, at_end);
+    let has_unread = create_memo(move || unread.get().is_some_and(|count| count > 0));
+    let unread_label = create_memo(move || match unread.get().unwrap_or_default() {
+        1 => "1 new message".to_owned(),
+        count => format!("{count} new messages"),
+    });
     let replying = create_memo(move || {
         let id = composer.replying.get()?;
         let quoted = rows.try_get(&id)?;
@@ -131,7 +140,13 @@ pub fn Chat(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <ListItem grow=1.0>
-                <Scroll follow_end=true>
+                <Scroll
+                    api={scroll}
+                    follow_end=true
+                    on_change={move |position: ScrollPosition| {
+                        at_end.set(position.offset >= position.max_offset() - 1.0);
+                    }}
+                >
                     <Frame padding={Padding::all(Space::Xl)}>
                         <List spacing=Space::Md>
                             <Show condition={empty}>
@@ -147,6 +162,18 @@ pub fn Chat(editor: Editor) -> NodeId {
             <Separator />
             <Frame padding={Padding::all(Space::Lg)}>
                 <List spacing=Space::Sm>
+                    <Show condition={has_unread}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                            <Button
+                                label={unread_label}
+                                glyph=ICON_ARROW_DOWN
+                                variant=ButtonVariant::Secondary
+                                size=ButtonSize::Small
+                                @test_id={"chat.unread"}
+                                on_click={move || scroll.get().scroll_to_end()}
+                            />
+                        </List>
+                    </Show>
                     <Show condition={has_reply}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <ListItem grow=1.0>
@@ -204,6 +231,58 @@ pub fn Chat(editor: Editor) -> NodeId {
             </Frame>
         </List>
     }
+}
+
+/// How many messages others sent since this account last read the chat, none until its
+/// owner-only `ChatReads` loaded. Each device keeps its own place there and the furthest
+/// counts, so every device the account uses agrees. The chat is read while it is scrolled to its
+/// newest message, shown, and has the keyboard: a chat left open in a window behind others is
+/// not.
+fn unread_count(
+    editor: Editor,
+    chat: Chat,
+    block: Uuid,
+    me: Uuid,
+    at_end: Signal<bool>,
+) -> Memo<Option<usize>> {
+    let reads = LayeredSettings::<ChatReads>::this_device(editor);
+    let (read, ready) = (reads.effective(), reads.ready());
+    let device = editor.host().client_id();
+    let unread = create_memo(move || {
+        if !ready.get() {
+            return None;
+        }
+        let places = read.with(|reads| reads.places(block));
+        chat.read(|content| content.unread(places.into_iter().map(|(_, place)| place), me))
+            .ok()
+    });
+    let shown = editor.presence_visible();
+    let keyboard = use_keyboard();
+    create_effect(move || {
+        if !at_end.get() || !shown.get() || !keyboard.get() || unread.get().is_none() {
+            return;
+        }
+        let (here, places) = read.with(|reads| (reads.read_here(block, device), reads.places(block)));
+        let moved = chat.read(|content| {
+            let newest = content
+                .newest()
+                .filter(|newest| content.reads_further(*newest, here))?;
+            let behind: Vec<Uuid> = places
+                .iter()
+                .filter(|(_, place)| content.behind(*place, newest))
+                .map(|(other, _)| *other)
+                .collect();
+            Some((newest, behind))
+        });
+        let Ok(Some((newest, behind))) = moved else {
+            return;
+        };
+        let edit: KeptEdit<ChatReads> =
+            Rc::new(move |_| ChatReads::set_read(block, device, newest, &behind));
+        // Not yet loaded, it is written on the next change instead.
+        let _ = reads.write_all(SettingsLayer::EveryDevice, &[edit]);
+    });
+    unread
 }
 
 fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64) -> Row {
