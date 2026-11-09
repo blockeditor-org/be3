@@ -508,4 +508,3 @@ fn overlaps(primitive: &Primitive) -> bool {
     let clip = primitive.clip;
     bounds[0] < clip[2] && bounds[2] > clip[0] && bounds[1] < clip[3] && bounds[3] > clip[1]
 }
-

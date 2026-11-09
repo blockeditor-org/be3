@@ -66,7 +66,9 @@ fn nested_faded_frames_paint_as_the_painting_does_through_partial_repaints() {
                 let want = expected.rgba[(y * SIZE + x) as usize];
                 let got = drawn.pixel(x, y);
                 assert!(
-                    want.iter().zip(got).all(|(want, got)| want.abs_diff(got) <= 3),
+                    want.iter()
+                        .zip(got)
+                        .all(|(want, got)| want.abs_diff(got) <= 3),
                     "at ({x}, {y}) the GPU drew {got:?} where the painting has {want:?}"
                 );
             }

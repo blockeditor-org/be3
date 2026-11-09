@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::hash::{Hash as _, Hasher as _};
 
+/// Named apart from `display::Group`, the groups a display records.
+pub use beui_paint_format::Group as PaintGroup;
 pub use beui_paint_format::{
     Content, Fade, Frame, Glyph, Painting, Pixels, Placement, Primitive, RoundedRect,
     ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed, rasterize,
 };
-/// Named apart from `display::Group`, the groups a display records.
-pub use beui_paint_format::Group as PaintGroup;
 
 use crate::context::{FrameOutput, WindowOutput};
 use crate::display::Flat;

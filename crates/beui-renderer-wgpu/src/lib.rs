@@ -626,7 +626,13 @@ impl Frame<'_> {
                 );
                 let space =
                     self.faded_space(held.translation, held.clip, fade, held.opacity * opacity);
-                push_run(into, Run { space, ..run.clone() });
+                push_run(
+                    into,
+                    Run {
+                        space,
+                        ..run.clone()
+                    },
+                );
             }
         }
         into.push(Step::Group {
@@ -1788,7 +1794,8 @@ impl Renderer {
                         continue;
                     };
                     {
-                        let mut pass = self.begin_at(encoder, &layer, wgpu::LoadOp::Load, depth + 1);
+                        let mut pass =
+                            self.begin_at(encoder, &layer, wgpu::LoadOp::Load, depth + 1);
                         clip(&mut pass, region);
                         if let Some(groups) = &self.groups {
                             groups.clear(&mut pass);

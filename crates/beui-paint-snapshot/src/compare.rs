@@ -95,10 +95,7 @@ fn primitives_difference(before: &[Primitive], after: &[Primitive]) -> String {
         }
         Some(index) => format!(
             "shape {index} changed: {}",
-            changes(
-                &before[index].content,
-                &after[index].content
-            )
+            changes(&before[index].content, &after[index].content)
         ),
         None => "the painting is scaled differently".to_owned(),
     }
