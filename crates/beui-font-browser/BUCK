@@ -1,3 +1,0 @@
-load("@root//buck/cargo:defs.bzl", "cargo_crate")
-
-cargo_crate()
