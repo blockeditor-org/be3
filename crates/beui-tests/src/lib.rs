@@ -79,6 +79,9 @@ pub fn Fixture(name: String) -> Root {
         "virtual_list" => view! {
             <VirtualListFixture />
         },
+        "text_hooks" => view! {
+            <TextHooksFixture />
+        },
         "canvas" => view! {
             <CanvasFixture />
         },
@@ -350,6 +353,50 @@ fn FocusFixture() -> NodeId {
                 </Interactive>
             </List>
             <Text color={INK}>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn TextHooksFixture() -> NodeId {
+    let texts = NodeRef::new();
+    let rows = NodeRef::new();
+    let read = create_signal(String::from("Hooks unread"));
+    let keys: Vec<u32> = (0..100).collect();
+    view! {
+        <List spacing=12.0>
+            <Frame @node_ref=&texts>
+                <List spacing=4.0>
+                    <Text color={INK}>"Alpha"</Text>
+                    <Text color={INK}>""</Text>
+                    <Text color={INK}>"Beta"</Text>
+                </List>
+            </Frame>
+            <Frame width=160.0 height=100.0>
+                <Offset>
+                    <VirtualList @node_ref=&rows keys={keys} item_size=20.0>|row: ReadSignal<u32>|
+                        <Frame height=20.0 fill={BLUE}>
+                            <Text color={PAPER}>{format!("Item {}", row.get_untracked())}</Text>
+                        </Frame>
+                    </VirtualList>
+                </Offset>
+            </Frame>
+            <Button
+                id="text_hooks.read"
+                label="Read hooks"
+                on_click={move || {
+                    let found = texts
+                        .get()
+                        .texts_within()
+                        .iter()
+                        .map(TreeNode::text)
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let offset = rows.get().row_offset(&3_u32);
+                    read.set(format!("Texts {found} row 3 at {offset:?}"));
+                }}
+            />
+            <Text color={INK}>{read}</Text>
         </List>
     }
 }
