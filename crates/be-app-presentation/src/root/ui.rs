@@ -411,7 +411,9 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                                 align=Align::Center
                                 spacing=Space::Md
                             >
-                                <Text style=TextStyle::CAPTION>"This slide has no speaker notes."</Text>
+                                <Text style=TextStyle::CAPTION>
+                                    "This slide has no speaker notes."
+                                </Text>
                                 <Button
                                     glyph=ICON_STICKY_NOTE_PLUS
                                     label="Add notes"
