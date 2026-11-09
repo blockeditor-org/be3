@@ -1914,7 +1914,7 @@ pub(crate) fn load_graph(
     {
         let mut statement = connection.prepare(
             "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version, key_id,
-                owner_only, unfiled
+                owner_only
              FROM blocks WHERE organization_id = ?1",
         )?;
         let rows = statement.query_map([organization.to_string()], |row| {
@@ -1929,7 +1929,6 @@ pub(crate) fn load_graph(
                 row.get::<_, i64>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, bool>(9)?,
-                row.get::<_, bool>(10)?,
             ))
         })?;
         for row in rows {
@@ -1947,7 +1946,6 @@ pub(crate) fn load_graph(
         version,
         key,
         owner_only,
-        unfiled,
     ) in &nodes
     {
         let mut node = BlockNode::new(
@@ -1970,11 +1968,10 @@ pub(crate) fn load_graph(
             false => Some(parse_uuid(key)?),
         };
         node.owner_only = *owner_only;
-        node.unfiled = *unfiled;
         let _ = (parent_kind, parent_id);
         graph.insert(parse_uuid(id)?, node)?;
     }
-    for (id, _, _, parent_kind, parent_id, _, _, _, _, _, _) in &nodes {
+    for (id, _, _, parent_kind, parent_id, _, _, _, _, _) in &nodes {
         let parent = decode_parent(*parent_kind, parent_id.clone())?;
         graph.set_parent(parse_uuid(id)?, parent)?;
     }

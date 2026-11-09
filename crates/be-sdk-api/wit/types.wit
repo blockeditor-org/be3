@@ -420,7 +420,8 @@ interface types {
     /// Where a block is listed: at the root, detached from every parent,
     /// inside a block, or in the account's Unfiled, which the host resolves
     /// to the account's own and where everything made without a place the
-    /// person chose goes. Read back, a block in Unfiled is inside that block.
+    /// person chose goes. A block in Unfiled reads back as `unfiled`, so an
+    /// editor never learns Unfiled's id.
     variant block-location {
         root,
         detached,

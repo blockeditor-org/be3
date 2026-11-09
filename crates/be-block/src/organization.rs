@@ -28,9 +28,7 @@ pub fn my_files_of(organization: Uuid, block: Uuid) -> Uuid {
 
 const UNFILED_MASK: u128 = 0x756e_6669_6c65_642d_6f66_2d61_6363_7473;
 
-/// The type of an account's Unfiled: a root with no content that holds every block whose
-/// parent names it (`be_block_graph::BlockNode::unfiled`).
-pub const UNFILED_TYPE: Uuid = Uuid::from_u128(0x756e_6669_6c65_642d_626c_6f63_6b73_3031);
+pub use be_block_graph::UNFILED_TYPE;
 
 /// The account's Unfiled in an organization: where blocks made without a place the person
 /// chose go, so My files holds only what they put there.

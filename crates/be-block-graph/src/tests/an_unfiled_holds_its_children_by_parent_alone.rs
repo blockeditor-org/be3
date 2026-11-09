@@ -3,8 +3,7 @@ use super::*;
 #[test]
 fn an_unfiled_holds_its_children_by_parent_alone() {
     let mut graph = BlockGraph::new();
-    let mut unfiled = BlockNode::new(TYPE, AUTHOR, BlockParent::Root);
-    unfiled.unfiled = true;
+    let unfiled = BlockNode::new(crate::UNFILED_TYPE, AUTHOR, BlockParent::Root);
     graph.insert(id(1), unfiled).unwrap();
     graph
         .insert(

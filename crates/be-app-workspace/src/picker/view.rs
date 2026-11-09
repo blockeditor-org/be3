@@ -1,5 +1,5 @@
 use be_sdk_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER,
+    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_INBOX,
     ICON_LAYOUT_TEMPLATE, ICON_LINK, ICON_SEARCH,
 };
 use be_sdk_beui::beui::reactive::*;
@@ -407,6 +407,7 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
                 .info(id)
                 .map(|info| info.label(types.as_ref()).name)
                 .unwrap_or_else(|| "Untitled".to_owned()),
+            Some(BlockParent::Unfiled) => "Unfiled".to_owned(),
             _ => "Top level".to_owned(),
         }
     });
@@ -417,7 +418,10 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
             .and_then(BlockParent::block)
             .and_then(|id| picker.info(id))
             .and_then(|info| label_glyph(&info.label(types.as_ref())))
-            .unwrap_or(ICON_FOLDER)
+            .unwrap_or(match place.get() {
+                Some(BlockParent::Unfiled) => ICON_INBOX,
+                _ => ICON_FOLDER,
+            })
             .to_owned()
     });
     let rows = create_memo(move || {

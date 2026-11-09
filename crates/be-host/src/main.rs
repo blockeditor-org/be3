@@ -2085,41 +2085,27 @@ impl HostCore {
                 .and_then(|parent| be_host_stack::discovery::block_type(parent.content_type))
                 .is_some_and(|block_type| block_type.children.add)
         };
-        if let Some(BlockParent::Block(parent)) = node.parent
-            && usable(parent)
-            && addable(parent)
-        {
-            self.queue_placement(root, node.content_type, parent, false);
-            return;
-        }
-        let from = match node.parent {
-            Some(BlockParent::Block(parent)) => Some(be_block::DeletedFrom::Block(parent)),
-            _ => node.metadata.get(&be_block::DELETED_FROM),
+        let restoring = Restoring {
+            parent: node.parent,
+            deleted_from: node.metadata.get(&be_block::DELETED_FROM),
+            unfiled: self.root_settings.unfiled(),
+            root_addable: addable(root),
         };
-        if let Some(be_block::DeletedFrom::Block(parent)) = from
-            && is_unfiled(parent)
-            && usable(parent)
-        {
-            be_host_stack::set_parent(root, BlockParent::Block(parent));
-            return;
-        }
-        let destination = match from {
-            Some(be_block::DeletedFrom::Root) if addable(root) => {
+        let destination = match restore_to(&restoring, usable, addable) {
+            RestoreTo::Nowhere => return,
+            RestoreTo::Placed(parent) => {
+                self.queue_placement(root, node.content_type, parent, false);
+                return;
+            }
+            RestoreTo::Root => {
                 be_host_stack::set_parent(root, BlockParent::Root);
                 return;
             }
-            Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
-                parent
+            RestoreTo::Unfiled(unfiled) => {
+                be_host_stack::set_parent(root, BlockParent::Block(unfiled));
+                return;
             }
-            Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
-                match self.root_settings.unfiled() {
-                    Some(unfiled) => {
-                        be_host_stack::set_parent(root, BlockParent::Block(unfiled));
-                        return;
-                    }
-                    None => return,
-                }
-            }
+            RestoreTo::Into(destination) => destination,
         };
         let listed = be_host_stack::node(destination)
             .is_some_and(|parent| parent.references.contains(&root));
@@ -3749,10 +3735,66 @@ fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
     be_host_stack::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 
+/// What Restore knows of a deleted block: where it was, and what it was deleted from when its
+/// parent no longer says (`DELETED_FROM`).
+struct Restoring {
+    parent: Option<BlockParent>,
+    deleted_from: Option<be_block::DeletedFrom>,
+    /// The account's Unfiled, once the graph has it at the root.
+    unfiled: Option<Uuid>,
+    /// Whether the block itself may stand at the root (a workspace).
+    root_addable: bool,
+}
+
+#[derive(Debug, PartialEq)]
+enum RestoreTo {
+    /// Its parent still holds it in place: list it there again.
+    Placed(Uuid),
+    Root,
+    /// Into the account's Unfiled, which lists nothing, so setting the parent is enough.
+    Unfiled(Uuid),
+    /// Into a block that must list it.
+    Into(Uuid),
+    Nowhere,
+}
+
+/// Where Restore puts a deleted block back: where it was deleted from when that still takes
+/// it, else into the account's Unfiled.
+fn restore_to(
+    restoring: &Restoring,
+    usable: impl Fn(Uuid) -> bool,
+    addable: impl Fn(Uuid) -> bool,
+) -> RestoreTo {
+    if let Some(BlockParent::Block(parent)) = restoring.parent
+        && usable(parent)
+        && addable(parent)
+    {
+        return RestoreTo::Placed(parent);
+    }
+    let from = match restoring.parent {
+        Some(BlockParent::Block(parent)) => Some(be_block::DeletedFrom::Block(parent)),
+        _ => restoring.deleted_from,
+    };
+    match from {
+        Some(be_block::DeletedFrom::Block(parent))
+            if restoring.unfiled == Some(parent) && usable(parent) =>
+        {
+            RestoreTo::Unfiled(parent)
+        }
+        Some(be_block::DeletedFrom::Root) if restoring.root_addable => RestoreTo::Root,
+        Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
+            RestoreTo::Into(parent)
+        }
+        Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
+            restoring.unfiled.map_or(RestoreTo::Nowhere, RestoreTo::Unfiled)
+        }
+    }
+}
+
 /// Whether `block` is an account's Unfiled, which lists nothing: a block goes into it by its
 /// parent alone.
 fn is_unfiled(block: Uuid) -> bool {
-    be_host_stack::node(block).is_some_and(|node| node.unfiled)
+    be_host_stack::node(block).is_some_and(|node| node.unfiled())
 }
 
 fn drag_source(location: BlockLocation) -> SidebarDragSource {

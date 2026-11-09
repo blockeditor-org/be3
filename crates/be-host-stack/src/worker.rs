@@ -3032,7 +3032,6 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         sets_access: summary.sets_access,
         size: summary.size,
         tree_size: summary.tree_size,
-        unfiled: summary.unfiled,
     }
 }
 

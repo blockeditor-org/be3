@@ -17,13 +17,7 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
         BlockParent::Root,
     )
     .await;
-    let Ok(made) = made else {
-        panic!("making Unfiled failed: {made:?}");
-    };
-    assert!(
-        made.unfiled,
-        "the server marks the reserved id as an Unfiled"
-    );
+    assert!(made.is_ok(), "making Unfiled failed: {made:?}");
 
     let kept = client.create_block(BlockParent::Block(unfiled)).await;
     let deleted = client.create_block(BlockParent::Block(unfiled)).await;

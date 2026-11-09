@@ -313,7 +313,9 @@ pub struct HostChildStatus {
 #[derive(Clone, Debug)]
 pub struct ChildCommit {
     pub child: ChildId,
-    pub parent: be_block_graph::BlockParent,
+    /// Resolved when the block is made (`app_graph::parent_of`), so a commit to Unfiled waits
+    /// until the account's Unfiled exists.
+    pub parent: be_sdk_api::BlockLocation,
     pub name: Option<String>,
 }
 

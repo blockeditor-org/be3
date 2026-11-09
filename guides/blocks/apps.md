@@ -135,7 +135,7 @@ invisible block counts as live). Links to it still resolve; places that list
 references mute it or list it last, and pickers never offer it.
 `EditorHost::restore_block` (`block-command::restore`) lists it in its parent
 again, or for a detached block puts it back where `DELETED_FROM` metadata says
-(recorded by `be_host_stack::set_parent`), else into My files.
+(recorded by `be_host_stack::set_parent`), else into the account's Unfiled.
 
 **Graph commands.** `create-block(block, block-type, parent, defined,
 content, owner-only)`, `set-parent` and `define` are sync calls with no answer:

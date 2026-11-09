@@ -1,7 +1,7 @@
 # Connected apps
 
-Depends on: plans/unfiled.md, and a versioned server protocol, which no
-plan covers yet.
+Depends on: a versioned server protocol, which no plan covers yet. Unfiled
+has landed (guides/blocks/workspaces.md).
 
 A third party's own product (its own website, login and servers) that connects
 to a person's be3 account and reads and edits their blocks. Until block apps
@@ -146,7 +146,7 @@ or any other origin at runtime.
 ## Making a file: Unfiled
 
 An app creates a block of its type in the account's Unfiled
-(plans/unfiled.md), never learning the root's id, and finds its blocks by id or
+(`block-location::unfiled`), never learning the root's id, and finds its blocks by id or
 by listing its types. The person files them later with a normal move (rekeying
 into the destination scope).
 

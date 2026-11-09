@@ -3644,7 +3644,7 @@ impl Instances {
                 ack(reply);
                 entry.child_commits.push(ChildCommit {
                     child,
-                    parent: be_host_stack::app_graph::parent_of(parent),
+                    parent,
                     name,
                 });
             }

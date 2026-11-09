@@ -1137,6 +1137,11 @@ impl ContentStore {
                 .filter(|node| node.parent.is_some() && !self.held(&nodes, node))
                 .cloned()
                 .collect(),
+            BlockQuery::Unfiled => nodes
+                .iter()
+                .filter(|node| node.parent == Some(BlockParent::Unfiled))
+                .cloned()
+                .collect(),
             BlockQuery::Children(parent) => nodes
                 .iter()
                 .filter(|node| node.parent == Some(BlockParent::Block(parent)))

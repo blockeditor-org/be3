@@ -306,7 +306,9 @@ impl Instances {
                 });
             }
             Call::ImportBlocks { reply, parent } => {
-                let parent = be_host_stack::app_graph::parent_of(parent);
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                };
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
@@ -364,8 +366,10 @@ impl Instances {
                 blocks,
                 parent,
             } => {
-                let parent = be_host_stack::app_graph::parent_of(parent);
-                let editable = !parent.block().is_some_and(|parent| !self.editable(parent));
+                let resolved = be_host_stack::app_graph::parent_of(parent);
+                let parent = resolved.unwrap_or(be_block_graph::BlockParent::Detached);
+                let editable = resolved.is_some()
+                    && !parent.block().is_some_and(|parent| !self.editable(parent));
                 let mut pasted = Vec::new();
                 for block in blocks.into_iter().map(Uuid::from_bytes) {
                     let cut = super::cuts::take(block);
@@ -396,7 +400,9 @@ impl Instances {
                 parent,
             } => {
                 let source = Uuid::from_bytes(source);
-                let parent = be_host_stack::app_graph::parent_of(parent);
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                };
                 if !self.can_view(source)
                     || parent.block().is_some_and(|parent| !self.editable(parent))
                 {

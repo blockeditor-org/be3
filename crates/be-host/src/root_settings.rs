@@ -222,7 +222,7 @@ impl RootSettings {
         {
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"Unfiled".to_owned());
-            be_host_stack::create(block, UNFILED_TYPE, BlockParent::Root, metadata, None);
+            be_host_stack::create(block, UNFILED_TYPE, BlockParent::Root, metadata, None, false);
             self.created_unfiled = Some(block);
         }
         self.unfiled()

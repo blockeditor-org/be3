@@ -1058,6 +1058,11 @@ impl Workspace {
     pub(crate) fn create_in(&self, parent: BlockParent) {
         self.error.set(None);
         let container = parent.block();
+        if container.is_none() && self.my_files().is_none() {
+            self.error
+                .set(Some("Your files are still loading".to_owned()));
+            return;
+        }
         let parent = container.map_or(BlockParent::Unfiled, BlockParent::Block);
         let excluded = container.map(Uuid::into_bytes).into_iter().collect();
         let workspace = *self;

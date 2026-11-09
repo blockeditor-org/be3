@@ -472,19 +472,22 @@ impl Editors {
             child.creation.step(&registry, client_id);
             let progress = match &child.commit {
                 None => CreationProgress::Options,
-                Some(commit) => match child.creation.create() {
-                    Ok(Some(block)) => {
-                        be_host_stack::set_parent(block, commit.parent);
+                Some(commit) => match be_host_stack::app_graph::parent_of(commit.parent) {
+                    None => CreationProgress::Working,
+                    Some(parent) => match child.creation.create() {
+                        Ok(Some(block)) => {
+                            be_host_stack::set_parent(block, parent);
                         if let Some(name) = commit.name.clone() {
                             be_host_stack::name_when_created(block, name);
                         }
-                        CreationProgress::Created(block.into_bytes())
-                    }
-                    Ok(None) => CreationProgress::Working,
-                    Err(error) => {
-                        child.commit = None;
-                        CreationProgress::Failed(error)
-                    }
+                            CreationProgress::Created(block.into_bytes())
+                        }
+                        Ok(None) => CreationProgress::Working,
+                        Err(error) => {
+                            child.commit = None;
+                            CreationProgress::Failed(error)
+                        }
+                    },
                 },
             };
             if child.progress.as_ref() != Some(&progress) {

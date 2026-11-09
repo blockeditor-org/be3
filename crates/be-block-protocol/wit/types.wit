@@ -119,9 +119,6 @@ interface types {
         /// Readable by its author alone, and never escrowed: made with
         /// `create-block`'s `owner-only`. Set only when the reader may view it.
         owner-only: bool,
-        /// An account's Unfiled, which holds every block whose parent names
-        /// it without listing them.
-        unfiled: bool,
     }
 
     enum key-kind {

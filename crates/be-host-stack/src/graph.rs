@@ -26,11 +26,14 @@ pub struct Node {
     /// Bytes the server keeps for this block alone, and with every block below it.
     pub size: u64,
     pub tree_size: u64,
-    /// An account's Unfiled, which holds its children without listing them.
-    pub unfiled: bool,
 }
 
 impl Node {
+    /// An account's Unfiled, which holds its children without listing them.
+    pub fn unfiled(&self) -> bool {
+        self.content_type == be_block_graph::UNFILED_TYPE
+    }
+
     pub fn contents(&self) -> Vec<Uuid> {
         let described = self.metadata.references();
         self.references
@@ -665,7 +668,7 @@ impl Graph {
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => match self.nodes.get(&parent) {
                 Some(parent) if parent.access.can_view() => {
-                    parent.unfiled || parent.references.contains(&node.id)
+                    parent.unfiled() || parent.references.contains(&node.id)
                 }
                 _ => node.held,
             },
