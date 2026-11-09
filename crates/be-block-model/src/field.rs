@@ -146,6 +146,13 @@ impl<T> FromIterator<T> for List<T> {
     }
 }
 
+/// What `#[model(merge_appends)]` may mark: a `List`. The derive requires it, so the attribute
+/// on any other field is a compile error rather than ignored.
+#[diagnostic::on_unimplemented(message = "`#[model(merge_appends)]` marks only a `List` field")]
+pub trait MergesAppends {}
+
+impl<T> MergesAppends for List<T> {}
+
 impl<T: Model> Field for List<T> {
     fn blank() -> Value {
         Value::List(Items::default())

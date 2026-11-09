@@ -32,8 +32,9 @@ editor ending a group between them, undo the paste alone and then the typing.
 
 ## 2. Sequence
 
-Land these and plans/chat.md's `merge_appends` one after the other: both change
-`Items` merges. A change to what an operation does is fine across builds, since
+`merge_appends` (a `List` attribute, chat's messages) has landed and also changes
+how list orders merge (`append_order` in `crates/be-block-model/src/merge.rs`);
+keep it working. A change to what an operation does is fine across builds, since
 a journal belongs to its module tag.
 
 - **A replace after a move.** A replace inserts after the last element of its

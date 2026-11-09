@@ -4,6 +4,7 @@
 members = [
     "crates/be-app-audio",
     "crates/be-app-browser-tab",
+    "crates/be-app-chat",
     "crates/be-app-checklist",
     "crates/be-app-database",
     "crates/be-app-desktop",
@@ -123,6 +124,7 @@ members = [
     "crates/be-type-audio",
     "crates/be-type-browser-tab",
     "crates/be-type-bundle",
+    "crates/be-type-chat",
     "crates/be-type-checklist",
     "crates/be-type-database",
     "crates/be-type-deterministic-game",

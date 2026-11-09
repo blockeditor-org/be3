@@ -805,6 +805,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-app-chat"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-chat",
+ "beui",
+ "uuid",
+]
+
+[[package]]
 name = "be-app-checklist"
 version = "0.1.0"
 dependencies = [
@@ -2416,6 +2427,7 @@ dependencies = [
  "be-sdk-type-guest",
  "be-type-audio",
  "be-type-browser-tab",
+ "be-type-chat",
  "be-type-checklist",
  "be-type-database",
  "be-type-deterministic-game",
@@ -2436,6 +2448,21 @@ dependencies = [
  "be-type-video",
  "be-type-workspace",
  "be-wasm-guest-abi",
+ "uuid",
+]
+
+[[package]]
+name = "be-type-chat"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-block-store",
+ "be-sdk-type-guest",
+ "serde",
+ "serde_bytes",
+ "sha2 0.10.9",
  "uuid",
 ]
 

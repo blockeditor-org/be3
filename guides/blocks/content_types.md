@@ -66,7 +66,9 @@ Almost every type is a `Document<R>`: structs deriving `be_block_model::Model`
 with a `Root` naming the content type. The derive supplies merge, rebase and
 undo; `Document<R>` implements the traits in `be-block` (`model.rs`), so it is
 registered with `undo` in `be_block_types!`. Content that does not fit can
-implement the traits by hand (blobs, below).
+implement the traits by hand (blobs, below); content that is a document but
+must not load whole wraps one and forwards them to it (`ChatContent` in
+`crates/be-type-chat`).
 
 A field is a **register** (any serde value, set whole; setting it on both
 sides offline conflicts), `Count`, `Grid<T>` (dense cells for pixels; bounds
@@ -108,7 +110,11 @@ How the model works:
 - **Offline merge** (`Document::merge`) matches objects by id across the three
   versions and merges each field on its own; list order merges like
   `merge_slices` once moved items are taken out and put back after their
-  sibling. You delete what you saw: deleting what the other side edited deletes
+  sibling. A `List` field marked `#[model(merge_appends)]` (chat's messages)
+  instead merges published first: theirs (the published head, in every merge
+  a replica or `be sync` makes) keeps its order, and the items only ours added
+  go after all of it in our order, so what others have seen stays put and two
+  runs written offline never interleave. You delete what you saw: deleting what the other side edited deletes
   it and counts a conflict; what the other side moved or inserted into a
   removed container survives (back where it came from) and counts a conflict.
 - **Undo** (`Document::step`) records an undo and redo change per change, taken
