@@ -1039,7 +1039,7 @@ impl Workspace {
             let mut asks = state.notify_asks.borrow_mut();
             if !asks.contains_key(&block) {
                 let modes = self.notify_modes;
-                let asked = self.host().notify_mode(block);
+                let asked = untrack(|| self.host().notify_mode(block));
                 let task = self.editor.then(asked, move |mode| {
                     if let Ok(mode) = mode {
                         modes.update(|modes| {
