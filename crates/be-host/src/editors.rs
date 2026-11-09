@@ -57,6 +57,8 @@ pub enum SidebarDragSource {
     Root,
     Orphaned,
     Block(Uuid),
+    /// The account's Unfiled, which lists nothing, so taking a block out edits nothing.
+    Unfiled,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

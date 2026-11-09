@@ -213,6 +213,7 @@ impl BlockSummary {
             size: 0,
             tree_size: 0,
             owner_only: false,
+            unfiled: false,
         }
     }
 }

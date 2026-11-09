@@ -17,11 +17,17 @@ pub fn query_of(query: BlockQuery) -> Query {
     }
 }
 
+/// The parent a location names, `Unfiled` resolved to the signed-in account's own (detached
+/// while no account is signed in).
 pub fn parent_of(location: BlockLocation) -> be_block_graph::BlockParent {
     match location {
         BlockLocation::Root => be_block_graph::BlockParent::Root,
         BlockLocation::Detached => be_block_graph::BlockParent::Detached,
         BlockLocation::Block(id) => be_block_graph::BlockParent::Block(Uuid::from_bytes(id)),
+        BlockLocation::Unfiled => crate::unfiled().map_or(
+            be_block_graph::BlockParent::Detached,
+            be_block_graph::BlockParent::Block,
+        ),
     }
 }
 

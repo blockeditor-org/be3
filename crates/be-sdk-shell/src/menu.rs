@@ -54,7 +54,7 @@ pub(crate) fn unlink_permission(
 
 fn can_delete_from(workspace: &Workspace, source: BlockParent) -> bool {
     match source {
-        BlockParent::Root | BlockParent::Detached => true,
+        BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled => true,
         BlockParent::Block(id) => {
             let types = workspace.types();
             workspace

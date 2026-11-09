@@ -856,7 +856,9 @@ pub(crate) fn describe(
     let source = container.map_or_else(
         || match reference.parent {
             Some(BlockParent::Detached) => BlockParent::Detached,
-            Some(BlockParent::Root | BlockParent::Block(_)) | None => BlockParent::Root,
+            Some(BlockParent::Root | BlockParent::Unfiled | BlockParent::Block(_)) | None => {
+                BlockParent::Root
+            }
         },
         BlockParent::Block,
     );
@@ -960,6 +962,7 @@ fn inspect(
     let parent = match block.parent {
         Some(BlockParent::Root) => "Root".to_owned(),
         Some(BlockParent::Detached) => "Recently Deleted".to_owned(),
+        Some(BlockParent::Unfiled) => "Unfiled".to_owned(),
         Some(BlockParent::Block(id)) if block.deleted => {
             format!("{}, in Recently Deleted", described(id))
         }
@@ -1018,7 +1021,7 @@ pub(crate) fn can_move_out_of(
     is_reference: bool,
 ) -> bool {
     let can_delete = match source {
-        BlockParent::Root | BlockParent::Detached => true,
+        BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled => true,
         BlockParent::Block(id) => {
             block_types
                 .get(&id)

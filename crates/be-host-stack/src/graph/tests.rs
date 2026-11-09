@@ -23,6 +23,7 @@ fn node(id: Uuid) -> Node {
         sets_access: false,
         size: 0,
         tree_size: 0,
+        unfiled: false,
     }
 }
 

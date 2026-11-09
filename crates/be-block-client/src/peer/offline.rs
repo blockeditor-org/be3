@@ -220,6 +220,7 @@ impl<S: ObjectStore> Peer<S> {
             size: 0,
             tree_size: 0,
             owner_only: creation.owner_only,
+            unfiled: creation.content_type == be_block::UNFILED_TYPE,
         };
         self.refs.add_keys(&creation.keys)?;
         self.recorded(&creation.keys);

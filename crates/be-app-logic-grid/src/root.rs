@@ -797,7 +797,7 @@ impl LogicGridEditor {
                 let name = dynamic_artifact::artifact_name(&source_name);
                 let id = editor.blocks().create_artifact(
                     &CompiledLogicContent::new(&CompiledLogicDocument::of(compiled.clone())),
-                    BlockParent::Detached,
+                    BlockParent::Unfiled,
                     Some(name.clone()),
                     dynamic_artifact::descriptor(source_id),
                 );

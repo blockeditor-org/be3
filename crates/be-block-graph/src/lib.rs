@@ -71,6 +71,11 @@ pub struct BlockNode {
     /// Readable by its author alone: a scope root of its own whose key is sealed only to the
     /// author, never escrowed (`KindVisibility::Owner`). Set when it is made and kept for life.
     pub owner_only: bool,
+    /// An account's Unfiled: it has no content listing its children, so it holds every
+    /// block whose parent names it. The server sets it when the account's reserved id is
+    /// made, since an id alone does not say whose it is.
+    #[serde(default)]
+    pub unfiled: bool,
 }
 
 impl BlockNode {
@@ -88,6 +93,7 @@ impl BlockNode {
             size: 0,
             tree_size: 0,
             owner_only: false,
+            unfiled: false,
         }
     }
 }
@@ -332,7 +338,8 @@ impl BlockGraph {
         };
     }
 
-    /// A parent holds a child only while the parent's references list it. A block whose link
+    /// A parent holds a child only while the parent's references list it, except an Unfiled
+    /// (`BlockNode::unfiled`), which holds every child by parent alone. A block whose link
     /// does not hold is in the trash with its subtree even when something else references it;
     /// references from anything but the parent keep nothing alive.
     pub fn holds(&self, id: Uuid) -> bool {
@@ -341,7 +348,7 @@ impl BlockGraph {
             Some(BlockParent::Block(parent)) => self
                 .blocks
                 .get(&parent)
-                .is_some_and(|parent| parent.references.contains(&id)),
+                .is_some_and(|parent| parent.unfiled || parent.references.contains(&id)),
             Some(BlockParent::Detached) | None => false,
         }
     }

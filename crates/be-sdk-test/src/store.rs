@@ -1060,7 +1060,7 @@ impl ContentStore {
 
     fn held(&self, nodes: &[BlockInfo], node: &BlockInfo) -> bool {
         match node.parent {
-            Some(BlockParent::Root) | None => true,
+            Some(BlockParent::Root | BlockParent::Unfiled) | None => true,
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => {
                 !nodes.iter().any(|above| above.id == parent)
@@ -1080,7 +1080,9 @@ impl ContentStore {
             }
             match node.parent {
                 Some(BlockParent::Block(parent)) => current = parent,
-                Some(BlockParent::Root | BlockParent::Detached) | None => return false,
+                Some(BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled) | None => {
+                    return false;
+                }
             }
         }
         false

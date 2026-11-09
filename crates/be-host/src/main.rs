@@ -1971,6 +1971,12 @@ impl HostCore {
             return;
         }
         self.block_types.insert(child, block_type);
+        if is_unfiled(parent) {
+            if !linked {
+                be_host_stack::set_parent(child, BlockParent::Block(parent));
+            }
+            return;
+        }
         if !self.ensure_editor(parent) {
             return;
         }
@@ -2007,13 +2013,15 @@ impl HostCore {
         }
         self.block_types.insert(child, block_type);
         let source_ready = match source {
-            SidebarDragSource::Root | SidebarDragSource::Orphaned => true,
+            SidebarDragSource::Root | SidebarDragSource::Orphaned | SidebarDragSource::Unfiled => {
+                true
+            }
             SidebarDragSource::Block(source) => self.ensure_editor(source),
         };
-        if !source_ready || !self.ensure_editor(destination) {
+        if !source_ready || !(is_unfiled(destination) || self.ensure_editor(destination)) {
             return;
         }
-        if source == SidebarDragSource::Orphaned && !is_reference {
+        if source == SidebarDragSource::Orphaned && !is_reference && !is_unfiled(destination) {
             be_host_stack::placing(child, true);
         }
         self.pending_transfers.push(PendingTransfer {
@@ -2088,6 +2096,13 @@ impl HostCore {
             Some(BlockParent::Block(parent)) => Some(be_block::DeletedFrom::Block(parent)),
             _ => node.metadata.get(&be_block::DELETED_FROM),
         };
+        if let Some(be_block::DeletedFrom::Block(parent)) = from
+            && is_unfiled(parent)
+            && usable(parent)
+        {
+            be_host_stack::set_parent(root, BlockParent::Block(parent));
+            return;
+        }
         let destination = match from {
             Some(be_block::DeletedFrom::Root) if addable(root) => {
                 be_host_stack::set_parent(root, BlockParent::Root);
@@ -2097,8 +2112,11 @@ impl HostCore {
                 parent
             }
             Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => {
-                match self.root_settings.my_files() {
-                    Some(files) => files,
+                match self.root_settings.unfiled() {
+                    Some(unfiled) => {
+                        be_host_stack::set_parent(root, BlockParent::Block(unfiled));
+                        return;
+                    }
                     None => return,
                 }
             }
@@ -2127,7 +2145,9 @@ impl HostCore {
         }
         self.block_types.insert(child, block_type);
         let ready = match source {
-            SidebarDragSource::Root | SidebarDragSource::Orphaned => true,
+            SidebarDragSource::Root | SidebarDragSource::Orphaned | SidebarDragSource::Unfiled => {
+                true
+            }
             SidebarDragSource::Block(source) => self.ensure_editor(source),
         };
         if !ready {
@@ -2148,7 +2168,10 @@ impl HostCore {
             if matches!(transfer.stage, TransferStage::DeleteSource) {
                 let ready = match transfer.source {
                     None | Some(SidebarDragSource::Orphaned) => Some(true),
-                    Some(SidebarDragSource::Root) => {
+                    Some(SidebarDragSource::Unfiled) if transfer.destination.is_some() => {
+                        Some(true)
+                    }
+                    Some(SidebarDragSource::Root | SidebarDragSource::Unfiled) => {
                         be_host_stack::set_parent(transfer.child, BlockParent::Detached);
                         Some(true)
                     }
@@ -2164,8 +2187,12 @@ impl HostCore {
             }
 
             let ready = transfer.destination.map_or(Some(true), |destination| {
-                self.with_editor(destination, |editor| editor.add_child(transfer.child))
-                    .flatten()
+                match is_unfiled(destination) {
+                    true => Some(true),
+                    false => self
+                        .with_editor(destination, |editor| editor.add_child(transfer.child))
+                        .flatten(),
+                }
             });
             if ready != Some(true) {
                 self.pending_transfers.push(transfer);
@@ -2270,6 +2297,7 @@ impl HostCore {
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
         self.root_settings.ensure_my_files();
+        self.root_settings.ensure_unfiled();
         let class = root_settings::device_class();
         self.root_settings.ensure_profile(self.client_id, class)?;
         if let Some(profile) = self.root_settings.take_set_up() {
@@ -3721,10 +3749,18 @@ fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
     be_host_stack::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
 }
 
+/// Whether `block` is an account's Unfiled, which lists nothing: a block goes into it by its
+/// parent alone.
+fn is_unfiled(block: Uuid) -> bool {
+    be_host_stack::node(block).is_some_and(|node| node.unfiled)
+}
+
 fn drag_source(location: BlockLocation) -> SidebarDragSource {
     match location {
         BlockLocation::Root => SidebarDragSource::Root,
         BlockLocation::Detached => SidebarDragSource::Orphaned,
+        BlockLocation::Unfiled => SidebarDragSource::Unfiled,
+        BlockLocation::Block(id) if is_unfiled(Uuid::from_bytes(id)) => SidebarDragSource::Unfiled,
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
 }

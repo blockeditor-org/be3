@@ -5,8 +5,8 @@ use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, LiveEdit,
     NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
-    SettingsContent, SettingsProfileContent, VIEW_EDITOR, VIEW_TYPE, WORKSPACE_EDITOR,
-    WORKSPACE_TYPE, organization_settings,
+    SettingsContent, SettingsProfileContent, UNFILED_TYPE, VIEW_EDITOR, VIEW_TYPE,
+    WORKSPACE_EDITOR, WORKSPACE_TYPE, organization_settings,
 };
 use be_block_graph::BlockParent;
 use uuid::Uuid;
@@ -85,6 +85,7 @@ pub(crate) struct RootSettings {
     shell: Uuid,
     created: Option<Uuid>,
     created_files: Option<Uuid>,
+    created_unfiled: Option<Uuid>,
     created_session: Option<Uuid>,
     chosen_session: Option<Uuid>,
     created_profile: Option<Uuid>,
@@ -99,6 +100,7 @@ impl RootSettings {
             shell,
             created: None,
             created_files: None,
+            created_unfiled: None,
             created_session: None,
             chosen_session: None,
             created_profile: None,
@@ -199,6 +201,31 @@ impl RootSettings {
             self.created_files = Some(block);
         }
         self.my_files()
+    }
+
+    /// The account's Unfiled once the graph has it at the root.
+    pub(crate) fn unfiled(&self) -> Option<Uuid> {
+        let block = be_host_stack::unfiled()?;
+        be_host_stack::node(block)
+            .is_some_and(|node| node.parent == Some(BlockParent::Root))
+            .then_some(block)
+    }
+
+    /// Makes the account's Unfiled once the server has said it has none. It has no content:
+    /// it holds every block whose parent names it.
+    pub(crate) fn ensure_unfiled(&mut self) -> Option<Uuid> {
+        if self.unfiled().is_none()
+            && let Some(block) = be_host_stack::unfiled()
+            && self.created_unfiled != Some(block)
+            && be_host_stack::ready(be_host_stack::Query::Block(block))
+            && be_host_stack::node(block).is_none()
+        {
+            let mut metadata = BlockMetadata::default();
+            metadata.insert(&NAME, &"Unfiled".to_owned());
+            be_host_stack::create(block, UNFILED_TYPE, BlockParent::Root, metadata, None);
+            self.created_unfiled = Some(block);
+        }
+        self.unfiled()
     }
 
     pub(crate) fn settings(&self) -> Option<Settings> {

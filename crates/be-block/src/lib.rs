@@ -44,8 +44,8 @@ pub use metadata::{
 pub use model::Root;
 pub use organization::{
     Allowance, LostAccess, OfflineChoice, OfflinePolicy, OfflineSettings, OfflineSettingsContent,
-    OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, WhoMay, is_workspace_type,
-    my_files, my_files_of, organization_settings,
+    OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, UNFILED_TYPE, WhoMay,
+    is_workspace_type, my_files, my_files_of, organization_settings, unfiled, unfiled_of,
 };
 pub use profile::{
     DESKTOP_EDITOR, FILES_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,

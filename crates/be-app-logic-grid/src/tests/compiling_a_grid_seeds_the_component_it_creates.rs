@@ -29,4 +29,12 @@ fn compiling_a_grid_seeds_the_component_it_creates() {
         .expect("the seeded component holds a program");
     assert!(program.size().width > 0);
     assert!(program.calls().is_empty());
+    assert_eq!(
+        editor
+            .store()
+            .block(component.block)
+            .and_then(|info| info.parent),
+        Some(be_sdk_beui::BlockParent::Unfiled),
+        "nobody chose a place for the component, so it goes to Unfiled"
+    );
 }

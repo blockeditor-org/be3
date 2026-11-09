@@ -417,12 +417,15 @@ interface types {
         block-id: block-id,
     }
 
-    /// Where a block is listed: at the root, detached from every parent, or
-    /// inside a block.
+    /// Where a block is listed: at the root, detached from every parent,
+    /// inside a block, or in the account's Unfiled, which the host resolves
+    /// to the account's own and where everything made without a place the
+    /// person chose goes. Read back, a block in Unfiled is inside that block.
     variant block-location {
         root,
         detached,
         block(block-id),
+        unfiled,
     }
 
     /// Which blocks a pick offers: of these types (any when empty), never the

@@ -17,13 +17,16 @@ pub enum BlockParent {
     Detached,
     Root,
     Block(Uuid),
+    /// The account's Unfiled, for a block made without a place the person chose. The host
+    /// resolves it, so a block placed there reads back as inside a block.
+    Unfiled,
 }
 
 impl BlockParent {
     pub const fn block(self) -> Option<Uuid> {
         match self {
             Self::Block(id) => Some(id),
-            Self::Detached | Self::Root => None,
+            Self::Detached | Self::Root | Self::Unfiled => None,
         }
     }
 
@@ -32,6 +35,7 @@ impl BlockParent {
             Self::Root => BlockLocation::Root,
             Self::Detached => BlockLocation::Detached,
             Self::Block(id) => BlockLocation::Block(id.into_bytes()),
+            Self::Unfiled => BlockLocation::Unfiled,
         }
     }
 
@@ -40,6 +44,7 @@ impl BlockParent {
             BlockLocation::Root => Self::Root,
             BlockLocation::Detached => Self::Detached,
             BlockLocation::Block(id) => Self::Block(Uuid::from_bytes(id)),
+            BlockLocation::Unfiled => Self::Unfiled,
         }
     }
 }

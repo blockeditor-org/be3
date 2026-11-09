@@ -60,6 +60,7 @@ pub(crate) fn block(info: Option<&BlockInfo>, types: &dyn BlockTypes) -> Entry {
     let parent = match info.parent {
         Some(BlockParent::Root) => "root".to_owned(),
         Some(BlockParent::Detached) => "detached".to_owned(),
+        Some(BlockParent::Unfiled) => "unfiled".to_owned(),
         Some(BlockParent::Block(parent)) => parent.to_string(),
         None => "unknown".to_owned(),
     };

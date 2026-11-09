@@ -319,6 +319,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         size: node.size,
         tree_size: node.tree_size,
         owner_only: node.owner_only,
+        unfiled: node.unfiled,
     })
 }
 
@@ -365,6 +366,8 @@ impl ServerStore {
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
             node.owner_only = owner_only;
+            node.unfiled = content_type == be_block::UNFILED_TYPE;
+            let unfiled = node.unfiled;
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
             let transaction = database.unchecked_transaction()?;
@@ -372,8 +375,8 @@ impl ServerStore {
             transaction.execute(
                 "INSERT INTO blocks
                     (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata,
-                     payer, owner_only)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9)",
+                     payer, owner_only, unfiled)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9, ?10)",
                 params![
                     identity.organization.to_string(),
                     block.to_string(),
@@ -384,6 +387,7 @@ impl ServerStore {
                     metadata,
                     payer.to_string(),
                     owner_only,
+                    unfiled,
                 ],
             )?;
             store_edges(
@@ -1105,6 +1109,12 @@ impl ServerStore {
                 ));
             }
             require_owner_of_owner_only(graph, identity, block, "moves")?;
+            if graph.get(block).is_some_and(|node| node.unfiled) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "an account's Unfiled stays at the top of the organization".into(),
+                ));
+            }
             let access = seen.inherited(graph, block);
             if let Some(refusal) = graph.move_refusal(block, parent, identity.account, access) {
                 return Err(ServerError::Refused(

@@ -577,6 +577,7 @@ pub fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             sets_access: false,
             size: 0,
             tree_size: 0,
+            unfiled: false,
         });
     });
     send(Command::Duplicate {
@@ -913,6 +914,12 @@ pub fn identity() -> Option<(Uuid, Uuid)> {
         .map(|stack| (stack.account, stack.organization))
 }
 
+/// The signed-in account's Unfiled in the open organization (`be_block::unfiled`), where
+/// blocks made without a place the person chose go.
+pub fn unfiled() -> Option<Uuid> {
+    identity().map(|(account, organization)| be_block::unfiled(organization, account))
+}
+
 pub fn stale_revision() -> u64 {
     with_shared(|shared| shared.stale_revision).unwrap_or_default()
         + be_block_type_host::kinds_revision()
@@ -1040,7 +1047,7 @@ pub fn create(
             && shared
                 .graph
                 .get(above)
-                .is_some_and(|above| !above.references.contains(&block))
+                .is_some_and(|above| !above.unfiled && !above.references.contains(&block))
         {
             shared.graph.placing(block, true);
         }
@@ -1058,6 +1065,7 @@ pub fn create(
             sets_access: false,
             size: 0,
             tree_size: 0,
+            unfiled: content_type == be_block::UNFILED_TYPE,
         });
     });
     send(Command::Create {
@@ -1109,7 +1117,7 @@ pub fn set_parent(block: Uuid, parent: be_block_graph::BlockParent) {
             be_block_graph::BlockParent::Block(above) => shared
                 .graph
                 .get(above)
-                .is_some_and(|above| !above.references.contains(&block)),
+                .is_some_and(|above| !above.unfiled && !above.references.contains(&block)),
             be_block_graph::BlockParent::Root | be_block_graph::BlockParent::Detached => false,
         };
         shared.graph.placing(block, placing);
@@ -1315,6 +1323,7 @@ pub fn import(bytes: &[u8], parent: be_block_graph::BlockParent) -> Result<(Uuid
                 sets_access: false,
                 size: 0,
                 tree_size: 0,
+                unfiled: false,
             });
         });
         if let Some(bytes) = &block.content {
