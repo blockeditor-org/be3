@@ -93,6 +93,8 @@ struct Input {
     menu: NodeRef,
     focused: ReadSignal<bool>,
     browser: bool,
+    /// The `<input>` on the HTML core, whose selection the browser owns.
+    element: Stored<RefCell<Option<beui_view::escape::beui_html::Node>>>,
 }
 
 /// A single-line field (or, with `multiline`, a text area) bound to `value`.
@@ -145,12 +147,14 @@ pub fn TextInput(
     let browser = CORE == Core::Html
         && !multiline
         && untrack(|| prose.get().is_none() && !select_on_focus.get());
+    let element = store(RefCell::new(None));
     api.fill(TextInputApi(Input {
         state,
         area,
         menu: menu_node,
         focused: is_focused.read_only(),
         browser,
+        element,
     }));
 
     create_effect(move || {
@@ -220,6 +224,8 @@ pub fn TextInput(
                 placeholder
                 disabled={disabled}
                 focused
+                keyboard_on_focus
+                element
                 style
                 accessibility
                 on_submit={move |_: String| on_submit.call(value.get_untracked())}
@@ -355,6 +361,8 @@ fn BrowserField(
     placeholder: Prop<String>,
     disabled: Memo<bool>,
     focused: Prop<bool>,
+    keyboard_on_focus: bool,
+    element: Stored<RefCell<Option<beui_view::escape::beui_html::Node>>>,
     style: TextInputStyle,
     accessibility: Prop<Node>,
     on_submit: Callback<String>,
@@ -430,7 +438,10 @@ fn BrowserField(
                 value.set(text);
             }
         };
-        view! {
+        // Without `keyboard_on_focus` the browser's keyboard opens on a press, not when
+        // focus arrives some other way: the policy is manual until a press lands.
+        let pressed = create_signal(false);
+        let input = view! {
             <html::Input
                 r#type={Prop::dynamic(move || Some(kind.get().html_type().to_owned()))}
                 value={Prop::dynamic(move || Some(value.get()))}
@@ -439,6 +450,12 @@ fn BrowserField(
                 placeholder={Prop::dynamic(move || present(placeholder.get()))}
                 disabled={disabled}
                 @attr={("spellcheck", "false".to_owned())}
+                @attr={(
+                    "virtualkeyboardpolicy",
+                    Prop::dynamic(move || (!keyboard_on_focus && !pressed.get()).then(|| "manual".to_owned())),
+                )}
+                on_pointerdown={move |_: Event| pressed.set(true)}
+                on_blur={move |_: Event| pressed.set(false)}
                 @attr={("aria-label", label)}
                 on_input={move |event: Event| take(&event)}
                 on_change={move |event: Event| take(&event)}
@@ -460,7 +477,9 @@ fn BrowserField(
                     }
                 }}
             />
-        }
+        };
+        element.with(|element| *element.borrow_mut() = Some(input.clone()));
+        input
     });
     view! {
         <Interactive
@@ -551,7 +570,11 @@ impl TextInputApi {
         self.0.focused
     }
 
+    /// The caret's byte index. On the HTML core the browser owns it.
     pub fn caret(&self) -> usize {
+        if let Some((_, end)) = self.browser_selection() {
+            return end;
+        }
         self.0.state.caret_indices().first().copied().unwrap_or(0)
     }
 
@@ -559,13 +582,81 @@ impl TextInputApi {
         self.0.state
     }
 
+    /// The selected byte ranges, none when only a caret shows.
     pub fn selection(&self) -> Vec<Range<usize>> {
+        if self.0.browser {
+            return self
+                .browser_selection()
+                .filter(|(start, end)| start < end)
+                .map(|(start, end)| start..end)
+                .into_iter()
+                .collect();
+        }
         self.0
             .state
             .selection_ranges()
             .into_iter()
             .filter(|range| range.start < range.end)
             .collect()
+    }
+
+    /// Selects the byte range `range` of the value (a caret when it is empty), clamped to
+    /// the value and to character boundaries.
+    pub fn set_selection(&self, range: Range<usize>) {
+        let value = self.value();
+        let boundary = |index: usize| {
+            let mut index = index.min(value.len());
+            while !value.is_char_boundary(index) {
+                index -= 1;
+            }
+            index
+        };
+        let (start, end) = (boundary(range.start), boundary(range.end.max(range.start)));
+        if self.0.browser {
+            self.0.element.with(|element| {
+                if let Some(input) = element.borrow().as_ref() {
+                    let units = |index: usize| value[..index].encode_utf16().count() as f64;
+                    input.set_number("selectionEnd", units(end));
+                    input.set_number("selectionStart", units(start));
+                }
+            });
+            return;
+        }
+        let (anchor, focus) = self
+            .0
+            .state
+            .with_core(|core| (core.position(start), core.position(end)));
+        self.0
+            .state
+            .execute(EditorCommand::SetSelection { anchor, focus });
+    }
+
+    /// The `<input>`'s selection on the HTML core, as byte indices into its value.
+    fn browser_selection(&self) -> Option<(usize, usize)> {
+        if !self.0.browser {
+            return None;
+        }
+        let value = self.value();
+        let (start, end) = self.0.element.with(|element| {
+            let element = element.borrow();
+            let input = element.as_ref()?;
+            Some((
+                input.number("selectionStart")?,
+                input.number("selectionEnd")?,
+            ))
+        })?;
+        let byte = |units: f64| {
+            let mut counted = 0.0;
+            value
+                .char_indices()
+                .find(|(_, char)| {
+                    let before = counted;
+                    counted += char.len_utf16() as f64;
+                    before >= units
+                })
+                .map_or(value.len(), |(index, _)| index)
+        };
+        Some((byte(start), byte(end)))
     }
 
     pub fn menu_row(&self, tree: &impl Inspect, index: usize) -> Option<NodeId> {
