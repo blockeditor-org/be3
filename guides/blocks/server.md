@@ -476,6 +476,46 @@ reaches, `client::bound_may` what it may call, and `WatchHub::go_live` keeps
 one connection of it open. Accepting an
 invitation, or creating an agent, makes the two accounts contacts.
 
+### Notifications
+
+Push notifications for members who are not connected (`notifications.wit`,
+`notifications.rs`, `push.rs`; plans/notifications.md for what is left). The
+server never reads one: a notification is sealed under the block's data key
+(`Peer::notify`), and the server learns only its block, its size and whom it
+mentions.
+
+- **Endpoints.** A device registers one per account and organization
+  (`register-endpoint`): Web Push (RFC 8030) at an `https://` URL, or an FCM
+  registration token, with the device's RFC 8291 keys. At most
+  `MAX_PUSH_ENDPOINTS`, the oldest going first. A Web Push URL may only resolve
+  to a public address (`push::PublicOnly`) and no redirect is followed, so a
+  client cannot have the server post into its own network;
+  `PushConfig::allow_local_endpoints` lifts both for tests. An endpoint the
+  service answers 404 or 410 (FCM: `UNREGISTERED`) is dropped.
+- **Modes.** Each account's mode per block (`notify_modes`: `all` keeps no row,
+  `mentions`, `off`), deleted with the block.
+- **`notify`** (Edit; at most `MAX_NOTIFICATION_BYTES`, `MAX_MENTIONS`, and
+  `MAX_NOTIFICATIONS_PER_MINUTE` per account) goes to every viewer of the block
+  (`BlockGraph::viewers`) but the sender whose mode lets it through and who has
+  no connection to the organization open (`WatchHub::clients_of`). Each push
+  carries a `PushMessage` (organization, block, the sealed bytes), encrypted to
+  the device (RFC 8291 `aes128gcm`, `push::encrypt`; `push::open` is the
+  receiving half). Pushes queue per recipient account (`Pusher::queue`, at most
+  `MAX_QUEUED_PER_ACCOUNT`) and go one at a time in order, its devices in the
+  order they registered, so an endpoint that never answers delays only its own
+  account; tests rely on that order to show a push did not go.
+- **VAPID** (RFC 8292): the server makes a P-256 key on first start and keeps
+  it in `push_key`; `push-key` answers its public half, which a browser
+  subscribes with. Each Web Push request carries a token for the endpoint's
+  origin, signed with it, whose subject is `--auth-origin` or the public URL.
+- **FCM** (HTTP v1): with `--fcm-credentials FILE` (a service account's JSON
+  key, `push::FcmConfig`), the server signs an RS256 assertion for an access
+  token (kept until a minute before it expires) and sends a high-priority data
+  message whose `data.push` is the same encrypted bytes, base64url, so a
+  device decrypts both alike; Google sees only ciphertext. `offers-fcm` tells a
+  device whether to register through it. Tests run fake push services and a
+  fake FCM and token endpoint (`TestPushService`).
+
 ## Running it
 
 ```
