@@ -392,20 +392,9 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
     let waiting = create_memo(move || status.get().is_some());
     let message = create_memo(move || status.get().unwrap_or_default().to_owned());
     let written = create_memo(move || target.get().is_some());
-    let focus = slides.focus_notes();
     let add = move || {
         if let Some(id) = selected.get_untracked() {
             slides.add_notes(id);
-        }
-    };
-    let placed = move |state: ChildState| {
-        let wanted = focus.get_untracked();
-        if let Some(child) = state.child
-            && wanted.is_some()
-            && wanted == target.get_untracked().map(|target| target.id)
-        {
-            focus.set(None);
-            editor.host().focus_child(child);
         }
     };
     view! {
@@ -446,7 +435,6 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                         block={target}
                         mode=ChildMode::Live
                         own_frame=true
-                        on_state={placed}
                         @test_id={"presentation.notes"}
                     >|handle: ChildBlockHandle|
                         <SlideStatus state={handle.state} />

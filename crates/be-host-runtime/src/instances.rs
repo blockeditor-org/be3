@@ -116,6 +116,7 @@ struct Instance {
     child_dismissals: Vec<ChildId>,
     child_closes: Vec<ChildId>,
     child_focus: Vec<ChildId>,
+    block_focus: Vec<Uuid>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
@@ -277,6 +278,7 @@ impl Instance {
             child_dismissals: Vec::new(),
             child_closes: Vec::new(),
             child_focus: Vec::new(),
+            block_focus: Vec::new(),
             created: None,
             screens: HashMap::default(),
             anchored: Vec::new(),
@@ -2665,10 +2667,11 @@ impl Instances {
                 }),
                 sheet: layer.is_some_and(|layer| layer.edge),
                 anchor,
-                focus_asked: self
-                    .entries
-                    .get(&instance)
-                    .is_some_and(|entry| entry.child_focus.contains(&child.child)),
+                focus_asked: self.entries.get(&instance).is_some_and(|entry| {
+                    entry.child_focus.contains(&child.child)
+                        || shown_block(&child.content)
+                            .is_some_and(|block| entry.block_focus.contains(&block))
+                }),
                 fullscreen: child.fullscreen,
             });
         }
@@ -2882,9 +2885,29 @@ impl Instances {
     }
 
     pub(super) fn child_focus_pending(&self, instance: EditorInstanceId) -> bool {
-        self.entries
-            .get(&instance)
-            .is_some_and(|entry| !entry.child_focus.is_empty())
+        self.entries.get(&instance).is_some_and(|entry| {
+            if !entry.block_focus.is_empty() {
+                return true;
+            }
+            let anchored = entry.anchored.iter().map(|held| &held.screen);
+            let screens: Vec<&Screen> = entry.screens.values().chain(anchored).collect();
+            entry.child_focus.iter().any(|asked| {
+                screens.iter().any(|screen| {
+                    screen
+                        .children
+                        .children
+                        .iter()
+                        .any(|placed| placed.child == *asked)
+                })
+            })
+        })
+    }
+
+    pub(super) fn refuse_child_focus(&mut self, instance: EditorInstanceId) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.child_focus.clear();
+            entry.block_focus.clear();
+        }
     }
 
     pub(super) fn take_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
@@ -2893,7 +2916,17 @@ impl Instances {
         };
         let asked = entry.child_focus.contains(&child);
         entry.child_focus.retain(|asked| *asked != child);
-        asked
+        let anchored = entry.anchored.iter().map(|held| &held.screen);
+        let block = entry
+            .screens
+            .values()
+            .chain(anchored)
+            .flat_map(|screen| &screen.children.children)
+            .find(|placed| placed.child == child)
+            .and_then(|placed| shown_block(&placed.content));
+        let by_block = block.is_some_and(|block| entry.block_focus.contains(&block));
+        entry.block_focus.retain(|asked| Some(*asked) != block);
+        asked || by_block
     }
 
     pub(super) fn take_child_commits(&mut self, instance: EditorInstanceId) -> Vec<ChildCommit> {
@@ -3716,6 +3749,13 @@ impl Instances {
                 self.ask_child_focus(instance, child);
             }
             ShellCall::OpenPalette { reply, .. } => ack(reply),
+            ShellCall::FocusBlockChild { reply, block, .. } => {
+                ack(reply);
+                let block = Uuid::from_bytes(block);
+                if !entry.block_focus.contains(&block) {
+                    entry.block_focus.push(block);
+                }
+            }
             ShellCall::ShowCard { reply, card, .. } => {
                 ack(reply);
                 if entry.card == card {
@@ -4087,5 +4127,12 @@ fn page_origin() -> String {
     #[cfg(not(target_arch = "wasm32"))]
     {
         String::new()
+    }
+}
+
+fn shown_block(content: &ChildContent) -> Option<Uuid> {
+    match content {
+        ChildContent::Block { block_id, .. } => Some(Uuid::from_bytes(*block_id)),
+        _ => None,
     }
 }

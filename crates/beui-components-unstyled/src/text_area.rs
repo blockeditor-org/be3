@@ -1530,7 +1530,13 @@ pub fn TextArea(
             focused.set(true);
         }
     });
-    create_effect(move || focused.set(focus_request.get()));
+    let requested = StoredCell::new(false);
+    create_effect(move || {
+        let wanted = focus_request.get();
+        if requested.replace(wanted) || wanted {
+            focused.set(wanted);
+        }
+    });
     let content = state.content();
     let shown = create_memo(move || {
         content.get();
