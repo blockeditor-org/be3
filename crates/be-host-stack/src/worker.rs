@@ -1565,21 +1565,24 @@ impl Ran<'_> {
                     text,
                 };
                 // A notification is about now: one the server refuses is dropped, not shown as
-                // the device's error.
-                let _ = self.peer.notify(block, &notification, mentions).await;
+                // the device's error. Asked off the worker's loop, as is the mode below, so
+                // the round trip holds up no edit.
+                let peer = Arc::clone(self.peer);
+                self.tasks.spawn(async move {
+                    let _ = peer.notify(block, &notification, mentions).await;
+                });
                 false
             }
             Command::NotifyMode { block, set, reply } => {
-                let answered = match set {
-                    Some(mode) => self
-                        .peer
-                        .set_notify_mode(block, mode)
-                        .await
-                        .map(|()| mode),
-                    None => self.peer.notify_mode(block).await,
-                };
-                reply(answered.map_err(|error| error.to_string()));
-                be_host_base::host::wake();
+                let peer = Arc::clone(self.peer);
+                self.tasks.spawn(async move {
+                    let answered = match set {
+                        Some(mode) => peer.set_notify_mode(block, mode).await.map(|()| mode),
+                        None => peer.notify_mode(block).await,
+                    };
+                    reply(answered.map_err(|error| error.to_string()));
+                    be_host_base::host::wake();
+                });
                 false
             }
             Command::BlockAgent { agent, change } => {

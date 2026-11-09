@@ -17,12 +17,12 @@ use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
 use be_sdk_api::{
-    AccessLevel, AccessListing, ArtifactAction, NotifyMode, AudioCommand, AudioSource, AudioStatus, BarAction,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
-    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe, ViewChange,
-    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
+    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe,
+    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -1867,7 +1867,10 @@ impl EditorHost {
     /// `mentions` names the accounts the text mentions. Needs Edit on the block.
     pub fn notify(&self, block_id: Uuid, text: impl Into<String>, mentions: &[Uuid]) {
         let text = text.into();
-        let mentions = mentions.iter().map(|account| account.into_bytes()).collect();
+        let mentions = mentions
+            .iter()
+            .map(|account| account.into_bytes())
+            .collect();
         self.ask(|| host_services::notify(block_id.into_bytes(), text, mentions).detach());
     }
 
@@ -1877,11 +1880,7 @@ impl EditorHost {
     }
 
     /// Sets how the signed-in account is notified about `block_id`.
-    pub fn set_notify_mode(
-        &self,
-        block_id: Uuid,
-        mode: NotifyMode,
-    ) -> Asked<Result<(), Failure>> {
+    pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
     }
 

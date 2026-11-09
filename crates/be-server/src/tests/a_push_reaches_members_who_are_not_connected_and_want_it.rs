@@ -21,8 +21,10 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
 
     let (mut away, _) = viewer_of(&harness, &mut owner, block, "away@example.com").await;
     let away_device = TestDevice::new();
-    away.register_endpoint(away_device.endpoint(PushService::WebPush, format!("{}/away", service.url)))
-        .await;
+    away.register_endpoint(
+        away_device.endpoint(PushService::WebPush, format!("{}/away", service.url)),
+    )
+    .await;
     away.sign_out().await;
     let (mut present, _) = viewer_of(&harness, &mut owner, block, "present@example.com").await;
     let present_device = TestDevice::new();
@@ -34,7 +36,9 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
     let (mut quiet, quiet_id) = viewer_of(&harness, &mut owner, block, "quiet@example.com").await;
     let quiet_device = TestDevice::new();
     quiet
-        .register_endpoint(quiet_device.endpoint(PushService::WebPush, format!("{}/quiet", service.url)))
+        .register_endpoint(
+            quiet_device.endpoint(PushService::WebPush, format!("{}/quiet", service.url)),
+        )
         .await;
     quiet.set_notify_mode(block, NotifyMode::Mentions).await;
     quiet.sign_out().await;

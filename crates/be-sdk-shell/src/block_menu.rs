@@ -129,7 +129,12 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         NotifyMode::Mentions => "Notifications: Mentions",
         NotifyMode::Off => "Notifications: Off",
     };
-    Some(MenuNode::submenu("workspace.notify", title, ICON_BELL, items))
+    Some(MenuNode::submenu(
+        "workspace.notify",
+        title,
+        ICON_BELL,
+        items,
+    ))
 }
 
 fn chosen(access: AccessLevel) -> AccessLevel {

@@ -39,7 +39,9 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
     }
     assert!(refused.is_empty(), "registered {refused:?}");
     member
-        .register_endpoint(device.endpoint(PushService::WebPush, "https://push.example.com/a".into()))
+        .register_endpoint(
+            device.endpoint(PushService::WebPush, "https://push.example.com/a".into()),
+        )
         .await;
 
     for (address, public) in [

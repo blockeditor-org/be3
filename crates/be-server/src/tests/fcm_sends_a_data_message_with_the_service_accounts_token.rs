@@ -42,7 +42,10 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
             200,
             r#"{"access_token":"an-access-token","expires_in":3600}"#.to_owned(),
         ),
-        _ => (200, r#"{"name":"projects/a-project/messages/1"}"#.to_owned()),
+        _ => (
+            200,
+            r#"{"name":"projects/a-project/messages/1"}"#.to_owned(),
+        ),
     })
     .await;
     let account = ureq::serde_json::json!({
@@ -91,7 +94,10 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
         .split('&')
         .find_map(|field| field.strip_prefix("assertion="))
         .expect("the token request carries an assertion");
-    assert!(form.contains("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer"), "{form}");
+    assert!(
+        form.contains("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer"),
+        "{form}"
+    );
     let (signed, signature) = assertion.rsplit_once('.').unwrap();
     UnparsedPublicKey::new(&RSA_PKCS1_2048_8192_SHA256, &public)
         .verify(signed.as_bytes(), &base64.decode(signature).unwrap())
@@ -100,7 +106,10 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
     let claims: ureq::serde_json::Value = ureq::serde_json::from_slice(&claims).unwrap();
     assert_eq!(claims["iss"], "pusher@a-project.iam.gserviceaccount.com");
     assert_eq!(claims["aud"], format!("{}/token", service.url));
-    assert_eq!(claims["scope"], "https://www.googleapis.com/auth/firebase.messaging");
+    assert_eq!(
+        claims["scope"],
+        "https://www.googleapis.com/auth/firebase.messaging"
+    );
 
     let sent = service.next().await;
     assert_eq!(sent.path, "/v1/projects/a-project/messages:send");

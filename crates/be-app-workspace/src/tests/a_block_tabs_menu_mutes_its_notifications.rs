@@ -32,9 +32,7 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         .take_requests()
         .into_iter()
         .find_map(|call| match call {
-            HostCall::NotifyModeOf { reply, block } if block == opened.into_bytes() => {
-                Some(reply)
-            }
+            HostCall::NotifyModeOf { reply, block } if block == opened.into_bytes() => Some(reply),
             _ => None,
         })
         .expect("showing a block asks how its account is notified about it");
