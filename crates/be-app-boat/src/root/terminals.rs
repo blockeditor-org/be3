@@ -563,7 +563,7 @@ impl State {
             connecting.insert(sandbox.clone(), block);
         });
         self.set_status(block, Some(TerminalStatus::Connecting));
-        if !self.editor.read_only().get_untracked() {
+        if !self.read_only.get_untracked() {
             self.content
                 .operate(Boat::add_terminal(block, sandbox.clone()));
         }
@@ -614,7 +614,7 @@ impl State {
         let referenced = self
             .content_terminals
             .with_untracked(|terminals| terminals.contains_key(&block.to_string()));
-        if referenced && !self.editor.read_only().get_untracked() {
+        if referenced && !self.read_only.get_untracked() {
             self.content.operate(Boat::remove_terminal(block));
         }
         self.editor.host().delete_block(
@@ -786,7 +786,7 @@ impl State {
         let referenced = self
             .content_terminals
             .with_untracked(|terminals| terminals.contains_key(&block.to_string()));
-        if referenced && !self.editor.read_only().get_untracked() {
+        if referenced && !self.read_only.get_untracked() {
             self.content.operate(Boat::remove_terminal(block));
         }
         self.keep_terminal(block, None);

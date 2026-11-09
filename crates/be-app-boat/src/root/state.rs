@@ -112,6 +112,9 @@ pub(crate) struct State {
     pub connecting: Signal<BTreeMap<String, Uuid>>,
     /// boat refused a terminal's command for the key's actions: it needs a new key.
     pub lacking: Signal<bool>,
+    /// Whether the viewer may not edit the block, read here once since an answer's callback
+    /// runs outside any scope.
+    pub read_only: Memo<bool>,
     pub(super) fetched: Signal<Option<Listed>>,
     reading: Stored<RefCell<Option<Task>>>,
     pub(super) settings: LayeredSettings<BoatSettings>,
@@ -178,6 +181,7 @@ impl State {
             terminal_status: create_signal(BTreeMap::new()),
             connecting: create_signal(BTreeMap::new()),
             lacking: create_signal(false),
+            read_only: editor.read_only(),
             fetched,
             reading: store(RefCell::new(None)),
             settings,
