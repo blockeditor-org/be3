@@ -13,6 +13,10 @@ pub trait Recorder<C: LiveEdit>: Default {
         let _ = origin;
     }
 
+    fn split(&mut self, origin: Option<u64>) {
+        let _ = origin;
+    }
+
     fn cancel(&mut self, content: &C, origin: Option<u64>) -> Vec<C::Op> {
         let _ = (content, origin);
         Vec::new()
@@ -65,6 +69,10 @@ impl<C: Undo> Recorder<C> for History<C, u64> {
 
     fn commit(&mut self, origin: Option<u64>) {
         History::commit(self, origin);
+    }
+
+    fn split(&mut self, origin: Option<u64>) {
+        History::split(self, origin);
     }
 
     fn cancel(&mut self, content: &C, origin: Option<u64>) -> Vec<C::Op> {

@@ -26,6 +26,7 @@ suite(
         "open-bench": "//crates/beui-demo:example-open-bench",
         "space-bench": "//crates/beui-demo:example-space-bench",
         "text-bench": "//crates/beui-host:example-text-bench",
+        "text-snapshot-bench": "//crates/be-block-model:example-text-snapshot-bench",
     },
     runner = ":bin",
 )

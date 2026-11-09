@@ -271,7 +271,9 @@ of the last, by the frame-clock time each relayed frame is stamped with, may
 absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
 An editor groups a gesture into one step with `FromEditor::Gesture`
 (`ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`; a
-cancel reverts and leaves no step). Apps call `act(block, block-command::undo)`
+cancel reverts and leaves no step), and ends a step without one with `break_step`
+(`Gesture::Break`), so the next edit starts its own however soon it comes: a text
+editor's paste, or typing after a caret jump. Apps call `act(block, block-command::undo)`
 and watch `history-watch`. A session restart (guides/type_modules.md, Peers)
 drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying

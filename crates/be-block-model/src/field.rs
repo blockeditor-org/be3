@@ -268,6 +268,23 @@ impl<M, T: Model> FieldRef<M, List<T>> {
             client: crate::local_client(),
         }
     }
+
+    /// Moves the items from `first` to `last`, both included, to behind `anchor`, in one
+    /// change (`Change::MoveRange`).
+    pub fn move_range(
+        self,
+        owner: ObjectId,
+        first: ObjectId,
+        last: ObjectId,
+        anchor: Anchor,
+    ) -> Change {
+        Change::MoveRange {
+            place: self.of(owner),
+            first,
+            last,
+            anchor,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

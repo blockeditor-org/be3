@@ -65,6 +65,9 @@ while working on it.
 
 - `//crates/be-wasm-host:example-gpu-calls` times an app's per-draw gpu calls through wasmtime
   into wgpu's noop device: about 130 ns a call in October 2026.
+- `//crates/be-block-model:example-text-snapshot-bench` (the suite's `text-snapshot`) times an
+  editor decoding a 1 MB text's snapshot and adopting its session state. The target is under
+  1 ms in release.
 - `//crates/be-block-graph:example-access-bench` times the server's access queries on an
   organization of 100,000 blocks.
 - An editor's `examples/` are built for the host too (`app()` in buck/wasm/defs.bzl), which is
