@@ -218,11 +218,43 @@ pub struct WatchHub {
     next: AtomicU64,
     clients: Mutex<HashMap<u64, Sender<Push>>>,
     joined: Mutex<Joined>,
+    /// The one connection each block's agent signed in on last; any other of its connections
+    /// fails its next sign-in check and closes (`Connection::signed_in`).
+    live: std::sync::Mutex<HashMap<Uuid, u64>>,
 }
 
 impl WatchHub {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Makes `client` the live connection of the block's agent `account`; answers the one it
+    /// replaced.
+    pub fn go_live(&self, account: Uuid, client: u64) -> Option<u64> {
+        let mut live = self
+            .live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        live.insert(account, client)
+            .filter(|replaced| *replaced != client)
+    }
+
+    pub fn is_live(&self, account: Uuid, client: u64) -> bool {
+        let live = self
+            .live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        live.get(&account) == Some(&client)
+    }
+
+    pub fn leave_live(&self, account: Uuid, client: u64) {
+        let mut live = self
+            .live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if live.get(&account) == Some(&client) {
+            live.remove(&account);
+        }
     }
 
     pub async fn register(&self, sender: Sender<Push>) -> u64 {

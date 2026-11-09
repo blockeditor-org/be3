@@ -219,7 +219,33 @@ pub(super) enum Command {
         name: String,
         reply: AgentReply,
     },
+    /// An app's `create-block-agent`: an agent bound to `block`, its key sealed to it.
+    CreateBlockAgent {
+        block: Uuid,
+        name: String,
+        reply: BlockAgentReply,
+    },
+    /// An app's `rotate-agent-token` or `remove-agent`, refused for an agent of the person's
+    /// own (one the Agents menu lists).
+    BlockAgent {
+        agent: Uuid,
+        change: AgentChange,
+    },
     Sync,
+}
+
+pub(super) enum AgentChange {
+    Rotate(Box<dyn FnOnce(Result<String, String>) + Send>),
+    Remove(Box<dyn FnOnce(Result<(), String>) + Send>),
+}
+
+impl AgentChange {
+    fn fail(self, error: String) {
+        match self {
+            Self::Rotate(reply) => reply(Err(error)),
+            Self::Remove(reply) => reply(Err(error)),
+        }
+    }
 }
 
 impl Command {
@@ -269,6 +295,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
             | Command::ReadHead { block, .. }
+            | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
             | Command::Version { block, .. }
             | Command::WatchVersion(block)
@@ -295,6 +322,7 @@ impl Command {
             | Command::Members(_)
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
+            | Command::BlockAgent { .. }
             | Command::Sync
             | Command::Storage
             | Command::HoldClock(_) => None,
@@ -305,6 +333,7 @@ impl Command {
         match self {
             Command::SetParent { block, .. }
             | Command::SetAccess { block, .. }
+            | Command::CreateBlockAgent { block, .. }
             | Command::Leave(block)
             | Command::Contact(ContactCommand::Link {
                 offer: Some((block, _)),
@@ -333,6 +362,9 @@ pub(super) enum MembersCommand {
 type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
 
 type AgentReply = Box<dyn FnOnce(Result<crate::accounts::AgentCredentials, String>) + Send>;
+
+type BlockAgentReply =
+    Box<dyn FnOnce(Result<(Uuid, crate::accounts::AgentCredentials), String>) + Send>;
 
 type CardReply = Box<dyn FnOnce(Result<be_block_keys::ContactCard, String>) + Send>;
 
@@ -1375,6 +1407,8 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         ) => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::Invite { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::CreateAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::CreateBlockAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::BlockAgent { change, .. } => change.fail(NEEDS_CONNECTION.to_owned()),
         Command::Contact(ContactCommand::Link { reply, .. }) => {
             reply(Err(NEEDS_CONNECTION.to_owned()))
         }
@@ -1424,11 +1458,29 @@ impl Ran<'_> {
                 false
             }
             Command::CreateAgent { name, reply } => {
-                let created = create_agent(self.peer, self.config, name).await;
+                let created = create_agent(self.peer, self.config, name, None)
+                    .await
+                    .map(|(_, credentials)| credentials);
                 if created.is_ok() {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                 }
                 reply(created.map_err(|error| error.to_string()));
+                be_host_base::host::wake();
+                false
+            }
+            Command::CreateBlockAgent { block, name, reply } => {
+                let created = create_agent(self.peer, self.config, name, Some(block)).await;
+                if created.is_ok() {
+                    self.tasks.sync_contacts(self.peer, self.shared).await;
+                    self.tasks.refresh(self.peer, self.shared, block);
+                }
+                reply(created.map_err(|error| error.to_string()));
+                be_host_base::host::wake();
+                false
+            }
+            Command::BlockAgent { agent, change } => {
+                change_block_agent(self.peer, agent, change).await;
+                self.tasks.sync_contacts(self.peer, self.shared).await;
                 be_host_base::host::wake();
                 false
             }
@@ -1623,11 +1675,14 @@ async fn invite(
     ))
 }
 
+/// Makes an agent, a contact of the person's from the start; one `bound_to` a block also gets
+/// the block's key sealed to it, as sharing would.
 async fn create_agent(
     peer: &Peer<Store>,
     config: &Config,
     name: String,
-) -> Result<crate::accounts::AgentCredentials, ClientError> {
+    bound_to: Option<Uuid>,
+) -> Result<(Uuid, crate::accounts::AgentCredentials), ClientError> {
     let identity = peer.keys().identity();
     let me = be_block_client::contacts::card(
         peer.account(),
@@ -1648,6 +1703,7 @@ async fn create_agent(
         peer.keys().escrow().map_or_else(Vec::new, |escrow| {
             be_block_client::contacts::seal_pin(&secret, organization, &escrow)
         }),
+        bound_to,
     ))
     .await?;
     let card = be_block_keys::ContactCard {
@@ -1656,19 +1712,73 @@ async fn create_agent(
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
-    ask(client::contacts::put_contact(
-        &peer.connection(),
+    let finished = async {
+        ask(client::contacts::put_contact(
+            &peer.connection(),
+            agent.account,
+            card.seal_own(identity),
+        ))
+        .await?;
+        if let Some(block) = bound_to {
+            peer.seal_share(block, agent.account, &public).await?;
+        }
+        Ok::<_, ClientError>(())
+    }
+    .await;
+    if let Err(error) = finished {
+        // An agent the person never got the credentials of is of no use to anyone.
+        let _ = ask(client::members::remove_agent(
+            &peer.connection(),
+            organization,
+            agent.account,
+        ))
+        .await;
+        return Err(error);
+    }
+    Ok((
         agent.account,
-        card.seal_own(identity),
+        crate::accounts::AgentCredentials {
+            name: agent.name,
+            server: config.server_url.clone(),
+            organization,
+            token,
+            phrase: phrase.to_string(),
+        },
     ))
-    .await?;
-    Ok(crate::accounts::AgentCredentials {
-        name: agent.name,
-        server: config.server_url.clone(),
-        organization,
-        token,
-        phrase: phrase.to_string(),
-    })
+}
+
+/// Rotates the token of, or removes, an agent bound to a block; refuses one of the person's
+/// own agents, which only the Agents menu changes.
+async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange) {
+    let connection = peer.connection();
+    let organization = peer.organization();
+    let own = match ask(client::members::list_agents(&connection, organization)).await {
+        Ok(agents) => agents.iter().any(|listed| listed.account == agent),
+        Err(error) => return change.fail(error.to_string()),
+    };
+    if own {
+        return change.fail("That agent is not a block's agent.".to_owned());
+    }
+    match change {
+        AgentChange::Rotate(reply) => reply(
+            ask(client::members::rotate_agent_token(
+                &connection,
+                organization,
+                agent,
+            ))
+            .await
+            .map_err(|error| error.to_string()),
+        ),
+        AgentChange::Remove(reply) => reply(
+            ask(client::members::remove_agent(
+                &connection,
+                organization,
+                agent,
+            ))
+            .await
+            .map_err(|error| error.to_string()),
+        ),
+    }
 }
 
 async fn contact(
@@ -1807,6 +1917,8 @@ async fn apply(
         | Command::Members(_)
         | Command::Invite { .. }
         | Command::CreateAgent { .. }
+        | Command::CreateBlockAgent { .. }
+        | Command::BlockAgent { .. }
         | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {

@@ -34,6 +34,7 @@ fn app(id: &str, editors: Vec<EditorManifest>) -> Arc<AppManifest> {
         entry_point: String::new(),
         network: Vec::new(),
         extensions: Vec::new(),
+        block_agents: false,
     })
 }
 

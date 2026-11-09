@@ -18,11 +18,11 @@ use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
-    BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
-    HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView, PerformanceMeasurement,
-    Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId, ViewPlacement, Watched,
-    WebViewCommand, WebViewEvent, WebViewId,
+    BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
+    ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
+    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
+    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId,
+    ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -1811,6 +1811,28 @@ impl EditorHost {
         access: AccessLevel,
     ) -> Asked<Result<String, Failure>> {
         Asked::of(self.ask(|| host_services::make_contact_link(block_id.into_bytes(), access)))
+    }
+
+    /// Makes an agent named `name` that reaches `block_id` and the blocks under it with Edit,
+    /// and nothing else, for a program hosting the block on a machine trusted less than the
+    /// person's devices. Needs Manage on the block, and the manifest's `block_agents`.
+    pub fn create_block_agent(
+        &self,
+        block_id: Uuid,
+        name: impl Into<String>,
+    ) -> Asked<Result<BlockAgent, Failure>> {
+        let name = name.into();
+        Asked::of(self.ask(|| host_services::create_block_agent(block_id.into_bytes(), name)))
+    }
+
+    /// A new token for an agent `create_block_agent` made; every older one stops signing in.
+    pub fn rotate_agent_token(&self, agent: Uuid) -> Asked<Result<String, Failure>> {
+        Asked::of(self.ask(|| host_services::rotate_agent_token(agent.into_bytes())))
+    }
+
+    /// Deletes an agent `create_block_agent` made.
+    pub fn remove_agent(&self, agent: Uuid) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::remove_agent(agent.into_bytes())))
     }
 
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {

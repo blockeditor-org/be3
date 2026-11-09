@@ -30,6 +30,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         account,
         organization,
         role: OrganizationRole::Editor,
+        bound: None,
     };
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

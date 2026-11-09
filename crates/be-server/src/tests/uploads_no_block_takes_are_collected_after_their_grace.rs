@@ -13,6 +13,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
         account: profile.account,
         organization: lasting.personal_organization().await.unwrap(),
         role: OrganizationRole::Editor,
+        bound: None,
     };
     let kept = b"an upload still within its grace".to_vec();
     let hashes = lasting

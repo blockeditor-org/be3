@@ -98,7 +98,8 @@ impl crate::embed::host_services::Call {
             | Self::ReadPlainFile { block, .. }
             | Self::ListAccess { block, .. }
             | Self::SetAccess { block, .. }
-            | Self::MakeContactLink { block, .. } => visit(block),
+            | Self::MakeContactLink { block, .. }
+            | Self::CreateBlockAgent { block, .. } => visit(block),
             Self::ReleaseRevision { preview, .. } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
             Self::CutBlocks { blocks, holder, .. } => {
@@ -115,6 +116,8 @@ impl crate::embed::host_services::Call {
             }
             Self::PickFile { .. }
             | Self::SaveFile { .. }
+            | Self::RotateAgentToken { .. }
+            | Self::RemoveAgent { .. }
             | Self::ListData { .. }
             | Self::ReadData { .. } => {}
         }

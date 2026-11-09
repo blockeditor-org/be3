@@ -16,6 +16,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
                 [7; 32],
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

@@ -227,7 +227,8 @@ const SCHEMA: &str = "
     CREATE TABLE agents (
         account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        created_by      TEXT NOT NULL
+        created_by      TEXT NOT NULL,
+        bound_to        TEXT
     );
 
     CREATE INDEX commit_objects_hash
@@ -259,6 +260,7 @@ const SCHEMA: &str = "
     );
 
     CREATE INDEX agents_created_by ON agents (created_by);
+    CREATE INDEX agents_bound_to ON agents (organization_id, bound_to);
 
     CREATE TABLE object_sizes (
         hash            TEXT PRIMARY KEY,

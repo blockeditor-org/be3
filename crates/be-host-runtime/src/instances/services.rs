@@ -1,8 +1,8 @@
 use be_lib_stable_hash::HashMap;
 
 use be_sdk_api::{
-    AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, PastedBlock,
-    SavedFile,
+    AccessListing, BlockAgent, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock,
+    PastedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply, wire},
 };
@@ -163,6 +163,29 @@ impl Instances {
         });
     }
 
+    /// Blocks' agents are only for an app whose manifest sets `block_agents`, and an agent only
+    /// for the block the instance shows or one below it, so an app cannot mint credentials for
+    /// another place the person manages.
+    fn refuses_block_agents(&self, instance: EditorInstanceId, call: &Call) -> bool {
+        match call {
+            Call::CreateBlockAgent { block, .. } => {
+                let own = self
+                    .entries
+                    .get(&instance)
+                    .and_then(|entry| entry.role.block())
+                    .map(|own| own.id);
+                let block = Uuid::from_bytes(*block);
+                !self.block_agents
+                    || own.is_none_or(|own| {
+                        !be_host_stack::with_graph(|graph| graph.is_within(block, own))
+                            .unwrap_or(false)
+                    })
+            }
+            Call::RotateAgentToken { .. } | Call::RemoveAgent { .. } => !self.block_agents,
+            _ => false,
+        }
+    }
+
     pub(super) fn local(&self, instance: EditorInstanceId, mut id: [u8; 16]) -> [u8; 16] {
         self.scoped(instance, false, &mut |visit| visit(&mut id));
         id
@@ -188,6 +211,9 @@ impl Instances {
         }
         if !self.entries.contains_key(&instance) {
             return self.refuse(call, OpError::Canceled);
+        }
+        if self.refuses_block_agents(instance, &call) {
+            return self.refuse(call, OpError::Denied);
         }
         match call {
             Call::ListRevisions { reply, block } => {
@@ -422,6 +448,27 @@ impl Instances {
                 );
                 be_host_stack::make_contact_link(Some(offer), move |made| {
                     answering.send_or_fail(made)
+                });
+            }
+            Call::CreateBlockAgent { reply, block, name } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::create_block_agent(Uuid::from_bytes(block), name, move |made| {
+                    answering.send_or_fail(made.map(|(agent, credentials)| BlockAgent {
+                        agent: agent.into_bytes(),
+                        credentials: credentials.bundle(false),
+                    }))
+                });
+            }
+            Call::RotateAgentToken { reply, agent } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::rotate_agent_token(Uuid::from_bytes(agent), move |rotated| {
+                    answering.send_or_fail(rotated)
+                });
+            }
+            Call::RemoveAgent { reply, agent } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::remove_block_agent(Uuid::from_bytes(agent), move |removed| {
+                    answering.send_or_fail(removed)
                 });
             }
             Call::ListData { reply } => {

@@ -466,7 +466,7 @@ async fn upkeep(services: Services) {
                 if changed.is_err() {
                     return;
                 }
-                services.http.revoke_invalid(&services.store).await;
+                services.http.revoke_invalid().await;
             }
         }
     }

@@ -8,6 +8,7 @@ fn manifest_document_defaults_what_the_host_can() {
     assert_eq!(editor.capabilities, EditorCapabilities::default());
     assert_eq!(editor.resize, ResizeMode::default());
     assert!(document.network.is_empty());
+    assert!(!document.block_agents);
     let (_, another) = &editor.templates.0[2];
     assert_eq!(another.category, CategoryDocument::Regular);
 }

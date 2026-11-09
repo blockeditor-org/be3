@@ -15,6 +15,7 @@ async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
                 [7; 32],
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

@@ -714,7 +714,8 @@ pub(crate) fn rotate_escrow_later(
 
 fn administrators(connection: &Connection, organization: Uuid) -> Result<Vec<Uuid>, ServerError> {
     let mut statement = connection.prepare_cached(
-        "SELECT account_id FROM memberships WHERE organization_id = ?1 AND role = 'administrator'",
+        "SELECT account_id FROM memberships WHERE organization_id = ?1 AND role = 'administrator'
+            AND account_id NOT IN (SELECT account_id FROM agents WHERE bound_to IS NOT NULL)",
     )?;
     let rows = statement.query_map([organization.to_string()], |row| row.get::<_, String>(0))?;
     let mut found = Vec::new();
@@ -773,12 +774,14 @@ impl ServerStore {
     ) -> Result<KeySet, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
-            store.server_key().seal_settings_to(
-                database,
-                graph,
-                identity.organization,
-                identity.account,
-            )?;
+            if identity.bound.is_none() {
+                store.server_key().seal_settings_to(
+                    database,
+                    graph,
+                    identity.organization,
+                    identity.account,
+                )?;
+            }
             let settings = crate::organization::settings_of(identity.organization);
             let wanted: BTreeSet<Uuid> = match blocks {
                 None if seen.administrator() => graph.ids().into_iter().collect(),
@@ -1106,18 +1109,27 @@ impl ServerStore {
             self.with_database(move |_, database| {
                 let public = recovery_key_of(&database, account)?;
                 let mut statement = database.prepare(
-                    "SELECT organization_id, role FROM memberships WHERE account_id = ?1",
+                    "SELECT memberships.organization_id, memberships.role, agents.bound_to
+                     FROM memberships
+                     LEFT JOIN agents ON agents.account_id = memberships.account_id
+                        AND agents.organization_id = memberships.organization_id
+                     WHERE memberships.account_id = ?1",
                 )?;
                 let rows = statement.query_map([account.to_string()], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
                 })?;
                 let mut memberships = Vec::new();
                 for row in rows {
-                    let (organization, role) = row?;
+                    let (organization, role, bound) = row?;
                     memberships.push(Identity {
                         account,
                         organization: parse_uuid(&organization)?,
                         role: decode_role(&role)?,
+                        bound: bound.as_deref().map(parse_uuid).transpose()?,
                     });
                 }
                 Ok((public, memberships))

@@ -284,14 +284,7 @@ pub(crate) struct AgentRow {
     pub(crate) name: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct CreatedAgent {
-    pub(crate) name: String,
-    pub(crate) server: String,
-    pub(crate) organization: String,
-    pub(crate) token: String,
-    pub(crate) phrase: String,
-}
+pub(crate) type CreatedAgent = be_host_stack::accounts::AgentCredentials;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct AgentsView {

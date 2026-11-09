@@ -15,6 +15,7 @@ async fn an_agent_stores_against_its_creators_quota() {
                 [7; 32],
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

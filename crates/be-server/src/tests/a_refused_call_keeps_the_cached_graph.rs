@@ -9,6 +9,7 @@ async fn a_refused_call_keeps_the_cached_graph() {
         account: profile.account,
         organization: store.personal_organization().await.unwrap(),
         role: OrganizationRole::Editor,
+        bound: None,
     };
 
     for _ in 0..3 {

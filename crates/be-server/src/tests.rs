@@ -20,6 +20,14 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_block_agent_is_deleted_with_its_block_or_its_grant;
+mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
+mod a_block_agent_never_becomes_an_administrator;
+mod a_block_agent_reaches_its_block_and_nothing_else;
+mod a_block_agent_reaches_no_further_than_its_creator;
+mod a_block_agents_long_poll_session_is_replaced_too;
+mod a_block_agents_new_connection_replaces_the_open_one;
+mod a_block_holds_a_bounded_number_of_agents_of_its_own;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_blocks_references_are_listed_and_announced_together;
@@ -125,6 +133,7 @@ mod repeated_failed_sign_ins_lock_the_account_out;
 mod requests_sent_before_a_close_are_still_carried_out;
 mod revoking_a_session_announces_only_a_change;
 mod revoking_an_http_session_removes_its_access;
+mod rotating_an_agents_token_revokes_every_older_one;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
@@ -1014,6 +1023,37 @@ impl TestClient {
         self.call(|peer| client::contacts::list_contacts(peer))
             .await
             .expect("listing contacts failed")
+    }
+
+    /// Makes an agent bound to `block`; answers its account and token.
+    async fn block_agent(
+        &mut self,
+        organization: Uuid,
+        block: Uuid,
+    ) -> Result<(Uuid, String), Error> {
+        self.call(|peer| {
+            client::members::create_agent(
+                peer,
+                organization,
+                "Terminal host".into(),
+                [7; 32],
+                Vec::new(),
+                Vec::new(),
+                Some(block),
+            )
+        })
+        .await
+        .map(|created| (created.agent.account, created.token))
+    }
+
+    /// Whether `token` still signs a new connection in.
+    async fn signs_in(harness: &Harness, token: &str) -> bool {
+        let mut client = harness.client().await;
+        let token = token.to_owned();
+        client
+            .call(|peer| client::account::authenticate(peer, Some(token)))
+            .await
+            .is_ok()
     }
 
     async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> Result<(), Error> {

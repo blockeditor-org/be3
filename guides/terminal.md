@@ -50,6 +50,13 @@ The host connects with a websocket (`connect_live`), unlike the rest of `be`, be
 pushes the relayed messages; a network whose proxy refuses websockets cannot run a host. A host
 that loses the server keeps the shell and reconnects, backing off to 30 seconds.
 
+A host on a machine trusted less than the person's devices (a cloud VM, plans/boat_terminals.md)
+signs in as a block's agent (guides/tracker.md, A block's agent): an app makes one with
+`create-block-agent`, hands the credentials to the machine, and after the machine resumes from a
+snapshot calls `rotate-agent-token` and hands it the new token. Its new connection closes the one
+the machine left open and takes over the session at once. The `a_terminal_host_*` tests run as
+such an agent.
+
 The host does not check who sends input, so anyone who can edit the block has a shell as the
 host's user; BE-E1C7A1 tracks the warning and permissions.
 

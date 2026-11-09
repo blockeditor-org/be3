@@ -217,7 +217,7 @@ impl Sessions {
             }
         }
     }
-    pub(crate) async fn revoke_invalid(&self, store: &crate::ServerStore) {
+    pub(crate) async fn revoke_invalid(&self) {
         let sessions: Vec<_> = self
             .open
             .lock()
@@ -227,11 +227,12 @@ impl Sessions {
             .collect();
         for session in sessions {
             let mut session = session.lock().await;
-            let Some(client) = &session.client else {
+            let Some(client) = &mut session.client else {
                 continue;
             };
-            if let Some(token) = &client.connection.token
-                && store.resolve_token(token).await.is_err()
+            // As a websocket does on a session change: a revoked token, a block's agent signed
+            // in elsewhere, or its block in the trash.
+            if client.connection.signed_in().await.is_err()
                 && let Some(client) = session.client.take()
             {
                 client.close().await;
