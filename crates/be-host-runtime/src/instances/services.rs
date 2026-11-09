@@ -313,6 +313,7 @@ impl Instances {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
+                let created_by = self.created_by();
                 let imported = |imported: Result<(Uuid, Uuid), String>| {
                     imported.map(|(block, block_type)| {
                         Some(ImportedBlock {
@@ -330,14 +331,25 @@ impl Instances {
                             if be_block::plain::extension(&file.name)
                                 == be_block_client::transfer::EXTENSION =>
                         {
-                            answering.imported(imported(be_host_stack::import(&file.data, parent)));
+                            answering.imported(imported(be_host_stack::import(
+                                &file.data,
+                                parent,
+                                created_by.as_deref(),
+                            )));
                         }
                         Ok(Some(file)) => {
-                            be_host_stack::import_file(file.name, file.data, parent, move |file| {
-                                if !answering.withdrawn() {
-                                    answering.imported(imported(file));
-                                }
-                            });
+                            let created_by = created_by.as_deref();
+                            be_host_stack::import_file(
+                                file.name,
+                                file.data,
+                                parent,
+                                created_by,
+                                move |file| {
+                                    if !answering.withdrawn() {
+                                        answering.imported(imported(file));
+                                    }
+                                },
+                            );
                         }
                         Ok(None) => answering.imported(Ok(None)),
                         Err(error) => answering.imported(Err(error)),
@@ -409,17 +421,20 @@ impl Instances {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
+                let created_by = self.created_by();
                 be_host_stack::export(source, move |exported| {
                     if answering.withdrawn() {
                         return;
                     }
                     answering.imported(exported.and_then(|(_, bytes)| {
-                        be_host_stack::import(&bytes, parent).map(|(block, block_type)| {
-                            Some(ImportedBlock {
-                                block_id: block.into_bytes(),
-                                block_type: block_type.into_bytes(),
-                            })
-                        })
+                        be_host_stack::import(&bytes, parent, created_by.as_deref()).map(
+                            |(block, block_type)| {
+                                Some(ImportedBlock {
+                                    block_id: block.into_bytes(),
+                                    block_type: block_type.into_bytes(),
+                                })
+                            },
+                        )
                     }));
                 });
             }

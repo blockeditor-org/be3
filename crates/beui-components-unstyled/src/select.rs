@@ -9,7 +9,7 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Key, KeyPress};
+use beui_view::types::{Key, KeyPress, Placement};
 
 use accesskit::{Node, Role};
 
@@ -171,6 +171,7 @@ pub fn Select(
             <Anchored
                 style={surface}
                 anchor={state.trigger}
+                placement=Placement::Menu
                 trigger={state.trigger}
                 open={is_open}
                 on_dismiss={move || dismiss(state)}

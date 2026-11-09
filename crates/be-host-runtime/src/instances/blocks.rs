@@ -88,6 +88,12 @@ impl Instance {
 }
 
 impl Instances {
+    /// What the host records as having made a block this runtime's app creates, imports or
+    /// copies (`CREATED_BY`): its manifest id, never what the app says.
+    pub(super) fn created_by(&self) -> Option<String> {
+        (!self.app_id.is_empty()).then(|| self.app_id.clone())
+    }
+
     pub(super) fn scope(&self, instance: EditorInstanceId) -> Option<be_host_stack::Scope> {
         let block = self.entries.get(&instance)?.role.block()?.id;
         let source = be_host_stack::revisions::source(block).unwrap_or(block);
@@ -230,9 +236,7 @@ impl Instances {
                     defined,
                     ..be_block::BlockMetadata::default()
                 };
-                if !self.app_id.is_empty() {
-                    metadata.insert(&be_block::CREATED_BY, &self.app_id);
-                }
+                metadata.put(&be_block::CREATED_BY, self.created_by().as_ref());
                 be_host_stack::create(
                     block,
                     Uuid::from_bytes(block_type),

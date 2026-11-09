@@ -69,7 +69,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
 
     for bytes in [while_open, after_closing] {
         let (top, top_type) =
-            import(&bytes, be_block_graph::BlockParent::Root).expect("the file imports");
+            import(&bytes, be_block_graph::BlockParent::Root, None).expect("the file imports");
         assert_ne!(top, folder, "an import is a copy with ids of its own");
         let copy = query(Query::Children(top))
             .into_iter()

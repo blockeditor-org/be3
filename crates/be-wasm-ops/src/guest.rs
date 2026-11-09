@@ -85,6 +85,7 @@ struct Inner {
     next_task: Cell<u64>,
     ready: Arc<ReadyQueue>,
     parent: Cell<Option<OpId>>,
+    request: Cell<Option<OpId>>,
     dispatch: RefCell<Option<Dispatch>>,
 }
 
@@ -133,6 +134,7 @@ impl Executor {
                 next_task: Cell::new(0),
                 ready: Arc::new(ReadyQueue(Mutex::new(VecDeque::new()))),
                 parent: Cell::new(None),
+                request: Cell::new(None),
                 dispatch: RefCell::new(Some(dispatch)),
             }),
         }
@@ -199,13 +201,17 @@ impl Inner {
         match event {
             Incoming::Started(started) => {
                 let op = started.op;
+                let before = self.request.replace(Some(op));
                 let served = match self.dispatch.borrow().as_ref() {
                     Some(dispatch) => dispatch(&Resources(&self.resources), started),
                     None => Serve::Done(Outcome::Err(OpError::Canceled)),
                 };
+                self.request.set(before);
                 match served {
                     Serve::Done(outcome) => self.connection.borrow_mut().complete(op, outcome),
-                    Serve::Later(mut future) => {
+                    Serve::Later(future) => {
+                        let mut future: LocalFuture<Outcome> =
+                            Box::pin(UnderRequest { op, future });
                         let task = self.next_task.get() + 1;
                         if let Poll::Ready(outcome) = self.poll_now(task, &mut future) {
                             self.connection.borrow_mut().complete(op, outcome);
@@ -359,6 +365,31 @@ impl Inner {
             self.connection.borrow_mut().cancel(op);
         }
     }
+}
+
+/// Polls a request's future with the request as `request()`.
+struct UnderRequest {
+    op: OpId,
+    future: LocalFuture<Outcome>,
+}
+
+impl Future for UnderRequest {
+    type Output = Outcome;
+
+    fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Outcome> {
+        let inner = current();
+        let before = inner.request.replace(Some(self.op));
+        let polled = self.future.as_mut().poll(context);
+        inner.request.set(before);
+        polled
+    }
+}
+
+/// The request being served while its handler or its future runs, so a call can be made under
+/// it with `with_parent`: the host then knows which request asks, and the call is canceled
+/// when the request ends. None outside a request, including in tasks it spawns.
+pub fn request() -> Option<OpId> {
+    current().request.get()
 }
 
 pub fn spawn(future: impl Future<Output = ()> + 'static) {

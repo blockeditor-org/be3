@@ -663,11 +663,16 @@ impl<S: ObjectStore> Pass<'_, S> {
                 .get(&id)
                 .map_or(merge.content_type, |block| block.block_type);
             let name = plan.tree.entries.get(&id).map(name_in).unwrap_or_default();
-            let base = match self.index.records.get(&id).and_then(|record| record.head) {
+            let base_head = self.index.records.get(&id).and_then(|record| record.head);
+            let base = match base_head {
                 Some(head) => remote::at_commit(self.peer, head).await.ok(),
                 None => None,
             };
-            let bytes = match self.merge(block_type, base, theirs, &name, local).await {
+            let heads = [base_head, self.remote.get(&id).and_then(|block| block.head)];
+            let bytes = match self
+                .merge(block_type, base, theirs, heads, &name, local)
+                .await
+            {
                 Ok((bytes, false)) => bytes,
                 Ok((bytes, true)) => {
                     self.report.conflicts.push(format!(
@@ -762,12 +767,14 @@ impl<S: ObjectStore> Pass<'_, S> {
     /// `FromFile`, theirs the server's. Text conflicts come out between
     /// `<<<<<<< local` and `>>>>>>> remote`; a blob both changed keeps the
     /// disk's bytes, the other stays in the block's history. Neither side is
-    /// lost.
+    /// lost. A type that merges by parts is handed base and theirs as the
+    /// first parts of their commits (`heads`) and reads the rest it needs.
     async fn merge(
         &mut self,
         block_type: Uuid,
         base: Option<Vec<u8>>,
         theirs: Option<Vec<u8>>,
+        heads: [Option<CommitId>; 2],
         name: &str,
         local: Vec<u8>,
     ) -> Result<(Vec<u8>, bool), String> {
@@ -780,10 +787,16 @@ impl<S: ObjectStore> Pass<'_, S> {
             .apply(block_type, base.clone(), CLIENT, edit)
             .await?
             .ok_or("its type has no plain-file form")?;
-        let (merged, conflicts) = self
-            .types
-            .merge3(block_type, base, Some(ours), theirs)
-            .await?;
+        let merges_parts =
+            be_block_type_host::kind_of(block_type).is_some_and(|kind| kind.merges_parts);
+        let (merged, conflicts) = match merges_parts {
+            true => self.merge_parts(block_type, heads, ours).await?,
+            false => {
+                self.types
+                    .merge3(block_type, base, Some(ours), theirs)
+                    .await?
+            }
+        };
         let file = self
             .types
             .to_files(vec![(block_type, merged)])
@@ -792,6 +805,71 @@ impl<S: ObjectStore> Pass<'_, S> {
             .unwrap_or_else(|| Err("the type module did not answer".to_owned()))?
             .ok_or("its type has no plain-file form")?;
         Ok((file.bytes, conflicts))
+    }
+
+    /// `merge` for a type that merges by parts: base and theirs loaded from
+    /// their commits by their first parts, ours as the bytes made from the
+    /// file. The merged content's reused parts are read whole, since it
+    /// becomes a file.
+    async fn merge_parts(
+        &mut self,
+        block_type: Uuid,
+        [base, theirs]: [Option<CommitId>; 2],
+        ours: Vec<u8>,
+    ) -> Result<(Vec<u8>, bool), String> {
+        let peer = self.peer;
+        let first_part = async |head: Option<CommitId>| match head {
+            Some(head) => {
+                let commit = peer.load_commit(head).await.map_err(explain)?;
+                let stored = peer
+                    .load_first_part(&commit.manifest)
+                    .await
+                    .map_err(explain)?;
+                Ok::<_, String>(Some(be_sdk_type_api::Loaded::of(stored)))
+            }
+            None => Ok(None),
+        };
+        let sides = [
+            first_part(base).await?,
+            Some(be_sdk_type_api::Loaded {
+                bytes: ours,
+                parts: Vec::new(),
+            }),
+            first_part(theirs).await?,
+        ];
+        let (written, conflicts) = self
+            .types
+            .merge_parts(peer, block_type, sides, peer.organization())
+            .await?;
+        let mut bytes = Vec::new();
+        let mut at = 0;
+        for part in &written.parts {
+            match part {
+                be_sdk_type_api::WrittenPart::Bytes(length) => {
+                    let end = at + *length as usize;
+                    bytes.extend_from_slice(
+                        written
+                            .bytes
+                            .get(at..end)
+                            .ok_or("the type wrote parts its bytes do not hold")?,
+                    );
+                    at = end;
+                }
+                be_sdk_type_api::WrittenPart::Reused(part) => {
+                    let part = PartRef::from(*part);
+                    let read = peer
+                        .read_part(part, 0, part.length())
+                        .await
+                        .map_err(explain)?;
+                    bytes.extend_from_slice(&read);
+                }
+                be_sdk_type_api::WrittenPart::Node(_) => {}
+            }
+        }
+        if written.parts.is_empty() {
+            bytes = written.bytes;
+        }
+        Ok((bytes, conflicts))
     }
 
     fn kind_in(&self, tree: &Tree, id: Uuid) -> Option<Kind> {

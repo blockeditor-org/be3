@@ -1296,8 +1296,23 @@ pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) 
     });
 }
 
-pub fn import(bytes: &[u8], parent: be_block_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
-    let blocks = be_block_client::transfer::renumber(be_block_client::transfer::decode(bytes)?);
+/// Brings in the blocks of a block file under `parent`. `created_by` is the app that asked
+/// (`CREATED_BY`), set on the top block; what the file says made each block is dropped.
+pub fn import(
+    bytes: &[u8],
+    parent: be_block_graph::BlockParent,
+    created_by: Option<&str>,
+) -> Result<(Uuid, Uuid), String> {
+    let mut blocks = be_block_client::transfer::renumber(be_block_client::transfer::decode(bytes)?);
+    for block in &mut blocks {
+        block.metadata.remove(&be_block::CREATED_BY);
+        if block.parent.is_none() {
+            block.metadata.put(
+                &be_block::CREATED_BY,
+                created_by.map(str::to_owned).as_ref(),
+            );
+        }
+    }
     let author = account().ok_or("Sign in to import blocks.")?;
     let top = (blocks[0].id, blocks[0].block_type);
     let mut imported = Vec::with_capacity(blocks.len());
@@ -1336,23 +1351,30 @@ pub fn import(bytes: &[u8], parent: be_block_graph::BlockParent) -> Result<(Uuid
     Ok(top)
 }
 
+/// Makes a block of the type that claims a file, under `parent`; `created_by` is the app that
+/// asked (`CREATED_BY`).
 pub fn import_file(
     name: String,
     bytes: Vec<u8>,
     parent: be_block_graph::BlockParent,
+    created_by: Option<&str>,
     reply: impl FnOnce(Result<(Uuid, Uuid), String>) + Send + 'static,
 ) {
     if account().is_none() {
         reply(Err("Sign in to import files.".to_owned()));
         return;
     }
-    let metadata = be_block::BlockMetadata::named(&name);
+    let mut metadata = be_block::BlockMetadata::named(&name);
+    metadata.put(
+        &be_block::CREATED_BY,
+        created_by.map(str::to_owned).as_ref(),
+    );
     send(Command::ContentOfFile {
         name,
         bytes,
         reply: Box::new(move |content| {
             reply(content.map(|(content_type, content)| {
-                let block = Uuid::new_v4();
+                let block = Uuid::now_v7();
                 create(block, content_type, parent, metadata, Some(content), false);
                 (block, content_type)
             }));

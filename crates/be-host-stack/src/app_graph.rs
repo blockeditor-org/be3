@@ -8,6 +8,7 @@ pub fn query_of(query: BlockQuery) -> Query {
         BlockQuery::Roots => Query::Roots,
         BlockQuery::Detached => Query::Detached,
         BlockQuery::Shared => Query::Shared,
+        // With nobody signed in there is no Unfiled: the nil block's children, which are none.
         BlockQuery::Unfiled => Query::Children(crate::unfiled().unwrap_or_else(Uuid::nil)),
         BlockQuery::Children(id) => Query::Children(Uuid::from_bytes(id)),
         BlockQuery::References(id) => Query::References(Uuid::from_bytes(id)),
@@ -117,7 +118,7 @@ pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
     crate::with_graph(|graph| {
         nodes
             .iter()
-            .filter(|node| node.access.can_know_exists() && !node.unfiled())
+            .filter(|node| node.access.can_know_exists() && Some(node.id) != unfiled)
             .map(|node| info_of(node, graph.deleted_root(node.id).is_some(), unfiled))
             .collect()
     })

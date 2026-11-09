@@ -5,8 +5,7 @@ use crate::primitives::*;
 use crate::reactive::*;
 use beui::layer::{OverlayAnchor, Placement};
 
-#[test]
-fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
+fn placed(placement: Placement, height: f32) -> (f32, f32) {
     let _root = crate::reactive::RootScope::new();
     let overlay = NodeRef::new();
     let document = build_node(move || {
@@ -15,11 +14,11 @@ fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
                 <Overlay
                     @node_ref=&overlay
                     anchor=OverlayAnchor::Point(pos2(10.0, 200.0))
-                    placement=Placement::BelowStart
+                    placement=placement
                     open=true
                     on_dismiss={|_: Dismiss| {}}
                 >
-                    <Frame width=40.0 height=1000.0 />
+                    <Frame width=40.0 height=height />
                 </Overlay>
             </Frame>
         }
@@ -33,9 +32,29 @@ fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
         .overlay_content(overlay)
         .expect("an open overlay has content");
     let rect = harness.rect(content);
+    (rect.top(), rect.bottom())
+}
+
+#[test]
+fn only_a_menu_covers_its_anchor_when_neither_side_has_room() {
     assert_eq!(
-        (rect.top(), rect.bottom()),
+        placed(Placement::Menu, 250.0),
+        (50.0, 300.0),
+        "with 200 above its anchor and 100 below, a menu covers the anchor, as low as the window allows"
+    );
+    assert_eq!(
+        placed(Placement::Menu, 1000.0),
+        (0.0, 300.0),
+        "a menu taller than the window is cut to the window's height"
+    );
+    assert_eq!(
+        placed(Placement::BelowStart, 250.0),
         (0.0, 200.0),
-        "the content takes the 200 above its anchor over the 100 below it, ending at the anchor"
+        "anything else anchored below (a completion, a tooltip) takes the roomier side and ends at its anchor"
+    );
+    let (top, bottom) = placed(Placement::Popover { gap: 4, margin: 8 }, 250.0);
+    assert!(
+        bottom <= 200.0 || top >= 200.0,
+        "a popover keeps clear of its anchor too: {top}..{bottom}"
     );
 }

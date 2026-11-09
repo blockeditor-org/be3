@@ -58,6 +58,9 @@ interface types {
         schema: string,
         undo: bool,
         plain: plain,
+        /// The type merges by parts (`replicas.merge-parts`) rather than whole bytes
+        /// (`replicas.merge3`), and loads only its first part.
+        merges-parts: bool,
     }
 
     record description {
@@ -243,6 +246,14 @@ interface types {
 
     record merged {
         bytes: list<u8>,
+        /// Zero is a clean merge.
+        conflicts: u32,
+    }
+
+    /// A merge over parts: the commit to write, which reuses the parts the merge kept as
+    /// they were.
+    record merged-parts {
+        content: written,
         /// Zero is a clean merge.
         conflicts: u32,
     }

@@ -94,6 +94,7 @@ members = [
     "crates/be-sdk-type-api",
     "crates/be-sdk-type-guest",
     "crates/be-sdk-type-host",
+    "crates/be-sdk-type-testing",
     "crates/be-sdk-ui",
     "crates/be-sdk-ui-database",
     "crates/be-sdk-window-stack",

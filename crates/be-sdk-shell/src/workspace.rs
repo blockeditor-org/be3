@@ -1063,6 +1063,9 @@ impl Workspace {
     pub(crate) fn create_in(&self, parent: BlockParent) {
         self.error.set(None);
         let container = parent.block();
+        // An editor cannot see Unfiled, which the host makes with My files once the
+        // organization's blocks have loaded; the host fails a creation committed there
+        // before it exists, so this only spares asking first.
         if container.is_none() && self.my_files().is_none() {
             self.error
                 .set(Some("Your files are still loading".to_owned()));

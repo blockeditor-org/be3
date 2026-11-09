@@ -42,6 +42,27 @@ pub(super) fn reconnect_delay(failures: u32, jitter: f64) -> Duration {
     ceiling.mul_f64(0.5 + 0.5 * jitter.clamp(0.0, 1.0))
 }
 
+/// When to try failed version statuses again (`Versions::refresh`), from the deadline
+/// already armed and how many came due in a row: armed once and kept until it comes due, then
+/// moved on by `reconnect_delay`; cleared when nothing transient awaits it or the line is down.
+pub(crate) fn next_retry(
+    awaiting: bool,
+    now: Duration,
+    armed: Option<Duration>,
+    failures: u32,
+    jitter: f64,
+) -> (Option<Duration>, u32) {
+    let due = armed.is_some_and(|at| at <= now);
+    match (awaiting, due || armed.is_none()) {
+        (true, true) => (
+            Some(now + reconnect_delay(failures, jitter)),
+            failures.saturating_add(1),
+        ),
+        (true, false) => (armed, failures),
+        (false, _) => (None, 0),
+    }
+}
+
 fn jitter() -> f64 {
     (Uuid::new_v4().as_u128() as u64 >> 11) as f64 / (1u64 << 53) as f64
 }
@@ -565,6 +586,8 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             line: Line::down(&config, 0, Duration::ZERO),
             tasks: Tasks::new(),
             drained_at: Duration::ZERO,
+            versions_due: None,
+            version_failures: 0,
             rejoin: false,
         };
         session.run(open).await;
@@ -755,6 +778,11 @@ struct Session<'a> {
     line: Line,
     tasks: (Tasks, UnboundedReceiver<()>),
     drained_at: Duration,
+    /// When to refresh the version statuses again, set while one could not be computed and
+    /// the line is up: backing off as reconnecting does (`reconnect_delay`), from
+    /// `version_failures` refreshes in a row that failed.
+    versions_due: Option<Duration>,
+    version_failures: u32,
     rejoin: bool,
 }
 
@@ -778,13 +806,7 @@ impl Session<'_> {
                 want_open(shared, &self.wanted.blocks());
                 relist(shared);
                 spawn_listings(peer, shared, &self.tasks.0);
-                self.versions
-                    .refresh(&mut Context {
-                        peer,
-                        shared,
-                        replicas: &mut *self.replicas,
-                    })
-                    .await;
+                self.refresh_versions().await;
                 report(peer, shared);
                 self.changed.notify_all();
                 be_host_base::host::wake();
@@ -800,11 +822,14 @@ impl Session<'_> {
                 report(peer, shared);
                 return;
             }
-            let retry_at = self.retry_at();
-            let wake_at = match (self.replicas.modules.wake_at(), retry_at) {
-                (Some(module), Some(retry)) => Some(module.min(retry)),
-                (module, retry) => module.or(retry),
-            };
+            let wake_at = [
+                self.replicas.modules.wake_at(),
+                self.retry_at(),
+                self.versions_due,
+            ]
+            .into_iter()
+            .flatten()
+            .min();
             let woken = {
                 let waited = std::pin::pin!(wait(
                     self.commands,
@@ -943,6 +968,12 @@ impl Session<'_> {
                         }
                     }
                     for event in heard_all {
+                        if matches!(
+                            event,
+                            Some(Event::HeadChanged { .. } | Event::BlockChanged(_)) | None
+                        ) {
+                            self.versions.announced();
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
@@ -970,13 +1001,7 @@ impl Session<'_> {
             moved |= self.settle_outbox().await;
             rekey_changed(peer, self.replicas, &mut keyed);
             let before = version_revisions(shared);
-            self.versions
-                .refresh(&mut Context {
-                    peer,
-                    shared,
-                    replicas: &mut *self.replicas,
-                })
-                .await;
+            self.refresh_versions().await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             spawn_listings(peer, shared, &self.tasks.0);
@@ -1008,6 +1033,34 @@ impl Session<'_> {
                 be_host_base::host::wake();
             }
         }
+    }
+
+    async fn refresh_versions(&mut self) {
+        let (peer, shared) = (self.peer, self.shared);
+        let now = self.config.clock.now();
+        let due = self.versions_due.is_some_and(|at| at <= now);
+        let awaiting = self
+            .versions
+            .refresh(
+                &mut Context {
+                    peer,
+                    shared,
+                    replicas: &mut *self.replicas,
+                },
+                due,
+            )
+            .await;
+        // A status whose inputs change is computed again at once; one that failed for want of
+        // the server (`Versions::refresh`) is tried again only when this deadline comes due,
+        // less often each time, and not while the line is down: reconnecting forgets those
+        // failures and refreshes.
+        (self.versions_due, self.version_failures) = next_retry(
+            awaiting && self.line.is_up(),
+            now,
+            self.versions_due,
+            self.version_failures,
+            jitter(),
+        );
     }
 
     fn retry_at(&self) -> Option<Duration> {
@@ -1102,13 +1155,8 @@ impl Session<'_> {
             .await;
         }
         self.replicas.pump((peer, shared)).await;
-        self.versions
-            .refresh(&mut Context {
-                peer,
-                shared,
-                replicas: &mut *self.replicas,
-            })
-            .await;
+        self.versions.reconnected();
+        self.refresh_versions().await;
         report(peer, shared);
         self.changed.notify_all();
         be_host_base::host::wake();

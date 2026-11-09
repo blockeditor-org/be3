@@ -22,6 +22,9 @@ pub struct KeyBook {
 
 #[derive(Default)]
 struct Rows {
+    /// How many times keys were recorded: a read that failed for want of a key may succeed
+    /// once it moves.
+    revision: u64,
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<Uuid, Vec<WrappedKey>>,
     by_block: HashMap<Uuid, Vec<Uuid>>,
@@ -604,8 +607,14 @@ impl KeyBook {
         be_block_protocol::owner_only_key(key)
     }
 
+    /// Moves on each time keys are recorded (`record`).
+    pub fn revision(&self) -> u64 {
+        self.rows.lock().unwrap().revision
+    }
+
     pub fn record(&self, set: &KeySet) {
         let mut rows = self.rows.lock().unwrap();
+        rows.revision += 1;
         for row in &set.keys {
             rows.add_row(*row);
         }

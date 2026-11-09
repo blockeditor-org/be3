@@ -41,7 +41,8 @@ apart, and `tmp/` for files being written. A pass:
    same block.
 3. Merges three `be_block_vcs::Tree`s keyed by block id, base (the index), ours (the disk) and
    theirs (the server), with `be_block_vcs::merge`, and merges files both sides changed with
-   their type's `Merge3`.
+   their type's `Merge::merge3`, or by parts for a type that merges by parts
+   (guides/type_modules.md, "Merging by parts").
 4. Applies the result to the server (`Peer::import_blocks`, `Peer::write`), then to the disk,
    then saves the index.
 

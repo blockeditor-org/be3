@@ -28,6 +28,8 @@ impl Guest for Counted {
 
 #[test]
 fn a_declared_module_starts_only_when_its_type_is_first_needed() {
+    // Every test of the process names one build, as the server a test starts needs.
+    be_lib_build_id::install("test");
     let mut modules = Modules::new(
         vec![in_process::<Counted>("counted").declaring(vec![LAZY])],
         be_block_client::Clock::real(),

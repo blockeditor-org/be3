@@ -17,6 +17,7 @@ mod a_file_name_must_work_on_every_system;
 mod a_folder_is_written_as_files_and_directories;
 mod a_rename_on_disk_moves_the_same_block;
 mod a_skipped_block_is_never_deleted_or_replaced;
+mod a_type_that_merges_by_parts_merges_edits_on_both_sides;
 mod deletions_reach_the_other_side;
 mod edits_on_both_sides_merge_and_clashes_keep_both;
 mod files_made_on_disk_become_blocks;
@@ -136,7 +137,11 @@ async fn text_block(peer: &Peer<MemoryStore>, parent: Uuid, name: &str, text: &s
 }
 
 async fn types() -> be_block_type_host::Modules {
-    be_block_type_host::started(be_type_bundle::sources(), be_block_client::Clock::real()).await
+    let mut sources = be_type_bundle::sources();
+    sources.push(be_block_type_host::in_process::<
+        be_sdk_type_testing::sections::BlockTypes,
+    >("test.sections"));
+    be_block_type_host::started(sources, be_block_client::Clock::real()).await
 }
 
 async fn sync(peer: &Peer<MemoryStore>, directory: &Path, root: Uuid) -> Report {

@@ -473,7 +473,13 @@ impl Editors {
             let progress = match &child.commit {
                 None => CreationProgress::Options,
                 Some(commit) => match be_host_stack::app_graph::parent_of(commit.parent) {
-                    None => CreationProgress::Working,
+                    // Only Unfiled resolves to nothing, and only before the host has made it
+                    // (`RootSettings::ensure_unfiled`), which waits for the organization's
+                    // blocks: offline on a first run that is never, so fail rather than wait.
+                    None => {
+                        child.commit = None;
+                        CreationProgress::Failed("Your files are still loading".to_owned())
+                    }
                     Some(parent) => match child.creation.create() {
                         Ok(Some(block)) => {
                             be_host_stack::set_parent(block, parent);
