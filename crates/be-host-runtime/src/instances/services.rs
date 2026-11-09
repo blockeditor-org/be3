@@ -339,11 +339,17 @@ impl Instances {
                         }
                         Ok(Some(file)) => {
                             let created_by = created_by.as_deref();
-                            be_host_stack::import_file(file.name, file.data, parent, created_by, move |file| {
-                                if !answering.withdrawn() {
-                                    answering.imported(imported(file));
-                                }
-                            });
+                            be_host_stack::import_file(
+                                file.name,
+                                file.data,
+                                parent,
+                                created_by,
+                                move |file| {
+                                    if !answering.withdrawn() {
+                                        answering.imported(imported(file));
+                                    }
+                                },
+                            );
                         }
                         Ok(None) => answering.imported(Ok(None)),
                         Err(error) => answering.imported(Err(error)),
@@ -421,12 +427,14 @@ impl Instances {
                         return;
                     }
                     answering.imported(exported.and_then(|(_, bytes)| {
-                        be_host_stack::import(&bytes, parent, created_by.as_deref()).map(|(block, block_type)| {
-                            Some(ImportedBlock {
-                                block_id: block.into_bytes(),
-                                block_type: block_type.into_bytes(),
-                            })
-                        })
+                        be_host_stack::import(&bytes, parent, created_by.as_deref()).map(
+                            |(block, block_type)| {
+                                Some(ImportedBlock {
+                                    block_id: block.into_bytes(),
+                                    block_type: block_type.into_bytes(),
+                                })
+                            },
+                        )
                     }));
                 });
             }

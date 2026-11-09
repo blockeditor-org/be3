@@ -6,7 +6,7 @@ use crate::reactive::*;
 use beui::layer::{OverlayAnchor, Placement};
 
 #[test]
-fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
+fn placed(height: f32) -> (f32, f32) {
     let _root = crate::reactive::RootScope::new();
     let overlay = NodeRef::new();
     let document = build_node(move || {
@@ -19,7 +19,7 @@ fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
                     open=true
                     on_dismiss={|_: Dismiss| {}}
                 >
-                    <Frame width=40.0 height=1000.0 />
+                    <Frame width=40.0 height=height />
                 </Overlay>
             </Frame>
         }
@@ -33,9 +33,19 @@ fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
         .overlay_content(overlay)
         .expect("an open overlay has content");
     let rect = harness.rect(content);
+    (rect.top(), rect.bottom())
+}
+
+#[test]
+fn an_overlay_with_room_on_neither_side_of_its_anchor_covers_it_within_the_window() {
     assert_eq!(
-        (rect.top(), rect.bottom()),
-        (0.0, 200.0),
-        "the content takes the 200 above its anchor over the 100 below it, ending at the anchor"
+        placed(250.0),
+        (50.0, 300.0),
+        "with 200 above its anchor and 100 below, it covers the anchor, as low as the window allows"
+    );
+    assert_eq!(
+        placed(1000.0),
+        (0.0, 300.0),
+        "taller than the window, it is cut to the window's height"
     );
 }
