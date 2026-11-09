@@ -82,7 +82,8 @@ code for this.
 An editor that keeps its own chrome while a child is edited places it with
 `own_frame` in a tab of its dock instead. The presentation does this: a
 locked filmstrip, a stage tab whose body places the slide with `own_frame`,
-and its toolbar as a `DockBar` lent to the slide canvas's pane.
+a notes tab under it placing the slide's notes block the same way, and its
+toolbar as a `DockBar` lent to the slide canvas's pane.
 
 ## Focus
 

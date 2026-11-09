@@ -27,6 +27,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
             ],
             "test_features": [],
         },

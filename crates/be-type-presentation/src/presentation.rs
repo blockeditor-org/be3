@@ -13,6 +13,7 @@ pub struct Presentation {
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Slide {
     pub block: Option<Uuid>,
+    pub notes: Option<Uuid>,
 }
 
 impl Presentation {
@@ -37,7 +38,10 @@ impl Presentation {
                 slide,
                 ObjectId::ROOT,
                 self.anchor_at(index, None),
-                &Slide { block: Some(block) },
+                &Slide {
+                    block: Some(block),
+                    notes: None,
+                },
             )
             .into()
     }
@@ -55,6 +59,10 @@ impl Presentation {
     pub fn set_block(slide: ObjectId, block: Uuid) -> Edit {
         Slide::BLOCK.set(slide, &Some(block)).into()
     }
+
+    pub fn set_notes(slide: ObjectId, notes: Option<Uuid>) -> Edit {
+        Slide::NOTES.set(slide, &notes).into()
+    }
 }
 
 impl Root for Presentation {
@@ -64,7 +72,8 @@ impl Root for Presentation {
         let mut seen = HashSet::new();
         self.slides
             .iter()
-            .filter_map(|slide| slide.block)
+            .flat_map(|slide| [slide.block, slide.notes])
+            .flatten()
             .filter(|block| seen.insert(*block))
             .collect()
     }
@@ -75,14 +84,25 @@ impl Root for Presentation {
                 .iter()
                 .filter(move |slide| slide.block == Some(block))
         };
+        let noting = |block: Uuid| {
+            self.slides
+                .iter()
+                .filter(move |slide| slide.notes == Some(block))
+        };
         Some(match change {
             ChildChange::Reorder { .. } => return None,
             ChildChange::Add(block) => self.insert(ObjectId::new(), self.slides.len(), block),
             ChildChange::Delete(block) => showing(block)
                 .map(|slide| Change::remove(slide.id))
+                .chain(
+                    noting(block)
+                        .filter(|slide| slide.block != Some(block))
+                        .flat_map(|slide| Self::set_notes(slide.id, None).0),
+                )
                 .collect(),
             ChildChange::Replace { old, new } => showing(old)
                 .flat_map(|slide| Self::set_block(slide.id, new).0)
+                .chain(noting(old).flat_map(|slide| Self::set_notes(slide.id, Some(new)).0))
                 .collect(),
         })
     }

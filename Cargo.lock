@@ -1029,6 +1029,7 @@ dependencies = [
  "be-sdk-test",
  "be-type-infinite-canvas",
  "be-type-presentation",
+ "be-type-text",
  "beui",
  "uuid",
 ]

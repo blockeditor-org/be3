@@ -7,6 +7,7 @@ use be_type_presentation::PresentationContent;
 use uuid::Uuid;
 
 mod slides;
+pub use slides::TEXT_TYPE;
 pub mod templates;
 mod ui;
 
