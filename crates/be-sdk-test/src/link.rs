@@ -19,6 +19,8 @@ enum Subject {
     Artifact(Uuid),
     Version,
     Shows,
+    /// A full-text search, which this store never answers: it keeps no index.
+    Search,
 }
 
 struct Watch {
@@ -204,11 +206,13 @@ impl Link {
             } => {
                 self.watch(resource.op(), Subject::Artifact(block(id)));
             }
+            Call::SearchWatchNew { resource, .. } => self.watch(resource.op(), Subject::Search),
             Call::VersionWatchNew { resource } => self.watch(resource.op(), Subject::Version),
             Call::ShowRequestsNew { resource } => self.watch(resource.op(), Subject::Shows),
             Call::BlocksWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
             Call::HistoryWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
             Call::HeadWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            Call::SearchWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
             Call::ArtifactWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
             Call::VersionWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
             Call::ShowRequestsNext { this, reply } => self.wait(this.op(), reply.into_op()),

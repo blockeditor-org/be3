@@ -1,6 +1,7 @@
 use be_block_commit::CommitId;
 use be_block_graph::{
-    ANYONE_INSIDE, Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE,
+    ANYONE_INSIDE, Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SEARCH_INDEX_TYPE,
+    SETTINGS_TYPE,
 };
 use be_block_protocol::{
     AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, Hold, KeyKind, KeySet,
@@ -193,6 +194,59 @@ fn require_parent_of(
     }
 }
 
+/// A search index lies under the block whose tree it indexes, one held per block: the server
+/// cannot read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
+/// (plans/search.md). `index` is the index being placed, which may already be the one held.
+fn require_index_place(
+    graph: &BlockGraph,
+    index: Uuid,
+    parent: BlockParent,
+) -> Result<(), ServerError> {
+    let BlockParent::Block(parent) = parent else {
+        return Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            "a search index lies under the block it indexes".into(),
+        ));
+    };
+    let held = graph.children(BlockParent::Block(parent)).into_iter().any(|child| {
+        child != index
+            && graph.holds(child)
+            && graph
+                .get(child)
+                .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
+    });
+    match held {
+        true => Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            format!("block {parent} already holds a search index"),
+        )),
+        false => Ok(()),
+    }
+}
+
+/// A block holds at most one search index among its children.
+fn require_one_index(
+    graph: &BlockGraph,
+    block: Uuid,
+    references: &[Uuid],
+) -> Result<(), ServerError> {
+    let indexes = references
+        .iter()
+        .filter(|reference| {
+            graph.get(**reference).is_some_and(|node| {
+                node.content_type == SEARCH_INDEX_TYPE && node.parent == BlockParent::Block(block)
+            })
+        })
+        .count();
+    match indexes > 1 {
+        true => Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            format!("block {block} would hold more than one search index"),
+        )),
+        false => Ok(()),
+    }
+}
+
 fn require_keeping_settings(
     graph: &BlockGraph,
     seen: &Visibility,
@@ -351,6 +405,9 @@ impl ServerStore {
             if owner_only {
                 require_own_settings(graph, identity, parent)?;
             }
+            if content_type == SEARCH_INDEX_TYPE {
+                require_index_place(graph, block, parent)?;
+            }
             store.may_create(graph, database, identity, block, content_type, parent)?;
             if !keys
                 .keys
@@ -425,6 +482,7 @@ impl ServerStore {
                 ));
             }
             require_keeping_settings(graph, &visibility(identity), block, &references)?;
+            require_one_index(graph, block, &references)?;
             let relinked = relinked(graph, block, &references);
             let organization = identity.organization.to_string();
             let transaction = database.unchecked_transaction()?;
@@ -652,6 +710,7 @@ impl ServerStore {
                 };
                 let references = distinct(references.apply(&listed));
                 require_keeping_settings(graph, &visibility(identity), block, &references)?;
+                require_one_index(graph, block, &references)?;
                 let relinked = relinked(graph, block, &references);
                 let redescribed = (relinked.is_some()
                     || graph
@@ -1121,6 +1180,9 @@ impl ServerStore {
                 ));
             }
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
+            if node.content_type == SEARCH_INDEX_TYPE && parent != BlockParent::Detached {
+                require_index_place(graph, block, parent)?;
+            }
             match parent {
                 BlockParent::Block(target) if graph.owner_only_root(target).is_some() => {
                     return Err(ServerError::Refused(
@@ -1496,6 +1558,15 @@ impl ServerStore {
                 false => require_manage(graph, &visibility(identity), block)?,
             }
             if !leaving {
+                if graph
+                    .get(block)
+                    .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
+                {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a search index takes its access from the block it indexes alone".into(),
+                    ));
+                }
                 require_owner_of_owner_only(graph, identity, block, "shares")?;
                 if graph.owner_only_root(block).is_some() && access > Access::None {
                     return Err(ServerError::Refused(

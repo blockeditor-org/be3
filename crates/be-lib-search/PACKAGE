@@ -56,6 +56,20 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "linux-x86_64-html": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//third-party/rust:caseless-0.2.2",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
+                "//third-party/rust:unicode-normalization-0.1.25",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "macos-arm64": {
             "binaries": {},
             "deps": [
@@ -71,6 +85,48 @@ write_package_value("be3.cargo", {
             "test_features": [],
         },
         "macos-x86_64": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//third-party/rust:caseless-0.2.2",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
+                "//third-party/rust:unicode-normalization-0.1.25",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
+        "wasi": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//third-party/rust:caseless-0.2.2",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
+                "//third-party/rust:unicode-normalization-0.1.25",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
+        "wasi-guest": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//third-party/rust:caseless-0.2.2",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
+                "//third-party/rust:unicode-normalization-0.1.25",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
+        "wasm32": {
             "binaries": {},
             "deps": [
                 "//crates/be-lib-graphemes:be-lib-graphemes",

@@ -67,6 +67,12 @@ pub const DELETED_FROM: MetaKey<DeletedFrom> =
 pub const SETTINGS: MetaKey<BlockRef> =
     MetaKey::defined(0x6be3_6d65_7461_5300_8a1e_7365_7474_0001, "settings");
 
+/// The block's search index (plans/search.md): a block of `be_block_graph::SEARCH_INDEX_TYPE`
+/// under it holding the text of its whole tree. Held by its block like `SETTINGS`, so never
+/// listed among its children.
+pub const SEARCH_INDEX: MetaKey<BlockRef> =
+    MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_7365_6172_0001, "search_index");
+
 /// The manifest id of the app that made the block, set by the host when an app creates one
 /// and never by the app itself.
 pub const CREATED_BY: MetaKey<String> =
