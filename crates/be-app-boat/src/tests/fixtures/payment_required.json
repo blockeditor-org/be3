@@ -1,0 +1,13 @@
+{
+  "ok": false,
+  "type": "sandbox.error",
+  "status": 402,
+  "code": "payment_required",
+  "message": "Your plan's compute hours are used up for this month.",
+  "error": {
+    "code": "payment_required",
+    "message": "Your plan's compute hours are used up for this month.",
+    "status": 402
+  },
+  "requestId": "req_1c2d3e4f5a6b47c8d9e0f1a2b3c4d5e6"
+}

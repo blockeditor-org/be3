@@ -15,4 +15,5 @@ fn a_key_near_its_expiry_warns_two_weeks_before() {
         "{}",
         boat.label("boat.key-notice")
     );
+    boat.test.snapshot("a_key_near_its_expiry_warns_two_weeks_before");
 }

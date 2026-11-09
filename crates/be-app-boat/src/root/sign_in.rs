@@ -68,12 +68,18 @@ pub(super) fn SignIn(state: State) -> NodeId {
             checking.set(false);
             match answer {
                 Ok(login) => {
-                    secret.set(String::new());
-                    state.keep_key(BoatKey {
+                    let kept = state.keep_key(BoatKey {
                         secret: key,
                         expires,
                         login,
                     });
+                    match kept {
+                        true => secret.set(String::new()),
+                        false => problem.set(Some(
+                            "Your settings haven't loaded yet, so the key couldn't be kept. Try again in a moment."
+                                .to_owned(),
+                        )),
+                    }
                 }
                 Err(BoatError::Reconnect { expired: true }) => {
                     problem.set(Some("boat.dev says this key has expired.".to_owned()))

@@ -782,6 +782,10 @@ interface types {
         organization-id: organization-id,
         client-id: installation-id,
         editable: bool,
+        /// The origin of the web page the host runs in (`https://be3.example`),
+        /// empty where the host is not a web page. On the web `fetch` is the
+        /// browser's, so a server answers only if its CORS allows this origin.
+        page-origin: string,
     }
 
     record open-creation {

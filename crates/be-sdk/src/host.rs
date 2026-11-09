@@ -594,6 +594,7 @@ pub struct EditorHost {
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
+    page_origin: Rc<RefCell<String>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
     settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
     pub(crate) docks: Rc<RefCell<crate::docks::Docks>>,
@@ -2316,6 +2317,16 @@ impl EditorHost {
 
     pub fn organization_id(&self) -> Uuid {
         self.organization.get()
+    }
+
+    /// The origin of the web page the host runs in, empty where it is not a web page. On the
+    /// web `fetch` is the browser's, so a server answers only if its CORS allows this origin.
+    pub fn page_origin(&self) -> String {
+        self.page_origin.borrow().clone()
+    }
+
+    pub fn set_page_origin(&self, origin: String) {
+        *self.page_origin.borrow_mut() = origin;
     }
 
     pub fn graph(&self) -> crate::graph::BlockGraph {

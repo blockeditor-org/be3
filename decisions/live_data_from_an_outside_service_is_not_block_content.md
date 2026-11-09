@@ -19,6 +19,8 @@ viewer's own), so the editor opens with it at once and says how old it is, or th
 
 - Keeping the list in content so a viewer without a key still sees it: that is the leak above.
 - Keeping it in device-local storage only: apps have none (guides/apps/host_services.md), and the
-  view state already belongs to the viewer and goes with them to their other devices.
+  view state already belongs to the viewer and goes with them to their other devices. The cost:
+  a view block is escrowed like any other, so the organization's administrators can recover the
+  viewer's last list, as they can anything else the viewer keeps in the organization.
 - Writing the view state on every poll: it is written only when the list changed or the kept copy
   is five minutes old, enough to say its age truthfully without a commit every fifteen seconds.

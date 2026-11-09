@@ -14,7 +14,7 @@ pub struct BoatSettings {
 }
 
 /// A boat.dev API key and what the person said about it when they pasted it.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default)]
 pub struct BoatKey {
     pub secret: String,
@@ -23,6 +23,17 @@ pub struct BoatKey {
     pub expires: i64,
     /// Whose key it is, as `GET /me` answered when it was checked.
     pub login: String,
+}
+
+/// Leaves the secret out, so a key never reaches a log.
+impl std::fmt::Debug for BoatKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BoatKey")
+            .field("expires", &self.expires)
+            .field("login", &self.login)
+            .finish_non_exhaustive()
+    }
 }
 
 impl BoatSettings {
