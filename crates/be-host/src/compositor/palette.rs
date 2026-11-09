@@ -2,7 +2,7 @@
 //! instance that has the focus and of every instance around it, innermost first, each under its
 //! block's name.
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use be_sdk_api::{EditorInstanceId, PaletteMode, ViewId};
@@ -147,7 +147,7 @@ fn actions_from(from: Option<NodeId>) -> Vec<Row> {
             .and_then(be_host_stack::node)
             .and_then(|block| block.metadata.name())
             .unwrap_or_else(|| catcher.app_name.clone());
-        let mut listed = HashSet::new();
+        let mut listed = BTreeSet::new();
         let mut actions: Vec<_> =
             be_host_runtime::instance_actions(&catcher.app, catcher.instance, catcher.region)
                 .into_iter()

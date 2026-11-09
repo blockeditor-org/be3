@@ -520,7 +520,7 @@ impl Registry {
 
     fn actions(&self, focus_path: &[NodeId]) -> Vec<Action> {
         let mut listed: Vec<Action> = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = be_lib_stable_hash::HashSet::default();
         let scoped = self
             .active(focus_path)
             .into_iter()
@@ -636,8 +636,8 @@ impl Registry {
             checked: action.checked().map(|checked| checked.get()),
             live,
         };
-        let live_keys: std::collections::HashSet<u64> = live.iter().map(Action::key).collect();
-        let mut listed: std::collections::HashSet<&str> = live.iter().map(Action::id).collect();
+        let live_keys: be_lib_stable_hash::HashSet<u64> = live.iter().map(Action::key).collect();
+        let mut listed: be_lib_stable_hash::HashSet<&str> = live.iter().map(Action::id).collect();
         let mut actions: Vec<ActionInfo> = live.iter().map(|action| info(action, true)).collect();
         for action in &all {
             if listed.insert(action.id()) {
@@ -650,7 +650,7 @@ impl Registry {
             actions,
         }];
         let mut windows: Vec<WindowId> = Vec::new();
-        let mut seen_windows = std::collections::HashSet::new();
+        let mut seen_windows = be_lib_stable_hash::HashSet::default();
         for window in all.iter().filter_map(hosted) {
             if seen_windows.insert(window) {
                 windows.push(window);

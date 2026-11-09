@@ -593,7 +593,7 @@ impl State {
             if host != inner {
                 // The group's host and the tab inside it may offer the same entries (a
                 // workspace adds its block's References and Access to both): each shows once.
-                let listed: std::collections::HashSet<String> = items
+                let listed: be_lib_stable_hash::HashSet<String> = items
                     .iter()
                     .filter_map(|node| node.id().map(str::to_owned))
                     .collect();
