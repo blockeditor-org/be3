@@ -106,6 +106,8 @@ pub struct Searching {
     writing: HashSet<Uuid>,
     /// Roots whose index this device made, until their metadata names it.
     creating: HashMap<Uuid, Uuid>,
+    /// Indexes made and not yet named in their root's metadata (`name_indexes`).
+    made: Vec<(Uuid, Uuid)>,
     wanted: HashMap<Owner, Vec<SearchAsk>>,
     answers: HashMap<SearchAsk, Answer>,
     running: HashSet<SearchAsk>,
@@ -207,6 +209,7 @@ pub(crate) async fn step(
     replicas: &mut Replicas,
     tasks: &Tasks,
 ) -> bool {
+    name_indexes(peer, shared, replicas).await;
     let mut moved = index(peer, shared, replicas, tasks).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
@@ -267,23 +270,39 @@ async fn index(
                 },
             }
         }
+        // One block a round: asking its type for text holds up the loop, so edits and opens
+        // queued meanwhile go first and the rest wait for the next round.
+        let mut batches = batches.into_iter();
+        let first = batches.next().map(|(index, mut blocks)| {
+            kept.extend(blocks.drain(1..));
+            (index, blocks)
+        });
+        kept.extend(batches.flat_map(|(_, blocks)| blocks));
         held.search.dirty = kept;
-        held.search.writing.extend(batches.keys().copied());
-        (batches, roots)
+        held.search.writing.extend(first.iter().map(|(index, _)| *index));
+        (first, roots)
     };
     for (root, index) in roots {
-        crate::create(
-            index,
-            SEARCH_INDEX_TYPE,
-            BlockParent::Block(root),
-            BlockMetadata::default(),
-            Some(SearchIndexContent::default().encode()),
-            false,
-        );
-        crate::define(root, vec![SEARCH_INDEX.definition(Some(&BlockRef(index)))]);
+        let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        tasks.spawn(async move {
+            let made = make_index(&peer, root, index).await;
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                match made {
+                    Ok(()) => held.search.made.push((root, index)),
+                    Err(error) => {
+                        held.search.creating.remove(&root);
+                        held.error = Some(format!("Making a search index failed: {error}"));
+                    }
+                }
+            }
+            tasks_held.sync(&peer, &shared);
+            be_host_base::host::wake();
+        });
     }
-    let moved = !batches.is_empty();
-    for (index, blocks) in batches {
+    // The batch's task wakes the loop for the next block when it finishes.
+    let moved = batches.is_some();
+    if let Some((index, blocks)) = batches {
         let mut batch = Batch::default();
         for block in &blocks {
             batch
@@ -407,6 +426,65 @@ async fn text_of(
         .into_iter()
         .find(|document| document.key == key)?
         .body
+}
+
+/// Makes `root`'s index, empty: in a task, beside the worker's loop, offline-first like any
+/// create; `name_indexes` then names it in the root's metadata.
+async fn make_index(peer: &Peer<Store>, root: Uuid, index: Uuid) -> Result<(), String> {
+    peer.create_block(
+        index,
+        SEARCH_INDEX_TYPE,
+        BlockParent::Block(root),
+        &BlockMetadata::default(),
+        false,
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    let empty = SearchIndexContent::default();
+    let write = Write::encoded(SEARCH_INDEX_TYPE, empty.parts(), None)
+        .described(Vec::new(), be_block::derived_metadata(&empty));
+    peer.seal(index, write)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Names a made index in its root's metadata, as a define command does: in the loop, so the
+/// root's open replica is told its head moved here rather than meeting a stranger's commit.
+async fn name_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, replicas: &mut Replicas) {
+    let made = std::mem::take(
+        &mut shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .search
+            .made,
+    );
+    for (root, index) in made {
+        let defined = peer
+            .define(root, |metadata| {
+                metadata.insert(&SEARCH_INDEX, &BlockRef(index));
+            })
+            .await;
+        if let Ok(summary) = &defined
+            && let Some(head) = peer.local_head(root).or(summary.head)
+        {
+            replicas.moved_here(root, head);
+        }
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        match defined {
+            // The mirror takes the name at once, and settles: it is defined already.
+            Ok(_) => {
+                held.graph.update(root, |node| {
+                    node.metadata.insert(&SEARCH_INDEX, &BlockRef(index));
+                });
+                held.graph.settle(root);
+            }
+            Err(error) => {
+                held.search.creating.remove(&root);
+                held.error = Some(format!("Naming a search index failed: {error}"));
+            }
+        }
+    }
 }
 
 /// Reads a range of a saved part through a peer.
