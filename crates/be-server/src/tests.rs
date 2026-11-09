@@ -69,6 +69,7 @@ mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_slow_store_call_does_not_delay_another_connections_ping;
 mod a_stale_publish_is_rejected_with_the_current_head;
+mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_account_creates_a_bounded_number_of_agents;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
@@ -603,12 +604,23 @@ impl TestClient {
     }
 
     async fn create_keyed(&mut self, block: Uuid, parent: BlockParent, key: Uuid, keys: KeySet) {
+        self.create_typed(block, CONTENT, parent, key, keys).await;
+    }
+
+    async fn create_typed(
+        &mut self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        key: Uuid,
+        keys: KeySet,
+    ) {
         let response = self
             .call(|peer| {
                 client::blocks::create_block(
                     peer,
                     block,
-                    CONTENT,
+                    content_type,
                     parent,
                     Vec::new(),
                     Vec::new(),
