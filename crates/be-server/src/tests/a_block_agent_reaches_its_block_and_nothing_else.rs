@@ -30,6 +30,7 @@ const REACHING_PAST: &[&str] = &[
     "put-contact",
     "remove-contact",
     "set-parent",
+    "delete-block",
     "collect-detached",
     "set-access",
     "list-access",
@@ -64,7 +65,8 @@ const CONNECTING: &[&str] = &[
 #[tokio::test]
 async fn a_block_agent_reaches_its_block_and_nothing_else() {
     let harness = Harness::start().await;
-    let mut owner = harness.member("owner@example.com").await;
+    let mut owner = harness.client().await;
+    let me = owner.register("owner@example.com").await;
     let organization = owner.organization("team").await;
     let terminal = owner.create_block(BlockParent::Root).await;
     let elsewhere = owner.create_block(BlockParent::Root).await;
@@ -120,6 +122,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
                 Vec::new(),
                 KEY,
                 KeySet::default(),
+                false,
             )
         })
         .await;
@@ -181,6 +184,61 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent was served keys of blocks outside its own"
     );
 
+    // What the calls a terminal host makes on connecting answer of the rest.
+    let author = Author::new(me);
+    let (head, chunks) = author.compose(b"somewhere else", 1_000, None);
+    let published = owner
+        .publish(&author, elsewhere, head, chunks, None, 1_000)
+        .await;
+    assert!(published.is_ok(), "{published:?}");
+    agent.round_trip().await;
+    assert!(
+        agent.notifications.iter().all(|notice| match notice {
+            Notice::BlockChanged { block } => [terminal, inside].contains(&block.id),
+            Notice::BlockRemoved { block, .. } => [terminal, inside].contains(block),
+            _ => true,
+        }),
+        "a block's agent heard of another block"
+    );
+    assert!(
+        matches!(agent.download(head.hash()).await, Ok(None)),
+        "a block's agent was given another block's object"
+    );
+    let response = agent
+        .call(|peer| client::objects::missing_objects(peer, vec![head.hash()]))
+        .await;
+    assert!(
+        matches!(&response, Ok(missing) if *missing == [head.hash()]),
+        "another block's object was not missing to its agent: {response:?}"
+    );
+    let own: Vec<Uuid> = agent.keys(None).await.keys.iter().map(|key| key.id).collect();
+    let response = agent.call(|peer| client::keys::get_key_work(peer)).await;
+    let Ok(work) = response else {
+        panic!("reading the key work failed: {response:?}");
+    };
+    assert!(
+        work.rotations.iter().all(|block| [terminal, inside].contains(block))
+            && work.unsealed.iter().all(|unsealed| own.contains(&unsealed.key))
+            && work.unescrowed.iter().all(|key| own.contains(key)),
+        "a block's agent was given key work outside its block: {work:?}"
+    );
+    let response = agent.call(|peer| client::keys::get_recovery_key(peer)).await;
+    let Ok(recovery) = response else {
+        panic!("reading the recovery key failed: {response:?}");
+    };
+    assert!(
+        recovery.sealed.iter().all(|sealed| own.contains(&sealed.key)),
+        "a block's agent was sealed another block's key"
+    );
+    assert!(
+        agent
+            .contacts()
+            .await
+            .iter()
+            .all(|contact| contact.account == me),
+        "a block's agent has contacts beyond its creator"
+    );
+
     let answers = agent.everything(elsewhere, organization).await;
     for (name, answer) in &answers {
         if REACHING_PAST.contains(name) {
@@ -204,7 +262,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     }
     let after = owner.read_block(elsewhere).await;
     assert_eq!(after.parent, Some(BlockParent::Root));
-    assert!(after.head.is_none(), "a block's agent published elsewhere");
+    assert_eq!(after.head, Some(head), "a block's agent published elsewhere");
 
     harness.stop().await;
 }

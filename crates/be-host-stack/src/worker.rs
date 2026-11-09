@@ -1712,14 +1712,28 @@ async fn create_agent(
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
-    ask(client::contacts::put_contact(
-        &peer.connection(),
-        agent.account,
-        card.seal_own(identity),
-    ))
-    .await?;
-    if let Some(block) = bound_to {
-        peer.seal_share(block, agent.account, &public).await?;
+    let finished = async {
+        ask(client::contacts::put_contact(
+            &peer.connection(),
+            agent.account,
+            card.seal_own(identity),
+        ))
+        .await?;
+        if let Some(block) = bound_to {
+            peer.seal_share(block, agent.account, &public).await?;
+        }
+        Ok::<_, ClientError>(())
+    }
+    .await;
+    if let Err(error) = finished {
+        // An agent the person never got the credentials of is of no use to anyone.
+        let _ = ask(client::members::remove_agent(
+            &peer.connection(),
+            organization,
+            agent.account,
+        ))
+        .await;
+        return Err(error);
     }
     Ok((
         agent.account,

@@ -1173,7 +1173,21 @@ impl ServerStore {
                     parent_id
                 ],
             )?;
+            let forgotten = crate::store::forget_orphaned_block_agents(
+                graph,
+                &transaction,
+                identity.organization,
+            )?;
+            let trashed = crate::store::trashes_block_agents(
+                graph,
+                &transaction,
+                identity.organization,
+                block,
+            )?;
             transaction.commit()?;
+            if !forgotten.is_empty() || trashed {
+                store.sessions_changed();
+            }
             Ok((before, lost))
         })
         .await
@@ -1520,14 +1534,11 @@ impl ServerStore {
                 account,
                 access,
             )?;
-            let forgotten = match access {
-                Access::None => crate::store::forget_orphaned_block_agents(
-                    graph,
-                    &transaction,
-                    identity.organization,
-                )?,
-                _ => Vec::new(),
-            };
+            let forgotten = crate::store::forget_orphaned_block_agents(
+                graph,
+                &transaction,
+                identity.organization,
+            )?;
             transaction.commit()?;
             if !forgotten.is_empty() {
                 store.sessions_changed();

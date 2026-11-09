@@ -668,6 +668,21 @@ impl Graph {
         }
     }
 
+    /// Whether `block` is `root` or below it, as far as the mirror knows its parents.
+    pub fn is_within(&self, block: Uuid, root: Uuid) -> bool {
+        let mut current = block;
+        for _ in 0..=self.nodes.len() {
+            if current == root {
+                return true;
+            }
+            match self.nodes.get(&current).and_then(|node| node.parent) {
+                Some(BlockParent::Block(parent)) => current = parent,
+                _ => return false,
+            }
+        }
+        false
+    }
+
     pub fn deleted_root(&self, block: Uuid) -> Option<Uuid> {
         let mut current = block;
         for _ in 0..=self.nodes.len() {

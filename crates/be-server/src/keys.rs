@@ -714,7 +714,8 @@ pub(crate) fn rotate_escrow_later(
 
 fn administrators(connection: &Connection, organization: Uuid) -> Result<Vec<Uuid>, ServerError> {
     let mut statement = connection.prepare_cached(
-        "SELECT account_id FROM memberships WHERE organization_id = ?1 AND role = 'administrator'",
+        "SELECT account_id FROM memberships WHERE organization_id = ?1 AND role = 'administrator'
+            AND account_id NOT IN (SELECT account_id FROM agents WHERE bound_to IS NOT NULL)",
     )?;
     let rows = statement.query_map([organization.to_string()], |row| row.get::<_, String>(0))?;
     let mut found = Vec::new();

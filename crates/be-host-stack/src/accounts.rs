@@ -279,15 +279,20 @@ pub struct AgentCredentials {
 }
 
 impl AgentCredentials {
-    /// The JSON object `be` reads from `BE3_AGENT_CREDENTIALS`.
-    pub fn bundle(&self) -> String {
-        serde_json::json!({
+    /// The JSON object `be` reads from `BE3_AGENT_CREDENTIALS`. With `proxy` it holds no token
+    /// but `"authentication": "proxy"`, for a proxy that adds the token itself
+    /// (guides/hosting.md, Proxy account credentials).
+    pub fn bundle(&self, proxy: bool) -> String {
+        let mut bundle = serde_json::json!({
             "server": self.server,
             "organization": self.organization,
-            "token": self.token,
             "recovery_phrase": self.phrase,
-        })
-        .to_string()
+        });
+        match proxy {
+            true => bundle["authentication"] = "proxy".into(),
+            false => bundle["token"] = self.token.clone().into(),
+        }
+        bundle.to_string()
     }
 }
 

@@ -3585,13 +3585,7 @@ impl HostCore {
                         name: agent.name.clone(),
                     })
                     .collect(),
-                created: self.agent_created.as_ref().map(|created| ui::CreatedAgent {
-                    name: created.name.clone(),
-                    server: created.server.clone(),
-                    organization: created.organization.to_string(),
-                    token: created.token.clone(),
-                    phrase: created.phrase.clone(),
-                }),
+                created: self.agent_created.clone(),
             }),
             contacts: self.contacts.view(),
             members: self.members.view(self.account.id),

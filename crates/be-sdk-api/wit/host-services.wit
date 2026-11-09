@@ -131,8 +131,9 @@ interface host-services {
     /// Makes an agent named `name` that reaches `block` and the blocks under
     /// it with Edit, and nothing else, for a program that hosts the block
     /// from a machine trusted less than the person's devices. Needs Manage on
-    /// the block, and is denied unless the app's manifest sets
-    /// `block_agents`. The app hands the credentials to the machine itself.
+    /// the block, which is the editor's own or one below it, and is denied
+    /// unless the app's manifest sets `block_agents`. The app hands the
+    /// credentials to the machine itself.
     create-block-agent: async func(block: block-id, name: string) -> result<block-agent, failure>;
 
     /// A new token for an agent `create-block-agent` made, answered alone;

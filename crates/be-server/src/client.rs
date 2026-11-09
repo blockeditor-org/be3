@@ -169,12 +169,15 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
 /// It may make what a terminal host needs on connecting that names no block (opening its
 /// organization, its keys and contacts as `Peer::attach` reads them, the change streams, object
 /// transfers), and the calls about blocks, which `blocks::Visibility` limits to `root` and the
-/// blocks under it, except moving or deleting `root` itself or making a block anywhere else.
+/// blocks under it, except moving `root` itself, trashing anything, or making a block anywhere
+/// else.
 /// `be terminal-host` makes no call this refuses (the `a_terminal_host_*` tests run as one).
 /// Everything that reaches past the block is refused: agents, contact links and contacts,
 /// organizations, members, pairing, access, escrows, a new recovery key, collecting.
 pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
-    use embed::{Call, account, blocks, contacts, keys, members, objects, organizations};
+    use embed::{
+        Call, account, blocks, contacts, keys, members, objects, organizations, sessions,
+    };
     match call {
         Call::Connection(embed::connection::Call::Ping { .. }) => true,
         Call::Account(call) => match call {
@@ -229,7 +232,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             blocks::Call::SetParent { block, parent, .. } => {
                 *block != root && matches!(parent, BlockParent::Block(_))
             }
-            blocks::Call::DeleteBlock { block, .. } => *block != root,
+
             blocks::Call::SetMetadata { .. }
             | blocks::Call::Publish { .. }
             | blocks::Call::ReadBlock { .. }
@@ -239,11 +242,22 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::ListHistory { .. }
             | blocks::Call::Watch { .. }
             | blocks::Call::Changes { .. } => true,
-            blocks::Call::SetAccess { .. }
+            // A block it trashed would leave what it reaches, and no one else could see it to
+            // restore or collect it.
+            blocks::Call::DeleteBlock { .. }
+            | blocks::Call::SetAccess { .. }
             | blocks::Call::ListAccess { .. }
             | blocks::Call::CollectDetached { .. } => false,
         },
-        Call::Sessions(_) => true,
+        Call::Sessions(call) => match call {
+            sessions::Call::SessionNew { .. }
+            | sessions::Call::SessionJoin { .. }
+            | sessions::Call::SessionHeartbeat { .. }
+            | sessions::Call::SessionRelay { .. }
+            | sessions::Call::SessionClaimOwnership { .. }
+            | sessions::Call::SessionAppend { .. }
+            | sessions::Call::SessionRebaseJournal { .. } => true,
+        },
         Call::Keys(call) => match call {
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
@@ -742,10 +756,7 @@ impl Client {
     }
 
     async fn serve(&mut self, started: Started) {
-        let method = embed::METHODS
-            .iter()
-            .find_map(|(id, name)| (*id == started.method).then_some(*name))
-            .unwrap_or("this call");
+        let method = started.method;
         let Some(call) = embed::Call::accept(&mut self.peer.lock(), started) else {
             return;
         };
@@ -794,10 +805,14 @@ impl Client {
     async fn admit_bound(
         &self,
         call: &embed::Call,
-        method: &str,
+        method: be_wasm_ops::MethodId,
         (organization, root): (Uuid, Uuid),
     ) -> Result<(), ServerError> {
         if !bound_may(call, root) {
+            let method = embed::METHODS
+                .iter()
+                .find_map(|(id, name)| (*id == method).then_some(*name))
+                .unwrap_or("this call");
             return Err(ServerError::Refused(
                 ErrorCode::PermissionDenied,
                 format!("an agent bound to one block may not make {method} with these arguments"),
@@ -2354,13 +2369,17 @@ impl Connection {
             return Ok(());
         }
         self.store.resolve_token(token).await?;
-        if let (Some(account), Some(_)) = (self.account, self.bound)
-            && !self.hub.is_live(account, self.client)
-        {
-            return Err(ServerError::Refused(
-                ErrorCode::NotAuthenticated,
-                "this agent signed in on another connection".into(),
-            ));
+        if let (Some(account), Some((organization, block))) = (self.account, self.bound) {
+            if !self.hub.is_live(account, self.client) {
+                return Err(ServerError::Refused(
+                    ErrorCode::NotAuthenticated,
+                    "this agent signed in on another connection".into(),
+                ));
+            }
+            // An open connection stops hearing of its block once that is in the trash.
+            if self.identity.is_some() {
+                self.store.require_bound_live(organization, block).await?;
+            }
         }
         self.checked = Some(version);
         Ok(())
