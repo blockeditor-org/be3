@@ -4,8 +4,8 @@ use be_block_model::{Document, Edit, Model, ObjectId, Sequence, Text};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::{Root, SearchDocument};
 use be_block::plain::extension;
+use be_block::{Root, SearchDocument};
 use be_sdk_type_guest::DocumentFile;
 
 const MAX_NAME_BYTES: usize = 128;
