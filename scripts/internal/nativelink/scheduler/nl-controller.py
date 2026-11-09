@@ -372,10 +372,12 @@ def tick(state, force_active):
         queued, executing = queue
         needed = math.ceil((queued + executing) / SLOTS)
         note = f" | queued {queued}, executing {executing} (needs {needed} at {SLOTS} each)"
-        # Work that has waited: add workers, as many as the demand needs, at most every UP_EVERY seconds.
+        # Work that has waited: add workers, as many as the demand needs, at most every UP_EVERY seconds. Only once
+        # the target's workers are all connected: work queued for want of the ones not made yet (no starts left, or
+        # still booting) is no reason to want more, and raising the target then only spends starts.
         state["queued_since"] = (state.get("queued_since") or now) if queued > 0 else None
         if (queued > 0 and now - state["queued_since"] >= UP_AFTER and now - state.get("last_up", 0) >= UP_EVERY
-                and target < CAP and not starting):
+                and target < CAP and not starting and len(alive) >= target):
             target = min(CAP, max(target + 1, needed))
             state["last_up"] = now
             log(f"  {queued} actions have waited {int(now - state['queued_since'])}s: scaling up to {target}")
