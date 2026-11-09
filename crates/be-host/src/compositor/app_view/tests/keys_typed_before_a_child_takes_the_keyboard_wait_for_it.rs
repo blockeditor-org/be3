@@ -51,7 +51,11 @@ fn notes(app: App, events: Vec<Forwarded>) -> Vec<Forwarded> {
 
 #[test]
 fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
-    assert_eq!(deck(true, true, vec![letter("T")]).0, [], "the deck does not hear a key meant for its notes");
+    assert_eq!(
+        deck(true, true, vec![letter("T")]).0,
+        [],
+        "the deck does not hear a key meant for its notes"
+    );
     assert_eq!(deck(true, true, vec![letter("h")]).0, []);
 
     held_keys::given(DECK, NOTES_VIEW, false);
@@ -80,7 +84,10 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
         content: true,
         typing: true,
     };
-    assert_eq!(held_keys::owed_now(TEXT, NOTES_VIEW, false, drawn, true), Some(Modifiers::NONE));
+    assert_eq!(
+        held_keys::owed_now(TEXT, NOTES_VIEW, false, drawn, true),
+        Some(Modifiers::NONE)
+    );
     assert_eq!(
         notes(drawn, Vec::new()),
         [letter("T"), letter("h"), letter("a")],
@@ -95,17 +102,32 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
         "a gift to a child that already has the keyboard, with nothing held, leaves its typing alone"
     );
 
-    assert_eq!(deck(false, true, vec![letter("x")]).0, [letter("x")], "with no gift pending the deck hears its keys");
+    assert_eq!(
+        deck(false, true, vec![letter("x")]).0,
+        [letter("x")],
+        "with no gift pending the deck hears its keys"
+    );
 
     assert_eq!(deck(true, true, vec![letter("y")]).0, []);
     held_keys::refused(DECK, |owner| owner == DECK_VIEW);
-    assert_eq!(held_keys::owed_now(DECK, DECK_VIEW, false, SETTLED, true), Some(Modifiers::NONE));
-    assert_eq!(deck(false, true, Vec::new()).0, [letter("y")], "a gift that falls through gives the deck its keys back");
+    assert_eq!(
+        held_keys::owed_now(DECK, DECK_VIEW, false, SETTLED, true),
+        Some(Modifiers::NONE)
+    );
+    assert_eq!(
+        deck(false, true, Vec::new()).0,
+        [letter("y")],
+        "a gift that falls through gives the deck its keys back"
+    );
 
     assert_eq!(deck(true, true, vec![letter("z")]).0, []);
     let (events, refuse) = deck(true, false, vec![Forwarded::Focus(false)]);
     assert!(refuse, "taking the keyboard elsewhere ends the gift");
-    assert_eq!(events, [letter("z"), Forwarded::Focus(false)], "and the deck hears its keys before it lets go");
+    assert_eq!(
+        events,
+        [letter("z"), Forwarded::Focus(false)],
+        "and the deck hears its keys before it lets go"
+    );
 
     assert_eq!(deck(true, true, vec![letter("w")]).0, []);
     held_keys::refused(DECK, |_| false);
@@ -114,7 +136,11 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
         None,
         "keys given back to a deck that lost the keyboard are dropped"
     );
-    assert_eq!(deck(false, true, Vec::new()).0, [], "and never replayed later");
+    assert_eq!(
+        deck(false, true, Vec::new()).0,
+        [],
+        "and never replayed later"
+    );
 
     assert_eq!(deck(true, true, vec![letter("v")]).0, []);
     assert_eq!(

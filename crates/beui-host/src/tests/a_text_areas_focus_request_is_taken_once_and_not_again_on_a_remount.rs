@@ -10,8 +10,7 @@ fn a_text_areas_focus_request_is_taken_once_and_not_again_on_a_remount() {
     let _root = crate::reactive::RootScope::new();
     let area = NodeRef::new();
     let shown = create_signal(false);
-    let document =
-        Arc::new(TextBuffer::new(b"Notes")) as Arc<dyn beui_text_editor_core::Document>;
+    let document = Arc::new(TextBuffer::new(b"Notes")) as Arc<dyn beui_text_editor_core::Document>;
     let state = TextAreaState::new(document);
     let document = build_node(move || {
         view! {
@@ -19,14 +18,14 @@ fn a_text_areas_focus_request_is_taken_once_and_not_again_on_a_remount() {
                 <List spacing=0.0>
                     <Show condition={shown}>
                         <TextArea
-                    colors={area_colors()}
-                    look={area_look()}
-                    font_size=AREA_FONT_SIZE
-                    padding=AREA_PADDING
-                    @node_ref=&area
-                    state={state}
-                    line_numbers=false
-                />
+                            colors={area_colors()}
+                            look={area_look()}
+                            font_size=AREA_FONT_SIZE
+                            padding=AREA_PADDING
+                            @node_ref=&area
+                            state={state}
+                            line_numbers=false
+                        />
                     </Show>
                 </List>
             </Frame>

@@ -849,8 +849,8 @@ pub(crate) fn AppView(
         untrack(|| {
             let app = app_id.value();
             let pending = be_host_runtime::child_focus_pending(&app, instance);
-            let focused = try_with_document(|document| document.focus_is_within(node))
-                .unwrap_or(false);
+            let focused =
+                try_with_document(|document| document.focus_is_within(node)).unwrap_or(false);
             let ready = held_keys_app(&app, instance, state);
             let owed = held_keys::owed_now((&app, instance), node, pending, ready, focused);
             if let Some(modifiers) = owed {
