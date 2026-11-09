@@ -1566,16 +1566,18 @@ impl Ran<'_> {
                 };
                 // A notification is about now: one the server refuses is dropped, not shown as
                 // the device's error. Asked off the worker's loop, as is the mode below, so
-                // the round trip holds up no edit.
+                // the round trip holds up no edit, and without waking the worker when done.
                 let peer = Arc::clone(self.peer);
-                self.tasks.spawn(async move {
+                platform::spawn_local(async move {
                     let _ = peer.notify(block, &notification, mentions).await;
                 });
                 false
             }
             Command::NotifyMode { block, set, reply } => {
+                // Not a task of the worker's: its end changes nothing the worker keeps, so it
+                // need not wake it.
                 let peer = Arc::clone(self.peer);
-                self.tasks.spawn(async move {
+                platform::spawn_local(async move {
                     let answered = match set {
                         Some(mode) => peer.set_notify_mode(block, mode).await.map(|()| mode),
                         None => peer.notify_mode(block).await,

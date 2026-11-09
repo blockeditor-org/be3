@@ -104,10 +104,14 @@ fn access(workspace: Workspace, info: &TabInfo) -> MenuNode {
 }
 
 /// How the account is notified about the block: every notification, only those that mention
-/// it, or none.
+/// it, or none. Read here rather than in `TabInfo`, so the host's answer changes the menu and
+/// nothing else about the tab.
 fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
-    let mode = info.notify?;
+    if !info.access.can_view() {
+        return None;
+    }
     let id = info.item.id;
+    let mode = workspace.notify_mode(id)?;
     let modes = [
         (NotifyMode::All, "all", "All"),
         (NotifyMode::Mentions, "mentions", "Mentions only"),
