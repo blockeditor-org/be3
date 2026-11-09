@@ -1,6 +1,6 @@
 # Presentation editor: later features
 
-Depends on: plans/presentation.md (the presenter view needs speaker notes).
+Depends on: none (speaker notes, which the presenter view shows, are `Slide.notes`).
 
 Recommendations only, set aside until the user picks them. The deck's model is
 `crates/be-type-presentation/src/presentation.rs`, its editor

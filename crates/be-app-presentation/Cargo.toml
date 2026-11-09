@@ -16,6 +16,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 be-sdk-test = { path = "../be-sdk-test" }
+be-type-text = { path = "../be-type-text" }
 
 [lints]
 workspace = true

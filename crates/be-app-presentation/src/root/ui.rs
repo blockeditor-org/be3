@@ -6,7 +6,8 @@ use be_sdk_beui::beui::dock::{
     DockBar, DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize,
 };
 use be_sdk_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
+    ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_COPY_PLUS, ICON_ELLIPSIS, ICON_MAXIMIZE,
+    ICON_STICKY_NOTE_PLUS, ICON_UNLINK, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -14,13 +15,15 @@ use be_sdk_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
 use be_sdk_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
 use uuid::Uuid;
 
-use super::slides::Slides;
+use super::slides::{Notes, Slides};
 use beui::{Align, Direction};
 
 const FILMSTRIP: &str = "filmstrip";
 const STAGE: &str = "stage";
 const TOOLBAR: &str = "toolbar";
+const NOTES: &str = "notes";
 const FILMSTRIP_WIDTH: f32 = 240.0;
+const NOTES_HEIGHT: f32 = 160.0;
 const THUMBNAIL_WIDTH: Size = Size::Custom(176.0);
 const PLAYBACK_HEIGHT: Size = Size::Xl2;
 const SLIDE_HEIGHT: f32 = 540.0;
@@ -52,6 +55,19 @@ pub fn PresentationView(editor: Editor) -> NodeId {
         false => ColorRole::Background,
     });
     let keys = move |press: KeyPress| presenting.get_untracked() && navigate(slides, press);
+    let read_only = editor.read_only();
+    let duplicable = create_memo(move || {
+        docked.get() && !read_only.get() && slides.target(slides.selected().get()).is_some()
+    });
+    let duplicate = Action::new("presentation.duplicate", "Duplicate slide", move || {
+        if let Some(id) = slides.selected().get_untracked() {
+            slides.duplicate(id);
+        }
+    })
+    .glyph(ICON_COPY_PLUS)
+    .shortcut(Chord::ctrl(Key::D))
+    .enabled(duplicable)
+    .register();
 
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
@@ -61,6 +77,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                         <DeckDock
                             editor={editor}
                             slides={slides}
+                            duplicate={duplicate.clone()}
                             stage={docked_stage}
                             selected={slides.selected()}
                         />
@@ -94,6 +111,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 fn DeckDock(
     editor: Editor,
     slides: Slides,
+    duplicate: Action,
     stage: NodeRef,
     selected: ReadSignal<Option<Uuid>>,
 ) -> NodeId {
@@ -103,23 +121,34 @@ fn DeckDock(
             <DockSplit id="deck" size={SplitSize::First(FILMSTRIP_WIDTH)}>
                 <DockPane id="filmstrip" locked=true>
                     <DockTab id=FILMSTRIP title="Slides">
-                        <Filmstrip editor={editor} slides={slides} />
+                        <Filmstrip editor={editor} slides={slides} duplicate={duplicate.clone()} />
                     </DockTab>
                 </DockPane>
-                <DockPane id="stage" locked=true bare=true>
-                    <DockTab id=STAGE title="Slide">
-                        <Stage
-                            @node_ref={&stage}
-                            editor={editor}
-                            slides={slides}
-                            selected={selected}
-                            mode=ChildMode::Live
-                            own_frame=true
-                            fit=false
-                            report_size=false
-                        />
-                    </DockTab>
-                </DockPane>
+                <DockSplit
+                    id="slide"
+                    direction=Direction::Vertical
+                    size={SplitSize::Second(NOTES_HEIGHT)}
+                >
+                    <DockPane id="stage" locked=true bare=true>
+                        <DockTab id=STAGE title="Slide">
+                            <Stage
+                                @node_ref={&stage}
+                                editor={editor}
+                                slides={slides}
+                                selected={selected}
+                                mode=ChildMode::Live
+                                own_frame=true
+                                fit=false
+                                report_size=false
+                            />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane id="notes" locked=true>
+                        <DockTab id=NOTES title="Notes">
+                            <SpeakerNotes editor={editor} slides={slides} />
+                        </DockTab>
+                    </DockPane>
+                </DockSplit>
             </DockSplit>
             <DockBar
                 id=TOOLBAR
@@ -340,7 +369,79 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
 }
 
 #[component]
-fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
+fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
+    let read_only = editor.read_only();
+    let selected = slides.selected();
+    let notes = create_memo(move || {
+        selected
+            .get()
+            .and_then(|id| slides.slide(id))
+            .map_or(Notes::Loading, |slide| slide.notes)
+    });
+    let target = create_memo(move || match notes.get() {
+        Notes::Block(target) => Some(target),
+        Notes::None | Notes::Loading => None,
+    });
+    let missing = create_memo(move || notes.get() == Notes::None);
+    let written = create_memo(move || target.get().is_some());
+    let focus = slides.focus_notes();
+    let add = move || {
+        if let Some(id) = selected.get_untracked() {
+            slides.add_notes(id);
+        }
+    };
+    let placed = move |state: ChildState| {
+        let wanted = focus.get_untracked();
+        if let Some(child) = state.child
+            && wanted.is_some()
+            && wanted == target.get_untracked().map(|target| target.id)
+        {
+            focus.set(None);
+            editor.host().focus_child(child);
+        }
+    };
+    view! {
+        <Frame fill=ColorRole::Surface>
+            <Layers>
+                <Show condition={missing}>
+                    <List spacing=Space::None>
+                        <Frame padding=FILMSTRIP_PADDING>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <Text style=TextStyle::CAPTION>"This slide has no speaker notes."</Text>
+                                <Button
+                                    glyph=ICON_STICKY_NOTE_PLUS
+                                    label="Add notes"
+                                    disabled={read_only}
+                                    on_click={add}
+                                    @test_id={"presentation.notes.add"}
+                                />
+                            </List>
+                        </Frame>
+                    </List>
+                </Show>
+                <Show condition={written}>
+                    <ChildBlock
+                        editor={editor}
+                        block={target}
+                        mode=ChildMode::Live
+                        own_frame=true
+                        on_state={placed}
+                        @test_id={"presentation.notes"}
+                    >|handle: ChildBlockHandle|
+                        <SlideStatus state={handle.state} />
+                    </ChildBlock>
+                </Show>
+            </Layers>
+        </Frame>
+    }
+}
+
+#[component]
+fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
     let keys = slides.keys();
     let read_only = editor.read_only();
     let selection = create_selector(move || slides.selected().get());
@@ -414,6 +515,7 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
                                                 <SlideTile
                                                     editor={editor}
                                                     slides={slides}
+                                                    duplicate={duplicate.clone()}
                                                     reorder={reorder}
                                                     selected={selection.memo(Some(id))}
                                                     id={id}
@@ -435,6 +537,7 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
 fn SlideTile(
     editor: Editor,
     slides: Slides,
+    duplicate: Action,
     reorder: ReorderHandle<Uuid, Uuid>,
     selected: Prop<bool>,
     id: Uuid,
@@ -460,6 +563,12 @@ fn SlideTile(
 
     let select = move || slides.select(Some(id));
     let remove = move || slides.remove(id);
+    let menu = create_signal(false);
+    create_effect(move || {
+        if menu.get() {
+            untrack(|| slides.select(Some(id)));
+        }
+    });
     let tile = NodeRef::new();
     let area = be_sdk_beui::beui::unstyled::container_size();
     create_effect(move || {
@@ -510,14 +619,26 @@ fn SlideTile(
                         <ListItem grow=1.0>
                             <Text overflow=Overflow::Ellipsis style=TextStyle::CAPTION>{name}</Text>
                         </ListItem>
-                        <Button
+                        <MenuButton
                             icon_only=true
-                            glyph=ICON_TRASH
-                            label="Detach slide"
-                            disabled={read_only}
-                            capture_presses=true
-                            on_click={remove}
-                            @test_id={format!("presentation.slide.{id}.remove")}
+                            variant=ButtonVariant::Ghost
+                            label="More"
+                            glyph=ICON_ELLIPSIS
+                            open={menu}
+                            @test_id={format!("presentation.slide.{id}.more")}
+                            items={view! {
+                                <MenuItem
+                                    action={duplicate}
+                                    row_test_id={format!("presentation.slide.{id}.duplicate")}
+                                />
+                                <MenuItem
+                                    label="Detach slide"
+                                    glyph=ICON_UNLINK
+                                    disabled={read_only}
+                                    row_test_id={format!("presentation.slide.{id}.remove")}
+                                    on_click={remove}
+                                />
+                            }}
                         />
                     </List>
                 </List>
