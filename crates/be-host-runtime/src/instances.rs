@@ -32,6 +32,7 @@ use super::{
 use be_host_base::{host, performance};
 
 mod cuts;
+mod network;
 mod services;
 
 thread_local! {
@@ -64,6 +65,7 @@ pub(super) struct Instances {
     network: Vec<String>,
     app_id: String,
     services: services::Services,
+    fetches: network::Fetches,
     epoch: u64,
     graph_seen: Option<u64>,
     mail: Mail,
@@ -85,6 +87,7 @@ struct Mail {
     head_reads: (host::Mailbox, host::Post<HeadRead>),
     audio_changes: (host::Mailbox, host::Post<EditorInstanceId>),
     answers: (host::Mailbox, host::Post<services::Delivered>),
+    fetched: (host::Mailbox, host::Post<network::Arrived>),
 }
 
 impl Default for Mail {
@@ -95,6 +98,7 @@ impl Default for Mail {
             head_reads: desk.mailbox(Instances::head_read),
             audio_changes: desk.mailbox(Instances::audio_changed),
             answers: desk.mailbox(Instances::service_answered),
+            fetched: desk.mailbox(Instances::arrived),
         }
     }
 }
@@ -3940,7 +3944,9 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
         return false;
     };
     let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
-    hosts.iter().any(|allowed| allowed == host)
+    hosts
+        .iter()
+        .any(|allowed| allowed == be_sdk_manifest::ANY_HOST || allowed == host)
 }
 
 fn only_moved(sent: Option<AnchorSpace>, now: Option<AnchorSpace>) -> bool {

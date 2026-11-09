@@ -1,0 +1,55 @@
+package be3:app@0.1.0;
+
+/// The network an app reaches through its host, its only one on every
+/// platform: an app has no sockets of its own. The shapes follow what a
+/// browser's `fetch` offers, since the web is the narrowest host. An editor
+/// makes every call for itself, its `editor` the call's parent, so closing the
+/// editor ends whatever it still has open.
+interface network {
+    use types.{failure};
+
+    /// One header of a request or response. Names are compared without case.
+    record header {
+        name: string,
+        value: string,
+    }
+
+    /// What `fetch` sends: any method a browser allows (`GET`, `POST`, ...),
+    /// an `https://` URL the manifest's `network` reaches, and the body, empty
+    /// for none. The host adds no credentials of its own; in a browser CORS
+    /// applies as it does to the page.
+    record request {
+        method: string,
+        url: string,
+        headers: list<header>,
+        body: list<u8>,
+    }
+
+    /// The status and headers of a response, whatever the status: a 404 or a
+    /// 500 is a response, not a failure.
+    record response-head {
+        status: u16,
+        headers: list<header>,
+    }
+
+    /// One request and its response. Dropping it aborts the request, and the
+    /// body with it.
+    resource fetch {
+        /// Sends `request`, refused unless the manifest's `network` reaches
+        /// its URL.
+        constructor(request: request);
+        /// The response's status and headers once they arrive, or why none
+        /// came.
+        response: async func() -> result<response-head, failure>;
+        /// The response's body as it arrives, no further ahead than the app's
+        /// credit allows, so no limit applies to its length. It ends once the
+        /// body is whole; a failed item, which ends it too, says why the rest
+        /// did not arrive.
+        body: func() -> stream<result<list<u8>, failure>>;
+    }
+
+    /// Opens `url`, an `http://` or `https://` link, in the system's browser,
+    /// or a new tab on the web. Where the browser blocks a tab the app opened,
+    /// the host shows the link for the person to press instead.
+    open-url: async func(url: string) -> result<_, failure>;
+}

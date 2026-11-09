@@ -1813,6 +1813,7 @@ dependencies = [
  "be-wasm-guest-abi",
  "beui-lucide",
  "beui-paint-format",
+ "serde",
  "serde_bytes",
  "serde_json",
  "uuid",

@@ -115,7 +115,6 @@ impl crate::embed::host_services::Call {
             }
             Self::PickFile { .. }
             | Self::SaveFile { .. }
-            | Self::Fetch { .. }
             | Self::ListData { .. }
             | Self::ReadData { .. } => {}
         }

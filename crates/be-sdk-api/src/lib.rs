@@ -145,6 +145,7 @@ mod accesskit_mirror;
 mod block_ids;
 mod desktop_types;
 mod docking;
+mod fetching;
 mod input;
 mod nesting;
 mod opening;

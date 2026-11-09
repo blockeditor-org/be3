@@ -1,9 +1,9 @@
 # WebSocket, raw sockets and WebRTC for apps
 
-Depends on: plans/app_network.md.
+Depends on: none.
 
-The rest of the network interface (plans/app_network.md), set aside until an
-app needs it.
+The rest of the `network` interface (`crates/be-sdk-api/wit/network.wit`,
+which has `fetch` and `open-url`), set aside until an app needs it.
 
 - **WebSocket**: a resource opened with a URL and subprotocols, with `send`
   (text or binary), a stream of messages that ends on close, and `close`. No

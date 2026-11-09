@@ -8,11 +8,11 @@ use be_sdk_api::{
 };
 use uuid::Uuid;
 
-use super::{Instances, allowed};
+use super::Instances;
 use crate::wire::Service;
 use be_host_base::{
     host,
-    platform::http::{self, AbortFlag, Aborted},
+    platform::http::{AbortFlag, Aborted},
 };
 use be_host_stack::{discovery, revisions};
 
@@ -168,21 +168,21 @@ impl Instances {
         id
     }
 
+    /// Whether `instance` shows a revision preview, which may read but change nothing.
+    pub(super) fn previewing(&self, instance: EditorInstanceId) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.role.block())
+            .is_some_and(|block| revisions::source(block.id).is_some())
+    }
+
     pub fn serve(&mut self, service: Service) {
         let Service { instance, mut call } = service;
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
-        let previewing = self
-            .entries
-            .get(&instance)
-            .and_then(|entry| entry.role.block())
-            .is_some_and(|block| revisions::source(block.id).is_some());
-        if previewing
-            && !matches!(
-                call,
-                Call::Fetch { .. } | Call::ReadData { .. } | Call::ListData { .. }
-            )
+        if self.previewing(instance)
+            && !matches!(call, Call::ReadData { .. } | Call::ListData { .. })
         {
             return self.refuse(call, OpError::Denied);
         }
@@ -424,17 +424,6 @@ impl Instances {
                     answering.send_or_fail(made)
                 });
             }
-            Call::Fetch { reply, url } => {
-                if !allowed(&url, &self.network) {
-                    return self.answer_now(reply, Err(Failure::Denied));
-                }
-                let op = reply.op();
-                let answering = self.answering(instance, reply);
-                let aborted = self.services.serving[&op].aborted.clone();
-                http::fetch(url, Vec::new(), aborted, move |body| {
-                    answering.send_or_fail(body)
-                });
-            }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);
                 discovery::data_listing(&self.app_id, move |index| {
@@ -454,6 +443,9 @@ impl Instances {
     }
 
     pub fn withdraw(&mut self, op: OpId) {
+        if self.fetch_ended(op) {
+            return;
+        }
         let Some(work) = self.services.serving.remove(&op) else {
             return;
         };
@@ -471,9 +463,11 @@ impl Instances {
         for op in ops {
             self.withdraw(op);
         }
+        self.forget_fetches(Some(instance));
     }
 
     pub(super) fn forget_services(&mut self) {
+        self.forget_fetches(None);
         for (_, work) in self.services.serving.drain() {
             work.aborted.abort();
         }

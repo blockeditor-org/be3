@@ -15,7 +15,9 @@ Rust on both sides is generated from it into this crate. The world imports:
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
   the shell around it, its menus, children, audio, web views and creations;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
-  waits for, files, revisions, access, fetches and staged data;
+  waits for, files, revisions, access and staged data;
+- `network` (`network.wit`): the app's only network, its fetches and the links
+  it opens;
 - `account` and `contacts` (`account.wit`): whether the account administers its
   company, the base of block links, where preferences come from, and the
   account's contacts, which the host answers only to the shell;
@@ -367,14 +369,23 @@ client. The host answers with what its player is doing - whether it is
 playing, where it is, how long the audio is once it knows, and why it could
 not play - and repeats that answer whenever any of it changes.
 
-An editor instance may ask the host to fetch a URL for it, which is the only
+An editor instance may send HTTP requests through the host, which is the only
 network an app has: an app runs with no sockets of its own, and its block
-client already reaches the server through the host's connection. The request
-carries the URL and is answered exactly once, with the body the host read or
-with why it could not be read. Requests are identified per instance and may be
-outstanding together. The host refuses a URL that is not https, or whose host
-name is not one the app's manifest names, and reports the refusal as an
-ordinary failure rather than as a protocol error.
+client already reaches the server through the host's connection. The shapes
+follow a browser's `fetch`, the narrowest host. A request is a resource the
+instance opens with the whole request (method, URL, headers, body); the host
+answers once with the response's status and headers, whatever the status, or
+with why no response came, and streams the body as it arrives, no further
+ahead than the instance's credit, so no limit applies to its length. A body
+that stops arriving ends with why. Dropping the request aborts it. The host
+adds no credentials of its own and knows no outside service. It refuses a URL
+that is not https, or whose host name is not one the app's manifest names
+(`"*"` names every one), as an ordinary failure rather than a protocol error.
+In a browser CORS applies, as it does to the page.
+
+An editor instance may ask the host to open a link in the system's browser, or
+in a new tab on the web. A browser blocks a tab opened long after the press
+that led to it, so the web host then shows the link for the person to press.
 
 An editor instance may read the files its app was staged with, which are
 read-only data the build lays out beside the host rather than anything an

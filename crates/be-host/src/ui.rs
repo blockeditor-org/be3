@@ -33,23 +33,27 @@ thread_local! {
 }
 
 const COPY_REPORT: &str = "copy-report";
+const OPEN_LINK: &str = "open-link";
 
 pub(crate) fn notice_toasts() -> Vec<Toast> {
     be_host_base::notices::shown()
         .into_iter()
-        .map(|notice| Toast {
-            id: notice.id,
-            message: notice.message,
-            danger: true,
-            actions: notice
-                .report
-                .iter()
-                .map(|_| ToastAction {
-                    key: COPY_REPORT.to_owned(),
-                    label: "Copy report".to_owned(),
-                })
-                .collect(),
-            ..Toast::default()
+        .map(|notice| {
+            let report = notice.report.iter().map(|_| ToastAction {
+                key: COPY_REPORT.to_owned(),
+                label: "Copy report".to_owned(),
+            });
+            let link = notice.link.iter().map(|_| ToastAction {
+                key: OPEN_LINK.to_owned(),
+                label: "Open".to_owned(),
+            });
+            Toast {
+                id: notice.id,
+                message: notice.message,
+                danger: notice.link.is_none(),
+                actions: report.chain(link).collect(),
+                ..Toast::default()
+            }
         })
         .collect()
 }
@@ -649,6 +653,14 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                         && let Some(report) = be_host_base::notices::report_of(id)
                     {
                         copy(Clip::text(report));
+                    }
+                    if key == OPEN_LINK
+                        && let Some(link) = be_host_base::notices::link_of(id)
+                    {
+                        if let Err(error) = be_host_base::platform::open_link(&link) {
+                            be_host_base::notices::report(error);
+                        }
+                        send(UiCommand::DismissToast(id));
                     }
                 }}
             />

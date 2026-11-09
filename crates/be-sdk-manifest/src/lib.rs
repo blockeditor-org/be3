@@ -38,6 +38,9 @@ pub struct AppManifest {
 
 pub const EXTENSIONS: &[&str] = &["be3:desktop"];
 
+/// The `network` entry that reaches every host, over https only like any other.
+pub const ANY_HOST: &str = "*";
+
 pub fn extension_of(interface: &str) -> Option<&'static str> {
     let package = interface.split_once('/')?.0;
     EXTENSIONS
@@ -258,9 +261,10 @@ impl AppManifest {
         manifest_string("entry point", &self.entry_point)?;
         for host in &self.network {
             manifest_string("network host", host)?;
-            if !host
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+            if host != ANY_HOST
+                && !host
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
             {
                 return Err(ManifestError::InvalidNetworkHost);
             }

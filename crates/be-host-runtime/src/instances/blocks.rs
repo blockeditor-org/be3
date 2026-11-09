@@ -384,6 +384,9 @@ impl Instances {
     }
 
     pub fn ended(&mut self, op: OpId) {
+        if self.fetch_ended(op) {
+            return;
+        }
         let Some(instance) = self.owners.remove(&op) else {
             return;
         };

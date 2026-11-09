@@ -1,11 +1,10 @@
 package be3:app@0.1.0;
 
-/// What an editor asks of its host and waits for: files and their dialogs, the
-/// network, a block's revisions, who it is shared with, and blocks to
-/// import. An editor makes every call for itself, its `editor` the call's
-/// parent, so closing the editor cancels whatever it still waits on: the host
-/// drops that work (a fetch, an import or export not yet made) and answers
-/// `canceled`.
+/// What an editor asks of its host and waits for: files and their dialogs, a
+/// block's revisions, who it is shared with, and blocks to import. An editor
+/// makes every call for itself, its `editor` the call's parent, so closing the
+/// editor cancels whatever it still waits on: the host drops that work (an
+/// import or export not yet made) and answers `canceled`.
 interface host-services {
     use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, commit-id};
     use be3:shared/access@0.1.0.{access-level};
@@ -120,9 +119,6 @@ interface host-services {
 
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;
-
-    /// A GET of `url`, refused unless the app's manifest names its host.
-    fetch: async func(url: string) -> result<list<u8>, failure>;
 
     /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;

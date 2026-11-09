@@ -13,6 +13,7 @@ be-sdk-ui = { path = "../be-sdk-ui" }
 beui-lucide = { path = "../beui-lucide" }
 be-lib-geometry = { path = "../be-lib-geometry" }
 beui-paint-format = { path = "../beui-paint-format" }
+serde = "1"
 serde_bytes = "0.11"
 serde_json = "1"
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }

@@ -2,6 +2,7 @@ extern crate be_sdk_beui_platform as _;
 
 mod beui;
 mod document;
+mod fetches;
 mod link;
 mod store;
 #[cfg(test)]
@@ -14,4 +15,5 @@ pub use be_sdk_api::{
 };
 pub use beui::{BeuiTest, HostCall};
 pub use document::DocumentTest;
+pub use fetches::Fetch;
 pub use store::ContentStore;
