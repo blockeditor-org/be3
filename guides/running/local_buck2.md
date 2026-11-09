@@ -52,8 +52,9 @@ build server.
 
 `./scripts/verify` runs whole here, with nothing skipped: every compile, lint and test, the host
 tests, and the browser tests (`web_drive_test`, `page_test` in buck/program/drive.bzl), which run
-on this machine in any case, in Node with Playwright's Chromium from `~/.cache/ms-playwright` (or
-`BE3_CHROME`). Lavapipe, the D-Bus daemon and the XKB keymaps come from `buck/sysroot:amd64-test`.
+here like every action, with the pinned Node and headless Chromium (buck/tools) and Chromium's libraries from
+`buck/sysroot:amd64-browser`: nothing to install. Lavapipe, the D-Bus daemon and the XKB keymaps come from
+`buck/sysroot:amd64-test`.
 On 8 cores with `rustc_threads = 2`, measured:
 
 - **Nothing changed, daemon running**: 3 seconds.

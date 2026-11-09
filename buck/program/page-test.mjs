@@ -55,7 +55,7 @@ const temporary = await mkdtemp("/tmp/be3-page-test-");
 const { chromium } = playwright();
 const browser = await chromium.launch({
     executablePath: process.env.BE3_CHROME || chromium.executablePath(),
-    args: ["--no-sandbox"],
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
     env: { ...process.env, TMPDIR: temporary },
 });
 let failed = true;

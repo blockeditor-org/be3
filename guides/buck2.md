@@ -206,9 +206,10 @@ again while every passing one still comes from the cache.
 - Tests that draw (beui-renderer-wgpu, be-host-wayland, beui-platform-drm, ...) use lavapipe from
   `buck/sysroot:amd64-test` (`amd64-xr` adds Monado). The workers replace `LD_LIBRARY_PATH`, so a
   test's `env` that names it reaches the test through the launcher's `--library-path`.
-- **Browser tests** (`web_drive_test` and `page_test` in buck/program/drive.bzl) run on this
-  machine, since workers have no browser, and need Node, `playwright` and Chromium
-  (guides/testing_a_gui.md, 7).
+- **Browser tests** (`web_drive_test` and `page_test` in buck/program/drive.bzl) run on a worker like any
+  test, with Node, Playwright and Playwright's headless Chromium as pinned downloads (buck/tools) and the
+  libraries Chromium loads that the workers' image lacks from `buck/sysroot:amd64-browser`
+  (guides/testing_a_gui.md, 7). Nothing is installed on the machine that builds.
 - **Compile-fail tests** live in `compile_fail/`, outside `crates/` so `build //crates/...` does not
   fail on them: `compile_fail(name, deps)` passes when every line marked
   `//~ ERROR <part of message>` has that error and no other line has one.

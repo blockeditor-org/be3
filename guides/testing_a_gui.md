@@ -277,10 +277,11 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
   `web_drive_test` in buck/program/drive.bzl); verify runs it as `:web-test[run]`. Reading
   commands go to beui-core-html's `automate`; input is real Playwright input aimed where
   `reveal` says, so the browser's own focus, key and IME paths run. It also runs the page's
-  `checks()` (src/web/live.rs). It runs on this machine, not a worker, and needs `BE3_CHROME`
-  or Playwright's Chromium plus Node's `playwright` package (global, or `npm ci` in
-  buck/program/browser-tests with `NODE_PATH` at its node_modules); without them it fails
-  rather than skipping.
+  `checks()` (src/web/live.rs). It runs on a worker, like any test, with Node, Playwright and
+  Playwright's headless Chromium pinned in buck/tools (the versions buck/program/browser-tests'
+  lockfile names) and Chromium's libraries from `buck/sysroot:amd64-browser`; it fails rather than
+  skipping when the browser is missing. To run it by hand, set `BE3_CHROME` to a Chrome or
+  Chromium and put Node's `playwright` package on `NODE_PATH`.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`; in a browser,
   serve `:web` with COOP `same-origin` and COEP `require-corp` and open
   `index.html?fixture=NAME`.

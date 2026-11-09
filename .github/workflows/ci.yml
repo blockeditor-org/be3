@@ -145,16 +145,15 @@ jobs:
             "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
           fi
 
-      # What the browser tests (web_drive_test in buck/program/drive.bzl) drive
-      # Chrome with, on this runner since the workers have no browser:
-      # Playwright's Node package, installed from buck/program/browser-tests'
-      # lockfile and found through NODE_PATH, with the Google Chrome the runner
-      # image already has, as the previews use it. An image without Chrome
-      # falls back to Playwright's own Chromium. A pull request older than the
-      # browser tests has no lockfile there and skips this.
+      # What the browser tests drove Chrome with, on this runner while workers had no browser: Playwright's Node
+      # package from buck/program/browser-tests' lockfile, found through NODE_PATH, with the Google Chrome the
+      # runner image already has. The tests now run on a worker with their own pinned browser (buck/tools), so this
+      # installs only for a checkout whose drive.bzl still runs them here, such as a pull request opened before
+      # that changed, which this workflow also runs on.
       - name: Install the browser tests' runtime
         if: ${{ !cancelled() && hashFiles('buck/program/browser-tests/package-lock.json') != '' }}
         run: |
+          grep -q 'local = True' buck/program/drive.bzl || exit 0
           npm ci --prefix buck/program/browser-tests --no-audit --no-fund
           echo "NODE_PATH=$GITHUB_WORKSPACE/buck/program/browser-tests/node_modules" >> "$GITHUB_ENV"
           if chrome="$(command -v google-chrome)"; then

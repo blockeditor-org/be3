@@ -125,7 +125,7 @@ const origin = `http://127.0.0.1:${server.address().port}/`;
 const temporary = await mkdtemp("/tmp/be3-web-test-");
 const browser = await chromium.launch({
     executablePath,
-    args: ["--no-sandbox"],
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
     env: { ...process.env, TMPDIR: temporary },
 });
 
