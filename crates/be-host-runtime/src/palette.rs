@@ -38,6 +38,7 @@ pub(crate) fn ask(app: &str, instance: EditorInstanceId, mode: PaletteMode) {
             mode,
         });
     });
+    be_host_base::host::request_repaint();
 }
 
 pub fn take_palette_asks() -> Vec<PaletteAsk> {

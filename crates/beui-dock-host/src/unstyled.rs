@@ -946,6 +946,19 @@ impl State {
         }
     }
 
+    /// Whether `close_entry` would close anything: the host tab of a pinned group, else every
+    /// tab of the entry.
+    fn entry_closable(&self, entry: Entry) -> bool {
+        if let Entry::Group(group) = entry
+            && self.state.with(|state| state.is_pinned(group))
+        {
+            return untrack(|| self.group_host.call(group))
+                .is_some_and(|host| self.closable.call(host));
+        }
+        let tabs = self.state.with(|state| state.entry_tabs(entry));
+        !tabs.is_empty() && tabs.iter().all(|tab| self.closable.call(*tab))
+    }
+
     fn close_entry(&self, entry: Entry) {
         if let Entry::Group(group) = entry
             && self.state.with_untracked(|state| state.is_pinned(group))
@@ -4206,12 +4219,10 @@ fn tab_actions(dock: State, area: NodeRef) {
                 .is_some_and(|leaf| state.entries(leaf).len() > 1)
         })
     });
+    // Close tab closes the entry the focused pane shows, so it is enabled by that entry's tabs.
     let closable = create_memo(move || {
-        dock.state.with(|state| {
-            state
-                .focused_tab()
-                .is_some_and(|tab| dock.closable.call(tab))
-        })
+        dock.shown_entry()
+            .is_some_and(|(_, entry)| dock.entry_closable(entry))
     });
     let at = KeyAt::Node(area);
     Action::new("dock.tab.next", "Next tab", move || dock.cycle(false))

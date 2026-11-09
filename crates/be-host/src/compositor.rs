@@ -33,6 +33,8 @@ thread_local! {
     static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
     static SHELL: RefCell<Option<Signal<Option<uuid::Uuid>>>> = const { RefCell::new(None) };
+    static PALETTE_ASKS: RefCell<Option<Signal<(u64, Vec<be_host_runtime::PaletteAsk>)>>> =
+        const { RefCell::new(None) };
 }
 
 pub(crate) fn install() {
@@ -43,6 +45,32 @@ pub(crate) fn install() {
     ANY.with(|any| *any.borrow_mut() = Some(signal));
     let shell = create_signal(None);
     SHELL.with(|held| *held.borrow_mut() = Some(shell));
+    let asks = create_signal((0, Vec::new()));
+    PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
+}
+
+/// What apps asked of the host's palette (`shell.open-palette`) since it last heard, with a
+/// count that moves with each batch.
+pub(crate) fn palette_asks() -> ReadSignal<(u64, Vec<be_host_runtime::PaletteAsk>)> {
+    PALETTE_ASKS.with(|asks| {
+        asks.borrow()
+            .as_ref()
+            .map(|asks| asks.read_only())
+            .expect("the compositor is installed while the document is built")
+    })
+}
+
+fn hand_over_palette_asks() {
+    let asked = be_host_runtime::take_palette_asks();
+    if asked.is_empty() {
+        return;
+    }
+    if let Some(asks) = PALETTE_ASKS.with(|asks| *asks.borrow()) {
+        asks.update(|(count, held)| {
+            *count += 1;
+            *held = asked;
+        });
+    }
 }
 
 pub(crate) fn shell() -> ReadSignal<Option<uuid::Uuid>> {
@@ -110,6 +138,7 @@ pub(crate) fn notify() {
     apply_shell();
     desktop::apply();
     crate::surfaces::apply();
+    hand_over_palette_asks();
     notify_apps();
 }
 

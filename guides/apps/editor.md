@@ -175,14 +175,18 @@ is sent whether or not anything asks the app to describe: be-sdk-beui-platform
 follows the document's `PublishedActions`, which an effect in beui's action
 registry keeps (`Context::document_actions`), so a label or enabled state
 changing sends the list again with no per-frame comparison. The host keeps
-each instance's lists and runs one with `app.run-action(screen, id)`, which
+each view's list for as long as the instance lives, offers a window's or dock
+view's only while it shows that view (the main view's always), and runs one with `app.run-action(screen, id)`, which
 the guest resolves through `request_action_in` and runs only if still
 enabled. `BeuiTest::described_actions` and `run_action` do what the host does.
 
 be-host draws the one palette (`be-host/src/compositor/palette.rs`, Ctrl+Shift+P
 in a window capture key listener that leaves the chord to a focused Wayland
-window, or `shell.open-palette` from an instance showing a view): the live
-actions of the instance whose view has the focus, then of the instance that
+window and, pressed again, closes the palette; or `shell.open-palette` from an
+instance that shows a view and has the keyboard or was just picked from its
+frame menu, which reaches the palette through its own signal,
+`compositor::palette_asks`): the live actions of the instance whose view has
+the focus, then of the instance that
 placed it (`Catcher::placer`), out to the root, each under its block's name,
 every shown view's of an instance with the placing view's first. Ids repeat across instances (each
 has its Undo; the innermost lists first), never within one. Choosing one gives
@@ -195,8 +199,8 @@ chords do not reach it while a child has the focus
 
 `open-palette(instance, blocks)` is quick open: the workspace's Ctrl+P (while
 the workspace itself has the focus) asks for it, and the host lists blocks to
-open from a `BlockSource` (`palette.rs`): handed the query and a count of
-openings, it answers a memo of blocks already filtered and ordered, which the
+open from a `BlockSource` (`palette.rs`): handed quick open's query and which
+opening this is (0 while the palette lists actions), it answers a memo of blocks already filtered and ordered, which the
 palette keeps (`PaletteItem::ranked`). The default, `loaded_blocks`, reads the
 graph's placed, viewable blocks of a type an editor shows each time quick
 open opens (open ones first) and matches them fuzzily; plans/search.md swaps in

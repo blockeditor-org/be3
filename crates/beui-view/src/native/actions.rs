@@ -47,6 +47,10 @@ pub(crate) fn watch_focused() -> crate::reactive::ReadSignal<Option<NodeId>> {
     with_document(|document| document.watch_focused())
 }
 
+pub(crate) fn watch_window_hosts() -> Option<crate::reactive::ReadSignal<Vec<(WindowId, WindowId)>>> {
+    Some(with_document(|document| document.watch_window_hosts()))
+}
+
 pub(crate) fn intercepted_keys() -> impl Fn(Vec<KeyChord>) + 'static {
     let writer = with_document(|document| document.intercepted_keys_writer());
     move |chords| writer.set(chords)
