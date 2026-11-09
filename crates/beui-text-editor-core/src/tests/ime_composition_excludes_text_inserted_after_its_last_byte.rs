@@ -10,11 +10,11 @@ fn ime_composition_excludes_text_inserted_after_its_last_byte() {
         assert_eq!(core.composition(), Some(4..8));
 
         buffer.edit(Vec::new(), &mut |edit| edit.replace(8, 0, b"!"));
-        core.external_edit();
+        core.end_undo_group();
         assert_eq!(core.composition(), Some(4..8));
 
         buffer.edit(Vec::new(), &mut |edit| edit.replace(0, 0, b"> "));
-        core.external_edit();
+        core.end_undo_group();
         assert_eq!(core.composition(), Some(6..10));
         core.execute_command(EditorCommand::Ime(ImeCommand::CommitText("hello")));
         let read = buffer.read().unwrap();

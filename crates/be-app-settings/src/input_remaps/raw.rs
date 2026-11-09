@@ -42,7 +42,7 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
     let error = create_signal(None::<String>);
     let reload = move |text: String| {
         document.with(|document| replace(document, &text));
-        state.external_edit();
+        state.end_undo_group();
         loaded.with(|loaded| *loaded.borrow_mut() = text);
         error.set(None);
     };

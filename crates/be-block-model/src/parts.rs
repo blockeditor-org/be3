@@ -365,53 +365,169 @@ fn splice(mut parts: Vec<DocumentPart>, out: &mut Vec<DocumentPart>) -> (Stored,
     }
 }
 
+/// The deepest parts may nest, a part naming a part naming a part: a real
+/// document's nest only as deep as its list objects that outgrow a part, and
+/// its index levels.
+pub(crate) const DEEPEST_PARTS: usize = 64;
+
+/// The most bytes that parts named more than once may join into a document,
+/// beyond the stored bytes themselves, so a small stream naming its parts
+/// over and over cannot grow without bound.
+pub(crate) const MOST_REPEATED: usize = 1 << 30;
+
 /// Reads a document's stored bytes, written by `DocumentPart::write`: a CBOR
 /// sequence of parts, the root first. Returns the document as if it had been
 /// saved as one value, `{"format": N, "root": object}`.
 ///
 /// `write` puts each part's children right after it, each once, in the order
 /// the part first names them, so a name is found where its part sits, and
-/// the part's bytes must hash to it.
+/// the part's bytes must hash to it. Bytes left after the root's last part,
+/// parts nested deeper than `DEEPEST_PARTS`, or repeats past `MOST_REPEATED`
+/// are refused.
 pub fn read(bytes: &[u8]) -> Result<Stored, Malformed> {
-    let mut rest = bytes;
-    let (root, _) = next_part(&mut rest)?;
-    let whole = resolve(root, &mut rest)?;
-    match rest.is_empty() {
+    read_within(bytes, MOST_REPEATED)
+}
+
+/// `read`, letting repeated parts add at most `most_repeated` bytes.
+pub(crate) fn read_within(bytes: &[u8], most_repeated: usize) -> Result<Stored, Malformed> {
+    let mut reader = Reader {
+        rest: bytes,
+        depth: 0,
+        repeated: 0,
+        most_repeated,
+    };
+    let (root, _) = reader.next_part()?;
+    let whole = reader.resolve(root)?;
+    match reader.rest.is_empty() {
         true => Ok(whole),
         false => Err(Malformed),
     }
 }
 
-/// The next part in `rest`, and its bytes.
-fn next_part<'a>(rest: &mut &'a [u8]) -> Result<(Stored, &'a [u8]), Malformed> {
-    let before: &'a [u8] = rest;
-    if before.is_empty() {
-        return Err(Malformed);
-    }
-    let value = ciborium::from_reader(&mut *rest).map_err(|_| Malformed)?;
-    Ok((value, &before[..before.len() - rest.len()]))
-}
-
-/// Puts back into a part's `value` every part it names, read from `rest`.
-fn resolve(value: Stored, rest: &mut &[u8]) -> Result<Stored, Malformed> {
-    let mut names = HashMap::new();
-    count_names(&value, &mut names)?;
-    let mut parts = Parts {
-        repeated: names
-            .into_iter()
-            .filter(|(_, count)| *count > 1)
-            .map(|(hash, _)| hash)
-            .collect(),
-        held: HashMap::new(),
-    };
-    join(value, rest, &mut parts)
+struct Reader<'a> {
+    rest: &'a [u8],
+    depth: usize,
+    repeated: usize,
+    most_repeated: usize,
 }
 
 /// The parts one part names: those it names more than once, kept after the
-/// first for the rest.
+/// first for the rest, with their sizes.
 struct Parts {
     repeated: HashSet<Hash>,
-    held: HashMap<Hash, Stored>,
+    held: HashMap<Hash, (Stored, usize)>,
+}
+
+impl<'a> Reader<'a> {
+    /// The next part, and its bytes.
+    fn next_part(&mut self) -> Result<(Stored, &'a [u8]), Malformed> {
+        let before = self.rest;
+        if before.is_empty() {
+            return Err(Malformed);
+        }
+        let value = ciborium::from_reader(&mut self.rest).map_err(|_| Malformed)?;
+        Ok((value, &before[..before.len() - self.rest.len()]))
+    }
+
+    /// Puts back into a part's `value` every part it names.
+    fn resolve(&mut self, value: Stored) -> Result<Stored, Malformed> {
+        if self.depth >= DEEPEST_PARTS {
+            return Err(Malformed);
+        }
+        self.depth += 1;
+        let mut names = HashMap::new();
+        count_names(&value, &mut names)?;
+        let mut parts = Parts {
+            repeated: names
+                .into_iter()
+                .filter(|(_, count)| *count > 1)
+                .map(|(hash, _)| hash)
+                .collect(),
+            held: HashMap::new(),
+        };
+        let joined = self.join(value, &mut parts);
+        self.depth -= 1;
+        joined
+    }
+
+    fn join(&mut self, value: Stored, parts: &mut Parts) -> Result<Stored, Malformed> {
+        Ok(match value {
+            Stored::Tag(PART, inner) => self.named(&inner, parts)?,
+            Stored::Tag(SPLICE, inner) => {
+                let Stored::Array(names) = *inner else {
+                    return Err(Malformed);
+                };
+                let mut joined: Option<Stored> = None;
+                for name in &names {
+                    let part = self.named(name, parts)?;
+                    joined = Some(match (joined, part) {
+                        (None, part @ (Stored::Bytes(_) | Stored::Array(_))) => part,
+                        (Some(Stored::Bytes(mut held)), Stored::Bytes(more)) => {
+                            held.extend(more);
+                            Stored::Bytes(held)
+                        }
+                        (Some(Stored::Array(mut held)), Stored::Array(more)) => {
+                            held.extend(more);
+                            Stored::Array(held)
+                        }
+                        _ => return Err(Malformed),
+                    });
+                }
+                joined.ok_or(Malformed)?
+            }
+            Stored::Tag(tag, inner) => Stored::Tag(tag, Box::new(self.join(*inner, parts)?)),
+            Stored::Array(items) => Stored::Array(
+                items
+                    .into_iter()
+                    .map(|item| self.join(item, parts))
+                    .collect::<Result<_, _>>()?,
+            ),
+            Stored::Map(entries) => Stored::Map(
+                entries
+                    .into_iter()
+                    .map(|(key, value)| Ok((self.join(key, parts)?, self.join(value, parts)?)))
+                    .collect::<Result<_, Malformed>>()?,
+            ),
+            other => other,
+        })
+    }
+
+    /// The part `name` names, whole: the next one in the stream the first
+    /// time, and the one read then if it is named again.
+    fn named(&mut self, name: &Stored, parts: &mut Parts) -> Result<Stored, Malformed> {
+        let hash = hash_in(name)?;
+        if let Some((held, size)) = parts.held.get(&hash) {
+            self.repeated = self.repeated.saturating_add(*size);
+            if self.repeated > self.most_repeated {
+                return Err(Malformed);
+            }
+            return Ok(held.clone());
+        }
+        let (part, bytes) = self.next_part()?;
+        if Hash::of(bytes) != hash {
+            return Err(Malformed);
+        }
+        let part = self.resolve(part)?;
+        if parts.repeated.contains(&hash) {
+            parts.held.insert(hash, (part.clone(), size(&part)));
+        }
+        Ok(part)
+    }
+}
+
+/// About how many bytes `value` holds, to count what repeats add.
+fn size(value: &Stored) -> usize {
+    match value {
+        Stored::Bytes(bytes) => bytes.len(),
+        Stored::Text(text) => text.len(),
+        Stored::Tag(_, inner) => 1 + size(inner),
+        Stored::Array(items) => items.iter().map(size).fold(1, usize::saturating_add),
+        Stored::Map(entries) => entries
+            .iter()
+            .map(|(key, value)| size(key).saturating_add(size(value)))
+            .fold(1, usize::saturating_add),
+        _ => 1,
+    }
 }
 
 fn count_names(value: &Stored, names: &mut HashMap<Hash, usize>) -> Result<(), Malformed> {
@@ -442,72 +558,12 @@ fn count_names(value: &Stored, names: &mut HashMap<Hash, usize>) -> Result<(), M
     Ok(())
 }
 
-fn join(value: Stored, rest: &mut &[u8], parts: &mut Parts) -> Result<Stored, Malformed> {
-    Ok(match value {
-        Stored::Tag(PART, inner) => named(&inner, rest, parts)?,
-        Stored::Tag(SPLICE, inner) => {
-            let Stored::Array(names) = *inner else {
-                return Err(Malformed);
-            };
-            let mut joined: Option<Stored> = None;
-            for name in &names {
-                let part = named(name, rest, parts)?;
-                joined = Some(match (joined, part) {
-                    (None, part @ (Stored::Bytes(_) | Stored::Array(_))) => part,
-                    (Some(Stored::Bytes(mut held)), Stored::Bytes(more)) => {
-                        held.extend(more);
-                        Stored::Bytes(held)
-                    }
-                    (Some(Stored::Array(mut held)), Stored::Array(more)) => {
-                        held.extend(more);
-                        Stored::Array(held)
-                    }
-                    _ => return Err(Malformed),
-                });
-            }
-            joined.ok_or(Malformed)?
-        }
-        Stored::Tag(tag, inner) => Stored::Tag(tag, Box::new(join(*inner, rest, parts)?)),
-        Stored::Array(items) => Stored::Array(
-            items
-                .into_iter()
-                .map(|item| join(item, rest, parts))
-                .collect::<Result<_, _>>()?,
-        ),
-        Stored::Map(entries) => Stored::Map(
-            entries
-                .into_iter()
-                .map(|(key, value)| Ok((join(key, rest, parts)?, join(value, rest, parts)?)))
-                .collect::<Result<_, Malformed>>()?,
-        ),
-        other => other,
-    })
-}
-
 fn hash_in(name: &Stored) -> Result<Hash, Malformed> {
     let bytes: [u8; Hash::LEN] = name
         .as_bytes()
         .and_then(|bytes| bytes.as_slice().try_into().ok())
         .ok_or(Malformed)?;
     Ok(Hash::from_bytes(bytes))
-}
-
-/// The part `name` names, whole: the next one in `rest` the first time, and
-/// the one read then if it is named again.
-fn named(name: &Stored, rest: &mut &[u8], parts: &mut Parts) -> Result<Stored, Malformed> {
-    let hash = hash_in(name)?;
-    if let Some(held) = parts.held.get(&hash) {
-        return Ok(held.clone());
-    }
-    let (part, bytes) = next_part(rest)?;
-    if Hash::of(bytes) != hash {
-        return Err(Malformed);
-    }
-    let part = resolve(part, rest)?;
-    if parts.repeated.contains(&hash) {
-        parts.held.insert(hash, part.clone());
-    }
-    Ok(part)
 }
 
 /// What a saved document's parts were saved as, by the hash of their bytes, so

@@ -915,9 +915,7 @@ impl Instances {
         };
         match &message {
             Some(FromEditor::Gesture(Gesture::Begin)) => link.gesturing = true,
-            Some(FromEditor::Gesture(Gesture::Commit | Gesture::Cancel | Gesture::Break)) => {
-                link.gesturing = false
-            }
+            Some(FromEditor::Gesture(Gesture::Commit | Gesture::Cancel)) => link.gesturing = false,
             _ => {}
         }
         let resend = matches!(message, Some(FromEditor::Resend));
