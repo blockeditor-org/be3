@@ -94,9 +94,7 @@ impl Platform for AppPlatform {
             // An app holds no keyboard until its host gives one of its views the keyboard
             // (`Input::Focus` below): a view opened beside the focused one, or in a window
             // behind, does not have it.
-            handler
-                .runner
-                .push(Incoming::logical(Input::Focus(false)));
+            handler.runner.push(Incoming::logical(Input::Focus(false)));
             self.host
                 .handle_views(Box::new(Driver::new(self.host.clone(), handler)));
             Ok(())
