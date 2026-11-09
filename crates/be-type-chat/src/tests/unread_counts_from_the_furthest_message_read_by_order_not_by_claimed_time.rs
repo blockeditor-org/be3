@@ -3,7 +3,11 @@ use super::*;
 #[test]
 fn unread_counts_from_the_furthest_message_read_by_order_not_by_claimed_time() {
     let chat = sent(&ChatContent::default(), ADA, &["One", "Two"]);
-    assert_eq!(chat.unread(std::iter::empty(), BO), 2, "with nothing read, all of it");
+    assert_eq!(
+        chat.unread(std::iter::empty(), BO),
+        2,
+        "with nothing read, all of it"
+    );
     let two = chat.newest().expect("the chat has messages");
     assert_eq!(chat.unread([two], BO), 0);
 

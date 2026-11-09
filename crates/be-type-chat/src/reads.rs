@@ -45,9 +45,14 @@ impl ChatReads {
     /// devices still ahead, not with every device that ever read the chat.
     pub fn set_read(chat: Uuid, device: Uuid, message: ObjectId, behind: &[Uuid]) -> Edit {
         std::iter::once(Self::READ.put(ObjectId::ROOT, &key(chat, device), Some(&message)))
-            .chain(behind.iter().filter(|other| **other != device).map(|other| {
-                Self::READ.put(ObjectId::ROOT, &key(chat, *other), None::<&ObjectId>)
-            }))
+            .chain(
+                behind
+                    .iter()
+                    .filter(|other| **other != device)
+                    .map(|other| {
+                        Self::READ.put(ObjectId::ROOT, &key(chat, *other), None::<&ObjectId>)
+                    }),
+            )
             .collect()
     }
 }
