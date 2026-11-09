@@ -15,6 +15,7 @@ struct FieldAttributes {
     aliases: Vec<LitStr>,
     from_old: Vec<(LitStr, Path)>,
     critical: bool,
+    merge_appends: bool,
 }
 
 fn kind_attributes(input: &DeriveInput) -> syn::Result<KindAttributes> {
@@ -61,8 +62,10 @@ fn field_attributes(field: &syn::Field) -> syn::Result<FieldAttributes> {
                 content.parse::<syn::Token![,]>()?;
                 let convert: Path = content.parse()?;
                 out.from_old.push((name, convert));
+            } else if meta.path.is_ident("merge_appends") {
+                out.merge_appends = true;
             } else {
-                return Err(meta.error("expected rename, alias or from_old"));
+                return Err(meta.error("expected rename, alias, from_old or merge_appends"));
             }
             Ok(())
         })?;
@@ -145,6 +148,7 @@ fn derive(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             .map_or_else(|| ident.to_string(), |rename| rename.value());
         let aliases = &attributes.aliases;
         let critical = attributes.critical;
+        let merge_appends = attributes.merge_appends;
         let old_names: Vec<_> = attributes.from_old.iter().map(|(name, _)| name).collect();
         let converts: Vec<_> = attributes.from_old.iter().map(|(_, path)| path).collect();
         properties.push(quote! {
@@ -157,6 +161,7 @@ fn derive(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                         as ::be_block_model::schema::Convert,
                 )),*],
                 critical: #critical,
+                merge_appends: #merge_appends,
                 shape: <#ty as ::be_block_model::Field>::shape(),
             }
         });

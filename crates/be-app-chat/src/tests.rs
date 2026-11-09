@@ -1,0 +1,107 @@
+use be_sdk_beui::be_block::{Edit, LiveEdit, ObjectId};
+use be_sdk_beui::beui::vec2;
+use be_sdk_beui::{EditorHost, OwnedEditor};
+use be_sdk_test::BeuiTest;
+use be_type_chat::{ChatContent, Message};
+use uuid::Uuid;
+
+use crate::root::ChatRoot;
+
+mod a_conversation_shows_each_message_with_its_author_and_time;
+mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_reply_quotes_the_message_it_answers;
+mod messages_are_sent_edited_reacted_to_and_deleted;
+mod reactions_show_under_a_message_with_their_counts;
+
+const ME: Uuid = Uuid::from_u128(0x5a1d_0000_0000_4000_8000_0000_0000_0001);
+const ROSA: Uuid = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
+const CHAT: Uuid = Uuid::from_u128(0xc4a7_0000_0000_4000_8000_0000_0000_0003);
+const MINUTE: i64 = 60_000;
+/// 09:00 UTC on the day the test wall clock is pinned to, 41 minutes before it.
+const MORNING: i64 = 1_772_442_000_000;
+
+struct Harness {
+    editor: BeuiTest<ChatRoot>,
+}
+
+impl Harness {
+    fn new(messages: &[(Uuid, &str)]) -> Self {
+        let mut content = ChatContent::default();
+        for (index, (author, body)) in messages.iter().enumerate() {
+            let time = MORNING + index as i64 * 3 * MINUTE;
+            let (_, send) = content.send(CHAT, Message::new(*author, time, *body));
+            content.apply(&send);
+        }
+        let host = EditorHost::default();
+        host.set_editable(true);
+        host.set_account_id(ME);
+        let mut harness = Self {
+            editor: BeuiTest::new(OwnedEditor::new(host, CHAT)),
+        };
+        harness.editor.store().register(be_type_chat::registrations());
+        harness.editor.hold(None, content);
+        harness.editor.set_size(vec2(480.0, 560.0));
+        harness.run();
+        harness
+    }
+
+    fn run(&mut self) {
+        self.editor.run();
+    }
+
+    fn arrive(&mut self, operation: Edit) {
+        self.editor.edit::<ChatContent>(None, &operation);
+        self.run();
+    }
+
+    fn click(&mut self, test_id: &str) {
+        self.editor.click(test_id);
+        self.run();
+    }
+
+    fn type_text(&mut self, text: &str) {
+        self.editor.type_text(text);
+        self.run();
+    }
+
+    fn write(&mut self, text: &str) {
+        self.click("chat.draft");
+        self.type_text(text);
+    }
+
+    fn send(&mut self, text: &str) {
+        self.write(text);
+        self.click("chat.send");
+    }
+
+    fn content(&self) -> ChatContent {
+        self.editor.content(None)
+    }
+
+    fn id(&self, index: usize) -> ObjectId {
+        self.content().messages()[index]
+    }
+
+    fn bodies(&self) -> Vec<String> {
+        let content = self.content();
+        content
+            .messages()
+            .into_iter()
+            .filter_map(|id| content.body(id))
+            .collect()
+    }
+
+    /// The text a message's row shows, without its buttons' icons.
+    fn row(&self, message: ObjectId) -> String {
+        let label = self.editor.label(&format!("chat.message.{message}"));
+        label
+            .split(' ')
+            .filter(|word| !word.chars().all(|c| ('\u{e000}'..='\u{f8ff}').contains(&c)))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn snapshot(&mut self, name: &str) {
+        self.editor.snapshot(name);
+    }
+}

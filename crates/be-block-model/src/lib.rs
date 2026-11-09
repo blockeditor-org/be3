@@ -594,7 +594,7 @@ impl<R: Model> Document<R> {
     }
 
     pub fn merge(base: &Self, ours: &Self, theirs: &Self) -> (Self, usize) {
-        let (tree, conflicts) = merge::merge3(&base.tree, &ours.tree, &theirs.tree);
+        let (tree, conflicts) = merge::merge3(R::kind, &base.tree, &ours.tree, &theirs.tree);
         (Self::from_tree(tree), conflicts)
     }
 }

@@ -213,8 +213,27 @@ impl Tree {
     }
 
     fn listed_kind(&self, root: fn() -> Kind, place: Place) -> Option<&'static str> {
-        let mut fields = vec![place.field];
-        let mut cursor = place.object;
+        let kind = self.kind_of(root, place.object)?;
+        let Shape::List(child) = kind.properties.get(usize::from(place.field))?.shape else {
+            return None;
+        };
+        Some(child().name)
+    }
+
+    /// Whether the list at `place` is marked `#[model(merge_appends)]`.
+    pub(crate) fn merges_appends(&self, root: fn() -> Kind, place: Place) -> bool {
+        self.kind_of(root, place.object)
+            .and_then(|kind| {
+                kind.properties
+                    .get(usize::from(place.field))
+                    .map(|property| property.merge_appends)
+            })
+            .unwrap_or(false)
+    }
+
+    fn kind_of(&self, root: fn() -> Kind, object: ObjectId) -> Option<Kind> {
+        let mut fields = Vec::new();
+        let mut cursor = object;
         while cursor != ObjectId::ROOT {
             let parent = self.objects.get(&cursor)?.parent?;
             fields.push(parent.field);
@@ -227,7 +246,7 @@ impl Tree {
             };
             kind = child();
         }
-        Some(kind.name)
+        Some(kind)
     }
 
     pub(crate) fn apply(&mut self, root: fn() -> Kind, change: &Change) -> bool {

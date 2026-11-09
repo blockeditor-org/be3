@@ -8,11 +8,26 @@ A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Not implemented yet.
+edited (the journal, guides/blocks/client.md). Step 1a has landed.
 
 ## What exists
 
-- VISION.md lists chat as planned and not designed.
+- **The type and editor (1a).** `crates/be-type-chat` and `crates/be-app-chat`.
+  `ChatContent` is written by hand, wrapping the header `Document<ChatHeader>`
+  (its only part, `Loads::FirstPart`) and forwarding `LiveEdit`, `Merge` and
+  `Undo` to it. The header holds the messages (a `merge_appends` list),
+  `edits`, `deletions` and `reactions` keyed by message id, and an empty
+  `segments` index. Each message stores the hash of the last message its
+  author saw (`seen`) and an empty signature; `Message::signed_bytes`,
+  `MessageEdit::signed_bytes`, `Deletion::signed_bytes` and
+  `ReactionKey::signed_bytes` define what a signature will cover
+  (`src/signed.rs`), and a message's hash is SHA-256 over its signed bytes.
+  Deleting removes the message with its edit and reactions and records the
+  `Deletion`. The editor sends, replies, edits and deletes its own messages and
+  toggles reactions (Lucide icon names); members other than you show as
+  "Member" and their account's first digits, since no host service names
+  members to an app yet. Attachments are in the model but the editor cannot
+  add or show them yet.
 - **Loading.** A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads
   only its first part, and its editors read the rest by range
   (`LiveContent::read_range`; guides/blocks/apps.md, "Reading a range"). Every
@@ -113,16 +128,7 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
 
 ## Order of work
 
-Land 1a's `merge_appends` and plans/text.md's Sequence items one after the
-other: both change `Items` merges.
-
 1. **The chat type and editor.**
-   - **1a.** The hand-written type with header-only content, messages,
-     `merge_appends`, the editor, its manifest, and beui-demo pages for any new
-     components. Done: a `BeuiTest` sends, edits, reacts to and deletes
-     messages; two replicas that each add messages offline merge with neither
-     side's lost and each side's order kept; paintings of a conversation, a
-     reply and reactions. Update VISION.md (chat is designed).
    - **1b.** Sending state and `published-head`. Done: a host test sends a
      message while the server is unreachable and the painting shows it as
      sending until the drain publishes it.

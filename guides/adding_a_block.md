@@ -164,7 +164,9 @@ with `undo` (section 1), and belongs to the block's replica, so an editor gets
 it without writing anything.
 
 Content that does not fit a document (a large file, `Blob<K>`) implements
-`BlockContent`, `LiveEdit`, `Merge` and optionally `Undo` by hand. Its
+`BlockContent`, `LiveEdit`, `Merge` and optionally `Undo` by hand. Content that
+is a document but must not load whole wraps one and forwards those traits to
+it, saving it as the first part (`crates/be-type-chat`'s `ChatContent`). Its
 constructors and constants go on the kind (`PdfFile::from_file`), since a
 types crate cannot add methods to be-block's `Blob<K>`. Bump
 `BlobKind::SCHEMA` when the header changes so an old one would be misread;

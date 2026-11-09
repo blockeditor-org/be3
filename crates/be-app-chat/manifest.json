@@ -1,0 +1,29 @@
+{
+  "id": "be3.chat",
+  "name": "Chat",
+  "version": "0.1.0",
+  "editors": {
+    "chat": {
+      "id": "27821013-ef15-4549-b70b-da531a44edd4",
+      "edits": "63686174-2d62-6c6f-636b-2d7479706531",
+      "display_name": "Chat",
+      "icon": "",
+      "templates": {
+        "main": {}
+      },
+      "views": [
+        "Main"
+      ]
+    }
+  },
+  "block_types": {
+    "chat": {
+      "id": "63686174-2d62-6c6f-636b-2d7479706531",
+      "display_name": "Chat",
+      "icon": "",
+      "color": [72, 133, 237],
+      "module": "chat_types.wasm"
+    }
+  },
+  "entry_point": "chat.wasm"
+}

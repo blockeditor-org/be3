@@ -108,7 +108,10 @@ How the model works:
 - **Offline merge** (`Document::merge`) matches objects by id across the three
   versions and merges each field on its own; list order merges like
   `merge_slices` once moved items are taken out and put back after their
-  sibling. You delete what you saw: deleting what the other side edited deletes
+  sibling. A `List` field marked `#[model(merge_appends)]` (chat's messages)
+  instead puts the items only one side added after everything else, ours
+  first, each side's in its own order, so two runs written offline never
+  interleave. You delete what you saw: deleting what the other side edited deletes
   it and counts a conflict; what the other side moved or inserted into a
   removed container survives (back where it came from) and counts a conflict.
 - **Undo** (`Document::step`) records an undo and redo change per change, taken

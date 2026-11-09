@@ -1,6 +1,6 @@
 # Authorship
 
-Depends on: plans/chat.md (step 1a, which defines the bytes a message signs).
+Builds on plans/chat.md step 1a, which defined the bytes a message signs (`crates/be-type-chat/src/signed.rs`).
 
 Signing what a person writes, so nobody with Edit can post as someone else.
 Chat is the first user. Not implemented yet.
