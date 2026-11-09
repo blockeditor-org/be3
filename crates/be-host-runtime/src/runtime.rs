@@ -631,6 +631,7 @@ impl Runtime {
             super::docks::take_picks(&self.app.identity.id)
                 .into_iter()
                 .map(|(owner, view, id, anchor)| {
+                    self.instances.note_menu_pick(owner);
                     Outbound::Editor(owner, EditorCall::MenuPick { view, id, anchor })
                 }),
         );

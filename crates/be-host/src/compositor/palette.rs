@@ -53,13 +53,12 @@ pub(crate) struct OpenableBlock {
     pub(crate) detail: String,
 }
 
-/// Where quick open's rows come from. Handed what is typed and a count of the times quick open
-/// opened (a source reads what it lists again then), it answers the blocks to offer, filtered
-/// and in order: the palette keeps that order (`PaletteItem::ranked`), so a source can be a
-/// search answering as its results arrive (plans/search.md). The host's own,
-/// `loaded_blocks`, lists the blocks its graph holds.
-pub(crate) type BlockSource =
-    Rc<dyn Fn(ReadSignal<String>, ReadSignal<u64>) -> Memo<Vec<OpenableBlock>>>;
+/// Where quick open's rows come from. Handed what is typed into quick open and which opening of
+/// it this is (0 while the palette lists actions, when a source lists nothing and lets go of
+/// what it read), it answers the blocks to offer, filtered and in order: the palette keeps
+/// that order (`PaletteItem::ranked`), so a source can be a search answering as its results
+/// arrive (plans/search.md). The host's own, `loaded_blocks`, lists the blocks its graph holds.
+pub(crate) type BlockSource = Rc<dyn Fn(Memo<String>, Memo<u64>) -> Memo<Vec<OpenableBlock>>>;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Shown {
@@ -76,7 +75,15 @@ pub(crate) fn HostPalette(
     let query = create_signal(String::new());
     let opened = create_signal(0u64);
     let actions = create_signal(Rc::new(Vec::<Row>::new()));
-    let found = blocks(query.read_only(), opened.read_only());
+    let typed = create_memo(move || match shown.get() {
+        Shown::Blocks { .. } => query.get(),
+        Shown::Actions => String::new(),
+    });
+    let listing = create_memo(move || match shown.get() {
+        Shown::Blocks { .. } => opened.get(),
+        Shown::Actions => 0,
+    });
+    let found = blocks(typed, listing);
     let rows = create_memo(move || match shown.get() {
         Shown::Actions => actions.get(),
         Shown::Blocks { from } => Rc::new(block_rows(found.get(), from)),
@@ -107,18 +114,19 @@ pub(crate) fn HostPalette(
         if event.held() || !PALETTE.matches(press) || leaves_to_program(event) {
             return false;
         }
-        show(PaletteMode::Actions, focused_catcher());
+        // Pressed again with the palette open (the focus in its search field), it closes it.
+        match open.get_untracked() {
+            true => open.set(false),
+            false => show(PaletteMode::Actions, focused_catcher()),
+        }
         true
     });
-    let any = super::any();
+    let asks = super::palette_asks();
     create_effect(move || {
-        any.get();
-        untrack(|| {
-            let asked = be_host_runtime::take_palette_asks().into_iter().last();
-            if let Some(ask) = asked {
-                show(ask.mode, catcher_of(&ask.app, ask.instance));
-            }
-        });
+        let asked = asks.with(|(_, asked)| asked.last().cloned());
+        if let Some(ask) = asked {
+            untrack(|| show(ask.mode, catcher_of(&ask.app, ask.instance)));
+        }
     });
     let placeholder = create_memo(move || match shown.get() {
         Shown::Actions => "Run a command".to_owned(),
@@ -215,7 +223,7 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
 /// opens, that sit in a folder or at the top (not detached), may be viewed and that an editor
 /// shows (named after themselves, else their type), those open in an editor first, fuzzily
 /// matched against what is typed.
-fn loaded_blocks(typed: ReadSignal<String>, opened: ReadSignal<u64>) -> Memo<Vec<OpenableBlock>> {
+fn loaded_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBlock>> {
     let loaded = create_memo(move || match opened.get() {
         0 => Vec::new(),
         _ => untrack(graph_blocks),

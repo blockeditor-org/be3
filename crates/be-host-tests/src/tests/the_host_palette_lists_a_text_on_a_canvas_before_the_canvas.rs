@@ -32,6 +32,17 @@ fn the_host_palette_lists_a_text_on_a_canvas_before_the_canvas() {
         "the focused text's actions come first: {listed:?}"
     );
 
+    host.key("ctrl+shift+p");
+    host.gone("#host.palette.search");
+    host.key("ctrl+shift+p");
+    host.wait("#host.palette.search");
+    host.run(&["settle"]);
+    let listed = rows(&mut host);
+    assert!(
+        listed.first().is_some_and(|key| key.starts_with(TEXT)),
+        "the chord closes the palette and opens it again on the text: {listed:?}"
+    );
+
     host.type_text("details");
     host.run(&["settle"]);
     let listed = rows(&mut host);
