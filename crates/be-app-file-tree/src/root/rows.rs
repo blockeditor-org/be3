@@ -711,7 +711,7 @@ impl Builder<'_> {
         Some(
             users
                 .iter()
-                .filter(|user| !user.deleted && user.id != id)
+                .filter(|user| !user.deleted && user.id != id && places(user))
                 .map(|user| user.label(self.types).name)
                 .collect(),
         )
@@ -940,6 +940,13 @@ impl Builder<'_> {
             self.push(child, depth + 1, Some(id), path, trashed);
         }
     }
+}
+
+/// Whether a block that references another is a place it is used, rather than a view that
+/// shows it (an open tab) or the account's own system blocks.
+fn places(user: &BlockInfo) -> bool {
+    user.block_type != be_sdk_beui::be_block::VIEW_TYPE
+        && !be_sdk_beui::be_block::SYSTEM_TYPES.contains(&user.block_type)
 }
 
 fn unfiled_detail(made_by: Option<String>, used: Option<Vec<String>>) -> String {

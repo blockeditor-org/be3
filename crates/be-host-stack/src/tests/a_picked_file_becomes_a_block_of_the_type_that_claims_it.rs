@@ -6,6 +6,7 @@ fn imported(name: &str, bytes: &[u8]) -> (Uuid, Uuid) {
         name.to_owned(),
         bytes.to_vec(),
         be_block_graph::BlockParent::Root,
+        None,
         move |imported| {
             let _ = sender.send(imported);
         },

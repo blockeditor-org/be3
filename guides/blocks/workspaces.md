@@ -33,19 +33,26 @@ workspace or section zooms into it rather than opening it. The folder editor
 is `crates/be-app-workspace-index`.
 
 A picker places a new block where it is asked. A block made without a place
-the person chose goes to Unfiled: a pick with no place, an editor with no
-block of its own, "New file here" beside a block nothing holds, a new
-database view beside one in no folder, a compiled logic grid. So My files
-holds only what the person put there. Apps name it `block-location::unfiled`
-and list it with `block-query::unfiled`; the host resolves it to the
-account's own and reads a block in it back as `unfiled`, so no app learns its
-id, and refuses a call naming it until the graph has it. Moving a block out
-files it; moving between workspaces is the host's `move_block`.
+the person chose goes to Unfiled: a pick with no place (whether it makes the
+block, imports a file or copies a template: `Pick::import_parent` falls back
+to `created_parent`), an editor with no block of its own, "New file here"
+beside a block nothing holds, a new database view beside one in no folder, a
+compiled logic grid. `be` imports and `be sync` always name their place. So
+My files holds only what the person put there. Apps name it
+`block-location::unfiled` and list it with `block-query::unfiled`; the host
+resolves it to the account's own and reads a block in it back as `unfiled`, so
+no app learns its id. Until the graph has it (it waits for the organization's
+blocks, so offline on a first run it never comes) the host refuses a call
+naming it, and a creation committed there fails with "Your files are still
+loading". Moving a block out files it; moving between workspaces is the host's
+`move_block`.
 
-Unfiled in the files pane is a flat list, newest first (block ids are
-UUIDv7), each row saying which app made the block (`CREATED_BY`, the app's
-manifest id, set by the host on every block an app creates and never by the
-app) and where it is used, from its backrefs, or "Not used anywhere". Its
+Unfiled in the files pane is a flat list, newest made first (block ids are
+UUIDv7, the host's imports included), each row saying which app made the block
+(`CREATED_BY`, the app's manifest id, which the host sets on every block an
+app creates, imports or copies and strips from what an app sends) and where it
+is used, from its backrefs other than views (an open tab) and system blocks,
+or "Not used anywhere". Its
 menu offers "Move unused to Recently Deleted"; nothing is deleted
 automatically. Deleting from Unfiled detaches the block with `DELETED_FROM`
 naming Unfiled, and Restore puts it back; a restored block whose place is gone
