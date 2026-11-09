@@ -1,3 +1,4 @@
+use be_sdk_beui::beui::Placement;
 use be_sdk_beui::beui::accesskit::{Node, Role, Toggled};
 use be_sdk_beui::beui::dock::TabId;
 use be_sdk_beui::beui::dock_host::unstyled::{DockArea, holding_area};
@@ -442,6 +443,7 @@ fn WindowChip(
     view! {
         <ContextMenu
             bounds={bar_bounds()}
+            placement=Placement::BelowStart
             items={view! {
                 <Show condition={running}>
                     <MenuItem

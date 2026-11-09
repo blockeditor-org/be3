@@ -1,3 +1,4 @@
+use be_sdk_beui::beui::Placement;
 use be_sdk_beui::beui::icons::ICON_KEYBOARD;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -76,6 +77,7 @@ pub(crate) fn LayoutButton(layouts: Layouts) -> NodeId {
             arrow=false
             label
             bounds={bar_bounds()}
+            placement=Placement::BelowStart
             @test_id={"desktop.layout"}
             items={view! {
                 <LayoutItems layouts />

@@ -42,7 +42,61 @@ pub(super) struct Versions {
     commits: HashMap<CommitId, Commit>,
     watching: Arc<Mutex<HashSet<Uuid>>>,
     roots: HashSet<Uuid>,
-    computed: HashMap<Uuid, (u64, u64, u64)>,
+    computed: HashMap<Uuid, Signature>,
+    /// Statuses that could not be computed, by the inputs they failed with: tried again when
+    /// those inputs change, or, for a transient failure, when the session's backoff comes due
+    /// (`refresh`'s `retry`).
+    failed: HashMap<Uuid, Failed>,
+}
+
+/// What a watched block's status is computed from: the graph's revision and the revisions of
+/// the block's and its repository's content.
+type Signature = (u64, u64, u64);
+
+struct Failed {
+    signature: Signature,
+    failure: Failure,
+    attempts: u32,
+    /// The message this failure put in the status's `error`, to clear once it computes.
+    shown: Option<String>,
+}
+
+/// How many transient failures in a row a status takes before it shows the error.
+const SHOWN_AFTER: u32 = 3;
+
+/// Why a status could not be computed, and whether trying again could succeed with none of
+/// its inputs changed: a request that broke off or timed out may, an object the server lacks,
+/// a missing key or bytes that do not decode will not.
+#[derive(Clone, Debug)]
+pub(super) struct Failure {
+    message: String,
+    transient: bool,
+}
+
+impl Failure {
+    fn client(error: ClientError) -> Self {
+        let transient = matches!(
+            error,
+            ClientError::Disconnected(_) | ClientError::TimedOut(_) | ClientError::Contended
+        );
+        Self {
+            message: error.to_string(),
+            transient,
+        }
+    }
+
+    fn stored(error: be_block_store::StoreError) -> Self {
+        Self {
+            message: error.to_string(),
+            transient: false,
+        }
+    }
+}
+
+impl From<Failure> for String {
+    fn from(failure: Failure) -> String {
+        failure.message
+    }
 }
 
 struct Scanned {
@@ -103,6 +157,23 @@ fn failed(error: ClientError) -> String {
 
 fn stored(error: be_block_store::StoreError) -> String {
     error.to_string()
+}
+
+/// Writes a watched block's status, made from its current one, telling its watchers when it
+/// changed.
+fn publish(context: &Context<'_>, block: Uuid, status: impl FnOnce(&mut VersionStatus) -> VersionStatus) {
+    let mut held = context
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let entry = held.versions.entry(block).or_default();
+    let mut current = entry.status.clone();
+    let status = status(&mut current);
+    if entry.status != status {
+        entry.status = status;
+        entry.revision += 1;
+        held.touch(block);
+    }
 }
 
 fn scope(checkout: Uuid) -> Scope {
@@ -187,7 +258,7 @@ impl Versions {
         }
     }
 
-    async fn tree(&mut self, peer: &Peer<Store>, commit: Option<CommitId>) -> Result<Tree, String> {
+    async fn tree(&mut self, peer: &Peer<Store>, commit: Option<CommitId>) -> Result<Tree, Failure> {
         let Some(commit) = commit else {
             return Ok(Tree::default());
         };
@@ -196,17 +267,21 @@ impl Versions {
         }
         let manifest = self.commit_of(peer, commit).await?.manifest;
         let tree: Tree =
-            be_block_store::decode_value(&peer.read_manifest(&manifest).await.map_err(failed)?)
-                .map_err(stored)?;
+            be_block_store::decode_value(&peer.read_manifest(&manifest).await.map_err(Failure::client)?)
+                .map_err(Failure::stored)?;
         self.trees.insert(commit, tree.clone());
         Ok(tree)
     }
 
-    async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, String> {
+    async fn commit_of(
+        &mut self,
+        peer: &Peer<Store>,
+        commit: CommitId,
+    ) -> Result<Commit, Failure> {
         if let Some(found) = self.commits.get(&commit) {
             return Ok(found.clone());
         }
-        let loaded = peer.load_commit(commit).await.map_err(failed)?;
+        let loaded = peer.load_commit(commit).await.map_err(Failure::client)?;
         self.commits.insert(commit, loaded.clone());
         Ok(loaded)
     }
@@ -218,7 +293,7 @@ impl Versions {
         scanned: &[Scanned],
         saved: &Tree,
         root: Option<Uuid>,
-    ) -> Result<Working, String> {
+    ) -> Result<Working, Failure> {
         let mut working = Working::default();
         working.tree.root = root;
         let scope = scope(checkout);
@@ -232,7 +307,7 @@ impl Versions {
                             .peer
                             .references_of(block.real, &commit)
                             .await
-                            .map_err(failed)?;
+                            .map_err(Failure::client)?;
                         let references = with_graph(context.shared, |graph| {
                             listed
                                 .iter()
@@ -271,7 +346,7 @@ impl Versions {
         context: &Context<'_>,
         checkout: Uuid,
         state: &Checkout,
-    ) -> Result<(Tree, Working), String> {
+    ) -> Result<(Tree, Working), Failure> {
         let saved = self.tree(context.peer, state.working).await?;
         let scanned = with_graph(context.shared, |graph| scan(graph, checkout, state, &saved));
         let root = state.root.map(|root| {
@@ -1287,13 +1362,15 @@ impl Versions {
             .insert(block);
     }
 
-    /// Recomputes the status of every watched block whose inputs changed. Answers whether a
-    /// status could not be computed (a commit or tree the store could not read, an object
-    /// fetched from the server that did not come): that block is computed again on the next
-    /// refresh rather than kept as an empty status, and the session schedules one with a
-    /// backoff, since no event announces that the read would now succeed.
-    pub(super) async fn refresh(&mut self, context: &mut Context<'_>) -> bool {
-        let mut retry = false;
+    /// Recomputes the status of every watched block whose inputs changed. A status that
+    /// fails is remembered with the inputs it failed with and not computed again until they
+    /// change, which their own events announce. A transient failure (a request to the server
+    /// that broke off or timed out: nothing announces that it would now succeed) is tried again
+    /// when `retry` is set, which the session sets on a backoff; answers whether one awaits it.
+    /// A permanent failure, or a transient one that keeps failing, shows its reason in the
+    /// status's `error`.
+    pub(super) async fn refresh(&mut self, context: &mut Context<'_>, retry: bool) -> bool {
+        let mut awaiting = false;
         let watched: Vec<Uuid> = context
             .shared
             .lock()
@@ -1323,39 +1400,78 @@ impl Versions {
             if self.computed.get(&block) == Some(&signature) {
                 continue;
             }
-            let status = match self.status(context, block).await {
-                Ok(status) => status,
-                Err(_) => {
-                    self.computed.remove(&block);
-                    retry = true;
-                    continue;
+            if let Some(failed) = self.failed.get(&block)
+                && failed.signature == signature
+                && !(failed.failure.transient && retry)
+            {
+                awaiting |= failed.failure.transient;
+                continue;
+            }
+            match self.status(context, block).await {
+                Ok(status) => {
+                    let shown = self.failed.remove(&block).and_then(|failed| failed.shown);
+                    self.computed.insert(block, signature);
+                    publish(context, block, |entry| {
+                        let error = match entry.error.take() {
+                            Some(error) if Some(&error) == shown.as_ref() => None,
+                            error => error,
+                        };
+                        VersionStatus {
+                            busy: entry.busy,
+                            error,
+                            ..status
+                        }
+                    });
                 }
-            };
-            self.computed.insert(block, signature);
-            let mut held = context
-                .shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            let entry = held.versions.entry(block).or_default();
-            let status = VersionStatus {
-                busy: entry.status.busy,
-                error: entry.status.error.clone(),
-                ..status
-            };
-            if entry.status != status {
-                entry.status = status;
-                entry.revision += 1;
-                held.touch(block);
+                Err(failure) => {
+                    self.computed.remove(&block);
+                    let attempts = self
+                        .failed
+                        .get(&block)
+                        .map_or(0, |failed| failed.attempts)
+                        .saturating_add(1);
+                    let previous = self.failed.get(&block).and_then(|failed| failed.shown.clone());
+                    let shows = !failure.transient || attempts >= SHOWN_AFTER;
+                    let shown = match shows {
+                        true => {
+                            let message = format!(
+                                "Could not read this block's versions: {}",
+                                failure.message
+                            );
+                            publish(context, block, |entry| VersionStatus {
+                                error: Some(message.clone()),
+                                ..entry.clone()
+                            });
+                            Some(message)
+                        }
+                        false => previous,
+                    };
+                    awaiting |= failure.transient;
+                    self.failed.insert(
+                        block,
+                        Failed {
+                            signature,
+                            failure,
+                            attempts,
+                            shown,
+                        },
+                    );
+                }
             }
         }
-        retry
+        awaiting
+    }
+
+    /// Forgets which statuses failed for want of the server, once it can be reached again.
+    pub(super) fn reconnected(&mut self) {
+        self.failed.retain(|_, failed| !failed.failure.transient);
     }
 
     async fn status(
         &mut self,
         context: &mut Context<'_>,
         block: Uuid,
-    ) -> Result<VersionStatus, String> {
+    ) -> Result<VersionStatus, Failure> {
         let (checkout, repository) = {
             let held = context
                 .shared
