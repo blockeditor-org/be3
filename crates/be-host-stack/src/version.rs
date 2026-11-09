@@ -1288,9 +1288,10 @@ impl Versions {
     }
 
     /// Recomputes the status of every watched block whose inputs changed. Answers whether a
-    /// status could not be computed yet (a commit the store has not written, a tree it could
-    /// not read): that block is computed again on the next refresh, which the caller must
-    /// schedule, since nothing else need change to make it computable.
+    /// status could not be computed (a commit or tree the store could not read, an object
+    /// fetched from the server that did not come): that block is computed again on the next
+    /// refresh rather than kept as an empty status, and the session schedules one with a
+    /// backoff, since no event announces that the read would now succeed.
     pub(super) async fn refresh(&mut self, context: &mut Context<'_>) -> bool {
         let mut retry = false;
         let watched: Vec<Uuid> = context

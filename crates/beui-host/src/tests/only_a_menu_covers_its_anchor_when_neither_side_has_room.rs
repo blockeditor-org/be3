@@ -5,7 +5,7 @@ use crate::primitives::*;
 use crate::reactive::*;
 use beui::layer::{OverlayAnchor, Placement};
 
-fn placed(height: f32) -> (f32, f32) {
+fn placed(placement: Placement, height: f32) -> (f32, f32) {
     let _root = crate::reactive::RootScope::new();
     let overlay = NodeRef::new();
     let document = build_node(move || {
@@ -14,7 +14,7 @@ fn placed(height: f32) -> (f32, f32) {
                 <Overlay
                     @node_ref=&overlay
                     anchor=OverlayAnchor::Point(pos2(10.0, 200.0))
-                    placement=Placement::BelowStart
+                    placement=placement
                     open=true
                     on_dismiss={|_: Dismiss| {}}
                 >
@@ -36,15 +36,31 @@ fn placed(height: f32) -> (f32, f32) {
 }
 
 #[test]
-fn an_overlay_with_room_on_neither_side_of_its_anchor_covers_it_within_the_window() {
+fn only_a_menu_covers_its_anchor_when_neither_side_has_room() {
     assert_eq!(
-        placed(250.0),
+        placed(Placement::Menu, 250.0),
         (50.0, 300.0),
-        "with 200 above its anchor and 100 below, it covers the anchor, as low as the window allows"
+        "with 200 above its anchor and 100 below, a menu covers the anchor, as low as the window allows"
     );
     assert_eq!(
-        placed(1000.0),
+        placed(Placement::Menu, 1000.0),
         (0.0, 300.0),
-        "taller than the window, it is cut to the window's height"
+        "a menu taller than the window is cut to the window's height"
+    );
+    assert_eq!(
+        placed(Placement::BelowStart, 250.0),
+        (0.0, 200.0),
+        "anything else anchored below (a completion, a tooltip) takes the roomier side and ends at its anchor"
+    );
+    let (top, bottom) = placed(
+        Placement::Popover {
+            gap: 4,
+            margin: 8,
+        },
+        250.0,
+    );
+    assert!(
+        bottom <= 200.0 || top >= 200.0,
+        "a popover keeps clear of its anchor too: {top}..{bottom}"
     );
 }

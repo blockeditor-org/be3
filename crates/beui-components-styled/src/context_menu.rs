@@ -84,7 +84,7 @@ pub fn ContextMenu(
 pub fn MenuPopup(
     items: Children<MenuItem>,
     anchor: Prop<OverlayAnchor>,
-    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = false)] sheet: Prop<bool>,

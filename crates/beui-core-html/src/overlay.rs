@@ -481,6 +481,9 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
                 "flip-block, flip-inline, flip-block flip-inline".to_owned(),
             );
         }
+        // CSS anchor positioning flips but cannot cover the anchor, so a menu is placed from
+        // its measured size (`measured`, `layer::resolve_rect`) as the native core places it.
+        Placement::Menu => {}
         Placement::RightStart => {
             put("position-area", "right span-bottom".to_owned());
             put(
@@ -966,7 +969,7 @@ mod web {
         }
         fit(layer);
         let anchors = anchors_supported();
-        if !anchors {
+        if !anchors || layer.placement.get() == Placement::Menu {
             measured(layer, &dialog);
         }
         point_beak(layer, &dialog, anchors);

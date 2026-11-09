@@ -137,8 +137,11 @@ fn AnchoredPopover(
             PickAnchor::Rect(rect) => Some(rect),
             PickAnchor::Centre => None,
         };
+        // The roomier side of the anchor, less the gap a card keeps from it: what
+        // `layer::resolve_rect` leaves a `BelowStart` or `Popover` overlay, which never covers
+        // its anchor.
         let tall = anchored.map_or(area.height(), |anchored| {
-            (area.max.y - anchored.max.y).max(anchored.min.y - area.min.y)
+            (area.max.y - anchored.max.y).max(anchored.min.y - area.min.y) - f32::from(GAP)
         });
         Vec2::new(area.width() - margins, tall - margins)
     });
