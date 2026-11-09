@@ -26,6 +26,11 @@ impl OpenLayers {
     pub(crate) fn changed(&mut self) {
         self.generation += 1;
     }
+
+    /// Moves whenever a layer opens, closes or moves.
+    pub(crate) fn generation(&self) -> u64 {
+        self.generation
+    }
 }
 
 struct Opened {

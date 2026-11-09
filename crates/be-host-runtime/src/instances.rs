@@ -53,6 +53,10 @@ fn presence_wanted(instance: EditorInstanceId) -> bool {
 }
 
 #[derive(Default)]
+/// How many of the app's layout commits a frame menu pick lets it open the host's palette
+/// for: the pick runs in the app's next frame, which asks in that frame's answers.
+const MENU_PICK_COMMITS: u32 = 2;
+
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
     focus: Focus,
@@ -132,7 +136,7 @@ struct Instance {
     /// the app to describe.
     actions: HashMap<ViewId, Vec<DescribedAction>>,
     /// Whether the person picked from its frame menu since it last asked for the palette.
-    menu_picked: bool,
+    menu_picked: Option<u32>,
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     heads: Heads,
@@ -292,7 +296,7 @@ impl Instance {
             reported_focus: None,
             reported_editable: None,
             actions: HashMap::default(),
-            menu_picked: false,
+            menu_picked: None,
             focus_reports: Vec::new(),
             artifact_watch: None,
             heads: Heads::default(),
@@ -2013,6 +2017,13 @@ impl Instances {
                     }
                 })
                 .collect();
+            // A window or dock view the app is no longer asked to draw is gone from the app's
+            // views, which forget what they described then and send it again if shown again.
+            entry.actions.retain(|view, _| {
+                view.is_main()
+                    || regions.iter().any(|request| request.view == *view)
+                    || entry.anchored.iter().any(|held| held.view == *view)
+            });
             if regions.is_empty() && matches!(entry.role, InstanceRole::Editor(..)) {
                 continue;
             }
@@ -3050,6 +3061,9 @@ impl Instances {
     }
 
     pub(super) fn set_frame_reports(&mut self, reports: Vec<FrameReport>) -> bool {
+        for entry in self.entries.values_mut() {
+            entry.menu_picked = entry.menu_picked.and_then(|left| left.checked_sub(1));
+        }
         let mut changed = false;
         for mut report in reports {
             let mut tree = report
@@ -3158,15 +3172,16 @@ impl Instances {
 
     /// Whether the instance may open the host's palette (`shell.open-palette`): it is no
     /// revision preview, shows a view, and either one of its views has the keyboard or the
-    /// person just picked from its frame menu (whose "Command palette" asks for it while a
-    /// menu the host draws has the focus), so an instance in the background cannot.
+    /// person picked from its frame menu within its last `MENU_PICK_COMMITS` layout commits
+    /// (whose "Command palette" asks for it while a menu the host draws has the focus), so an
+    /// instance in the background cannot, however long ago someone used its menu.
     pub(super) fn may_open_palette(&mut self, instance: EditorInstanceId) -> bool {
         self.entries.get_mut(&instance).is_some_and(|entry| {
             let preview = entry
                 .role
                 .block()
                 .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
-            let picked = std::mem::take(&mut entry.menu_picked);
+            let picked = entry.menu_picked.take().is_some();
             let shown = entry.screens.values().any(|screen| screen.mounted > 0);
             let keyboard = entry.screens.values().any(|screen| screen.input.focused());
             !preview && shown && (keyboard || picked)
@@ -3176,7 +3191,7 @@ impl Instances {
     /// The person picked from the instance's frame menu (`editor.menu-pick`).
     pub(super) fn note_menu_pick(&mut self, instance: EditorInstanceId) {
         if let Some(entry) = self.entries.get_mut(&instance) {
-            entry.menu_picked = true;
+            entry.menu_picked = Some(MENU_PICK_COMMITS);
         }
     }
 
@@ -3195,7 +3210,14 @@ impl Instances {
             .any(|action| action.id == id)
             .then_some(())?;
         offers_actions(entry, region).then_some(())?;
-        Some(entry.screens.get(&region)?.request.screen)
+        match entry.screens.get(&region) {
+            Some(screen) => Some(screen.request.screen),
+            None => entry
+                .anchored
+                .iter()
+                .find(|held| held.view == region)
+                .map(|held| held.screen.request.screen),
+        }
     }
 
     pub(super) fn request_focus(&mut self, screen: ScreenId) {
@@ -4100,11 +4122,13 @@ fn page_origin() -> String {
 }
 
 /// Whether the view's actions stand in the host's palette: the main view's always (an instance
-/// whose content a dock view shows may never mount it), any other view's while the host shows it.
+/// whose content a dock view shows may never mount it), any other view's while the host shows
+/// it, an anchored view's while it is open.
 fn offers_actions(entry: &Instance, view: ViewId) -> bool {
     view.is_main()
         || entry
             .screens
             .get(&view)
             .is_some_and(|screen| screen.mounted > 0)
+        || entry.anchored.iter().any(|held| held.view == view)
 }
