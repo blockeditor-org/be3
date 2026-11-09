@@ -136,6 +136,13 @@ enum Content<'a> {
     Written(Manifest),
 }
 
+#[derive(Default)]
+struct Rescoped {
+    keys: KeySet,
+    /// Blocks whose head to reseal off epochs this device holds only through escrow.
+    escrowed: Vec<(Uuid, HashSet<Uuid>)>,
+}
+
 pub struct Write<'a> {
     content: Content<'a>,
     references: Vec<Uuid>,
@@ -712,7 +719,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Fetches the objects of the manifest tree under a range of the stored form, a level of
     /// nodes at a time.
-    async fn fetch_range(
+    pub(crate) async fn fetch_range(
         &self,
         manifest: &Manifest,
         offset: u64,
@@ -789,7 +796,16 @@ impl<S: ObjectStore> Peer<S> {
         // its sides' parts) is sealed again under this block's key, so nobody needs the other
         // block's key to read this one (decisions/reused_parts_keep_their_key.md). A reused
         // part this device never read names its key in its top object: fetch those first, so
-        // only another block's parts are fetched whole.
+        // only another block's parts are fetched whole. A part its head already holds is its
+        // own (every write adopts what it reuses), which its nodes say without fetching it.
+        let known: HashSet<Hash> = match self.head_for_write(block).await {
+            Some(head) => {
+                let manifest = self.load_commit(head).await?.manifest;
+                self.fetch_nodes(&manifest).await?;
+                vault.objects(&manifest)?.into_iter().collect()
+            }
+            None => HashSet::new(),
+        };
         let own: HashSet<Uuid> = self
             .keys
             .keys_of(block, KeyKind::Data)
@@ -799,20 +815,35 @@ impl<S: ObjectStore> Peer<S> {
             .collect();
         let own = |sealed: Uuid| own.contains(&sealed);
         let tops: Vec<Hash> = vault
-            .foreign_parts(&own, &parts)?
+            .foreign_parts(&known, &own, &parts)?
             .iter()
             .map(|part| part.hash())
             .collect();
         self.fetch(&tops).await?;
-        for part in vault.foreign_parts(&own, &parts)? {
+        for part in vault.foreign_parts(&known, &own, &parts)? {
             let manifest = Manifest {
                 content_type,
                 root: Some(part),
             };
             self.fetch_range(&manifest, 0, u64::MAX).await?;
         }
-        let parts = vault.adopt(key, &own, parts)?;
+        let opens = |sealed: Uuid| self.keys.trusted(sealed);
+        let parts = vault
+            .adopt(key, &known, &own, &opens, parts)
+            .map_err(|error| match error {
+                StoreError::MissingKey(_) => ClientError::Locked(block),
+                error => error.into(),
+            })?;
         Ok(vault.write(key, content_type, parts)?)
+    }
+
+    /// The head a write of `block` builds on, as far as this device knows: its own, the
+    /// server's it last heard, or, never having read the block, the server's now.
+    async fn head_for_write(&self, block: Uuid) -> Option<CommitId> {
+        match self.local_head(block).or(self.known_remote_head(block)) {
+            Some(head) => Some(head),
+            None => self.summary(block).await.ok().and_then(|summary| summary.head),
+        }
     }
 
     pub fn account(&self) -> Uuid {
@@ -1688,12 +1719,20 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         parent: BlockParent,
     ) -> Result<(), ClientError> {
-        let keys = match parent {
-            BlockParent::Detached => KeySet::default(),
+        let rescoped = match parent {
+            BlockParent::Detached => Rescoped::default(),
             BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent, false).await?,
         };
+        let keys = rescoped.keys;
         client::blocks::set_parent(&self.connection(), block, parent, keys.clone()).await??;
         self.recorded(&keys);
+        self.reseal_heads(rescoped.escrowed).await
+    }
+
+    async fn reseal_heads(&self, escrowed: Vec<(Uuid, HashSet<Uuid>)>) -> Result<(), ClientError> {
+        for (block, epochs) in escrowed {
+            self.reseal_head(block, &epochs).await?;
+        }
         Ok(())
     }
 
@@ -1725,8 +1764,7 @@ impl<S: ObjectStore> Peer<S> {
         if !access.can_view() {
             return Ok(());
         }
-        let keys = self.own_scope(block).await?;
-        self.put_keys(keys).await
+        self.own_scope(block).await
     }
 
     pub async fn seal_share(
@@ -1735,8 +1773,7 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         public: &be_block_keys::RecoveryPublic,
     ) -> Result<(), ClientError> {
-        let keys = self.own_scope(block).await?;
-        self.put_keys(keys).await?;
+        self.own_scope(block).await?;
         let scope = self
             .keys
             .scope_key(block)
@@ -1754,8 +1791,7 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         access: Access,
     ) -> Result<crate::GrantOffer, ClientError> {
-        let keys = self.own_scope(block).await?;
-        self.put_keys(keys).await?;
+        self.own_scope(block).await?;
         let key = self
             .keys
             .scope_key(block)
@@ -1773,9 +1809,11 @@ impl<S: ObjectStore> Peer<S> {
         })
     }
 
-    async fn own_scope(&self, block: Uuid) -> Result<KeySet, ClientError> {
+    async fn own_scope(&self, block: Uuid) -> Result<(), ClientError> {
         let parent = parent_of(&self.summary(block).await?)?;
-        self.rescope(block, parent, true).await
+        let rescoped = self.rescope(block, parent, true).await?;
+        self.put_keys(rescoped.keys).await?;
+        self.reseal_heads(rescoped.escrowed).await
     }
 
     async fn put_keys(&self, keys: KeySet) -> Result<(), ClientError> {
@@ -1787,12 +1825,17 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// The keys a move into `parent`'s scope (or, with `own`, making `block` a scope of its
+    /// own) needs: a fresh data key per block and every epoch not yet wrapped under the
+    /// destination, wrapped there, so a head reusing parts of any epoch stays readable
+    /// (decisions/reused_parts_keep_their_key.md); and the heads to take off epochs this
+    /// device holds only through escrow and so cannot wrap (`reseal_head`, after the move).
     async fn rescope(
         &self,
         block: Uuid,
         parent: BlockParent,
         own: bool,
-    ) -> Result<KeySet, ClientError> {
+    ) -> Result<Rescoped, ClientError> {
         let moved = self.summary(block).await?;
         let shared = own
             || (moved.scope == Some(block) && matches!(moved.parent, Some(BlockParent::Block(_))));
@@ -1800,9 +1843,9 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Block(parent) => Some(self.scope_key_under(parent).await?),
             BlockParent::Root | BlockParent::Detached => None,
         };
-        let mut keys = KeySet::default();
+        let mut rescoped = Rescoped::default();
         if moved.owner_only {
-            return Ok(keys);
+            return Ok(rescoped);
         }
         let under = match (shared, parent_scope) {
             (false, Some(under)) => under,
@@ -1811,7 +1854,7 @@ impl<S: ObjectStore> Peer<S> {
                     Some(own) => own,
                     None => {
                         let (own, minted) = self.keys.mint_scope(block, parent_scope)?;
-                        keys.extend(minted);
+                        rescoped.keys.extend(minted);
                         own
                     }
                 };
@@ -1820,32 +1863,21 @@ impl<S: ObjectStore> Peer<S> {
                         .keys
                         .wrapped_by(own)
                         .contains(&WrappedBy::Key(parent_scope))
-                    && keys.keys.is_empty()
+                    && rescoped.keys.keys.is_empty()
                 {
-                    keys.wrapped.push(self.keys.wrap(own, parent_scope)?);
+                    rescoped.keys.wrapped.push(self.keys.wrap(own, parent_scope)?);
                 }
                 own
             }
         };
         let wrapped_under = |key: Uuid| self.keys.wrapped_by(key).contains(&WrappedBy::Key(under));
-        // A head's reused parts keep the epoch that sealed them
-        // (decisions/reused_parts_keep_their_key.md), so a move wraps every epoch of each moved
-        // block not yet wrapped under its destination, and walks the whole subtree to find
-        // them. One this device does not trust (escrow) or lacks would leave the head
-        // unreadable in the new scope, so the move is refused instead.
-        let unwrapped = |block: Uuid| -> Result<Vec<Uuid>, ClientError> {
-            let mut unwrapped = Vec::new();
-            for row in self.keys.keys_of(block, KeyKind::Data) {
-                if wrapped_under(row.id) {
-                    continue;
-                }
-                if !self.keys.trusted(row.id) {
-                    return Err(ClientError::Untrusted(block));
-                }
-                unwrapped.push(row.id);
-            }
-            Ok(unwrapped)
-        };
+        // Every block of a scope has its epochs wrapped under the scope's key (create, rotate
+        // and this keep it so), so a block whose key already is moves within its scope and
+        // needs nothing.
+        if moved.key.is_some_and(wrapped_under) {
+            return Ok(rescoped);
+        }
+        let mut walked = Vec::new();
         let mut level = vec![moved];
         while !level.is_empty() {
             let mut below = Vec::new();
@@ -1853,23 +1885,10 @@ impl<S: ObjectStore> Peer<S> {
                 if node.id != block && (!node.access.can_view() || node.owner_only) {
                     continue;
                 }
-                if node.id != block && node.scope == Some(node.id) {
-                    if let Some(nested) = self.keys.scope_key(node.id)
-                        && !wrapped_under(nested)
-                        && !self.keys.owner_only(nested)
-                    {
-                        keys.wrapped.push(self.keys.wrap(nested, under)?);
-                    }
-                    continue;
+                if node.id == block || node.scope != Some(node.id) {
+                    below.push(self.children(BlockParent::Block(node.id)));
                 }
-                for key in unwrapped(node.id)? {
-                    keys.wrapped.push(self.keys.wrap(key, under)?);
-                }
-                if !node.key.is_some_and(wrapped_under) {
-                    let (_, fresh) = self.keys.mint_data(node.id, under)?;
-                    keys.extend(fresh);
-                }
-                below.push(self.children(BlockParent::Block(node.id)));
+                walked.push(node);
             }
             level = futures_util::future::try_join_all(below)
                 .await?
@@ -1877,7 +1896,43 @@ impl<S: ObjectStore> Peer<S> {
                 .flatten()
                 .collect();
         }
-        Ok(keys)
+        self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
+            .await?;
+        for node in &walked {
+            if node.id != block && node.scope == Some(node.id) {
+                if let Some(nested) = self.keys.scope_key(node.id)
+                    && !wrapped_under(nested)
+                    && !self.keys.owner_only(nested)
+                {
+                    rescoped.keys.wrapped.push(self.keys.wrap(nested, under)?);
+                }
+                continue;
+            }
+            let rows = self.keys.keys_of(node.id, KeyKind::Data);
+            if node.key.is_some_and(|key| rows.iter().all(|row| row.id != key)) {
+                return Err(ClientError::Locked(node.id));
+            }
+            let mut untrusted = HashSet::new();
+            for row in rows {
+                if wrapped_under(row.id) {
+                    continue;
+                }
+                match self.keys.trusted(row.id) {
+                    true => rescoped.keys.wrapped.push(self.keys.wrap(row.id, under)?),
+                    false => {
+                        untrusted.insert(row.id);
+                    }
+                }
+            }
+            if !node.key.is_some_and(wrapped_under) {
+                let (_, fresh) = self.keys.mint_data(node.id, under)?;
+                rescoped.keys.extend(fresh);
+            }
+            if let Some(epochs) = self.escrowed_in_head(node, &untrusted).await? {
+                rescoped.escrowed.push((node.id, epochs));
+            }
+        }
+        Ok(rescoped)
     }
 
     pub async fn shared(&self) -> Result<Vec<BlockSummary>, ClientError> {

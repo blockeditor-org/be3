@@ -1,12 +1,13 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{BlockSummary, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client};
-use be_block_store::ObjectStore;
+use be_block_commit::CommitId;
+use be_block_store::{Manifest, ObjectStore, PartRef};
 use uuid::Uuid;
 
 use super::Peer;
-use crate::ClientError;
+use crate::{ClientError, Write};
 
 impl<S: ObjectStore> Peer<S> {
     pub async fn key_work(&self) -> Result<KeyWork, ClientError> {
@@ -22,8 +23,13 @@ impl<S: ObjectStore> Peer<S> {
             failed.get_or_insert(error);
         }
         for root in &work.rotations {
-            if let Err(error) = self.rotate(*root).await {
-                failed.get_or_insert(error);
+            match self.rotate(*root).await {
+                // A rotation this device holds too few keys for is another device's to do,
+                // and the server keeps offering it until one does: routine, not a failure.
+                Ok(()) | Err(ClientError::Locked(_)) => {}
+                Err(error) => {
+                    failed.get_or_insert(error);
+                }
             }
         }
         if escrow_rotation || !work.rotations.is_empty() {
@@ -88,18 +94,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
             .await?;
-        // A head's reused parts keep the epoch that sealed them
-        // (decisions/reused_parts_keep_their_key.md), so every data key must be rewrapped under
-        // the new scope keys for anyone let in later. A device that does not trust one of them
-        // (an administrator's, through escrow) leaves the rotation pending for one that does.
-        if let Some(node) = walked.iter().find(|node| {
-            self.keys
-                .keys_of(node.id, KeyKind::Data)
-                .iter()
-                .any(|row| !self.keys.trusted(row.id))
-        }) {
-            return Err(ClientError::Untrusted(node.id));
-        }
+
         let top_scope = super::scope_of(&top)?;
         let outer = match top_scope == top.id {
             true => None,
@@ -122,6 +117,7 @@ impl<S: ObjectStore> Peer<S> {
                 .ok_or(ClientError::Locked(scope))
         };
         let mut keys = KeySet::default();
+        let mut escrowed = Vec::new();
         for node in &walked {
             let node_scope = scope_of[&node.id];
             if node_scope == node.id {
@@ -140,15 +136,118 @@ impl<S: ObjectStore> Peer<S> {
                 fresh.insert(node.id, scope);
             }
             let under = current(&fresh, node_scope)?;
+            let mut untrusted = HashSet::new();
             for row in self.keys.keys_of(node.id, KeyKind::Data) {
-                keys.wrapped.push(self.keys.wrap(row.id, under)?);
+                match self.keys.trusted(row.id) {
+                    true => keys.wrapped.push(self.keys.wrap(row.id, under)?),
+                    false => {
+                        untrusted.insert(row.id);
+                    }
+                }
             }
             let (_, minted) = self.keys.mint_data(node.id, under)?;
             keys.extend(minted);
+            if let Some(epochs) = self.escrowed_in_head(node, &untrusted).await? {
+                escrowed.push((node.id, epochs));
+            }
         }
         client::keys::rotate(&self.connection(), vec![root], keys.clone()).await??;
         self.recorded(&keys);
+        for (block, epochs) in escrowed {
+            self.reseal_head(block, &epochs).await?;
+        }
         Ok(())
+    }
+
+    /// Of `untrusted`, the epochs this device cannot rewrap (it holds them only through
+    /// escrow) that `node`'s head is sealed under, which `reseal_head` then takes the head
+    /// off. An untrusted epoch the head no longer uses only closes history, and one this
+    /// device lacks altogether it can do nothing about.
+    pub(super) async fn escrowed_in_head(
+        &self,
+        node: &BlockSummary,
+        untrusted: &HashSet<Uuid>,
+    ) -> Result<Option<HashSet<Uuid>>, ClientError> {
+        let Some(head) = node.head.filter(|_| !untrusted.is_empty()) else {
+            return Ok(None);
+        };
+        let epochs: HashSet<Uuid> = self
+            .head_epochs(head)
+            .await?
+            .into_iter()
+            .map(|(key, _)| key)
+            .filter(|key| untrusted.contains(key) && self.keys.has(*key))
+            .collect();
+        Ok((!epochs.is_empty()).then_some(epochs))
+    }
+
+    /// The keys a commit's content is sealed under, each with a part it seals whole, fetching
+    /// its nodes and each part's top object but no chunk below them.
+    async fn head_epochs(&self, head: CommitId) -> Result<Vec<(Uuid, PartRef)>, ClientError> {
+        let Some(root) = self.load_commit(head).await?.manifest.root else {
+            return Ok(Vec::new());
+        };
+        let vault = self.commits.vault();
+        loop {
+            let missing = vault.missing_tops(root)?;
+            if missing.is_empty() {
+                break;
+            }
+            self.fetch(&missing).await?;
+        }
+        Ok(vault.keys_of_part(root)?)
+    }
+
+    /// Seals the parts of `block`'s head under `epochs` again under its current key, and
+    /// publishes that, so the head needs none of them. An administrator's device opens them
+    /// through escrow, which makes it vouch for what it reseals (guides/blocks/keys.md,
+    /// Rotation).
+    pub(super) async fn reseal_head(
+        &self,
+        block: Uuid,
+        epochs: &HashSet<Uuid>,
+    ) -> Result<(), ClientError> {
+        for _ in 0..4 {
+            let Some(head) = self.summary(block).await?.head else {
+                return Ok(());
+            };
+            let commit = self.load_commit(head).await?;
+            let Some(root) = commit.manifest.root else {
+                return Ok(());
+            };
+            for (key, part) in self.head_epochs(head).await? {
+                if epochs.contains(&key) {
+                    let whole = Manifest {
+                        content_type: commit.manifest.content_type,
+                        root: Some(part),
+                    };
+                    self.fetch_range(&whole, 0, u64::MAX).await?;
+                }
+            }
+            let key = self.sealing_key(block).await?;
+            let rekeyed = self
+                .commits
+                .vault()
+                .rekey(key, &|sealed| epochs.contains(&sealed), root)?;
+            if rekeyed == root {
+                return Ok(());
+            }
+            let metadata = self.metadata_of(head).await?;
+            let write = Write::written(
+                Manifest {
+                    content_type: commit.manifest.content_type,
+                    root: Some(rekeyed),
+                },
+                Some(head),
+            )
+            .described(commit.references.clone(), metadata.derived)
+            .defined(metadata.defined);
+            match self.write(block, write).await? {
+                crate::Saved::Rejected { .. } => continue,
+                _ => return Ok(()),
+            }
+        }
+        Err(ClientError::Contended)
     }
 
     pub(super) async fn make_escrow(&self) -> Result<(), ClientError> {

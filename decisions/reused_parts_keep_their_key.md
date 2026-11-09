@@ -9,11 +9,12 @@ block needs another block's key to be read.
 
 A commit's tree therefore mixes the block's epochs after a rotation, and a
 reader needs every epoch its head is sealed under. A rotation rewraps every data
-key under the new scope key, and a move rewraps every epoch not yet wrapped
-under its destination (`Peer::rescope`, which walks the whole subtree). Both are
-refused (`ClientError::Untrusted`) by a device that does not trust every epoch,
-such as an administrator's holding them only through escrow, which leaves the
-work to one that does. A type that writes whole bytes is unaffected: every save
+key the device trusts under the new scope key, and a move into another scope
+every such epoch not yet wrapped under its destination (`Peer::rescope`). An
+epoch the head uses that the device holds only through escrow (an
+administrator's, after the member who trusted it left) is not wrapped; the
+operation reseals the head's parts under it with the block's new key instead
+(`Peer::reseal_head`). A type that writes whole bytes is unaffected: every save
 seals all of it again.
 
 This reverses part of #804, which resealed every reused part under the current
@@ -38,8 +39,10 @@ keeps a save's cost in proportion to the change, rotation or not.
   merges reuse that part as it is, so it stays readable with a key the removed
   member holds until a save rewrites it. Neither the device nor the server
   checks a publish's key against the newest epoch.
-- A block whose old epoch no device trusts any more (its wraps lost) cannot be
-  rotated or moved into another scope until it is rewritten.
+- An administrator's device resealing a head it opened through escrow vouches
+  for that content as its own write, which members then trust as such.
+- Parts under an epoch no device holds any more stay unreadable to anyone let in
+  later; nothing can rewrap or reseal them.
 
 ## Rejected
 
@@ -51,3 +54,6 @@ keeps a save's cost in proportion to the change, rotation or not.
   shared alone, or kept after its source was deleted, could not be read.
 - Letting a device that does not trust an epoch rotate anyway and skip that
   key: the head's parts under it would be closed to everyone let in later.
+- Refusing the rotation on such a device until one that trusts every epoch
+  tends: when the only such device is gone, the rotation never happens, and an
+  old epoch nobody uses any more would block it forever.

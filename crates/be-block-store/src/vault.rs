@@ -318,11 +318,13 @@ impl<S: ObjectStore> Vault<S> {
         self.store.put(sealed)
     }
 
-    /// The reused parts of `part` whose top object a key `own` does not accept sealed: parts
-    /// of another block, which `adopt` reseals and so needs every object of. A part whose top
-    /// object is missing is listed too, since whose it is is unknown.
+    /// The reused parts of `part` that are not the block's own: not among the objects of a
+    /// tree it holds (`known`, its head's), and with a top object no key `own` accepts sealed.
+    /// These are another block's parts, which `adopt` reseals and so needs every object of. A
+    /// part whose top object is missing is listed too, since whose it is is unknown.
     pub fn foreign_parts(
         &self,
+        known: &HashSet<Hash>,
         own: &dyn Fn(Uuid) -> bool,
         part: &Part<'_>,
     ) -> Result<Vec<PartRef>, StoreError> {
@@ -331,6 +333,7 @@ impl<S: ObjectStore> Vault<S> {
         while let Some(part) = parts.pop() {
             match part {
                 Part::Bytes(_) => {}
+                Part::Reused(reused) if known.contains(&reused.hash()) => {}
                 Part::Reused(reused) => {
                     let theirs = match self.store.has(reused.hash())? {
                         true => !own(self.sealed_under(reused.hash())?),
@@ -352,21 +355,27 @@ impl<S: ObjectStore> Vault<S> {
     /// accept) sealed again whole under `key`, so a block never needs another block's key to
     /// be read (decisions/reused_parts_keep_their_key.md). Its own reused parts stay as they
     /// are, under whichever of its epochs sealed them.
+    /// It opens them only with keys `opens` accepts (the ones the writer trusts), so
+    /// nothing it holds only through escrow becomes content it vouches for.
     pub fn adopt<'a>(
         &self,
         key: Uuid,
+        known: &HashSet<Hash>,
         own: &dyn Fn(Uuid) -> bool,
+        opens: &dyn Fn(Uuid) -> bool,
         part: Part<'a>,
     ) -> Result<Part<'a>, StoreError> {
         Ok(match part {
-            Part::Reused(reused) if !own(self.sealed_under(reused.hash())?) => {
+            Part::Reused(reused)
+                if !known.contains(&reused.hash()) && !own(self.sealed_under(reused.hash())?) =>
+            {
                 let sealing = self.keys.get(key).ok_or(StoreError::MissingKey(key))?;
-                Part::Reused(self.reseal(key, &sealing, reused)?)
+                Part::Reused(self.reseal(key, &sealing, opens, reused)?)
             }
             Part::Node { parts, references } => Part::Node {
                 parts: parts
                     .into_iter()
-                    .map(|child| self.adopt(key, own, child))
+                    .map(|child| self.adopt(key, known, own, opens, child))
                     .collect::<Result<_, _>>()?,
                 references,
             },
@@ -374,11 +383,93 @@ impl<S: ObjectStore> Vault<S> {
         })
     }
 
-    /// Seals every object of a saved part again under `key`.
+    /// The tops of `part`'s parts this store lacks, a level at a time: what `keys_of_part`
+    /// needs fetched first (each node, and each leaf part's top object).
+    pub fn missing_tops(&self, part: PartRef) -> Result<Vec<Hash>, StoreError> {
+        let mut missing = Vec::new();
+        let mut parts = vec![part];
+        while let Some(part) = parts.pop() {
+            if !self.store.has(part.hash())? {
+                missing.push(part.hash());
+                continue;
+            }
+            if let PartRef::Node(node) = part {
+                parts.extend(self.node(node)?.parts);
+            }
+        }
+        Ok(missing)
+    }
+
+    /// The keys `part`'s objects are sealed under, each with the parts it seals whole: a
+    /// node's own object, and each part under it that one write made (a leaf, a part grouped
+    /// over chunks, or a node reused whole), since such a part is sealed under one key.
+    pub fn keys_of_part(&self, part: PartRef) -> Result<Vec<(Uuid, PartRef)>, StoreError> {
+        let mut keys = Vec::new();
+        let mut parts = vec![part];
+        while let Some(part) = parts.pop() {
+            keys.push((self.sealed_under(part.hash())?, part));
+            if let PartRef::Node(node) = part {
+                parts.extend(self.node(node)?.parts);
+            }
+        }
+        Ok(keys)
+    }
+
+    /// `part` with every object sealed under a key `reseal` names sealed again under `key`,
+    /// and the nodes above them rewritten; the rest kept as it is. A rotation or move by a
+    /// device holding an epoch only through escrow does this to the head, so the epoch it
+    /// cannot rewrap stops mattering (guides/blocks/keys.md, Rotation).
+    pub fn rekey(
+        &self,
+        key: Uuid,
+        reseal: &dyn Fn(Uuid) -> bool,
+        part: PartRef,
+    ) -> Result<PartRef, StoreError> {
+        let sealing = self.keys.get(key).ok_or(StoreError::MissingKey(key))?;
+        self.rekey_with(key, &sealing, reseal, part)
+    }
+
+    fn rekey_with(
+        &self,
+        key: Uuid,
+        sealing: &ContentKey,
+        reseal: &dyn Fn(Uuid) -> bool,
+        part: PartRef,
+    ) -> Result<PartRef, StoreError> {
+        if reseal(self.sealed_under(part.hash())?) {
+            return self.reseal(key, sealing, &|_| true, part);
+        }
+        let PartRef::Node(held) = part else {
+            return Ok(part);
+        };
+        let node = self.node(held)?;
+        let mut parts = Vec::with_capacity(node.parts.len());
+        let mut changed = false;
+        for child in &node.parts {
+            let rekeyed = self.rekey_with(key, sealing, reseal, *child)?;
+            changed |= rekeyed != *child;
+            parts.push(rekeyed);
+        }
+        if !changed {
+            return Ok(part);
+        }
+        Ok(PartRef::Node(self.put_node(
+            key,
+            sealing,
+            Node {
+                parts,
+                references: node.references,
+            },
+        )?))
+    }
+
+    /// Seals every object of a saved part again under `key`, opening each only with a key
+    /// `opens` accepts.
     fn reseal(
         &self,
         key: Uuid,
         sealing: &ContentKey,
+        opens: &dyn Fn(Uuid) -> bool,
         part: PartRef,
     ) -> Result<PartRef, StoreError> {
         match part {
@@ -387,6 +478,10 @@ impl<S: ObjectStore> Vault<S> {
                     .store
                     .get(chunk.hash)?
                     .ok_or(StoreError::MissingObject(chunk.hash))?;
+                let sealed_by = sealed_key(&sealed)?;
+                if !opens(sealed_by) {
+                    return Err(StoreError::MissingKey(sealed_by));
+                }
                 let plain = self.open(&sealed)?;
                 if plain.len() != chunk.length as usize {
                     return Err(StoreError::Corrupt);
@@ -398,10 +493,14 @@ impl<S: ObjectStore> Vault<S> {
                 }))
             }
             PartRef::Chunks(held) | PartRef::Node(held) => {
+                let sealed_by = self.sealed_under(held.hash)?;
+                if !opens(sealed_by) {
+                    return Err(StoreError::MissingKey(sealed_by));
+                }
                 let node = self.node(held)?;
                 let mut parts = Vec::with_capacity(node.parts.len());
                 for child in node.parts {
-                    parts.push(self.reseal(key, sealing, child)?);
+                    parts.push(self.reseal(key, sealing, opens, child)?);
                 }
                 let resealed = self.put_node(
                     key,

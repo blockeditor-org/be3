@@ -388,6 +388,8 @@ pub struct Replicas<H: Host> {
     /// Blocks whose next publish is a bookmark, with its label (`Replicas::bookmark`).
     bookmarks: HashMap<Uuid, String>,
     pub handled: u64,
+    /// Forced seals (`seal(.., true)`, after a rekey) the modules have answered.
+    pub rekeys_sealed: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
 
@@ -421,6 +423,7 @@ impl<H: Host> Replicas<H> {
             changed: false,
             bookmarks: HashMap::new(),
             handled: 0,
+            rekeys_sealed: 0,
             host: std::marker::PhantomData,
         }
     }
@@ -2151,7 +2154,9 @@ impl<H: Host> Replicas<H> {
         op: OpId,
         outcome: Outcome,
     ) -> bool {
-        self.asked.remove(&(module, op));
+        if let Some((_, Asked::Seal(true))) = self.asked.remove(&(module, op)) {
+            self.rekeys_sealed += 1;
+        }
         if let Some(answer) = self.replies.remove(&(module, op)) {
             // Its asker takes the scope back, unless it stopped waiting.
             if answer.send(outcome).is_err() {

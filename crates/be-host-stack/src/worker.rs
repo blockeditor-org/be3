@@ -439,6 +439,8 @@ pub struct Shared {
     pub touched: be_lib_stable_hash::HashSet<Uuid>,
     pub pending: usize,
     pub typing: bool,
+    /// Forced seals after a rekey that the block types have answered, for tests.
+    pub rekeys_sealed: u64,
     pub uploading: usize,
     pub listing_revisions: usize,
     pub importing: usize,
@@ -999,10 +1001,11 @@ impl Session<'_> {
             }
             moved |= report(peer, shared);
             let typing = !self.replicas.modules.settled();
-            let was_typing = std::mem::replace(
-                &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
-                typing,
-            );
+            let was_typing = {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.rekeys_sealed = self.replicas.rekeys_sealed;
+                std::mem::replace(&mut held.typing, typing)
+            };
             self.changed.notify_all();
             if moved || was_typing != typing {
                 be_host_base::host::wake();

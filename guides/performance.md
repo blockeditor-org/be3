@@ -170,6 +170,10 @@ for this (`release` in the open bench, `lift` for the canvas bench's pen lift).
   (host menu, Agents), share a workspace with it, and point a `be` built from the checkout at it
   (guides/tracker.md): `be new-database`, `add-column` and `import` of a generated CSV make a
   tracker of any size.
+- A save looks up the key of each reused part's top object (`Vault::sealed_under`, so a part of
+  another block is sealed again), and the first save of a block of many parts in a process reads
+  each one from the object store; later saves hit the vault's cache. Look there if the first
+  save after a restart shows in a profile.
 
 ## Starting be-host
 

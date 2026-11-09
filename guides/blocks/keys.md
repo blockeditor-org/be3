@@ -64,8 +64,8 @@ scope keys not yet escrowed. `Peer::tend` does all of it; the worker calls it
 on connect, `ContactsChanged`, `KeyWorkChanged` and after its own changes.
 
 `Peer::rotate` sends one `Rotate` for a subtree: new epochs of every scope key,
-every data key rewrapped, a new data key per block. The server takes it only
-whole. Content is not resealed. A part a block hands back as `Part::Reused`
+every trusted data key rewrapped, a new data key per block. The server takes it
+only whole. Content is not resealed, except below. A part a block hands back as `Part::Reused`
 keeps the epoch of that block that sealed it
 (decisions/reused_parts_keep_their_key.md), so a head can need any older epoch,
 and a viewer let in after the rotation opens it through the rewrapped keys. The
@@ -73,13 +73,18 @@ owner of a live session on a rekeyed block seals once more
 (`Session::rekey`): a type that hands back every unchanged part publishes
 nothing, and one that writes whole bytes seals them under the new key.
 
-A rotation or move that would leave an epoch unwrapped is refused
-(`ClientError::Untrusted`): every data key of each block it covers must be one
-this device trusts, which an administrator's device holding the keys only
-through escrow does not, so `tend` reports it and leaves the rotation for a
-device that does. A move walks the whole subtree, wrapping each epoch not yet
-wrapped under the destination. A rotation nobody can do yet waits until a
-client that may edit the block and trusts its keys tends. A kind open inside
+A rotation, and a move into another scope, rewrap every epoch the device
+trusts. An epoch it holds only through escrow (an administrator's device, after
+the member who trusted it left) it cannot wrap, so if the block's head is sealed
+under it, the operation reseals those parts of the head under the block's new
+key and publishes that (`Peer::reseal_head`, `Vault::rekey`): the administrator
+then vouches for content it opened through escrow, which it could read anyway.
+An untrusted epoch the head no longer uses only closes history, and one the
+device lacks altogether it can do nothing about. A move within a scope changes
+no keys; one into another scope walks the subtree, refreshing its keys first,
+and refuses (`Locked`) a block whose current key this device has no row for. A
+rotation this device holds too few keys for (`Locked`) is left, without an
+error, for a client that may edit the block to tend. A kind open inside
 (guides/settings.md) is also offered by any viewer to its own contacts among
 the viewers, since the owner's editors may know none of them.
 
@@ -179,7 +184,9 @@ will seal with: keys sealed to an account are sender-authenticated and taken
 only from verified contacts; a contact's key changes only by a change sealed
 with the verified key; cards, codes, pending grants and invitation escrow keys
 are sealed with codes it never sees; a device wraps only under keys it trusts;
-escrow keys are used only when pinned or signed down from a pinned one.
+escrow keys are used only when pinned or signed down from a pinned one. A
+part copied from another block (a checkout, a merge) is opened only with keys
+this device trusts before it is sealed again as this block's.
 
 It still decides, and devices trust it for: which held key is a block's current
 data key and which epoch is newest (so a server colluding with someone who lost

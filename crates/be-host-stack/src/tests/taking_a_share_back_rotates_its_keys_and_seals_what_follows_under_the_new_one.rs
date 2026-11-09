@@ -39,9 +39,13 @@ fn taking_a_share_back_rotates_its_keys_and_seals_what_follows_under_the_new_one
         shared.blocks.contains_key(&block)
     });
     let before = node(block).and_then(|node| node.head);
+    let rekeyed = with_shared(|shared| shared.rekeys_sealed).unwrap_or_default();
     set_access(block, guest.session.account, be_block_graph::Access::None);
     flush();
     assert_eq!(status().error, None);
+    wait_until("answered the forced seal after the rekey", |shared| {
+        shared.rekeys_sealed > rekeyed
+    });
     // The open session's forced seal writes only what the content does not hand back as
     // `Part::Reused`, and a text document hands back every part it did not change, so it
     // publishes nothing (decisions/reused_parts_keep_their_key.md). What is written after the

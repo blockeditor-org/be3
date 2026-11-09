@@ -22,6 +22,35 @@ async fn a_part_reused_from_another_block_is_sealed_again_under_its_own_key() {
         .published()
         .expect("the source publishes");
     let manifest = owner.commits().get(head).unwrap().manifest;
+    // Another device of the owner writes the copies without having read the source: it
+    // fetches the reused parts' tops to learn whose they are, and then those parts whole.
+    let owner = harness.second(&owner).await;
+
+    // A part of the block's own, reused by a device that never fetched it, stays as it is.
+    let stored = owner.load_first_part(&manifest).await.unwrap();
+    let mut edited = Sections::from_stored(&stored).unwrap();
+    let kept = edited.saved(7).expect("section 7 is a part");
+    edited.set(0, "edited");
+    let edit = owner
+        .save(source, &edited, Some(head))
+        .await
+        .unwrap()
+        .published()
+        .expect("the edit publishes");
+    assert!(
+        !owner.commits().vault().store().has(kept.hash()).unwrap(),
+        "saving the source downloaded a part of its own that it reuses"
+    );
+    let stored = owner
+        .load_first_part(&owner.commits().get(edit).unwrap().manifest)
+        .await
+        .unwrap();
+    assert_eq!(
+        Sections::from_stored(&stored).unwrap().saved(7),
+        Some(kept),
+        "a part of the block's own keeps its ref"
+    );
+
 
     // A checkout filled from another's snapshot writes that block's manifest whole.
     let copy = owner
@@ -69,6 +98,7 @@ async fn a_part_reused_from_another_block_is_sealed_again_under_its_own_key() {
         }
     }
 
+    owner.refresh_contacts().await.unwrap();
     let public = owner.keys().contact(reader.account()).unwrap();
     owner
         .share(team, reader.account(), Access::View, &public)
