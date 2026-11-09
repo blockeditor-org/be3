@@ -21,6 +21,7 @@ mod nudge;
 pub mod offline_choice;
 mod replicas;
 pub mod revisions;
+pub mod search;
 pub mod terminal_host;
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -39,6 +40,7 @@ use native as platform;
 use web as platform;
 
 pub use graph::{Graph, Node, Owner, Query, Scope};
+pub use search::{SearchAsk, SearchHit, Searched};
 pub use worker::{History, PairingRequest, Shared};
 
 use worker::Command;
@@ -976,6 +978,23 @@ pub fn want(owner: Owner, queries: Vec<Query>) {
     if fetch {
         send(Command::Sync);
     }
+}
+
+/// Names the full-text searches an owner shows (plans/search.md); `searched` answers each once
+/// it ran, and again after an index it read changed (`search_revision` counts the answers).
+pub fn want_searches(owner: Owner, searches: Vec<SearchAsk>) {
+    let changed = with_shared_mut(|shared| shared.search.want(owner, searches)).unwrap_or_default();
+    if changed {
+        send(Command::Sync);
+    }
+}
+
+pub fn searched(search: &SearchAsk) -> Option<Searched> {
+    with_shared(|shared| shared.search.answer(search)).flatten()
+}
+
+pub fn search_revision() -> u64 {
+    with_shared(|shared| shared.search.revision).unwrap_or_default()
 }
 
 fn sourced(query: Query) -> Query {

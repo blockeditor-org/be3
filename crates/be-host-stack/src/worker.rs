@@ -472,6 +472,7 @@ pub struct Shared {
     pub unsent: Vec<be_block_client::UnsentBlock>,
     pub comparison: Option<super::conflicts::Comparison>,
     pub wall: Wall,
+    pub search: super::search::Searching,
 }
 
 #[derive(Clone, Default)]
@@ -517,6 +518,10 @@ impl Shared {
             (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
+            ),
+            (
+                self.search.busy(),
+                "the block store indexes edits or answers a search",
             ),
         ]
         .into_iter()
@@ -1004,6 +1009,7 @@ impl Session<'_> {
             self.refresh_versions().await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
+            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
@@ -2514,7 +2520,7 @@ async fn plain_file(
     Ok(file)
 }
 
-async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
+pub(super) async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
     let Some(head) = peer.newest_head(block).await? else {
         return Ok(None);
     };
@@ -2801,7 +2807,7 @@ impl Tasks {
         )
     }
 
-    fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    pub(super) fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         if !peer.is_attached() {
             return;
         }

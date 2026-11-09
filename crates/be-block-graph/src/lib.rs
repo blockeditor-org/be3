@@ -21,8 +21,9 @@ pub const SETTINGS_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_
 /// only View.
 pub const ANYONE_INSIDE: Uuid = Uuid::from_u128(0x616e_796f_6e65_2d69_6e73_6964_652d_3031);
 
-/// The search index's block type (plans/search.md), whose old states the server keeps few of
-/// (be-server's `retention`).
+/// The search index's block type (plans/search.md). Under a block it indexes that block's tree
+/// and takes exactly the block's access (`BlockNode::is_search_index`); the server keeps few of
+/// its old states (be-server's `retention`).
 pub const SEARCH_INDEX_TYPE: Uuid = Uuid::from_u128(0x7365_6172_6368_2d69_6e64_6578_2d30_3031);
 
 pub const PREFIXES_TYPE: Uuid = Uuid::from_u128(0x7072_6566_6978_6573_2d6b_696e_642d_3031);
@@ -170,6 +171,13 @@ impl BlockNode {
         EDIT_KINDS.contains(&self.content_type) && matches!(self.parent, BlockParent::Block(_))
     }
 
+    /// A search index under the block whose tree it indexes: its access is exactly its
+    /// parent's, whatever its own grants and authorship say, so a block shared alone never
+    /// reads the tree's text through it.
+    pub fn is_search_index(&self) -> bool {
+        self.content_type == SEARCH_INDEX_TYPE && matches!(self.parent, BlockParent::Block(_))
+    }
+
     pub fn is_open_inside(&self) -> bool {
         self.grants
             .get(&ANYONE_INSIDE)
@@ -177,7 +185,9 @@ impl BlockNode {
     }
 
     pub fn sets_access(&self) -> bool {
-        !self.is_block_settings() && self.grants.keys().any(|account| *account != ANYONE_INSIDE)
+        !self.is_block_settings()
+            && !self.is_search_index()
+            && self.grants.keys().any(|account| *account != ANYONE_INSIDE)
     }
 }
 
@@ -207,8 +217,8 @@ pub fn created_access(
 /// grant never takes access away; authors get Manage. A `Settings` block under
 /// a block is capped by its parent (Manage only if the parent has it, else at
 /// most View), an edit kind at its parent's access or View, whichever is
-/// higher, and anything below either
-/// has exactly its parent's access, whatever its own grants say.
+/// higher, and anything below either has exactly its parent's access, whatever
+/// its own grants say. A search index has exactly its parent's access too.
 fn level_below(
     node: &BlockNode,
     account: Uuid,
@@ -230,6 +240,9 @@ fn level_below_open(
     parent_viewable: bool,
     in_settings: bool,
 ) -> Access {
+    if node.is_search_index() {
+        return parent;
+    }
     let granted = node.grants.get(&account).copied().unwrap_or_default();
     let level = match (
         in_settings,
@@ -839,7 +852,7 @@ impl BlockGraph {
             let Some(node) = self.blocks.get(&current) else {
                 return false;
             };
-            if node.is_block_settings() || node.is_edit_kind() {
+            if node.is_block_settings() || node.is_edit_kind() || node.is_search_index() {
                 return false;
             }
             match node.parent.block() {
@@ -864,7 +877,7 @@ impl BlockGraph {
             let Some(node) = self.blocks.get(&block) else {
                 continue;
             };
-            if node.is_block_settings() || node.is_edit_kind() {
+            if node.is_block_settings() || node.is_edit_kind() || node.is_search_index() {
                 continue;
             }
             viewers.insert(node.author);
@@ -1024,7 +1037,7 @@ impl BlockGraph {
                 viewers.extend(self.inside_viewers(owner));
             }
             in_settings = in_settings || node.holds_settings();
-            if in_settings {
+            if in_settings || node.is_search_index() {
                 continue;
             }
             viewers.insert(node.author);

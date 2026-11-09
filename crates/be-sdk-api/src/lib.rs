@@ -37,6 +37,7 @@ be_wasm_ops_bindgen::generate!({
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
         "dialog-status", "dialog-frame", "window-kind", "insets", "picture", "block-history",
+        "search-hit", "search-results",
     ],
     inline: [
         "artifact-command", "unlink-command",
@@ -55,7 +56,7 @@ pub use accessibility::DescribedAction;
 pub use be_wasm_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
-    ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
+    ConflictSide, SearchHit, SearchResults, StoredHead, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
     VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};

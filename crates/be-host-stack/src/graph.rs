@@ -77,6 +77,8 @@ pub enum Query {
 pub enum Owner {
     Host,
     Open,
+    /// The indexes searches read and the blocks they found (`crate::search`).
+    Search,
     Version,
     Organization,
     Editor(u64),

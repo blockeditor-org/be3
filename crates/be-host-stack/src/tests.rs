@@ -80,6 +80,7 @@ mod two_devices_that_edit_one_note_offline_merge_once_both_reconnect;
 mod two_peers_of_one_organization_share_a_counter;
 mod typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here;
 mod undo_steps_back_through_what_this_peer_did;
+mod what_is_typed_is_found_through_the_workspaces_search_index;
 
 struct Editor<C: LiveEdit> {
     block: Uuid,
