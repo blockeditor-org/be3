@@ -32,6 +32,14 @@ macro_rules! icons {
                     _ => None,
                 }
             }
+
+            /// Its Lucide name, as saved data holds it ([`named`] reads it back).
+            pub fn name(self) -> &'static str {
+                match self.0 {
+                    $($codepoint => $name,)*
+                    _ => "",
+                }
+            }
         }
     };
 }

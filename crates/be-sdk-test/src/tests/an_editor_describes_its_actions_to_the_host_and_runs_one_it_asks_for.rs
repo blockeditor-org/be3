@@ -41,7 +41,7 @@ fn an_editor_describes_its_actions_to_the_host_and_runs_one_it_asks_for() {
     let mut test = BeuiTest::<ActionsRoot>::editing(Uuid::new_v4());
     let tidy = test.described_action("tidy.up");
     assert_eq!(tidy.label, "Tidy up");
-    assert_eq!(tidy.glyph.as_deref(), Some(ICON_SPARKLES.as_str()));
+    assert_eq!(tidy.glyph.as_deref(), Some(ICON_SPARKLES.name()));
     assert_eq!(
         tidy.shortcut,
         Some(KeyChord::new(
