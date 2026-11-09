@@ -386,13 +386,7 @@ pub(crate) fn command(
         .header("Content-Type", "application/json")
         .with_body(body.to_string().into_bytes());
     let host = host.clone();
-    async move {
-        Some(
-            send::<Ran>(host, request)
-                .await?
-                .and_then(Ran::succeeded),
-        )
-    }
+    async move { Some(send::<Ran>(host, request).await?.and_then(Ran::succeeded)) }
 }
 
 /// `PUT /sandboxes/{id}/files`: writes `content` to `path`, under `/home/user` or `/tmp`.

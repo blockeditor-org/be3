@@ -9,7 +9,8 @@ fn a_key_without_exec_offers_reconnect_when_connecting() {
 
     assert!(boat.test.shown("boat.reconnect"));
     assert!(
-        boat.label("boat.key-notice").contains("exec and file.write"),
+        boat.label("boat.key-notice")
+            .contains("exec and file.write"),
         "{}",
         boat.label("boat.key-notice")
     );

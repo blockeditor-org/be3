@@ -20,7 +20,10 @@ fn a_terminal_of_a_sandbox_no_longer_listed_can_be_removed() {
     assert_eq!(removed, agent.into_bytes());
     boat.test.answer(reply, Ok(()));
     boat.test.run();
-    assert!(!boat.test.has_fetches(), "a sandbox not listed is asked nothing");
+    assert!(
+        !boat.test.has_fetches(),
+        "a sandbox not listed is asked nothing"
+    );
     assert!(boat.kept_terminals().is_empty());
     assert!(!boat.test.shown("boat.gone"));
 }

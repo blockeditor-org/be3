@@ -47,7 +47,9 @@ impl Metadata {
 
     /// The deployed `be` for a Linux machine of `arch`, if this build was deployed with one.
     pub fn terminal_host(&self, arch: &str) -> Option<&TerminalHostBinary> {
-        self.terminal_hosts.iter().find(|binary| binary.arch == arch)
+        self.terminal_hosts
+            .iter()
+            .find(|binary| binary.arch == arch)
     }
 
     /// This metadata as the `build-info.json` of a `be` of the same build: what names the

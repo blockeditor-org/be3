@@ -115,9 +115,13 @@ pub(crate) fn install_command(block: Uuid, units: bool) -> String {
              /etc/systemd/system/"
         ));
         lines.push("sudo systemctl daemon-reload".to_owned());
-        lines.push(format!("sudo systemctl enable --now be-terminal@{block}.path"));
+        lines.push(format!(
+            "sudo systemctl enable --now be-terminal@{block}.path"
+        ));
     }
-    lines.push(format!("sudo systemctl restart be-terminal@{block}.service"));
+    lines.push(format!(
+        "sudo systemctl restart be-terminal@{block}.service"
+    ));
     lines.join("\n")
 }
 
@@ -438,7 +442,8 @@ impl State {
         });
         self.set_status(block, Some(TerminalStatus::Connecting));
         if !self.editor.read_only().get_untracked() {
-            self.content.operate(Boat::add_terminal(block, sandbox.clone()));
+            self.content
+                .operate(Boat::add_terminal(block, sandbox.clone()));
         }
         let state = *self;
         let organization = self.filters.get_untracked().organization;
@@ -577,10 +582,9 @@ impl State {
         }
         let running = self.listed.with_untracked(|listed| {
             listed.as_ref().is_some_and(|listed| {
-                listed
-                    .sandboxes
-                    .iter()
-                    .any(|sandbox| sandbox.id == terminal.sandbox && self.phase(sandbox) == Phase::Running)
+                listed.sandboxes.iter().any(|sandbox| {
+                    sandbox.id == terminal.sandbox && self.phase(sandbox) == Phase::Running
+                })
             })
         });
         if running && let Some(account) = untrack(|| self.account()) {
@@ -604,16 +608,15 @@ impl State {
     }
 
     pub(crate) fn open_terminal(&self, block: Uuid) {
-        self.editor
-            .host()
-            .open_block(block, <TerminalContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE);
+        self.editor.host().open_block(
+            block,
+            <TerminalContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+        );
     }
 }
 
 /// The viewer's own terminals, from their owner-only settings.
-pub(super) fn own_terminals(
-    effective: Memo<BoatSettings>,
-) -> Memo<BTreeMap<Uuid, TerminalAgent>> {
+pub(super) fn own_terminals(effective: Memo<BoatSettings>) -> Memo<BTreeMap<Uuid, TerminalAgent>> {
     create_memo(move || {
         effective.with(|settings| {
             settings

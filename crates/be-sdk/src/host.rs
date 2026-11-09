@@ -18,11 +18,11 @@ use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
-    BlockAgent, BlockCommand, TerminalHostBe, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
+    BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
     FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, ViewChange, ViewId,
-    ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe, ViewChange,
+    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};

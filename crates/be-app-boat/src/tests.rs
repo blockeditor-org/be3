@@ -18,18 +18,18 @@ use crate::root::{BoatRoot, CACHE, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
 mod a_development_build_uploads_its_own_be;
-mod a_key_without_exec_offers_reconnect_when_connecting;
-mod a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token;
-mod a_terminal_of_a_sandbox_no_longer_listed_can_be_removed;
-mod connecting_a_terminal_installs_its_host_in_the_sandbox;
 mod a_key_boat_no_longer_takes_offers_reconnect;
 mod a_key_near_its_expiry_warns_two_weeks_before;
 mod a_key_past_its_expiry_asks_nothing_and_offers_reconnect;
+mod a_key_without_exec_offers_reconnect_when_connecting;
 mod a_long_list_is_read_page_by_page;
 mod a_refused_start_says_why_until_dismissed;
+mod a_resumed_sandbox_gets_its_terminal_back_with_a_rotated_token;
+mod a_terminal_of_a_sandbox_no_longer_listed_can_be_removed;
 mod an_empty_list_says_so;
 mod an_expired_key_offers_reconnect;
 mod an_unchanged_list_is_not_kept_again_until_it_ages;
+mod connecting_a_terminal_installs_its_host_in_the_sandbox;
 mod connecting_checks_the_key_and_keeps_it_for_its_owner_alone;
 mod on_the_web_it_says_it_is_not_available;
 mod reconnecting_replaces_the_key;
@@ -359,9 +359,8 @@ impl Boat {
             let path = self.write_answered("/home/user/.cache/be3/be-terminal@.path");
             assert!(path.contains("PathExists=/run/be3/terminal-host-%i.json"));
         }
-        let credentials = self.write_answered(&format!(
-            "/home/user/.cache/be3/terminal-host-{block}.json"
-        ));
+        let credentials =
+            self.write_answered(&format!("/home/user/.cache/be3/terminal-host-{block}.json"));
         let install = self.command();
         assert!(
             !install.line.contains("token"),
