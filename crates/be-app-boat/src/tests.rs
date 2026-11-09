@@ -14,7 +14,6 @@ use be_sdk_test::{BeuiTest, Fetch, HostCall};
 use be_type_boat::{BoatContent, BoatSettings, BoatSettingsContent};
 use uuid::Uuid;
 
-use super::*;
 use crate::root::{BoatRoot, CACHE, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
