@@ -1415,6 +1415,24 @@ impl ServerStore {
         self.graph_loads.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Runs `job`, which changes the in-memory `ObjectRefs` beside a transaction of its own.
+    /// When it fails its transaction rolled back, so the counts are read again from the
+    /// database, which holds what was committed.
+    pub(crate) fn keeping_refs<R>(
+        &self,
+        database: &Connection,
+        job: impl FnOnce() -> Result<R, ServerError>,
+    ) -> Result<R, ServerError> {
+        let result = job();
+        if result.is_err() {
+            match load_object_refs(database) {
+                Ok(refs) => *self.object_refs() = refs,
+                Err(error) => tracing::error!(%error, "reading object counts again failed"),
+            }
+        }
+        result
+    }
+
     pub(crate) fn object_refs(&self) -> std::sync::MutexGuard<'_, ObjectRefs> {
         self.object_refs
             .lock()

@@ -150,26 +150,42 @@ An operation can carry a part by its ref instead of its bytes: chat closing a
 segment, the search index's writer adding one, an edit too large to relay.
 The sender calls `put-part(bytes)`, which seals the bytes under the block's
 current key, uploads them and has the server hold them for the block
-(`hold-objects` with `hold.until-committed`: until a commit of the block that
-uses them publishes, or `upload_grace` passes), and answers the `part-ref`
+(`hold-objects` with `hold.until-committed`), and answers the `part-ref`
 once the upload is done. Only then does it send the operation, with that ref
-(a `be_block::PartRef`) in its own payload. An editor asks with
-`EditorMirror::put_part` (`FromEditor::PutPart`, answered `ToEditor::PartPut`
-under its token); a replica asks for itself with `Effect::PutPart`.
+(a `be_block::PartRef`) in its own payload. The hold ends when a commit of the
+block that uses the part publishes, or once `upload_grace` passed and the
+block's journal holds no entries (an uncommitted operation may still name the
+part). Only an editor can ask today: `EditorMirror::put_part`
+(`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
+the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
+replica to put a part of its own (chat's owner closing a segment with no
+editor attached), and the block must be on the server: a block made offline,
+or one whose replica has not joined yet, is refused.
 
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
 nothing (the server holds it, so `missing-objects` names none of it) and
-downloading only its top object, to learn its key. A type that only keeps the
-part (the search index) never reads it. A type that can rebuild the bytes
-(chat) puts a hash of them in the operation, rebuilds them on applying it and
-keeps them when they match, answering reads of the part from
+downloading its nodes, never its chunks: its top object to learn its key, and
+the rest to list the commit's objects. That needs the server, so an owner
+offline cannot seal a commit reusing a part it never fetched. A type that only
+keeps the part (the search index) never reads it. A type that can rebuild the
+bytes (chat) puts a hash of them in the operation, rebuilds them on applying it
+and keeps them when they match, answering reads of the part from
 `BlockContent::reused_bytes`; when its encoding differs (another build) it
 keeps nothing and reads go to `read-part`. Such a type loads only its first
-part (`Loads::FirstPart`), so `encode` never needs the bytes. Hosts:
-`Peer::put_part`; be-sdk-test's store and editors attached read-only refuse.
-`be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` is the
-flow.
+part (`Loads::FirstPart`), so `encode` never needs the bytes. It takes its
+parts' refs from what it loaded (`from_stored`'s `Stored::root`), never from
+refs it wrote into its own bytes: after a rotation a save reseals a reused part
+under a new ref.
+
+A part that is an operation's payload rather than a part of the content (an
+oversized text edit) is not served yet: `LiveEdit::apply` is synchronous and
+nothing reads a payload by its ref before applying it, and no commit ever
+holds such a part, so its hold lasts the whole grace. Hosts: `Peer::put_part`;
+be-sdk-test's store refuses. Tests:
+`be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
+flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
+and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
 
 ## Peers
 

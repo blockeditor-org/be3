@@ -61,7 +61,10 @@ edited (the journal, guides/blocks/client.md). Not implemented yet.
   Only an owner online, and only for messages already confirmed. Every replica
   encodes the segment's bytes itself and checks them against the hash; on a
   mismatch (another build encoding differently) it reads the part with
-  `read-part` instead.
+  `read-part` instead. Missing: `put-part` is reachable only from an editor
+  (`FromEditor::PutPart`), so the owner closing a segment with no editor
+  attached needs a type-side hook first (a `LiveEdit` way to ask for a part
+  and sequence the operation that names it once it is put).
 - **Rewriting a segment** folds its pending edits, deletions and reactions in
   as one new part.
 - **The editor** opens the header and reads segments as the person scrolls
