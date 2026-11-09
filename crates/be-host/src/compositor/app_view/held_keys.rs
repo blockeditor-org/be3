@@ -110,7 +110,10 @@ pub(super) fn route(
             if !holding {
                 return Vec::new();
             }
-            let events = held.remove(&key).map(|held| held.events).unwrap_or_default();
+            let events = held
+                .remove(&key)
+                .map(|held| held.events)
+                .unwrap_or_default();
             let had_keyboard = input.focused || input.events.contains(&Forwarded::Focus(false));
             return if had_keyboard { events } else { Vec::new() };
         }
@@ -133,7 +136,10 @@ pub(super) fn route(
     deliver(input, released);
     if input.focused {
         let returned = RETURNED.with_borrow_mut(|returned| returned.remove(&own));
-        deliver(input, returned.map(|(events, _)| events).unwrap_or_default());
+        deliver(
+            input,
+            returned.map(|(events, _)| events).unwrap_or_default(),
+        );
     }
     let owed = DUE.with_borrow_mut(|due| {
         let owed = due.get_mut(&own)?;
@@ -198,9 +204,8 @@ pub(super) fn refused(editor: (&str, EditorInstanceId), has_keyboard: impl FnOnc
         return;
     };
     if !held.events.is_empty() && has_keyboard(held.owner) {
-        RETURNED.with_borrow_mut(|returned| {
-            returned.insert(held.owner, (held.events, held.modifiers))
-        });
+        RETURNED
+            .with_borrow_mut(|returned| returned.insert(held.owner, (held.events, held.modifiers)));
     }
 }
 

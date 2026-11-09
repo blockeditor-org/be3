@@ -1734,7 +1734,10 @@ pub fn refuse_child_focus(app_id: &str, instance: EditorInstanceId) {
 
 /// Whether the instance's block content, if it edits one, has reached it.
 pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> bool {
-    with(app_id, |runtime| runtime.instances.content_delivered(instance)).unwrap_or(true)
+    with(app_id, |runtime| {
+        runtime.instances.content_delivered(instance)
+    })
+    .unwrap_or(true)
 }
 
 /// The frames asked of the app and the frames it answered: input sent while `asked` was `n`
