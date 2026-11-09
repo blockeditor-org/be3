@@ -13,6 +13,7 @@ mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
+mod reading_on_one_device_clears_the_count_on_another;
 
 const ME: Uuid = Uuid::from_u128(0x5a1d_0000_0000_4000_8000_0000_0000_0001);
 const ROSA: Uuid = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
@@ -45,6 +46,7 @@ impl Harness {
             .register(be_type_chat::registrations());
         harness.editor.hold(None, content);
         harness.editor.set_size(vec2(480.0, 560.0));
+        harness.editor.presence_visible(true);
         harness.run();
         harness
     }
