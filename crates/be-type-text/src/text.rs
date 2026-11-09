@@ -4,7 +4,7 @@ use be_block_model::{Document, Edit, Model, ObjectId, Sequence, Text};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::Root;
+use be_block::{Root, SearchDocument};
 use be_block::plain::extension;
 use be_sdk_type_guest::DocumentFile;
 
@@ -205,6 +205,11 @@ impl Root for TextBlock {
 
     fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
         self.linked_blocks(Some(organization))
+    }
+
+    /// One document of the whole text, Markdown as written.
+    fn search_text_in(document: &Document<Self>) -> Vec<SearchDocument> {
+        vec![SearchDocument::whole(Self::text(document))]
     }
 }
 

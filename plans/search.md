@@ -1,7 +1,7 @@
 # Search
 
-Depends on: plans/search_library.md; plans/large_blocks.md steps 3 and 4
-(per-type retention, lazy rekeying).
+Depends on: plans/large_blocks.md steps 3 and 4 (per-type retention, lazy
+rekeying); step 5 on plans/search_library.md (more types).
 
 Full-text search over names and content. The server never reads content
 (guides/the_new_block_stack.md, goal 5), so clients build the index, encrypt
