@@ -1,18 +1,19 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block::{ObjectId, SettingsLayer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
+    Glyph, ICON_ARROW_DOWN, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND,
     ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ContentProjection, Editor, utc_offset};
-use be_type_chat::{ChatContent, Message, Shown};
-use beui::{Align, Direction};
+use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, utc_offset};
+use be_type_chat::{ChatContent, ChatReads, Message, Shown};
+use beui::{Align, Direction, ScrollPosition};
 use uuid::Uuid;
 
 type Chat = ContentProjection<ChatContent>;
@@ -54,6 +55,10 @@ struct Composer {
     replying: Signal<Option<ObjectId>>,
     editing: Signal<Option<ObjectId>>,
     picking: Signal<Option<ObjectId>>,
+    /// The messages sent from here not yet delivered, each with the number of the operation
+    /// that sent it (`ContentProjection::sent`).
+    sending: Signal<Vec<(u64, ObjectId)>>,
+    delivered: ReadSignal<u64>,
 }
 
 #[component]
@@ -78,7 +83,22 @@ pub fn Chat(editor: Editor) -> NodeId {
         replying: create_signal(None),
         editing: create_signal(None),
         picking: create_signal(None),
+        sending: create_signal(Vec::new()),
+        delivered: chat.delivered(),
     };
+    // A message shows as sending until the operation that sent it is delivered: confirmed in
+    // the session, or, sent offline, published.
+    create_effect(move || {
+        let delivered = composer.delivered.get();
+        let sent = composer
+            .sending
+            .with_untracked(|sending| sending.iter().any(|(sent, _)| *sent <= delivered));
+        if sent {
+            composer
+                .sending
+                .update(|sending| sending.retain(|(sent, _)| *sent > delivered));
+        }
+    });
     // A message replied to or being edited can be deleted, here or elsewhere.
     create_effect(move || {
         ids.with(|ids| {
@@ -108,6 +128,14 @@ pub fn Chat(editor: Editor) -> NodeId {
     });
     let block = editor.block_id();
     let send = move || submit(&chat, block, me, composer);
+    let scroll = ComponentRef::<ScrollApi>::new();
+    let at_end = create_signal(true);
+    let unread = unread_count(editor, chat, block, me, at_end);
+    let has_unread = create_memo(move || unread.get() > 0);
+    let unread_label = create_memo(move || match unread.get() {
+        1 => "1 new message".to_owned(),
+        count => format!("{count} new messages"),
+    });
     let replying = create_memo(move || {
         let id = composer.replying.get()?;
         let quoted = rows.try_get(&id)?;
@@ -131,7 +159,13 @@ pub fn Chat(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <ListItem grow=1.0>
-                <Scroll follow_end=true>
+                <Scroll
+                    api={scroll}
+                    follow_end=true
+                    on_change={move |position: ScrollPosition| {
+                        at_end.set(position.offset >= position.max_offset() - 1.0);
+                    }}
+                >
                     <Frame padding={Padding::all(Space::Xl)}>
                         <List spacing=Space::Md>
                             <Show condition={empty}>
@@ -147,6 +181,18 @@ pub fn Chat(editor: Editor) -> NodeId {
             <Separator />
             <Frame padding={Padding::all(Space::Lg)}>
                 <List spacing=Space::Sm>
+                    <Show condition={has_unread}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                            <Button
+                                label={unread_label}
+                                glyph=ICON_ARROW_DOWN
+                                variant=ButtonVariant::Secondary
+                                size=ButtonSize::Small
+                                @test_id={"chat.unread"}
+                                on_click={move || scroll.get().scroll_to_end()}
+                            />
+                        </List>
+                    </Show>
                     <Show condition={has_reply}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <ListItem grow=1.0>
@@ -204,6 +250,37 @@ pub fn Chat(editor: Editor) -> NodeId {
             </Frame>
         </List>
     }
+}
+
+/// How many messages others sent since this account last read the chat, kept in its
+/// owner-only `ChatReads` so every device it uses agrees. The chat is read while it is
+/// scrolled to its newest message.
+fn unread_count(
+    editor: Editor,
+    chat: Chat,
+    block: Uuid,
+    me: Uuid,
+    at_end: Signal<bool>,
+) -> Memo<usize> {
+    let reads = LayeredSettings::<ChatReads>::this_device(editor);
+    let read = reads.effective();
+    let unread = create_memo(move || {
+        let read = read.with(|reads| reads.read_up_to(block).cloned());
+        chat.read(|content| content.unread(read.as_ref(), me))
+            .unwrap_or_default()
+    });
+    create_effect(move || {
+        if !at_end.get() || unread.get() == 0 {
+            return;
+        }
+        let Ok(Some(newest)) = chat.read(ChatContent::newest) else {
+            return;
+        };
+        let edit: KeptEdit<ChatReads> = Rc::new(move |_| ChatReads::set_read(block, &newest));
+        // Not yet loaded, it is written on the next change instead.
+        let _ = reads.write_all(SettingsLayer::EveryDevice, &[edit]);
+    });
+    unread
 }
 
 fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64) -> Row {
@@ -301,8 +378,12 @@ fn submit(chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
         None => {
             let message =
                 Message::new(me, now(), body).replying_to(composer.replying.get_untracked());
-            if let Ok((_, send)) = chat.read(|content| content.send(block, message)) {
+            if let Ok((id, send)) = chat.read(|content| content.send(block, message)) {
                 chat.operate(send);
+                let sent = chat.sent();
+                if sent > composer.delivered.get_untracked() {
+                    composer.sending.update(|sending| sending.push((sent, id)));
+                }
             }
             composer.replying.set(None);
         }
@@ -345,6 +426,11 @@ fn MessageRow(
     });
     let reacted = create_memo(move || reactions.with(|reactions| !reactions.is_empty()));
     let picking = create_memo(move || composer.picking.get() == Some(id));
+    let sending = create_memo(move || {
+        composer
+            .sending
+            .with(|sending| sending.iter().any(|(_, sent)| *sent == id))
+    });
     let fill = create_memo(move || match mine.get() {
         true => ColorRole::AccentSoft,
         false => ColorRole::Control,
@@ -425,6 +511,11 @@ fn MessageRow(
                             <Text style=TextStyle::CAPTION>{time}</Text>
                             <Show condition={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
+                            </Show>
+                            <Show condition={sending}>
+                                <Text style=TextStyle::CAPTION @test_id={format!("chat.message.{id}.sending")}>
+                                    "Sending"
+                                </Text>
                             </Show>
                         </List>
                     </ListItem>

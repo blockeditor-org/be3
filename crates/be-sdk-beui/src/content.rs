@@ -197,6 +197,21 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().live.operate_anyway(operation);
     }
 
+    /// How many operations this editor sent: right after `operate`, the number of the one it
+    /// sent, to compare with `delivered`.
+    pub fn sent(&self) -> u64 {
+        self.inner().live.sent()
+    }
+
+    /// How many of the operations this editor sent are delivered (`LiveContent::delivered`):
+    /// those past it are still sending, such as everything sent offline until it is published.
+    pub fn delivered(&self) -> ReadSignal<u64> {
+        let live = self.live();
+        let delivered = create_signal(live.delivered());
+        keep(live.on_delivered(move |count| delivered.set(count)));
+        delivered.read_only()
+    }
+
     pub fn begin_gesture(&self) {
         self.inner().live.begin_gesture();
     }

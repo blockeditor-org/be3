@@ -798,6 +798,25 @@ impl ContentStore {
         }
     }
 
+    /// Tells the block's editors whether the server holds all this device holds of it, as a
+    /// host does (`ToEditor::Published`): false as for edits made offline, true once they are
+    /// published.
+    pub fn set_published(&self, block: Option<Uuid>, published: bool) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let editors: Vec<EditorId> = inner
+            .attached
+            .get(&key)
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect();
+        let frame = ToEditor::Published(published).encode();
+        for editor in editors {
+            inner.outbox.push((key, editor, frame.clone()));
+        }
+    }
+
     /// Holds the editor's operations back until called with false, to test what the editor
     /// shows before the host has taken an edit.
     pub fn defer(&self, defer: bool) {
@@ -885,13 +904,14 @@ impl ContentStore {
         defined: be_sdk_api::MetadataEntries,
         content: Option<Vec<u8>>,
         owner_only: bool,
+        author: Uuid,
     ) {
         let id = Uuid::from_bytes(block_id);
         let block_type = Uuid::from_bytes(content_type);
         let info = BlockInfo::decode(be_sdk_api::BlockInfo {
             block_id,
             block_type: content_type,
-            author: Some(Uuid::nil().into_bytes()),
+            author: Some(author.into_bytes()),
             parent: Some(parent),
             references: Vec::new(),
             access: be_sdk_api::AccessLevel::Manage,

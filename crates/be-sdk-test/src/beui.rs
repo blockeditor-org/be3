@@ -1454,7 +1454,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             if call.changes() {
                                 self.acknowledged.insert(op);
                             }
-                            self.link.call(call, &self.store, connection);
+                            let author = self.host.account_id();
+                            self.link.call(call, &self.store, connection, author);
                             continue;
                         }
                         Some(embed::Call::HostServices(call)) => {

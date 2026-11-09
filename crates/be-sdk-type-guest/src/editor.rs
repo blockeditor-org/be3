@@ -113,6 +113,12 @@ pub enum ToEditor {
         token: u64,
         result: Result<be_block::PartRef, String>,
     },
+    /// From the host rather than the replica: whether what this device sequences reaches the
+    /// server. False once the device is offline, and while it holds edits the server lacks
+    /// (sequenced offline, or commits in its outbox); true again once a commit holding them is
+    /// published. An editor counts what it sent before a false as delivered, and what it sends
+    /// after as sending until the next true (`EditorMirror::delivered`).
+    Published(bool),
 }
 
 mod range_result {
@@ -211,6 +217,9 @@ pub struct EditorMirror<C: LiveEdit> {
     reads: u64,
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
     puts: Vec<(u64, Result<be_block::PartRef, String>)>,
+    sent: u64,
+    published: bool,
+    delivered: u64,
 }
 
 impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
@@ -231,6 +240,9 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             reads: 0,
             ranges: Vec::new(),
             puts: Vec::new(),
+            sent: 0,
+            published: true,
+            delivered: 0,
         }
     }
 }
@@ -322,6 +334,27 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.pending.len()
     }
 
+    /// How many operations this mirror sent, counting from its first: the one `operate` just
+    /// sent is the `sent()`th.
+    pub fn sent(&self) -> u64 {
+        self.sent
+    }
+
+    fn confirmed_count(&self) -> u64 {
+        self.sent - self.pending.len() as u64
+    }
+
+    /// How many of the operations this mirror sent are delivered: confirmed by the session's
+    /// owner while what this device sequences reaches the server, or published since
+    /// (`ToEditor::Published`). An operation sequenced offline is delivered once a commit
+    /// holding it is published.
+    pub fn delivered(&self) -> u64 {
+        match self.published {
+            true => self.confirmed_count(),
+            false => self.delivered,
+        }
+    }
+
     pub fn presence(&self) -> &[PeerPresence] {
         &self.presence
     }
@@ -340,6 +373,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.revision += 1;
         let message = FromEditor::Operate(C::encode_operation(&operation));
         self.pending.push_back(operation);
+        self.sent += 1;
         Some(message)
     }
 
@@ -375,6 +409,13 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             }
             ToEditor::PartPut { token, result } => {
                 self.puts.push((token, result));
+                None
+            }
+            ToEditor::Published(published) => {
+                if self.published && !published {
+                    self.delivered = self.confirmed_count();
+                }
+                self.published = published;
                 None
             }
         }
