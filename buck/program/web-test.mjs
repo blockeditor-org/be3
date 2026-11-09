@@ -11,6 +11,7 @@
 // place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
 // revealed it; after a reveal every target of the command is found again, as native drive
 // does), so the browser's own focus, key and text paths run.
+// `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
@@ -266,6 +267,17 @@ async function step(page, words) {
             return settle();
         case "key":
             for (const pressed of args) await page.keyboard.press(chord(pressed));
+            return settle();
+        case "clipboard": {
+            // Sets the clipboard for a following `key ctrl+v`, as native drive's does.
+            if (args.length === 0) throw new Failure("clipboard takes the TEXT to hold; the browser run cannot read it back");
+            await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+            await page.evaluate((text) => navigator.clipboard.writeText(text), args.join(" "));
+            return "";
+        }
+        case "back":
+            if (args.length > 0) throw new Failure("back takes nothing in the browser, which goes back at once");
+            await page.evaluate(() => history.back());
             return settle();
         case "selection": {
             const wanted = { none: false, some: true }[args[0]];

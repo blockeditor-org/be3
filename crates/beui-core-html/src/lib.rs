@@ -1,4 +1,5 @@
 mod aria;
+pub mod back;
 pub mod automate;
 pub mod canvas;
 pub mod colors;

@@ -82,7 +82,6 @@ pub(crate) fn interactive(
     children: Option<Child>,
 ) -> NodeId {
     let _ = (
-        pastes,
         key_active,
         claims_touch,
         inhibits_shortcuts,
@@ -118,6 +117,8 @@ pub(crate) fn interactive(
     });
     let held = switches.clone();
     bind(ime, move |ime| held.ime.set(ime));
+    let held = switches.clone();
+    bind(pastes, move |pastes| *held.pastes.borrow_mut() = pastes);
     let held = switches.clone();
     bind(hit_area, move |area| *held.hit_area.borrow_mut() = area);
     let held = switches.clone();

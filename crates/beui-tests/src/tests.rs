@@ -49,6 +49,7 @@ fn drive(fixture: &str, script: &str) {
 }
 
 mod action_bar;
+mod back;
 mod back_slide;
 mod buttons;
 mod canvas;
@@ -72,6 +73,7 @@ mod offset;
 mod overlay;
 mod palette;
 mod pan_zoom;
+mod paste;
 mod picture;
 mod pointer_lock;
 mod popups;

@@ -122,9 +122,12 @@ pub(crate) fn on_scroll_key(
 }
 
 pub(crate) fn on_back(
-    _enabled: Prop<bool>,
-    _handler: impl Fn(crate::types::BackGesture) + 'static,
+    enabled: Prop<bool>,
+    handler: impl Fn(crate::types::BackGesture) + 'static,
 ) {
+    let id = beui_core_html::back::add(crate::reactive::Callback::new(handler));
+    create_binding(move || beui_core_html::back::set_enabled(id, enabled.get()));
+    on_cleanup(move || beui_core_html::back::remove(id));
 }
 
 pub(crate) fn use_keyboard() -> ReadSignal<bool> {
