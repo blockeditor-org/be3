@@ -2520,7 +2520,7 @@ async fn plain_file(
     Ok(file)
 }
 
-pub(super) async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
+async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
     let Some(head) = peer.newest_head(block).await? else {
         return Ok(None);
     };

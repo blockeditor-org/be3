@@ -1,7 +1,7 @@
 # Search
 
 Depends on: none for steps 1 and 2; step 3 on plans/search_library.md (more
-types).
+types answering `search-text`).
 
 Full-text search over names and content: what is left of it. Built
 (guides/blocks/host.md, "Search"): the index block type `SEARCH_INDEX_TYPE` and its
@@ -45,13 +45,10 @@ Each step is one PR.
    carry the document key and match, and the file tree's hit rows pass it on.
    Done: a host test opens a hit from quick open and the text shows the match
    selected, with a painting.
-3. **More types**, as their `search-text` lands (plans/search_library.md).
-   Once text answers `search-text`, the indexer asks the type for it (with the
-   parts the index holds text for as `indexed`) instead of reading the plain
-   file (`be_host_stack::search`'s `text_of`), keeps `source` per document, and
-   cuts snippets from `search-text` with the hit's key; a type that loads whole
-   is decoded whole for that, so keep the snippet text per (block, commit, key)
-   as `cached_text` does.
+3. **More types**, as they answer `search-text` (plans/search_library.md);
+   the indexer already puts one document per answered key. With them, keep
+   each document's `source` and pass the parts the index holds text for as
+   `indexed`, so reindexing a large block reads only its changed parts.
 
 ## Left open
 
