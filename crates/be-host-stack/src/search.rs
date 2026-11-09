@@ -123,9 +123,11 @@ impl Searching {
         self.dirty.insert(block);
     }
 
+    /// Whether a batch is being written or a wanted search is not answered yet. Queued blocks
+    /// are not: the round that queues them takes them, but for those waiting on their root's
+    /// index to be made or listed.
     pub(crate) fn busy(&self) -> bool {
-        (!self.off && !self.dirty.is_empty())
-            || !self.writing.is_empty()
+        !self.writing.is_empty()
             || !self.running.is_empty()
             || self.wanted().any(|asked| {
                 self.answers
@@ -337,7 +339,11 @@ async fn puts_of(
         time: commit.time,
         id: *head.hash().as_bytes(),
     };
-    let mut documents = documents_of(peer, shared, replicas, content_type, &commit, None).await;
+    // Only a module already running is asked: starting one would hold up the worker's loop.
+    let mut documents = match crate::kind_of(content_type) {
+        Some(_) => documents_of(peer, shared, replicas, content_type, &commit, None).await,
+        None => Vec::new(),
+    };
     if !documents.iter().any(|document| document.key.is_empty()) {
         documents.push(be_sdk_type_api::SearchDocument {
             key: String::new(),
