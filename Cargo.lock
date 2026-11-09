@@ -794,6 +794,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-app-boat"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-beui",
+ "be-sdk-test",
+ "be-type-boat",
+ "beui",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "be-app-browser-tab"
 version = "0.1.0"
 dependencies = [
@@ -2398,6 +2411,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-type-boat"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-block-commit",
+ "be-block-model",
+ "be-sdk-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "be-type-browser-tab"
 version = "0.1.0"
 dependencies = [
@@ -2415,6 +2440,7 @@ dependencies = [
  "be-block-type-host",
  "be-sdk-type-guest",
  "be-type-audio",
+ "be-type-boat",
  "be-type-browser-tab",
  "be-type-checklist",
  "be-type-database",

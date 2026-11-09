@@ -3,6 +3,7 @@
 
 members = [
     "crates/be-app-audio",
+    "crates/be-app-boat",
     "crates/be-app-browser-tab",
     "crates/be-app-checklist",
     "crates/be-app-database",
@@ -121,6 +122,7 @@ members = [
     "crates/be-tool-tls-diamond-right",
     "crates/be-tool-verify",
     "crates/be-type-audio",
+    "crates/be-type-boat",
     "crates/be-type-browser-tab",
     "crates/be-type-bundle",
     "crates/be-type-checklist",

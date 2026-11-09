@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "type": "sandbox.list",
+  "sandboxes": [],
+  "pageInfo": {
+    "nextCursor": null,
+    "hasMore": false,
+    "limit": 200
+  }
+}

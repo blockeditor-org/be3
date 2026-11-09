@@ -122,7 +122,7 @@ pub use desktop::{
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{
-    AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch, StorageUsageWatch,
+    AdministratorWatch, LinkBaseWatch, PageOriginWatch, PreferenceSourcesWatch, StorageUsageWatch,
 };
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
