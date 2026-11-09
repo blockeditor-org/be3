@@ -286,17 +286,23 @@ fn focused_catcher() -> Option<NodeId> {
         .find(|node| super::desktop::catcher(*node).is_some())
 }
 
-/// The instance's view the palette lists from: the focused one, else its main view.
+/// The instance's view the palette lists from when the instance asks: its main view, else the
+/// first it shows. Never the focus, which may still be moving back from the menu that asked, so
+/// the palette lists the same rows in the same order each time.
 fn catcher_of(app: &str, instance: EditorInstanceId) -> Option<NodeId> {
-    let views = super::desktop::catchers_of(app, instance);
-    let focused = focused_catcher().filter(|node| views.contains(node));
-    focused.or_else(|| {
-        views
-            .iter()
-            .copied()
-            .find(|node| super::desktop::catcher(*node).is_some_and(|held| held.region.is_main()))
-            .or_else(|| views.first().copied())
-    })
+    views_of(app, instance)
+        .first()
+        .map(|(_, node)| *node)
+}
+
+/// The views of an instance the host shows, in view id order, so the main view comes first.
+fn views_of(app: &str, instance: EditorInstanceId) -> Vec<(ViewId, NodeId)> {
+    let mut views: Vec<(ViewId, NodeId)> = super::desktop::catchers_of(app, instance)
+        .into_iter()
+        .filter_map(|node| Some((super::desktop::catcher(node)?.region, node)))
+        .collect();
+    views.sort_by_key(|(view, _)| view.0);
+    views
 }
 
 /// The live actions of the instance whose view `from` is, and of each instance placing it in
@@ -390,10 +396,10 @@ fn host_rows() -> Vec<Row> {
 
 /// The view of an instance that places children: the one named, else any the instance shows.
 fn catcher_of_view(app: &str, instance: EditorInstanceId, view: ViewId) -> Option<NodeId> {
-    let views = super::desktop::catchers_of(app, instance);
+    let views = views_of(app, instance);
     views
         .iter()
-        .copied()
-        .find(|node| super::desktop::catcher(*node).is_some_and(|held| held.region == view))
-        .or_else(|| views.first().copied())
+        .find(|(shown, _)| *shown == view)
+        .or_else(|| views.first())
+        .map(|(_, node)| *node)
 }
