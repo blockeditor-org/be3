@@ -73,7 +73,8 @@ pub(super) struct Inbox {
 }
 
 type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
-type NotifyModeReply = Box<dyn FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send>;
+pub(super) type NotifyModeReply =
+    Box<dyn FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send>;
 
 type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
 
@@ -205,10 +206,11 @@ pub(super) enum Command {
         text: String,
         mentions: Vec<Uuid>,
     },
-    /// Reads, or with `set` sets, how the account is notified about `block`.
-    NotifyMode {
+    /// Reads every mode the account set (`Shared::notify_modes`), answering who waits for one.
+    NotifyModes,
+    SetNotifyMode {
         block: Uuid,
-        set: Option<be_block_protocol::NotifyMode>,
+        mode: be_block_protocol::NotifyMode,
         reply: NotifyModeReply,
     },
     ReadHead {
@@ -328,7 +330,7 @@ impl Command {
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
             | Command::Notify { block, .. }
-            | Command::NotifyMode { block, .. }
+            | Command::SetNotifyMode { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
@@ -360,6 +362,7 @@ impl Command {
             | Command::BlockAgent { .. }
             | Command::Sync
             | Command::Storage
+            | Command::NotifyModes
             | Command::HoldClock(_) => None,
         }
     }
@@ -468,6 +471,10 @@ pub struct Shared {
     pub storage_revision: u64,
     pub storage_watched: bool,
     pub escrow_warning: Option<&'static str>,
+    /// The account's notification mode for each block it set to other than `all`, once read
+    /// (`Command::NotifyModes`), and who waits for that read: a block and its answer.
+    pub notify_modes: Option<HashMap<Uuid, be_block_protocol::NotifyMode>>,
+    pub notify_waiting: Vec<(Uuid, NotifyModeReply)>,
     pub locked: std::collections::HashSet<Uuid>,
     pub version_watch: std::collections::HashSet<Uuid>,
     pub versions: HashMap<Uuid, super::version::VersionState>,
@@ -1465,7 +1472,18 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
                 Some(NEEDS_CONNECTION.to_owned());
         }
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::NotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::NotifyModes => {
+            let waiting = std::mem::take(
+                &mut shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .notify_waiting,
+            );
+            for (_, reply) in waiting {
+                reply(Err(NEEDS_CONNECTION.to_owned()));
+            }
+        }
         // A notification is about now: one that cannot go now is dropped.
         Command::Notify { .. } => {}
         Command::Members(
@@ -1573,16 +1591,46 @@ impl Ran<'_> {
                 });
                 false
             }
-            Command::NotifyMode { block, set, reply } => {
-                // Not a task of the worker's: its end changes nothing the worker keeps, so it
-                // need not wake it.
-                let peer = Arc::clone(self.peer);
+            // Neither is a task of the worker's: their end changes nothing it keeps, so they
+            // need not wake it.
+            Command::NotifyModes => {
+                let (peer, shared) = (Arc::clone(self.peer), Arc::clone(self.shared));
                 platform::spawn_local(async move {
-                    let answered = match set {
-                        Some(mode) => peer.set_notify_mode(block, mode).await.map(|()| mode),
-                        None => peer.notify_mode(block).await,
+                    let read = peer.notify_modes().await;
+                    let waiting = {
+                        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                        if let Ok(read) = &read {
+                            held.notify_modes =
+                                Some(read.iter().map(|row| (row.block, row.mode)).collect());
+                        }
+                        std::mem::take(&mut held.notify_waiting)
                     };
-                    reply(answered.map_err(|error| error.to_string()));
+                    for (block, reply) in waiting {
+                        reply(match &read {
+                            Ok(read) => Ok(read
+                                .iter()
+                                .find(|row| row.block == block)
+                                .map_or(be_block_protocol::NotifyMode::All, |row| row.mode)),
+                            Err(error) => Err(error.to_string()),
+                        });
+                    }
+                    be_host_base::host::wake();
+                });
+                false
+            }
+            Command::SetNotifyMode { block, mode, reply } => {
+                let (peer, shared) = (Arc::clone(self.peer), Arc::clone(self.shared));
+                platform::spawn_local(async move {
+                    let set = peer.set_notify_mode(block, mode).await;
+                    if set.is_ok()
+                        && let Some(modes) = &mut shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .notify_modes
+                    {
+                        modes.insert(block, mode);
+                    }
+                    reply(set.map(|()| mode).map_err(|error| error.to_string()));
                     be_host_base::host::wake();
                 });
                 false
@@ -2038,7 +2086,8 @@ async fn apply(
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
         | Command::Notify { .. }
-        | Command::NotifyMode { .. }
+        | Command::NotifyModes
+        | Command::SetNotifyMode { .. }
         | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {

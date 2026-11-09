@@ -493,7 +493,10 @@ mentions.
   `PushConfig::allow_local_endpoints` lifts both for tests. An endpoint the
   service answers 404 or 410 (FCM: `UNREGISTERED`) is dropped.
 - **Modes.** Each account's mode per block (`notify_modes`: `all` keeps no row,
-  `mentions`, `off`), deleted with the block.
+  `mentions`, `off`), deleted with the block. A device reads them all at once
+  (`notify-modes`) and keeps them (`Shared::notify_modes` in be-host-stack), so
+  showing a block asks nothing; asking per block shifted when other work ran
+  enough to break host tests that type right after opening one.
 - **`notify`** (Edit; at most `MAX_NOTIFICATION_BYTES`, `MAX_MENTIONS`, and
   `MAX_NOTIFICATIONS_PER_MINUTE` per account) goes to every viewer of the block
   (`BlockGraph::viewers`) but the sender whose mode lets it through and who has

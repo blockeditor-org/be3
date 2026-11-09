@@ -398,8 +398,8 @@ impl TestClient {
                 ),
             ),
             (
-                "notify-mode-of",
-                answered(client::notifications::notify_mode_of(peer, block).await),
+                "notify-modes",
+                answered(client::notifications::notify_modes(peer).await),
             ),
             (
                 "set-notify-mode",
@@ -608,7 +608,6 @@ async fn every_call_states_who_may_make_it() {
         "session-relay",
         "session-append",
         "session-rebase-journal",
-        "notify-mode-of",
         "set-notify-mode",
         "notify",
     ];
