@@ -16,6 +16,8 @@ use crate::{Conflict, Host, Replicas, in_process, started};
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
+mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
+mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
 
 /// A host that keeps nothing, for tests of stateless requests.
@@ -76,8 +78,8 @@ impl Host for Quiet {
     fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }
 
-/// Runs `test` with a server, a peer signed in to it and a host holding the `Sections` and
-/// `Probe` types.
+/// Runs `test` with a server, a peer signed in to it and a host holding the `Sections`,
+/// `Probe` and text types.
 fn with_test_types<F: Future<Output = ()>>(
     test: impl FnOnce(Arc<Peer<MemoryStore>>, Arc<Mutex<Quiet>>, Replicas<Quiet>) -> F,
 ) {
@@ -103,6 +105,7 @@ fn with_test_types<F: Future<Output = ()>>(
             vec![
                 in_process::<sections::BlockTypes>("test.sections"),
                 in_process::<probe::BlockTypes>("test.probe"),
+                in_process::<be_type_text::BlockTypes>("be3.text"),
             ],
             be_block_client::Clock::real(),
         )

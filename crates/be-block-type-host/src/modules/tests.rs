@@ -21,6 +21,7 @@ fn types(content_type: Uuid) -> Vec<TypeInfo> {
         schema: String::new(),
         undo: false,
         plain: Plain::None,
+        first_part: false,
         merges_parts: false,
     }]
 }

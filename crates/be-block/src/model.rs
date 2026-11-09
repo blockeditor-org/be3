@@ -56,6 +56,16 @@ pub trait Root: Model + Send + Sync + 'static {
     {
         document.root().describe(metadata);
     }
+
+    /// `BlockContent::search_text` for a document, which is loaded whole: every document,
+    /// which the host narrows to the keys it asked for.
+    fn search_text_in(document: &Document<Self>) -> Vec<crate::SearchDocument>
+    where
+        Self: Sized,
+    {
+        let _ = document;
+        Vec::new()
+    }
 }
 
 impl<R: Root> BlockContent for Document<R> {
@@ -97,6 +107,15 @@ impl<R: Root> BlockContent for Document<R> {
 
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
         R::describe_in(self, metadata);
+    }
+
+    fn search_text(
+        &self,
+        _: Option<&std::collections::HashSet<String>>,
+        _: &std::collections::HashSet<crate::PartRef>,
+        _: crate::PartReader,
+    ) -> impl Future<Output = Result<Vec<crate::SearchDocument>, String>> + 'static {
+        std::future::ready(Ok(R::search_text_in(self)))
     }
 }
 

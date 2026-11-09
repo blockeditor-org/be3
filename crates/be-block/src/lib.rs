@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{collections::HashSet, error::Error, fmt};
 
 use be_block_commit::MergeResult;
 pub use be_block_store::{LoadedPart, Part, PartRef, Stored};
@@ -149,6 +149,49 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 
     fn describe(&self, metadata: &mut BlockMetadata) {
         let _ = metadata;
+    }
+
+    /// The searchable text of the content, one `SearchDocument` per key, which the search
+    /// index holds (plans/search.md); none for a type that is not content-searchable. Content
+    /// that loads only its first part reads the others with `parts`. `keys` (none for every
+    /// document) and `indexed` (the parts the index already holds text from) only spare work:
+    /// a type need not answer documents outside `keys`, nor read a part in `indexed`, so a
+    /// snippet reads one part of a large block and reindexing it reads only its changed
+    /// parts. The host drops documents outside `keys` and the bodies of documents whose source
+    /// is in `indexed` whatever the type answers.
+    fn search_text(
+        &self,
+        keys: Option<&HashSet<String>>,
+        indexed: &HashSet<PartRef>,
+        parts: PartReader,
+    ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
+        let _ = (keys, indexed, parts);
+        std::future::ready(Ok(Vec::new()))
+    }
+}
+
+/// A searchable document of a block's content (`BlockContent::search_text`).
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SearchDocument {
+    /// Stable across edits and rekeys, unlike a part's ref: a chat segment's number, a long
+    /// text's section id, or empty for a block that is one document.
+    pub key: String,
+    /// The part the document's text came from, if it is one part.
+    pub source: Option<PartRef>,
+    /// The document's own name, such as a section's title. A block's name is indexed from
+    /// the block, so a block that is one document leaves this out.
+    pub name: Option<String>,
+    /// None when `source` is one of the parts already indexed, whose text the index keeps.
+    pub body: Option<String>,
+}
+
+impl SearchDocument {
+    /// The one document of a block that is one: its whole text.
+    pub fn whole(body: String) -> Self {
+        Self {
+            body: Some(body),
+            ..Self::default()
+        }
     }
 }
 

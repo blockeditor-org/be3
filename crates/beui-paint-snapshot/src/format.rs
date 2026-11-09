@@ -85,29 +85,19 @@ impl Snapshot {
         frame.tidy();
         let mut keys = BTreeMap::new();
         let mut textures = BTreeMap::new();
-        for primitive in &mut frame.primitives {
-            let used: Vec<&mut TextureKey> = match &mut primitive.content {
-                beui_paint_format::Content::Mesh(triangles) => triangles
-                    .iter_mut()
-                    .map(|triangle| &mut triangle.texture)
-                    .collect(),
-                beui_paint_format::Content::Glyph(glyph) => vec![&mut glyph.texture],
-                _ => Vec::new(),
+        let mut used = Vec::new();
+        texture_keys(&mut frame.primitives, &mut used);
+        for key in used {
+            let Some(pixels) = painting.textures.get(key) else {
+                continue;
             };
-            for key in used {
-                let Some(pixels) = painting.textures.get(key) else {
-                    continue;
-                };
-                let fingerprint = *keys
-                    .entry(*key)
-                    .or_insert_with(|| crate::fingerprint(pixels.size, &pixels.rgba));
-                if let std::collections::btree_map::Entry::Vacant(entry) =
-                    textures.entry(fingerprint)
-                {
-                    entry.insert(Texture::encode(pixels.size, &pixels.rgba)?);
-                }
-                *key = fingerprint;
+            let fingerprint = *keys
+                .entry(*key)
+                .or_insert_with(|| crate::fingerprint(pixels.size, &pixels.rgba));
+            if let std::collections::btree_map::Entry::Vacant(entry) = textures.entry(fingerprint) {
+                entry.insert(Texture::encode(pixels.size, &pixels.rgba)?);
             }
+            *key = fingerprint;
         }
         Ok(Self::of(frame, textures))
     }
@@ -160,5 +150,21 @@ impl Snapshot {
             .read_to_end(&mut body)
             .map_err(|error| format!("could not decompress snapshot: {error}"))?;
         Ok(body)
+    }
+}
+
+fn texture_keys<'a>(
+    primitives: &'a mut [beui_paint_format::Primitive],
+    into: &mut Vec<&'a mut TextureKey>,
+) {
+    for primitive in primitives {
+        match &mut primitive.content {
+            beui_paint_format::Content::Mesh(triangles) => {
+                into.extend(triangles.iter_mut().map(|triangle| &mut triangle.texture))
+            }
+            beui_paint_format::Content::Glyph(glyph) => into.push(&mut glyph.texture),
+            beui_paint_format::Content::Group(group) => texture_keys(&mut group.primitives, into),
+            _ => {}
+        }
     }
 }

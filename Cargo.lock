@@ -1384,6 +1384,7 @@ dependencies = [
  "be-server",
  "be-type-checklist",
  "be-type-example-counter",
+ "be-type-text",
  "be-wasm-guest-abi",
  "be-wasm-guest-host",
  "be-wasm-host",

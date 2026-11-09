@@ -84,16 +84,6 @@ impl Round {
 pub struct Fade {
     pub rect: [f32; 4],
     pub widths: [f32; 4],
-    #[serde(default = "opaque", skip_serializing_if = "is_opaque")]
-    pub opacity: f32,
-}
-
-fn opaque() -> f32 {
-    1.0
-}
-
-fn is_opaque(opacity: &f32) -> bool {
-    *opacity >= 1.0
 }
 
 impl Default for Fade {
@@ -106,11 +96,10 @@ impl Fade {
     pub const NONE: Self = Self {
         rect: [0.0; 4],
         widths: [0.0; 4],
-        opacity: 1.0,
     };
 
     pub fn is_none(&self) -> bool {
-        self.widths == [0.0; 4] && is_opaque(&self.opacity)
+        self.widths == [0.0; 4]
     }
 
     pub fn alpha(self, point: [f32; 2]) -> f32 {
@@ -124,14 +113,12 @@ impl Fade {
             * ramp(point[1] - top, near_y)
             * ramp(right - point[0], far_x)
             * ramp(bottom - point[1], far_y)
-            * self.opacity
     }
 
     pub fn scaled(self, scale: f32) -> Self {
         Self {
             rect: self.rect.map(|value| value * scale),
             widths: self.widths.map(|width| width * scale),
-            opacity: self.opacity,
         }
     }
 
@@ -158,6 +145,54 @@ pub enum Content {
     RoundedRect(RoundedRect),
     Glyph(Glyph),
     CorneredRect(RoundedRect, [f32; 4]),
+    /// Primitives painted together onto a transparent layer, which is then
+    /// painted at `opacity`, so where they overlap they do not show through
+    /// each other. The primitive holding a group clips the layer.
+    Group(Group),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Group {
+    pub opacity: f32,
+    pub primitives: Vec<Primitive>,
+}
+
+impl Group {
+    /// The primitive that paints `primitives` as one group at `opacity`, clipped to what
+    /// they show and the fringe around it, or none when they show nothing.
+    pub fn primitive(opacity: f32, primitives: Vec<Primitive>) -> Option<Primitive> {
+        // A point past what the primitives show keeps the pixels their antialiased
+        // edges reach.
+        const FRINGE: f32 = 1.0;
+        let [left, top, right, bottom] = primitives
+            .iter()
+            .map(Primitive::shown)
+            .filter(|shown| shown[0] < shown[2] && shown[1] < shown[3])
+            .reduce(|one, other| {
+                [
+                    one[0].min(other[0]),
+                    one[1].min(other[1]),
+                    one[2].max(other[2]),
+                    one[3].max(other[3]),
+                ]
+            })?;
+        Some(Primitive {
+            clip: [left - FRINGE, top - FRINGE, right + FRINGE, bottom + FRINGE],
+            fade: Fade::NONE,
+            rounds: Vec::new(),
+            content: Content::Group(Self {
+                opacity,
+                primitives,
+            }),
+        })
+    }
+}
+
+impl Primitive {
+    /// Where the primitive can change pixels: its content's bounds within its clip.
+    pub fn shown(&self) -> [f32; 4] {
+        intersect(self.clip, bounds(&self.content))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -419,6 +454,17 @@ fn bounds(content: &Content) -> [f32; 4] {
             ])
         }
         Content::Glyph(glyph) => glyph.turn.swept(glyph.rect),
+        Content::Group(group) => group.primitives.iter().map(Primitive::shown).fold(
+            [f32::MAX, f32::MAX, f32::MIN, f32::MIN],
+            |bounds, shown| {
+                [
+                    bounds[0].min(shown[0]),
+                    bounds[1].min(shown[1]),
+                    bounds[2].max(shown[2]),
+                    bounds[3].max(shown[3]),
+                ]
+            },
+        ),
     }
 }
 
@@ -434,55 +480,9 @@ fn intersect(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
 impl Painting {
     pub fn cropped(mut self, rect: [f32; 4]) -> Self {
         let [left, top, right, bottom] = rect;
-        let shift = |point: [f32; 2]| [point[0] - left, point[1] - top];
-        let moved = |rect: [f32; 4]| [rect[0] - left, rect[1] - top, rect[2] - left, rect[3] - top];
-        let turned = |turn: Turn| Turn {
-            pivot: shift(turn.pivot),
-            angle: turn.angle,
-        };
-        self.frame.primitives.retain_mut(|primitive| {
-            let clip = intersect(primitive.clip, rect);
-            let shown = intersect(clip, bounds(&primitive.content));
-            if shown[2] <= shown[0] || shown[3] <= shown[1] {
-                return false;
-            }
-            primitive.clip = moved(clip);
-            primitive.fade = primitive.fade.moved([-left, -top]);
-            for round in &mut primitive.rounds {
-                *round = round.moved([-left, -top]);
-            }
-            match &mut primitive.content {
-                Content::Mesh(triangles) => {
-                    for triangle in triangles {
-                        for corner in &mut triangle.corners {
-                            corner.pos = shift(corner.pos);
-                        }
-                    }
-                }
-                Content::Callback(rect) => *rect = moved(*rect),
-                Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => {
-                    shape.rect = moved(shape.rect);
-                    shape.turn = turned(shape.turn);
-                }
-                Content::Glyph(glyph) => {
-                    glyph.rect = moved(glyph.rect);
-                    glyph.turn = turned(glyph.turn);
-                }
-            }
-            true
-        });
-        let used: std::collections::BTreeSet<TextureKey> = self
-            .frame
-            .primitives
-            .iter()
-            .flat_map(|primitive| match &primitive.content {
-                Content::Mesh(triangles) => {
-                    triangles.iter().map(|triangle| triangle.texture).collect()
-                }
-                Content::Glyph(glyph) => vec![glyph.texture],
-                _ => Vec::new(),
-            })
-            .collect();
+        cropped(&mut self.frame.primitives, rect);
+        let mut used = std::collections::BTreeSet::new();
+        textures_of(&self.frame.primitives, &mut used);
         self.textures.retain(|key, _| used.contains(key));
         let scale = self.frame.pixels_per_point;
         self.frame.size = [
@@ -501,29 +501,49 @@ impl Painting {
     }
 
     pub fn previews(&self) -> Vec<u64> {
-        let mut found: Vec<u64> = self
-            .frame
-            .primitives
-            .iter()
-            .filter_map(|primitive| self.preview_in(primitive))
-            .map(|(image, _)| image)
-            .collect();
+        let mut found = Vec::new();
+        self.previews_in(&self.frame.primitives, &mut found);
         found.sort_unstable();
         found.dedup();
         found
     }
 
+    fn previews_in(&self, primitives: &[Primitive], found: &mut Vec<u64>) {
+        for primitive in primitives {
+            match &primitive.content {
+                Content::Group(group) => self.previews_in(&group.primitives, found),
+                _ => found.extend(self.preview_in(primitive).map(|(image, _)| image)),
+            }
+        }
+    }
+
     pub fn with_previews(mut self, mut painting_of: impl FnMut(u64) -> Option<Painting>) -> Self {
         let primitives = std::mem::take(&mut self.frame.primitives);
-        for primitive in primitives {
+        self.frame.primitives = self.previewed(primitives, &mut painting_of);
+        self
+    }
+
+    fn previewed(
+        &mut self,
+        primitives: Vec<Primitive>,
+        painting_of: &mut impl FnMut(u64) -> Option<Painting>,
+    ) -> Vec<Primitive> {
+        let mut out = Vec::with_capacity(primitives.len());
+        for mut primitive in primitives {
+            if let Content::Group(group) = &mut primitive.content {
+                let inner = std::mem::take(&mut group.primitives);
+                group.primitives = self.previewed(inner, painting_of);
+                out.push(primitive);
+                continue;
+            }
             let Some((image, corners)) = self.preview_in(&primitive) else {
-                self.frame.primitives.push(primitive);
+                out.push(primitive);
                 continue;
             };
             let Some(preview) = painting_of(image) else {
                 continue;
             };
-            self.frame.primitives.extend(preview.placed(Placement {
+            out.extend(preview.placed(Placement {
                 source: [0.0, 0.0, 1.0, 1.0],
                 corners,
                 clip: primitive.clip,
@@ -533,7 +553,7 @@ impl Painting {
                 self.textures.entry(key).or_insert(pixels);
             }
         }
-        self
+        out
     }
 
     fn preview_in(&self, primitive: &Primitive) -> Option<(u64, [[f32; 2]; 4])> {
@@ -596,21 +616,17 @@ impl Painting {
                 turn,
             }
         });
-        let scaled_rect = |shape: RoundedRect| {
-            let (rect, turn) = map.rect(shape.rect, shape.turn);
-            RoundedRect {
-                rect,
-                corner_radius: shape.corner_radius * map.scale,
-                stroke_width: shape.stroke_width * map.scale,
-                color: shape.color,
-                turn,
-            }
+        let placing = Placing {
+            map: &map,
+            source,
+            shown,
+            round,
         };
         let background = (frame.background[3] > 0).then(|| Primitive {
             clip: shown,
             fade: Fade::NONE,
             rounds: round.into_iter().collect(),
-            content: Content::RoundedRect(scaled_rect(RoundedRect {
+            content: Content::RoundedRect(placing.scaled_rect(RoundedRect {
                 rect: source,
                 corner_radius: 0.0,
                 stroke_width: 0.0,
@@ -620,65 +636,161 @@ impl Painting {
         });
         background
             .into_iter()
-            .chain(frame.primitives.iter().filter_map(|primitive| {
-                let within = intersect(primitive.clip, source);
-                if within[2] <= within[0] || within[3] <= within[1] {
-                    return None;
-                }
-                let clip = intersect(map.bounds(within), shown);
-                if clip[2] <= clip[0] || clip[3] <= clip[1] {
-                    return None;
-                }
-                let content = match &primitive.content {
-                    Content::Mesh(triangles) => Content::Mesh(
-                        triangles
-                            .iter()
-                            .map(|triangle| Triangle {
-                                texture: triangle.texture,
-                                corners: triangle.corners.map(|corner| Vertex {
-                                    pos: map.apply(corner.pos),
-                                    ..corner
-                                }),
-                            })
-                            .collect(),
-                    ),
-                    Content::Callback(rect) => Content::Callback(map.bounds(*rect)),
-                    Content::RoundedRect(shape) => Content::RoundedRect(scaled_rect(*shape)),
-                    Content::CorneredRect(shape, corners) => Content::CorneredRect(
-                        scaled_rect(*shape),
-                        corners.map(|radius| radius * map.scale),
-                    ),
-                    Content::Glyph(glyph) => {
-                        let (rect, turn) = map.rect(glyph.rect, glyph.turn);
-                        Content::Glyph(Glyph {
-                            rect,
-                            turn,
-                            ..*glyph
-                        })
-                    }
-                };
-                let fade = match primitive.fade.is_none() {
-                    true => Fade::NONE,
-                    false => Fade {
-                        rect: map.bounds(primitive.fade.rect),
-                        widths: primitive.fade.widths.map(|width| width * map.scale),
-                        opacity: primitive.fade.opacity,
-                    },
-                };
-                let rounds = primitive
-                    .rounds
-                    .iter()
-                    .map(|held| held.mapped(&map))
-                    .chain(round)
-                    .collect();
-                Some(Primitive {
-                    clip,
-                    fade,
-                    rounds,
-                    content,
-                })
-            }))
+            .chain(placing.all(&frame.primitives))
             .collect()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Placing<'a> {
+    map: &'a Map,
+    source: [f32; 4],
+    shown: [f32; 4],
+    round: Option<Round>,
+}
+
+impl Placing<'_> {
+    fn all(&self, primitives: &[Primitive]) -> Vec<Primitive> {
+        primitives
+            .iter()
+            .filter_map(|primitive| self.one(primitive))
+            .collect()
+    }
+
+    fn scaled_rect(&self, shape: RoundedRect) -> RoundedRect {
+        let map = self.map;
+        let (rect, turn) = map.rect(shape.rect, shape.turn);
+        RoundedRect {
+            rect,
+            corner_radius: shape.corner_radius * map.scale,
+            stroke_width: shape.stroke_width * map.scale,
+            color: shape.color,
+            turn,
+        }
+    }
+
+    fn one(&self, primitive: &Primitive) -> Option<Primitive> {
+        let map = self.map;
+        let within = intersect(primitive.clip, self.source);
+        if within[2] <= within[0] || within[3] <= within[1] {
+            return None;
+        }
+        let clip = intersect(map.bounds(within), self.shown);
+        if clip[2] <= clip[0] || clip[3] <= clip[1] {
+            return None;
+        }
+        let content = match &primitive.content {
+            Content::Mesh(triangles) => Content::Mesh(
+                triangles
+                    .iter()
+                    .map(|triangle| Triangle {
+                        texture: triangle.texture,
+                        corners: triangle.corners.map(|corner| Vertex {
+                            pos: map.apply(corner.pos),
+                            ..corner
+                        }),
+                    })
+                    .collect(),
+            ),
+            Content::Callback(rect) => Content::Callback(map.bounds(*rect)),
+            Content::RoundedRect(shape) => Content::RoundedRect(self.scaled_rect(*shape)),
+            Content::CorneredRect(shape, corners) => Content::CorneredRect(
+                self.scaled_rect(*shape),
+                corners.map(|radius| radius * map.scale),
+            ),
+            Content::Glyph(glyph) => {
+                let (rect, turn) = map.rect(glyph.rect, glyph.turn);
+                Content::Glyph(Glyph {
+                    rect,
+                    turn,
+                    ..*glyph
+                })
+            }
+            Content::Group(group) => Content::Group(Group {
+                opacity: group.opacity,
+                primitives: Placing {
+                    round: None,
+                    ..*self
+                }
+                .all(&group.primitives),
+            }),
+        };
+        let fade = match primitive.fade.is_none() {
+            true => Fade::NONE,
+            false => Fade {
+                rect: map.bounds(primitive.fade.rect),
+                widths: primitive.fade.widths.map(|width| width * map.scale),
+            },
+        };
+        let rounds = primitive
+            .rounds
+            .iter()
+            .map(|held| held.mapped(map))
+            .chain(self.round)
+            .collect();
+        Some(Primitive {
+            clip,
+            fade,
+            rounds,
+            content,
+        })
+    }
+}
+
+fn cropped(primitives: &mut Vec<Primitive>, rect: [f32; 4]) {
+    let [left, top, ..] = rect;
+    let shift = |point: [f32; 2]| [point[0] - left, point[1] - top];
+    let moved = |rect: [f32; 4]| [rect[0] - left, rect[1] - top, rect[2] - left, rect[3] - top];
+    let turned = |turn: Turn| Turn {
+        pivot: shift(turn.pivot),
+        angle: turn.angle,
+    };
+    primitives.retain_mut(|primitive| {
+        let clip = intersect(primitive.clip, rect);
+        let shown = intersect(clip, bounds(&primitive.content));
+        if shown[2] <= shown[0] || shown[3] <= shown[1] {
+            return false;
+        }
+        primitive.clip = moved(clip);
+        primitive.fade = primitive.fade.moved([-left, -top]);
+        for round in &mut primitive.rounds {
+            *round = round.moved([-left, -top]);
+        }
+        match &mut primitive.content {
+            Content::Mesh(triangles) => {
+                for triangle in triangles {
+                    for corner in &mut triangle.corners {
+                        corner.pos = shift(corner.pos);
+                    }
+                }
+            }
+            Content::Callback(rect) => *rect = moved(*rect),
+            Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => {
+                shape.rect = moved(shape.rect);
+                shape.turn = turned(shape.turn);
+            }
+            Content::Glyph(glyph) => {
+                glyph.rect = moved(glyph.rect);
+                glyph.turn = turned(glyph.turn);
+            }
+            Content::Group(group) => cropped(&mut group.primitives, rect),
+        }
+        true
+    });
+}
+
+fn textures_of(primitives: &[Primitive], used: &mut std::collections::BTreeSet<TextureKey>) {
+    for primitive in primitives {
+        match &primitive.content {
+            Content::Mesh(triangles) => {
+                used.extend(triangles.iter().map(|triangle| triangle.texture))
+            }
+            Content::Glyph(glyph) => {
+                used.insert(glyph.texture);
+            }
+            Content::Group(group) => textures_of(&group.primitives, used),
+            _ => {}
+        }
     }
 }
 

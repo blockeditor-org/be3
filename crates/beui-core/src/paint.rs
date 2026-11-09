@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::damage::WindowRegions;
-use crate::display::{Display, Group, Part};
+use crate::display::{Display, Group, Part, bounds_of};
 use crate::document::Document;
 use crate::fade::Fade;
 use crate::node::{ANCESTOR_LIMIT, Arena, NodeMap, Rects, SpaceId};
@@ -542,16 +542,16 @@ impl PaintCache {
             let Some(held) = before.masks.iter().find(|held| held.space == mask.space) else {
                 continue;
             };
-            if held.fade == mask.fade {
+            if held.fade == mask.fade && held.opacity == mask.opacity {
                 continue;
             }
-            for band in held.fade.reach(mask.fade) {
+            for band in held.reach(mask) {
                 stale(
                     &mut self.stale,
                     (before.place(held.path, band), held.scroll),
                 );
             }
-            for band in mask.fade.reach(held.fade) {
+            for band in mask.reach(held) {
                 self.damage
                     .add(self.window, absolute(after.place(mask.path, band), now));
             }
@@ -616,7 +616,20 @@ struct Masked {
     space: SpaceId,
     path: usize,
     fade: Fade,
+    opacity: f32,
+    bounds: Rect,
     scroll: Option<SpaceId>,
+}
+
+impl Masked {
+    /// What changes when the mask turns from `other` to this one: the whole
+    /// group when its opacity changes, otherwise the edges either fades.
+    fn reach(&self, other: &Self) -> Vec<Rect> {
+        match self.opacity == other.opacity {
+            true => self.fade.bands(),
+            false => vec![self.bounds],
+        }
+    }
 }
 
 struct Drawn<'a> {
@@ -688,11 +701,17 @@ impl<'a> Elements<'a> {
                     self.paths.push(nested);
                     let within = self.paths.len() - 1;
                     let inner_scroll = match *group {
-                        Group::Mask { space, fade } => {
+                        Group::Mask {
+                            space,
+                            fade,
+                            opacity,
+                        } => {
                             self.masks.push(Masked {
                                 space,
                                 path,
                                 fade,
+                                opacity,
+                                bounds: bounds_of(inner),
                                 scroll,
                             });
                             scroll
@@ -828,7 +847,7 @@ fn build(
             .take_while(|((opened, _), wanted)| opened == *wanted)
             .count();
         while open.len() > common + 1 {
-            close(&mut open);
+            close(&mut open, &mut shapes);
         }
         for opened in &wanted[common..] {
             open.push((*opened, Vec::new()));
@@ -861,7 +880,7 @@ fn build(
         }
     }
     while open.len() > 1 {
-        close(&mut open);
+        close(&mut open, &mut shapes);
     }
     let (_, parts) = open.pop().expect("the root stays open");
     (shapes, parts)
@@ -873,15 +892,45 @@ enum Opened {
     Scope(u64, Group),
 }
 
-fn close(open: &mut Vec<(Opened, Vec<Part>)>) {
+fn close(open: &mut Vec<(Opened, Vec<Part>)>, shapes: &mut [Shape]) {
     let (opened, parts) = open.pop().expect("a group is open");
     let group = match opened {
-        Opened::Scope(_, group) => group,
+        Opened::Scope(_, group) => folded(group, &parts, shapes),
         Opened::Root => unreachable!("the root is never closed"),
     };
     if !parts.is_empty() {
         let into = &mut open.last_mut().expect("the root stays open").1;
         into.push(Part::Group(group, parts.into_boxed_slice()));
+    }
+}
+
+/// A faded group that holds one shape which cannot overlap itself paints the same
+/// with its opacity in the shape's own colour, so it skips compositing offscreen.
+fn folded(group: Group, parts: &[Part], shapes: &mut [Shape]) -> Group {
+    let Group::Mask {
+        space,
+        fade,
+        opacity,
+    } = group
+    else {
+        return group;
+    };
+    let [Part::Shapes { start, end, .. }] = parts else {
+        return group;
+    };
+    if opacity >= 1.0 || end - start != 1 {
+        return group;
+    }
+    let color = match &mut shapes[*start as usize] {
+        Shape::Rect { color, .. } | Shape::Line { color, .. } => color,
+        Shape::Image { tint, .. } => tint,
+        _ => return group,
+    };
+    *color = color.scale_alpha(opacity);
+    Group::Mask {
+        space,
+        fade,
+        opacity: 1.0,
     }
 }
 

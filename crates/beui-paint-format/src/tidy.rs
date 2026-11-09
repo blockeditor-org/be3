@@ -20,79 +20,85 @@ impl Frame {
             return;
         }
         let size = self.size.map(|side| i64::from(side.max(1)));
-        let whole = [0.0, 0.0, size[0] as f32 / scale, size[1] as f32 / scale];
-        for primitive in &mut self.primitives {
-            plain(primitive);
-            primitive.clip = intersect(primitive.clip, whole);
-        }
+        tidy(&mut self.primitives, self.background, scale, size);
+    }
+}
 
-        let touched: Vec<Pixels> = self
-            .primitives
-            .iter()
-            .map(|primitive| touched(&primitive.content, Some(primitive.clip), scale, size))
-            .collect();
-        let covers: Vec<Option<[Pixels; 2]>> = self
-            .primitives
-            .iter()
-            .map(|primitive| cover(primitive, scale))
-            .collect();
-        let mut kept: Vec<bool> = self
-            .primitives
-            .iter()
-            .zip(&touched)
-            .map(|(primitive, touched)| {
-                matches!(primitive.content, Content::Callback(_))
-                    || (!is_empty(*touched) && !transparent(primitive))
-            })
-            .collect();
-        for index in 0..self.primitives.len() {
-            if !kept[index] || matches!(self.primitives[index].content, Content::Callback(_)) {
-                continue;
-            }
-            let area = touched[index];
-            let hidden = covers[index + 1..]
-                .iter()
-                .flatten()
-                .any(|cover| cover.iter().any(|cover| inside(area, *cover)));
-            if hidden || self.over_its_colour(index, &touched, &covers, &kept) {
-                kept[index] = false;
-            }
-        }
-
-        let mut kept = kept.into_iter();
-        self.primitives.retain(|_| kept.next() == Some(true));
-        for primitive in &mut self.primitives {
-            if !clips(primitive, scale, size) {
-                primitive.clip = whole;
-            }
+/// Tidies primitives painted in order over `background`: a frame's, or a group's
+/// transparent layer.
+fn tidy(primitives: &mut Vec<Primitive>, background: [u8; 4], scale: f32, size: [i64; 2]) {
+    let whole = [0.0, 0.0, size[0] as f32 / scale, size[1] as f32 / scale];
+    for primitive in primitives.iter_mut() {
+        plain(primitive);
+        primitive.clip = intersect(primitive.clip, whole);
+        if let Content::Group(group) = &mut primitive.content {
+            tidy(&mut group.primitives, [0; 4], scale, size);
         }
     }
 
-    /// Whether the primitive at `index` paints only over pixels already its colour: the
-    /// nearest primitive below that touches any of them is an opaque rect of that colour
-    /// covering them all, or there is none and the background is that colour.
-    fn over_its_colour(
-        &self,
-        index: usize,
-        touched: &[Pixels],
-        covers: &[Option<[Pixels; 2]>],
-        kept: &[bool],
-    ) -> bool {
-        let Some(paint) = colour(&self.primitives[index].content) else {
-            return false;
-        };
-        let area = touched[index];
-        let below = (0..index)
-            .rev()
-            .find(|&below| kept[below] && !is_empty(intersect_pixels(touched[below], area)));
-        match below {
-            Some(below) => covers[below].is_some_and(|cover| {
-                colour(&self.primitives[below].content)
-                    .is_some_and(|below| below[..3] == paint[..3])
-                    && cover.iter().any(|cover| inside(area, *cover))
-            }),
-            None => self.background[3] == 255 && self.background[..3] == paint[..3],
+    let touched: Vec<Pixels> = primitives
+        .iter()
+        .map(|primitive| touched(&primitive.content, Some(primitive.clip), scale, size))
+        .collect();
+    let covers: Vec<Option<[Pixels; 2]>> = primitives
+        .iter()
+        .map(|primitive| cover(primitive, scale))
+        .collect();
+    let mut kept: Vec<bool> = primitives
+        .iter()
+        .zip(&touched)
+        .map(|(primitive, touched)| {
+            matches!(primitive.content, Content::Callback(_))
+                || (!is_empty(*touched) && !transparent(primitive))
+        })
+        .collect();
+    for index in 0..primitives.len() {
+        if !kept[index] || matches!(primitives[index].content, Content::Callback(_)) {
+            continue;
         }
+        let area = touched[index];
+        let hidden = covers[index + 1..]
+            .iter()
+            .flatten()
+            .any(|cover| cover.iter().any(|cover| inside(area, *cover)));
+        if hidden || over_its_colour(primitives, background, index, &touched, &covers, &kept) {
+            kept[index] = false;
+        }
+    }
+
+    let mut kept = kept.into_iter();
+    primitives.retain(|_| kept.next() == Some(true));
+    for primitive in primitives.iter_mut() {
+        if !clips(primitive, scale, size) {
+            primitive.clip = whole;
+        }
+    }
+}
+
+/// Whether the primitive at `index` paints only over pixels already its colour: the
+/// nearest primitive below that touches any of them is an opaque rect of that colour
+/// covering them all, or there is none and the background is that colour.
+fn over_its_colour(
+    primitives: &[Primitive],
+    background: [u8; 4],
+    index: usize,
+    touched: &[Pixels],
+    covers: &[Option<[Pixels; 2]>],
+    kept: &[bool],
+) -> bool {
+    let Some(paint) = colour(&primitives[index].content) else {
+        return false;
+    };
+    let area = touched[index];
+    let below = (0..index)
+        .rev()
+        .find(|&below| kept[below] && !is_empty(intersect_pixels(touched[below], area)));
+    match below {
+        Some(below) => covers[below].is_some_and(|cover| {
+            colour(&primitives[below].content).is_some_and(|below| below[..3] == paint[..3])
+                && cover.iter().any(|cover| inside(area, *cover))
+        }),
+        None => background[3] == 255 && background[..3] == paint[..3],
     }
 }
 
@@ -105,7 +111,7 @@ fn plain(primitive: &mut Primitive) {
     match &mut primitive.content {
         Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => still(&mut shape.turn),
         Content::Glyph(glyph) => still(&mut glyph.turn),
-        Content::Mesh(_) | Content::Callback(_) => {}
+        Content::Mesh(_) | Content::Callback(_) | Content::Group(_) => {}
     }
     for round in &mut primitive.rounds {
         still(&mut round.turn);
@@ -190,6 +196,17 @@ fn touched(content: &Content, clip: Option<[f32; 4]>, scale: f32, size: [i64; 2]
         Content::Callback(rect) => {
             intersect_pixels(whole_pixels(rect.map(|value| value * scale)), frame)
         }
+        Content::Group(group) => {
+            let clip = whole_pixels(clip);
+            group
+                .primitives
+                .iter()
+                .map(|inner| {
+                    let within = touched(&inner.content, Some(inner.clip), scale, size);
+                    intersect_pixels(within, clip)
+                })
+                .fold(NOTHING, union)
+        }
     }
 }
 
@@ -237,7 +254,7 @@ fn clips(primitive: &Primitive, scale: f32, size: [i64; 2]) -> bool {
     let clip = primitive.clip.map(|value| value * scale);
     match &primitive.content {
         Content::Callback(_) => false,
-        Content::Mesh(_) => !inside(area, whole_pixels(clip)),
+        Content::Mesh(_) | Content::Group(_) => !inside(area, whole_pixels(clip)),
         // The others keep the pixels whose centres lie in the clip.
         _ => !inside(
             area,
@@ -252,9 +269,6 @@ fn clips(primitive: &Primitive, scale: f32, size: [i64; 2]) -> bool {
 }
 
 fn transparent(primitive: &Primitive) -> bool {
-    if primitive.fade.opacity <= 0.0 {
-        return true;
-    }
     match &primitive.content {
         Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => shape.color[3] == 0,
         Content::Glyph(glyph) => glyph.color[3] == 0,
@@ -262,6 +276,7 @@ fn transparent(primitive: &Primitive) -> bool {
             .iter()
             .all(|triangle| triangle.corners.iter().all(|corner| corner.color[3] == 0)),
         Content::Callback(_) => false,
+        Content::Group(group) => group.opacity <= 0.0 || group.primitives.iter().all(transparent),
     }
 }
 
@@ -270,7 +285,7 @@ fn colour(content: &Content) -> Option<[u8; 4]> {
     match content {
         Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => Some(shape.color),
         Content::Glyph(glyph) => Some(glyph.color),
-        Content::Mesh(_) | Content::Callback(_) => None,
+        Content::Mesh(_) | Content::Callback(_) | Content::Group(_) => None,
     }
 }
 

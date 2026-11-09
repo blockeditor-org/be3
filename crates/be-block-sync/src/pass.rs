@@ -808,7 +808,7 @@ impl<S: ObjectStore> Pass<'_, S> {
     }
 
     /// `merge` for a type that merges by parts: base and theirs loaded from
-    /// their commits by their first parts, ours as the bytes made from the
+    /// their commits as the type loads them (by their first parts), ours as the bytes made from the
     /// file. The merged content's reused parts are read whole, since it
     /// becomes a file.
     async fn merge_parts(
@@ -818,14 +818,12 @@ impl<S: ObjectStore> Pass<'_, S> {
         ours: Vec<u8>,
     ) -> Result<(Vec<u8>, bool), String> {
         let peer = self.peer;
+        let kind = be_block_type_host::kind_of(block_type).ok_or("its type is not known")?;
         let first_part = async |head: Option<CommitId>| match head {
             Some(head) => {
                 let commit = peer.load_commit(head).await.map_err(explain)?;
-                let stored = peer
-                    .load_first_part(&commit.manifest)
-                    .await
-                    .map_err(explain)?;
-                Ok::<_, String>(Some(be_sdk_type_api::Loaded::of(stored)))
+                let loaded = kind.load(peer, &commit.manifest).await.map_err(explain)?;
+                Ok::<_, String>(Some(loaded))
             }
             None => Ok(None),
         };

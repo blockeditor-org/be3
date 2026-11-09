@@ -684,6 +684,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Opacity" code={vec![FadedTiles::SOURCE]}>
                 <FadedTiles />
             </Sample>
+            <Sample title="Group opacity" code={vec![FadedOverlap::SOURCE]}>
+                <FadedOverlap />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -866,6 +869,39 @@ fn FadedTiles() -> NodeId {
             <ForEach keys={vec![100_u32, 60, 30]}>|percent: u32|
                 <Frame opacity={percent as f32 / 100.0}>
                     <Tile label={format!("{percent}%")} />
+                </Frame>
+            </ForEach>
+        </List>
+    }
+}
+
+/// A frame's opacity fades what it holds as one picture: where the squares
+/// overlap, the one below does not show through the one above.
+#[sample]
+#[component]
+fn FadedOverlap() -> NodeId {
+    let theme = use_theme();
+    let offset = Sides::new(SWATCH / 2.0, SWATCH / 2.0, 0.0, 0.0);
+    view! {
+        <List @test_id="demo.layering.faded_overlap" direction=Direction::Horizontal spacing=24.0>
+            <ForEach keys={vec![100_u32, 50]}>|percent: u32|
+                <Frame opacity={percent as f32 / 100.0}>
+                    <Layers>
+                        <Frame
+                            width=SWATCH
+                            height=SWATCH
+                            fill={theme.accent}
+                            radius={Radius::Md.px()}
+                        />
+                        <Frame padding=offset>
+                            <Frame
+                                width=SWATCH
+                                height=SWATCH
+                                fill={theme.success}
+                                radius={Radius::Md.px()}
+                            />
+                        </Frame>
+                    </Layers>
                 </Frame>
             </ForEach>
         </List>

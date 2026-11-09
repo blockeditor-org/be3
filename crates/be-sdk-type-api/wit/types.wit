@@ -58,8 +58,11 @@ interface types {
         schema: string,
         undo: bool,
         plain: plain,
+        /// The type loads only its first part (`be_block::Loads::FirstPart`), so a
+        /// request handed `loaded` content gets only that part's bytes.
+        first-part: bool,
         /// The type merges by parts (`replicas.merge-parts`) rather than whole bytes
-        /// (`replicas.merge3`), and loads only its first part.
+        /// (`replicas.merge3`). Only a type with `first-part` does.
         merges-parts: bool,
     }
 
@@ -248,6 +251,18 @@ interface types {
         bytes: list<u8>,
         /// Zero is a clean merge.
         conflicts: u32,
+    }
+
+    /// A searchable document of a block (`be_block::SearchDocument`).
+    record search-document {
+        /// Stable across edits: empty for a block that is one document.
+        key: string,
+        /// The part the document's text came from, if it is one part.
+        source: option<part-ref>,
+        /// The document's own name, such as a section's title.
+        name: option<string>,
+        /// None when `source` is in the request's `indexed`.
+        body: option<string>,
     }
 
     /// A merge over parts: the commit to write, which reuses the parts the merge kept as

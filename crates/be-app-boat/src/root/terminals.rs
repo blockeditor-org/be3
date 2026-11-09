@@ -132,12 +132,13 @@ fn build_of(build_info: &str) -> Option<String> {
     safe.then_some(id)
 }
 
-/// Deletes every build in the sandbox that no terminal's link names.
+/// Deletes the builds in the sandbox that no terminal's link names and that nothing has
+/// written to for an hour, so a build another install fetched and hasn't linked yet stays.
 fn prune_command() -> String {
     format!(
         "used=$(for link in {BE_DIRECTORY}/blocks/*; do test -L \"$link\" && basename \"$(readlink \"$link\")\"; done); \
-         for build in {BE_DIRECTORY}/builds/*; do test -d \"$build\" || continue; \
-         printf '%s\\n' \"$used\" | grep -qxF \"$(basename \"$build\")\" || rm -rf \"$build\"; done"
+         find {BE_DIRECTORY}/builds -mindepth 1 -maxdepth 1 -type d -mmin +60 2>/dev/null | \
+         while read -r build; do printf '%s\\n' \"$used\" | grep -qxF \"$(basename \"$build\")\" || rm -rf \"$build\"; done"
     )
 }
 
@@ -185,17 +186,22 @@ pub(crate) fn unstage_command(block: Uuid) -> String {
 }
 
 /// What the sandbox holds of a terminal, a line each: `present` or `missing` credentials, the
-/// build its link names, the standing the host last wrote (`connected`, `offline ...`, or
-/// `none`), and the service's state (`systemctl is-active`). Deletes credentials left staged
+/// build its link names when that build's `be` is there (`none` otherwise, so it is
+/// installed again), the standing the host last wrote (`connected`, `connecting SINCE`,
+/// `offline ...`, or `none`), the service's state (`systemctl is-active`) and the clock. Deletes credentials left staged
 /// first.
 pub(crate) fn check_command(block: Uuid) -> String {
     let name = credentials_name(block);
     [
         unstage_command(block),
         format!("test -s /run/be3/{name} && echo present || echo missing"),
-        format!("basename \"$(readlink {BE_DIRECTORY}/blocks/{block})\""),
+        format!(
+            "build=$(basename \"$(readlink {BE_DIRECTORY}/blocks/{block})\"); \
+             test -x \"{BE_DIRECTORY}/builds/$build/be\" && echo \"$build\" || echo none"
+        ),
         format!("head -n 1 /run/be3/terminal-host-{block}.status 2>/dev/null || echo none"),
         format!("systemctl is-active be-terminal@{block}.service || true"),
+        "date +%s".to_owned(),
     ]
     .join("\n")
 }
@@ -209,7 +215,12 @@ pub(crate) struct Held {
     pub standing: String,
     /// The service's `ActiveState`.
     pub active: String,
+    /// The sandbox's clock, in seconds since the epoch.
+    pub now: i64,
 }
+
+/// How long a host may say it is connecting before it counts as stuck.
+const CONNECTING: i64 = 120;
 
 impl Held {
     pub(crate) fn parse(said: &str) -> Self {
@@ -220,13 +231,21 @@ impl Held {
             build: next(),
             standing: next(),
             active: next(),
+            now: next().parse().unwrap_or_default(),
         }
     }
 
-    /// Whether the host runs and hasn't said it lost the server: such a terminal is left
-    /// alone, whatever token or build another device would have written.
+    /// Whether the host runs connected, or has been connecting for less than `CONNECTING`, or
+    /// has just started: such a terminal is left alone, whatever token or build another
+    /// device would have written.
     pub(crate) fn healthy(&self) -> bool {
-        self.credentials && self.active == "active" && !self.standing.starts_with("offline")
+        let standing = match self.standing.split_once(' ') {
+            Some(("connecting", since)) => since
+                .parse::<i64>()
+                .is_ok_and(|since| self.now - since < CONNECTING),
+            _ => self.standing == "connected" || self.standing == "none",
+        };
+        self.credentials && self.active == "active" && standing
     }
 }
 
@@ -241,29 +260,47 @@ pub(crate) fn remove_command(block: Uuid) -> String {
     )
 }
 
-/// Puts `be` of `build` in place unless it is there: downloaded from `url`, or uploaded
-/// already, and checked against `sha256` either way before it can run.
-pub(crate) fn be_command(build: &str, url: Option<&str>, sha256: &str) -> Result<String, String> {
+/// Puts `be` of `build` in place unless one with `sha256` is there already: downloaded from
+/// `url`, or uploaded already, under a name of `block`'s own so two installs in one sandbox
+/// never share one, and checked against `sha256` either way before it can run.
+pub(crate) fn be_command(
+    build: &str,
+    block: Uuid,
+    url: Option<&str>,
+    sha256: &str,
+) -> Result<String, String> {
     if url.is_some_and(|url| !url.starts_with("https://") || url.contains(['\'', '\\'])) {
         return Err("the host named a download of be that is not a plain https URL".to_owned());
     }
     if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err("the host named no SHA-256 for be".to_owned());
     }
+    let part = format!("be.part.{block}");
     let fetch = match url {
-        Some(url) => format!("curl -fsSL -o be.part '{url}'"),
-        None => "test -f be.part".to_owned(),
+        Some(url) => format!("curl -fsSL -o {part} '{url}'"),
+        None => format!("test -f {part}"),
     };
     Ok([
         "set -e".to_owned(),
         format!("mkdir -p {BE_DIRECTORY}/builds/{build}"),
         format!("cd {BE_DIRECTORY}/builds/{build}"),
+        format!(
+            "if echo '{sha256}  be' | sha256sum -c --quiet - 2>/dev/null; then rm -f {part}; exit 0; fi"
+        ),
         fetch,
-        format!("echo '{sha256}  be.part' | sha256sum -c --quiet -"),
-        "chmod 0755 be.part".to_owned(),
-        "mv be.part be".to_owned(),
+        format!("echo '{sha256}  {part}' | sha256sum -c --quiet -"),
+        format!("chmod 0755 {part}"),
+        format!("mv {part} be"),
     ]
     .join("\n"))
+}
+
+/// Whether `build`'s `be` with `sha256` is in the sandbox already: `present` or `missing`.
+pub(crate) fn has_be_command(build: &str, sha256: &str) -> String {
+    format!(
+        "echo '{sha256}  {BE_DIRECTORY}/builds/{build}/be' | sha256sum -c --quiet - 2>/dev/null \
+         && echo present || echo missing"
+    )
 }
 
 /// The file the terminal host reads, as `BE3_AGENT_CREDENTIALS`: the agent's credentials with
@@ -369,18 +406,27 @@ async fn install(
     };
     let command = match be.source {
         TerminalHostSource::Download(download) => {
-            be_command(&build, Some(&download.url), &download.sha256)
+            be_command(&build, block, Some(&download.url), &download.sha256)
         }
         TerminalHostSource::Bytes(bytes) => {
             let hash = sha256(&bytes);
-            step!(api::upload(
+            let held = step!(api::command(
                 &host,
                 &account,
                 &sandbox,
-                &format!("{BE_DIRECTORY}/builds/{build}/be.part"),
-                bytes,
+                &has_be_command(&build, &hash),
+                30,
             ));
-            be_command(&build, None, &hash)
+            if held.trim() != "present" {
+                step!(api::upload(
+                    &host,
+                    &account,
+                    &sandbox,
+                    &format!("{BE_DIRECTORY}/builds/{build}/be.part.{block}"),
+                    bytes,
+                ));
+            }
+            be_command(&build, block, None, &hash)
         }
     };
     let command = match command {

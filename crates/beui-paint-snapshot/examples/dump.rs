@@ -20,6 +20,7 @@ fn main() {
                 ),
                 Content::CorneredRect(r, c) => format!("crect {:?} {:?} {:?}", r.rect, c, r.color),
                 Content::Glyph(g) => format!("glyph {:?}", g.rect),
+                Content::Group(g) => format!("group of {} at {}", g.primitives.len(), g.opacity),
             };
             println!("clip {:?} {what}", p.clip);
         }

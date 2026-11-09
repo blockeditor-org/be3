@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     sync::Arc,
     time::Instant,
 };
@@ -232,6 +232,32 @@ pub struct Merged {
 impl Merged {
     pub fn parts(&self) -> be_block_store::Part<'_> {
         be_sdk_type_api::written_parts(&self.content.bytes, &self.content.parts)
+    }
+}
+
+/// A block's searchable text, as its type answered `search-text` and the host checked it.
+#[derive(Debug)]
+pub struct Searched {
+    pub documents: Vec<be_sdk_type_api::SearchDocument>,
+    /// The parts the type read, in the order it asked.
+    pub read: Vec<be_block_store::PartRef>,
+}
+
+/// Why `Replicas::search_text` has no answer.
+#[derive(Debug)]
+pub enum NotSearched {
+    /// A part could not be read (offline, a key this device lacks): try again later.
+    Read(ClientError),
+    /// No module has the type, or it failed or broke the request's rules: the message.
+    Type(String),
+}
+
+impl std::fmt::Display for NotSearched {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Read(error) => write!(formatter, "{error}"),
+            Self::Type(message) => formatter.write_str(message),
+        }
     }
 }
 
@@ -1363,9 +1389,7 @@ impl<H: Host> Replicas<H> {
             let mut loaded = Vec::new();
             for side in sides {
                 loaded.push(match side {
-                    Some(manifest) => Some(be_sdk_type_api::Loaded::of(
-                        peer.load_first_part(manifest).await?,
-                    )),
+                    Some(manifest) => Some(kind.load(peer, manifest).await?),
                     None => None,
                 });
             }
@@ -1425,6 +1449,86 @@ impl<H: Host> Replicas<H> {
             conflicts: merged.conflicts as usize,
             read: Vec::new(),
         }))
+    }
+
+    /// A commit's searchable text (`be_block::BlockContent::search_text`), as the indexer can
+    /// trust it whatever the type answered: only the documents `keys` names (none for every
+    /// one), each key once, a `source` only if it is a part of this commit, and no body for a
+    /// document whose source is in `indexed`. The type is handed the commit as it loads it and
+    /// reads only parts of it.
+    pub async fn search_text(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        content_type: Uuid,
+        manifest: &be_block_store::Manifest,
+        keys: Option<Vec<String>>,
+        indexed: &[be_block_store::PartRef],
+    ) -> Result<Searched, NotSearched> {
+        let peer = ctx.0;
+        let no_module =
+            || NotSearched::Type(format!("no type module has the block type {content_type}"));
+        let kind = self.kind(content_type).await.ok_or_else(no_module)?;
+        let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
+        let content = kind.load(peer, manifest).await.map_err(NotSearched::Read)?;
+        let scope = types::Scope::of([&content]);
+        let asked = keys.clone();
+        let wire_indexed = indexed.iter().copied().map(Into::into).collect();
+        let (answer, mut scope) = self
+            .ask_reading(ctx, module, scope, |connection| {
+                replicas::search_text(connection, content_type, content, asked, wire_indexed)
+            })
+            .await;
+        if let Some(failed) = scope.take_failure() {
+            return Err(NotSearched::Read(failed));
+        }
+        let documents = match answer {
+            Ok(Ok(documents)) => documents,
+            Ok(Err(be_sdk_type_api::Failure::Malformed(error))) => {
+                return Err(NotSearched::Type(error));
+            }
+            Ok(Err(be_sdk_type_api::Failure::UnknownType)) => return Err(no_module()),
+            Err(error) => {
+                return Err(NotSearched::Type(format!(
+                    "the type module answered: {error}"
+                )));
+            }
+        };
+        let keys: Option<HashSet<String>> = keys.map(|keys| keys.into_iter().collect());
+        let indexed: HashSet<be_block_store::PartRef> = indexed.iter().copied().collect();
+        let mut seen = HashSet::new();
+        let mut kept = Vec::with_capacity(documents.len());
+        for mut document in documents {
+            if keys
+                .as_ref()
+                .is_some_and(|keys| !keys.contains(&document.key))
+            {
+                continue;
+            }
+            if !seen.insert(document.key.clone()) {
+                return Err(NotSearched::Type(format!(
+                    "the type answered the document {:?} twice",
+                    document.key
+                )));
+            }
+            let source = document
+                .source
+                .map(be_block_store::PartRef::from)
+                .filter(|source| scope.allows(*source));
+            if source.is_some_and(|source| indexed.contains(&source)) {
+                document.body = None;
+            } else if document.body.is_none() {
+                return Err(NotSearched::Type(format!(
+                    "the type answered no text for the document {:?}",
+                    document.key
+                )));
+            }
+            document.source = source.map(Into::into);
+            kept.push(document);
+        }
+        Ok(Searched {
+            documents: kept,
+            read: scope.read().to_vec(),
+        })
     }
 
     pub async fn merge_diverged(

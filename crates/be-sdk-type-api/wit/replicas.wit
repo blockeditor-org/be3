@@ -7,8 +7,8 @@ package be3:block-type@0.1.0;
 interface replicas {
     use types.{
         block-id, change, client-id, commit-id, content-type-id, description, editor-id,
-        endpoint, failure, journal, loaded, merged, merged-parts, organization-id, plain-file, session-state,
-        session-tag, type-info,
+        endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
+        search-document, session-state, session-tag, type-info,
     };
 
     record opening {
@@ -107,6 +107,21 @@ interface replicas {
     describe: async func(content-type: content-type-id, bytes: list<u8>, organization: organization-id) -> result<description, failure>;
 
     to-file: async func(content-type: content-type-id, bytes: list<u8>) -> result<option<plain-file>, failure>;
+
+    /// The content's searchable text (`be_block::BlockContent::search_text`); empty for a
+    /// type that is not content-searchable. `content` is a commit as `host.load` answers it,
+    /// only its first part for a type that loads only that (`type-info.first-part`), which
+    /// reads the others with `read-part` under this request. `keys` (none for every
+    /// document) and `indexed` (parts whose text the index holds) let the type spare work:
+    /// it need not answer other documents nor read those parts. The host checks the answer
+    /// itself: it drops documents outside `keys`, sources that are no part of `content` and
+    /// bodies whose source is in `indexed`, and refuses a key answered twice.
+    search-text: async func(
+        content-type: content-type-id,
+        content: loaded,
+        keys: option<list<string>>,
+        indexed: list<part-ref>,
+    ) -> result<list<search-document>, failure>;
 
     /// Which of the module's types takes a file, by name and first bytes, or
     /// with `directory` a new directory.

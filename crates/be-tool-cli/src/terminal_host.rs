@@ -39,9 +39,9 @@ pub struct HostOptions {
     pub command: Vec<String>,
     pub machine: String,
     pub user: String,
-    /// A file the host keeps its standing in (`BE3_TERMINAL_STATUS`): `connected`, or
-    /// `offline` and why, so whoever installed it can tell a working host from one whose
-    /// token was revoked.
+    /// A file the host keeps its standing in (`BE3_TERMINAL_STATUS`): `connecting` and since
+    /// when (seconds since the epoch), `connected`, or `offline` and why, so whoever installed
+    /// it can tell a working host from one whose token was revoked or whose connecting hangs.
     pub status: Option<std::path::PathBuf>,
 }
 
@@ -126,6 +126,10 @@ impl Host {
         let mut retry = Duration::from_secs(1);
         let mut connected = false;
         loop {
+            let since = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |since| since.as_secs());
+            self.report(&format!("connecting {since}"));
             let ended = match connect().await {
                 Ok((peer, block)) => {
                     connected = true;
