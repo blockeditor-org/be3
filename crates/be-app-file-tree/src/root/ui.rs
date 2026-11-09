@@ -232,7 +232,15 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         }}
                                         editing={renaming.editing()}
                                         reorder=true
-                                        pastes={move |_: RowKey| vec![formats::BLOCKS.to_owned()]}
+                                        pastes={move |key: RowKey| {
+                                            let folder = rows.with_untracked(|rows| {
+                                                rows.iter().any(|row| row.key == key && row.can_add)
+                                            });
+                                            match folder {
+                                                true => vec![formats::BLOCKS.to_owned()],
+                                                false => Vec::new(),
+                                            }
+                                        }}
                                         on_paste={move |(key, pasted): (RowKey, ClipItem)| {
                                             let row = tree.rows().with_untracked(|rows| {
                                                 rows.iter().find(|row| row.key == key).cloned()

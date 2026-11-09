@@ -495,9 +495,10 @@ fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) ->
     }
 }
 
-/// Pastes a `be3/blocks` clip into the folder `row` shows, through the host
-/// (`paste-blocks`), which moves a cut block there and adds a reference to any
-/// other.
+/// Pastes a `be3/blocks` clip into the folder `row` shows. The host
+/// (`paste-blocks`) moves a block cut from its parent there and answers with
+/// the blocks this editor may view; every other block answered is linked into
+/// the folder here, as the add picker links a block.
 pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
     let Some(folder) = row.filter(|row| row.can_add).and_then(|row| row.id) else {
         return;
@@ -506,6 +507,13 @@ pub(crate) fn paste_into(editor: Editor, row: Option<Row>, pasted: ClipItem) {
         return;
     };
     let ids: Vec<Uuid> = blocks.blocks.iter().map(|block| block.id).collect();
-    let asked = editor.host().paste_blocks(&ids, BlockParent::Block(folder));
-    let _ = editor.then(asked, |_| ());
+    let host = editor.host();
+    let asked = host.paste_blocks(&ids, BlockParent::Block(folder));
+    let _ = editor.then(asked, move |pasted| {
+        for (block, block_type, moved) in pasted {
+            if !moved {
+                host.place_block(block, block_type, folder, true);
+            }
+        }
+    });
 }
