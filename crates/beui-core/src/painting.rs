@@ -3,9 +3,11 @@ use std::collections::btree_map::Entry;
 use std::hash::{Hash as _, Hasher as _};
 
 pub use beui_paint_format::{
-    Content, Fade, Frame, Glyph, Group, Painting, Pixels, Placement, Primitive, RoundedRect,
+    Content, Fade, Frame, Glyph, Painting, Pixels, Placement, Primitive, RoundedRect,
     ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed, rasterize,
 };
+/// Named apart from `display::Group`, the groups a display records.
+pub use beui_paint_format::Group as PaintGroup;
 
 use crate::context::{FrameOutput, WindowOutput};
 use crate::display::Flat;
@@ -63,6 +65,7 @@ pub fn painting(
         pixels_per_point,
         punches,
         textures: BTreeMap::new(),
+        holes: Vec::new(),
     };
     let mut primitives = Vec::new();
     let mut background = background;
@@ -108,11 +111,15 @@ fn punched(items: &[Flat]) -> bool {
 fn cut(primitives: Vec<Primitive>, hole: [f32; 4]) -> Vec<Primitive> {
     primitives
         .into_iter()
-        .flat_map(|primitive: Primitive| match primitive.content {
-            Content::Group(group) => Group::primitive(group.opacity, cut(group.primitives, hole))
-                .into_iter()
-                .collect::<Vec<_>>(),
-            content => outside(primitive.clip, hole)
+        .flat_map(|primitive: Primitive| {
+            let content = match primitive.content {
+                Content::Group(group) => Content::Group(PaintGroup {
+                    primitives: cut(group.primitives, hole),
+                    ..group
+                }),
+                content => content,
+            };
+            outside(primitive.clip, hole)
                 .into_iter()
                 .map(|clip| Primitive {
                     clip,
@@ -120,7 +127,7 @@ fn cut(primitives: Vec<Primitive>, hole: [f32; 4]) -> Vec<Primitive> {
                     rounds: primitive.rounds.clone(),
                     content: content.clone(),
                 })
-                .collect(),
+                .collect::<Vec<_>>()
         })
         .collect()
 }
@@ -130,6 +137,9 @@ struct Converting {
     pixels_per_point: f32,
     punches: Punches,
     textures: BTreeMap<TextureKey, Pixels>,
+    /// The holes punched so far, so a punch inside a group cuts what was painted
+    /// beneath the group too, as it erases the window there.
+    holes: Vec<[f32; 4]>,
 }
 
 impl Converting {
@@ -143,8 +153,12 @@ impl Converting {
                 Flat::Group(opacity, inner) => {
                     self.shapes(std::mem::take(&mut run), &mut quads, &mut fades, primitives)?;
                     let mut grouped = Vec::new();
+                    let punched = self.holes.len();
                     self.items(inner, &mut grouped)?;
-                    primitives.extend(Group::primitive(opacity, grouped));
+                    for hole in self.holes[punched..].to_vec() {
+                        *primitives = cut(std::mem::take(primitives), hole);
+                    }
+                    primitives.extend(PaintGroup::primitive(opacity, grouped));
                 }
             }
         }
@@ -160,6 +174,7 @@ impl Converting {
     ) -> Result<(), String> {
         let (size, pixels_per_point, punches) = (self.size, self.pixels_per_point, self.punches);
         let textures = &mut self.textures;
+        let holes = &mut self.holes;
         let points = |values: [f32; 4]| values.map(|value| value / pixels_per_point);
         let turn_of = |turn: crate::draw::Turn| turned(turn, pixels_per_point);
         quads.clear();
@@ -246,6 +261,7 @@ impl Converting {
             {
                 let hole = intersect(points(*rect), points(*clip));
                 *primitives = cut(std::mem::take(primitives), hole);
+                holes.push(hole);
                 continue;
             }
             let (clip, content) = match quad {

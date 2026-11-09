@@ -42,6 +42,7 @@ mod an_offscreen_surface_draws_every_frame_it_noted_once_it_is_looked_at;
 mod an_srgb_encoded_texture_keeps_its_colour_on_an_srgb_target;
 mod copying_a_faded_scroll_paints_what_a_full_repaint_would;
 mod copying_a_scrolled_region_paints_what_a_full_repaint_would;
+mod nested_faded_frames_paint_as_the_painting_does_through_partial_repaints;
 mod overlapping_shapes_in_a_faded_frame_do_not_show_through_each_other;
 mod reducing_contrast_pulls_the_filtered_region_toward_grey;
 mod repainting_a_damaged_region_keeps_the_rest_of_the_retained_frame;
@@ -249,7 +250,7 @@ impl Target {
         background: Color32,
         repaint: impl FnOnce(&beui_core::context::WindowOutput) -> Repaint,
         paint: impl FnOnce(&Painter),
-    ) {
+    ) -> beui_core::context::FrameOutput {
         let output = context.run(|context| paint(&context.painter()));
         let repaint = repaint(output.main());
         let effective = self.renderer.prepare(
@@ -280,6 +281,7 @@ impl Target {
             load,
         );
         self.queue.submit(Some(encoder.finish()));
+        output
     }
 
     pub fn read(&self) -> Capture {

@@ -1,4 +1,4 @@
-use crate::{Content, Frame, Snapshot};
+use crate::{Content, Frame, Primitive, Snapshot};
 
 pub struct Difference {
     pub description: String,
@@ -60,21 +60,24 @@ pub fn frame_difference(before: &Frame, after: &Frame) -> String {
             after.background, before.background
         );
     }
-    if before.primitives.len() != after.primitives.len() {
+    primitives_difference(&before.primitives, &after.primitives)
+}
+
+fn primitives_difference(before: &[Primitive], after: &[Primitive]) -> String {
+    if before.len() != after.len() {
         return format!(
             "the painting has {} shapes, it used to have {}",
-            after.primitives.len(),
-            before.primitives.len()
+            after.len(),
+            before.len()
         );
     }
     let index = before
-        .primitives
         .iter()
-        .zip(&after.primitives)
+        .zip(after)
         .position(|(before, after)| before != after);
     match index {
-        Some(index) if before.primitives[index].content == after.primitives[index].content => {
-            let (before, after) = (&before.primitives[index], &after.primitives[index]);
+        Some(index) if before[index].content == after[index].content => {
+            let (before, after) = (&before[index], &after[index]);
             match (before.clip == after.clip, before.fade == after.fade) {
                 (false, _) => format!(
                     "shape {index} is clipped to {:?}, it used to be clipped to {:?}",
@@ -93,8 +96,8 @@ pub fn frame_difference(before: &Frame, after: &Frame) -> String {
         Some(index) => format!(
             "shape {index} changed: {}",
             changes(
-                &before.primitives[index].content,
-                &after.primitives[index].content
+                &before[index].content,
+                &after[index].content
             )
         ),
         None => "the painting is scaled differently".to_owned(),
@@ -102,6 +105,18 @@ pub fn frame_difference(before: &Frame, after: &Frame) -> String {
 }
 
 fn changes(before: &Content, after: &Content) -> String {
+    if let (Content::Group(before), Content::Group(after)) = (before, after) {
+        return match before.opacity == after.opacity {
+            false => format!(
+                "the group is at opacity {}, it used to be at {}",
+                after.opacity, before.opacity
+            ),
+            true => format!(
+                "in its group, {}",
+                primitives_difference(&before.primitives, &after.primitives)
+            ),
+        };
+    }
     let replaced = format!("{} became {}", summary(before), summary(after));
     let (Content::Mesh(before), Content::Mesh(after)) = (before, after) else {
         return replaced;

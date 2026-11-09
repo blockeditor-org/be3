@@ -509,22 +509,3 @@ fn overlaps(primitive: &Primitive) -> bool {
     bounds[0] < clip[2] && bounds[2] > clip[0] && bounds[1] < clip[3] && bounds[3] > clip[1]
 }
 
-fn faded(content: &mut Content, opacity: f32) {
-    if opacity >= 1.0 {
-        return;
-    }
-    let fade = |color: &mut [u8; 4]| color[3] = (f32::from(color[3]) * opacity).round() as u8;
-    match content {
-        Content::RoundedRect(shape) | Content::CorneredRect(shape, _) => fade(&mut shape.color),
-        Content::Glyph(glyph) => fade(&mut glyph.color),
-        Content::Mesh(triangles) => {
-            for triangle in triangles {
-                for corner in &mut triangle.corners {
-                    fade(&mut corner.color);
-                }
-            }
-        }
-        Content::Group(group) => group.opacity *= opacity,
-        Content::Callback(_) => {}
-    }
-}

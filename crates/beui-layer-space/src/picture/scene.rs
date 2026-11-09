@@ -1,9 +1,11 @@
-use beui_core::painting::{Content, Fade, Painting, Placement, Primitive, Triangle, Vertex};
+use beui_core::painting::{
+    Content, Fade, PaintGroup, Painting, Placement, Primitive, Triangle, Vertex,
+};
 use beui_types::Rect;
 use beui_types::WindowId;
 use glam::{Mat4, Vec3};
 
-use super::{Out, WHITE, faded, overlaps};
+use super::{Out, WHITE, overlaps};
 use crate::head::NEAR;
 use crate::panel::bent;
 use crate::render::{Frame, PanelFrame};
@@ -91,8 +93,7 @@ impl Scene {
             ])
         };
         let index = self.surfaces.len();
-        let mut background = picture.frame.background;
-        background[3] = (f32::from(background[3]) * opacity).round() as u8;
+        let background = picture.frame.background;
         picture.frame.background = [0; 4];
         for column in 0..COLUMNS {
             for row in 0..ROWS {
@@ -324,7 +325,8 @@ impl Scene {
 
     fn covers(&self, index: usize, tile: [f32; 4]) -> bool {
         let piece = &self.pieces[index];
-        if self.surfaces[piece.surface].background[3] < u8::MAX {
+        let surface = &self.surfaces[piece.surface];
+        if surface.background[3] < u8::MAX || surface.opacity < 1.0 {
             return false;
         }
         let corners = piece.corners;
@@ -351,6 +353,7 @@ impl Scene {
         let whole = intersect(tile, [rect.min.x, rect.min.y, rect.max.x, rect.max.y]);
         for run in order.chunk_by(|a, b| self.pieces[*a].surface == self.pieces[*b].surface) {
             let surface = &self.surfaces[self.pieces[run[0]].surface];
+            let mut shown = Vec::new();
             if surface.background[3] > 0 {
                 out.white();
                 let vertex = |pos: [f32; 2]| Vertex {
@@ -368,7 +371,7 @@ impl Scene {
                         })
                     })
                     .collect();
-                out.primitives.push(Primitive {
+                shown.push(Primitive {
                     clip: whole,
                     fade: Fade::NONE,
                     rounds: Vec::new(),
@@ -387,13 +390,13 @@ impl Scene {
                     clip,
                     corner_radius: 0.0,
                 });
-                for mut primitive in placed {
-                    if !overlaps(&primitive) {
-                        continue;
-                    }
-                    faded(&mut primitive.content, surface.opacity);
-                    out.primitives.push(primitive);
-                }
+                shown.extend(placed.into_iter().filter(overlaps));
+            }
+            match surface.opacity < 1.0 {
+                true => out
+                    .primitives
+                    .extend(PaintGroup::primitive(surface.opacity, shown)),
+                false => out.primitives.extend(shown),
             }
         }
     }
