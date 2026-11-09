@@ -1526,12 +1526,6 @@ downloads = {
         "size_bytes": 4620,
         "version": "4.1.0",
     },
-    "fst-0.4.7": {
-        "name": "fst",
-        "sha256": "7ab85b9b05e3978cc9a9cf8fea7f01b494e1a09ed3037e16ba39edc7a29eb61a",
-        "size_bytes": 1573393,
-        "version": "0.4.7",
-    },
     "futures-0.3.32": {
         "name": "futures",
         "sha256": "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d",

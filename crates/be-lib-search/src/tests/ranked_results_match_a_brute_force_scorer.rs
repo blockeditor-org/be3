@@ -35,11 +35,17 @@ fn batches(random: &mut Random, index: &mut Index, store: &mut Store, first: u32
     for batch in 0..count {
         let time = i64::from(first + batch) * 10;
         let start = (first + batch) * 30;
-        let mut put: Vec<Put> = (start..start + 30).map(|n| random.put(n, time + i64::from(random.below(5)))).collect();
+        let mut put: Vec<Put> = (start..start + 30)
+            .map(|n| {
+                let offset = i64::from(random.below(5));
+                random.put(n, time + offset)
+            })
+            .collect();
         let mut removed = Vec::new();
         if start > 0 {
             for _ in 0..8 {
-                put.push(random.put(random.below(start), time + 5));
+                let n = random.below(start);
+                put.push(random.put(n, time + 5));
             }
             removed.push((doc(random.below(start)), commit(time + 6)));
         }
