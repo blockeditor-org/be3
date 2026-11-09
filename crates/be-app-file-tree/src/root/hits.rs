@@ -1,7 +1,9 @@
 //! What the filter finds in content (plans/search.md): the search index's hits for the filter's
 //! words, under the rows whose names match, each with its name and the text around the match.
 
+use be_sdk_beui::beui::styled::Span;
 use be_sdk_beui::beui::NodeId;
+use beui::{Align, Direction, Overflow};
 use be_sdk_beui::beui::icons::ICON_FILE_TEXT;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -75,7 +77,21 @@ fn HitRow(editor: Editor, hit: Memo<SearchHit>, block: Uuid) -> NodeId {
             .and_then(|info| info.name())
             .unwrap_or_else(|| "Untitled".to_owned())
     });
-    let detail = create_memo(move || hit.get().snippet);
+    // The snippet around its first match, which is marked as the tree marks a name's.
+    let parts = create_memo(move || {
+        let hit = hit.get();
+        match hit.matches.first() {
+            Some(range) => (
+                hit.snippet[..range.start].to_owned(),
+                hit.snippet[range.clone()].to_owned(),
+                hit.snippet[range.end..].to_owned(),
+            ),
+            None => (hit.snippet, String::new(), String::new()),
+        }
+    });
+    let before = create_memo(move || parts.get().0);
+    let matched = create_memo(move || parts.get().1);
+    let after = create_memo(move || parts.get().2);
     let open = move || {
         if let Some(info) = found.get_untracked() {
             editor.host().open_block(block, info.block_type);
@@ -84,10 +100,24 @@ fn HitRow(editor: Editor, hit: Memo<SearchHit>, block: Uuid) -> NodeId {
     view! {
         <ListRow
             label
-            detail
-            glyph={Some(ICON_FILE_TEXT)}
             on_click={open}
             @test_id={format!("file-tree.hit.{block}")}
-        />
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                <Text color=TextColor::Muted>
+                    <Icon glyph={ICON_FILE_TEXT} />
+                </Text>
+                <ListItem grow=1.0>
+                    <List spacing=Space::None>
+                        <Text overflow=Overflow::Ellipsis>{label}</Text>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                            {before}
+                            <Span background=ColorRole::AccentSoft>{matched}</Span>
+                            {after}
+                        </Text>
+                    </List>
+                </ListItem>
+            </List>
+        </ListRow>
     }
 }

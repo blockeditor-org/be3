@@ -48,7 +48,7 @@ fn the_filter_lists_what_the_search_index_finds_in_content() {
                 SearchHit {
                     block: notes,
                     key: String::new(),
-                    matches: vec![12..18],
+                    matches: vec![13..19],
                     snippet: "Rehearse the launch demo twice.".to_owned(),
                 },
             ],
