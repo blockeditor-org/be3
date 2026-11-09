@@ -139,10 +139,7 @@ pub enum ClientError {
     Contended,
     Locked(uuid::Uuid),
     Unexpected,
-    Incompatible {
-        ours: String,
-        theirs: String,
-    },
+    Incompatible { ours: String, theirs: String },
     NoBuild(String),
 }
 

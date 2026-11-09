@@ -15,11 +15,7 @@ fn rotate_later(harness: &Harness, peer: &Peer<MemoryStore>, block: Uuid) {
         .unwrap();
 }
 
-async fn sections_in(
-    peer: &Peer<MemoryStore>,
-    parent: Uuid,
-    text: &str,
-) -> Uuid {
+async fn sections_in(peer: &Peer<MemoryStore>, parent: Uuid, text: &str) -> Uuid {
     let block = peer
         .create::<Sections>(BlockParent::Block(parent))
         .await
@@ -72,7 +68,10 @@ async fn an_administrator_rotates_and_moves_what_it_holds_only_through_escrow() 
     drop(member);
 
     let laptop = harness.second(&admin).await;
-    assert!(!sealed_by(&laptop, rotated).await, "the admin holds the member's keys through escrow alone");
+    assert!(
+        !sealed_by(&laptop, rotated).await,
+        "the admin holds the member's keys through escrow alone"
+    );
     laptop.tend().await.unwrap();
     assert!(
         laptop.key_work().await.unwrap().rotations.is_empty(),

@@ -842,7 +842,11 @@ impl<S: ObjectStore> Peer<S> {
     async fn head_for_write(&self, block: Uuid) -> Option<CommitId> {
         match self.local_head(block).or(self.known_remote_head(block)) {
             Some(head) => Some(head),
-            None => self.summary(block).await.ok().and_then(|summary| summary.head),
+            None => self
+                .summary(block)
+                .await
+                .ok()
+                .and_then(|summary| summary.head),
         }
     }
 
@@ -1865,7 +1869,10 @@ impl<S: ObjectStore> Peer<S> {
                         .contains(&WrappedBy::Key(parent_scope))
                     && rescoped.keys.keys.is_empty()
                 {
-                    rescoped.keys.wrapped.push(self.keys.wrap(own, parent_scope)?);
+                    rescoped
+                        .keys
+                        .wrapped
+                        .push(self.keys.wrap(own, parent_scope)?);
                 }
                 own
             }
@@ -1909,7 +1916,10 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             }
             let rows = self.keys.keys_of(node.id, KeyKind::Data);
-            if node.key.is_some_and(|key| rows.iter().all(|row| row.id != key)) {
+            if node
+                .key
+                .is_some_and(|key| rows.iter().all(|row| row.id != key))
+            {
                 return Err(ClientError::Locked(node.id));
             }
             let mut untrusted = HashSet::new();

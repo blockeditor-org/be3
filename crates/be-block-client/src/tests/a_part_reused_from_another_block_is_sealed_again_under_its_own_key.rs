@@ -51,7 +51,6 @@ async fn a_part_reused_from_another_block_is_sealed_again_under_its_own_key() {
         "a part of the block's own keeps its ref"
     );
 
-
     // A checkout filled from another's snapshot writes that block's manifest whole.
     let copy = owner
         .create::<Sections>(BlockParent::Block(team))

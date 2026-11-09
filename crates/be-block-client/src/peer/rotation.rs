@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use be_block_commit::CommitId;
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{BlockSummary, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client};
-use be_block_commit::CommitId;
 use be_block_store::{Manifest, ObjectStore, PartRef};
 use uuid::Uuid;
 
@@ -225,10 +225,10 @@ impl<S: ObjectStore> Peer<S> {
                 }
             }
             let key = self.sealing_key(block).await?;
-            let rekeyed = self
-                .commits
-                .vault()
-                .rekey(key, &|sealed| epochs.contains(&sealed), root)?;
+            let rekeyed =
+                self.commits
+                    .vault()
+                    .rekey(key, &|sealed| epochs.contains(&sealed), root)?;
             if rekeyed == root {
                 return Ok(());
             }
