@@ -83,11 +83,11 @@ mod web {
     use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
+    use beui_types::clipboard::formats;
     use beui_types::input::{
         ImeEvent, Input, KeyPress, PointerButton, PointerId, PointerInput, PointerPhase,
         PointerPress, PointerStage, ScrollGesture, TouchId, WheelInput, ZoomGesture, scrolled,
     };
-    use beui_types::clipboard::formats;
     use beui_types::{ClipItem, Pos2, Rect, Vec2, WindowId, pos2, vec2};
     use wasm_bindgen::JsCast;
 
@@ -547,7 +547,10 @@ mod web {
                     return Some(Pasted::File(format.clone(), file));
                 }
                 let text = data.get_data(format).ok().filter(|text| !text.is_empty())?;
-                Some(Pasted::Now(ClipItem::new(format.clone(), text.into_bytes())))
+                Some(Pasted::Now(ClipItem::new(
+                    format.clone(),
+                    text.into_bytes(),
+                )))
             })
     }
 
