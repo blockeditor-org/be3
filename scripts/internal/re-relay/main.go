@@ -157,8 +157,9 @@ func serve(listen, upstream, version string, connections int, http1 bool) {
 			os.Exit(0)
 		}()
 	})
+	cache := newCASCache()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		relay(transport, upstream, w, r)
+		relay(transport, upstream, cache, w, r)
 	})
 
 	server.Protocols = new(http.Protocols)
@@ -202,10 +203,14 @@ var resumable = map[string]bool{
 	"/build.bazel.remote.execution.v2.Execution/WaitExecution": true,
 }
 
-func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r *http.Request) {
+func relay(transport *http.Transport, upstream string, cache *casCache, w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		grpcError(w, 14, "re-relay: reading the request: "+err.Error())
+		return
+	}
+	send := func(body []byte) (*http.Response, string) { return call(transport, upstream, r, body) }
+	if cache.handle(w, r, body, send) {
 		return
 	}
 
