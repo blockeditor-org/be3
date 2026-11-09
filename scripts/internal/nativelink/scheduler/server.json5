@@ -1,0 +1,124 @@
+// NativeLink for be3: cache (CAS + action cache) and remote execution scheduler.
+// Fast tier: local disk. Slow/persistent tier: Bunny storage zone be-nativelink-s3
+// over Bunny's S3 API. Listens only on the WireGuard address 10.100.0.1.
+// Secrets come from the environment (/etc/nativelink/server.env), not this file.
+{
+  stores: [
+    {
+      // Objects under 16 KB are 94% of the objects and under 1% of the bytes. They stay in
+      // /tmp/nativelink/small (lost on a snapshot restore) and persist as ONE packed object in
+      // Bunny (nl-small-pack.sh); only larger objects go to Bunny one by one.
+      name: "CAS_STORE",
+      size_partitioning: {
+        size: "16kb",
+        lower_store: {
+          filesystem: {
+            content_path: "/tmp/nativelink/small/content",
+            temp_path: "/tmp/nativelink/small/tmp",
+            eviction_policy: { max_bytes: 3000000000 },
+          },
+        },
+        upper_store: {
+          fast_slow: {
+            fast: {
+              filesystem: {
+                content_path: "/tmp/nativelink/cas/content",
+                temp_path: "/tmp/nativelink/cas/tmp",
+                eviction_policy: { max_bytes: 25000000000 },
+              },
+            },
+            slow: {
+              // Remembers what Bunny has, so repeated existence checks do not become HEAD requests.
+              existence_cache: {
+                eviction_policy: { max_count: 2000000, max_seconds: 21600 },
+                backend: {
+                  experimental_cloud_object_store: {
+                    provider: "aws",
+                    region: "de",
+                    endpoint: "https://de-s3.storage.bunnycdn.com",
+                    force_path_style: true,
+                    bucket: "be-nativelink-s3",
+                    key_prefix: "cas/",
+                    access_key_id: "${BUNNY_S3_KEY_ID}",
+                    secret_access_key: "${BUNNY_S3_SECRET}",
+                    retry: { max_retries: 6, delay: 0.3, jitter: 0.5 },
+                    // Bunny allows 500 requests/s per zone; unbounded uploads hit SlowDown.
+                    max_concurrent_requests: 12,
+                    max_concurrent_reads: 6,
+                    adaptive_read_concurrency: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      // The action cache is tiny (about 12k entries, 48 MB): local, packed with the small tier.
+      name: "AC_BACKEND",
+      filesystem: {
+        content_path: "/tmp/nativelink/ac/content",
+        temp_path: "/tmp/nativelink/ac/tmp",
+        eviction_policy: { max_bytes: 1000000000 },
+      },
+    },
+    {
+      // Drops an action result whose outputs are no longer in the CAS.
+      name: "AC_STORE",
+      completeness_checking: {
+        backend: { ref_store: { name: "AC_BACKEND" } },
+        cas_store: { ref_store: { name: "CAS_STORE" } },
+      },
+    },
+  ],
+  schedulers: [
+    {
+      name: "MAIN_SCHEDULER",
+      simple: {
+        // Workers run actions at load 50-100 on 4 vCPU and can miss the 10 s default
+        // keepalive; a dropped worker fails its actions and buck2 sees an infra error.
+        worker_timeout_s: 120,
+        supported_platform_properties: {
+          OSFamily: "exact",
+          "container-image": "exact",
+        },
+      },
+    },
+  ],
+  servers: [
+    {
+      name: "frontend",
+      listener: {
+        http: {
+          socket_address: "10.100.0.1:50052",
+          advanced_http: {
+            http2_keep_alive_interval: 60,
+            experimental_http2_keep_alive_timeout: 20,
+            experimental_http2_max_concurrent_streams: 2000,
+            experimental_http2_initial_connection_window_size: 16777216,
+            experimental_http2_initial_stream_window_size: 8388608,
+          },
+        },
+      },
+      services: {
+        cas: [{ instance_name: "", cas_store: "CAS_STORE" }],
+        ac: [{ instance_name: "", ac_store: "AC_STORE" }],
+        execution: [{ instance_name: "", cas_store: "CAS_STORE", scheduler: "MAIN_SCHEDULER" }],
+        capabilities: [{ instance_name: "", remote_execution: { scheduler: "MAIN_SCHEDULER" } }],
+        bytestream: [{ instance_name: "", cas_store: "CAS_STORE" }],
+      },
+    },
+    {
+      // Workers' backend API, a different permission set from the frontend.
+      name: "workers",
+      listener: { http: { socket_address: "10.100.0.1:50061" } },
+      services: {
+        worker_api: { scheduler: "MAIN_SCHEDULER" },
+        admin: {},
+        health: {},
+      },
+    },
+  ],
+  global: { max_open_files: 24576 },
+}

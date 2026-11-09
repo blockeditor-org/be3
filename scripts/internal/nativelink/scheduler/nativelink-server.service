@@ -1,0 +1,18 @@
+[Unit]
+Description=NativeLink cache and remote execution scheduler (be3)
+After=network-online.target wg-quick@wg-sch.service
+Wants=wg-quick@wg-sch.service
+StartLimitIntervalSec=0
+
+[Service]
+User=nativelink
+Group=nativelink
+EnvironmentFile=/etc/nativelink/server.env
+ExecStartPre=+/usr/local/bin/nl-small-restore.sh
+ExecStart=/usr/local/bin/nativelink /etc/nativelink/server.json5
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
