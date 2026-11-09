@@ -56,7 +56,7 @@ METRICS_URL = os.environ.get("NL_METRICS_URL", "http://127.0.0.1:8889/metrics") 
 # on VMs that are deleted at once, so past the included number it costs money. By default the controller never pays
 # for a start: it leaves RESERVE of each window for everybody else's VMs and stops when the rest is used.
 INCLUDED = {"day": 200, "hour": 60, "minute": 12}            # the $20 plan, used when the key cannot read `boat limits`
-RESERVE = {"day": int(os.environ.get("NL_RESERVE_DAY", "40")), "hour": int(os.environ.get("NL_RESERVE_HOUR", "10")),
+RESERVE = {"day": int(os.environ.get("NL_RESERVE_DAY", "5")), "hour": int(os.environ.get("NL_RESERVE_HOUR", "10")),
            "minute": 0}
 MAX_START_PRICE = float(os.environ.get("NL_MAX_START_PRICE", "0"))       # dollars: the dearest start it will pay for
 EXTRA_START_BUDGET = float(os.environ.get("NL_EXTRA_START_BUDGET", "0"))  # dollars a month it may spend on extra starts

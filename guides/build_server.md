@@ -153,8 +153,8 @@ it cannot be turned on later) and a boat login that can create sandboxes:
 Every VM it creates is a start. Past the plan's included starts a start costs $0.03 (up to 1.5 times the included
 number), $0.05 (up to 2 times) or $0.07 (up to 6 times, 3 times a minute), and fails above that; the price is the highest
 of the per-minute, per-hour and per-day ones (docs.boat.dev/limits#extra-starts). A VM created and deleted at once (one
-that could not reach the scheduler) is a start too; the controller logs the share of new VMs that reach the scheduler. Its default is never to pay: it leaves 40 starts of the day and 10 of the
-hour for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the dearest start it will
+that could not reach the scheduler) is a start too; the controller logs the share of new VMs that reach the scheduler. Its default is never to pay: it leaves 5 starts of the day (`NL_RESERVE_DAY`) and 10 of
+the hour (`NL_RESERVE_HOUR`) for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the dearest start it will
 buy) and `NL_EXTRA_START_BUDGET` (dollars a month) let it buy more; with `account.read` it asks boat what the next
 start costs, without it it can only count its own. Between `NL_WORKERS_BASE` (2) and `NL_WORKERS_CAP` (6) workers (`NL_WORKER_TYPE`, `large`) it
 scales on NativeLink's queue (read through `nl-otelcol`): once actions have waited 20 s and every worker it wants is
