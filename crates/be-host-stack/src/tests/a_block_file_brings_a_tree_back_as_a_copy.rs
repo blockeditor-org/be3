@@ -67,6 +67,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
     close(counter);
     let (_, after_closing) = exported(counter);
 
+    let mut copies = Vec::new();
     for bytes in [while_open, after_closing] {
         let (top, top_type) =
             import(&bytes, be_block_graph::BlockParent::Root, None).expect("the file imports");
@@ -89,6 +90,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         assert_ne!(copy, counter);
         open(copy, CounterContent::CONTENT_TYPE);
         wait_for_count(copy, 5);
+        copies.push(copy);
         if top_type != be_type_workspace::FolderContent::CONTENT_TYPE {
             continue;
         }
@@ -111,4 +113,14 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
             "every block a level down comes with it"
         );
     }
+    for copy in copies {
+        add(copy, 10);
+        wait_for_count(copy, 15);
+    }
+    open(counter, CounterContent::CONTENT_TYPE);
+    assert_eq!(
+        crate::wait_until(|shared| counted(shared, counter)),
+        5,
+        "editing a copy leaves the original as it was"
+    );
 }

@@ -2,6 +2,7 @@ use super::*;
 use be_sdk_beui::beui::Modifiers;
 use be_sdk_beui::{BlockInfo, BlockLocation, BlockParent, BlockQuery, ImportedBlock};
 use be_sdk_test::HostCall;
+use be_type_presentation::Presentation;
 
 const CANVAS: Uuid = Uuid::from_u128(0x0c);
 const TEXT: Uuid = crate::root::TEXT_TYPE;
@@ -38,6 +39,15 @@ fn copied(test: &mut Harness, deck: Uuid, source: Uuid, copy: Uuid, block_type: 
     test.run();
 }
 
+fn notes(test: &Harness) -> Vec<Option<Uuid>> {
+    test.content::<PresentationContent>(None)
+        .root()
+        .slides
+        .iter()
+        .map(|slide| slide.notes)
+        .collect()
+}
+
 fn blocks(test: &Harness) -> Vec<Option<Uuid>> {
     test.content::<PresentationContent>(None)
         .root()
@@ -51,6 +61,7 @@ fn blocks(test: &Harness) -> Vec<Option<Uuid>> {
 fn duplicating_a_slide_puts_a_copy_of_its_block_after_it() {
     let deck = Uuid::new_v4();
     let [canvas, text, canvas_copy, text_copy] = [0x51, 0x52, 0x53, 0x54].map(Uuid::from_u128);
+    let [written, written_copy, late_copy] = [0x61, 0x62, 0x63].map(Uuid::from_u128);
     let mut content = PresentationContent::default();
     for (index, slide) in [canvas, text].into_iter().enumerate() {
         let edit = content.root().insert(ObjectId::new(), index, slide);
@@ -83,6 +94,11 @@ fn duplicating_a_slide_puts_a_copy_of_its_block_after_it() {
     assert_eq!(detail(&test, "presentation.position"), "Slide 2 of 3");
 
     let ids = slide_ids(&test);
+    test.edit::<PresentationContent>(
+        None,
+        &Presentation::set_notes(ObjectId::from_uuid(ids[2]), Some(written)),
+    );
+    test.run();
     test.click(format!("presentation.slide.{}.more", ids[2]));
     test.run();
     test.click(format!("presentation.slide.{}.duplicate", ids[2]));
@@ -94,6 +110,27 @@ fn duplicating_a_slide_puts_a_copy_of_its_block_after_it() {
         "the tile's menu duplicates its own slide"
     );
     assert_eq!(detail(&test, "presentation.position"), "Slide 4 of 4");
+    copied(&mut test, deck, written, written_copy, TEXT);
+    assert_eq!(
+        notes(&test),
+        [None, None, Some(written), Some(written_copy)],
+        "the copy has a copy of the slide's notes of its own"
+    );
+
+    let ids = slide_ids(&test);
+    test.click(format!("presentation.slide.{}", ids[0]));
+    test.run();
+    test.key(Key::D, Modifiers::CTRL);
+    test.run();
+    test.click(format!("presentation.slide.{}", ids[3]));
+    test.run();
+    copied(&mut test, deck, canvas, late_copy, CANVAS);
+    assert_eq!(slide_ids(&test).len(), 5);
+    assert_eq!(
+        detail(&test, "presentation.position"),
+        "Slide 5 of 5",
+        "a copy that lands after the selection moved on leaves the selection alone"
+    );
 
     host.set_blocks(
         BlockQuery::References(deck),
@@ -102,6 +139,7 @@ fn duplicating_a_slide_puts_a_copy_of_its_block_after_it() {
             info(canvas_copy, CANVAS, "Opening"),
             info(text, TEXT, "Agenda"),
             info(text_copy, TEXT, "Agenda"),
+            info(late_copy, CANVAS, "Opening"),
         ],
     );
     test.run();

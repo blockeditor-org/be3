@@ -34,6 +34,7 @@ use beui::native::draw_gpu;
 use beui::reactive::toggle_keyboard;
 
 mod handoff;
+mod held_keys;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
@@ -722,6 +723,7 @@ pub(crate) fn AppView(
     });
     on_cleanup(move || {
         if let Some(node) = catcher.try_get() {
+            held_keys::forget(node);
             super::desktop::forget_catcher(node);
             try_with_document(|document| {
                 if document.focused_node() == Some(node) {
@@ -780,6 +782,9 @@ pub(crate) fn AppView(
     let steering = StoredCell::new(Steering::IDLE);
     let handing = StoredCell::new(handoff::Handoff::default());
     let forward = move |input: ForwardedInput| {
+        let app = app_id.value();
+        let pending = be_host_runtime::child_focus_pending(&app, instance);
+        let input = held_keys::route(&app, instance, catcher.try_get(), pending, now(), input);
         let mut handed = handing.get();
         let input = handed.route(input);
         handing.set(handed);
@@ -822,6 +827,25 @@ pub(crate) fn AppView(
         }
     };
     let forward = Callback::new(forward);
+    let typing = create_memo(move || state.with(|view| view.ime.is_some()));
+    create_effect(move || {
+        revision.get();
+        let typing = typing.get();
+        let Some(node) = catcher.try_get() else {
+            return;
+        };
+        if untrack(|| held_keys::owed_now(node, typing, now())) {
+            let rect = state.with_untracked(|view| view.rect);
+            forward.call(ForwardedInput {
+                events: Vec::new(),
+                rect,
+                hovered: false,
+                focused: true,
+                pointer: None,
+                modifiers: beui::Modifiers::NONE,
+            });
+        }
+    });
     if let Some(block) = block.filter(|_| region.is_main()) {
         let used = create_memo(move || state.with(|view| view.used));
         create_effect(move || {
@@ -1596,7 +1620,9 @@ fn focus_when_given(
             if !be_host_runtime::take_child_focus(&placer.app.value(), placer.instance, child) {
                 return;
             }
+            let placing = placer.app.value();
             if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
+                held_keys::refused(&placing, placer.instance, now());
                 return;
             }
             try_with_document(|document| {
@@ -1607,9 +1633,9 @@ fn focus_when_given(
                     })
                 });
                 if document.focus_is_within(node) || inside {
+                    held_keys::given(&placing, placer.instance, node, now());
                     return;
                 }
-                let placing = placer.app.value();
                 let placer_holds = held.is_none_or(|held| {
                     super::desktop::catchers_of(&placing, placer.instance)
                         .into_iter()
@@ -1620,7 +1646,10 @@ fn focus_when_given(
                 });
                 if placer_holds {
                     document.focus_focusable(node);
+                    held_keys::given(&placing, placer.instance, node, now());
                     passing.set(true);
+                } else {
+                    held_keys::refused(&placing, placer.instance, now());
                 }
             });
         });
