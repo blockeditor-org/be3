@@ -10,10 +10,6 @@ fn a_pick_made_with_no_place_commits_its_block_to_unfiled() {
     fixture.test.catalog(dialog);
     let mut fixture = picking(&fixture, filter(), BlockLocation::Unfiled);
     fixture.settle();
-    fixture.test.settle();
-    fixture
-        .test
-        .snapshot("a_pick_with_no_place_offers_to_make_its_block_in_unfiled");
     fixture
         .test
         .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));

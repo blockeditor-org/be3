@@ -428,7 +428,7 @@ fn TreeRow(
         false => Weight::Normal,
     });
     let glyph_size = glyph_size();
-    let (detail, detailed) = detail(editor, row);
+    let (detail, detailed, inline) = detail(editor, row);
     let generated_color = TextColor::Muted;
     let access_color = TextColor::Muted;
     let color = create_memo(move || match muted.get() {
@@ -439,11 +439,18 @@ fn TreeRow(
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <ListItem grow=1.0>
                 <List spacing=Space::None>
-                    <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
-                        {before}
-                        <Span background=ColorRole::AccentSoft>{hit}</Span>
-                        {after}
-                    </Text>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                        <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
+                            {before}
+                            <Span background=ColorRole::AccentSoft>{hit}</Span>
+                            {after}
+                        </Text>
+                        <Show condition={inline}>
+                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                {detail}
+                            </Text>
+                        </Show>
+                    </List>
                     <Show condition={detailed}>
                         <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                     </Show>
@@ -517,7 +524,7 @@ fn SectionRow(
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let (before, hit, after) = highlighted(label, filter);
     let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
-    let (detail, detailed) = detail(editor, row);
+    let (detail, detailed, _) = detail(editor, row);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <ListItem grow=1.0>
@@ -544,7 +551,9 @@ fn SectionRow(
     }
 }
 
-fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>) {
+/// The line under a row's name, and whether it shows there (comfortable density) or, for a
+/// row with a detail of its own such as Unfiled's, after the name on one line (compact).
+fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>, Memo<bool>) {
     let density = use_density();
     let detail = create_memo(move || {
         let Some(row) = row.get().filter(|row| row.id.is_some()) else {
@@ -583,9 +592,12 @@ fn detail(editor: Editor, row: Memo<Option<Row>>) -> (Memo<String>, Memo<bool>) 
     let own =
         create_memo(move || row.with(|row| row.as_ref().is_some_and(|row| row.detail.is_some())));
     let detailed = create_memo(move || {
-        (own.get() || density.get() == Density::Comfortable) && !detail.with(String::is_empty)
+        density.get() == Density::Comfortable && !detail.with(String::is_empty)
     });
-    (detail, detailed)
+    let inline = create_memo(move || {
+        own.get() && density.get() == Density::Compact && !detail.with(String::is_empty)
+    });
+    (detail, detailed, inline)
 }
 
 fn glyph_size() -> Memo<TextSize> {
