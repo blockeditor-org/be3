@@ -30,20 +30,35 @@ pub(crate) struct Visibility {
     account: Uuid,
     organization: Uuid,
     administrator: bool,
+    /// The block a block's agent is bound to, outside which it reaches nothing.
+    bound: Option<Uuid>,
     visible: std::cell::OnceCell<BTreeMap<Uuid, Access>>,
 }
 
 impl Visibility {
-    fn of(account: Uuid, organization: Uuid, role: OrganizationRole) -> Self {
+    fn of(identity: Identity) -> Self {
         Self {
-            account,
-            organization,
-            administrator: role == OrganizationRole::Administrator,
+            account: identity.account,
+            organization: identity.organization,
+            // A block's agent never administers, whatever its role says.
+            administrator: identity.role == OrganizationRole::Administrator
+                && identity.bound.is_none(),
+            bound: identity.bound,
             visible: std::cell::OnceCell::new(),
         }
     }
 
+    /// Whether `block` is within what this caller may reach at all: anything, or for a block's
+    /// agent its block and the blocks under it.
+    fn reaches(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        self.bound
+            .is_none_or(|root| block == root || graph.ancestors(block).any(|above| above == root))
+    }
+
     fn inherited(&self, graph: &BlockGraph, block: Uuid) -> Access {
+        if !self.reaches(graph, block) {
+            return Access::None;
+        }
         match (graph.contains(block), self.administrator) {
             (false, _) => Access::None,
             (true, administrator) if graph.closed_to(block, self.account) => match administrator {
@@ -79,6 +94,9 @@ impl Visibility {
     /// walks these rather than the whole organization, as the personal one holds every
     /// account's blocks. `None` for an administrator, who may know of everything.
     fn candidates(&self, graph: &BlockGraph) -> Option<BTreeSet<Uuid>> {
+        if let Some(root) = self.bound {
+            return Some(graph.subtree(root).into_iter().collect());
+        }
         if self.administrator {
             return None;
         }
@@ -93,6 +111,9 @@ impl Visibility {
     }
 
     fn access(&self, graph: &BlockGraph, block: Uuid) -> Access {
+        if !self.reaches(graph, block) {
+            return Access::None;
+        }
         let inherited = self.inherited(graph, block);
         if inherited.can_view() || !graph.contains(block) {
             return inherited;
@@ -107,7 +128,7 @@ impl Visibility {
 }
 
 pub(crate) fn visibility(identity: Identity) -> Visibility {
-    Visibility::of(identity.account, identity.organization, identity.role)
+    Visibility::of(identity)
 }
 
 fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
@@ -525,9 +546,12 @@ impl ServerStore {
             };
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
-                let access = graph
-                    .effective_access(block, identity.account)
-                    .max(seen.access(graph, block));
+                let access = match seen.reaches(graph, block) {
+                    true => graph
+                        .effective_access(block, identity.account)
+                        .max(seen.access(graph, block)),
+                    false => Access::None,
+                };
                 return match access.can_know_exists() {
                     true => Ok(BlockSummary {
                         revision: graph.revision(),
@@ -1398,7 +1422,15 @@ impl ServerStore {
                 }
                 std::mem::drop(refs);
                 let freed = forget_objects(&transaction, &freed)?;
+                let forgotten = crate::store::forget_orphaned_block_agents(
+                    graph,
+                    &transaction,
+                    identity.organization,
+                )?;
                 transaction.commit()?;
+                if !forgotten.is_empty() {
+                    store.sessions_changed();
+                }
                 store.objects().remove_freed(&freed);
                 Ok(Collected {
                     blocks: removed,
@@ -1417,7 +1449,7 @@ impl ServerStore {
         account: Uuid,
         access: Access,
     ) -> Result<BTreeSet<Uuid>, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
                 true if !visibility(identity)
@@ -1488,7 +1520,18 @@ impl ServerStore {
                 account,
                 access,
             )?;
+            let forgotten = match access {
+                Access::None => crate::store::forget_orphaned_block_agents(
+                    graph,
+                    &transaction,
+                    identity.organization,
+                )?,
+                _ => Vec::new(),
+            };
             transaction.commit()?;
+            if !forgotten.is_empty() {
+                store.sessions_changed();
+            }
             Ok(before)
         })
         .await

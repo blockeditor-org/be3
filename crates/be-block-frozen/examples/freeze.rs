@@ -419,6 +419,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         owner.keys().escrow().map_or_else(Vec::new, |escrow| {
             be_block_client::contacts::seal_pin(&agent_phrase.secret(), organization, &escrow)
         }),
+        None,
     ))
     .await?;
     let agent_card = be_block_keys::ContactCard {

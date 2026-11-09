@@ -491,6 +491,7 @@ impl Runtime {
         backend.start(app);
         let mut instances = Instances::default();
         instances.allow_network(app.network.clone());
+        instances.allow_block_agents(app.block_agents);
         instances.set_app_id(app.identity.id.clone());
         let session = session();
         Self {

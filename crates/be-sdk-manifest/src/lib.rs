@@ -34,6 +34,7 @@ pub struct AppManifest {
     pub entry_point: String,
     pub network: Vec<String>,
     pub extensions: Vec<String>,
+    pub block_agents: bool,
 }
 
 pub const EXTENSIONS: &[&str] = &["be3:desktop"];

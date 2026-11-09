@@ -1206,6 +1206,38 @@ pub async fn create_agent(name: String) -> Result<crate::accounts::AgentCredenti
     made.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))
 }
 
+/// An agent bound to `block` (an app's `create-block-agent`): its account and the credentials
+/// `be` signs in as it with.
+pub fn create_block_agent(
+    block: Uuid,
+    name: String,
+    reply: impl FnOnce(Result<(Uuid, crate::accounts::AgentCredentials), String>) + Send + 'static,
+) {
+    send(Command::CreateBlockAgent {
+        block,
+        name,
+        reply: Box::new(reply),
+    });
+}
+
+/// A new token for a block's agent; every older one stops signing it in.
+pub fn rotate_agent_token(
+    agent: Uuid,
+    reply: impl FnOnce(Result<String, String>) + Send + 'static,
+) {
+    send(Command::BlockAgent {
+        agent,
+        change: worker::AgentChange::Rotate(Box::new(reply)),
+    });
+}
+
+pub fn remove_block_agent(agent: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
+    send(Command::BlockAgent {
+        agent,
+        change: worker::AgentChange::Remove(Box::new(reply)),
+    });
+}
+
 const NOT_OPEN: &str = "Open the organization first.";
 
 pub fn list_access(

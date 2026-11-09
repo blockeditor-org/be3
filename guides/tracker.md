@@ -97,6 +97,19 @@ rows.
   its recovery phrase and writes its public key into the creator's contacts, so the creator's
   devices can share with it. An agent sees only what is shared with it: share a workspace with
   it for `be` to write in. Removing the agent deletes its account and what was sealed to it.
+- **A block's agent.** For a program that hosts one block from a machine trusted less than the
+  person's devices, such as a terminal host in a cloud VM, an app with `"block_agents": true`
+  calls `create-block-agent` (guides/apps/host_services.md), which needs Manage on the block.
+  The server (`create-agent` with `bound-to`) grants the agent Edit on the block, and it reaches
+  that block and the blocks under it and nothing else: `blocks::Visibility` answers no access
+  outside them, so every key, object, listing and session answer is limited to them, and
+  `client::bound_may` refuses the calls that reach past one block (agents, contacts but listing
+  them, organizations, members, pairing, access, making a block outside it, moving or deleting
+  the block itself). It is listed in the block's access list, not the Agents menu; a block has
+  at most `MAX_AGENTS_PER_BLOCK`, which don't count toward the creator's. While the block is in
+  the trash its calls are refused and it stays; collecting the block or removing its grant
+  deletes it. A new connection replaces its open one, which the server closes and whose
+  sessions it leaves at once, and `rotate-agent-token` revokes every older token.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be DATABASE pull-request` from the default
   branch (never PR-head code) with `BE3_TRACKER_DATABASE`, `BE3_TRACKER_CREDENTIALS` and
   `BE3_TRACKER_AUTHORIZATION`: rows named in the branch, title or body move to

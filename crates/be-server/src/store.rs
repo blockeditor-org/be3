@@ -77,6 +77,9 @@ pub struct Identity {
     pub account: Uuid,
     pub organization: Uuid,
     pub role: OrganizationRole,
+    /// For a block's agent, the block it is bound to: it reaches that block and the blocks
+    /// under it and nothing else (`blocks::Visibility`).
+    pub bound: Option<Uuid>,
 }
 
 impl Identity {
@@ -126,8 +129,11 @@ pub struct Shared {
     pub(crate) usage_changes: tokio::sync::broadcast::Sender<Uuid>,
 }
 
-/// Agents one account may have created and not yet removed.
+/// Agents one account may have created and not yet removed, not counting blocks' agents.
 pub const MAX_AGENTS_PER_CREATOR: i64 = 16;
+
+/// Agents bound to one block (`create_agent`'s `bound_to`).
+pub const MAX_AGENTS_PER_BLOCK: i64 = 4;
 
 /// Payers whose usage changed that a connection following its storage may fall behind by;
 /// one further behind reads its usage again rather than missing a change.
@@ -707,6 +713,10 @@ impl ServerStore {
         .await
     }
 
+    /// Makes an agent of `caller`'s in `organization`. One `bound_to` a block, which the caller
+    /// must manage, is granted Edit on it at once and is counted against the block's
+    /// `MAX_AGENTS_PER_BLOCK` rather than the caller's `MAX_AGENTS_PER_CREATOR`; it also answers
+    /// the block's audience before the grant, to announce the change to.
     pub async fn create_agent(
         &self,
         caller: Uuid,
@@ -715,8 +725,9 @@ impl ServerStore {
         recovery: [u8; 32],
         contact: Vec<u8>,
         escrow: Vec<u8>,
-    ) -> Result<(Agent, String), ServerError> {
-        self.membership(caller, organization).await?;
+        bound_to: Option<Uuid>,
+    ) -> Result<(Agent, String, std::collections::BTreeSet<Uuid>), ServerError> {
+        let role = self.membership(caller, organization).await?;
         let name = crate::limits::name("an agent's name", name)?.to_owned();
         crate::limits::at_most(
             "a contact card",
@@ -730,19 +741,48 @@ impl ServerStore {
         )?;
         let account = Uuid::new_v4();
         let email = format!("agent-{}@agents.invalid", account.simple());
-        self.with_database(move |_, database| {
+        self.with_graph(organization, move |_, graph, database| {
+            let mut before = std::collections::BTreeSet::new();
+            if let Some(block) = bound_to {
+                let seen = crate::blocks::visibility(Identity {
+                    account: caller,
+                    organization,
+                    role,
+                    bound: None,
+                });
+                if !graph.is_live(block) || !seen.can_manage(graph, block) {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("block {block} is not managed by this account"),
+                    ));
+                }
+                before = graph.audience(block);
+            }
             let transaction = database.unchecked_transaction()?;
-            let created: i64 = transaction.query_row(
-                "SELECT count(*) FROM agents WHERE created_by = ?1",
-                [caller.to_string()],
-                |row| row.get(0),
-            )?;
-            if created >= MAX_AGENTS_PER_CREATOR {
+            let (created, most, what): (i64, i64, &str) = match bound_to {
+                Some(block) => (
+                    transaction.query_row(
+                        "SELECT count(*) FROM agents WHERE organization_id = ?1 AND bound_to = ?2",
+                        params![organization.to_string(), block.to_string()],
+                        |row| row.get(0),
+                    )?,
+                    MAX_AGENTS_PER_BLOCK,
+                    "a block",
+                ),
+                None => (
+                    transaction.query_row(
+                        "SELECT count(*) FROM agents WHERE created_by = ?1 AND bound_to IS NULL",
+                        [caller.to_string()],
+                        |row| row.get(0),
+                    )?,
+                    MAX_AGENTS_PER_CREATOR,
+                    "an account",
+                ),
+            };
+            if created >= most {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
-                    format!(
-                        "an account may have at most {MAX_AGENTS_PER_CREATOR} agents; remove one first"
-                    ),
+                    format!("{what} may have at most {most} agents; remove one first"),
                 ));
             }
             transaction.execute(
@@ -750,11 +790,13 @@ impl ServerStore {
                 params![account.to_string(), email, name],
             )?;
             transaction.execute(
-                "INSERT INTO agents (account_id, organization_id, created_by) VALUES (?1, ?2, ?3)",
+                "INSERT INTO agents (account_id, organization_id, created_by, bound_to)
+                 VALUES (?1, ?2, ?3, ?4)",
                 params![
                     account.to_string(),
                     organization.to_string(),
-                    caller.to_string()
+                    caller.to_string(),
+                    bound_to.map(|block| block.to_string())
                 ],
             )?;
             transaction.execute(
@@ -771,6 +813,16 @@ impl ServerStore {
             )?;
             crate::contacts::befriend(&transaction, caller, &[], account, &contact)?;
             crate::keys::pin_escrow(&transaction, account, organization, &escrow)?;
+            if let Some(block) = bound_to {
+                crate::blocks::revoke_or_grant(
+                    graph,
+                    &transaction,
+                    organization,
+                    block,
+                    account,
+                    Access::Edit,
+                )?;
+            }
             let token = issue_token(&transaction, account)?;
             transaction.commit()?;
             Ok((
@@ -780,6 +832,7 @@ impl ServerStore {
                     email,
                 },
                 token,
+                before,
             ))
         })
         .await
@@ -798,6 +851,7 @@ impl ServerStore {
                 "SELECT accounts.id, accounts.display_name, accounts.email FROM agents
                  JOIN accounts ON accounts.id = agents.account_id
                  WHERE agents.organization_id = ?1 AND agents.created_by = ?2
+                    AND agents.bound_to IS NULL
                  ORDER BY accounts.display_name, accounts.id",
             )?;
             let rows = statement.query_map(
@@ -831,36 +885,79 @@ impl ServerStore {
         agent: Uuid,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
         self.membership(caller, organization).await?;
-        let removed = self.with_graph(organization, move |_, graph, database| {
-            let is_agent = database
-                .query_row(
-                    "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2 AND created_by = ?3",
-                    params![agent.to_string(), organization.to_string(), caller.to_string()],
-                    |_| Ok(()),
-                )
-                .optional()?
-                .is_some();
-            if !is_agent {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "that account is not an agent of this organization".into(),
-                ));
-            }
-            let transaction = database.unchecked_transaction()?;
-            let revoked = remove_from(graph, &transaction, organization, agent)?;
-            transaction.execute("DELETE FROM accounts WHERE id = ?1", [agent.to_string()])?;
-            transaction.execute(
-                "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
-                [crate::keys::encode_wrapped_by(
-                    be_block_protocol::WrappedBy::Account(agent),
-                )],
-            )?;
-            transaction.commit()?;
-            Ok(revoked)
-        })
-        .await;
+        let removed = self
+            .with_graph(organization, move |_, graph, database| {
+                require_agent_of(database, caller, organization, agent)?;
+                let transaction = database.unchecked_transaction()?;
+                let revoked = delete_agent(graph, &transaction, organization, agent)?;
+                transaction.commit()?;
+                Ok(revoked)
+            })
+            .await;
         self.sessions_changed();
         removed
+    }
+
+    /// Issues `agent`, one of `caller`'s, a new token and revokes every older one, so a copy
+    /// of an older one no longer signs in and its connections close.
+    pub async fn rotate_agent_token(
+        &self,
+        caller: Uuid,
+        organization: Uuid,
+        agent: Uuid,
+    ) -> Result<String, ServerError> {
+        self.membership(caller, organization).await?;
+        let token = self
+            .with_database(move |_, database| {
+                require_agent_of(&database, caller, organization, agent)?;
+                let transaction = database.unchecked_transaction()?;
+                transaction.execute(
+                    "DELETE FROM sessions WHERE account_id = ?1",
+                    [agent.to_string()],
+                )?;
+                let token = issue_token(&transaction, agent)?;
+                transaction.commit()?;
+                Ok(token)
+            })
+            .await?;
+        self.sessions_changed();
+        Ok(token)
+    }
+
+    /// The organization and block `account` is a block's agent of, if it is one.
+    pub async fn bound_to(&self, account: Uuid) -> Result<Option<(Uuid, Uuid)>, ServerError> {
+        self.with_database(move |_, database| {
+            let row: Option<(String, String)> = database
+                .query_row(
+                    "SELECT organization_id, bound_to FROM agents
+                     WHERE account_id = ?1 AND bound_to IS NOT NULL",
+                    [account.to_string()],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+            row.map(|(organization, block)| Ok((parse_uuid(&organization)?, parse_uuid(&block)?)))
+                .transpose()
+        })
+        .await
+    }
+
+    /// Refuses every call of a block's agent while its block is in the trash; Restore lets them
+    /// through again.
+    pub async fn require_bound_live(
+        &self,
+        organization: Uuid,
+        block: Uuid,
+    ) -> Result<(), ServerError> {
+        self.with_graph(organization, move |_, graph, _| {
+            match graph.is_live(block) {
+                true => Ok(()),
+                false => Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "the block this agent is bound to is in the trash".into(),
+                )),
+            }
+        })
+        .await
     }
 
     pub async fn list_members(
@@ -949,7 +1046,7 @@ impl ServerStore {
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
         require_administrator(identity)?;
         let organization = identity.organization;
-        self.with_graph(organization, move |_, graph, database| {
+        self.with_graph(organization, move |store, graph, database| {
             let role = crate::contacts::role_in(database, account, organization)?
                 .ok_or_else(not_a_member)?;
             if role == OrganizationRole::Administrator {
@@ -957,7 +1054,11 @@ impl ServerStore {
             }
             let transaction = database.unchecked_transaction()?;
             let revoked = remove_from(graph, &transaction, organization, account)?;
+            let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
             transaction.commit()?;
+            if !forgotten.is_empty() {
+                store.sessions_changed();
+            }
             Ok(revoked)
         })
         .await
@@ -1565,6 +1666,85 @@ fn remove_from(
     }
     crate::keys::lost_open_kinds(connection, graph, organization, account, kinds)?;
     Ok(revoked)
+}
+
+fn require_agent_of(
+    connection: &Connection,
+    caller: Uuid,
+    organization: Uuid,
+    agent: Uuid,
+) -> Result<(), ServerError> {
+    let is_agent = connection
+        .query_row(
+            "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2 AND created_by = ?3",
+            params![agent.to_string(), organization.to_string(), caller.to_string()],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some();
+    match is_agent {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            "that account is not an agent of this organization".into(),
+        )),
+    }
+}
+
+/// Deletes an agent's account, with what it was granted and what was sealed to it.
+fn delete_agent(
+    graph: &mut BlockGraph,
+    connection: &Connection,
+    organization: Uuid,
+    agent: Uuid,
+) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+    let revoked = remove_from(graph, connection, organization, agent)?;
+    connection.execute("DELETE FROM accounts WHERE id = ?1", [agent.to_string()])?;
+    connection.execute(
+        "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
+        [crate::keys::encode_wrapped_by(
+            be_block_protocol::WrappedBy::Account(agent),
+        )],
+    )?;
+    Ok(revoked)
+}
+
+/// Deletes the blocks' agents of `organization` whose block was collected or who lost their
+/// grant on it, after a change that may have done either; answers them. The caller tells
+/// `ServerStore::sessions_changed` once its transaction commits, which closes their
+/// connections.
+pub(crate) fn forget_orphaned_block_agents(
+    graph: &mut BlockGraph,
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Vec<Uuid>, ServerError> {
+    let bound: Vec<(Uuid, Uuid)> = {
+        let mut statement = connection.prepare(
+            "SELECT account_id, bound_to FROM agents
+             WHERE organization_id = ?1 AND bound_to IS NOT NULL",
+        )?;
+        let rows = statement.query_map([organization.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut bound = Vec::new();
+        for row in rows {
+            let (agent, block) = row?;
+            bound.push((parse_uuid(&agent)?, parse_uuid(&block)?));
+        }
+        bound
+    };
+    let mut forgotten = Vec::new();
+    for (agent, block) in bound {
+        let granted = graph
+            .get(block)
+            .and_then(|node| node.grants.get(&agent))
+            .is_some_and(|access| *access > Access::None);
+        if !granted {
+            delete_agent(graph, connection, organization, agent)?;
+            forgotten.push(agent);
+        }
+    }
+    Ok(forgotten)
 }
 
 fn not_a_member() -> ServerError {

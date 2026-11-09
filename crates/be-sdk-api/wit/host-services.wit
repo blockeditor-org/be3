@@ -120,6 +120,28 @@ interface host-services {
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;
 
+    /// An agent bound to one block (`create-block-agent`): its account, and
+    /// the credentials `be` signs in as it with, the JSON object
+    /// `BE3_AGENT_CREDENTIALS` holds, recovery phrase and token included.
+    record block-agent {
+        agent: account-id,
+        credentials: string,
+    }
+
+    /// Makes an agent named `name` that reaches `block` and the blocks under
+    /// it with Edit, and nothing else, for a program that hosts the block
+    /// from a machine trusted less than the person's devices. Needs Manage on
+    /// the block, and is denied unless the app's manifest sets
+    /// `block_agents`. The app hands the credentials to the machine itself.
+    create-block-agent: async func(block: block-id, name: string) -> result<block-agent, failure>;
+
+    /// A new token for an agent `create-block-agent` made, answered alone;
+    /// every older token stops signing it in.
+    rotate-agent-token: async func(agent: account-id) -> result<string, failure>;
+
+    /// Deletes an agent `create-block-agent` made.
+    remove-agent: async func(agent: account-id) -> result<_, failure>;
+
     /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;
 

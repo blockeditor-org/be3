@@ -81,7 +81,7 @@ interface organizations {
 /// The members and agents of the organization this connection opened, or of
 /// the one named.
 interface members {
-    use types.{account-id, error, organization-id, organization-role, public-key};
+    use types.{account-id, block-id, error, organization-id, organization-role, public-key};
 
     record member {
         account: account-id,
@@ -112,16 +112,24 @@ interface members {
 
     /// Makes an agent account in `organization` with the recovery key
     /// `recovery`, a contact card for the caller, and its escrow key sealed
-    /// for it.
+    /// for it. With `bound-to`, which needs Manage on that block, the agent
+    /// is granted Edit on it and reaches nothing else: it is a block's agent,
+    /// left out of `list-agents` and removed with its grant or its block.
     create-agent: async func(
         organization: organization-id,
         name: string,
         recovery: public-key,
         contact: list<u8>,
         escrow: list<u8>,
+        bound-to: option<block-id>,
     ) -> result<created-agent, error>;
 
+    /// The caller's agents that are bound to no block.
     list-agents: async func(organization: organization-id) -> result<list<agent>, error>;
+
+    /// A new token for an agent the caller made; every older one stops
+    /// signing it in, and its connections close.
+    rotate-agent-token: async func(organization: organization-id, account: account-id) -> result<string, error>;
 
     remove-agent: async func(organization: organization-id, account: account-id) -> result<_, error>;
 }

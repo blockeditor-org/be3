@@ -462,7 +462,11 @@ only an account with that email can read or accept it, once, and the id
 reaches the invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and devices").
 `CreateAgent` makes a passwordless editor account with a token
 (guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator; only its
-creator lists or removes it. Accepting an
+creator lists, rotates the token of (`RotateAgentToken`, which revokes every
+older one) or removes it. One `bound-to` a block is that block's agent
+(guides/tracker.md, A block's agent): `Identity::bound` limits what it
+reaches, `client::bound_may` what it may call, and `WatchHub::go_live` keeps
+one connection of it open. Accepting an
 invitation, or creating an agent, makes the two accounts contacts.
 
 ## Running it

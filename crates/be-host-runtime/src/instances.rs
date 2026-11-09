@@ -63,6 +63,8 @@ pub(super) struct Instances {
     block_types: Option<Arc<crate::AppCatalog>>,
     sent_block_types: Option<u64>,
     network: Vec<String>,
+    /// Whether the app's manifest sets `block_agents`.
+    block_agents: bool,
     app_id: String,
     services: services::Services,
     fetches: network::Fetches,
@@ -1905,6 +1907,10 @@ impl Instances {
 
     pub(super) fn allow_network(&mut self, hosts: Vec<String>) {
         self.network = hosts;
+    }
+
+    pub(super) fn allow_block_agents(&mut self, allowed: bool) {
+        self.block_agents = allowed;
     }
 
     pub(super) fn set_app_id(&mut self, app_id: String) {

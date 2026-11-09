@@ -1,8 +1,8 @@
 use be_lib_stable_hash::HashMap;
 
 use be_sdk_api::{
-    AccessListing, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock, PastedBlock,
-    SavedFile,
+    AccessListing, BlockAgent, BlockIdRole, EditorInstanceId, Failure, FileSave, ImportedBlock,
+    PastedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply, wire},
 };
@@ -422,6 +422,36 @@ impl Instances {
                 );
                 be_host_stack::make_contact_link(Some(offer), move |made| {
                     answering.send_or_fail(made)
+                });
+            }
+            Call::CreateBlockAgent { reply, block, name } => {
+                if !self.block_agents {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                }
+                let answering = self.answering(instance, reply);
+                be_host_stack::create_block_agent(Uuid::from_bytes(block), name, move |made| {
+                    answering.send_or_fail(made.map(|(agent, credentials)| BlockAgent {
+                        agent: agent.into_bytes(),
+                        credentials: credentials.bundle(),
+                    }))
+                });
+            }
+            Call::RotateAgentToken { reply, agent } => {
+                if !self.block_agents {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                }
+                let answering = self.answering(instance, reply);
+                be_host_stack::rotate_agent_token(Uuid::from_bytes(agent), move |rotated| {
+                    answering.send_or_fail(rotated)
+                });
+            }
+            Call::RemoveAgent { reply, agent } => {
+                if !self.block_agents {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                }
+                let answering = self.answering(instance, reply);
+                be_host_stack::remove_block_agent(Uuid::from_bytes(agent), move |removed| {
+                    answering.send_or_fail(removed)
                 });
             }
             Call::ListData { reply } => {

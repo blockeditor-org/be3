@@ -278,6 +278,19 @@ pub struct AgentCredentials {
     pub phrase: String,
 }
 
+impl AgentCredentials {
+    /// The JSON object `be` reads from `BE3_AGENT_CREDENTIALS`.
+    pub fn bundle(&self) -> String {
+        serde_json::json!({
+            "server": self.server,
+            "organization": self.organization,
+            "token": self.token,
+            "recovery_phrase": self.phrase,
+        })
+        .to_string()
+    }
+}
+
 pub async fn agents(
     server_url: String,
     token: String,

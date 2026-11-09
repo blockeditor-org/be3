@@ -33,6 +33,7 @@ fn app_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
             entry_point: String::new(),
             network: Vec::new(),
             extensions: Vec::new(),
+            block_agents: false,
         });
         let registry = Rc::new(EditorRegistry::from_manifests(vec![app]));
         let editors = OwnedEditors::install(registry, Uuid::new_v4());

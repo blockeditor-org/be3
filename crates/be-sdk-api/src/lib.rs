@@ -62,7 +62,7 @@ pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{
-    AccessGrant, AccessListing, ImportedBlock, PastedBlock, Revision, ShellDialog,
+    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, ShellDialog,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;

@@ -218,6 +218,9 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
   first-party apps use for now; `extensions` the protocol
   packages beyond the core it uses (`be_sdk_api::EXTENSIONS`, only
   `be3:desktop`). The host denies anything else.
+- `"block_agents": true` lets the app make agents bound to one block
+  (guides/apps/host_services.md, Asking and answering); the host denies those calls
+  to any other app.
 - `block_types` belong to the type, not an editor (adding_a_block.md, Declare
   it in the manifest).
 

@@ -38,6 +38,10 @@ pub struct ManifestDocument {
     /// host denies calls into any other, and refuses a manifest naming one it does not know.
     #[serde(default)]
     pub extensions: Vec<String>,
+    /// Whether the app may make, rotate and remove blocks' agents (`create-block-agent` and the
+    /// rest); the host denies those calls to any other.
+    #[serde(default)]
+    pub block_agents: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,6 +246,7 @@ impl ManifestDocument {
             entry_point: self.entry_point,
             network: self.network,
             extensions: self.extensions,
+            block_agents: self.block_agents,
         };
         manifest.validate()?;
         Ok(manifest)

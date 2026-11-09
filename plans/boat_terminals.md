@@ -1,7 +1,8 @@
 # boat.dev terminals
 
-Depends on: plans/boat.md, plans/unfiled.md and plans/block_agents.md.
-Owner-only settings have landed (guides/settings.md, Owner only).
+Depends on: plans/boat.md and plans/unfiled.md. Owner-only settings have
+landed (guides/settings.md, Owner only), and so have blocks' agents
+(guides/tracker.md, A block's agent).
 
 Opening a terminal block into a boat VM from the boat app (plans/boat.md).
 The design follows the constraints.
@@ -38,7 +39,7 @@ The design follows the constraints.
   that Connect sends the right files and commands calls, that a resume
   rewrites the credentials with a rotated token, and that Disconnect removes
   the agent. The terminal host's side is the existing `a_terminal_host_*`
-  tests run as a bound agent (plans/block_agents.md). No HTTP fake and no
+  tests, which run as a block's agent (guides/tracker.md, A block's agent). No HTTP fake and no
   end-to-end run in a VM.
 - **Boat key actions.** The sign-in page in plans/boat.md asks only for the
   list, start and stop actions. Connect also needs the commands and files
@@ -64,7 +65,7 @@ The design follows the constraints.
   for that VM they can open; anyone else makes their own. A terminal reaches
   someone else only if its owner shares it or moves it into a shared place.
 - **The host runs inside the VM**: `be terminal-host` as a block-bound agent
-  (plans/block_agents.md), so the terminal block works unchanged on every
+  (guides/tracker.md, A block's agent), so the terminal block works unchanged on every
   platform. Connecting:
   1. `create-block-agent(terminal, "boat VM <id>")`.
   2. Write the credentials, block id and sandbox id as in "Files and secrets"
