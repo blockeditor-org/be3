@@ -119,6 +119,10 @@ pub(crate) fn HostPalette(
         Shown::Actions => "Run a command".to_owned(),
         Shown::Blocks { .. } => "Go to a file".to_owned(),
     });
+    let label = create_memo(move || match shown.get() {
+        Shown::Actions => "Command palette".to_owned(),
+        Shown::Blocks { .. } => "Quick open".to_owned(),
+    });
     view! {
         <CommandPalette
             open
@@ -126,6 +130,7 @@ pub(crate) fn HostPalette(
             score={PaletteItem::fuzzy_score as PaletteScore}
             query
             placeholder
+            label
             id="host.palette"
             on_choose={move |key: String| choose(rows, &key)}
         />
@@ -198,16 +203,23 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
         .collect()
 }
 
-/// The blocks the host has loaded that have a name and may be viewed, those open in an editor
-/// first. Quick open ranks them by what was typed.
+/// The blocks the host has loaded that may be viewed and that an editor shows (named after
+/// themselves, else their type), those open in an editor first. Quick open ranks them by what
+/// was typed.
 fn loaded_blocks(_typed: &str) -> Vec<OpenableBlock> {
-    let open: Vec<Uuid> = super::editors::editors().with(|open| open.keys().copied().collect());
+    let editors = super::editors::editors();
+    let open: Vec<Uuid> = editors.with(|open| open.keys().copied().collect());
+    let registry = editors.registry();
     let mut blocks: Vec<OpenableBlock> = be_host_stack::with_graph(|graph| {
         graph
             .nodes()
             .filter(|node| node.access.can_view())
             .filter_map(|node| {
-                let name = node.metadata.name().filter(|name| !name.is_empty())?;
+                let type_name = registry.display_name(node.content_type)?;
+                let name = node
+                    .metadata
+                    .name()
+                    .unwrap_or_else(|| type_name.to_owned());
                 let place = match node.parent {
                     Some(be_block_graph::BlockParent::Block(parent)) => graph
                         .get(parent)
