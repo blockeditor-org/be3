@@ -45,6 +45,30 @@ pub const FAILING_FOR: Duration = Duration::from_secs(24 * 60 * 60);
 /// How long a VAPID token is valid: RFC 8292 allows at most a day.
 const VAPID_LIFETIME: Duration = Duration::from_secs(12 * 60 * 60);
 const FCM_SCOPE: &str = "https://www.googleapis.com/auth/firebase.messaging";
+/// The push services' hosts a Web Push endpoint may be on, exactly: Chrome's (FCM), Firefox's
+/// (Mozilla autopush) and Safari's (Apple). The server posts nowhere else unless its operator
+/// adds a host (`PushConfig::hosts`), so it is no relay for POSTs to whatever a member names
+/// (decisions/push_endpoints_are_allowlisted.md).
+pub const PUSH_HOSTS: &[&str] = &[
+    "fcm.googleapis.com",
+    "updates.push.services.mozilla.com",
+    "web.push.apple.com",
+];
+/// Suffixes of the push services' hosts that vary per device: Mozilla's other autopush hosts
+/// and Edge's (Microsoft WNS, `*.notify.windows.com`).
+pub const PUSH_HOST_SUFFIXES: &[&str] = &[".push.services.mozilla.com", ".notify.windows.com"];
+
+/// Whether a Web Push endpoint may be on `host`: a known push service's, or one the operator
+/// added.
+pub fn allowed_host(host: &str, added: &[String]) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    PUSH_HOSTS.contains(&host.as_str())
+        || PUSH_HOST_SUFFIXES
+            .iter()
+            .any(|suffix| host.len() > suffix.len() && host.ends_with(suffix))
+        || added.iter().any(|added| added.eq_ignore_ascii_case(&host))
+}
+
 /// FCM's API, which `FcmConfig::endpoint` replaces in tests.
 pub const FCM_ENDPOINT: &str = "https://fcm.googleapis.com";
 
@@ -58,12 +82,17 @@ pub struct PushConfig {
     /// FCM, when the server was started with `--fcm-credentials`; without, devices register
     /// only Web Push endpoints.
     pub fcm: Option<FcmConfig>,
+    /// Hosts Web Push endpoints may be on besides the known push services (`PUSH_HOSTS`,
+    /// `PUSH_HOST_SUFFIXES`), each matched exactly: a self-hosted UnifiedPush server, such as
+    /// ntfy (`--push-host`).
+    pub hosts: Vec<String>,
 }
 
 impl PushConfig {
     pub const DEFAULT: Self = Self {
         allow_local_endpoints: false,
         fcm: None,
+        hosts: Vec::new(),
     };
 }
 
@@ -198,7 +227,10 @@ pub(crate) enum Sent {
 
 /// One push waiting to go.
 struct Job {
+    organization: Uuid,
     endpoint: PushEndpoint,
+    /// Whether the endpoint has failures counted, which a delivery clears.
+    failing: bool,
     block: Uuid,
     /// Whether it mentions the recipient, which sends it at high urgency.
     urgent: bool,
@@ -211,10 +243,30 @@ struct Queues {
     total: usize,
 }
 
+impl Queues {
+    /// Drops the newest pushes of the longest queues until `MAX_QUEUED` wait, so the accounts
+    /// with the most waiting lose theirs, not whoever queues next. Runs only past the cap.
+    fn shed(&mut self) {
+        while self.total > MAX_QUEUED {
+            let Some(longest) = self
+                .by_account
+                .values_mut()
+                .max_by_key(|queue| queue.len())
+                .filter(|queue| !queue.is_empty())
+            else {
+                return;
+            };
+            longest.pop_back();
+            self.total -= 1;
+        }
+    }
+}
+
 /// One recipient's devices, for `Pusher::queue`.
 pub(crate) struct Delivery {
     pub(crate) account: Uuid,
-    pub(crate) endpoints: Vec<PushEndpoint>,
+    /// Each endpoint, and whether it has failures counted.
+    pub(crate) endpoints: Vec<(PushEndpoint, bool)>,
     pub(crate) urgent: bool,
 }
 
@@ -233,6 +285,8 @@ pub(crate) struct Pusher {
     /// FCM and its token endpoint, which the operator configured.
     trusted: ureq::Agent,
     allow_local: bool,
+    /// Hosts the operator added to the push services' (`PushConfig::hosts`).
+    hosts: Vec<String>,
     fcm: Option<Fcm>,
 }
 
@@ -272,6 +326,7 @@ impl Pusher {
             endpoints,
             trusted,
             allow_local,
+            hosts: config.hosts.clone(),
             fcm,
         })
     }
@@ -297,6 +352,9 @@ impl Pusher {
         if endpoint.p256dh.len() != 65 || endpoint.auth.len() != 16 {
             return refuse("an endpoint's keys are a 65-byte P-256 key and a 16-byte secret");
         }
+        if !be_lib_web_push::is_device_key(&endpoint.p256dh) {
+            return refuse("an endpoint's key is not a point on P-256");
+        }
         if endpoint.address.is_empty() || endpoint.address.len() > MAX_ADDRESS_BYTES {
             return refuse("an endpoint's address is empty or too long");
         }
@@ -312,9 +370,14 @@ impl Pusher {
                             url.scheme() == "https" && url.port_or_known_default() == Some(443)
                         }
                     };
-                match served {
+                if !served {
+                    return refuse("a Web Push endpoint is an https:// URL on port 443");
+                }
+                match url.host_str().is_some_and(|host| allowed_host(host, &self.hosts)) {
                     true => Ok(()),
-                    false => refuse("a Web Push endpoint is an https:// URL on port 443"),
+                    false => refuse(
+                        "this server pushes only to the known push services (FCM, Mozilla, Apple, Windows) and the hosts its operator added with --push-host",
+                    ),
                 }
             }
             PushService::Fcm if self.fcm.is_none() => {
@@ -329,6 +392,7 @@ impl Pusher {
     pub(crate) fn queue(
         self: &Arc<Self>,
         store: &ServerStore,
+        organization: Uuid,
         block: Uuid,
         deliveries: Vec<Delivery>,
         message: &Arc<[u8]>,
@@ -338,7 +402,7 @@ impl Pusher {
             let draining = queues.by_account.contains_key(&delivery.account);
             let mut added = 0;
             let queue = queues.by_account.entry(delivery.account).or_default();
-            for endpoint in delivery.endpoints {
+            for (endpoint, failing) in delivery.endpoints {
                 if let Some(waiting) = queue
                     .iter_mut()
                     .find(|job| job.block == block && job.endpoint.address == endpoint.address)
@@ -352,27 +416,28 @@ impl Pusher {
                     break;
                 }
                 queue.push_back(Job {
+                    organization,
                     endpoint,
+                    failing,
                     block,
                     urgent: delivery.urgent,
                     message: Arc::clone(message),
                 });
                 added += 1;
             }
-            let empty = queue.is_empty();
             queues.total += added;
             if queues.total > MAX_QUEUED {
                 tracing::warn!("dropping pushes: the server's push queue is full");
-                let over = queues.total - MAX_QUEUED;
-                if let Some(queue) = queues.by_account.get_mut(&delivery.account) {
-                    let kept = queue.len().saturating_sub(over);
-                    queue.truncate(kept);
-                }
-                queues.total = MAX_QUEUED;
+                queues.shed();
             }
-            if empty {
+            let empty = queues
+                .by_account
+                .get(&delivery.account)
+                .is_none_or(VecDeque::is_empty);
+            // A drain under way removes the entry itself once it finds it empty.
+            if empty && !draining {
                 queues.by_account.remove(&delivery.account);
-            } else if !draining {
+            } else if !empty && !draining {
                 tokio::spawn(Arc::clone(self).drain(store.clone(), delivery.account));
             }
         }
@@ -402,6 +467,7 @@ impl Pusher {
                 return;
             };
             let address = job.endpoint.address.clone();
+            let (organization, failing) = (job.organization, job.failing);
             let pusher = Arc::clone(&self);
             let sent = tokio::task::spawn_blocking(move || {
                 let sent = pusher.send(&job.endpoint, &job.message, job.urgent);
@@ -410,7 +476,12 @@ impl Pusher {
             })
             .await;
             let noted = match sent {
-                Ok(Sent::Delivered) => store.endpoint_answered(address).await,
+                Ok(Sent::Delivered) if failing => {
+                    store
+                        .endpoint_answered(account, organization, address)
+                        .await
+                }
+                Ok(Sent::Delivered) => Ok(()),
                 Ok(Sent::Gone) => {
                     self.forget_queued(account, &address);
                     store.drop_endpoint(address).await
@@ -418,7 +489,7 @@ impl Pusher {
                 Ok(Sent::Throttled) => Ok(()),
                 Ok(Sent::Failed(error)) => {
                     tracing::debug!(%error, "a push was not delivered");
-                    store.endpoint_failed(address).await
+                    store.endpoint_failed(account, organization, address).await
                 }
                 Err(error) => {
                     tracing::warn!(%error, "sending a push panicked");
@@ -464,6 +535,13 @@ impl Pusher {
         let Ok(url) = url::Url::parse(address) else {
             return Sent::Gone;
         };
+        // Checked again here: an operator may have taken a host off since it registered.
+        if !url
+            .host_str()
+            .is_some_and(|host| allowed_host(host, &self.hosts))
+        {
+            return Sent::Gone;
+        }
         let authorization = self.vapid.authorization(&url, &self.subject, unix_now());
         let sent = self
             .endpoints

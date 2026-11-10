@@ -34,6 +34,18 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Whether `ua_public` is a device key a push can be encrypted to: an uncompressed point on
+/// P-256. Checked by agreeing on a secret with it, which is what encrypting does.
+pub fn is_device_key(ua_public: &[u8]) -> bool {
+    let random = SystemRandom::new();
+    let Ok(private) = agreement::EphemeralPrivateKey::generate(&agreement::ECDH_P256, &random)
+    else {
+        return false;
+    };
+    let peer = agreement::UnparsedPublicKey::new(&agreement::ECDH_P256, ua_public);
+    ua_public.len() == 65 && agreement::agree_ephemeral(private, &peer, |_| ()).is_ok()
+}
+
 /// Encrypts `plain` to a device's keys with a new sender key pair and salt, padded to at least
 /// `padded` bytes so the push's length says nothing more of what it carries.
 pub fn encrypt(

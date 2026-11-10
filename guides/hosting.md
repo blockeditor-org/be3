@@ -112,7 +112,10 @@ no block has taken yet; `--account-quota BYTES` changes it and `--account-quota 
 Uploads no block takes are deleted after a day.
 
 Push notifications (guides/blocks/server.md, "Notifications") go out through Web Push with a
-VAPID key the server makes in its database, so they need no setup. FCM, for Android devices
+VAPID key the server makes in its database, to the known push services only (FCM, Mozilla,
+Apple, Windows); a self-hosted UnifiedPush server such as ntfy needs `--push-host HOST`, once per
+host. The server must reach them over IPv4 or native IPv6: behind DNS64, an IPv4-only push
+service resolves into `64:ff9b::/96`, which the server refuses as not public. FCM, for Android devices
 without a UnifiedPush distributor, needs a Firebase project: its service account's JSON key on
 the host, passed as `--fcm-credentials FILE`. The deployment has none yet, so the server offers
 only Web Push.

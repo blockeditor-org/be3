@@ -108,7 +108,7 @@ Notes on particular calls:
   connection open, on their other devices (guides/blocks/server.md,
   "Notifications"). The host takes it only with Edit on the block, cuts `text`
   to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the block's
-  key with the block and the time, so the server reads none of it; the device
+  key with the block, the sender and the time, so the server reads none of it; the device
   that shows it names the sender (whom the server vouches for) and the block
   itself. `mentions` names the accounts the text mentions, which a member whose
   mode is `mentions` is told for. It is answered at once, and dropped when the

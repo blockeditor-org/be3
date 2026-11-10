@@ -8,7 +8,7 @@ Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
             [--trusted-proxy ADDR]... [--object-cache BYTES] [--public-url URL]
-            [--fcm-credentials FILE]
+            [--fcm-credentials FILE] [--push-host HOST]...
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -40,6 +40,9 @@ Usage:
   --fcm-credentials FILE    A Firebase project's service account (its JSON key file), to
                             push notifications to Android devices through FCM; without it,
                             notifications go only through Web Push
+  --push-host HOST          Also push to Web Push endpoints on HOST, exactly: a self-hosted
+                            UnifiedPush server such as ntfy. Without, only the known push
+                            services (FCM, Mozilla, Apple, Windows) are pushed to
 
 Objects are kept in DIR/objects, or, when BE_S3_ENDPOINT, BE_S3_REGION,
 BE_S3_BUCKET, BE_S3_ACCESS_KEY and BE_S3_SECRET_KEY are all set, in that bucket
@@ -182,6 +185,10 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let json = std::fs::read_to_string(&file)
                     .map_err(|error| format!("reading {file}: {error}"))?;
                 config.push.fcm = Some(be_server::push::FcmConfig::from_service_account(&json)?);
+            }
+            "--push-host" => {
+                let host = arguments.next().ok_or("--push-host needs a host name")?;
+                config.push.hosts.push(host.to_ascii_lowercase());
             }
             "--object-cache" => {
                 cache_bytes = arguments

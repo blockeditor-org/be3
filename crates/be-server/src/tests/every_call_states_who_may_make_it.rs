@@ -379,7 +379,7 @@ impl TestClient {
                         peer,
                         be_block_protocol::PushEndpoint {
                             service: be_block_protocol::PushService::WebPush,
-                            address: "https://push.example.com/endpoint".into(),
+                            address: "https://fcm.googleapis.com/fcm/send/endpoint".into(),
                             p256dh: vec![4; 65],
                             auth: vec![0; 16],
                         },
@@ -392,7 +392,7 @@ impl TestClient {
                 answered(
                     client::notifications::unregister_endpoint(
                         peer,
-                        "https://push.example.com/endpoint".into(),
+                        "https://fcm.googleapis.com/fcm/send/endpoint".into(),
                     )
                     .await,
                 ),

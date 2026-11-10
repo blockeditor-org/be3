@@ -41,6 +41,7 @@ async fn a_notification_opens_only_for_the_blocks_members() {
     let sent = 1_000_000;
     let notification = crate::Notification {
         block: inside,
+        sender: owner.account(),
         sent,
         text: format!("Lunch? {}", "x".repeat(crate::MAX_NOTIFICATION_TEXT)),
     };
@@ -67,6 +68,18 @@ async fn a_notification_opens_only_for_the_blocks_members() {
     assert!(
         guest.open_notification(&pushed(beside), sent + 1).is_err(),
         "a notification sent about one block does not open as another's"
+    );
+    assert!(
+        guest
+            .open_notification(
+                &PushMessage {
+                    sender: guest.account(),
+                    ..pushed(inside)
+                },
+                sent + 1
+            )
+            .is_err(),
+        "a notification one member sealed does not open as another's"
     );
     assert!(
         guest
