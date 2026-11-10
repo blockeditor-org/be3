@@ -165,7 +165,7 @@ impl KeyState {
             return;
         }
         let fresh = setup.phrase.secret();
-        let public = fresh.public();
+        let public = fresh.identity();
         let (account, held, own) = self
             .keys
             .as_ref()

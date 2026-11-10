@@ -25,6 +25,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         organization,
         "Claude".into(),
         public.0,
+        phrase.secret().signing().0,
         be_block_client::contacts::card(
             owner.peer().account(),
             owner.peer().keys().identity(),

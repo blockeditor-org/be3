@@ -41,6 +41,7 @@ pub struct BlockRead {
 const CARRIED_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 2;
 const CONTENTS_BLOCKS: usize = 256;
 
+mod authorship;
 mod import;
 mod journal;
 mod notifications;
@@ -53,6 +54,7 @@ pub use notifications::{
     MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT, Notification, OpenedNotification,
 };
 
+pub use authorship::Signer;
 pub use import::Imported;
 pub use prefixes::Registry;
 
@@ -320,6 +322,7 @@ impl<S: ObjectStore> Peer<S> {
         })?;
         let session = refs.session();
         let ring = Keyring::new();
+        let _ = refs.add_signer(account, config.identity.signing().0, true);
         let keys = KeyBook::new(account, organization, config.identity, ring.clone());
         keys.set_contacts(
             refs.contacts()
@@ -397,6 +400,7 @@ impl<S: ObjectStore> Peer<S> {
             client::keys::set_recovery_key(
                 &connection,
                 self.keys.identity().public().0,
+                self.keys.identity().signing().0,
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
@@ -410,11 +414,7 @@ impl<S: ObjectStore> Peer<S> {
         ));
         let made = escrows.is_empty();
         self.keys.set_escrows(escrows);
-        self.adopt_contacts(
-            verified
-                .into_iter()
-                .filter_map(|contact| Some((contact.account, contact.public?))),
-        );
+        self.adopt_contacts(&verified);
         self.persist_session()?;
         self.refresh_keys(None).await?;
         if made && kind == OrganizationKind::Company && role == OrganizationRole::Administrator {
@@ -507,11 +507,16 @@ impl<S: ObjectStore> Peer<S> {
         let _ = self.persist_session();
     }
 
-    pub(crate) fn adopt_contacts(
-        &self,
-        verified: impl IntoIterator<Item = (Uuid, RecoveryPublic)>,
-    ) {
-        let verified: Vec<_> = verified.into_iter().collect();
+    pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
+        for contact in contacts {
+            if let Some(signing) = contact.signing {
+                let _ = self.refs.add_signer(contact.account, signing.0, true);
+            }
+        }
+        let verified: Vec<(Uuid, RecoveryPublic)> = contacts
+            .iter()
+            .filter_map(|contact| Some((contact.account, contact.public?)))
+            .collect();
         let _ = self.refs.set_contacts(
             verified
                 .iter()

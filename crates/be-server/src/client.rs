@@ -171,7 +171,8 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
             | keys::Call::GetKeyWork { .. }
-            | keys::Call::PinEscrow { .. } => Rule::Organization,
+            | keys::Call::PinEscrow { .. }
+            | keys::Call::GetSigningKeys { .. } => Rule::Organization,
             keys::Call::KeyWorkChanged { .. } => Rule::SignedIn,
         },
     }
@@ -292,7 +293,10 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | keys::Call::ResealKeys { .. }
             | keys::Call::GetRecoveryKey { .. }
             | keys::Call::Rotate { .. } => true,
-            keys::Call::SetRecoveryKey { .. } | keys::Call::CreateEscrow { .. } => false,
+            // The organization's members, as `list-members` would name them.
+            keys::Call::GetSigningKeys { .. }
+            | keys::Call::SetRecoveryKey { .. }
+            | keys::Call::CreateEscrow { .. } => false,
         },
     }
 }
@@ -1284,6 +1288,7 @@ impl Client {
                 organization,
                 name,
                 recovery,
+                signing,
                 contact,
                 escrow,
                 bound_to,
@@ -1298,6 +1303,7 @@ impl Client {
                             organization,
                             &name,
                             recovery,
+                            signing,
                             contact,
                             escrow,
                             bound_to,
@@ -2325,6 +2331,7 @@ impl Client {
             Call::SetRecoveryKey {
                 reply,
                 public,
+                signing,
                 sealed,
                 own,
                 changes,
@@ -2335,13 +2342,24 @@ impl Client {
                     let told: Vec<Uuid> = changes.iter().map(|change| change.contact).collect();
                     connection
                         .store
-                        .set_recovery_key(account, public, sealed, own, changes)
+                        .set_recovery_key(account, public, signing, sealed, own, changes)
                         .await?;
                     connection.contacts_changed(&told).await;
                     Ok(())
                 }
                 .await;
                 self.reply(reply, set);
+            }
+            Call::GetSigningKeys { reply, accounts } => {
+                let found = async {
+                    prelude?;
+                    connection
+                        .store
+                        .signing_keys(connection.identity()?, accounts)
+                        .await
+                }
+                .await;
+                self.reply(reply, found);
             }
             Call::ResealKeys { reply, keys } => {
                 let resealed = async {

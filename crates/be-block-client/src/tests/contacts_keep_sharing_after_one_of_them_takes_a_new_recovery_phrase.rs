@@ -64,7 +64,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
             account: guest.account().into_bytes(),
             public: guest.keys().identity().public(),
         },
-        stranger.keys().identity().public(),
+        stranger.keys().identity().identity(),
     );
     harness
         .database()
@@ -94,6 +94,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     crate::ask(client::keys::set_recovery_key(
         &owner.connection(),
         fresh.public().0,
+        fresh.signing().0,
         resealed.sealed,
         resealed.own,
         resealed.changes,
@@ -107,6 +108,20 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         guest.keys().contact(owner.account()),
         Some(fresh.public()),
         "the guest took the owner's new key from the change it sealed with its old one"
+    );
+    let block = Uuid::new_v4();
+    assert_eq!(
+        guest
+            .verify_authored(
+                owner.account(),
+                block,
+                b"after",
+                &owner.sign_authored(block, b"after"),
+            )
+            .await
+            .unwrap(),
+        Signer::Verified,
+        "the change carried the owner's new signing key too"
     );
     assert_eq!(text(&guest, from_owner).await, "from the owner");
     assert_eq!(text(&owner, from_guest).await, "from the guest");
