@@ -495,12 +495,15 @@ text's length reaches the push service.
   (`push::is_public`: no private, shared or reserved IPv4, and IPv6 only in
   `2000::/3` outside 6to4, Teredo and the IETF's `2001::/23`) and no redirect
   is followed, so a client cannot have the server post into its own network;
-  `PushConfig::allow_local_endpoints` lifts both for tests. Any public host is
-  taken: allowing only known push services was left as a hosting decision. An
-  endpoint is dropped when its service says it is gone (Web Push 404 or 410;
+  `PushConfig::allow_local_endpoints` lifts both for tests. The host must be a
+  known push service's (`push::allowed_host`: FCM, Mozilla, Apple, Windows) or
+  one the operator added (`--push-host`, `PushConfig::hosts`), checked at
+  registration and again at send, so the server is no relay for POSTs to hosts
+  a member names (decisions/push_endpoints_are_allowlisted.md). The device key
+  must be a point on P-256. An endpoint is dropped when its service says it is gone (Web Push 404 or 410;
   FCM only `UNREGISTERED`, since a wrong project also answers 404), or after
-  `MAX_FAILURES` failures in a row over at least `FAILING_FOR`; 429 and 503
-  count as neither.
+  `MAX_FAILURES` failures in a row over at least `FAILING_FOR` (counted per
+  account, organization and address); 429 and 503 count as neither.
 - **Modes.** Each account's mode per block (`notify_modes`: `all` keeps no row,
   `mentions`, `off`), deleted with the block, the member or the organization.
   `notify-modes` lists an account's; a device reads them when it connects and
@@ -513,8 +516,8 @@ text's length reaches the push service.
   (`BlockGraph::viewers`) but the sender whose mode lets it through and who has
   no connection to the organization open (`WatchHub::connected`), with one
   query for the organization's endpoints. Each push carries a `PushMessage`
-  (organization, block, the sender's account, which the server vouches for,
-  and the sealed bytes), encrypted to the device (be-lib-web-push, which
+  (organization, block, the sender's account, which the server vouches for and
+  the sealed bytes repeat, and the sealed bytes), encrypted to the device (be-lib-web-push, which
   devices open with too). It goes at high urgency only to whom it mentions.
 - **Sending.** Pushes queue per recipient account (`Pusher::queue`, at most
   `MAX_QUEUED_PER_ACCOUNT`, and `MAX_QUEUED` over the server) and go one at a
@@ -523,7 +526,7 @@ text's length reaches the push service.
   a push did not go. A push about a block that already waits for a device
   replaces it. Each send holds a blocking thread, at most `SENDERS` at once
   over the server, so services that never answer cannot take the pool the
-  database shares.
+  database shares. Past `MAX_QUEUED`, the longest queues lose their newest.
 - **VAPID** (RFC 8292): the server makes a P-256 key on first start and keeps
   it in `push_key`; `push-key` answers its public half, which a browser
   subscribes with. Each Web Push request carries a token for the endpoint's

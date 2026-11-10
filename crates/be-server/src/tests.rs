@@ -83,6 +83,7 @@ mod an_agent_stores_against_its_creators_quota;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_endpoint_its_push_service_says_is_gone_is_dropped;
+mod an_endpoint_on_a_host_taken_off_the_list_is_dropped_at_send;
 mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
@@ -1541,6 +1542,7 @@ fn pushing_locally() -> ServerConfig {
         push: push::PushConfig {
             allow_local_endpoints: true,
             fcm: None,
+            hosts: vec!["127.0.0.1".to_owned()],
         },
         ..ServerConfig::OPEN
     }

@@ -39,8 +39,10 @@ host call and the mute menu have landed (guides/blocks/server.md,
   key rows, decrypts and shows the notification (`Peer::open_notification`):
   no block load, no type module, no network. It names the sender from its
   contacts and the block from its graph, never from what the sender wrote.
-  Missing a key, it shows a generic "New message" naming nothing. Pressing it
-  opens the block. A device unregisters its endpoint when its account signs
+  Missing a key, it shows a generic "New message" naming nothing. It drops a
+  push it already showed (the server can resend one within
+  `MAX_NOTIFICATION_AGE_MILLISECONDS`), keeping each shown one's block and send
+  time that long. Pressing it opens the block. A device unregisters its endpoint when its account signs
   out.
 - **On the web** the service worker cannot open the refs or host-state
   databases: the page holds a Web Lock and exclusive sync handles on them
@@ -69,7 +71,8 @@ host call and the mute menu have landed (guides/blocks/server.md,
    delivers a push to the service worker (DevTools
    `ServiceWorker.deliverPushMessage`): with a tab open the notification shows
    the decrypted text under the sender's and block's names; with none, or
-   without the key, "New message". Signing out unregisters the endpoint.
+   without the key, "New message"; the same push delivered twice shows once.
+   Signing out unregisters the endpoint.
 2. Android through UnifiedPush, with the receiving service. Done: on the
    emulator, with a test distributor app and the app closed, a push shows the
    decrypted notification and opens the block. Signing out unregisters the

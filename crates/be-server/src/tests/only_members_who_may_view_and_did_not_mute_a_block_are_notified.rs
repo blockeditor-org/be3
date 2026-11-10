@@ -72,7 +72,7 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
                 .unwrap()
                 .into_iter()
                 .flat_map(|recipient| recipient.endpoints)
-                .map(|endpoint| endpoint.address.rsplit('/').next().unwrap().to_owned())
+                .map(|(endpoint, _)| endpoint.address.rsplit('/').next().unwrap().to_owned())
                 .collect();
             addresses.sort();
             addresses

@@ -13,13 +13,15 @@ use uuid::Uuid;
 use super::Peer;
 use crate::ClientError;
 
-/// What a notification's sender wrote, sealed under the block's data key, with the block and
-/// the time it was sent sealed in, so a server that resends it later or under another block is
-/// found out (`Peer::open_notification`). Who sent it and the block's name are not in it: the
-/// server vouches for the sender (`PushMessage::sender`), and the device names both itself.
+/// What a notification's sender wrote, sealed under the block's data key, with the block, the
+/// sender's account and the time it was sent sealed in, so a server that resends it later,
+/// under another block, or as another member's is found out (`Peer::open_notification`). The
+/// server vouches for the sender too (`PushMessage::sender`), so a member cannot claim to be
+/// another, nor the server without a member's help. The device names both itself.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Notification {
     pub block: Uuid,
+    pub sender: Uuid,
     /// Milliseconds since the epoch, by the sender's clock.
     pub sent: i64,
     pub text: String,
@@ -85,6 +87,7 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<(), ClientError> {
         let notification = Notification {
             block,
+            sender: self.account,
             sent: now_milliseconds(),
             text: text.to_owned(),
         };
@@ -107,7 +110,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Opens what a push carried with the keys this device already holds: no network. Refuses
-    /// one sealed about another block than the push names, or sent more than
+    /// one sealed about another block or by another sender than the push names, or sent more
+    /// than
     /// `MAX_NOTIFICATION_AGE_MILLISECONDS` before `now`, which a server resending it would be.
     /// A device that cannot open one shows a notification naming nothing.
     pub fn open_notification(
@@ -119,6 +123,11 @@ impl<S: ObjectStore> Peer<S> {
         if notification.block != message.block {
             return Err(ClientError::Encoding(
                 "the notification was sealed about another block".into(),
+            ));
+        }
+        if notification.sender != message.sender {
+            return Err(ClientError::Encoding(
+                "the notification was sealed by another member than the server names".into(),
             ));
         }
         let age = now.saturating_sub(notification.sent);

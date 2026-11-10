@@ -13,7 +13,8 @@ use crate::{Identity, ServerError, limits::MAX_PUSH_ENDPOINTS, store::ServerStor
 /// mentions them.
 pub(crate) struct Recipient {
     pub(crate) account: Uuid,
-    pub(crate) endpoints: Vec<PushEndpoint>,
+    /// Each endpoint, and whether it has failures counted.
+    pub(crate) endpoints: Vec<(PushEndpoint, bool)>,
     pub(crate) mentioned: bool,
 }
 
@@ -168,12 +169,17 @@ impl ServerStore {
     }
 
     /// Notes that an endpoint's service took a push: it is failing no longer.
-    pub(crate) async fn endpoint_answered(&self, address: String) -> Result<(), ServerError> {
+    pub(crate) async fn endpoint_answered(
+        &self,
+        account: Uuid,
+        organization: Uuid,
+        address: String,
+    ) -> Result<(), ServerError> {
         self.with_database(move |_, database| {
             database.execute(
                 "UPDATE push_endpoints SET failures = 0, failing_since = NULL
-                 WHERE address = ?1 AND failures > 0",
-                params![address],
+                 WHERE account_id = ?1 AND organization_id = ?2 AND address = ?3",
+                params![account.to_string(), organization.to_string(), address],
             )?;
             Ok(())
         })
@@ -308,7 +314,9 @@ impl ServerStore {
             }
             let mut recipients: Vec<Recipient> = Vec::new();
             let mut index: HashMap<Uuid, usize> = HashMap::new();
-            for (account, endpoint) in organization_endpoints(database, identity.organization)? {
+            for (account, endpoint, failing) in
+                organization_endpoints(database, identity.organization)?
+            {
                 let Some(mentioned) = wanted.get(&account) else {
                     continue;
                 };
@@ -320,7 +328,7 @@ impl ServerStore {
                     });
                     recipients.len() - 1
                 });
-                recipients[at].endpoints.push(endpoint);
+                recipients[at].endpoints.push((endpoint, failing));
             }
             Ok(recipients)
         })
@@ -353,9 +361,9 @@ fn modes_of(
 fn organization_endpoints(
     database: &Connection,
     organization: Uuid,
-) -> Result<Vec<(Uuid, PushEndpoint)>, ServerError> {
+) -> Result<Vec<(Uuid, PushEndpoint, bool)>, ServerError> {
     let mut statement = database.prepare_cached(
-        "SELECT account_id, service, address, p256dh, auth FROM push_endpoints
+        "SELECT account_id, service, address, p256dh, auth, failures FROM push_endpoints
          WHERE organization_id = ?1 ORDER BY rowid",
     )?;
     let rows = statement.query_map(params![organization.to_string()], |row| {
@@ -365,11 +373,12 @@ fn organization_endpoints(
             row.get::<_, String>(2)?,
             row.get::<_, Vec<u8>>(3)?,
             row.get::<_, Vec<u8>>(4)?,
+            row.get::<_, i64>(5)?,
         ))
     })?;
     let mut endpoints = Vec::new();
     for row in rows {
-        let (account, service, address, p256dh, auth) = row?;
+        let (account, service, address, p256dh, auth, failures) = row?;
         endpoints.push((
             crate::store::parse_uuid(&account)?,
             PushEndpoint {
@@ -378,6 +387,7 @@ fn organization_endpoints(
                 p256dh,
                 auth,
             },
+            failures > 0,
         ));
     }
     Ok(endpoints)
