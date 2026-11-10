@@ -2935,6 +2935,8 @@ pub fn dismiss_anchored_views(
     host::request_repaint();
 }
 
+/// Forwards the input a view heard to its app. Whether the app was sent anything: if so it will
+/// draw a frame that answers it.
 pub fn forward_view(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2942,18 +2944,21 @@ pub fn forward_view(
     input: &beui::ForwardedInput,
     aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
     target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, ViewId)>,
-) {
+) -> bool {
     with(app_id, |runtime| {
         runtime.refresh_anchor_space(instance, region);
         let (messages, revoked) = runtime
             .instances
             .forward(instance, region, input, aim, target);
-        runtime.pacing.needed |= !messages.is_empty();
+        let sent = !messages.is_empty();
+        runtime.pacing.needed |= sent;
         runtime.send(messages);
         if revoked {
             mark(app_id);
         }
-    });
+        sent
+    })
+    .unwrap_or(false)
 }
 
 pub fn pressed_outside_view(app_id: &str, instance: EditorInstanceId, region: ViewId) {

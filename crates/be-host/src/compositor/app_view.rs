@@ -740,6 +740,7 @@ pub(crate) fn AppView(
             let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
             if !placed {
                 held_keys::forget(&gone);
+                REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
             try_with_document(|document| {
@@ -848,7 +849,9 @@ pub(crate) fn AppView(
             let target = |node: beui::NodeId| {
                 super::desktop::catcher(node).map(|held| (held.instance, held.region))
             };
-            be_host_runtime::forward_view(
+            let pressed = input.events.iter().any(held_keys::is_press);
+            let asked = held_keys_app(&app, instance, state).frames.0;
+            let sent = be_host_runtime::forward_view(
                 &app_id.value(),
                 instance,
                 region.id,
@@ -856,6 +859,11 @@ pub(crate) fn AppView(
                 &aim,
                 &target,
             );
+            if pressed && sent {
+                // The app draws a frame that answers it, and what that frame asks for decides
+                // where the keys typed meanwhile go.
+                held_keys::sent_press(&routed_view, asked);
+            }
         }
     };
     let forward = Callback::new(forward);

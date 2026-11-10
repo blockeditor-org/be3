@@ -14,7 +14,8 @@
 //! A press is treated the same way until the editor's app has drawn a frame after it: the
 //! press may be what asks for the gift (a button that makes a block to type into), and the ask
 //! arrives with that frame, so keys typed right after it wait for the answer instead of reaching
-//! the editor first. They go to the editor as soon as the frame shows it asked for nothing.
+//! the editor first. They go to the editor as soon as the frame shows it asked for nothing. Only
+//! a press the app was sent counts (`sent_press`): the app draws no frame for another.
 //!
 //! Keys are held from the editor's view that heard the first of them; keys typed into another
 //! view of the same editor meanwhile pass, which only a joined dock's several tabs could do.
@@ -71,11 +72,22 @@ fn answering(own: &View, app: App) -> bool {
     })
 }
 
+/// The view `own` forwarded a press to its app while `asked` frames had been asked of it: the
+/// next frame it draws answers the press. Called only for a press the app was sent, as the app
+/// draws no frame for one that never reached it and the keys would wait for nothing.
+pub(super) fn sent_press(own: &View, asked: u64) {
+    PRESSED.with_borrow_mut(|pressed| pressed.insert(own.clone(), asked + 1));
+}
+
 fn typed(event: &Forwarded) -> bool {
     matches!(
         event,
         Forwarded::Input(Event::Key { .. } | Event::Text(_) | Event::Ime(_) | Event::Paste(_))
     )
+}
+
+pub(super) fn is_press(event: &Forwarded) -> bool {
+    pressed(event)
 }
 
 fn pressed(event: &Forwarded) -> bool {
@@ -174,9 +186,6 @@ pub(super) fn route(own: &View, pending: bool, app: App, input: &mut ForwardedIn
         None
     });
     deliver(input, owed.unwrap_or_default());
-    if presses {
-        PRESSED.with_borrow_mut(|pressed| pressed.insert(own.clone(), app.frames.0 + 1));
-    }
     routed
 }
 

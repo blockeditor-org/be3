@@ -114,20 +114,24 @@ never by a timeout:
 - Refused when the person presses in the editor or takes the keyboard
   elsewhere, and when the child or the editor goes or its app stops. A block
   gift waits for a child to show its block however many frames that takes: the
-  editor has to change its content first, which a busy host can delay. The
-  editor hears the held keys if it still has the keyboard; otherwise they are
-  dropped.
+  editor has to change its content first, which a busy host can delay. It ends
+  at once when the host refused to make the block, when the editor has no view
+  left, and when the editor asks for another block (only the latest ask
+  stands). The editor hears the held keys if it still has the keyboard;
+  otherwise they are dropped.
 
 Only children placed in a mode that runs an editor count; a gift to a child
 that is placed but never shows a view that takes the keyboard (a view behind
-another that holds it) lasts until the person presses or moves the keyboard.
+another that holds it), and a block gift whose block is only ever shown as a
+preview or hidden, last until the person presses or moves the keyboard.
 Keys typed into a view right after a press there wait the same way until its
-app has drawn a frame after the press, since that frame may carry the ask
+app has drawn a frame after the press (only for a press the app was sent, as it
+draws no frame for one that never reached it), since that frame may carry the ask
 ("Add notes" asks as it is clicked), and go to the view if it asked for
 nothing. Owed keys and the keyboard are kept by view, not by the node that
 catches its input: when the host builds a view's catcher again (a late child
 placed in a new pane), the new one takes over both, unless the keyboard went
-elsewhere meanwhile.
+elsewhere meanwhile. A view that is no longer placed leaves nothing behind.
 Held keys skip the child's input method, so a composition (CJK) started before
 the child shows arrives as its committed text. An empty text block given the
 keyboard puts its caret in its text.

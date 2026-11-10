@@ -27,7 +27,7 @@ fn press() -> Forwarded {
             force: None,
             pen: None,
             predicted: None,
-            time: std::time::Instant::now(),
+            time: beui::reactive::now(),
             source: 0,
         },
         over: None,
@@ -75,6 +75,7 @@ fn keys_typed_right_after_a_press_wait_for_the_frame_that_answers_it() {
         1,
         "the press goes through"
     );
+    held_keys::sent_press(&deck_view(), 3);
     assert_eq!(
         deck(false, app(4, 3), vec![letter("T")]),
         [],
@@ -103,6 +104,7 @@ fn keys_typed_right_after_a_press_wait_for_the_frame_that_answers_it() {
     assert_eq!(notes.events, [letter("T"), letter("h")]);
 
     assert_eq!(deck(false, app(5, 5), vec![press()]).len(), 1);
+    held_keys::sent_press(&deck_view(), 5);
     assert_eq!(deck(false, app(6, 5), vec![letter("x")]), []);
     assert_eq!(
         held_keys::owed_now(&deck_view(), false, app(6, 6), true),
@@ -110,4 +112,14 @@ fn keys_typed_right_after_a_press_wait_for_the_frame_that_answers_it() {
         "a press whose frame asked for nothing gives the deck its keys as soon as it is drawn"
     );
     assert_eq!(deck(false, app(6, 6), Vec::new()), [letter("x")]);
+}
+
+#[test]
+fn keys_typed_after_a_press_the_app_was_never_sent_are_not_held() {
+    assert_eq!(deck(false, app(7, 7), vec![press()]).len(), 1);
+    assert_eq!(
+        deck(false, app(7, 7), vec![letter("a")]),
+        [letter("a")],
+        "no frame answers a press that never reached the app, so nothing waits for one"
+    );
 }
