@@ -8,6 +8,13 @@ interface keys {
         public-key, sealed-key,
     };
 
+    /// An account's signing key as the server has it, which nothing verified
+    /// (plans/authorship.md).
+    record signing-key {
+        account: account-id,
+        key: public-key,
+    }
+
     record recovery-key {
         public: option<public-key>,
         sealed: list<sealed-key>,
@@ -40,14 +47,22 @@ interface keys {
 
     get-recovery-key: async func() -> result<recovery-key, error>;
 
-    /// Moves the account to a new recovery key, with everything sealed to
-    /// the old one sealed again and a key change for each contact.
+    /// Moves the account to a new recovery key and the signing key derived
+    /// with it, with everything sealed to the old one sealed again and a key
+    /// change for each contact.
     set-recovery-key: async func(
         public: public-key,
+        signing: public-key,
         sealed: list<sealed-key>,
         %own: list<own-sealed>,
         changes: list<key-change>,
     ) -> result<_, error>;
+
+    /// The signing keys of those of `accounts` that are the caller, its
+    /// contacts or members of the organization open (in the personal
+    /// organization, every account), leaving out any other and any account
+    /// with none.
+    get-signing-keys: async func(accounts: list<account-id>) -> result<list<signing-key>, error>;
 
     reseal-keys: async func(keys: list<sealed-key>) -> result<_, error>;
 

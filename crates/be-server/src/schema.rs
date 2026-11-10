@@ -177,7 +177,8 @@ const SCHEMA: &str = "
 
     CREATE TABLE recovery_keys (
         account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
-        public          BLOB NOT NULL
+        public          BLOB NOT NULL,
+        signing         BLOB NOT NULL DEFAULT x''
     );
 
     CREATE TABLE keys (

@@ -351,13 +351,14 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
 pub async fn set_recovery_key(
     server_url: String,
     token: String,
-    public: be_block_keys::RecoveryPublic,
+    public: be_block_keys::PublicIdentity,
     resealed: be_block_client::contacts::NewIdentity,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
     ask(client::keys::set_recovery_key(
         &connection,
-        public.0,
+        public.public.0,
+        public.signing.0,
         resealed.sealed,
         resealed.own,
         resealed.changes,

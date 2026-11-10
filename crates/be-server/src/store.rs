@@ -726,6 +726,7 @@ impl ServerStore {
         organization: Uuid,
         name: &str,
         recovery: [u8; 32],
+        signing: [u8; 32],
         contact: Vec<u8>,
         escrow: Vec<u8>,
         bound_to: Option<Uuid>,
@@ -830,8 +831,8 @@ impl ServerStore {
                 ],
             )?;
             transaction.execute(
-                "INSERT INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
-                params![account.to_string(), recovery.to_vec()],
+                "INSERT INTO recovery_keys (account_id, public, signing) VALUES (?1, ?2, ?3)",
+                params![account.to_string(), recovery.to_vec(), signing.to_vec()],
             )?;
             crate::contacts::befriend(&transaction, caller, &[], account, &contact)?;
             crate::keys::pin_escrow(&transaction, account, organization, &escrow)?;

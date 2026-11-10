@@ -15,6 +15,7 @@ async fn a_block_holds_a_bounded_number_of_agents_of_its_own() {
                     organization,
                     format!("Agent {index}"),
                     [7; 32],
+                    [7; 32],
                     Vec::new(),
                     Vec::new(),
                     None,

@@ -1750,6 +1750,7 @@ async fn create_agent(
         organization,
         name,
         public.0,
+        secret.signing().0,
         me.seal_own(&secret),
         peer.keys().escrow().map_or_else(Vec::new, |escrow| {
             be_block_client::contacts::seal_pin(&secret, organization, &escrow)
@@ -1760,6 +1761,7 @@ async fn create_agent(
     let card = be_block_keys::ContactCard {
         account: agent.account.into_bytes(),
         public,
+        signing: secret.signing(),
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };

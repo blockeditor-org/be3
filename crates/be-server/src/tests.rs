@@ -141,6 +141,7 @@ mod rotating_an_agents_token_revokes_every_older_one;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
+mod signing_keys_are_served_only_for_accounts_the_caller_knows;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
@@ -1052,6 +1053,7 @@ impl TestClient {
                 organization,
                 "Terminal host".into(),
                 [7; 32],
+                [8; 32],
                 Vec::new(),
                 Vec::new(),
                 Some(block),

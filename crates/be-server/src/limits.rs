@@ -38,6 +38,8 @@ pub const MAX_METADATA_BYTES: usize = 64 * 1024;
 /// A sealed blob the server keeps for a client: contact cards and their sealed copies, invitation
 /// payloads, pinned escrows, pending grants.
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;
+/// Accounts named in one `get-signing-keys`: more than a chat shows at once.
+pub const MAX_SIGNING_KEYS_ASKED: usize = 1_024;
 /// A pairing message between an account's connections.
 pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// A message relayed in a live session. Replicas relay operations of at most 1 MiB and send a
