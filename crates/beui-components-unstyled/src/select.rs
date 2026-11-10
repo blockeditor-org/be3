@@ -160,6 +160,14 @@ pub fn Select(
         })
     };
 
+    let valued = options.clone();
+    let posted = create_memo(move || {
+        let index = selected.get()?;
+        valued
+            .items()
+            .get(index)
+            .map(|option| option.value().get())
+    });
     let select = view! {
         <List spacing=0.0>
             <unstyled::Button
@@ -209,7 +217,7 @@ pub fn Select(
         </List>
     };
     view! {
-        <Posted name value={label} content={select} />
+        <Posted name value={posted} disabled content={select} />
     }
 }
 

@@ -63,7 +63,7 @@ It can sit anywhere a tall child could. Its trap is recycling: the row builder r
 
 ## Inputs and forms
 
-On the HTML core a plain single-line `TextInput` is a real `<input>`, so the browser gives it IME, autofill and password managers; every other text field is beui's own on both cores ([decision](../../decisions/beui_html_text_input_is_a_native_input.md)). A new kind of single-line field is an `InputKind` variant. `Form` is a `<form method="post">` on HTML, so a server-rendered page posts before wasm loads; natively it is no node.
+On the HTML core a plain single-line `TextInput` is a real `<input>`, so the browser gives it IME, autofill and password managers; every other text field is beui's own on both cores ([decision](../../decisions/beui_html_text_input_is_a_native_input.md)). A new kind of single-line field is an `InputKind` variant. `Form` is a `<form method="post">` on HTML, so a server-rendered page posts before wasm loads; natively it is no node. Fields beui draws itself (`Checkbox`, `Switch`, `Select`, a beui-drawn `TextInput`) post under their `name` through a hidden input: a checked box `on`, an unchecked one nothing, a `Select` its option's `value` (its label without one), and a disabled field nothing, as in HTML.
 
 The platform escape, `beui::escape::html_escape`, puts a browser element into the tree. It panics natively, so it goes under `if CORE == Core::Html` in unstyled or styled, with a beui version in the other branch behind the same API. It is only for components whose HTML form is the browser's own element (a field, form, link or scroller), not for working around a primitive a core lacks ([decision](../../decisions/beui_platform_escape_only_for_browser_elements.md)).
 

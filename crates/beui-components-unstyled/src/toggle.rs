@@ -137,7 +137,7 @@ pub fn Toggle(
     };
     let posted = create_memo(move || checked.get().then(|| "on".to_owned()));
     view! {
-        <Posted name value={posted} content={toggle} />
+        <Posted name value={posted} disabled content={toggle} />
     }
 }
 
