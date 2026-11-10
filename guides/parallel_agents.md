@@ -15,6 +15,10 @@ the headless be-host.
   word the same in every prompt and put the task after it.
 - Name the coordinator's session id (`get_session` with no id) so the child reports with
   `send_message`; ask for the report in its final reply too.
+- A read-only reviewer must be told that `send_message` is allowed: "do not edit, commit or push" alone
+  made one skip it. Tell it to load the tool first (`ToolSearch` with `select:mcp__claude-code-remote__send_message`)
+  and to send the whole verdict as its last step. If a report never arrives, read the child's final
+  reply with `list_events` (`kinds: ["result"]`) instead of waiting.
 - One session and one distinct branch (`<prefix>/<task>`) per task. A child pushes only its
   branch and opens no pull request.
 - Tell running children with `send_message` when something lands that they build on or must
