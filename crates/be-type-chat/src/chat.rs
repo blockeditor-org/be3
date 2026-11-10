@@ -293,11 +293,11 @@ impl ChatContent {
         operation
             .0
             .iter()
-            .filter_map(|change| match change {
+            .flat_map(|change| match change {
                 Change::Insert { place, objects, .. } if *place == messages => {
-                    objects.first().map(|(id, _)| *id)
+                    objects.iter().map(|(id, _)| *id).collect()
                 }
-                _ => None,
+                _ => Vec::new(),
             })
             .collect()
     }
