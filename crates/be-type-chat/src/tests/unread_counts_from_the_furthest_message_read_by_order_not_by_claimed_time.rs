@@ -18,6 +18,11 @@ fn unread_counts_from_the_furthest_message_read_by_order_not_by_claimed_time() {
     let (_, three) = chat.send(CHAT, Message::new(ADA, -86_400_000, "Three"));
     chat.apply(&three);
     assert_eq!(chat.unread([two], BO), 1, "my own messages are not unread");
+    assert_eq!(
+        chat.unread(std::iter::empty(), BO),
+        1,
+        "answering is reading: only what came after my own message counts"
+    );
 
     let one = first(&chat);
     assert_eq!(

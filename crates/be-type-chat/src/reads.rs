@@ -8,50 +8,53 @@ use uuid::Uuid;
 /// receipt, readable by this account alone (administrators and the server included), and
 /// synced to every device it uses.
 ///
-/// Each device writes only its own entry, and only to move it on, so a device behind or offline
-/// never takes another's reading back: the chat counts from the furthest entry
-/// (`ChatContent::unread`), which `Map`'s later write winning per key could not give. A device
-/// moving on drops the entries not further than its own.
+/// A place is a key of its own, `chat/device/message`, so a device moving on writes a key no
+/// other device has seen, and drops only keys it has seen: its own older place, and others'
+/// places that are not further on. A move another device made meanwhile is a key nobody
+/// dropped, so a device behind or offline never takes reading back, and the chat counts from
+/// the furthest place (`ChatContent::unread`). The kind grows only with the devices still
+/// ahead.
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct ChatReads {
-    /// The last message read, by the chat's id and the device's client id, as `chat/device`.
+    /// Each device's last message read, keyed `chat/device/message`.
     pub read: Map<String, ObjectId>,
 }
 
-fn key(chat: Uuid, device: Uuid) -> String {
-    format!("{chat}/{device}")
+/// One device's place in a chat, and the key that holds it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReadPlace {
+    pub key: String,
+    pub device: Uuid,
+    pub message: ObjectId,
 }
 
 impl ChatReads {
-    /// Where each device read `chat` up to, by the device's client id.
-    pub fn places(&self, chat: Uuid) -> Vec<(Uuid, ObjectId)> {
+    /// Where each device read `chat` up to.
+    pub fn places(&self, chat: Uuid) -> Vec<ReadPlace> {
         let prefix = format!("{chat}/");
         self.read
             .iter()
             .filter_map(|(key, message)| {
-                let device = key.strip_prefix(&prefix)?.parse().ok()?;
-                Some((device, *message))
+                let rest = key.strip_prefix(&prefix)?;
+                let device = rest.split('/').next()?.parse().ok()?;
+                Some(ReadPlace {
+                    key: key.clone(),
+                    device,
+                    message: *message,
+                })
             })
             .collect()
     }
 
-    /// Where `device` read `chat` up to.
-    pub fn read_here(&self, chat: Uuid, device: Uuid) -> Option<ObjectId> {
-        self.read.get(&key(chat, device)).copied()
-    }
-
-    /// Moves `device`'s place in `chat` to `message`, and drops the places of the devices in
-    /// `behind`, which are not further on and so no longer count: the kind grows with the
-    /// devices still ahead, not with every device that ever read the chat.
-    pub fn set_read(chat: Uuid, device: Uuid, message: ObjectId, behind: &[Uuid]) -> Edit {
-        std::iter::once(Self::READ.put(ObjectId::ROOT, &key(chat, device), Some(&message)))
+    /// Puts `device`'s place in `chat` at `message`, and drops the places in `seen` that no
+    /// longer count: this device's older ones, and others' not further on.
+    pub fn set_read(chat: Uuid, device: Uuid, message: ObjectId, seen: &[ReadPlace]) -> Edit {
+        let key = format!("{chat}/{device}/{message}");
+        std::iter::once(Self::READ.put(ObjectId::ROOT, &key, Some(&message)))
             .chain(
-                behind
-                    .iter()
-                    .filter(|other| **other != device)
-                    .map(|other| {
-                        Self::READ.put(ObjectId::ROOT, &key(chat, *other), None::<&ObjectId>)
-                    }),
+                seen.iter()
+                    .filter(|place| place.key != key)
+                    .map(|place| Self::READ.put(ObjectId::ROOT, &place.key, None::<&ObjectId>)),
             )
             .collect()
     }

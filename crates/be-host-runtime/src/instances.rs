@@ -1961,6 +1961,15 @@ impl Instances {
             }
             for screen in entry.screens.values_mut() {
                 screen.stopped = None;
+                // The new runner hears everything afresh, its views without the keyboard: a
+                // screen that had it hears so again once the app announces it.
+                if screen.input.focused() {
+                    let mut batch = be_sdk_api::InputBatch::new(screen.request.screen, false);
+                    batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
+                    self.unannounced_input
+                        .push(Outbound::App(AppCall::Input(batch)));
+                }
+                screen.input = InputForwarder::new(self.heard.clone());
             }
             entry.stale = true;
         }
