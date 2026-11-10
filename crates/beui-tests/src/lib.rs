@@ -9,7 +9,9 @@
 //! itself; a screen checking a layout prints what it `measure`s in a
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
-//! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's).
+//! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's), and
+//! `attribute CSS NAME VALUE|none` and `history LENGTH`, which a script both cores run
+//! gives as `#web COMMAND` lines (comments natively).
 //!
 //! The browser run's `settle` waits until no frame is wanted at once; a frame a timer will ask
 //! for later (an indeterminate progress bar's tick) does not count, as natively.
@@ -432,7 +434,7 @@ fn PasteFixture() -> NodeId {
 
 #[component]
 fn BackFixture() -> NodeId {
-    let catching = create_signal(true);
+    let catching = create_signal(false);
     let backs = create_signal(0_u32);
     let report = create_memo(move || format!("Backs {}", backs.get()));
     on_back(catching, move |gesture: beui::BackGesture| {
@@ -987,6 +989,7 @@ fn TextInputFixture() -> NodeId {
     let report = create_memo(move || format!("Value {}", value.get()));
     let hidden = create_memo(move || format!("Secret {}", secret.get()));
     let count = create_memo(move || format!("Sent {}", sent.get()));
+    let lazy = create_signal(String::new());
     let api = ComponentRef::<beui::styled::TextInputApi>::new();
     let read = create_signal(String::from("Selection unread"));
     view! {
@@ -1006,7 +1009,15 @@ fn TextInputFixture() -> NodeId {
                             autocomplete="current-password"
                         />
                     </Frame>
-                    <beui::styled::Button label="Send" submit=true />
+                    <Frame width=240.0>
+                    <beui::styled::TextInput
+                        @test_id="text_input.lazy"
+                        value={lazy}
+                        label="Lazy"
+                        keyboard_on_focus=false
+                    />
+                </Frame>
+                <beui::styled::Button label="Send" submit=true />
                     <Text color={INK}>{report}</Text>
                     <Text color={INK}>{hidden}</Text>
                     <Text color={INK}>{count}</Text>
@@ -1015,6 +1026,10 @@ fn TextInputFixture() -> NodeId {
             <beui::styled::Button
                 label="Select 1 to 3"
                 on_click={move || api.get().set_selection(1..3)}
+            />
+            <beui::styled::Button
+                label="Select 5 to 9"
+                on_click={move || api.get().set_selection(5..9)}
             />
             <beui::styled::Button
                 label="Read selection"
