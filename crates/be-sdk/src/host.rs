@@ -241,6 +241,18 @@ pub struct Artifact {
     pub source: Uuid,
 }
 
+/// A block a paste of `be3/blocks` placed (`EditorHost::paste_blocks`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pasted {
+    pub block: Uuid,
+    pub block_type: Uuid,
+    /// The paste moved the block here from the parent it was cut from.
+    pub moved: bool,
+    /// The block a reference to it was cut from, still holding it, which
+    /// the editor moves it out of rather than adding another reference.
+    pub cut_from: Option<Uuid>,
+}
+
 #[derive(Clone, PartialEq)]
 pub struct PickedFile {
     pub name: String,
@@ -1780,33 +1792,29 @@ impl EditorHost {
         })
     }
 
-    /// Records a cut of references to `blocks` held in `holder`, before the
-    /// editor removes them from its content: the first paste of a block
-    /// whose parent `holder` was moves it.
+    /// Records a cut of references to `blocks` held in `holder`, when the
+    /// editor may change `holder`: the first paste of a block whose parent
+    /// `holder` was moves it, and of any other answers `cut_from`.
     pub fn cut_blocks(&self, blocks: &[Uuid], holder: Uuid) {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
         self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());
     }
 
     /// Pastes `be3/blocks` into `parent`: the blocks the editor may view,
-    /// each `(id, type, moved)`, `moved` when the paste moved a cut block
-    /// here rather than adding a reference. None when the host refused.
-    pub fn paste_blocks(
-        &self,
-        blocks: &[Uuid],
-        parent: BlockParent,
-    ) -> Asked<Vec<(Uuid, Uuid, bool)>> {
+    /// none when the host refused. The first paste after a cut moves a block
+    /// cut from its parent here (`moved`), or names where a reference to it
+    /// was cut from (`cut_from`); otherwise the editor adds a reference.
+    pub fn paste_blocks(&self, blocks: &[Uuid], parent: BlockParent) -> Asked<Vec<Pasted>> {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
         Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(|pasted| {
             pasted
                 .unwrap_or_default()
                 .into_iter()
-                .map(|pasted| {
-                    (
-                        Uuid::from_bytes(pasted.block_id),
-                        Uuid::from_bytes(pasted.block_type),
-                        pasted.moved,
-                    )
+                .map(|pasted| Pasted {
+                    block: Uuid::from_bytes(pasted.block_id),
+                    block_type: Uuid::from_bytes(pasted.block_type),
+                    moved: pasted.moved,
+                    cut_from: pasted.cut_from.map(Uuid::from_bytes),
                 })
                 .collect()
         })
