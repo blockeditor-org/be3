@@ -139,7 +139,9 @@ pub(crate) fn number(node: &Node, property: &str) -> Option<f64> {
 
 pub(crate) fn string(node: &Node, property: &str) -> Option<String> {
     let dom = live_node(node)?;
-    js_sys::Reflect::get(&dom, &property.into()).ok()?.as_string()
+    js_sys::Reflect::get(&dom, &property.into())
+        .ok()?
+        .as_string()
 }
 
 pub(crate) fn set_number(node: &Node, property: &str, value: f64) {

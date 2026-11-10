@@ -56,7 +56,11 @@ pub fn ChoiceOption(
     let label = create_memo(move || label.get());
     ChoiceOption {
         label,
-        value: create_memo(move || Some(value.get()).filter(|value| !value.is_empty()).unwrap_or_else(|| label.get())),
+        value: create_memo(move || {
+            Some(value.get())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| label.get())
+        }),
     }
 }
 
