@@ -66,7 +66,7 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
         push: push::PushConfig {
             allow_local_endpoints: false,
             fcm: Some(fcm),
-            hosts: Vec::new(),
+            hosts: Vec::new().into(),
         },
         ..ServerConfig::OPEN
     })

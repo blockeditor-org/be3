@@ -85,14 +85,14 @@ pub struct PushConfig {
     /// Hosts Web Push endpoints may be on besides the known push services (`PUSH_HOSTS`,
     /// `PUSH_HOST_SUFFIXES`), each matched exactly: a self-hosted UnifiedPush server, such as
     /// ntfy (`--push-host`).
-    pub hosts: Vec<String>,
+    pub hosts: std::borrow::Cow<'static, [String]>,
 }
 
 impl PushConfig {
     pub const DEFAULT: Self = Self {
         allow_local_endpoints: false,
         fcm: None,
-        hosts: Vec::new(),
+        hosts: std::borrow::Cow::Borrowed(&[]),
     };
 }
 
@@ -326,7 +326,7 @@ impl Pusher {
             endpoints,
             trusted,
             allow_local,
-            hosts: config.hosts.clone(),
+            hosts: config.hosts.to_vec(),
             fcm,
         })
     }

@@ -1542,7 +1542,7 @@ fn pushing_locally() -> ServerConfig {
         push: push::PushConfig {
             allow_local_endpoints: true,
             fcm: None,
-            hosts: vec!["127.0.0.1".to_owned()],
+            hosts: vec!["127.0.0.1".to_owned()].into(),
         },
         ..ServerConfig::OPEN
     }
