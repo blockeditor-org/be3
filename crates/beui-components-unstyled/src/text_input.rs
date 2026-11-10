@@ -10,7 +10,6 @@ use beui_view::types::Color;
 use beui_view::types::{CursorIcon, FontId, Pos2, Rect};
 
 use crate::ContextMenuApi;
-use crate::form::Posted;
 use crate::MenuListApi;
 use crate::Prose;
 use crate::SyntaxColors;
@@ -20,6 +19,7 @@ use crate::TextAreaColors;
 use crate::TextAreaGeometry;
 use crate::TextAreaLook;
 use crate::TextAreaState;
+use crate::form::Posted;
 use crate::menu_popup::MenuStyle;
 use crate::text_menu::TextContextMenu;
 use beui_macros::{component, view};
