@@ -1,14 +1,15 @@
 use be_sdk_beui::be_block::{Edit, LiveEdit, ObjectId};
 use be_sdk_beui::beui::vec2;
-use be_sdk_beui::{EditorHost, OwnedEditor};
+use be_sdk_beui::{EditorHost, OwnedEditor, Signer};
 use be_sdk_test::BeuiTest;
-use be_type_chat::{ChatContent, Message};
+use be_type_chat::{ChatContent, Message, Signature};
 use uuid::Uuid;
 
 use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_message_shows_whether_its_author_signed_it;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
 mod messages_are_sent_edited_reacted_to_and_deleted;
@@ -25,12 +26,31 @@ struct Harness {
     editor: BeuiTest<ChatRoot>,
 }
 
+/// Sends `message` as `signer` signed it: its author, unless the test forges it.
+fn signed_by(content: &ChatContent, signer: Uuid, message: Message) -> Edit {
+    let (id, message) = content.draft(CHAT, message);
+    let signature = be_sdk_test::signature(signer, &message.signed_bytes(CHAT, id));
+    ChatContent::send_as(
+        id,
+        &Message {
+            signature: Signature(signature),
+            ..message
+        },
+    )
+}
+
 impl Harness {
     fn new(messages: &[(Uuid, &str)]) -> Self {
+        Self::trusting(messages, &[])
+    }
+
+    /// A chat whose members' keys `verify` trusts as `trusted` says, and any other's as a
+    /// contact's.
+    fn trusting(messages: &[(Uuid, &str)], trusted: &[(Uuid, Signer)]) -> Self {
         let mut content = ChatContent::default();
         for (index, (author, body)) in messages.iter().enumerate() {
             let time = MORNING + index as i64 * 3 * MINUTE;
-            let (_, send) = content.send(CHAT, Message::new(*author, time, *body));
+            let send = signed_by(&content, *author, Message::new(*author, time, *body));
             content.apply(&send);
         }
         let host = EditorHost::default();
@@ -39,6 +59,9 @@ impl Harness {
         let mut harness = Self {
             editor: BeuiTest::new(OwnedEditor::new(host, CHAT)),
         };
+        for (account, signer) in trusted {
+            harness.editor.set_signer(*account, *signer);
+        }
         harness
             .editor
             .store()

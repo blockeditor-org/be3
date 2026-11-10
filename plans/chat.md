@@ -19,9 +19,9 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
   `edits`, `deletions` and `reactions` (`LatestMap`s) keyed by message id, and
   an empty `segments` index. Sending and deleting are not undoable; an edit by
   anyone but the message's author is ignored. Each message stores the hash of the last message its
-  author saw (`seen`) and an empty signature; `Message::signed_bytes`,
+  author saw (`seen`) and its author's signature; `Message::signed_bytes`,
   `MessageEdit::signed_bytes`, `Deletion::signed_bytes` and
-  `ReactionKey::signed_bytes` define what a signature will cover
+  `ReactionKey::signed_bytes` define what a signature covers
   (`src/signed.rs`), and a message's hash is SHA-256 over its signed bytes.
   Deleting removes the message with its edit and reactions and records the
   `Deletion`. The editor sends, replies, edits and deletes its own messages and
@@ -42,9 +42,10 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
   changed. Documents save as parts but load whole.
 - **References per part.** A part's node lists the blocks its own bytes
   reference (`Part::Node { references }`), so a part reused unread keeps them.
-- **Authorship.** `Commit::author` is whatever the client wrote; anyone holding
-  a block's data key can write anything, including as someone else
-  (plans/authorship.md).
+- **Authorship.** The editor signs each message and edit through the host's
+  `sign` before sending it, and marks a message whose signatures `verify`
+  does not answer verified: "not verified", "key changed" or "forged".
+  Deletions and reactions are not signed yet (plans/authorship.md).
 - **Access.** Posting needs Edit, which also allows changing others' messages.
   A grant must name a contact, so a chat only ever reaches contacts.
 - **Merging.** A `List` merge puts an insert after the sibling it was made

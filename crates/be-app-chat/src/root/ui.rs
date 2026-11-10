@@ -10,8 +10,8 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ContentProjection, Editor, utc_offset};
-use be_type_chat::{ChatContent, Message, Shown};
+use be_sdk_beui::{ContentProjection, Editor, Signer, utc_offset};
+use be_type_chat::{ChatContent, Message, MessageEdit, Shown, Signature};
 use beui::{Align, Direction};
 use uuid::Uuid;
 
@@ -38,6 +38,16 @@ struct Row {
     edited: bool,
     reply: Option<String>,
     reactions: Vec<Reacted>,
+    /// What its author signed: the message, and its edit if it has one.
+    proofs: Vec<Proof>,
+}
+
+/// One record a member signed (plans/authorship.md), to ask the host who signed it.
+#[derive(Clone, Debug, PartialEq)]
+struct Proof {
+    author: Uuid,
+    bytes: Vec<u8>,
+    signature: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -60,6 +70,7 @@ struct Composer {
 pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
     let me = editor.blocks().account_id();
+    let block = editor.block_id();
     let rows = chat.project_keyed(move |content: &ChatContent, rows| {
         let shown = content.shown();
         let by_id: HashMap<ObjectId, &Shown> =
@@ -67,7 +78,13 @@ pub fn Chat(editor: Editor) -> NodeId {
         let today = local_date(now());
         let rows_now: Vec<(ObjectId, Row)> = shown
             .iter()
-            .map(|message| (message.id, row(&by_id, message, me, today)))
+            .map(|message| {
+                let row = Row {
+                    proofs: proofs(content, block, message),
+                    ..row(&by_id, message, me, today)
+                };
+                (message.id, row)
+            })
             .collect();
         rows.reconcile_owned(rows_now);
     });
@@ -106,8 +123,7 @@ pub fn Chat(editor: Editor) -> NodeId {
             }
         });
     });
-    let block = editor.block_id();
-    let send = move || submit(&chat, block, me, composer);
+    let send = move || submit(editor, &chat, block, me, composer);
     let replying = create_memo(move || {
         let id = composer.replying.get()?;
         let quoted = rows.try_get(&id)?;
@@ -124,7 +140,7 @@ pub fn Chat(editor: Editor) -> NodeId {
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         view! {
-            <MessageRow chat={chat} me id row={shown} composer />
+            <MessageRow editor chat={chat} me id row={shown} composer />
         }
     };
 
@@ -230,6 +246,7 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
     Row {
         author: author(message.message.author, me),
         mine: message.message.author == me,
+        proofs: Vec::new(),
         time: time(message.message.time, today),
         body: message.body.clone(),
         edited: message.edited,
@@ -286,28 +303,83 @@ fn now() -> i64 {
     i64::try_from(wall_clock().as_millis()).unwrap_or(i64::MAX)
 }
 
-fn submit(chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
+/// The message and its edit as their author signed them, for each row to verify.
+fn proofs(content: &ChatContent, chat: Uuid, message: &Shown) -> Vec<Proof> {
+    let sent = &message.message;
+    let mut proofs = vec![Proof {
+        author: sent.author,
+        bytes: sent.signed_bytes(chat, message.id),
+        signature: sent.signature.0.clone(),
+    }];
+    if let Some(edit) = content.edit_of(message.id) {
+        proofs.push(Proof {
+            author: edit.author,
+            bytes: edit.signed_bytes(chat, message.id),
+            signature: edit.signature.0.clone(),
+        });
+    }
+    proofs
+}
+
+/// Sends the draft, or saves the edit, once the host signed it as the person; unsigned if the
+/// host could not, which others see as forged rather than lose it.
+fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
     let body = composer.draft.get_untracked().trim().to_owned();
     if body.is_empty() {
         return;
     }
+    let chat = *chat;
     match composer.editing.get_untracked() {
         Some(message) => {
-            if let Ok(edit) = chat.read(|content| content.edit(message, me, now(), body)) {
-                chat.operate(edit);
-            }
+            let edit = MessageEdit {
+                author: me,
+                time: now(),
+                body,
+                signature: Signature::default(),
+            };
+            let signing = editor.host().sign(edit.signed_bytes(block, message));
+            editor.then(signing, move |signed| {
+                let edit = MessageEdit {
+                    signature: Signature(signed.unwrap_or_default()),
+                    ..edit
+                };
+                if let Ok(change) = chat.read(|content| content.put_edit(message, &edit)) {
+                    chat.operate(change);
+                }
+            });
             composer.editing.set(None);
         }
         None => {
             let message =
                 Message::new(me, now(), body).replying_to(composer.replying.get_untracked());
-            if let Ok((_, send)) = chat.read(|content| content.send(block, message)) {
-                chat.operate(send);
+            if let Ok((id, message)) = chat.read(|content| content.draft(block, message)) {
+                let signing = editor.host().sign(message.signed_bytes(block, id));
+                editor.then(signing, move |signed| {
+                    let message = Message {
+                        signature: Signature(signed.unwrap_or_default()),
+                        ..message
+                    };
+                    chat.operate(ChatContent::send_as(id, &message));
+                });
             }
             composer.replying.set(None);
         }
     }
     composer.draft.set(String::new());
+}
+
+/// The least a row's records are trusted: one forged record makes the message forged.
+fn least(signers: impl IntoIterator<Item = Signer>) -> Signer {
+    let rank = |signer: &Signer| match signer {
+        Signer::Verified => 0,
+        Signer::Unverified => 1,
+        Signer::Changed => 2,
+        Signer::Bad => 3,
+    };
+    signers
+        .into_iter()
+        .max_by_key(rank)
+        .unwrap_or(Signer::Verified)
 }
 
 fn toggle_reaction(chat: &Chat, me: Uuid, message: ObjectId, reaction: &str, mine: bool) {
@@ -322,12 +394,34 @@ fn toggle_reaction(chat: &Chat, me: Uuid, message: ObjectId, reaction: &str, min
 
 #[component]
 fn MessageRow(
+    editor: Editor,
     chat: Chat,
     me: Uuid,
     id: ObjectId,
     row: ReadSignal<Row>,
     composer: Composer,
 ) -> NodeId {
+    let proofs = create_memo(move || row.with(|row| row.proofs.clone()));
+    // Who signed it, once the host says: nothing is marked until then.
+    let signer = create_signal(None::<Signer>);
+    create_effect(move || {
+        let proofs = proofs.get();
+        signer.set(None);
+        let host = editor.host();
+        let asked = async move {
+            let mut found = Vec::new();
+            for proof in proofs {
+                let verified = host.verify(proof.author, proof.bytes, proof.signature);
+                found.push(verified.await?.ok()?);
+            }
+            Some(least(found))
+        };
+        let asking = editor.then(asked, move |found| signer.set(Some(found)));
+        on_cleanup(move || asking.cancel());
+    });
+    let unverified = create_memo(move || signer.get() == Some(Signer::Unverified));
+    let changed = create_memo(move || signer.get() == Some(Signer::Changed));
+    let forged = create_memo(move || signer.get() == Some(Signer::Bad));
     let author = create_memo(move || row.with(|row| row.author.clone()));
     let time = create_memo(move || row.with(|row| row.time.clone()));
     let body = create_memo(move || row.with(|row| row.body.clone()));
@@ -425,6 +519,19 @@ fn MessageRow(
                             <Text style=TextStyle::CAPTION>{time}</Text>
                             <Show condition={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
+                            </Show>
+                            <Show condition={unverified}>
+                                <Text style=TextStyle::CAPTION>"not verified"</Text>
+                            </Show>
+                            <Show condition={changed}>
+                                <Text style=TextStyle::CAPTION color=TextColor::Warning>
+                                    "key changed"
+                                </Text>
+                            </Show>
+                            <Show condition={forged}>
+                                <Text style=TextStyle::CAPTION color=TextColor::Danger>
+                                    "forged"
+                                </Text>
                             </Show>
                         </List>
                     </ListItem>

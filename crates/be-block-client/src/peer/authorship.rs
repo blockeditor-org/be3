@@ -52,7 +52,16 @@ impl<S: ObjectStore> Peer<S> {
         if known.iter().any(|known| known.verified && made(known.key)) {
             return Ok(Signer::Verified);
         }
-        if known.iter().any(|known| known.verified) {
+        let contact = known.iter().any(|known| known.verified);
+        if !contact && known.iter().any(|known| made(known.key)) {
+            return Ok(Signer::Unverified);
+        }
+        if !self.is_attached() {
+            return Err(ClientError::Disconnected(
+                "who signed this is known once the server is reachable".to_owned(),
+            ));
+        }
+        if contact {
             // A contact's new phrase reaches this device with its next look at the contacts.
             self.refresh_contacts().await?;
             let known = self.refs.signers(account);
@@ -62,9 +71,6 @@ impl<S: ObjectStore> Peer<S> {
                     false => Signer::Bad,
                 },
             );
-        }
-        if known.iter().any(|known| made(known.key)) {
-            return Ok(Signer::Unverified);
         }
         let served = client::keys::get_signing_keys(&self.connection(), vec![account])
             .await??

@@ -286,13 +286,25 @@ impl ChatContent {
     /// Sends `message` after every message there is, noting the last one as what its author
     /// saw.
     pub fn send(&self, chat: Uuid, message: Message) -> (ObjectId, Edit) {
+        let (id, message) = self.draft(chat, message);
+        (id, Self::send_as(id, &message))
+    }
+
+    /// The id and message `send` would send, for its author to sign
+    /// (`Message::signed_bytes`) before `send_as` sends it.
+    pub fn draft(&self, chat: Uuid, message: Message) -> (ObjectId, Message) {
         let seen = self
             .messages()
             .last()
             .and_then(|last| self.hash(chat, *last));
-        let message = Message { seen, ..message };
-        let (id, change) = ChatHeader::MESSAGES.insert(ObjectId::ROOT, Anchor::End, &message);
-        (id, change.into())
+        (ObjectId::new(), Message { seen, ..message })
+    }
+
+    /// Sends `message` as `id`, after every message there is.
+    pub fn send_as(id: ObjectId, message: &Message) -> Edit {
+        ChatHeader::MESSAGES
+            .insert_as(id, ObjectId::ROOT, Anchor::End, message)
+            .into()
     }
 
     pub fn edit(
@@ -308,9 +320,16 @@ impl ChatContent {
             body: body.into(),
             signature: Signature::default(),
         };
-        let stamp = self.edits().next(&message, stamp_time(time), author);
+        self.put_edit(message, &edit)
+    }
+
+    /// Makes `edit` the latest of `message`, signed or not.
+    pub fn put_edit(&self, message: ObjectId, edit: &MessageEdit) -> Edit {
+        let stamp = self
+            .edits()
+            .next(&message, stamp_time(edit.time), edit.author);
         ChatHeader::EDITS
-            .put(ObjectId::ROOT, &message, Some(&edit), stamp)
+            .put(ObjectId::ROOT, &message, Some(edit), stamp)
             .into()
     }
 
