@@ -524,7 +524,7 @@ text's length reaches the push service.
   time in order, its devices in the order they registered, so an endpoint that
   never answers delays only its own account; tests rely on that order to show
   a push did not go. A push about a block that already waits for a device
-  replaces it. Each send holds a blocking thread, at most `SENDERS` at once
+  replaces it. Each send holds a blocking thread, at most `SENDERS` at once, and `SENDERS_PER_HOST` to one push host
   over the server, so services that never answer cannot take the pool the
   database shares. Past `MAX_QUEUED`, the longest queues lose their newest.
 - **VAPID** (RFC 8292): the server makes a P-256 key on first start and keeps
