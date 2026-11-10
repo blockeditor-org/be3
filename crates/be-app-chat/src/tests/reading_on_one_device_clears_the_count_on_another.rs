@@ -7,7 +7,7 @@ const PHONE: Uuid = Uuid::from_u128(0x9407_0000_0000_4000_8000_0000_0000_0005);
 
 #[test]
 fn reading_on_one_device_clears_the_count_on_another() {
-    let mut laptop = Harness::new(&[(ROSA, "Minutes are up"), (ME, "Thanks, reading now")]);
+    let mut laptop = Harness::new(&[(ME, "Are the minutes up?"), (ROSA, "Minutes are up")]);
     assert!(
         !laptop.editor.shown("chat.unread"),
         "a chat shown at its newest message with the keyboard is read"
@@ -56,11 +56,17 @@ fn reading_on_one_device_clears_the_count_on_another() {
         "the phone, behind, takes no reading back"
     );
 
-    // The phone reads the chat: its place syncs to the laptop as any edit does.
+    // The phone reads the chat, dropping the places it saw: its edit syncs to the laptop as
+    // any edit does.
     let newest = laptop.content().newest().expect("the chat has messages");
+    let seen = laptop
+        .editor
+        .content::<ChatReadsContent>(Some(reads))
+        .root()
+        .places(CHAT);
     laptop.editor.edit::<ChatReadsContent>(
         Some(reads),
-        &ChatReads::set_read(CHAT, PHONE, newest, &[Uuid::nil()]),
+        &ChatReads::set_read(CHAT, PHONE, newest, &seen),
     );
     laptop.run();
     assert!(
@@ -72,8 +78,11 @@ fn reading_on_one_device_clears_the_count_on_another() {
             .editor
             .content::<ChatReadsContent>(Some(reads))
             .root()
-            .places(CHAT),
+            .places(CHAT)
+            .into_iter()
+            .map(|place| (place.device, place.message))
+            .collect::<Vec<_>>(),
         [(PHONE, newest)],
-        "the phone's place, further on, replaced the laptop's"
+        "the phone's place, further on, replaced those it saw"
     );
 }

@@ -34,9 +34,11 @@ edited (the journal, guides/blocks/client.md). Steps 1a and 1c have landed.
   escrowed, and administrators could read them), one place per device, so a
   device behind or offline never takes another's reading back. The furthest
   place counts, by message order: a deleted message's `Deletion` names the one
-  before it. A device moving on drops the places not further than its own.
-  `ChatContent::unread` counts others' messages after it, reading only their
-  authors. The editor reads the chat while it is shown, its view has the
+  before it. Each place is a key of its own (`chat/device/message`), and a
+  device moving on drops only places it has seen that are not further than
+  its new one, so a move made elsewhere meanwhile survives.
+  `ChatContent::unread` counts others' messages after it and after my own
+  newest message (answering is reading), reading only their authors. The editor reads the chat while it is shown, its view has the
   keyboard and it is scrolled to its newest message; otherwise it shows "N new
   messages" above the message box, which scrolls to the end. No sidebar or
   block row shows the count yet.

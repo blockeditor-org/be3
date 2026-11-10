@@ -12,7 +12,7 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, utc_offset};
-use be_type_chat::{ChatContent, ChatReads, Message, Shown};
+use be_type_chat::{ChatContent, ChatReads, Message, ReadPlace, Shown};
 use beui::{Align, Direction, ScrollPosition};
 use uuid::Uuid;
 
@@ -236,8 +236,8 @@ pub fn Chat(editor: Editor) -> NodeId {
 /// How many messages others sent since this account last read the chat, none until its
 /// owner-only `ChatReads` loaded. Each device keeps its own place there and the furthest
 /// counts, so every device the account uses agrees. The chat is read while it is scrolled to its
-/// newest message, shown, and has the keyboard: a chat left open in a window behind others is
-/// not.
+/// newest message, shown, and its own view has the keyboard: a chat left open behind others,
+/// or beside the one being typed in, is not.
 fn unread_count(
     editor: Editor,
     chat: Chat,
@@ -253,33 +253,41 @@ fn unread_count(
             return None;
         }
         let places = read.with(|reads| reads.places(block));
-        chat.read(|content| content.unread(places.into_iter().map(|(_, place)| place), me))
+        chat.read(|content| content.unread(places.into_iter().map(|place| place.message), me))
             .ok()
     });
     let shown = editor.presence_visible();
-    let keyboard = use_keyboard();
+    let keyboard = editor.has_keyboard();
     create_effect(move || {
-        if !at_end.get() || !shown.get() || !keyboard.get() || unread.get().is_none() {
+        let reading = at_end.get() && shown.get() && keyboard.get();
+        if !reading || unread.get().unwrap_or_default() == 0 {
             return;
         }
-        let (here, places) =
-            read.with(|reads| (reads.read_here(block, device), reads.places(block)));
-        let moved = chat.read(|content| {
-            let newest = content
-                .newest()
-                .filter(|newest| content.reads_further(*newest, here))?;
-            let behind: Vec<Uuid> = places
-                .iter()
-                .filter(|(_, place)| content.behind(*place, newest))
-                .map(|(other, _)| *other)
-                .collect();
-            Some((newest, behind))
+        // Tracked, so a write the settings were not loaded for is made once they are.
+        let places = read.with(|reads| reads.places(block));
+        let moved = untrack(|| {
+            chat.read(|content| {
+                let newest = content.newest()?;
+                let here = places.iter().filter(|place| place.device == device);
+                if here
+                    .clone()
+                    .any(|place| !content.reads_further(newest, Some(place.message)))
+                {
+                    return None;
+                }
+                let seen: Vec<ReadPlace> = places
+                    .iter()
+                    .filter(|place| place.device == device || content.behind(place.message, newest))
+                    .cloned()
+                    .collect();
+                Some((newest, seen))
+            })
         });
-        let Ok(Some((newest, behind))) = moved else {
+        let Ok(Some((newest, seen))) = moved else {
             return;
         };
         let edit: KeptEdit<ChatReads> =
-            Rc::new(move |_| ChatReads::set_read(block, device, newest, &behind));
+            Rc::new(move |_| ChatReads::set_read(block, device, newest, &seen));
         // Not yet loaded, it is written on the next change instead.
         let _ = reads.write_all(SettingsLayer::EveryDevice, &[edit]);
     });

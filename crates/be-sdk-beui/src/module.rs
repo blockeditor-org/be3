@@ -39,6 +39,8 @@ struct Registry {
     shown: RefCell<HashMap<EditorInstanceId, Rc<dyn Shown>>>,
     windows: RefCell<HashMap<ViewRef, WindowId>>,
     revision: OwnedSignal<u64>,
+    /// The views the host gave the keyboard (`Views::keyboard`).
+    keyboard: OwnedSignal<Vec<ViewRef>>,
 }
 
 impl Registry {
@@ -60,6 +62,7 @@ impl Default for Module {
                 shown: RefCell::default(),
                 windows: RefCell::default(),
                 revision: OwnedSignal::new(0),
+                keyboard: OwnedSignal::new(Vec::new()),
             }),
             document: RefCell::new(None),
             launched: std::cell::Cell::new(false),
@@ -113,6 +116,12 @@ impl Module {
         self.registry.shown(instance)
     }
 
+    /// Whether one of `instance`'s views has the keyboard.
+    pub(crate) fn has_keyboard(&self, instance: EditorInstanceId) -> Memo<bool> {
+        let keyboard = self.registry.keyboard.read_only();
+        create_memo(move || keyboard.with(|views| views.iter().any(|view| view.instance == instance)))
+    }
+
     pub(crate) fn window(&self, region: ViewRef) -> Option<WindowId> {
         self.registry.windows.borrow().get(&region).copied()
     }
@@ -130,9 +139,14 @@ impl beui::native::Program for ModuleProgram {
             return;
         };
         let requested = self.requested.handle();
+        let keyboard = self.module.registry.keyboard.handle();
         let watched = views.clone();
-        views.watch(move || requested.set(watched.views()));
+        views.watch(move || {
+            requested.set(watched.views());
+            keyboard.set(watched.keyboard());
+        });
         self.requested.set(views.views());
+        self.module.registry.keyboard.set(views.keyboard());
         self.views = Some(views);
     }
 

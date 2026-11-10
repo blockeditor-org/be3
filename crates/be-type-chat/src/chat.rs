@@ -75,8 +75,8 @@ pub struct Deletion {
     pub time: i64,
     pub signature: Signature,
     /// The message before it when it was deleted, so a place kept by message id (where
-    /// someone read up to) is found by order once it is gone. Not signed: it says nothing the
-    /// order did not.
+    /// someone read up to) is found by order once it is gone. Not signed: a forged one, from
+    /// anyone who may write the chat, only miscounts what is unread.
     pub after: Option<ObjectId>,
 }
 
@@ -333,7 +333,8 @@ impl ChatContent {
     }
 
     /// How many messages others sent after the furthest of `reads` (where each device read up
-    /// to): every one of others' messages when nothing was read.
+    /// to) and after `me`'s own newest message, since answering is reading: every one of others'
+    /// messages when nothing was read and `me` sent none.
     pub fn unread(&self, reads: impl IntoIterator<Item = ObjectId>, me: Uuid) -> usize {
         let messages = self.messages();
         let mut from = 0;
@@ -343,9 +344,17 @@ impl ChatContent {
                 None => return 0,
             }
         }
-        messages[from..]
+        let authors: Vec<Uuid> = messages[from..]
             .iter()
-            .filter(|id| self.header.field(**id, Message::AUTHOR) != me)
+            .map(|id| self.header.field(*id, Message::AUTHOR))
+            .collect();
+        let after_mine = authors
+            .iter()
+            .rposition(|author| *author == me)
+            .map_or(0, |mine| mine + 1);
+        authors[after_mine..]
+            .iter()
+            .filter(|author| **author != me)
             .count()
     }
 
