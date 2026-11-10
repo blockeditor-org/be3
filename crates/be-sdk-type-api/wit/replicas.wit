@@ -51,9 +51,9 @@ interface replicas {
 
         /// A head landed after the one the replica opened at. The host calls it
         /// for every such head, including the remote head when the replica
-        /// opened at a local head that differs: the replica does not reconcile
-        /// on opening.
-        head-moved: async func(head: commit-id, from-this-device: bool);
+        /// opened at a local head that differs (the replica does not reconcile
+        /// on opening), and those this device publishes outside the session.
+        head-moved: async func(head: commit-id);
 
         /// The session's state changed, or the host fell behind the broadcast.
         lease: async func(session: session-state, resynchronize: bool);

@@ -923,18 +923,9 @@ impl replicas::GuestReplica for OpenReplica {
         ready(())
     }
 
-    fn head_moved(
-        &self,
-        head: CommitId,
-        from_this_device: bool,
-    ) -> impl Future<Output = ()> + 'static {
-        self.module.input(
-            self.id,
-            Input::Head(HeadEvent::Moved {
-                head,
-                from_this_device,
-            }),
-        );
+    fn head_moved(&self, head: CommitId) -> impl Future<Output = ()> + 'static {
+        self.module
+            .input(self.id, Input::Head(HeadEvent::Moved { head }));
         ready(())
     }
 

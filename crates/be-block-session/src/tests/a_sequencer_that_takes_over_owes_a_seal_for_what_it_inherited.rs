@@ -4,7 +4,7 @@ use super::*;
 fn a_sequencer_that_takes_over_owes_a_seal_for_what_it_inherited() {
     let head = write(&commits(), "base\n", 1_000, None);
     let mut follower = Follower::new(7);
-    follower.submit(b"typed while following".to_vec());
+    follower.submit(Payload::Inline(b"typed while following".to_vec()));
 
     let pending = follower.take_pending();
     let mut owner = Sequencer::continuing(Some(head), 5, 2);

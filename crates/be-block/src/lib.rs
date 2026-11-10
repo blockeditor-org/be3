@@ -249,11 +249,6 @@ pub trait LiveEdit: BlockContent {
         None
     }
 
-    fn rebase(operation: Self::Op, onto: &[Self::Op]) -> Option<Self::Op> {
-        let _ = onto;
-        Some(operation)
-    }
-
     fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
         let _ = operation;
         Some(next)
