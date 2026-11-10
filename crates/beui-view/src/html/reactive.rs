@@ -121,8 +121,12 @@ pub(crate) fn on_scroll_key(
     on_key(at, phase, handler);
 }
 
-pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(crate::types::BackGesture) + 'static) {
-    let id = beui_core_html::back::add(crate::reactive::Callback::new(handler));
+pub(crate) fn on_back(
+    enabled: Prop<bool>,
+    handler: impl Fn(crate::types::BackGesture) + 'static,
+) {
+    let at = try_current_component().map(|_| beui_core_html::tree::component_node());
+    let id = beui_core_html::back::add(at, enabled.get_untracked(), Callback::new(handler));
     create_binding(move || beui_core_html::back::set_enabled(id, enabled.get()));
     on_cleanup(move || beui_core_html::back::remove(id));
 }

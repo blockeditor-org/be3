@@ -162,6 +162,15 @@ pub fn stacked_layers() -> Vec<(NodeId, Rect)> {
     Vec::new()
 }
 
+/// The open layers bottom first, in the order they stack: what back walks down from the
+/// top (crate::back).
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn stacked() -> Vec<Rc<Layer>> {
+    let mut open = open_layers();
+    open.sort_by_key(|layer| layer.level.get().stacked(layer.policy.get()));
+    open
+}
+
 impl Drop for Layer {
     fn drop(&mut self) {
         if let Some(held) = self.inert.take() {
@@ -175,6 +184,14 @@ fn anchor_name(node: NodeId) -> String {
 }
 
 impl Layer {
+    pub fn dialog(&self) -> NodeId {
+        self.parts.dialog
+    }
+
+    pub fn policy(&self) -> LayerPolicy {
+        self.policy.get()
+    }
+
     pub fn host(&self) -> NodeId {
         self.parts.host
     }
@@ -183,7 +200,7 @@ impl Layer {
         self.wanted.get()
     }
 
-    fn blocks_all(&self) -> bool {
+    pub fn blocks_all(&self) -> bool {
         self.policy.get() == LayerPolicy::BlocksAll
     }
 
@@ -231,7 +248,7 @@ impl Layer {
         self.dismissable.set(dismissable);
     }
 
-    fn dismisses(&self) -> bool {
+    pub fn dismisses(&self) -> bool {
         self.dismissable.get() && !self.on_dismiss.is_empty()
     }
 
