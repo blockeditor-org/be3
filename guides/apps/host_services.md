@@ -94,6 +94,15 @@ Notes on particular calls:
   agent the server no longer has (`agent-not-found`) answers success. The
   host denies them unless the manifest sets `"block_agents": true`, and
   refuses to rotate or remove an agent the Agents menu lists.
+- `sign(bytes)` signs as the person and `verify(account, bytes, signature)`
+  answers a `Signer` (verified, unverified, changed or bad), both in the block
+  the editor shows, with a key the app never holds (guides/blocks/keys.md,
+  Signing what a person writes). Sign what a record means, not its encoding: a
+  type defines the bytes (be-type-chat's `signed.rs`). `verify` is
+  `unavailable` while its answer needs the server and it is out of reach.
+  `BeuiTest` answers both itself: everyone signs as `be_sdk_test::signature`
+  gives, and `set_signer(account, signer)` sets how a good signature by
+  `account` verifies (a contact's, `Verified`, unless set).
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block id: the host isolates it

@@ -263,6 +263,8 @@ pub(super) enum Command {
         agent: Uuid,
         change: AgentChange,
     },
+    /// An app's `sign` or `verify`.
+    Authorship(crate::authorship::AuthorshipCommand),
     Sync,
 }
 
@@ -357,6 +359,7 @@ impl Command {
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
             | Command::BlockAgent { .. }
+            | Command::Authorship(_)
             | Command::Sync
             | Command::Storage
             | Command::HoldClock(_) => None,
@@ -1523,6 +1526,10 @@ impl Ran<'_> {
                 contact(self.peer, self.shared, self.config, self.tasks, command).await;
                 false
             }
+            Command::Authorship(command) => {
+                crate::authorship::run(self.peer, self.tasks, command);
+                false
+            }
             Command::Storage => {
                 self.tasks.storage(self.peer, self.shared);
                 false
@@ -2046,6 +2053,7 @@ async fn apply(
         | Command::BlockAgent { .. }
         | Command::Notify { .. }
         | Command::SetNotifyMode { .. }
+        | Command::Authorship(_)
         | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {

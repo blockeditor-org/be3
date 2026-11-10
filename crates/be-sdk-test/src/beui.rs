@@ -139,6 +139,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     exited: bool,
     draft: Vec<u8>,
     requests: Vec<(Option<OpId>, Call)>,
+    signatures: crate::signatures::Signatures,
     fetches: crate::fetches::Fetches,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
@@ -285,6 +286,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             Adopted::Artifacts(artifacts) => Some((artifacts.block_id(), artifacts.source())),
             _ => None,
         };
+        let signatures = crate::signatures::Signatures::new(host.account_id());
         let wakes = Arc::new(Wakes::default());
         let woken = Arc::clone(&wakes);
         host.waker().install(move || woken.wake());
@@ -437,6 +439,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             exited: false,
             draft: data,
             requests: Vec::new(),
+            signatures,
             fetches: crate::fetches::Fetches::default(),
             wakes,
             clock: std::time::Duration::ZERO,
@@ -1014,6 +1017,12 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .any(|(open, _)| *open == W::OPEN)
     }
 
+    /// How `verify` answers a signature `account` made (`be_sdk_test::signature`); a contact's,
+    /// `Signer::Verified`, unless set. A signature it did not make is always `Signer::Bad`.
+    pub fn set_signer(&mut self, account: Uuid, signer: be_sdk_api::Signer) {
+        self.signatures.set(account, signer);
+    }
+
     pub fn answer<T, E: crate::wire::Encode<T>>(&mut self, reply: Reply<T, E>, answer: T) {
         reply.send(&mut self.connection, &answer);
         let frames = self.connection.take_outbound();
@@ -1463,7 +1472,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             continue;
                         }
                         Some(embed::Call::HostServices(call)) => {
-                            self.requests.push((Some(op), call));
+                            if let Some(call) = self.signatures.answer(call, connection) {
+                                self.requests.push((Some(op), call));
+                            }
                             continue;
                         }
                         Some(embed::Call::Network(call)) => {

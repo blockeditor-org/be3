@@ -123,6 +123,8 @@ impl crate::embed::host_services::Call {
             | Self::RemoveAgent { .. }
             | Self::TerminalHostBinary { .. }
             | Self::TerminalHostBuild { .. }
+            | Self::Sign { .. }
+            | Self::Verify { .. }
             | Self::ListData { .. }
             | Self::ReadData { .. } => {}
         }
