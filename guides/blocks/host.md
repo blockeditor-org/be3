@@ -241,13 +241,13 @@ index and search it locally.
   and hands each index one batch in a task, which applies it to the index's
   newest head and seals the commit into the outbox: it is saved offline-first,
   published by the next drain, and two devices' batches meet as a diverged
-  block that merges by parts. A root with no index gets one, made by the first
-  device that seals a commit under it (in a task) and named in the root's
-  metadata from the loop, as a define command is, so the root's open replica is
-  told its head moved here. The loop takes one block a round and asks only a
-  type whose module already runs (starting one would stall it): a stalled loop
-  holds up the opens and edits behind it. Metadata-held blocks (settings, edit
-  kinds, indexes) and detached ones are never indexed.
+  block that merges by parts. A workspace (`WORKSPACE_TYPE` at the top) with no
+  index gets one as soon as a device that may edit it sees it in the mirror:
+  made in a task, then named in the root's metadata from the loop once the
+  root's open replica has sealed its edits, as a define command is, so the
+  define never lands under a moving session. The loop takes one block a round
+  and asks only a type whose module already runs: starting one, or retrying a
+  define each round, would stall the opens and edits behind it.
 - **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches
   an owner shows and `searched` answers each (`search_revision` counts
   answers). A search runs in a task over the index of every root the account
