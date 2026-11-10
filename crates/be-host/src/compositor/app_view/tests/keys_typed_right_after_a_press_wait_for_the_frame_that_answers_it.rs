@@ -70,7 +70,11 @@ fn deck(pending: bool, frames: App, events: Vec<Forwarded>) -> Vec<Forwarded> {
 
 #[test]
 fn keys_typed_right_after_a_press_wait_for_the_frame_that_answers_it() {
-    assert_eq!(deck(false, app(3, 3), vec![press()]).len(), 1, "the press goes through");
+    assert_eq!(
+        deck(false, app(3, 3), vec![press()]).len(),
+        1,
+        "the press goes through"
+    );
     assert_eq!(
         deck(false, app(4, 3), vec![letter("T")]),
         [],
