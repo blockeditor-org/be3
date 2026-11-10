@@ -6,6 +6,8 @@ be_wasm_ops_bindgen::generate!({
 
 mod names;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 pub use crate::types::{Key, KeyChord, KeyPress, Modifiers};
 
 impl Key {
@@ -221,28 +223,46 @@ impl KeyChord {
         !self.tap && press.key == self.key && press.modifiers == self.modifiers
     }
 
-    /// How a menu or a screen reader names the chord: "Ctrl+Shift+P", "Super".
+    /// How a menu or a screen reader names the chord on this platform:
+    /// "Ctrl+Shift+P", "Super"; on Apple's systems, where Cmd is held as
+    /// `ctrl`, "Cmd+Shift+P" and "Option" for `alt`.
     pub fn label(self) -> String {
+        self.label_as(APPLE.load(Ordering::Relaxed))
+    }
+
+    fn label_as(self, apple: bool) -> String {
         let mut parts = Vec::new();
         if self.modifiers.logo {
-            parts.push("Super".to_owned());
+            parts.push(key_label(Key::Logo, apple));
         }
         if self.modifiers.ctrl {
-            parts.push("Ctrl".to_owned());
+            parts.push(key_label(Key::Ctrl, apple));
         }
         if self.modifiers.alt {
-            parts.push("Alt".to_owned());
+            parts.push(key_label(Key::Alt, apple));
         }
         if self.modifiers.shift {
-            parts.push("Shift".to_owned());
+            parts.push(key_label(Key::Shift, apple));
         }
-        parts.push(key_label(self.key));
+        parts.push(key_label(self.key, apple));
         parts.join("+")
     }
 }
 
-fn key_label(key: Key) -> String {
+/// Whether chords are named as on Apple's systems; see [`name_keys_as_apple`].
+static APPLE: AtomicBool = AtomicBool::new(cfg!(target_vendor = "apple"));
+
+/// Names chords as on Apple's systems from now on, or not. A build for
+/// Apple's systems does from the start; a platform that learns where it runs
+/// only when it starts, as a browser's does, says so here.
+pub fn name_keys_as_apple(apple: bool) {
+    APPLE.store(apple, Ordering::Relaxed);
+}
+
+fn key_label(key: Key, apple: bool) -> String {
     let symbol = match key {
+        Key::Ctrl if apple => "Cmd",
+        Key::Alt if apple => "Option",
         Key::ArrowDown => "Down",
         Key::ArrowLeft => "Left",
         Key::ArrowRight => "Right",

@@ -688,6 +688,7 @@ pub fn request_frame() {
 }
 
 async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
+    beui_web_input::keys::name_keys();
     let window = web_sys::window().ok_or("no browser window is available")?;
     let document = window
         .document()

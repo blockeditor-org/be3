@@ -28,6 +28,13 @@ pub fn apple() -> bool {
     APPLE.with(|apple| *apple)
 }
 
+/// Names chords as the system the browser runs on does (`KeyChord::label`):
+/// each web core calls it when it starts.
+#[cfg(target_arch = "wasm32")]
+pub fn name_keys() {
+    beui_types::input::name_keys_as_apple(apple());
+}
+
 #[cfg(target_arch = "wasm32")]
 pub fn modifiers(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
     Modifiers::with_meta(alt, ctrl, shift, meta, apple())
