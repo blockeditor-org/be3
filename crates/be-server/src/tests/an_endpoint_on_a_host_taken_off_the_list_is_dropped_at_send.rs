@@ -6,7 +6,7 @@ fn pushing_to(hosts: &[&str]) -> ServerConfig {
         push: push::PushConfig {
             allow_local_endpoints: true,
             fcm: None,
-            hosts: hosts.iter().map(|host| (*host).to_owned()).collect(),
+            hosts: hosts.iter().map(|host| (*host).to_owned()).collect::<Vec<_>>().into(),
         },
         ..ServerConfig::OPEN
     }

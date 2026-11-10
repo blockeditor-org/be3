@@ -188,7 +188,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
             "--push-host" => {
                 let host = arguments.next().ok_or("--push-host needs a host name")?;
-                config.push.hosts.push(host.to_ascii_lowercase());
+                config.push.hosts.to_mut().push(host.to_ascii_lowercase());
             }
             "--object-cache" => {
                 cache_bytes = arguments
@@ -203,7 +203,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
         }
     }
-    config.bucket = bucket(cache_bytes)?;
+    config.bucket = bucket(cache_bytes).map_err(|error| error.to_string())?;
 
     let build = be_lib_build_id::current()?;
     let listener = TcpListener::bind(address).await?;
