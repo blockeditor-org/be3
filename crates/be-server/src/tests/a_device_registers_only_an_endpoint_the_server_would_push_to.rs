@@ -5,7 +5,7 @@ use be_block_protocol::PushService;
 async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
     let harness = Harness::configured(ServerConfig {
         push: push::PushConfig {
-            hosts: vec!["ntfy.example.org".to_owned()],
+            hosts: vec!["ntfy.example.org".to_owned()].into(),
             ..push::PushConfig::DEFAULT
         },
         ..ServerConfig::OPEN

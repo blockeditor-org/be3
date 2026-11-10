@@ -188,21 +188,34 @@ impl ServerStore {
 
     /// Counts a failed push against an endpoint, and drops it once it has failed
     /// `push::MAX_FAILURES` times in a row over at least `push::FAILING_FOR`.
-    pub(crate) async fn endpoint_failed(&self, address: String) -> Result<(), ServerError> {
+    pub(crate) async fn endpoint_failed(
+        &self,
+        account: Uuid,
+        organization: Uuid,
+        address: String,
+    ) -> Result<(), ServerError> {
         self.with_database(move |_, database| {
             let now = milliseconds();
+            let (account, organization) = (account.to_string(), organization.to_string());
             database.execute(
                 "UPDATE push_endpoints
-                 SET failures = failures + 1, failing_since = COALESCE(failing_since, ?2)
-                 WHERE address = ?1",
-                params![address, now],
+                 SET failures = failures + 1, failing_since = COALESCE(failing_since, ?4)
+                 WHERE account_id = ?1 AND organization_id = ?2 AND address = ?3",
+                params![account, organization, address, now],
             )?;
             let since =
                 now - i64::try_from(crate::push::FAILING_FOR.as_millis()).unwrap_or(i64::MAX);
             database.execute(
                 "DELETE FROM push_endpoints
-                 WHERE address = ?1 AND failures >= ?2 AND failing_since <= ?3",
-                params![address, crate::push::MAX_FAILURES, since],
+                 WHERE account_id = ?1 AND organization_id = ?2 AND address = ?3
+                 AND failures >= ?4 AND failing_since <= ?5",
+                params![
+                    account,
+                    organization,
+                    address,
+                    crate::push::MAX_FAILURES,
+                    since
+                ],
             )?;
             Ok(())
         })
