@@ -1073,8 +1073,11 @@ impl Session<'_> {
         if self.replicas.take_kept() {
             self.tasks.0.sync(peer, shared);
         }
+        // A seal kept since the drain answered keeps its edits sending.
         for (block, refused) in self.tasks.0.take_published() {
-            self.replicas.drained(block, refused);
+            if refused || peer.pending_commits(block).is_empty() {
+                self.replicas.drained(block, refused);
+            }
         }
         let diverged = self.tasks.0.take_diverged();
         let merged = !diverged.is_empty();

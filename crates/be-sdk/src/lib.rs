@@ -80,7 +80,7 @@ pub use be_sdk_api::{
 pub use be_sdk_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,
 };
-pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
+pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, LackingEdit, ToEditor};
 pub use be_sdk_ui;
 pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
 pub use content::{LiveContent, Objects, Projected};

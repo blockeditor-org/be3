@@ -6,7 +6,7 @@ use std::{
 
 use be_block::be_block_model::{Document, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
-use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture};
+use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture, LackingEdit};
 
 use crate::EditorHost;
 use crate::state::{Callbacks, Subscription, Unready};
@@ -142,8 +142,16 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     /// The edits made on this device that the server lacks, each with whether the server
     /// refused it (`ToEditor::Lacking`): an editor shows what they made as still sending, or
     /// as not sent. Empty until the first answer to `follow_lacking`.
-    pub fn lacking(&self) -> Vec<(C::Op, bool)> {
+    pub fn lacking(&self) -> Vec<LackingEdit<C::Op>> {
         self.0.mirror.borrow().lacking()
+    }
+
+    /// Lets an edit the server refused go (`FromEditor::DismissLacking`): the editor sent it
+    /// again, or the person gave it up.
+    pub fn dismiss_lacking(&self, id: u64) {
+        self.0
+            .host
+            .send_to_replica(self.0.block, FromEditor::DismissLacking(id));
     }
 
     /// Asks the replica to follow what the server lacks (`FromEditor::FollowLacking`), and
