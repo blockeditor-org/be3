@@ -252,8 +252,7 @@ impl ModuleRunner {
             &mut self.listed,
             regions.iter().map(|region| region.id()).collect(),
         );
-        self.focused
-            .retain(|id| shown(id) || !listed.contains(id));
+        self.focused.retain(|id| shown(id) || !listed.contains(id));
         if had_keyboard && self.focused.is_empty() {
             self.runner.push(Incoming::logical(Input::Focus(false)));
         }
