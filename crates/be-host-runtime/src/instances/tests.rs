@@ -74,6 +74,7 @@ fn moved(pos: Pos2) -> beui::Forwarded {
             predicted: None,
             time: std::time::Instant::now(),
             source: 0,
+            rested: false,
         },
         over: None,
     }

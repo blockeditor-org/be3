@@ -42,6 +42,7 @@ fn pointer(pointer: PointerId, phase: PointerPhase, pos: Pos2) -> PointerEvent {
         predicted: None,
         time: crate::timer::now(),
         source: 0,
+        rested: false,
     }
 }
 

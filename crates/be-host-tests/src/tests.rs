@@ -182,6 +182,19 @@ fn open_beui_demo(host: &mut HostTest) {
     host.run(&["settle"]);
 }
 
+/// Creates the organization `name` from the organizations screen and waits for its files. The
+/// screen loads the account's organizations as it opens, and Create stays disabled until they
+/// have come.
+fn create_organization(host: &mut HostTest, name: &str) {
+    host.click("#file-tree.host-menu");
+    host.click("#host.menu.switch-organization");
+    host.click("TextInput \"Organization name\"");
+    host.type_text(name);
+    host.gone("Button \"Create\" disabled");
+    host.click("Button \"Create\"");
+    host.wait("#file-tree.host-menu");
+}
+
 fn open_add_to_my_files(host: &mut HostTest) {
     host.click(NEW);
     host.click(NEW_IN_MY_FILES);

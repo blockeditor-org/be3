@@ -275,6 +275,10 @@ interface types {
         paste-piece(clip-item),
         ime(ime-event),
         pointer-moved(pos2),
+        /// The pointer at this point without having moved: what is under it moved or
+        /// appeared, as when a view opens beneath a still pointer. It hovers what is there as
+        /// `pointer-moved` does, but does not count as pointing at it.
+        pointer-rested(pos2),
         pointer-left,
         pointers-cancelled,
         /// Motion of a locked pointer, unaccelerated, in pixels.

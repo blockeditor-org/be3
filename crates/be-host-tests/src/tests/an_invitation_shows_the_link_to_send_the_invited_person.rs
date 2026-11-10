@@ -3,13 +3,9 @@ use super::*;
 #[test]
 fn an_invitation_shows_the_link_to_send_the_invited_person() {
     let mut host = HostTest::start();
+    create_organization(&mut host, "Team");
     host.click("#file-tree.host-menu");
-    host.click("#host.menu.switch-organization");
-    host.click("TextInput \"Organization name\"");
-    host.type_text("Team");
-    host.click("Button \"Create\"");
-    host.wait("#file-tree.host-menu");
-    host.click("#file-tree.host-menu");
+    host.wait("MenuItem \"All changes saved\"");
     host.click("#host.menu.invite");
     host.wait("Dialog \"Invite member\"");
     host.click("#host.invite.email");

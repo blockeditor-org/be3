@@ -38,6 +38,18 @@ impl Members {
 
     pub(crate) fn show(&mut self) {
         self.open = true;
+        self.list();
+    }
+
+    /// Asks again once be-host reaches the server: the list asked for before it did, as right
+    /// after switching organization, was refused or dropped.
+    pub(crate) fn reconnected(&mut self) {
+        if self.open {
+            self.list();
+        }
+    }
+
+    fn list(&mut self) {
         self.error = None;
         self.busy = true;
         be_host_stack::list_members(self.answer());

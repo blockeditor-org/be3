@@ -1844,6 +1844,7 @@ impl HostCore {
         let connected = be_host_stack::status().connected;
         if connected && !self.be_connected {
             self.retry_organizations();
+            self.members.reconnected();
         }
         self.be_connected = connected;
     }

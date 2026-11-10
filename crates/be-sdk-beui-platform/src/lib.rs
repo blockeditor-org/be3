@@ -319,6 +319,17 @@ impl ModuleRunner {
         );
     }
 
+    /// The window `region` shows. A window the app asked the host to float has its region
+    /// before the next frame matches the two (`float`), and input can reach that region first.
+    fn window_of(&self, region: ViewRef) -> Option<WindowId> {
+        self.windows.get(&region).copied().or_else(|| {
+            self.floated
+                .iter()
+                .find(|(_, floated)| floated.region == region)
+                .map(|(window, _)| *window)
+        })
+    }
+
     fn region_of(&self, window: WindowId) -> Option<ViewRef> {
         self.windows
             .iter()
@@ -784,7 +795,7 @@ impl Regions for ModuleRunner {
         over: Option<ViewRef>,
     ) {
         let id = region.id();
-        let window = self.windows.get(&id).copied();
+        let window = self.window_of(id);
         if let Input::Focus(focused) = event.input {
             if let Some(window) = window {
                 self.runner
@@ -814,7 +825,7 @@ impl Regions for ModuleRunner {
                 }
                 None => {
                     let incoming = input::translate(event);
-                    let window = self.windows.get(&target).copied().or(window);
+                    let window = self.window_of(target).or(window);
                     self.runner.push(match window {
                         Some(window) => incoming.in_window(window),
                         None => incoming,
