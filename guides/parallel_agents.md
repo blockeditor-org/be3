@@ -19,6 +19,11 @@ the headless be-host.
   made one skip it. Tell it to load the tool first (`ToolSearch` with `select:mcp__claude-code-remote__send_message`)
   and to send the whole verdict as its last step. If a report never arrives, read the child's final
   reply with `list_events` (`kinds: ["result"]`) instead of waiting.
+- A child that starts a background `./scripts/verify` ends its turn to wait, so `list_sessions` shows it
+  `IDLE` with a result like "Verify is running in the background". It is still working (its
+  `status_bucket` stays `WORKING`) and wakes when the command exits. Tell if it is done by the bucket
+  (`COMPLETED`) or its latest `result`, not by `IDLE`. Ask each child to `send_message` the coordinator
+  its final report only when it is truly finished, and never a progress note.
 - One session and one distinct branch (`<prefix>/<task>`) per task. A child pushes only its
   branch and opens no pull request.
 - Tell running children with `send_message` when something lands that they build on or must
