@@ -14,7 +14,7 @@ What it does, every tick:
     WireGuard handshake with the scheduler, and deletes the rest. Every VM created is a start, which boat limits and
     charges for past the plan's included number, so it works within an allowance (see start_allowance).
   * With no build running it creates nothing: workers run out their own 30-minute lifetime and stop.
-  * After SCHEDULER_IDLE_STOP seconds with no build and no worker it stops the scheduler itself.
+  * After SCHEDULER_IDLE_STOP seconds with no build and no worker it packs the small tier and stops the scheduler itself.
 
 Its only boat credential is a key limited to the nl-worker environment that can create, read, extend and delete the
 workers it created (boat api-key, actions sandbox.create, sandbox.read, sandbox.update, sandbox.delete-own).
@@ -38,7 +38,9 @@ CAP = int(os.environ.get("NL_WORKERS_CAP", "6"))             # the most it will 
 UP_AFTER = int(os.environ.get("NL_UP_AFTER", "60"))          # seconds work must have waited before adding a worker
 UP_EVERY = int(os.environ.get("NL_UP_EVERY", "60"))          # seconds at least between adding workers
 DOWN_AFTER = int(os.environ.get("NL_DOWN_AFTER", "300"))     # seconds with spare workers before they are let go
-BURST_TTL = int(os.environ.get("NL_BURST_TTL", "600"))       # a burst worker lives this long, and is extended while wanted
+BURST_TTL = int(os.environ.get("NL_BURST_TTL", "1800"))      # a burst worker lives this long, and is extended while wanted;
+                                                             # 10 minutes let bursts lapse between a build's phases and made
+                                                             # them again, a start each time
 # large: boat prices every size the same per CPU, so fewer, bigger workers cost the same and use fewer starts (each
 # VM created is one, whether or not it reaches the scheduler). max_inflight_tasks in worker-direct.json5 matches it.
 WORKER_TYPE = os.environ.get("NL_WORKER_TYPE", "large")
@@ -408,6 +410,11 @@ def tick(state, force_active):
     elif not workers and now - state["last_active"] > SCHEDULER_IDLE_STOP:
         log("idle past the limit with no workers: stopping the scheduler")
         if not DRY:
+            # Boat's snapshot keeps no /tmp, so the small tier lives on only as its pack: pack it first, or what was
+            # uploaded since the last pack is gone, though clients may still take the server to hold it.
+            code, _, err = run(["systemctl", "start", "nl-small-pack.service"], timeout=900)
+            if code != 0:
+                log(f"  packing the small tier failed, stopping anyway: {err.strip()}")
             run(["boat", "stop", "self"], env={"HOME": "/home/user"})
 
 

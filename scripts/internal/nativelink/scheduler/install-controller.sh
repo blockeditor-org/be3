@@ -9,7 +9,7 @@ key=/home/user/nl-controller.key
 chmod 600 "$key"
 install -m0755 nl-controller.py /usr/local/bin/nl-controller.py
 install -d /opt/nl/worker
-install -m0644 ../worker/worker-direct.json5 ../worker/nativelink-worker-sch.service ../worker/nl-load.py ../worker/nl-load.service /opt/nl/worker/
+install -m0644 ../worker/worker-direct.json5 ../worker/nativelink-worker-sch.service /opt/nl/worker/
 install -m0755 ../worker/worker-bootstrap.sh /opt/nl/worker/
 install -d -m700 /var/lib/nl-controller/sk-home
 tr -d '\n' < "$key" | env HOME=/var/lib/nl-controller/sk-home BOAT_NO_UPDATE=1 boat login --key-stdin > /dev/null

@@ -1,7 +1,9 @@
 [Unit]
 Description=NativeLink cache and remote execution scheduler (be3)
 After=network-online.target wg-quick@wg-sch.service nl-otelcol.service
-Wants=wg-quick@wg-sch.service nl-otelcol.service
+# The pack timer is started with NativeLink rather than only enabled: boat's restore after a stop re-enables services
+# but not timers, and without the pack the small tier goes back to an old one at every stop.
+Wants=wg-quick@wg-sch.service nl-otelcol.service nl-small-pack.timer
 StartLimitIntervalSec=0
 
 [Service]

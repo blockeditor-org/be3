@@ -54,5 +54,5 @@ install -m0640 -g nativelink server.json5 /etc/nativelink/server.json5
 install -m0644 nativelink-server.service nl-small-pack.service nl-small-pack.timer nl-caddy.service nl-otelcol.service /etc/systemd/system/
 systemctl daemon-reload; systemctl enable --now nl-otelcol nativelink-server nl-caddy nl-small-pack.timer
 sleep 6; systemctl is-active nativelink-server nl-caddy
-# By hand, by someone allowed to expose a port: `host 8099 --localhost --public`, then `host url 8099` prints the address
+# By hand, by someone allowed to expose a port: `host 8099 --localhost --public`, then `host url 8099 --localhost --public` prints the address
 # that clients keep, with ?_token= and the token, as BE3_NL_URL (guides/build_server.md, "Starting over").

@@ -47,16 +47,20 @@ pub fn configure(buck2: &Path) -> Result<()> {
     let server = server()?;
     let (engine, storage, header);
     let (mut engine_address, mut storage_address, mut tls);
+    let mut epoch = String::new();
     if server == "nativelink" {
-        // Always through the relay, sending HTTP/1.1, which is all boat's edge carries gRPC as.
-        let token;
-        (engine, token) = crate::nativelink::connect()?;
+        // Always through the relay, sending HTTP/1.1, which is all boat's edge carries gRPC as. A new epoch (the
+        // scheduler started again and may have lost blobs) restarts the relay, and buck2's daemon below, since the
+        // config it is written into changes: both remember which blobs the server holds (crate::nativelink).
+        let connection = crate::nativelink::connect()?;
+        engine = connection.host;
+        epoch = connection.epoch;
         storage = engine.clone();
-        (engine_address, storage_address) = relay::ensure(&engine, &storage, true)?;
-        header = if token.is_empty() {
+        (engine_address, storage_address) = relay::ensure_epoch(&engine, &storage, true, &epoch)?;
+        header = if connection.token.is_empty() {
             String::new()
         } else {
-            format!("Authorization:Bearer {token}")
+            format!("Authorization:Bearer {}", connection.token)
         };
         tls = false;
         proxy = None;
@@ -111,6 +115,9 @@ pub fn configure(buck2: &Path) -> Result<()> {
     let _ = writeln!(config, "{MARKER}");
     let _ = writeln!(config, "# The executor: {engine}");
     let _ = writeln!(config, "# The storage: {storage}");
+    if !epoch.is_empty() {
+        let _ = writeln!(config, "# The server's epoch: {epoch}");
+    }
     let _ = writeln!(config, "[buck2_re_client]");
     let _ = writeln!(config, "action_cache_address = {storage_address}");
     let _ = writeln!(config, "cas_address = {storage_address}");
@@ -552,6 +559,17 @@ pub mod relay {
     /// Starts, or finds running, a relay to each of `engine` and `storage` and returns their local addresses. `http1`
     /// sends every call as HTTP/1.1 (re-relay's `-http1`).
     pub fn ensure(engine: &str, storage: &str, http1: bool) -> Result<(String, String)> {
+        ensure_epoch(engine, storage, http1, "")
+    }
+
+    /// As `ensure`, replacing a relay that was started for another `epoch` of the server, which forgets what that
+    /// relay took the server to hold.
+    pub fn ensure_epoch(
+        engine: &str,
+        storage: &str,
+        http1: bool,
+        epoch: &str,
+    ) -> Result<(String, String)> {
         let (relay, version) = build()?;
         let path = repository().to_string_lossy().into_owned();
         let port = 20000 + cksum(path.as_bytes()) % 2000 * 2;
@@ -569,7 +587,7 @@ pub mod relay {
                     if http1 { "-http1=true" } else { "-http1=false" },
                     "-version",
                 ])
-                .arg(format!("{version}-{upstream}-{http1}"))
+                .arg(format!("{version}-{upstream}-{http1}-{epoch}"))
                 .arg("-log")
                 .arg(&log)
                 .status()

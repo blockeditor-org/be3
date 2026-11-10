@@ -23,7 +23,7 @@ boat ssh "$id" 'sudo bash /tmp/nl/scheduler/setup-scheduler.sh'
 boat ssh "$id" 'sudo bash /tmp/nl/scheduler/install-controller.sh'
 cat <<NEXT
 Done. Left to do by hand:
-  1. Expose the tunnel:   boat ssh $id 'host 8099 --localhost --public; host url 8099'
+  1. Expose the tunnel:   boat ssh $id 'host 8099 --localhost --public; host url 8099 --localhost --public'
      and store that address with ?_token=NL_TUNNEL_TOKEN (from nl-tunnel.env) as the secret BE3_NL_URL.
   2. If the scheduler's address changed, check BE3_NL_KEY still names it (its prefix is nl-sched).
 NEXT

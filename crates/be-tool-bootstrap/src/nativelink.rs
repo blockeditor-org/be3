@@ -7,6 +7,11 @@
 //! `Authorization: Bearer`. Without a token no header is sent, for a proxy that adds it (a cloud session's).
 //! `BE3_NL_KEY` is a boat key (limited to the `nl-scheduler` environment, actions `sandbox.read` and
 //! `sandbox.resume`) that wakes the scheduler when boat has stopped it. A running scheduler needs only the address.
+//!
+//! The scheduler's small objects live in /tmp and survive a stop only as their last pack, so a scheduler that boat
+//! stopped and resumed may have lost blobs that buck2's daemon and the relay both remember it holding, and they would
+//! never upload them again (`action input missing from CAS`). Caddy serves an epoch at `/nl-epoch` that changes at
+//! every NativeLink start; it goes into the relay's version and the generated buckconfig, so a new one restarts both.
 
 use std::io::Write as _;
 use std::process::{Command, Stdio};
@@ -42,8 +47,17 @@ pub fn key() -> Saved<'static> {
     }
 }
 
-/// The scheduler's host and its token (empty when a proxy adds it), once it answers; wakes it if boat stopped it.
-pub fn connect() -> Result<(String, String)> {
+/// Where the scheduler is and which start of it answered.
+pub struct Connection {
+    pub host: String,
+    /// Empty when a proxy adds it.
+    pub token: String,
+    /// Empty from a scheduler that serves none.
+    pub epoch: String,
+}
+
+/// The scheduler, once it answers; wakes it if boat stopped it.
+pub fn connect() -> Result<Connection> {
     let saved = address();
     let why = "buck2 builds on the NativeLink build server, and needs its address (guides/build_server.md).";
     let Some(url) = saved.stored().or_else(|| saved.ask(why)) else {
@@ -54,8 +68,8 @@ pub fn connect() -> Result<(String, String)> {
     };
     let (host, token) = parse_address(&url)?;
     let first = match probe(&host, &token)? {
-        None => return Ok((host, token)),
-        Some(error) => error,
+        Ok(epoch) => return Ok(Connection { host, token, epoch }),
+        Err(error) => error,
     };
     // Not answering: boat may have stopped the scheduler. Wake it if there is a key to.
     let key = key();
@@ -72,8 +86,8 @@ pub fn connect() -> Result<(String, String)> {
     let mut last = first;
     while Instant::now() < deadline {
         match probe(&host, &token)? {
-            None => return Ok((host, token)),
-            Some(error) => last = error,
+            Ok(epoch) => return Ok(Connection { host, token, epoch }),
+            Err(error) => last = error,
         }
         std::thread::sleep(Duration::from_secs(4));
     }
@@ -84,13 +98,13 @@ pub fn connect() -> Result<(String, String)> {
     ))
 }
 
-/// One request to the scheduler's front: `None` when it answers, the reason when it does not. A refused token is an
-/// error at once, since waking cannot help. The token goes to curl on stdin, never on its command line.
-fn probe(host: &str, token: &str) -> Result<Option<String>> {
+/// One request to the scheduler's front, for its epoch: the epoch when it answers, the reason when it does not. A
+/// refused token is an error at once, since waking cannot help. The token goes to curl on stdin, never on its command
+/// line.
+fn probe(host: &str, token: &str) -> Result<std::result::Result<String, String>> {
     let mut config = format!(
-        "url = \"https://{host}/\"\nsilent\nshow-error\nmax-time = 30\noutput = \"{}\"\n\
-         write-out = \"%{{http_code}}\"\n",
-        if cfg!(windows) { "NUL" } else { "/dev/null" }
+        "url = \"https://{host}/nl-epoch\"\nsilent\nshow-error\nmax-time = 30\n\
+         write-out = \"\\n%{{http_code}}\"\n"
     );
     if !token.is_empty() {
         config.push_str(&format!(
@@ -109,10 +123,9 @@ fn probe(host: &str, token: &str) -> Result<Option<String>> {
         let _ = stdin.write_all(config.as_bytes());
     }
     let output = child.wait_with_output().map_err(curl_error)?;
-    let status: u16 = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse()
-        .unwrap_or(0);
+    let text = String::from_utf8_lossy(&output.stdout);
+    let (body, code) = text.rsplit_once('\n').unwrap_or(("", &text));
+    let status: u16 = code.trim().parse().unwrap_or(0);
     Ok(match status {
         401 => {
             return Err(format!(
@@ -120,10 +133,23 @@ fn probe(host: &str, token: &str) -> Result<Option<String>> {
                  NL_TUNNEL_TOKEN, or, in a cloud session, the proxy's network secret for {host} (guides/build_server.md)."
             ));
         }
-        200..=499 => None,
-        0 => Some(String::from_utf8_lossy(&output.stderr).trim().to_owned()),
-        _ => Some(format!("{host} answered {status}")),
+        200..=499 => Ok(parse_epoch(status, body)),
+        0 => Err(String::from_utf8_lossy(&output.stderr).trim().to_owned()),
+        _ => Err(format!("{host} answered {status}")),
     })
+}
+
+/// The epoch in `/nl-epoch`'s answer, or empty from a scheduler that serves none (its NativeLink answers that path).
+pub fn parse_epoch(status: u16, body: &str) -> String {
+    let epoch = body.trim();
+    let valid = status == 200
+        && (1..=64).contains(&epoch.len())
+        && epoch.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if valid {
+        epoch.to_owned()
+    } else {
+        String::new()
+    }
 }
 
 /// The scheduler's host and Caddy's token, from `BE3_NL_URL` (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).
