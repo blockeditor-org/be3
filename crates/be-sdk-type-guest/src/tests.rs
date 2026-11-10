@@ -64,6 +64,8 @@ mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
+mod a_followers_put_that_failed_is_tried_again;
+mod an_owner_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_owner;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod child_changes_become_edits_of_the_parent;
@@ -388,6 +390,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_relay: usize,
     part_reads: usize,
     parts_put: usize,
+    fail_puts: usize,
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
@@ -442,6 +445,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             largest_relay: 0,
             part_reads: 0,
             parts_put: 0,
+            fail_puts: 0,
             largest_written: 0,
             written: 0,
             journal: None,
@@ -934,8 +938,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
+            call @ Call::PutPart { .. } if self.stalled => self.held.push((device, call)),
             Call::PutPart { reply, bytes } => {
                 self.parts_put += 1;
+                if self.fail_puts > 0 {
+                    self.fail_puts -= 1;
+                    let result: Result<be_sdk_type_api::PartRef, String> =
+                        Err("the server is unreachable".to_owned());
+                    return self.to(device, |host| reply.send(host, &result));
+                }
                 let result = self
                     .vault
                     .write(SEALING, Uuid::nil(), be_block::Part::from(bytes.as_slice()))
