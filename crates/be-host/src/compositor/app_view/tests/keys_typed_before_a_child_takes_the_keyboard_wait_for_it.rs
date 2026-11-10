@@ -1,12 +1,17 @@
-use beui::{Event, Forwarded, ForwardedInput, KeyPress, Modifiers, NodeId};
+use beui::{Event, Forwarded, ForwardedInput, KeyPress, Modifiers};
 
-use super::super::held_keys::{self, App};
-use be_sdk_api::EditorInstanceId;
+use super::super::held_keys::{self, App, View};
+use be_sdk_api::{EditorInstanceId, ViewId};
 
 const DECK: (&str, EditorInstanceId) = ("be3.presentation", EditorInstanceId(6));
 const TEXT: (&str, EditorInstanceId) = ("be3.text", EditorInstanceId(10));
-const DECK_VIEW: NodeId = NodeId::new(90, 1);
-const NOTES_VIEW: NodeId = NodeId::new(120, 1);
+fn deck_view() -> View {
+    (DECK.0.to_owned(), DECK.1, ViewId::MAIN)
+}
+
+fn notes_view() -> View {
+    (TEXT.0.to_owned(), TEXT.1, ViewId::MAIN)
+}
 const SETTLED: App = App {
     frames: (4, 4),
     content: true,
@@ -39,13 +44,13 @@ fn letter(text: &str) -> Forwarded {
 
 fn deck(pending: bool, focused: bool, events: Vec<Forwarded>) -> (Vec<Forwarded>, bool) {
     let mut input = input(focused, events);
-    let routed = held_keys::route(DECK, Some(DECK_VIEW), pending, SETTLED, &mut input);
+    let routed = held_keys::route(&deck_view(), pending, SETTLED, &mut input);
     (input.events, routed.refuse)
 }
 
 fn notes(app: App, events: Vec<Forwarded>) -> Vec<Forwarded> {
     let mut input = input(true, events);
-    held_keys::route(TEXT, Some(NOTES_VIEW), false, app, &mut input);
+    held_keys::route(&notes_view(), false, app, &mut input);
     input.events
 }
 
@@ -58,7 +63,7 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
     );
     assert_eq!(deck(true, true, vec![letter("h")]).0, []);
 
-    held_keys::given(DECK, NOTES_VIEW, false);
+    held_keys::given(DECK, notes_view(), false);
     let loading = App {
         frames: (7, 6),
         content: false,
@@ -75,7 +80,7 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
         typing: false,
     };
     assert_eq!(
-        held_keys::owed_now(TEXT, NOTES_VIEW, false, loaded, true),
+        held_keys::owed_now(&notes_view(), false, loaded, true),
         None,
         "having the content and the focus is not enough: the field has yet to take the keyboard"
     );
@@ -85,7 +90,7 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
         typing: true,
     };
     assert_eq!(
-        held_keys::owed_now(TEXT, NOTES_VIEW, false, drawn, true),
+        held_keys::owed_now(&notes_view(), false, drawn, true),
         Some(Modifiers::NONE)
     );
     assert_eq!(
@@ -95,7 +100,7 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
     );
     assert_eq!(notes(drawn, vec![letter("n")]), [letter("n")]);
 
-    held_keys::given(DECK, NOTES_VIEW, true);
+    held_keys::given(DECK, notes_view(), true);
     assert_eq!(
         notes(drawn, vec![letter("o")]),
         [letter("o")],
@@ -109,9 +114,9 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
     );
 
     assert_eq!(deck(true, true, vec![letter("y")]).0, []);
-    held_keys::refused(DECK, |owner| owner == DECK_VIEW);
+    held_keys::refused(DECK, |owner| *owner == deck_view());
     assert_eq!(
-        held_keys::owed_now(DECK, DECK_VIEW, false, SETTLED, true),
+        held_keys::owed_now(&deck_view(), false, SETTLED, true),
         Some(Modifiers::NONE)
     );
     assert_eq!(
@@ -132,7 +137,7 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
     assert_eq!(deck(true, true, vec![letter("w")]).0, []);
     held_keys::refused(DECK, |_| false);
     assert_eq!(
-        held_keys::owed_now(DECK, DECK_VIEW, false, SETTLED, false),
+        held_keys::owed_now(&deck_view(), false, SETTLED, false),
         None,
         "keys given back to a deck that lost the keyboard are dropped"
     );
@@ -144,7 +149,7 @@ fn keys_typed_before_a_child_takes_the_keyboard_wait_for_it() {
 
     assert_eq!(deck(true, true, vec![letter("v")]).0, []);
     assert_eq!(
-        held_keys::owed_now(DECK, DECK_VIEW, false, SETTLED, true),
+        held_keys::owed_now(&deck_view(), false, SETTLED, true),
         Some(Modifiers::NONE),
         "a gift that ends because the child went gives the keys back"
     );

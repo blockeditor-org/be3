@@ -1,7 +1,7 @@
 use be_sdk_api::DropAction;
 use std::{
     cell::{Cell, RefCell},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     rc::Rc,
     sync::Arc,
 };
@@ -689,7 +689,7 @@ pub(crate) fn AppView(
     focus_when_asked(revision, app_id, instance, region, &catcher, primary);
     focus_when_given(
         asked,
-        (app_id, instance),
+        (app_id, instance, region.id),
         state,
         revision,
         &catcher,
@@ -721,12 +721,32 @@ pub(crate) fn AppView(
             });
         }
     });
+    let shown_view: held_keys::View = (app_id.value().to_string(), instance, region.id);
+    let rebuilt = shown_view.clone();
+    create_effect(move || {
+        if let Some(node) = catcher.try_get() {
+            untrack(|| {
+                try_with_document(|document| {
+                    if refocus_rebuilt(&rebuilt, document.focused_node().is_none()) {
+                        document.focus_focusable(node);
+                    }
+                })
+            });
+        }
+    });
+    let gone = shown_view.clone();
     on_cleanup(move || {
         if let Some(node) = catcher.try_get() {
-            held_keys::forget(node);
+            let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
+            if !placed {
+                held_keys::forget(&gone);
+            }
             super::desktop::forget_catcher(node);
             try_with_document(|document| {
                 if document.focused_node() == Some(node) {
+                    if placed {
+                        keep_focus_for_rebuild(&gone);
+                    }
                     document.blur();
                 }
             });
@@ -782,14 +802,14 @@ pub(crate) fn AppView(
     let steering = StoredCell::new(Steering::IDLE);
     let handing = StoredCell::new(handoff::Handoff::default());
     let pointed = StoredCell::new((false, None::<Pos2>));
+    let routed_view = store(shown_view.clone());
     let forward = move |mut input: ForwardedInput| {
+        let routed_view = routed_view.value();
         pointed.set((input.hovered, input.pointer));
         let app = app_id.value();
         let pending = be_host_runtime::child_focus_pending(&app, instance);
-        let own = catcher.try_get();
         let routed = held_keys::route(
-            (&app, instance),
-            own,
+            &routed_view,
             pending,
             held_keys_app(&app, instance, state),
             &mut input,
@@ -840,6 +860,7 @@ pub(crate) fn AppView(
     };
     let forward = Callback::new(forward);
     let typing = create_memo(move || state.with(|view| view.ime.is_some()));
+    let settled_view = store(shown_view.clone());
     create_effect(move || {
         revision.get();
         typing.get();
@@ -852,7 +873,7 @@ pub(crate) fn AppView(
             let focused =
                 try_with_document(|document| document.focus_is_within(node)).unwrap_or(false);
             let ready = held_keys_app(&app, instance, state);
-            let owed = held_keys::owed_now((&app, instance), node, pending, ready, focused);
+            let owed = held_keys::owed_now(&settled_view.value(), pending, ready, focused);
             if let Some(modifiers) = owed {
                 let (hovered, pointer) = pointed.get();
                 forward.call(ForwardedInput {
@@ -1603,7 +1624,7 @@ fn focus_when_asked(
 
 fn focus_when_given(
     asked: Option<AskedFocus>,
-    (app, own): (Stored<String>, EditorInstanceId),
+    (app, own, region): (Stored<String>, EditorInstanceId, ViewId),
     state: Memo<PlacedView>,
     revision: beui::reactive::ReadSignal<u64>,
     catcher: &NodeRef,
@@ -1653,8 +1674,9 @@ fn focus_when_given(
                         view == node || (catcher.instance == own && catcher.app == *app.value())
                     })
                 });
+                let child = (app.value().to_string(), own, region);
                 if document.focus_is_within(node) {
-                    held_keys::given(editor, node, true);
+                    held_keys::given(editor, child, true);
                     return;
                 }
                 if inside {
@@ -1671,10 +1693,10 @@ fn focus_when_given(
                 });
                 if placer_holds {
                     document.focus_focusable(node);
-                    held_keys::given(editor, node, false);
+                    held_keys::given(editor, child, false);
                     passing.set(true);
                 } else {
-                    held_keys::refused(editor, |owner| document.focus_is_within(owner));
+                    held_keys::refused(editor, |_| false);
                 }
             });
         });
@@ -1734,6 +1756,24 @@ fn toggle_keyboard_when_asked(state: Memo<PlacedView>, primary: Memo<bool>) {
             untrack(toggle_keyboard);
         }
     });
+}
+
+thread_local! {
+    /// Views whose catcher had the keyboard when it was taken down while the view stayed placed:
+    /// the catcher built for the view in its place takes the keyboard back, so moving a view (a
+    /// child placed in a new pane) does not drop it.
+    static REBUILT: RefCell<HashSet<held_keys::View>> = RefCell::new(HashSet::new());
+}
+
+fn keep_focus_for_rebuild(view: &held_keys::View) {
+    REBUILT.with_borrow_mut(|rebuilt| rebuilt.insert(view.clone()));
+}
+
+/// Whether a catcher just built for `view` takes the keyboard its last one had: only while
+/// nothing else has taken it since, so a view rebuilt after the person moved on does not take
+/// the keyboard back from where they put it.
+fn refocus_rebuilt(view: &held_keys::View, nothing_focused: bool) -> bool {
+    REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(view)) && nothing_focused
 }
 
 thread_local! {
