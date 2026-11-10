@@ -25,6 +25,7 @@ mod effect;
 mod entropy;
 mod file;
 mod record;
+mod lacking;
 mod replica;
 pub mod wire;
 
@@ -316,6 +317,10 @@ struct State {
     waiting: BTreeMap<RequestId, (ReplicaId, Sender<Answer>)>,
     closing: BTreeMap<ReplicaId, Sender<()>>,
     requests: RequestId,
+    /// Each replica's block, and what the server lacked of the edits made in a block whose
+    /// replica ended, for the next one to carry on with (`ToEditor::Lacking`).
+    blocks: BTreeMap<ReplicaId, Uuid>,
+    carried: BTreeMap<Uuid, Vec<lacking::Entry>>,
 }
 
 struct Shared {
@@ -348,6 +353,8 @@ impl Module {
                     waiting: BTreeMap::new(),
                     closing: BTreeMap::new(),
                     requests: 0,
+                    blocks: BTreeMap::new(),
+                    carried: BTreeMap::new(),
                 }),
                 started: Cell::new(false),
             }),
@@ -406,6 +413,7 @@ impl Module {
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
                 lost_edits: opening.lost_edits,
+                journal_kept: opening.journal_kept,
                 from_file: kind.from_file,
                 now,
             })
@@ -423,6 +431,15 @@ impl Module {
         }
         match opened {
             Some(mut opened) => {
+                let carried = match state.replicas.get_mut(&replica) {
+                    Some(before) => before.carry(),
+                    None => lacking::Carried {
+                        entries: state.carried.remove(&opening.block).unwrap_or_default(),
+                        ..lacking::Carried::default()
+                    },
+                };
+                opened.adopt(carried);
+                state.blocks.insert(replica, opening.block);
                 opened.start(&mut out);
                 state.replicas.insert(replica, opened);
             }
@@ -532,7 +549,25 @@ impl Module {
             self.effect(effect);
         }
         let mut state = self.shared.state.borrow_mut();
-        state.replicas.retain(|_, replica| !replica.released());
+        let state = &mut *state;
+        let released: Vec<ReplicaId> = state
+            .replicas
+            .iter()
+            .filter(|(_, replica)| replica.released())
+            .map(|(id, _)| *id)
+            .collect();
+        for id in released {
+            let carried = state
+                .replicas
+                .remove(&id)
+                .map(|mut replica| replica.carry().entries)
+                .unwrap_or_default();
+            if let Some(block) = state.blocks.remove(&id)
+                && !carried.is_empty()
+            {
+                state.carried.insert(block, carried);
+            }
+        }
         let wake = state
             .replicas
             .values()
@@ -560,7 +595,16 @@ impl Module {
                     ops::with_parent(replica, || host::publish(expected, merging, content));
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {
-                        Ok(PublishOutcome::Published(head)) => HeadEvent::Published { token, head },
+                        Ok(PublishOutcome::Published(head)) => HeadEvent::Published {
+                            token,
+                            head,
+                            held: true,
+                        },
+                        Ok(PublishOutcome::Kept(head)) => HeadEvent::Published {
+                            token,
+                            head,
+                            held: false,
+                        },
                         Ok(PublishOutcome::Rejected(head)) => HeadEvent::Rejected { token, head },
                         Err(error) => HeadEvent::Failed { token, error },
                     })
@@ -646,7 +690,20 @@ impl Module {
                 generation,
                 entries,
                 relay,
-            } => ops::with_parent(replica, || host::append(generation, entries, relay)).detach(),
+            } => {
+                let sequences = entries.iter().map(|entry| entry.sequence);
+                let (from, through) = (
+                    sequences.clone().min().unwrap_or_default(),
+                    sequences.max().unwrap_or_default(),
+                );
+                let pending =
+                    ops::with_parent(replica, || host::append(generation, entries, relay));
+                self.answer_later(replica, pending, move |held| Input::Appended {
+                    from,
+                    through,
+                    held: held == Ok(true),
+                });
+            }
             Effect::Rebase {
                 replica,
                 generation,
@@ -915,6 +972,11 @@ impl replicas::GuestReplica for OpenReplica {
     fn attach(&self, editor: EditorId, editable: bool) -> impl Future<Output = ()> + 'static {
         self.module
             .input(self.id, Input::Attach { editor, editable });
+        ready(())
+    }
+
+    fn drained(&self, refused: bool) -> impl Future<Output = ()> + 'static {
+        self.module.input(self.id, Input::Drained { refused });
         ready(())
     }
 
