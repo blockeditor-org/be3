@@ -108,6 +108,10 @@ port 50052.
   - 8 such builds at once from 3 VMs, each a different one-file change so that nothing is shared: all passed, in 860-888 s
     each, about half the time of running them one after another (8 x 190-230 s). The workers went from 4 to 6 to 9 on
     CPU (average 45-72% busy), and the burst and its client VMs used 10 starts.
+  - The same 8 builds (`bench/run-timings.sh 3 8`) on a large scheduler, with the workers writing to Bunny directly, 6
+    large workers (the cap) at 16 actions each: all passed, in 918-1030 s. The scheduler stayed 85-95% idle with no swap
+    (a small one had been out of CPU and swapping); 200-400 actions waited for a worker most of the time, so the
+    workers' cap is now what limits a burst.
 
 Things that are not obvious:
 
