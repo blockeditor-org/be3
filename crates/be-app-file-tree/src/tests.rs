@@ -178,8 +178,15 @@ impl Fixture {
     }
 }
 
-/// Pastes `block` on `folder` from its row menu, the host answering `moved`.
-fn paste_into_folder(fixture: &mut Fixture, folder: Uuid, block: Uuid, moved: bool) {
+/// Pastes `block` on `folder` from its row menu, the host answering `moved`
+/// and `cut_from`.
+fn paste_into_folder(
+    fixture: &mut Fixture,
+    folder: Uuid,
+    block: Uuid,
+    moved: bool,
+    cut_from: Option<Uuid>,
+) {
     fixture.choose(folder, "Paste");
     let copied = be_sdk_beui::beui::clipboard::Blocks {
         blocks: vec![be_sdk_beui::beui::clipboard::ClipBlock {
@@ -224,6 +231,7 @@ fn paste_into_folder(fixture: &mut Fixture, folder: Uuid, block: Uuid, moved: bo
             block_id: block.into_bytes(),
             block_type: PLAIN.into_bytes(),
             moved,
+            cut_from: cut_from.map(Uuid::into_bytes),
         }]),
     );
     fixture.settle();
