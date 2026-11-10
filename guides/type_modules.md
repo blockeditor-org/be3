@@ -173,12 +173,13 @@ once the upload is done. Only then does it send the operation, with that ref
 (a `be_block::PartRef`) in its own payload. The hold ends when a commit of the
 block that uses the part publishes, or once `upload_grace` passed and the
 block's journal holds no entries (an uncommitted operation may still name the
-part). Only an editor can ask today: `EditorMirror::put_part`
+part). A type's part is put by an editor: `EditorMirror::put_part`
 (`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
 the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
 replica to put a part of its own (chat's owner closing a segment with no
-editor attached), and the block must be on the server: a block made offline,
-or one whose replica has not joined yet, is refused.
+editor attached); the replica puts only an oversized operation's bytes. The
+block must be on the server: a block made offline, or one whose replica has
+not joined yet, is refused.
 
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
@@ -196,11 +197,10 @@ parts' refs from what it loaded (`from_stored`'s `Stored::root`), never from
 refs it wrote into its own bytes: after a rotation a save reseals a reused part
 under a new ref.
 
-A part that is an operation's payload rather than a part of the content (an
-oversized text edit) is not served yet: `LiveEdit::apply` is synchronous and
-nothing reads a payload by its ref before applying it, and no commit ever
-holds such a part, so its hold lasts the whole grace. Hosts: `Peer::put_part`;
-be-sdk-test's store refuses. Tests:
+An edit too large to relay is the other kind: the part is the operation's own
+bytes, not a part of the content, so the session carries it rather than the
+type (below, "Peers"). Hosts: `Peer::put_part`; be-sdk-test's store refuses.
+Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
 flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
@@ -297,13 +297,27 @@ rebase. The rules an agent most needs:
   (decisions/sessions_restart_when_their_state_outgrows_the_content.md). The
   last owner to leave rebases the journal with no state, so the next session
   starts fresh too.
-- An edit too large to relay (over 1 MiB) is never relayed: an owner
-  publishes it, and a follower stashes it and hands the owner a `Kept`. A
-  follower stays responsible for each stash until the owner answers `Saved`,
-  resending it after a takeover.
+- An operation is sent as `be_block_session::Payload`: its bytes, or for one
+  over `LARGEST_RELAYED_OPERATION` (1 MiB, a large paste) the part it was put
+  as (`Payload::Part`, put with the host's `put-part` before it is sent). Its
+  sender holds back what it edits after it until the part is put: the owner in
+  `held`, a follower in `unsent`. It is sequenced, relayed, journaled and
+  undone like any other. A replica reads the part with `read-part` before it
+  applies the operation, and holds back every peer message after it until the
+  read answers (`Job::Heard`); one opening on a journal reads the parts its
+  entries name before it replays them. An owner counts the part's bytes
+  towards `JOURNAL_BYTES`, so it commits at once, which ends what a reader
+  outside the session misses: `replay` cannot read a part, so it fails and the
+  host reads the head alone. No commit holds the part, so the server's hold on
+  it lasts the whole upload grace. An owner that cannot put the part (offline,
+  or a block the server does not have yet) commits what it shows instead.
 - A whole-content replacement (`Replace`, `FromFile`) wins outright: the
   replica stashes what it has not saved and publishes the replacement with
-  that stash as second parent, and every editor gets a new snapshot.
+  that stash as second parent, and every editor gets a new snapshot. A follower
+  that has unsaved edits when a replacement lands stashes them and hands the
+  owner a `Kept`, which the owner keeps in history; the follower stays
+  responsible for each stash until the owner answers `Saved`, resending it
+  after a takeover.
 
 ## Editors are endpoints
 

@@ -77,8 +77,7 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   is fine). Marks whose keys belong to another schema are dropped on paste;
   embeds cross in the clip's `refs`, translated like any other. Done: a
   paste between two rich texts keeps bold, links and an embed, and pasting
-  from a browser's `text/html` gives bold and links. Text editing on the
-  shared sequence is plans/text.md; land this apart from its items.
+  from a browser's `text/html` gives bold and links.
 
 ## 5. Loading part of a document
 
