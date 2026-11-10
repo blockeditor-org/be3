@@ -7,7 +7,9 @@
     {
       // Objects under 16 KB are 94% of the objects and under 1% of the bytes. They stay in
       // /tmp/nativelink/small (lost on a snapshot restore) and persist as ONE packed object in
-      // Bunny (nl-small-pack.sh); only larger objects go to Bunny one by one.
+      // Bunny (nl-small-pack.sh); only larger objects go to Bunny one by one. A small object it
+      // evicts is lost (it is in no other store) while clients may still take the server to hold
+      // it, so the limit is well above what a day of builds writes: 3 GB filled and evicted.
       name: "CAS_STORE",
       size_partitioning: {
         size: "16kb",
@@ -15,7 +17,7 @@
           filesystem: {
             content_path: "/tmp/nativelink/small/content",
             temp_path: "/tmp/nativelink/small/tmp",
-            eviction_policy: { max_bytes: 3000000000 },
+            eviction_policy: { max_bytes: 8000000000 },
           },
         },
         upper_store: {
