@@ -7,14 +7,23 @@ the headless be-host.
 ## Starting sessions
 
 - `create_session` with `source_url` (the repository) and `source_revision` (the integration
-  branch) starts a session on that branch, in the same environment, running commands without
-  approval.
+  branch) starts a session on that branch, in the same environment. Omit `permission_mode`: the child
+  inherits the coordinator's, and a mode more permissive than the coordinator's is refused.
 - Run at most 8 subagents at a time; start the next only after one finishes.
 - A child can't read the coordinator's scratchpad, so each prompt carries the whole protocol:
   its branch, what to check, how to finish and what to report. Keep the shared part word for
   word the same in every prompt and put the task after it.
 - Name the coordinator's session id (`get_session` with no id) so the child reports with
   `send_message`; ask for the report in its final reply too.
+- A read-only reviewer must be told that `send_message` is allowed: "do not edit, commit or push" alone
+  made one skip it. Tell it to load the tool first (`ToolSearch` with `select:mcp__claude-code-remote__send_message`)
+  and to send the whole verdict as its last step. If a report never arrives, read the child's final
+  reply with `list_events` (`kinds: ["result"]`) instead of waiting.
+- A child that starts a background `./scripts/verify` ends its turn to wait, so `list_sessions` shows it
+  `IDLE` with a result like "Verify is running in the background". It is still working (its
+  `status_bucket` stays `WORKING`) and wakes when the command exits. Tell if it is done by the bucket
+  (`COMPLETED`) or its latest `result`, not by `IDLE`. Ask each child to `send_message` the coordinator
+  its final report only when it is truly finished, and never a progress note.
 - One session and one distinct branch (`<prefix>/<task>`) per task. A child pushes only its
   branch and opens no pull request.
 - Tell running children with `send_message` when something lands that they build on or must
