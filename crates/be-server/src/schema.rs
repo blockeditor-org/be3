@@ -352,6 +352,7 @@ const SCHEMA: &str = "
     );
 
     CREATE INDEX push_endpoints_address ON push_endpoints (address);
+    CREATE INDEX push_endpoints_organization ON push_endpoints (organization_id);
 
     CREATE TABLE notify_modes (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

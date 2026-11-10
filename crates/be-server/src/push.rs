@@ -267,14 +267,38 @@ impl Senders {
     }
 }
 
-/// The host a push goes to, for `Senders::acquire`: an FCM push goes to FCM.
-fn push_host(endpoint: &PushEndpoint) -> String {
-    match endpoint.service {
-        PushService::Fcm => "fcm".to_owned(),
-        PushService::WebPush => url::Url::parse(&endpoint.address)
-            .ok()
-            .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
-            .unwrap_or_default(),
+/// The key a push's host shares its cap under, for `Senders::acquire`: the allowlist entry it
+/// matched (a suffix covers every subdomain), so many hosts of one service share one cap. An FCM
+/// push goes to FCM.
+fn push_host(endpoint: &PushEndpoint, added: &[String]) -> String {
+    let PushService::WebPush = endpoint.service else {
+        return "fcm".to_owned();
+    };
+    let host = url::Url::parse(&endpoint.address)
+        .ok()
+        .and_then(|url| url.host_str().map(|host| host.trim_end_matches('.').to_ascii_lowercase()))
+        .unwrap_or_default();
+    PUSH_HOSTS
+        .iter()
+        .copied()
+        .chain(PUSH_HOST_SUFFIXES.iter().copied())
+        .find(|entry| host == *entry || (entry.starts_with('.') && host.ends_with(entry)))
+        .map(str::to_owned)
+        .or_else(|| added.iter().find(|entry| entry.eq_ignore_ascii_case(&host)).cloned())
+        .unwrap_or_else(|| "other".to_owned())
+}
+
+/// What an HTTP status from a push service means for the endpoint: gone on 404 and 410; not the
+/// endpoint's failure on 401 and 403 (this server's VAPID key or subject is refused), 413
+/// (this server's push is too big) and 429 and 503 (asked to send less), which would otherwise
+/// drop every device of a host for one server-side fault; counted against it otherwise,
+/// a redirect included.
+pub(crate) fn status_outcome(status: u16) -> Sent {
+    match status {
+        200..=299 => Sent::Delivered,
+        404 | 410 => Sent::Gone,
+        401 | 403 | 413 | 429 | 503 => Sent::Throttled,
+        status => Sent::Failed(format!("the push service answered {status}")),
     }
 }
 
@@ -416,6 +440,9 @@ impl Pusher {
                 let Ok(url) = url::Url::parse(&endpoint.address) else {
                     return refuse("a Web Push endpoint is a URL");
                 };
+                if !url.username().is_empty() || url.password().is_some() {
+                    return refuse("a Web Push endpoint has no user name or password");
+                }
                 let served = url.host().is_some()
                     && match self.allow_local {
                         true => matches!(url.scheme(), "https" | "http"),
@@ -519,7 +546,7 @@ impl Pusher {
                     }
                 }
             };
-            let Some(permit) = self.senders.acquire(&push_host(&job.endpoint)).await else {
+            let Some(permit) = self.senders.acquire(&push_host(&job.endpoint, &self.hosts)).await else {
                 return;
             };
             let address = job.endpoint.address.clone();
@@ -609,9 +636,16 @@ impl Pusher {
             .set("Authorization", &authorization)
             .send_bytes(body);
         match sent {
-            Ok(_) => Sent::Delivered,
-            Err(ureq::Error::Status(404 | 410, _)) => Sent::Gone,
-            Err(ureq::Error::Status(429 | 503, _)) => Sent::Throttled,
+            Ok(answer) => status_outcome(answer.status()),
+            Err(ureq::Error::Status(status @ (401 | 403), _)) => {
+                tracing::warn!(status, host = ?url.host_str(), "a push service refuses this server's pushes");
+                status_outcome(status)
+            }
+            Err(ureq::Error::Status(status, _)) => status_outcome(status),
+            Err(ureq::Error::Transport(error)) if error.kind() == ureq::ErrorKind::Dns => {
+                tracing::warn!(host = ?url.host_str(), %error, "a push service's name did not resolve");
+                Sent::Throttled
+            }
             Err(error) => Sent::Failed(error.to_string()),
         }
     }
@@ -697,7 +731,7 @@ pub(crate) fn fcm_outcome(status: u16, answer: &str) -> Sent {
         .unwrap_or(false);
     match (unregistered, status) {
         (true, _) => Sent::Gone,
-        (false, 429 | 503) => Sent::Throttled,
+        (false, 401 | 403 | 413 | 429 | 503) => Sent::Throttled,
         (false, status) => Sent::Failed(format!("FCM answered {status}: {answer}")),
     }
 }

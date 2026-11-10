@@ -514,7 +514,7 @@ text's length reaches the push service.
   `MAX_NOTIFICATIONS_PER_MINUTE` per account and `MAX_NOTIFICATIONS_PER_BLOCK`
   per account and block) goes to every viewer of the block
   (`BlockGraph::viewers`) but the sender whose mode lets it through and who has
-  no connection to the organization open (`WatchHub::connected`), with one
+  no live connection to the organization (`WatchHub::connected`: one that has joined the organization's watch with `go_live`, not merely an open socket), with one
   query for the organization's endpoints. Each push carries a `PushMessage`
   (organization, block, the sender's account, which the server vouches for and
   the sealed bytes repeat, and the sealed bytes), encrypted to the device (be-lib-web-push, which

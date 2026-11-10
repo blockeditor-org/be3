@@ -42,6 +42,22 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
             "an added host inside another",
         ),
         (
+            web("https://evil.example@fcm.googleapis.com/a"),
+            "user info before an allowed host",
+        ),
+        (
+            web("https://fcm.googleapis.com@evil.example/a"),
+            "an allowed host as the user name of another",
+        ),
+        (
+            web("https://evil.example\\@fcm.googleapis.com/a"),
+            "a backslash ending the authority early",
+        ),
+        (
+            web("https://fcm.googleapis.com\\@evil.example/a"),
+            "a backslash after an allowed host",
+        ),
+        (
             device.endpoint(PushService::Fcm, "a-registration-token".into()),
             "FCM on a server without it",
         ),
