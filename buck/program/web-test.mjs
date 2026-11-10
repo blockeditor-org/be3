@@ -12,9 +12,11 @@
 // revealed it; after a reveal every target of the command is found again, as native drive
 // does), so the browser's own focus, key and text paths run.
 // `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
-// `attribute CSS NAME VALUE|none` and `history LENGTH` (browser only) wait for an element's
-// attribute and the history's length, and `reload` reloads the page; a shared script gives
-// them as `#web` lines.
+// `attribute CSS NAME VALUE|none`, `history LENGTH` and `history-state marker|none` (browser
+// only) wait for an element's attribute, the history's length, and whether the current entry's
+// state is the page's own back entry (`history.length` never shrinks on back, so only the state
+// shows an entry taken back), and `reload` reloads the page; a shared script gives them as
+// `#web` lines.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
@@ -303,9 +305,15 @@ async function step(page, words) {
             // reload: reloads the page, and waits for it to start and settle again.
             await page.reload();
             await page.waitForFunction(() => globalThis.beuiStarted !== undefined);
-            await page.evaluate(async () => {
-                await globalThis.beuiStarted;
+            const started = await page.evaluate(async () => {
+                try {
+                    await globalThis.beuiStarted;
+                    return null;
+                } catch (error) {
+                    return String(error?.stack ?? error);
+                }
             });
+            if (started) throw new Failure(`the page did not start after the reload: ${started}`);
             return settle();
         }
         case "history": {
@@ -316,6 +324,18 @@ async function step(page, words) {
                 await page.waitForFunction((wanted) => history.length === wanted, wanted, { timeout: timeout * 1000 });
             } catch {
                 throw new Failure(`history holds ${await page.evaluate(() => history.length)} entries, not ${wanted}`);
+            }
+            return "";
+        }
+        case "history-state": {
+            // history-state marker|none: waits until the current history entry holds the
+            // page's own back entry (state beuiBack), or none of it.
+            const wanted = { marker: true, none: false }[args[0]];
+            if (wanted === undefined) throw new Failure(`history-state takes marker or none, not ${args[0]}`);
+            try {
+                await page.waitForFunction((wanted) => (history.state?.beuiBack === true) === wanted, wanted, { timeout: timeout * 1000 });
+            } catch {
+                throw new Failure(`the history entry's state is ${JSON.stringify(await page.evaluate(() => history.state))}, not ${args[0]}`);
             }
             return "";
         }
