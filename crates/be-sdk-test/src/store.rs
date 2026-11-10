@@ -575,7 +575,11 @@ impl Inner {
             held.taken += 1;
             held.revision += 1;
         }
-        if self.blocks.get(&block).is_some_and(|held| held.replica.is_none()) {
+        if self
+            .blocks
+            .get(&block)
+            .is_some_and(|held| held.replica.is_none())
+        {
             self.open(block);
         }
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
