@@ -130,7 +130,7 @@ fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
         .collect();
     let title = match mode {
         NotifyMode::All => "Notifications: All",
-        NotifyMode::Mentions => "Notifications: Mentions",
+        NotifyMode::Mentions => "Notifications: Mentions only",
         NotifyMode::Off => "Notifications: Off",
     };
     Some(MenuNode::submenu(

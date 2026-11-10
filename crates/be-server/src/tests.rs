@@ -51,6 +51,7 @@ mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_message_arriving_slowly_is_not_taken_for_silence;
+mod a_mode_set_on_one_device_is_announced_to_the_others;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
@@ -58,6 +59,7 @@ mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passe
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
 mod a_push_reaches_members_who_are_not_connected_and_want_it;
+mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_refused_call_keeps_the_cached_graph;
@@ -81,6 +83,7 @@ mod an_agent_stores_against_its_creators_quota;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_endpoint_its_push_service_says_is_gone_is_dropped;
+mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
@@ -153,7 +156,6 @@ mod the_session_registry_forgets_the_longest_empty_sessions_first;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
 mod unsigned_or_expired_s3_requests_are_refused;
 mod uploads_no_block_takes_are_collected_after_their_grace;
-mod web_push_encryption_matches_rfc_8291;
 mod what_one_account_keeps_on_the_server_is_bounded;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
@@ -1335,7 +1337,7 @@ fn csrf(page: &str) -> String {
 }
 
 /// A push service in the test, on loopback: it takes each POST, answers it with what `answer`
-/// gives for its path, and hands the request to the test.
+/// gives for its path (status 0: never), and hands the request to the test.
 struct TestPushService {
     url: String,
     received: tokio::sync::mpsc::UnboundedReceiver<PushRequest>,
@@ -1362,6 +1364,12 @@ impl TestPushService {
                         return;
                     };
                     let (status, body) = answer(&request.path);
+                    if status == 0 {
+                        // A service that takes the request and never answers.
+                        // The task, and its stream with it, waits forever.
+                        let _ = sending.send(request);
+                        return std::future::pending::<()>().await;
+                    }
                     let response = format!(
                         "HTTP/1.1 {status} Answered\r\nContent-Type: application/json\r\n\
                          Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
@@ -1467,10 +1475,10 @@ impl TestDevice {
 
     /// Decrypts a push's body into what it carries.
     fn open(self, body: &[u8]) -> be_block_protocol::PushMessage {
-        let sender = push::sender_key(body).expect("a push names its sender's key");
+        let sender = be_lib_web_push::sender_key(body).expect("a push names its sender's key");
         let peer = ring::agreement::UnparsedPublicKey::new(&ring::agreement::ECDH_P256, sender);
         let plain = ring::agreement::agree_ephemeral(self.private, &peer, |secret| {
-            push::open(secret, &self.public, &self.auth, body)
+            be_lib_web_push::open(secret, &self.public, &self.auth, body)
         })
         .unwrap()
         .expect("the push decrypts with the device's keys");

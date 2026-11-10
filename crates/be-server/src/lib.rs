@@ -350,14 +350,26 @@ pub async fn serve_with_mail(
     let vapid = store
         .with_database(|_, database| push::Vapid::load_or_create(database))
         .await?;
+    // RFC 8292 wants an https: URL or a mailto: to reach the operator by; some push services
+    // refuse anything else.
     let subject = config
         .auth_origin
         .clone()
         .unwrap_or_else(|| public_url.to_string());
+    if !subject.starts_with("https://") {
+        tracing::warn!(
+            %subject,
+            "push services may refuse this server's pushes: set --auth-origin or --public-url to an https:// URL"
+        );
+    }
     let services = Services {
         pusher: push::Pusher::new(vapid, subject, &config.push),
         notifications: Arc::new(address::Rate::new(
             limits::MAX_NOTIFICATIONS_PER_MINUTE,
+            Duration::from_secs(60),
+        )),
+        block_notifications: Arc::new(address::Rate::new(
+            limits::MAX_NOTIFICATIONS_PER_BLOCK,
             Duration::from_secs(60),
         )),
         portal: config
@@ -516,6 +528,8 @@ pub(crate) struct Services {
     pusher: Arc<push::Pusher>,
     /// Notifications each account sent this minute.
     notifications: Arc<address::Rate<uuid::Uuid>>,
+    /// Notifications each account sent about each block this minute.
+    block_notifications: Arc<address::Rate<(uuid::Uuid, uuid::Uuid)>>,
 }
 
 /// What a connection was let in with: its place among its address's connections and among

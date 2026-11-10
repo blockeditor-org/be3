@@ -19,6 +19,10 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
             "not a URL",
         ),
         (
+            device.endpoint(PushService::WebPush, "https://push.example.com:25/a".into()),
+            "a port other than 443",
+        ),
+        (
             device.endpoint(PushService::Fcm, "a-registration-token".into()),
             "FCM on a server without it",
         ),
@@ -54,6 +58,14 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         ("fd00::1", false),
         ("fe80::1", false),
         ("::ffff:10.0.0.1", false),
+        ("::a00:1", false),
+        ("2002:a00:1::1", false),
+        ("2001::1", false),
+        ("2001:db8::1", false),
+        ("64:ff9b::a00:1", false),
+        ("64:ff9b:1::1", false),
+        ("fec0::1", false),
+        ("100::1", false),
         ("8.8.8.8", true),
         ("2606:4700::1111", true),
     ] {

@@ -1192,32 +1192,20 @@ pub fn notify(block: Uuid, text: String, mentions: Vec<Uuid>) {
     });
 }
 
-/// How the signed-in account is notified about `block`: from the modes read once (one call for
-/// every block, `Command::NotifyModes`), so showing a block asks the server nothing.
-pub fn notify_mode(
-    block: Uuid,
-    reply: impl FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send + 'static,
-) {
-    let reply: worker::NotifyModeReply = Box::new(reply);
-    let asked = with_shared_mut(move |shared| match &shared.notify_modes {
-        Some(modes) => Err((
-            reply,
-            modes
-                .get(&block)
-                .copied()
-                .unwrap_or(be_block_protocol::NotifyMode::All),
-        )),
-        None => {
-            let first = shared.notify_waiting.is_empty();
-            shared.notify_waiting.push((block, reply));
-            Ok(first)
-        }
-    });
-    match asked {
-        Some(Ok(true)) => send(Command::NotifyModes),
-        Some(Ok(false)) | None => {}
-        Some(Err((reply, mode))) => reply(Ok(mode)),
-    }
+/// Every block whose notification mode the account set to other than `all`, once the server
+/// has said: read when the host connects and again whenever another device changes one.
+pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
+    with_shared(|shared| {
+        shared
+            .notify_modes
+            .as_ref()
+            .map(|modes| modes.iter().map(|(block, mode)| (*block, *mode)).collect())
+    })
+    .flatten()
+}
+
+pub fn notify_modes_revision() -> u64 {
+    with_shared(|shared| shared.notify_modes_revision).unwrap_or_default()
 }
 
 /// Sets how the signed-in account is notified about `block`.

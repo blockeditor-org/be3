@@ -154,7 +154,9 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
      range; an offline reaction to a message moved into a segment survives the
      merge; a forced hash mismatch reads the part instead.
 2. **Notifications** for chat: sending a message calls `notify` with its text
-   and the accounts it mentions (guides/apps/host_services.md). Done: a member who is
+   and the accounts it mentions (guides/apps/host_services.md), once the
+   message is confirmed, since `notify` is not ordered with the save that
+   carries it. Done: a member who is
    not connected gets a notification naming the chat and author, and none for
    a muted chat.
 

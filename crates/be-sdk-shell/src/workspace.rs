@@ -19,7 +19,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
-    Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode,
+    Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode, NotifyModesWatch,
     PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
@@ -60,8 +60,8 @@ struct State {
     saved_titles: RefCell<HashMap<TabId, String>>,
     next_ask: Cell<u64>,
     share_asks: RefCell<Vec<be_sdk_beui::Task>>,
-    /// The asks for each block's notification mode, answered or not: a block is asked once.
-    notify_asks: RefCell<HashMap<Uuid, be_sdk_beui::Task>>,
+    /// The mode changes the host has not answered yet, a block's last one each.
+    notify_sets: RefCell<HashMap<Uuid, be_sdk_beui::Task>>,
 }
 
 #[derive(Clone, Copy)]
@@ -72,8 +72,11 @@ pub struct Workspace {
     views: Signal<HashMap<TabId, Uuid>>,
     pub(crate) titles: Signal<HashMap<TabId, String>>,
     simulated: Signal<HashMap<Uuid, AccessLevel>>,
-    /// How the account is notified about each block the host answered for (`notify_mode`).
-    notify_modes: Signal<HashMap<Uuid, NotifyMode>>,
+    /// The account's notification modes as the host publishes them (`NotifyModesWatch`), none
+    /// until the server has said.
+    notify_modes: Memo<Option<HashMap<Uuid, NotifyMode>>>,
+    /// Modes this workspace set that the host has not answered for yet, shown meanwhile.
+    setting_modes: Signal<HashMap<Uuid, NotifyMode>>,
     error: Signal<Option<String>>,
     routes: Signal<u64>,
     pub(crate) phone: Signal<bool>,
@@ -131,14 +134,27 @@ impl Workspace {
                 saved_titles: RefCell::new(HashMap::new()),
                 next_ask: Cell::new(0),
                 share_asks: RefCell::new(Vec::new()),
-                notify_asks: RefCell::new(HashMap::new()),
+                notify_sets: RefCell::new(HashMap::new()),
             }),
             editor,
             tabs,
             views,
             titles,
             simulated,
-            notify_modes: create_signal(HashMap::new()),
+            notify_modes: {
+                let watched = editor.watch::<NotifyModesWatch>();
+                create_memo(move || {
+                    watched.with(|modes| {
+                        modes.as_ref().map(|modes| {
+                            modes
+                                .iter()
+                                .map(|row| (Uuid::from_bytes(row.block), row.mode))
+                                .collect()
+                        })
+                    })
+                })
+            },
+            setting_modes: create_signal(HashMap::new()),
             error,
             routes,
             phone,
@@ -1031,38 +1047,40 @@ impl Workspace {
         }
     }
 
-    /// How the account is notified about `block`, once the host answered; the first read asks.
+    /// How the account is notified about `block`: a change not yet answered, else what the host
+    /// publishes, none until the server has said.
     pub(crate) fn notify_mode(&self, block: Uuid) -> Option<NotifyMode> {
-        let known = self.notify_modes.with(|modes| modes.get(&block).copied());
-        if known.is_none() {
-            let state = self.state.value();
-            let mut asks = state.notify_asks.borrow_mut();
-            if !asks.contains_key(&block) {
-                let modes = self.notify_modes;
-                let asked = untrack(|| self.host().notify_mode(block));
-                let task = self.editor.then(asked, move |mode| {
-                    if let Ok(mode) = mode {
-                        modes.update(|modes| {
-                            modes.insert(block, mode);
-                        });
-                    }
-                });
-                asks.insert(block, task);
-            }
+        if let Some(setting) = self.setting_modes.with(|modes| modes.get(&block).copied()) {
+            return Some(setting);
         }
-        known
+        self.notify_modes.with(|modes| {
+            modes
+                .as_ref()
+                .map(|modes| modes.get(&block).copied().unwrap_or(NotifyMode::All))
+        })
     }
 
-    /// Sets how the account is notified about `block`, showing it at once.
+    /// Sets how the account is notified about `block`, showing it until the host answers; a
+    /// change the host refuses goes back to what it publishes, and says why.
     pub(crate) fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) {
-        self.notify_modes.update(|modes| {
+        self.setting_modes.update(|modes| {
             modes.insert(block, mode);
         });
+        let workspace = *self;
         let asked = self.host().set_notify_mode(block, mode);
-        let task = self.editor.then(asked, |_| {});
+        let task = self.editor.then(asked, move |set| {
+            workspace.setting_modes.update(|modes| {
+                modes.remove(&block);
+            });
+            if let Err(failure) = set {
+                workspace.error.set(Some(format!(
+                    "The notifications setting was not changed: {failure}"
+                )));
+            }
+        });
         self.state
             .value()
-            .notify_asks
+            .notify_sets
             .borrow_mut()
             .insert(block, task);
     }

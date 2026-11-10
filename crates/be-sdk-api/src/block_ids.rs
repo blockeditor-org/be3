@@ -101,7 +101,6 @@ impl crate::embed::host_services::Call {
             | Self::MakeContactLink { block, .. }
             | Self::CreateBlockAgent { block, .. }
             | Self::Notify { block, .. }
-            | Self::NotifyModeOf { block, .. }
             | Self::SetNotifyMode { block, .. } => visit(block),
             Self::ReleaseRevision { preview, .. } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),

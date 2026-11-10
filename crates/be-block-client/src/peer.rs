@@ -49,7 +49,9 @@ mod prefixes;
 mod rotation;
 mod transfers;
 
-pub use notifications::{MAX_NOTIFICATION_TEXT, Notification};
+pub use notifications::{
+    MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT, Notification, OpenedNotification,
+};
 
 pub use import::Imported;
 pub use prefixes::Registry;

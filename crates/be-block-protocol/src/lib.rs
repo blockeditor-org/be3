@@ -52,33 +52,36 @@ pub const MAX_OBJECT_URLS: usize = 1024;
 /// included.
 pub const MAX_NOTIFICATION_BYTES: usize = 2048;
 
-/// What one push carries to a device, encrypted to it (RFC 8291): the block's organization
-/// and id, then the notification sealed under the block's data key. Bytes, so a service
-/// worker reads it without a decoder: 16 bytes of organization, 16 of block, then the sealed
-/// notification.
+/// What one push carries to a device, encrypted to it (RFC 8291): the block's organization and
+/// id, the account that sent it, which the server vouches for, then the notification sealed
+/// under the block's data key. Bytes, so a service worker reads it without a decoder: 16 bytes
+/// each of organization, block and sender, then the sealed notification. A device names the
+/// sender and the block itself, from its own contacts and graph: the sealed part holds only
+/// the text, bound to the block and the time it was sent (`be_block_client::Notification`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PushMessage {
     pub organization: Uuid,
     pub block: Uuid,
+    pub sender: Uuid,
     pub sealed: Vec<u8>,
 }
 
 impl PushMessage {
     pub fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(32 + self.sealed.len());
+        let mut bytes = Vec::with_capacity(48 + self.sealed.len());
         bytes.extend_from_slice(self.organization.as_bytes());
         bytes.extend_from_slice(self.block.as_bytes());
+        bytes.extend_from_slice(self.sender.as_bytes());
         bytes.extend_from_slice(&self.sealed);
         bytes
     }
 
     pub fn decode(bytes: &[u8]) -> Option<Self> {
-        let organization = Uuid::from_slice(bytes.get(..16)?).ok()?;
-        let block = Uuid::from_slice(bytes.get(16..32)?).ok()?;
         Some(Self {
-            organization,
-            block,
-            sealed: bytes[32..].to_vec(),
+            organization: Uuid::from_slice(bytes.get(..16)?).ok()?,
+            block: Uuid::from_slice(bytes.get(16..32)?).ok()?,
+            sender: Uuid::from_slice(bytes.get(32..48)?).ok()?,
+            sealed: bytes.get(48..)?.to_vec(),
         })
     }
 }

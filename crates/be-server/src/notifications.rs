@@ -9,10 +9,12 @@ use uuid::Uuid;
 
 use crate::{Identity, ServerError, limits::MAX_PUSH_ENDPOINTS, store::ServerStore};
 
-/// A member a notification goes to, with the endpoints of their devices.
+/// A member a notification goes to, with the endpoints of their devices, and whether it
+/// mentions them.
 pub(crate) struct Recipient {
     pub(crate) account: Uuid,
     pub(crate) endpoints: Vec<PushEndpoint>,
+    pub(crate) mentioned: bool,
 }
 
 fn service_name(service: PushService) -> &'static str {
@@ -58,6 +60,28 @@ pub(crate) fn forget(
         params![organization.to_string(), block.to_string()],
     )?;
     Ok(())
+}
+
+/// Forgets what a member removed from `organization` kept there: their endpoints and modes.
+pub(crate) fn forget_member(
+    database: &Connection,
+    organization: Uuid,
+    account: Uuid,
+) -> Result<(), ServerError> {
+    let (organization, account) = (organization.to_string(), account.to_string());
+    database.execute(
+        "DELETE FROM push_endpoints WHERE organization_id = ?1 AND account_id = ?2",
+        params![organization, account],
+    )?;
+    database.execute(
+        "DELETE FROM notify_modes WHERE organization_id = ?1 AND account_id = ?2",
+        params![organization, account],
+    )?;
+    Ok(())
+}
+
+fn milliseconds() -> i64 {
+    i64::try_from(crate::push::unix_now()).unwrap_or(i64::MAX / 1000) * 1000
 }
 
 fn not_viewable() -> ServerError {
@@ -137,6 +161,42 @@ impl ServerStore {
             database.execute(
                 "DELETE FROM push_endpoints WHERE address = ?1",
                 params![address],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Notes that an endpoint's service took a push: it is failing no longer.
+    pub(crate) async fn endpoint_answered(&self, address: String) -> Result<(), ServerError> {
+        self.with_database(move |_, database| {
+            database.execute(
+                "UPDATE push_endpoints SET failures = 0, failing_since = NULL
+                 WHERE address = ?1 AND failures > 0",
+                params![address],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Counts a failed push against an endpoint, and drops it once it has failed
+    /// `push::MAX_FAILURES` times in a row over at least `push::FAILING_FOR`.
+    pub(crate) async fn endpoint_failed(&self, address: String) -> Result<(), ServerError> {
+        self.with_database(move |_, database| {
+            let now = milliseconds();
+            database.execute(
+                "UPDATE push_endpoints
+                 SET failures = failures + 1, failing_since = COALESCE(failing_since, ?2)
+                 WHERE address = ?1",
+                params![address, now],
+            )?;
+            let since = now
+                - i64::try_from(crate::push::FAILING_FOR.as_millis()).unwrap_or(i64::MAX);
+            database.execute(
+                "DELETE FROM push_endpoints
+                 WHERE address = ?1 AND failures >= ?2 AND failing_since <= ?3",
+                params![address, crate::push::MAX_FAILURES, since],
             )?;
             Ok(())
         })
@@ -234,20 +294,33 @@ impl ServerStore {
             viewers.remove(&identity.account);
             let modes = modes_of(database, identity.organization, block)?;
             let mentioned: BTreeSet<Uuid> = mentions.into_iter().collect();
-            let mut recipients = Vec::new();
+            let mut wanted: HashMap<Uuid, bool> = HashMap::new();
             for account in viewers {
-                let wanted = match modes.get(&account).copied().unwrap_or(NotifyMode::All) {
+                let mentions = mentioned.contains(&account);
+                let wants = match modes.get(&account).copied().unwrap_or(NotifyMode::All) {
                     NotifyMode::All => true,
-                    NotifyMode::Mentions => mentioned.contains(&account),
+                    NotifyMode::Mentions => mentions,
                     NotifyMode::Off => false,
                 };
-                if !wanted {
+                if wants {
+                    wanted.insert(account, mentions);
+                }
+            }
+            let mut recipients: Vec<Recipient> = Vec::new();
+            let mut index: HashMap<Uuid, usize> = HashMap::new();
+            for (account, endpoint) in organization_endpoints(database, identity.organization)? {
+                let Some(mentioned) = wanted.get(&account) else {
                     continue;
-                }
-                let endpoints = endpoints_of(database, account, identity.organization)?;
-                if !endpoints.is_empty() {
-                    recipients.push(Recipient { account, endpoints });
-                }
+                };
+                let at = *index.entry(account).or_insert_with(|| {
+                    recipients.push(Recipient {
+                        account,
+                        endpoints: Vec::new(),
+                        mentioned: *mentioned,
+                    });
+                    recipients.len() - 1
+                });
+                recipients[at].endpoints.push(endpoint);
             }
             Ok(recipients)
         })
@@ -273,6 +346,41 @@ fn modes_of(
         modes.insert(crate::store::parse_uuid(&account)?, mode_of(&mode)?);
     }
     Ok(modes)
+}
+
+/// Every endpoint registered in `organization`, with its account, oldest first: one query for a
+/// notification however many may view its block.
+fn organization_endpoints(
+    database: &Connection,
+    organization: Uuid,
+) -> Result<Vec<(Uuid, PushEndpoint)>, ServerError> {
+    let mut statement = database.prepare_cached(
+        "SELECT account_id, service, address, p256dh, auth FROM push_endpoints
+         WHERE organization_id = ?1 ORDER BY rowid",
+    )?;
+    let rows = statement.query_map(params![organization.to_string()], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Vec<u8>>(3)?,
+            row.get::<_, Vec<u8>>(4)?,
+        ))
+    })?;
+    let mut endpoints = Vec::new();
+    for row in rows {
+        let (account, service, address, p256dh, auth) = row?;
+        endpoints.push((
+            crate::store::parse_uuid(&account)?,
+            PushEndpoint {
+                service: service_of(&service)?,
+                address,
+                p256dh,
+                auth,
+            },
+        ));
+    }
+    Ok(endpoints)
 }
 
 fn endpoints_of(

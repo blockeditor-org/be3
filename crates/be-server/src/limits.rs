@@ -25,7 +25,10 @@ pub const MAX_ESCROWS_PER_ORGANIZATION: i64 = 1_000;
 /// oldest.
 pub const MAX_PUSH_ENDPOINTS: i64 = 32;
 /// Notifications one account may send a minute, over all blocks.
-pub const MAX_NOTIFICATIONS_PER_MINUTE: u32 = 120;
+pub const MAX_NOTIFICATIONS_PER_MINUTE: u32 = 60;
+/// Notifications one account may send a minute about one block; more waiting for one device
+/// replace each other (`Pusher::queue`).
+pub const MAX_NOTIFICATIONS_PER_BLOCK: u32 = 10;
 /// Accounts one notification may mention.
 pub const MAX_MENTIONS: usize = 1_024;
 

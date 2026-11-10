@@ -7,7 +7,7 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
     let harness = Harness::configured(pushing_locally()).await;
     let mut service = TestPushService::start(|_| (201, String::new())).await;
     let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let owner_id = owner.register("owner@example.com").await;
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let key = owner
@@ -47,6 +47,12 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
     let pushed = service.next().await;
     assert_eq!(pushed.path, "/away");
     assert_eq!(pushed.headers["content-encoding"], "aes128gcm");
+    assert_eq!(pushed.headers["urgency"], "normal", "a push that mentions nobody is not urgent");
+    assert_eq!(
+        pushed.body.len(),
+        be_lib_web_push::HEADER_BYTES + push::PADDED_BYTES + 1 + 16,
+        "every push is padded to one length"
+    );
     assert!(pushed.headers.contains_key("ttl"), "{:?}", pushed.headers);
     let authorization = &pushed.headers["authorization"];
     let (token, public) = authorization
@@ -68,6 +74,7 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
         PushMessage {
             organization,
             block,
+            sender: owner_id,
             sealed: b"first".to_vec(),
         }
     );
