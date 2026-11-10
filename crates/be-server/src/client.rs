@@ -2220,10 +2220,7 @@ impl Client {
             Call::NotifyModes { reply } => {
                 let modes = async {
                     prelude?;
-                    connection
-                        .store
-                        .notify_modes(connection.identity()?)
-                        .await
+                    connection.store.notify_modes(connection.identity()?).await
                 }
                 .await;
                 self.reply(reply, modes);
