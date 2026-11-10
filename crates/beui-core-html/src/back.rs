@@ -15,9 +15,9 @@
 //! layers' own Escape handling, and give it to handlers in the page, which Escape never
 //! reaches natively.
 
-use std::cell::RefCell;
 #[cfg(target_arch = "wasm32")]
 use std::cell::Cell;
+use std::cell::RefCell;
 
 use beui_tree::reactive::Callback;
 use beui_types::BackGesture;
@@ -132,8 +132,8 @@ mod web {
     use std::rc::Rc;
 
     use beui_types::{BackGesture, Dismiss, LayerPolicy};
-    use wasm_bindgen::{JsCast, JsValue};
     use wasm_bindgen::prelude::Closure;
+    use wasm_bindgen::{JsCast, JsValue};
 
     use super::{DIRTY, HANDLERS};
     use crate::dom::{Listener, call};
@@ -208,14 +208,13 @@ mod web {
             let mut observer = observer.borrow_mut();
             if observer.is_none() {
                 let callback = Closure::<dyn FnMut()>::new(mark);
-                let Ok(constructor) = js_sys::Reflect::get(
-                    &js_sys::global(),
-                    &"ResizeObserver".into(),
-                ) else {
+                let Ok(constructor) =
+                    js_sys::Reflect::get(&js_sys::global(), &"ResizeObserver".into())
+                else {
                     return;
                 };
                 let Ok(made) = js_sys::Reflect::construct(
-                    constructor.unchecked_ref(),
+                    constructor.unchecked_ref::<js_sys::Function>(),
                     &js_sys::Array::of1(callback.as_ref()),
                 ) else {
                     return;
