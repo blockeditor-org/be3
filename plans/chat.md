@@ -7,7 +7,7 @@ A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Steps 1a and 1c have landed.
+edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
 
 ## What exists
 
@@ -28,6 +28,16 @@ edited (the journal, guides/blocks/client.md). Steps 1a and 1c have landed.
   "Member" and their account's first digits, since no host service names
   members to an app yet. Attachments are in the model but the editor cannot
   add or show them yet.
+- **Sending state (1b).** A message shows "Sending" while the server lacks
+  the edit that sent it, and "Not sent" once the server refused the commit
+  holding it (`ContentProjection::lacking`, guides/blocks/apps.md "Sending"):
+  the replica keeps those edits until the server holds them, across editors
+  and replicas, so switching chats and back shows them still sending. For an
+  owner alone that is every send for `APPEND_INTERVAL` (250 ms) and a round
+  trip, even online. A host restart forgets them: what it kept in the outbox
+  then shows as sent. The Done check was a be-host-tests test; `drive` has no
+  way to cut the server, so be-host-stack tests and chat's editor tests stand
+  in. A `drive` command that cuts the server would let a host test cover it.
 - **Unread counts (1c).** Where the account read each chat up to is theirs,
   never in the chat, where it would be a read receipt: the owner-only settings
   kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are
@@ -124,11 +134,6 @@ edited (the journal, guides/blocks/client.md). Steps 1a and 1c have landed.
   message is recent or not, so the ordinary merge keeps that edit by key and
   the next rewrite folds it into the segment. Nothing is lost and nothing
   conflicts.
-- **Sending state.** A message shows as sending until it is confirmed: in a
-  live session, sequenced by the owner (the replica keeps `confirmed` and
-  `visible` apart); offline, published. For the offline case the editor is
-  told the last published head through a new field, `published-head`, beside
-  the head in the content frame (guides/blocks/apps.md).
 - **Arrival time.** The server stamps each relayed operation with when it
   received it, in the relay envelope (commits already have
   `block_commits.received`), and replicas store that time in the message. A
@@ -153,9 +158,6 @@ edited (the journal, guides/blocks/client.md). Steps 1a and 1c have landed.
 ## Order of work
 
 1. **The chat type and editor.**
-   - **1b.** Sending state and `published-head`. Done: a host test sends a
-     message while the server is unreachable and the painting shows it as
-     sending until the drain publishes it.
    - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
      messages opens reading only the header; scrolling back reads segments by
      range; an offline reaction to a message moved into a segment survives the

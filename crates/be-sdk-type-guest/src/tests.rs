@@ -30,6 +30,7 @@ mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
 mod a_follower_replaces_the_content_and_the_owner_takes_it;
 mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
+mod a_followers_edits_stay_lacking_through_a_takeover_until_its_seal;
 mod a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up;
 mod a_follower_that_missed_messages_catches_up_once_resynchronized;
 mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
@@ -57,6 +58,8 @@ mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod an_abandoned_lease_is_claimed;
+mod an_edit_is_lacking_until_the_server_holds_it;
+mod an_edit_too_large_to_relay_is_lacking_until_its_commit_is_published;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
@@ -344,6 +347,7 @@ fn opening(
         session,
         journal: None,
         lost_edits: false,
+        journal_kept: false,
     }
 }
 
@@ -526,6 +530,37 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         }
         self.lease_changed(Some(device));
         self.settle();
+    }
+
+    /// Starts the device's replica over on the head, as a host does after it reconnects, and
+    /// attaches its editors again.
+    fn reopen(&mut self, device: usize) {
+        let client = self.devices[device].client;
+        let opening = Opening {
+            content_type: C::CONTENT_TYPE,
+            tag: self.devices[device].tag,
+            ..opening(client, self.head, self.lease.state().clone())
+        };
+        self.with_replica(device, |replica, host| replica.reopen(host, opening));
+        let editors: Vec<EditorId> = self
+            .editors
+            .keys()
+            .filter(|(on, _)| *on == device)
+            .map(|(_, editor)| *editor)
+            .collect();
+        for editor in editors {
+            self.with_replica(device, |replica, host| replica.attach(host, editor, true));
+        }
+        self.settle();
+    }
+
+    fn follow_lacking(&mut self, device: usize, editor: EditorId) {
+        self.send_from_editor(device, editor, FromEditor::FollowLacking);
+        self.settle();
+    }
+
+    fn lacking(&self, device: usize, editor: EditorId) -> usize {
+        self.editors[&(device, editor)].lacking().len()
     }
 
     fn resynchronize(&mut self, device: usize) {
@@ -970,7 +1005,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 entries,
                 relay,
             } => {
-                self.to(device, |host| reply.send(host, &()));
+                self.to(device, |host| reply.send(host, &true));
                 if relay {
                     let participants = self.lease.state().participants.clone();
                     for entry in &entries {
