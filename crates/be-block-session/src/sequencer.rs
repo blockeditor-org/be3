@@ -2,6 +2,7 @@ use std::collections::{HashSet, VecDeque};
 
 use be_block_commit::CommitId;
 use be_block_protocol::ClientId;
+use be_block_store::PartRef;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -10,12 +11,38 @@ pub struct OpId {
     pub counter: u64,
 }
 
+/// An operation as a session carries it: its encoded bytes, or for one too large to relay
+/// (over `LARGEST_RELAYED_OPERATION` in be-sdk-type-guest) the part its sender put them as
+/// (`put-part`), which a replica reads before it applies the operation.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Payload {
+    Inline(#[serde(with = "serde_bytes")] Vec<u8>),
+    Part(PartRef),
+}
+
+impl Payload {
+    /// The part this payload must be read from, if it is not inline.
+    pub fn part(&self) -> Option<PartRef> {
+        match self {
+            Self::Inline(_) => None,
+            Self::Part(part) => Some(*part),
+        }
+    }
+
+    /// The length of the operation's bytes, wherever they are.
+    pub fn length(&self) -> u64 {
+        match self {
+            Self::Inline(bytes) => bytes.len() as u64,
+            Self::Part(part) => part.length(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SessionOp {
     pub id: OpId,
     pub sequence: u64,
-    #[serde(with = "serde_bytes")]
-    pub payload: Vec<u8>,
+    pub payload: Payload,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -23,8 +50,7 @@ pub enum SessionMessage {
     Submit {
         id: OpId,
         base: u64,
-        #[serde(with = "serde_bytes")]
-        payload: Vec<u8>,
+        payload: Payload,
     },
     Accepted {
         op: SessionOp,
@@ -58,13 +84,12 @@ pub enum SessionMessage {
     Replaced {
         head: CommitId,
     },
-    Moved {
-        head: CommitId,
-    },
+    /// A follower kept edits it could not hand over as operations (what it had not saved when
+    /// a replacement landed) as `commit` on `base`; the owner keeps it in history and answers
+    /// `Saved`.
     Kept {
         commit: CommitId,
         base: Option<CommitId>,
-        edits: Option<KeptEdits>,
     },
     Saved {
         commit: CommitId,
@@ -87,12 +112,6 @@ pub enum Inherited {
     Duplicate,
     Renumbered,
     Unnumbered,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct KeptEdits {
-    pub applied: u64,
-    pub sealed: Option<CommitId>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -127,7 +146,7 @@ impl Sequencer {
         self.head
     }
 
-    pub fn accept(&mut self, id: OpId, payload: Vec<u8>) -> Option<SessionOp> {
+    pub fn accept(&mut self, id: OpId, payload: Payload) -> Option<SessionOp> {
         if !self.accepted.insert(id) {
             return None;
         }
@@ -201,7 +220,7 @@ pub struct Follower {
     client: ClientId,
     counter: u64,
     applied: u64,
-    pending: VecDeque<(OpId, Vec<u8>)>,
+    pending: VecDeque<(OpId, Payload)>,
 }
 
 impl Follower {
@@ -230,7 +249,7 @@ impl Follower {
         self.pending.len()
     }
 
-    pub fn submit(&mut self, payload: Vec<u8>) -> SessionMessage {
+    pub fn submit(&mut self, payload: Payload) -> SessionMessage {
         self.counter += 1;
         let id = OpId {
             client: self.client,
@@ -252,26 +271,24 @@ impl Follower {
         self.pending.front().map(|(id, _)| *id)
     }
 
-    pub fn rewrite_pending(&mut self, rewrite: impl Fn(&[u8]) -> Option<Vec<u8>>) {
-        let mut kept = VecDeque::new();
-        while let Some((id, payload)) = self.pending.pop_front() {
-            if let Some(payload) = rewrite(&payload) {
-                kept.push_back((id, payload));
-            }
-        }
-        self.pending = kept;
-    }
-
     /// Puts back what `take_pending` took, rewritten.
-    pub fn restore_pending(&mut self, pending: Vec<(OpId, Vec<u8>)>) {
+    pub fn restore_pending(&mut self, pending: Vec<(OpId, Payload)>) {
         self.pending = pending.into();
     }
 
-    pub fn take_pending(&mut self) -> Vec<(OpId, Vec<u8>)> {
+    pub fn take_pending(&mut self) -> Vec<(OpId, Payload)> {
         self.pending.drain(..).collect()
     }
 
-    pub fn payloads(&self) -> Vec<Vec<u8>> {
+    /// The parts pending operations are carried by.
+    pub fn pending_parts(&self) -> Vec<PartRef> {
+        self.pending
+            .iter()
+            .filter_map(|(_, payload)| payload.part())
+            .collect()
+    }
+
+    pub fn payloads(&self) -> Vec<Payload> {
         self.pending
             .iter()
             .map(|(_, payload)| payload.clone())

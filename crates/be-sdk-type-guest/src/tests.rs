@@ -39,6 +39,7 @@ mod a_followers_edit_too_large_to_relay_lands_once;
 mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
 mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
+mod a_followers_paste_too_large_to_relay_lands_once_over_the_owners_unsealed_edits_and_undoes_alone;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
@@ -47,6 +48,7 @@ mod a_late_joiner_types_where_it_sees_the_caret;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
+mod a_new_owner_replays_a_journaled_edit_by_its_part;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
@@ -57,13 +59,13 @@ mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod an_abandoned_lease_is_claimed;
-mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
+mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
@@ -520,9 +522,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         if let Some(head) = self.head
             && local != self.head
         {
-            self.with_replica(device, |replica, host| {
-                replica.head_moved(host, head, false)
-            });
+            self.with_replica(device, |replica, host| replica.head_moved(host, head));
         }
         self.lease_changed(Some(device));
         self.settle();
@@ -684,9 +684,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             if Some(device) == publisher {
                 continue;
             }
-            self.with_replica(device, |replica, host| {
-                replica.head_moved(host, head, false)
-            });
+            self.with_replica(device, |replica, host| replica.head_moved(host, head));
         }
     }
 

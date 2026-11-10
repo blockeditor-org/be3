@@ -9,7 +9,7 @@ modules (guides/type_modules.md).
 A block's content opts into traits in `be-block`: `BlockContent` (durable
 bytes, the references they declare, a name, its searchable text for the search
 index: guides/type_modules.md, "The protocol"), `LiveEdit` (what a session
-carries: `apply`, `rebase`, `absorb_operation`, `child_operations`), `Merge`
+carries: `apply`, `apply_beneath`, `absorb_operation`, `child_operations`), `Merge`
 (three-way merge, required for offline editing), `MergeParts` (the same merge
 over parts, for a type that loads only its first part), `Undo` (client-local steps)
 and `Streamed` (`[u32 header length][header][payload]`, so a reader takes the
