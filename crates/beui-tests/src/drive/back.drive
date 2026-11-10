@@ -18,3 +18,13 @@ click 'CheckBox "Catch back"'
 back
 wait 'value="Backs 3"'
 #web history 3
+# Reloaded on its own entry, the page takes that entry over rather than stranding it:
+# with no handler enabled it steps back off it, and enabling one reuses the place.
+#web reload
+#web wait 'value="Backs 0"'
+#web history 3
+#web click 'CheckBox "Catch back"'
+#web history 3
+#web back
+#web wait 'value="Backs 1"'
+#web history 3
