@@ -108,6 +108,12 @@ pub struct Searching {
     creating: HashMap<Uuid, Uuid>,
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
+    /// Blocks whose root's index is being made or named (`creating`).
+    waiting: BTreeSet<Uuid>,
+    /// Indexes this device named, by root.
+    named: HashMap<Uuid, Uuid>,
+    /// The graph revision `unindexed_roots` last looked at.
+    scanned: Option<u64>,
     wanted: HashMap<Owner, Vec<SearchAsk>>,
     answers: HashMap<SearchAsk, Answer>,
     running: HashSet<SearchAsk>,
@@ -125,11 +131,11 @@ impl Searching {
         self.dirty.insert(block);
     }
 
-    /// Whether blocks wait to be indexed, a batch is being written or a wanted search is not
-    /// answered yet. A queued block never waits long: the round that queues it takes it, unless
-    /// its root's index is still being made or listed, which the store is busy with anyway.
+    /// Whether blocks wait to be indexed, an index is being made, a batch is being written or a
+    /// wanted search is not answered yet. An index made and waiting for its root's edits to be
+    /// sealed before it is named does not count.
     pub(crate) fn busy(&self) -> bool {
-        (!self.off && !self.dirty.is_empty())
+        (!self.off && (!self.dirty.is_empty() || self.creating.len() > self.made.len()))
             || !self.writing.is_empty()
             || !self.running.is_empty()
             || self.wanted().any(|asked| {
@@ -193,12 +199,15 @@ fn place(graph: &Graph, block: Uuid) -> Place {
     Place::Skip
 }
 
-fn index_of(graph: &Graph, root: Uuid) -> Option<Uuid> {
+/// A root's index: as its metadata names it, else the one this device named, which a listing
+/// from before the define may hide for a while.
+fn index_of(graph: &Graph, named: &HashMap<Uuid, Uuid>, root: Uuid) -> Option<Uuid> {
     graph
         .get(root)?
         .metadata
         .get(&SEARCH_INDEX)
         .map(|BlockRef(index)| index)
+        .or_else(|| named.get(&root).copied())
 }
 
 /// One round of the worker's loop: batches for the indexes, searches to run, snippets to cut.
@@ -224,13 +233,18 @@ async fn index(
 ) -> bool {
     let (batches, roots) = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        if held.search.off || held.search.dirty.is_empty() {
+        if held.search.off {
+            return false;
+        }
+        let roots = unindexed_roots(&mut held);
+        if held.search.dirty.is_empty() {
+            drop(held);
+            make_indexes(peer, shared, tasks, roots);
             return false;
         }
         let dirty = std::mem::take(&mut held.search.dirty);
         let mut batches: BTreeMap<Uuid, Vec<Uuid>> = BTreeMap::new();
         let mut kept = BTreeSet::new();
-        let mut roots = Vec::new();
         for block in dirty {
             let root = match place(&held.graph, block) {
                 Place::Unknown if held.graph.fetching() => {
@@ -247,7 +261,7 @@ async fn index(
             {
                 continue;
             }
-            match index_of(&held.graph, root) {
+            match index_of(&held.graph, &held.search.named, root) {
                 Some(index) if held.search.writing.contains(&index) => {
                     kept.insert(block);
                 }
@@ -255,19 +269,11 @@ async fn index(
                     held.search.creating.remove(&root);
                     batches.entry(index).or_default().push(block);
                 }
-                None => match held.search.creating.get(&root) {
-                    // Made, and still not named by its root: the root's metadata was refused.
-                    Some(index) if peer.local_head(*index).is_some() => {}
-                    Some(_) => {
-                        kept.insert(block);
-                    }
-                    None => {
-                        let index = Uuid::now_v7();
-                        held.search.creating.insert(root, index);
-                        roots.push((root, index));
-                        kept.insert(block);
-                    }
-                },
+                // Its index is being made or named: queued again once it is.
+                None if held.search.creating.contains_key(&root) => {
+                    held.search.waiting.insert(block);
+                }
+                None => {}
             }
         }
         // One block a round: asking its type for text holds up the loop, so edits and opens
@@ -284,6 +290,78 @@ async fn index(
             .extend(first.iter().map(|(index, _)| *index));
         (first, roots)
     };
+    make_indexes(peer, shared, tasks, roots);
+    // The batch's task wakes the loop for the next block when it finishes.
+    let moved = batches.is_some();
+    if let Some((index, blocks)) = batches {
+        let mut batch = Batch::default();
+        for block in &blocks {
+            batch
+                .put
+                .extend(puts_of(peer, shared, replicas, *block).await);
+        }
+        let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        tasks.spawn(async move {
+            let written = write(&peer, index, batch).await;
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.search.writing.remove(&index);
+                match written {
+                    // Every answer is read again, whichever index it read.
+                    Ok(true) => held.search.answers.clear(),
+                    // Not on this device yet: made by a command still queued.
+                    Ok(false) => held.search.dirty.extend(blocks),
+                    Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
+                }
+            }
+            tasks_held.sync(&peer, &shared);
+            be_host_base::host::wake();
+        });
+    }
+    moved
+}
+
+/// The workspaces in the mirror this device may edit that name no index yet, each marked as
+/// being made: every workspace gets its index as soon as a device that edits it sees it, so
+/// naming it never lands in the middle of someone's work. Looked for again only when the
+/// graph moved.
+fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
+    let revision = held.graph.revision;
+    if held.search.scanned == Some(revision) {
+        return Vec::new();
+    }
+    held.search.scanned = Some(revision);
+    let roots: Vec<Uuid> = held
+        .graph
+        .nodes()
+        .filter(|node| {
+            node.parent == Some(BlockParent::Root)
+                && node.content_type == be_block::WORKSPACE_TYPE
+                && node.access.can_edit()
+                && !node.locked
+                && !node.metadata.contains(&SEARCH_INDEX)
+        })
+        .map(|node| node.id)
+        .filter(|root| {
+            !held.search.creating.contains_key(root) && !held.search.named.contains_key(root)
+        })
+        .collect();
+    roots
+        .into_iter()
+        .map(|root| {
+            let index = Uuid::now_v7();
+            held.search.creating.insert(root, index);
+            (root, index)
+        })
+        .collect()
+}
+
+fn make_indexes(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    roots: Vec<(Uuid, Uuid)>,
+) {
     for (root, index) in roots {
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
@@ -302,33 +380,6 @@ async fn index(
             be_host_base::host::wake();
         });
     }
-    // The batch's task wakes the loop for the next block when it finishes.
-    let moved = batches.is_some();
-    if let Some((index, blocks)) = batches {
-        let mut batch = Batch::default();
-        for block in &blocks {
-            batch
-                .put
-                .extend(puts_of(peer, shared, replicas, *block).await);
-        }
-        let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
-        tasks.spawn(async move {
-            let written = write(&peer, index, batch).await;
-            {
-                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                held.search.writing.remove(&index);
-                match written {
-                    Ok(true) => {}
-                    // Not on this device yet: made by a command still queued.
-                    Ok(false) => held.search.dirty.extend(blocks),
-                    Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
-                }
-            }
-            tasks_held.sync(&peer, &shared);
-            be_host_base::host::wake();
-        });
-    }
-    moved
 }
 
 /// What a block's documents hold at its head: its name, and each document its type answers
@@ -458,13 +509,20 @@ async fn name_indexes(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
 ) {
-    let made = std::mem::take(
-        &mut shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .search
-            .made,
-    );
+    // A root whose open replica holds edits not sealed yet waits until they are: a define
+    // under a moving session loses, and trying again each round would starve the loop.
+    let made: Vec<(Uuid, Uuid)> = {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let (ready, waiting) = std::mem::take(&mut held.search.made)
+            .into_iter()
+            .partition(|(root, _)| {
+                replicas
+                    .status(*root)
+                    .is_none_or(|status| status.clean && !status.owes_seal)
+            });
+        held.search.made = waiting;
+        ready
+    };
     for (root, index) in made {
         let defined = peer
             .define(root, |metadata| {
@@ -480,15 +538,17 @@ async fn name_indexes(
         match defined {
             // The mirror takes the name at once, and settles: it is defined already.
             Ok(_) => {
+                held.search.creating.remove(&root);
+                held.search.named.insert(root, index);
+                let waiting = std::mem::take(&mut held.search.waiting);
+                held.search.dirty.extend(waiting);
                 held.graph.update(root, |node| {
                     node.metadata.insert(&SEARCH_INDEX, &BlockRef(index));
                 });
                 held.graph.settle(root);
             }
-            Err(error) => {
-                held.search.creating.remove(&root);
-                held.error = Some(format!("Naming a search index failed: {error}"));
-            }
+            // Most often a session that kept moving the root: named again next round.
+            Err(_) => held.search.made.push((root, index)),
         }
     }
 }
@@ -571,7 +631,7 @@ pub async fn search_index<S: ObjectStore>(
 
 /// The indexes a search reads: those of the roots the account views, or of the root
 /// `within` lies in.
-fn indexes(graph: &Graph, within: Option<Uuid>) -> Vec<Uuid> {
+fn indexes(graph: &Graph, named: &HashMap<Uuid, Uuid>, within: Option<Uuid>) -> Vec<Uuid> {
     let roots: Vec<Uuid> = match within {
         Some(block) => match place(graph, block) {
             Place::Root(root) => vec![root],
@@ -588,7 +648,7 @@ fn indexes(graph: &Graph, within: Option<Uuid>) -> Vec<Uuid> {
     };
     let mut indexes: Vec<Uuid> = roots
         .into_iter()
-        .filter_map(|root| index_of(graph, root))
+        .filter_map(|root| index_of(graph, named, root))
         .collect();
     indexes.sort_unstable();
     indexes
@@ -623,7 +683,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
     let mut followed = Vec::new();
     let mut started = false;
     for asked in wanted {
-        let indexes = indexes(&held.graph, asked.within);
+        let indexes = indexes(&held.graph, &held.search.named, asked.within);
         followed.extend(indexes.iter().map(|index| GraphQuery::Block(*index)));
         let read = heads(peer, &held.graph, &indexes);
         if held.search.running.contains(&asked)
