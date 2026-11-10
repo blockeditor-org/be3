@@ -36,7 +36,8 @@ fn an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publi
             && shared.waiting == 0
             && text_of(shared, note).as_deref() == Some("zero\none\ntwo\nTHREE\n")
     });
-    editor.until("the drain diverged and the merge published the edit", |editor| {
-        editor.mirror.lacking().is_empty()
-    });
+    editor.until(
+        "the drain diverged and the merge published the edit",
+        |editor| editor.mirror.lacking().is_empty(),
+    );
 }

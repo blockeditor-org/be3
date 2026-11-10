@@ -20,12 +20,15 @@ fn an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published() {
     assert!(!status().connected);
     open(block, CounterContent::CONTENT_TYPE);
     let mut editor = Editor::<CounterContent>::attach(block);
-    editor.wait("was sent the counter", |counter| counter.root().value() == 2);
+    editor.wait("was sent the counter", |counter| {
+        counter.root().value() == 2
+    });
     editor.send(FromEditor::FollowLacking);
     editor.operate(Counter::add(4));
-    editor.until("the first edit in a block opened offline is lacking", |editor| {
-        editor.mirror.pending() == 0 && editor.mirror.lacking().len() == 1
-    });
+    editor.until(
+        "the first edit in a block opened offline is lacking",
+        |editor| editor.mirror.pending() == 0 && editor.mirror.lacking().len() == 1,
+    );
     flush();
 
     harness.start_server(&address);
