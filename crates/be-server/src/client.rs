@@ -2545,7 +2545,10 @@ impl Connection {
                 crate::limits::MAX_NOTIFICATIONS_PER_MINUTE,
             ));
         }
-        if !self.block_notifications.allow_key((identity.account, block)) {
+        if !self
+            .block_notifications
+            .allow_key((identity.account, block))
+        {
             return Err(crate::limits::too_many(
                 "notifications about one block a minute",
                 crate::limits::MAX_NOTIFICATIONS_PER_BLOCK,
@@ -2555,7 +2558,10 @@ impl Connection {
             .store
             .notification_recipients(identity, block, mentions)
             .await?;
-        let accounts: Vec<Uuid> = recipients.iter().map(|recipient| recipient.account).collect();
+        let accounts: Vec<Uuid> = recipients
+            .iter()
+            .map(|recipient| recipient.account)
+            .collect();
         let connected = self.hub.connected(identity.organization, &accounts).await;
         let deliveries: Vec<crate::push::Delivery> = recipients
             .into_iter()

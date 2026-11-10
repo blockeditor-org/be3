@@ -56,7 +56,15 @@ pub fn encrypt(
     random.fill(&mut salt).map_err(|_| Error::Keys)?;
     let peer = agreement::UnparsedPublicKey::new(&agreement::ECDH_P256, ua_public);
     agreement::agree_ephemeral(private, &peer, |secret| {
-        seal(secret, as_public.as_ref(), ua_public, auth, &salt, plain, padded)
+        seal(
+            secret,
+            as_public.as_ref(),
+            ua_public,
+            auth,
+            &salt,
+            plain,
+            padded,
+        )
     })
     .map_err(|_| Error::Keys)
 }

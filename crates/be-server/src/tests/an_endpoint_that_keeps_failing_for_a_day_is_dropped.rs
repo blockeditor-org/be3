@@ -37,10 +37,7 @@ async fn an_endpoint_that_keeps_failing_for_a_day_is_dropped() {
         .with_database(move |_, database| {
             database.execute(
                 "UPDATE push_endpoints SET failing_since = failing_since - ?2 WHERE address = ?1",
-                rusqlite::params![
-                    moved,
-                    i64::try_from(push::FAILING_FOR.as_millis()).unwrap()
-                ],
+                rusqlite::params![moved, i64::try_from(push::FAILING_FOR.as_millis()).unwrap()],
             )?;
             Ok(())
         })
