@@ -51,7 +51,7 @@ itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KE
 
 ## The NativeLink server on boat (`nativelink`)
 
-Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A small `nl-scheduler` VM runs
+Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A large `nl-scheduler` VM runs
 NativeLink (CAS, action cache, scheduler), `nl-controller.py` and Caddy; boat VMs named `nl-w-*` in the
 `nl-worker` environment run the actions, each NativeLink's worker inside the image `worker_properties` names. The
 scheduler and the workers meet in a WireGuard network, 10.100.0.0/24: the scheduler is 10.100.0.1 and serves buck2 on
@@ -88,10 +88,16 @@ port 50052.
   the shortfall in the next round (up to `NL_SPAWN_ROUNDS`, 4, a tick). It never deletes a VM that reached the
   scheduler, so each start that goes to a reachable VM is kept. Its own boat key is limited to the `nl-worker`
   environment (create, read, update, delete-own).
-- **Storage**: the workers read objects of 16 KB and up straight from the Bunny zone `be-nativelink-s3` with its
-  read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
-  action cache in /tmp, persisted as one packed Bunny object every 5 minutes and restored on boot, and writes
-  everything else to Bunny with the full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
+- **Storage**: the workers read and write objects of 16 KB and up straight to the Bunny zone `be-nativelink-s3`, so
+  those bytes never pass through the scheduler; a large object Bunny lacks is read from the scheduler. The scheduler
+  keeps small objects (up to 8 GB; one it evicts is lost) and the action cache in /tmp, persisted as one packed Bunny
+  object every 15 minutes and restored on boot, and writes what clients upload of 16 KB and up to Bunny, all with the
+  zone's full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
+- **The workers hold the full-access key.** The controller hands each worker the scheduler's key at creation
+  (`worker-rw.env`, as it hands over the WireGuard config). Actions run as root next to the worker's NativeLink, so
+  any build can read the key and then overwrite or delete the zone from anywhere. Anyone with the tunnel token could
+  already run code on the workers and write the action cache; a zone of its own for the workers' writes would keep a
+  leaked key from reaching the rest.
 - **Speed** (4 default-size workers, the same 16 CPUs as 2 large ones, taken before Caddy replaced a WebSocket tunnel, over the scheduler's private address, so
   boat's public edge was not in the path; scripts/internal/nativelink/bench/ repeats them through the edge):
   - A one-file change to be-lib-geometry, one build alone: 250-350 s with a fresh worker fleet, 190-230 s with a warm one.
@@ -102,6 +108,10 @@ port 50052.
   - 8 such builds at once from 3 VMs, each a different one-file change so that nothing is shared: all passed, in 860-888 s
     each, about half the time of running them one after another (8 x 190-230 s). The workers went from 4 to 6 to 9 on
     CPU (average 45-72% busy), and the burst and its client VMs used 10 starts.
+  - The same 8 builds (`bench/run-timings.sh 3 8`) on a large scheduler, with the workers writing to Bunny directly, 6
+    large workers (the cap) at 16 actions each: all passed, in 918-1030 s. The scheduler stayed 85-95% idle with no swap
+    (a small one had been out of CPU and swapping); 200-400 actions waited for a worker most of the time, so the
+    workers' cap is now what limits a burst.
 
 Things that are not obvious:
 
@@ -146,8 +156,8 @@ packed object on boot. To make a new one, with the Bunny zone `be-nativelink-s3`
 it cannot be turned on later) and a boat login that can create sandboxes:
 
 1. **Environments** (once): `boat env new nl-worker` and `boat env set nl-worker --github false --secrets true
-   --boat-credentials false --agents-credentials false`, then `boat env set-file nl-worker worker-ro.env --from FILE`
-   where FILE holds `BUNNY_S3_RO_SECRET=` and the zone's read-only key. `boat env new nl-scheduler`,
+   --boat-credentials false --agents-credentials false`, then no secret files (the
+   controller hands the workers their key). `boat env new nl-scheduler`,
    `boat env set nl-scheduler --github false --secrets true --boat-credentials true --agents-credentials false`
    (the scheduler stops itself with its own token), then `boat env set-file nl-scheduler nl-bunny.env --from FILE` where
    FILE holds `BUNNY_S3_KEY_ID=be-nativelink-s3` and `BUNNY_S3_SECRET=` with the full-access key, and
