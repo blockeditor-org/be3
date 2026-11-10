@@ -188,7 +188,14 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             }
             "--push-host" => {
                 let host = arguments.next().ok_or("--push-host needs a host name")?;
-                config.push.hosts.to_mut().push(host.to_ascii_lowercase());
+                let host = host.trim_end_matches('.').to_ascii_lowercase();
+                if host.is_empty() || host.contains([':', '/', '@', '\\', ' ']) {
+                    return Err(format!(
+                        "--push-host takes a bare host name, not {host:?} (no scheme, port or path)"
+                    )
+                    .into());
+                }
+                config.push.hosts.to_mut().push(host);
             }
             "--object-cache" => {
                 cache_bytes = arguments
