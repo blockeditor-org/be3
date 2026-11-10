@@ -81,6 +81,7 @@ impl Platform for AppPlatform {
                 actions_version: 0,
                 sent_actions: HashMap::default(),
                 focused: HashSet::default(),
+                listed: HashSet::default(),
                 toggles: HashMap::default(),
                 toggled: 0,
                 overflows: Vec::new(),
@@ -177,6 +178,8 @@ struct ModuleRunner {
     /// What each view last sent of them, at which change.
     sent_actions: HashMap<ViewRef, (SentActions, Vec<DescribedAction>)>,
     focused: HashSet<ViewRef>,
+    /// The views the last frame listed.
+    listed: HashSet<ViewRef>,
     toggles: HashMap<ViewRef, u32>,
     toggled: u32,
     overflows: Vec<(WindowId, String)>,
@@ -242,9 +245,15 @@ impl ModuleRunner {
         let shown = |id: &ViewRef| regions.iter().any(|region| region.id() == *id);
         self.float(regions);
         self.windows.retain(|id, _| shown(id));
+        // A focused view that closed takes the keyboard with it. One given the keyboard before
+        // it is first listed keeps it until it is.
         let had_keyboard = !self.focused.is_empty();
-        self.focused.retain(|id| shown(id));
-        // A focused view that closed takes the keyboard with it.
+        let listed = std::mem::replace(
+            &mut self.listed,
+            regions.iter().map(|region| region.id()).collect(),
+        );
+        self.focused
+            .retain(|id| shown(id) || !listed.contains(id));
         if had_keyboard && self.focused.is_empty() {
             self.runner.push(Incoming::logical(Input::Focus(false)));
         }

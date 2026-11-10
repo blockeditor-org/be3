@@ -29,12 +29,21 @@ fn two_devices_moving_on_at_once_keep_the_furthest_place() {
     let laptop = ChatReads::set_read(CHAT, LAPTOP, m7, &seen);
 
     let furthest = |reads: &ChatReadsContent| {
-        let places: Vec<_> = reads.root().places(CHAT).into_iter().map(|place| place.message).collect();
+        let places: Vec<_> = reads
+            .root()
+            .places(CHAT)
+            .into_iter()
+            .map(|place| place.message)
+            .collect();
         chat.unread(places, BO)
     };
     for order in [[&phone, &laptop], [&laptop, &phone]] {
         let reads = edited_reads(&base, order.into_iter().cloned());
-        assert_eq!(furthest(&reads), 0, "in either order the laptop's m7 counts");
+        assert_eq!(
+            furthest(&reads),
+            0,
+            "in either order the laptop's m7 counts"
+        );
     }
 
     let ours = edited_reads(&base, [phone]);
@@ -42,7 +51,11 @@ fn two_devices_moving_on_at_once_keep_the_furthest_place() {
     match ChatReadsContent::merge3(&base, &ours, &theirs) {
         MergeResult::Clean(merged) => {
             assert_eq!(furthest(&merged), 0, "merged, the laptop's m7 counts");
-            assert_eq!(merged.root().places(CHAT).len(), 2, "each device's new place is kept");
+            assert_eq!(
+                merged.root().places(CHAT).len(),
+                2,
+                "each device's new place is kept"
+            );
         }
         MergeResult::Conflicted { .. } => panic!("dropping the same seen places conflicts"),
     }
