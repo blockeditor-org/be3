@@ -13,7 +13,8 @@
 // does), so the browser's own focus, key and text paths run.
 // `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
 // `attribute CSS NAME VALUE|none` and `history LENGTH` (browser only) wait for an element's
-// attribute and the history's length; a shared script gives them as `#web` lines.
+// attribute and the history's length, and `reload` reloads the page; a shared script gives
+// them as `#web` lines.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
@@ -297,6 +298,15 @@ async function step(page, words) {
                 throw new Failure(`${selector} has ${name} ${JSON.stringify(shown)}, not ${JSON.stringify(wanted)}`);
             }
             return "";
+        }
+        case "reload": {
+            // reload: reloads the page, and waits for it to start and settle again.
+            await page.reload();
+            await page.waitForFunction(() => globalThis.beuiStarted !== undefined);
+            await page.evaluate(async () => {
+                await globalThis.beuiStarted;
+            });
+            return settle();
         }
         case "history": {
             // history LENGTH: waits until the page's history holds LENGTH entries.

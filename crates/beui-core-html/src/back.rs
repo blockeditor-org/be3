@@ -15,7 +15,7 @@
 //! layers' own Escape handling, and give it to handlers in the page, which Escape never
 //! reaches natively.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use beui_tree::reactive::Callback;
 use beui_types::BackGesture;
@@ -44,6 +44,9 @@ struct Handlers {
 
 thread_local! {
     static HANDLERS: RefCell<Handlers> = RefCell::default();
+    /// Whether a handler or a layer changed since history was last brought in step, so
+    /// a frame with nothing changed does no work.
+    static DIRTY: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Adds a handler for the component at `at` (the page itself when `None`), enabled from
@@ -96,6 +99,16 @@ pub fn remove(id: BackHandlerId) {
 fn changed() {
     #[cfg(target_arch = "wasm32")]
     web::watch();
+    mark();
+}
+
+/// A layer opened, closed or rose, which may change what back reaches.
+pub(crate) fn layers_changed() {
+    mark();
+}
+
+fn mark() {
+    DIRTY.with(|dirty| dirty.set(true));
     crate::frame::request_frame();
 }
 
@@ -107,7 +120,7 @@ mod web {
     use beui_types::{BackGesture, Dismiss, LayerPolicy};
     use wasm_bindgen::JsValue;
 
-    use super::HANDLERS;
+    use super::{DIRTY, HANDLERS, mark};
     use crate::dom::{Listener, call};
     use crate::node::NodeId;
     use crate::overlay::Layer;
@@ -146,16 +159,33 @@ mod web {
                 return;
             };
             let pass: Rc<dyn Fn() -> bool> = Rc::new(|| {
-                sync();
+                if DIRTY.with(|dirty| dirty.replace(false)) {
+                    sync();
+                }
                 false
             });
             crate::frame::hold_layout(&pass);
+            adopt_entry();
             let listener =
                 crate::dom::listen(window.as_ref(), "popstate", false, |_: web_sys::Event| {
                     popped()
                 });
             held.pass = Some((pass, listener));
         });
+    }
+
+    /// A reload, or a return without the back-forward cache, may land on the page's own
+    /// entry from before: hold it as pushed, so it is taken back or reused, not stranded
+    /// under a second one.
+    fn adopt_entry() {
+        let Some(history) = history() else {
+            return;
+        };
+        if on_own_entry(&history) {
+            PUSHED.with(|pushed| pushed.set(true));
+            LENGTH.with(|held| held.set(length(&history)));
+            mark();
+        }
     }
 
     fn history() -> Option<JsValue> {
@@ -236,7 +266,7 @@ mod web {
             None => {}
         }
         beui_reactive::flush();
-        crate::frame::request_frame();
+        mark();
     }
 
     fn sync() {
@@ -246,6 +276,13 @@ mod web {
         };
         let pushed = PUSHED.with(Cell::get);
         if wanted && !pushed {
+            if RETRACTING.with(Cell::get) > 0 {
+                // The entry's retraction is still on its way: pushing now could land
+                // under it, or have the person's own back taken for it. Push once it
+                // has popped.
+                DIRTY.with(|dirty| dirty.set(true));
+                return;
+            }
             let marker = js_sys::Object::new();
             let _ = js_sys::Reflect::set(&marker, &MARKER.into(), &true.into());
             if call(&history, "pushState", &[marker.into(), "".into()]).is_some() {
@@ -271,12 +308,13 @@ mod web {
             held > 0
         });
         if retracted {
+            mark();
             return;
         }
         if on_own_entry(&history) {
             // Forward onto the page's own entry: it holds again, and nothing went back.
             PUSHED.with(|pushed| pushed.set(true));
-            crate::frame::request_frame();
+            mark();
             return;
         }
         if !PUSHED.with(|pushed| pushed.replace(false)) {
@@ -284,7 +322,7 @@ mod web {
         }
         if length(&history) != LENGTH.with(Cell::get) {
             // A navigation forward (a `#` link) left the entry behind; it was no back.
-            crate::frame::request_frame();
+            mark();
             return;
         }
         invoke();

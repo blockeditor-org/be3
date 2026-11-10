@@ -64,7 +64,7 @@ export function words(line) {
 // them: each line's words, skipping blank lines and lines starting with #,
 // before their quotes are read.
 // With `web`, a line `#web COMMAND` is a command, as it is to web-test.mjs, for checks only
-// the browser test can make (`attribute`, `history`) in a script both cores run; anywhere
+// the browser test can make (`attribute`, `history`, `reload`) in a script both cores run; anywhere
 // else it is a comment.
 export function commands(text, { web = false } = {}) {
     return text
