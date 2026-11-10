@@ -191,8 +191,8 @@ impl ServerStore {
                  WHERE address = ?1",
                 params![address, now],
             )?;
-            let since = now
-                - i64::try_from(crate::push::FAILING_FOR.as_millis()).unwrap_or(i64::MAX);
+            let since =
+                now - i64::try_from(crate::push::FAILING_FOR.as_millis()).unwrap_or(i64::MAX);
             database.execute(
                 "DELETE FROM push_endpoints
                  WHERE address = ?1 AND failures >= ?2 AND failing_since <= ?3",

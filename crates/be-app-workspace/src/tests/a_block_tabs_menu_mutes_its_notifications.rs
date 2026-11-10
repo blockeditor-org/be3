@@ -27,9 +27,10 @@ fn menu_says(fixture: &mut Fixture, words: &str) -> bool {
     fixture.test.click("dock.editors.menu");
     fixture.settle();
     let said = says(fixture, words);
-    fixture
-        .test
-        .key(be_sdk_beui::beui::Key::Escape, be_sdk_beui::beui::Modifiers::default());
+    fixture.test.key(
+        be_sdk_beui::beui::Key::Escape,
+        be_sdk_beui::beui::Modifiers::default(),
+    );
     fixture.settle();
     said
 }
@@ -80,10 +81,12 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         "a change the host refused goes back to the mode it publishes"
     );
 
-    fixture.test.set_watched::<NotifyModesWatch>(&Some(vec![BlockNotifyMode {
-        block: opened.into_bytes(),
-        mode: NotifyMode::Mentions,
-    }]));
+    fixture
+        .test
+        .set_watched::<NotifyModesWatch>(&Some(vec![BlockNotifyMode {
+            block: opened.into_bytes(),
+            mode: NotifyMode::Mentions,
+        }]));
     fixture.settle();
     assert!(
         menu_says(&mut fixture, "Notifications: Mentions only"),

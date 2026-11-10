@@ -62,8 +62,8 @@ pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{
-    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision,
-    ShellDialog, TerminalHostBe, TerminalHostDownload, TerminalHostSource,
+    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, ShellDialog,
+    TerminalHostBe, TerminalHostDownload, TerminalHostSource,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
@@ -102,8 +102,8 @@ pub use types::{
 };
 
 pub use account::AccountStorage;
-pub use account::{BlockNotifyMode, NotifyMode};
 pub use account::HostPreferenceSources;
+pub use account::{BlockNotifyMode, NotifyMode};
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
