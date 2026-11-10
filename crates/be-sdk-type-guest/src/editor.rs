@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 use be_block::{LiveEdit, Settling, Touched};
 use be_sdk_type_api::ClientId;
@@ -32,6 +32,9 @@ pub enum FromEditor {
         payload: Vec<u8>,
     },
     Resend,
+    /// Asks the replica to follow `ToEditor::Lacking`: what the server lacks of the edits made
+    /// on this device, whichever editor made them.
+    FollowLacking,
     /// Asks for `length` bytes of the block's stored form from `offset`, as the replica holds
     /// it: what a type that loads only its first part left in the store comes this way. The
     /// replica answers `ToEditor::Range` with the same `token`.
@@ -67,6 +70,17 @@ pub struct Snapshot {
     )]
     pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
+}
+
+/// An edit made on this device that the server lacks: sequenced but not yet appended to the
+/// server's journal, appended offline, in a commit kept in the outbox, or, on a follower, not
+/// yet accepted by the owner. `failed` once the server refused the commit holding it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Lacked {
+    pub id: u64,
+    #[serde(with = "serde_bytes")]
+    pub operation: Vec<u8>,
+    pub failed: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -112,6 +126,14 @@ pub enum ToEditor {
     PartPut {
         token: u64,
         result: Result<be_block::PartRef, String>,
+    },
+    /// Edits made on this device that the server lacks, for an editor that asked
+    /// (`FromEditor::FollowLacking`): with `reset`, every one; otherwise those added or changed
+    /// since, and the ids of those the server now holds.
+    Lacking {
+        reset: bool,
+        lacking: Vec<Lacked>,
+        held: Vec<u64>,
     },
 }
 
@@ -211,6 +233,8 @@ pub struct EditorMirror<C: LiveEdit> {
     reads: u64,
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
     puts: Vec<(u64, Result<be_block::PartRef, String>)>,
+    lacking: BTreeMap<u64, (Vec<u8>, bool)>,
+    lacking_revision: u64,
 }
 
 impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
@@ -231,6 +255,8 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             reads: 0,
             ranges: Vec::new(),
             puts: Vec::new(),
+            lacking: BTreeMap::new(),
+            lacking_revision: 0,
         }
     }
 }
@@ -322,6 +348,20 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.pending.len()
     }
 
+    /// The edits made on this device that the server lacks (`ToEditor::Lacking`), each with
+    /// whether the server refused it, once `FromEditor::FollowLacking` was sent.
+    pub fn lacking(&self) -> Vec<(C::Op, bool)> {
+        self.lacking
+            .values()
+            .filter_map(|(operation, failed)| Some((C::decode_operation(operation).ok()?, *failed)))
+            .collect()
+    }
+
+    /// Moves whenever `lacking` changes.
+    pub fn lacking_revision(&self) -> u64 {
+        self.lacking_revision
+    }
+
     pub fn presence(&self) -> &[PeerPresence] {
         &self.presence
     }
@@ -375,6 +415,24 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             }
             ToEditor::PartPut { token, result } => {
                 self.puts.push((token, result));
+                None
+            }
+            ToEditor::Lacking {
+                reset,
+                lacking,
+                held,
+            } => {
+                if reset {
+                    self.lacking.clear();
+                }
+                for lacked in lacking {
+                    self.lacking
+                        .insert(lacked.id, (lacked.operation, lacked.failed));
+                }
+                for id in held {
+                    self.lacking.remove(&id);
+                }
+                self.lacking_revision += 1;
                 None
             }
         }
