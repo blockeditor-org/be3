@@ -112,6 +112,9 @@ Things that are not obvious:
 - **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
   including the ones it deletes at once. A cold fleet of 2 is about 4 starts, in a few rounds. Workers are `large` because boat prices
   every size the same per CPU, so bigger ones cost the same and use fewer starts.
+- **A stopped scheduler's port answers a redirect**, to boat's fallback page, not an error. The bootstrap counts any
+  redirect (and any 5xx) as "not answering" and wakes the scheduler with `BE3_NL_KEY`; only a 2xx or 4xx (Caddy or
+  NativeLink) means it is up.
 - **Exposing the port is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
   working across stop and resume, but a new scheduler has a new one. `host url 8099` without `--public` makes it
   private again (every client then gets `403 ... requires an access token`), so pass `--public` there too. Never expose it before Caddy checks the token:
