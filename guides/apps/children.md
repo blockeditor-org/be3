@@ -112,10 +112,11 @@ never by a timeout:
   in it has the keyboard (its view asks for an input method), or, for a child
   with none, two frames after it had its block's content and the focus.
 - Refused when the person presses in the editor or takes the keyboard
-  elsewhere, when the child or the editor goes or its app stops, and when no
-  child shows a block gift's block by the layout commit after the one it was
-  asked in. The editor hears the held keys if it still has the keyboard;
-  otherwise they are dropped.
+  elsewhere, and when the child or the editor goes or its app stops. A block
+  gift waits for a child to show its block however many frames that takes: the
+  editor has to change its content first, which a busy host can delay. The
+  editor hears the held keys if it still has the keyboard; otherwise they are
+  dropped.
 
 Only children placed in a mode that runs an editor count; a gift to a child
 that is placed but never shows a view that takes the keyboard (a view behind
