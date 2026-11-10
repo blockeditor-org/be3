@@ -450,12 +450,18 @@ impl TextModel {
     }
 
     pub fn set_selection(self: &Rc<Self>, selection: Option<TextMark>) {
+        if selection.is_none() && self.overlay.borrow().is_none() {
+            return;
+        }
         self.decorate();
         self.decor.borrow_mut().selection = selection;
         crate::frame::request_frame();
     }
 
     pub fn set_handles(self: &Rc<Self>, handles: Vec<TextCaret>) {
+        if handles.is_empty() && self.overlay.borrow().is_none() {
+            return;
+        }
         self.decorate();
         self.decor.borrow_mut().handles = handles;
         crate::frame::request_frame();

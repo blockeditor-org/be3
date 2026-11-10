@@ -532,8 +532,9 @@ mod web {
     }
 
     /// The first of `taken` that a paste's `data` holds: a file of that type, or text
-    /// under it. be3's own formats never reach the browser's clipboard, which
-    /// copying fills with text only.
+    /// under it. be3's own formats are skipped: a paste event's `DataTransfer` never
+    /// carries the browser's custom `web ` formats, which only the async clipboard reads
+    /// (and this core's own copying writes text only).
     fn pasted(data: &web_sys::DataTransfer, taken: &[String]) -> Option<Pasted> {
         taken
             .iter()
