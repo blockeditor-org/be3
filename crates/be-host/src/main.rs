@@ -1533,7 +1533,9 @@ impl HostCore {
                 self.organizations_cached = false;
                 self.keys.loaded(keys);
                 if self.keys.needs_recovery() {
-                    if self.dev_workspace {
+                    // A local account's key sits in plaintext beside its database, so
+                    // there is nothing to lose and no phrase to make the user save.
+                    if self.dev_workspace || self.account.server == ServerLocation::Local {
                         self.keys.skip_confirmation(
                             self.server_url.clone(),
                             self.account.token.clone(),
