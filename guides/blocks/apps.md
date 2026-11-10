@@ -40,8 +40,9 @@ on `be_sdk_type_guest::editor::EditorMirror<C>`. `operate` applies to what the
 view sees and queues for the host. A `mine` operation coming back only
 confirms, and only that this device's replica took the edit: it confirms at
 once, before any owner accepted it (on a follower it is still `unsettled`), so
-it says nothing of whether the server holds it (below, "Sending"); another's is applied on top, or beneath this instance's in-flight
-edit (`LiveEdit::apply_beneath`). Only another instance's unsettled operation
+it says nothing of whether the server holds it (below, "Sending"); another's
+is applied on top, or beneath this instance's in-flight edit
+(`LiveEdit::apply_beneath`). Only another instance's unsettled operation
 arriving while this one has an edit in flight rebuilds the view. Applying
 reports what it touched (`LiveEdit::apply_touching`), and projections run only
 when something they watch was touched (guides/reactive.md). `read` answers
@@ -78,23 +79,34 @@ holds what a host-made snapshot already carried.
 ### Sending
 
 An editor that shows what is still sending sends `FromEditor::FollowLacking`
-once (`ContentProjection::lacking`); the replica then sends `ToEditor::Lacking`:
-the edits made on this device that the server lacks, each as its operation's
-bytes, so the editor maps them to what they made (chat's messages), whichever
-editor made them. The first answer has them all (`reset`), later ones what was
-added or failed and the ids the server now holds. The replica keeps an edit
-until the server holds it (`be-sdk-type-guest/src/lacking.rs`): as owner, until
-the host answers the journal append holding it (`append` answers whether the
-server took the entries) or a commit holding it is published to the server; as
-follower, until the owner accepts it; an edit too large to relay, until its
-commit is answered. A commit kept in this device's outbox (`publish-outcome.kept`)
-keeps its edits until the host says it `drained`, or with `refused` that the
-server refused it, when they show as failed rather than sending. A replica
-reopened, or opened again after its editors closed, carries on with what the
-last one lacked, and one opened on this device's own journal
-(`opening.journal-kept`) adds the edits it replays. Only a host restart loses
-them: commits kept in the outbox before it show as sent.
-be-sdk-test's `ContentStore::set_online` and `refuse_kept` drive this in an
+(`ContentProjection::lacking`), again with each snapshot; the replica then
+sends `ToEditor::Lacking`: the edits made on this device that the server lacks,
+each as its operation's bytes (none past 1 MiB), so the editor maps them to
+what they made (chat's messages), whichever editor made them. The first answer
+has them all (`reset`), later ones what was added or failed and the ids the
+server now holds. The replica records edits only while an editor follows, and
+keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
+- as owner, until the host answers the journal append holding it (`append`
+  answers whether the server took the entries; a folded entry holds the run it
+  absorbed) or a commit holding it is published to the server;
+- as follower, until the owner accepts it, which it does only through an append
+  the server relays once it took it; a stash the follower handed the owner,
+  until the owner says `Saved`;
+- an edit too large to relay, until its commit is answered;
+- in a commit kept in this device's outbox (`publish-outcome.kept`), until the
+  host says it `drained`, or with `refused` that the server refused it: the
+  edit then shows as failed, until the editor lets it go
+  (`FromEditor::DismissLacking`, after sending it again or giving it up).
+
+A replica reopened, or opened again after its editors closed, carries on with
+what the last one lacked (the module keeps it for the last 64 blocks), and
+learns from `opening.commits-kept` whether those kept commits drained or were
+refused meanwhile; one opened on this device's own journal
+(`opening.journal-kept`) adds the edits it replays. A host or type module that
+restarts loses the list: commits kept in the outbox before it show as sent. An
+owner that loses the session with an append the server never took keeps that
+edit as sending, since the new owner never had it. be-sdk-test's
+`ContentStore::set_online`, `refuse_kept` and `close_replica` drive this in an
 editor test.
 
 ## State and change callbacks

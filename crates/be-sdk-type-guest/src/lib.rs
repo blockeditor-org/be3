@@ -308,6 +308,9 @@ fn describe_bytes<C: BlockContent>(
     Ok(describe(&content, organization))
 }
 
+/// How many closed blocks' unheld edits the module keeps for when they open again.
+const CARRIED_BLOCKS: usize = 64;
+
 struct State {
     replicas: BTreeMap<ReplicaId, Box<dyn AnyReplica>>,
     epochs: BTreeMap<ReplicaId, u64>,
@@ -414,6 +417,7 @@ impl Module {
                 journal: opening.journal.clone(),
                 lost_edits: opening.lost_edits,
                 journal_kept: opening.journal_kept,
+                commits_kept: opening.commits_kept,
                 from_file: kind.from_file,
                 now,
             })
@@ -566,6 +570,10 @@ impl Module {
                 && !carried.is_empty()
             {
                 state.carried.insert(block, carried);
+                // Kept for the blocks opened again soon; the others ask the host when they open.
+                while state.carried.len() > CARRIED_BLOCKS {
+                    state.carried.pop_first();
+                }
             }
         }
         let wake = state
@@ -690,12 +698,13 @@ impl Module {
                 generation,
                 entries,
                 relay,
+                from,
             } => {
-                let sequences = entries.iter().map(|entry| entry.sequence);
-                let (from, through) = (
-                    sequences.clone().min().unwrap_or_default(),
-                    sequences.max().unwrap_or_default(),
-                );
+                let through = entries
+                    .iter()
+                    .map(|entry| entry.sequence)
+                    .max()
+                    .unwrap_or_default();
                 let pending =
                     ops::with_parent(replica, || host::append(generation, entries, relay));
                 self.answer_later(replica, pending, move |held| Input::Appended {

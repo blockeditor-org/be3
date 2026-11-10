@@ -67,7 +67,16 @@ type Joined = Result<
     ClientError,
 >;
 
-type Rejoined = Result<(ClientId, SessionState, Option<CommitId>), ClientError>;
+/// The client, session and remote head, and what commits of the block this device keeps.
+type Rejoined = Result<
+    (
+        ClientId,
+        SessionState,
+        Option<CommitId>,
+        be_sdk_type_api::KeptCommits,
+    ),
+    ClientError,
+>;
 
 type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
 
@@ -810,6 +819,7 @@ impl<H: Host> Replicas<H> {
             lost_edits: lost_edits(journal.as_ref(), tag),
             journal: journal.and_then(|journal| replayable(journal, tag)),
             journal_kept,
+            commits_kept: kept_commits(peer, block),
         };
         let handle = self
             .modules
@@ -912,7 +922,11 @@ impl<H: Host> Replicas<H> {
             false => head,
         };
         let journal = journal.filter(|journal| journal.base.commit == from);
-        self.reopen_joined(replica, client, session, from, journal);
+        let commits_kept = match ahead.is_some() {
+            true => be_sdk_type_api::KeptCommits::Outbox,
+            false => be_sdk_type_api::KeptCommits::None,
+        };
+        self.reopen_joined(replica, client, session, from, journal, commits_kept);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -933,6 +947,7 @@ impl<H: Host> Replicas<H> {
         session: SessionState,
         head: Option<CommitId>,
         journal: Option<be_block_protocol::Journal>,
+        commits_kept: be_sdk_type_api::KeptCommits,
     ) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -958,6 +973,7 @@ impl<H: Host> Replicas<H> {
             lost_edits: lost_edits(journal.as_ref(), self.modules.tag(module)),
             journal: journal.and_then(|journal| replayable(journal, self.modules.tag(module))),
             journal_kept: false,
+            commits_kept,
         };
         let editors: Vec<(EditorId, bool)> = open
             .editors
@@ -2028,7 +2044,7 @@ impl<H: Host> Replicas<H> {
                     let (client, session, _) = peer.join_session(block)?.await?;
                     peer.watch(block);
                     let head = peer.remote_head(block).await?;
-                    Ok::<_, ClientError>((client, session, head))
+                    Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block)))
                 }
                 .await;
                 let _ = io.send(Io::Rejoined {
@@ -2062,7 +2078,7 @@ impl<H: Host> Replicas<H> {
         open.joining = false;
         open.rejoining = None;
         let early = std::mem::take(&mut open.early);
-        let (client, session, head) = match joined {
+        let (client, session, head, commits_kept) = match joined {
             Ok(joined) => joined,
             Err(error) => {
                 H::record(shared, error);
@@ -2083,7 +2099,7 @@ impl<H: Host> Replicas<H> {
             })
             .collect();
         let known = open.status.head;
-        self.reopen_joined(replica, client, session, known, None);
+        self.reopen_joined(replica, client, session, known, None, commits_kept);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -2151,6 +2167,7 @@ impl<H: Host> Replicas<H> {
                 journal: None,
                 lost_edits: false,
                 journal_kept: false,
+                commits_kept: be_sdk_type_api::KeptCommits::None,
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors
@@ -2852,6 +2869,21 @@ async fn reset<H: Host>(
 
 /// The journal a replica opening at `head` loads: the server's (from joining, opened) or this
 /// device's, whichever holds more on that base.
+/// Whether this device keeps commits of `block` the server lacks: in the outbox, or refused and
+/// set aside in the unsent area.
+fn kept_commits<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+) -> be_sdk_type_api::KeptCommits {
+    if peer.unsent().iter().any(|unsent| unsent.block == block) {
+        return be_sdk_type_api::KeptCommits::Refused;
+    }
+    match peer.pending_commits(block).is_empty() {
+        true => be_sdk_type_api::KeptCommits::None,
+        false => be_sdk_type_api::KeptCommits::Outbox,
+    }
+}
+
 /// The journal to open `head` on, and whether it is this device's, holding entries the server
 /// lacks.
 fn journal_for<S: be_block_store::ObjectStore>(

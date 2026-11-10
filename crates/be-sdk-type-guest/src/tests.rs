@@ -66,6 +66,7 @@ mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
+mod an_owner_that_loses_the_session_with_an_append_in_flight_keeps_its_edit_lacking;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
@@ -74,6 +75,7 @@ mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
+mod two_quick_edits_folded_into_one_append_are_both_held_by_it;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
@@ -348,6 +350,7 @@ fn opening(
         journal: None,
         lost_edits: false,
         journal_kept: false,
+        commits_kept: be_sdk_type_api::KeptCommits::None,
     }
 }
 
@@ -385,6 +388,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     errors: Vec<(usize, String)>,
     quiet: bool,
     stalled: bool,
+    /// Appends are answered as kept on the device alone, and reach no one.
+    unheld_appends: bool,
     held: Vec<(usize, Call)>,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
@@ -439,6 +444,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             errors: Vec::new(),
             quiet: false,
             stalled: false,
+            unheld_appends: false,
             held: Vec::new(),
             deaf: BTreeSet::new(),
             largest_relay: 0,
@@ -1005,6 +1011,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 entries,
                 relay,
             } => {
+                if self.unheld_appends {
+                    return self.to(device, |host| reply.send(host, &false));
+                }
                 self.to(device, |host| reply.send(host, &true));
                 if relay {
                     let participants = self.lease.state().participants.clone();
