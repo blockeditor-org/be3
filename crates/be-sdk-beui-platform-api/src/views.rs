@@ -58,6 +58,7 @@ struct Shared {
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
     reports: RefCell<HashMap<ViewRef, Report>>,
     floated: RefCell<Vec<(ViewRef, beui::WindowId)>>,
+    keyboard: RefCell<Vec<ViewRef>>,
 }
 
 #[derive(Clone, Default)]
@@ -91,6 +92,23 @@ impl Views {
 
     pub fn set_floated(&self, floated: Vec<(ViewRef, beui::WindowId)>) {
         *self.0.floated.borrow_mut() = floated;
+    }
+
+    /// The views the host gave the keyboard, which is how an editor knows its own view has it
+    /// rather than another of the app's (`Editor::has_keyboard`).
+    pub fn keyboard(&self) -> Vec<ViewRef> {
+        self.0.keyboard.borrow().clone()
+    }
+
+    pub fn set_keyboard(&self, keyboard: Vec<ViewRef>) {
+        if *self.0.keyboard.borrow() == keyboard {
+            return;
+        }
+        *self.0.keyboard.borrow_mut() = keyboard;
+        let watchers = self.0.watchers.borrow().clone();
+        for watcher in watchers {
+            watcher();
+        }
     }
 
     pub fn report(&self, id: ViewRef, report: Report) {

@@ -242,7 +242,13 @@ impl ModuleRunner {
         let shown = |id: &ViewRef| regions.iter().any(|region| region.id() == *id);
         self.float(regions);
         self.windows.retain(|id, _| shown(id));
+        let had_keyboard = !self.focused.is_empty();
         self.focused.retain(|id| shown(id));
+        // A focused view that closed takes the keyboard with it.
+        if had_keyboard && self.focused.is_empty() {
+            self.runner.push(Incoming::logical(Input::Focus(false)));
+        }
+        self.tell_keyboard();
         self.toggles.retain(|id, _| shown(id));
         let windows: HashSet<WindowId> = self.windows.values().copied().collect();
         self.sized.retain(|window, _| windows.contains(window));
@@ -777,6 +783,14 @@ fn placed(mut tree: TreeUpdate, ratio: f32) -> TreeUpdate {
     tree
 }
 
+impl ModuleRunner {
+    fn tell_keyboard(&self) {
+        let mut keyboard: Vec<ViewRef> = self.focused.iter().copied().collect();
+        keyboard.sort_by_key(|view| (view.instance.0, view.view.0));
+        self.views.set_keyboard(keyboard);
+    }
+}
+
 impl Regions for ModuleRunner {
     type Painter = Painter;
 
@@ -803,6 +817,7 @@ impl Regions for ModuleRunner {
             if was != now {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
+            self.tell_keyboard();
         } else {
             let target = over.unwrap_or(id);
             match anchored_layer(target.view) {
