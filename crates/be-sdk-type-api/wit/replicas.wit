@@ -27,6 +27,8 @@ interface replicas {
         /// on `head` holds some this module cannot replay, or the server
         /// marked them lost since the last commit.
         lost-edits: bool,
+        /// `journal` is this device's, holding entries the server lacks.
+        journal-kept: bool,
     }
 
     /// The device's one replica of a block. Dropping it closes it: it seals
@@ -69,6 +71,11 @@ interface replicas {
 
         /// `force` is a rekey: publish even when clean.
         seal: async func(force: bool);
+
+        /// Every commit of the block this device kept (`publish-outcome.kept`)
+        /// has reached the server, or with `refused` the server refused them
+        /// and they will not reach it.
+        drained: async func(refused: bool);
     }
 
     /// Seeds the module's entropy, starts its clock and lists its types.
