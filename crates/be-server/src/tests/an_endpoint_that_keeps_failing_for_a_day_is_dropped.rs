@@ -21,16 +21,25 @@ async fn an_endpoint_that_keeps_failing_for_a_day_is_dropped() {
     };
 
     for _ in 0..push::MAX_FAILURES {
-        store.endpoint_failed(account, organization, address.clone()).await.unwrap();
+        store
+            .endpoint_failed(account, organization, address.clone())
+            .await
+            .unwrap();
     }
     assert_eq!(
         kept(store.clone()).await,
         1,
         "failures within a day keep the endpoint: the device may be away"
     );
-    store.endpoint_answered(account, organization, address.clone()).await.unwrap();
+    store
+        .endpoint_answered(account, organization, address.clone())
+        .await
+        .unwrap();
     for _ in 0..push::MAX_FAILURES {
-        store.endpoint_failed(account, organization, address.clone()).await.unwrap();
+        store
+            .endpoint_failed(account, organization, address.clone())
+            .await
+            .unwrap();
     }
     let moved = address.clone();
     store
@@ -44,7 +53,10 @@ async fn an_endpoint_that_keeps_failing_for_a_day_is_dropped() {
         .await
         .unwrap();
     assert_eq!(kept(store.clone()).await, 1);
-    store.endpoint_failed(account, organization, address).await.unwrap();
+    store
+        .endpoint_failed(account, organization, address)
+        .await
+        .unwrap();
     assert_eq!(
         kept(store).await,
         0,

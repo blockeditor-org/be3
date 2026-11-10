@@ -24,7 +24,9 @@ async fn senders_are_capped_overall_and_per_push_host() {
 }
 
 /// Polls once, with no waker to wake: `None` while the future waits.
-fn futures_lite_poll<F: std::future::Future>(future: &mut std::pin::Pin<Box<F>>) -> Option<F::Output> {
+fn futures_lite_poll<F: std::future::Future>(
+    future: &mut std::pin::Pin<Box<F>>,
+) -> Option<F::Output> {
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
     match future.as_mut().poll(&mut context) {
         std::task::Poll::Ready(output) => Some(output),
