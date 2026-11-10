@@ -226,7 +226,6 @@ struct Inner {
     pending_presence: Cell<Option<bool>>,
     pending_reveal: Cell<Option<u64>>,
     pushed: Rc<Cell<bool>>,
-    _pushes: Subscription,
     seen_ratio: Cell<Option<f32>>,
     shown_rect: Cell<Option<Rect>>,
     shown: RefCell<ShownEditor>,
@@ -248,15 +247,7 @@ impl EditorCore {
         scale: Rc<Cell<PointScale>>,
         contents: Rc<ContentCache>,
     ) -> Self {
-        let pushed = Rc::new(Cell::new(true));
-        let pushes = host.on_changed({
-            let pushed = Rc::downgrade(&pushed);
-            move || {
-                if let Some(pushed) = pushed.upgrade() {
-                    pushed.set(true);
-                }
-            }
-        });
+        let pushed = host.change_flag();
         Self(Rc::new(Inner {
             shown: RefCell::new(ShownEditor::of(&host)),
             host,
@@ -270,7 +261,6 @@ impl EditorCore {
             pending_presence: Cell::new(None),
             pending_reveal: Cell::new(None),
             pushed,
-            _pushes: pushes,
             seen_ratio: Cell::new(None),
             shown_rect: Cell::new(None),
             on_shown: Callbacks::default(),

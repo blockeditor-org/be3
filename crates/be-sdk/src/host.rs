@@ -512,7 +512,6 @@ pub struct EditorHost {
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
-    on_changed: Rc<crate::state::Callbacks<(), dyn Fn()>>,
     reads: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
@@ -659,20 +658,15 @@ impl EditorHost {
         made
     }
 
-    /// Runs `run` whenever anything the editor mirrors from the host changes, or the graph
-    /// defers a change until the next frame: an editor's frame checks nothing on the host
-    /// unless this said so.
-    pub fn on_changed(&self, run: impl Fn() + 'static) -> Subscription {
-        let run: Rc<dyn Fn()> = Rc::new(run);
-        let own = self.on_changed.add((), Rc::clone(&run));
-        let graph = self.graph.on_deferred(run);
-        Subscription::new(move || drop((own, graph)))
+    /// A flag raised whenever anything the editor mirrors from the host changes, or the
+    /// graph defers a change until the next frame, and raised to begin with: an editor's
+    /// frame reads the host only when its flag is up, and takes it down.
+    pub fn change_flag(&self) -> Rc<Cell<bool>> {
+        self.graph.changes.flag()
     }
 
     fn changed(&self) {
-        for run in self.on_changed.all() {
-            run();
-        }
+        self.graph.changes.raise();
     }
 
     /// How many times anything read the state the host pushed (every getter an editor's
