@@ -538,13 +538,18 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.settle();
     }
 
-    /// Starts the device's replica over on the head, as a host does after it reconnects, and
-    /// attaches its editors again.
+    /// Starts the device's replica over on the head and the journal on it, as a host does after
+    /// it reconnects, and attaches its editors again.
     fn reopen(&mut self, device: usize) {
         let client = self.devices[device].client;
+        let journal = self
+            .journal
+            .clone()
+            .filter(|journal| journal.base.commit == self.head);
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
+            journal,
             ..opening(client, self.head, self.lease.state().clone())
         };
         self.with_replica(device, |replica, host| replica.reopen(host, opening));
