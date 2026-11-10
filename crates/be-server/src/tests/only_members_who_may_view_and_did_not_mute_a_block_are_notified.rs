@@ -34,16 +34,26 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
         }
         accounts.push(account);
     }
-    let mut stranger = harness.client().await;
-    let stranger_id = stranger.register("stranger@example.com").await;
-    stranger.personal().await;
-    stranger.register_endpoint(endpoint("stranger")).await;
-    let muted = stranger
+    // A member of the same organization the block was not shared with.
+    let mut bystander = harness.client().await;
+    let bystander_id = bystander.register("bystander@example.com").await;
+    assert_eq!(bystander.personal().await, organization);
+    bystander.register_endpoint(endpoint("bystander")).await;
+    let muted = bystander
         .call(|peer| client::notifications::set_notify_mode(peer, block, NotifyMode::Off))
         .await;
     assert!(
         refused_as(&muted, ErrorCode::BlockNotFound),
-        "a stranger set a mode on a block it cannot see: {muted:?}"
+        "a member set a mode on a block it cannot see: {muted:?}"
+    );
+    let (mut viewer, _) = viewer_of(&harness, &mut owner, block, "viewer@example.com").await;
+    let sealed = b"sealed".to_vec();
+    let notified = viewer
+        .call(|peer| client::notifications::notify(peer, block, sealed, Vec::new()))
+        .await;
+    assert!(
+        refused_as(&notified, ErrorCode::PermissionDenied),
+        "a member who may only view the block notified about it: {notified:?}"
     );
 
     let store = ServerStore::open(&harness.directory).unwrap();
@@ -68,9 +78,10 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
             addresses
         }
     };
+    // The viewer added last registered no endpoint, so only "all" and "mentions" have one.
     assert_eq!(recipients(Vec::new()).await, ["all"]);
     assert_eq!(
-        recipients(vec![accounts[1], accounts[2], stranger_id]).await,
+        recipients(vec![accounts[1], accounts[2], bystander_id]).await,
         ["all", "mentions"]
     );
 

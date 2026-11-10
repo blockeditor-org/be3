@@ -1,4 +1,5 @@
-//! Sending pushes: Web Push (RFC 8030) with its payloads encrypted to the device (RFC 8291) and
+//! Sending pushes: Web Push (RFC 8030) with its payloads encrypted to the device (RFC 8291,
+//! `be_lib_web_push`) and
 //! the server identified by VAPID (RFC 8292), and FCM's HTTP v1 API for Android devices without
 //! a UnifiedPush distributor. Every push carries the same bytes, encrypted the same way, so a
 //! device decrypts what either sends alike. guides/blocks/server.md, "Notifications".
@@ -15,8 +16,7 @@ use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use be_block_protocol::{PushEndpoint, PushService};
 use ring::{
-    aead, agreement, hmac,
-    rand::{SecureRandom, SystemRandom},
+    rand::SystemRandom,
     signature::{self, KeyPair},
 };
 use rusqlite::{Connection, OptionalExtension, params};
@@ -24,14 +24,24 @@ use uuid::Uuid;
 
 use crate::{ServerError, store::ServerStore};
 
-/// The record size every push declares (RFC 8188): one record holds the whole payload.
-const RECORD_SIZE: u32 = 4096;
-/// The header before the ciphertext: salt, record size, key id length, the sender's key.
-pub const HEADER_BYTES: usize = 16 + 4 + 1 + 65;
 /// How long a push service keeps a push for a device that is away.
 const TIME_TO_LIVE: Duration = Duration::from_secs(24 * 60 * 60);
 /// How long one request to a push service may take.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+/// Pushes sent at once over the whole server. Each holds a blocking thread while it waits on
+/// its service, so a service that never answers holds at most these, never the pool the
+/// database shares.
+const SENDERS: usize = 32;
+/// Pushes waiting over the whole server, past which more are dropped.
+const MAX_QUEUED: usize = 16_384;
+/// Pushes waiting for one account's devices, past which more are dropped.
+const MAX_QUEUED_PER_ACCOUNT: usize = 256;
+/// What each push's plaintext is padded to: the largest `PushMessage`, so its length says
+/// nothing of the notification's.
+pub const PADDED_BYTES: usize = 48 + be_block_protocol::MAX_NOTIFICATION_BYTES;
+/// Failures in a row, spread over at least `FAILING_FOR`, after which an endpoint is dropped.
+pub const MAX_FAILURES: i64 = 5;
+pub const FAILING_FOR: Duration = Duration::from_secs(24 * 60 * 60);
 /// How long a VAPID token is valid: RFC 8292 allows at most a day.
 const VAPID_LIFETIME: Duration = Duration::from_secs(12 * 60 * 60);
 const FCM_SCOPE: &str = "https://www.googleapis.com/auth/firebase.messaging";
@@ -173,105 +183,6 @@ impl Vapid {
     }
 }
 
-/// Encrypts `plain` to a device's keys (RFC 8291, `aes128gcm`): a new sender key pair and salt
-/// for each push.
-pub fn encrypt(ua_public: &[u8], auth: &[u8], plain: &[u8]) -> Result<Vec<u8>, ServerError> {
-    let random = SystemRandom::new();
-    let unusable = || {
-        ServerError::Refused(
-            be_block_protocol::ErrorCode::InvalidRequest,
-            "the endpoint's keys are not a P-256 public key and a 16-byte secret".into(),
-        )
-    };
-    if auth.len() != 16 {
-        return Err(unusable());
-    }
-    let private = agreement::EphemeralPrivateKey::generate(&agreement::ECDH_P256, &random)
-        .map_err(|_| unusable())?;
-    let as_public = private.compute_public_key().map_err(|_| unusable())?;
-    let mut salt = [0; 16];
-    random.fill(&mut salt).map_err(|_| unusable())?;
-    let peer = agreement::UnparsedPublicKey::new(&agreement::ECDH_P256, ua_public);
-    agreement::agree_ephemeral(private, &peer, |secret| {
-        seal(secret, as_public.as_ref(), ua_public, auth, &salt, plain)
-    })
-    .map_err(|_| unusable())
-}
-
-/// RFC 8291's encryption from the shared secret on: the content encryption key and nonce, then
-/// the header and the one record. `encrypt` with every random input given.
-pub fn seal(
-    ecdh_secret: &[u8],
-    as_public: &[u8],
-    ua_public: &[u8],
-    auth: &[u8],
-    salt: &[u8; 16],
-    plain: &[u8],
-) -> Vec<u8> {
-    let (key, nonce) = derive(ecdh_secret, as_public, ua_public, auth, salt);
-    let mut record = plain.to_vec();
-    record.push(2);
-    key.seal_in_place_append_tag(nonce, aead::Aad::empty(), &mut record)
-        .expect("a push fits one record");
-    let mut body = Vec::with_capacity(HEADER_BYTES + record.len());
-    body.extend_from_slice(salt);
-    body.extend_from_slice(&RECORD_SIZE.to_be_bytes());
-    body.push(as_public.len() as u8);
-    body.extend_from_slice(as_public);
-    body.extend_from_slice(&record);
-    body
-}
-
-/// The sender's public key in a push `seal` made, which the device agrees on a secret with.
-pub fn sender_key(body: &[u8]) -> Option<&[u8]> {
-    let length = usize::from(*body.get(20)?);
-    body.get(21..21 + length)
-}
-
-/// Decrypts a push `seal` made, given the secret the device agreed on with `sender_key`: what a
-/// device does on receiving one.
-pub fn open(ecdh_secret: &[u8], ua_public: &[u8], auth: &[u8], body: &[u8]) -> Option<Vec<u8>> {
-    let salt: [u8; 16] = body.get(..16)?.try_into().ok()?;
-    let as_public = sender_key(body)?;
-    let start = 21 + as_public.len();
-    let (key, nonce) = derive(ecdh_secret, as_public, ua_public, auth, &salt);
-    let mut record = body.get(start..)?.to_vec();
-    let plain = key
-        .open_in_place(nonce, aead::Aad::empty(), &mut record)
-        .ok()?;
-    let end = plain.iter().rposition(|byte| *byte != 0)?;
-    (plain[end] == 2).then(|| plain[..end].to_vec())
-}
-
-fn derive(
-    ecdh_secret: &[u8],
-    as_public: &[u8],
-    ua_public: &[u8],
-    auth: &[u8],
-    salt: &[u8; 16],
-) -> (aead::LessSafeKey, aead::Nonce) {
-    let mac = |key: &[u8], parts: &[&[u8]]| {
-        let mut context = hmac::Context::with_key(&hmac::Key::new(hmac::HMAC_SHA256, key));
-        for part in parts {
-            context.update(part);
-        }
-        context.sign()
-    };
-    let prk_key = mac(auth, &[ecdh_secret]);
-    let ikm = mac(
-        prk_key.as_ref(),
-        &[b"WebPush: info\0", ua_public, as_public, &[1]],
-    );
-    let prk = mac(salt, &[ikm.as_ref()]);
-    let cek = mac(prk.as_ref(), &[b"Content-Encoding: aes128gcm\0", &[1]]);
-    let nonce = mac(prk.as_ref(), &[b"Content-Encoding: nonce\0", &[1]]);
-    let key = aead::UnboundKey::new(&aead::AES_128_GCM, &cek.as_ref()[..16])
-        .expect("16 bytes is an AES-128 key");
-    let nonce = aead::Nonce::try_assume_unique_for_key(&nonce.as_ref()[..12])
-        .expect("12 bytes is a GCM nonce");
-    (aead::LessSafeKey::new(key), nonce)
-}
-
 /// What became of one push.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Sent {
@@ -279,23 +190,41 @@ pub(crate) enum Sent {
     /// The service says the device is gone (Web Push 404 or 410, FCM `UNREGISTERED`): the
     /// endpoint is dropped.
     Gone,
+    /// The service asked to be sent less (429, 503): not the endpoint's failure.
+    Throttled,
+    /// Anything else, counted against the endpoint (`MAX_FAILURES`).
     Failed(String),
 }
-
-/// Pushes waiting for one account's devices, past which more are dropped.
-const MAX_QUEUED_PER_ACCOUNT: usize = 256;
 
 /// One push waiting to go.
 struct Job {
     endpoint: PushEndpoint,
+    block: Uuid,
+    /// Whether it mentions the recipient, which sends it at high urgency.
+    urgent: bool,
     message: Arc<[u8]>,
 }
 
-/// Sends pushes off the runtime's threads. Each account's go one at a time, in the order they
-/// were queued and its devices in the order they registered, so a device whose service is slow
-/// or never answers delays only its own account's pushes.
+#[derive(Default)]
+struct Queues {
+    by_account: HashMap<Uuid, VecDeque<Job>>,
+    total: usize,
+}
+
+/// One recipient's devices, for `Pusher::queue`.
+pub(crate) struct Delivery {
+    pub(crate) account: Uuid,
+    pub(crate) endpoints: Vec<PushEndpoint>,
+    pub(crate) urgent: bool,
+}
+
+/// Sends pushes on blocking threads, at most `SENDERS` at once. Each account's go one at a
+/// time, in the order they were queued and its devices in the order they registered, so a
+/// device whose service is slow or never answers delays only its own account's pushes; a
+/// push about a block that already waits for a device replaces the one waiting.
 pub(crate) struct Pusher {
-    queues: Mutex<HashMap<Uuid, VecDeque<Job>>>,
+    queues: Mutex<Queues>,
+    senders: Arc<tokio::sync::Semaphore>,
     vapid: Vapid,
     subject: String,
     /// Device endpoints: public addresses only, unless `allow_local_endpoints`, and never
@@ -310,7 +239,8 @@ pub(crate) struct Pusher {
 struct Fcm {
     config: FcmConfig,
     key: signature::RsaKeyPair,
-    /// The access token and when it stops being used.
+    /// The access token and when it stops being used; held while one is asked for, so pushes
+    /// waiting on it ask once.
     token: Mutex<Option<(String, u64)>>,
 }
 
@@ -335,7 +265,8 @@ impl Pusher {
             })
         });
         Arc::new(Self {
-            queues: Mutex::new(HashMap::new()),
+            queues: Mutex::new(Queues::default()),
+            senders: Arc::new(tokio::sync::Semaphore::new(SENDERS)),
             vapid,
             subject,
             endpoints,
@@ -354,8 +285,8 @@ impl Pusher {
     }
 
     /// Refuses an endpoint this server would not send to: an FCM token on a server without
-    /// FCM, a Web Push URL that is not `https://` (unless local endpoints are allowed), or keys
-    /// of the wrong length.
+    /// FCM, a Web Push URL that is not `https://` on port 443 (unless local endpoints are
+    /// allowed), or keys of the wrong length.
     pub(crate) fn check(&self, endpoint: &PushEndpoint) -> Result<(), ServerError> {
         let refuse = |why: &str| {
             Err(ServerError::Refused(
@@ -374,9 +305,14 @@ impl Pusher {
                 let Ok(url) = url::Url::parse(&endpoint.address) else {
                     return refuse("a Web Push endpoint is a URL");
                 };
-                match (url.scheme(), self.allow_local) {
-                    ("https", _) | ("http", true) if url.host().is_some() => Ok(()),
-                    _ => refuse("a Web Push endpoint is an https:// URL"),
+                let served = url.host().is_some()
+                    && match self.allow_local {
+                        true => matches!(url.scheme(), "https" | "http"),
+                        false => url.scheme() == "https" && url.port_or_known_default() == Some(443),
+                    };
+                match served {
+                    true => Ok(()),
+                    false => refuse("a Web Push endpoint is an https:// URL on port 443"),
                 }
             }
             PushService::Fcm if self.fcm.is_none() => {
@@ -386,31 +322,56 @@ impl Pusher {
         }
     }
 
-    /// Queues `message` for each of `account`'s `endpoints`, sending it behind whatever the
-    /// account already waits for; an endpoint the service says is gone is dropped from
-    /// `store`, with what else waits for it.
+    /// Queues `message`, a push about `block`, for each device of every delivery, behind
+    /// whatever the account already waits for.
     pub(crate) fn queue(
         self: &Arc<Self>,
         store: &ServerStore,
-        account: Uuid,
-        endpoints: Vec<PushEndpoint>,
+        block: Uuid,
+        deliveries: Vec<Delivery>,
         message: &Arc<[u8]>,
     ) {
         let mut queues = self.queues.lock().unwrap_or_else(|held| held.into_inner());
-        let draining = queues.contains_key(&account);
-        let queue = queues.entry(account).or_default();
-        for endpoint in endpoints {
-            if queue.len() >= MAX_QUEUED_PER_ACCOUNT {
-                tracing::debug!(%account, "dropping a push: the account's queue is full");
-                break;
+        for delivery in deliveries {
+            let draining = queues.by_account.contains_key(&delivery.account);
+            let mut added = 0;
+            let queue = queues.by_account.entry(delivery.account).or_default();
+            for endpoint in delivery.endpoints {
+                if let Some(waiting) = queue.iter_mut().find(|job| {
+                    job.block == block && job.endpoint.address == endpoint.address
+                }) {
+                    waiting.message = Arc::clone(message);
+                    waiting.urgent |= delivery.urgent;
+                    continue;
+                }
+                if queue.len() >= MAX_QUEUED_PER_ACCOUNT {
+                    tracing::debug!(account = %delivery.account, "dropping a push: the account's queue is full");
+                    break;
+                }
+                queue.push_back(Job {
+                    endpoint,
+                    block,
+                    urgent: delivery.urgent,
+                    message: Arc::clone(message),
+                });
+                added += 1;
             }
-            queue.push_back(Job {
-                endpoint,
-                message: Arc::clone(message),
-            });
-        }
-        if !draining {
-            tokio::spawn(Arc::clone(self).drain(store.clone(), account));
+            let empty = queue.is_empty();
+            queues.total += added;
+            if queues.total > MAX_QUEUED {
+                tracing::warn!("dropping pushes: the server's push queue is full");
+                let over = queues.total - MAX_QUEUED;
+                if let Some(queue) = queues.by_account.get_mut(&delivery.account) {
+                    let kept = queue.len().saturating_sub(over);
+                    queue.truncate(kept);
+                }
+                queues.total = MAX_QUEUED;
+            }
+            if empty {
+                queues.by_account.remove(&delivery.account);
+            } else if !draining {
+                tokio::spawn(Arc::clone(self).drain(store.clone(), delivery.account));
+            }
         }
     }
 
@@ -419,55 +380,75 @@ impl Pusher {
         loop {
             let job = {
                 let mut queues = self.queues.lock().unwrap_or_else(|held| held.into_inner());
-                match queues.get_mut(&account).and_then(VecDeque::pop_front) {
-                    Some(job) => job,
+                match queues.by_account.get_mut(&account).and_then(VecDeque::pop_front) {
+                    Some(job) => {
+                        queues.total = queues.total.saturating_sub(1);
+                        job
+                    }
                     None => {
-                        queues.remove(&account);
+                        queues.by_account.remove(&account);
                         return;
                     }
                 }
             };
+            let Ok(permit) = Arc::clone(&self.senders).acquire_owned().await else {
+                return;
+            };
             let address = job.endpoint.address.clone();
             let pusher = Arc::clone(&self);
-            let sent =
-                tokio::task::spawn_blocking(move || pusher.send(&job.endpoint, &job.message)).await;
-            match sent {
-                Ok(Sent::Delivered) => {}
+            let sent = tokio::task::spawn_blocking(move || {
+                let sent = pusher.send(&job.endpoint, &job.message, job.urgent);
+                drop(permit);
+                sent
+            })
+            .await;
+            let noted = match sent {
+                Ok(Sent::Delivered) => store.endpoint_answered(address).await,
                 Ok(Sent::Gone) => {
-                    if let Some(queue) = self
-                        .queues
-                        .lock()
-                        .unwrap_or_else(|held| held.into_inner())
-                        .get_mut(&account)
-                    {
+                    let mut queues = self.queues.lock().unwrap_or_else(|held| held.into_inner());
+                    if let Some(queue) = queues.by_account.get_mut(&account) {
+                        let before = queue.len();
                         queue.retain(|job| job.endpoint.address != address);
+                        let dropped = before - queue.len();
+                        queues.total = queues.total.saturating_sub(dropped);
                     }
-                    if let Err(error) = store.drop_endpoint(address).await {
-                        tracing::warn!(%error, "dropping a push endpoint failed");
-                    }
+                    drop(queues);
+                    store.drop_endpoint(address).await
                 }
-                Ok(Sent::Failed(error)) => tracing::debug!(%error, "a push was not delivered"),
-                Err(error) => tracing::warn!(%error, "sending a push panicked"),
+                Ok(Sent::Throttled) => Ok(()),
+                Ok(Sent::Failed(error)) => {
+                    tracing::debug!(%error, "a push was not delivered");
+                    store.endpoint_failed(address).await
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "sending a push panicked");
+                    Ok(())
+                }
+            };
+            if let Err(error) = noted {
+                tracing::warn!(%error, "recording what became of a push failed");
             }
         }
     }
 
-    /// Encrypts `message` to the endpoint and sends it. Blocks: run it off the runtime.
-    pub(crate) fn send(&self, endpoint: &PushEndpoint, message: &[u8]) -> Sent {
-        let body = match encrypt(&endpoint.p256dh, &endpoint.auth, message) {
-            Ok(body) => body,
-            Err(error) => return Sent::Failed(error.to_string()),
-        };
+    /// Encrypts `message` to the endpoint, padded to `PADDED_BYTES`, and sends it at high
+    /// urgency when `urgent`. Blocks: run it off the runtime.
+    pub(crate) fn send(&self, endpoint: &PushEndpoint, message: &[u8], urgent: bool) -> Sent {
+        let body =
+            match be_lib_web_push::encrypt(&endpoint.p256dh, &endpoint.auth, message, PADDED_BYTES) {
+                Ok(body) => body,
+                Err(error) => return Sent::Failed(error.to_string()),
+            };
         match endpoint.service {
-            PushService::WebPush => self.web_push(&endpoint.address, &body),
+            PushService::WebPush => self.web_push(&endpoint.address, &body, urgent),
             PushService::Fcm => match &self.fcm {
-                Some(fcm) => self.fcm(fcm, &endpoint.address, &body),
+                Some(fcm) => self.fcm(fcm, &endpoint.address, &body, urgent),
                 None => Sent::Failed("FCM is not configured".into()),
             },
         }
     }
 
-    fn web_push(&self, address: &str, body: &[u8]) -> Sent {
+    fn web_push(&self, address: &str, body: &[u8], urgent: bool) -> Sent {
         let Ok(url) = url::Url::parse(address) else {
             return Sent::Gone;
         };
@@ -476,7 +457,7 @@ impl Pusher {
             .endpoints
             .post(address)
             .set("TTL", &TIME_TO_LIVE.as_secs().to_string())
-            .set("Urgency", "high")
+            .set("Urgency", if urgent { "high" } else { "normal" })
             .set("Content-Encoding", "aes128gcm")
             .set("Content-Type", "application/octet-stream")
             .set("Authorization", &authorization)
@@ -484,11 +465,12 @@ impl Pusher {
         match sent {
             Ok(_) => Sent::Delivered,
             Err(ureq::Error::Status(404 | 410, _)) => Sent::Gone,
+            Err(ureq::Error::Status(429 | 503, _)) => Sent::Throttled,
             Err(error) => Sent::Failed(error.to_string()),
         }
     }
 
-    fn fcm(&self, fcm: &Fcm, token: &str, body: &[u8]) -> Sent {
+    fn fcm(&self, fcm: &Fcm, token: &str, body: &[u8], urgent: bool) -> Sent {
         let access = match self.access_token(fcm) {
             Ok(access) => access,
             Err(error) => return Sent::Failed(error),
@@ -498,7 +480,7 @@ impl Pusher {
                 "token": token,
                 "data": { "push": URL_SAFE_NO_PAD.encode(body) },
                 "android": {
-                    "priority": "high",
+                    "priority": if urgent { "high" } else { "normal" },
                     "ttl": format!("{}s", TIME_TO_LIVE.as_secs()),
                 },
             }
@@ -515,13 +497,9 @@ impl Pusher {
             .send_json(message);
         match sent {
             Ok(_) => Sent::Delivered,
-            Err(ureq::Error::Status(404, _)) => Sent::Gone,
             Err(ureq::Error::Status(status, response)) => {
                 let answer = response.into_string().unwrap_or_default();
-                match answer.contains("UNREGISTERED") {
-                    true => Sent::Gone,
-                    false => Sent::Failed(format!("FCM answered {status}: {answer}")),
-                }
+                fcm_outcome(status, &answer)
             }
             Err(error) => Sent::Failed(error.to_string()),
         }
@@ -531,7 +509,8 @@ impl Pusher {
     /// before it expires.
     fn access_token(&self, fcm: &Fcm) -> Result<String, String> {
         let now = unix_now();
-        if let Some((token, until)) = &*fcm.token.lock().unwrap_or_else(|held| held.into_inner())
+        let mut held = fcm.token.lock().unwrap_or_else(|held| held.into_inner());
+        if let Some((token, until)) = &*held
             && now < *until
         {
             return Ok(token.clone());
@@ -552,9 +531,28 @@ impl Pusher {
             .ok_or("the token endpoint answered no access token")?
             .to_owned();
         let lasts = answer["expires_in"].as_u64().unwrap_or(3600);
-        *fcm.token.lock().unwrap_or_else(|held| held.into_inner()) =
-            Some((token.clone(), now + lasts.saturating_sub(60)));
+        *held = Some((token.clone(), now + lasts.saturating_sub(60)));
         Ok(token)
+    }
+}
+
+/// What an FCM error answer means for the endpoint: gone only when FCM names the token
+/// `UNREGISTERED`, never for a 404 alone, which a wrong project also answers.
+pub(crate) fn fcm_outcome(status: u16, answer: &str) -> Sent {
+    let unregistered = ureq::serde_json::from_str::<ureq::serde_json::Value>(answer)
+        .ok()
+        .and_then(|answer| {
+            answer["error"]["details"].as_array().map(|details| {
+                details
+                    .iter()
+                    .any(|detail| detail["errorCode"] == "UNREGISTERED")
+            })
+        })
+        .unwrap_or(false);
+    match (unregistered, status) {
+        (true, _) => Sent::Gone,
+        (false, 429 | 503) => Sent::Throttled,
+        (false, status) => Sent::Failed(format!("FCM answered {status}: {answer}")),
     }
 }
 
@@ -583,7 +581,7 @@ pub(crate) fn fcm_assertion(config: &FcmConfig, key: &signature::RsaKeyPair, now
 /// The longest endpoint address kept: a Web Push URL or an FCM token.
 pub const MAX_ADDRESS_BYTES: usize = 2048;
 
-fn unix_now() -> u64 {
+pub(crate) fn unix_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs())
@@ -610,6 +608,11 @@ impl ureq::Resolver for PublicOnly {
     }
 }
 
+/// Whether `address` is a public unicast address: IPv4 outside every private, shared, reserved
+/// and documentation range, or IPv6 in global unicast (`2000::/3`) outside the ranges that
+/// embed an IPv4 address (6to4, Teredo) or are not routed (documentation, the IETF's
+/// `2001::/23`). An IPv4-mapped address is judged as IPv4; an IPv4-compatible, NAT64 or
+/// site-local one is outside `2000::/3`.
 pub(crate) fn is_public(address: IpAddr) -> bool {
     match address {
         IpAddr::V4(address) => {
@@ -630,14 +633,10 @@ pub(crate) fn is_public(address: IpAddr) -> bool {
         IpAddr::V6(address) => match address.to_ipv4_mapped() {
             Some(mapped) => is_public(IpAddr::V4(mapped)),
             None => {
-                let first = address.segments()[0];
-                !(address.is_loopback()
-                    || address.is_unspecified()
-                    || address.is_multicast()
-                    || (first & 0xfe00) == 0xfc00
-                    || (first & 0xffc0) == 0xfe80
-                    || first == 0x2001 && address.segments()[1] == 0x0db8
-                    || first == 0x0064 && address.segments()[1] == 0xff9b)
+                let [first, second, ..] = address.segments();
+                (first & 0xe000) == 0x2000
+                    && first != 0x2002
+                    && !(first == 0x2001 && (second < 0x0200 || second == 0x0db8))
             }
         },
     }

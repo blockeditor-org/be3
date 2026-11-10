@@ -65,11 +65,18 @@ interface notifications {
 
     set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, error>;
 
+    /// An item whenever the account's modes changed through another
+    /// connection, so the client reads them again; a latest-value stream.
+    notify-modes-changed: func() -> stream;
+
     /// Pushes `sealed` (at most `be_block_protocol::MAX_NOTIFICATION_BYTES`)
     /// to every member who may view `block` and has no connection to the
     /// organization open, but the caller, skipping those whose mode is `off`,
-    /// and those whose mode is `mentions` unless `mentions` names them.
-    /// Answered once the pushes are queued; a push service's refusal is never
-    /// the caller's.
+    /// and those whose mode is `mentions` unless `mentions` names them. Each
+    /// push names the caller's account (`PushMessage::sender`), which the
+    /// server vouches for. At most `limits::MAX_NOTIFICATIONS_PER_MINUTE` a
+    /// minute from one account and `limits::MAX_NOTIFICATIONS_PER_BLOCK` about
+    /// one block. Answered once the pushes are queued; a push service's
+    /// refusal is never the caller's.
     notify: async func(block: block-id, sealed: list<u8>, mentions: list<account-id>) -> result<_, error>;
 }

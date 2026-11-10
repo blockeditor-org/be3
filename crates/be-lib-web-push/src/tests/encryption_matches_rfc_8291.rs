@@ -4,7 +4,7 @@ use base64::Engine;
 /// RFC 8291's Appendix A: the example's shared secret, keys and salt give its exact message,
 /// and it opens again to the plaintext.
 #[test]
-fn web_push_encryption_matches_rfc_8291() {
+fn encryption_matches_rfc_8291() {
     let decode = |text: &str| {
         let text: String = text.split_whitespace().collect();
         base64::engine::general_purpose::URL_SAFE_NO_PAD
@@ -29,14 +29,14 @@ fn web_push_encryption_matches_rfc_8291() {
          pK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN",
     );
 
-    let sealed = push::seal(&secret, &as_public, &ua_public, &auth, &salt, plain);
+    let sealed = seal(&secret, &as_public, &ua_public, &auth, &salt, plain, 0);
     assert_eq!(sealed, expected);
-    assert_eq!(push::sender_key(&sealed), Some(&as_public[..]));
+    assert_eq!(sender_key(&sealed), Some(&as_public[..]));
     assert_eq!(
-        push::open(&secret, &ua_public, &auth, &sealed).as_deref(),
+        open(&secret, &ua_public, &auth, &sealed).as_deref(),
         Some(&plain[..])
     );
     let mut tampered = sealed.clone();
     *tampered.last_mut().unwrap() ^= 1;
-    assert_eq!(push::open(&secret, &ua_public, &auth, &tampered), None);
+    assert_eq!(open(&secret, &ua_public, &auth, &tampered), None);
 }

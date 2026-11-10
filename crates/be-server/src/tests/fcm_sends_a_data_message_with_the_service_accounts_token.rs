@@ -71,7 +71,7 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
     })
     .await;
     let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let owner_id = owner.register("owner@example.com").await;
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, _) = viewer_of(&harness, &mut owner, block, "member@example.com").await;
@@ -116,7 +116,7 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
     assert_eq!(sent.headers["authorization"], "Bearer an-access-token");
     let message: ureq::serde_json::Value = ureq::serde_json::from_slice(&sent.body).unwrap();
     assert_eq!(message["message"]["token"], "a-registration-token");
-    assert_eq!(message["message"]["android"]["priority"], "high");
+    assert_eq!(message["message"]["android"]["priority"], "normal");
     let body = base64
         .decode(message["message"]["data"]["push"].as_str().unwrap())
         .unwrap();
@@ -125,9 +125,40 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
         PushMessage {
             organization,
             block,
+            sender: owner_id,
             sealed: b"sealed".to_vec(),
         }
     );
+
+    for (status, answer, outcome) in [
+        (
+            404,
+            r#"{"error":{"code":404,"status":"NOT_FOUND","message":"Requested entity was not found."}}"#,
+            "failed",
+        ),
+        (
+            404,
+            r#"{"error":{"code":404,"status":"NOT_FOUND","details":[{"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError","errorCode":"UNREGISTERED"}]}}"#,
+            "gone",
+        ),
+        (
+            400,
+            r#"{"error":{"code":400,"status":"INVALID_ARGUMENT","details":[{"errorCode":"UNREGISTERED"}]}}"#,
+            "gone",
+        ),
+        (429, r#"{"error":{"code":429}}"#, "throttled"),
+    ] {
+        let judged = match push::fcm_outcome(status, answer) {
+            push::Sent::Gone => "gone",
+            push::Sent::Throttled => "throttled",
+            push::Sent::Failed(_) => "failed",
+            push::Sent::Delivered => "delivered",
+        };
+        assert_eq!(
+            judged, outcome,
+            "FCM answering {status} {answer} is {outcome}: only UNREGISTERED drops a token"
+        );
+    }
 
     harness.stop().await;
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-use be_sdk_beui::NotifyMode;
+use be_sdk_beui::{BlockNotifyMode, Failure, NotifyMode, NotifyModesWatch};
 use be_sdk_test::HostCall;
 
 fn choose(fixture: &mut Fixture, words: &str) {
@@ -23,20 +23,28 @@ fn says(fixture: &Fixture, words: &str) -> bool {
     text_within(&document, root, words).is_some_and(|node| document.node_rect(node).is_some())
 }
 
+fn menu_says(fixture: &mut Fixture, words: &str) -> bool {
+    fixture.test.click("dock.editors.menu");
+    fixture.settle();
+    let said = says(fixture, words);
+    fixture
+        .test
+        .key(be_sdk_beui::beui::Key::Escape, be_sdk_beui::beui::Modifiers::default());
+    fixture.settle();
+    said
+}
+
 #[test]
 fn a_block_tabs_menu_mutes_its_notifications() {
     let (mut fixture, opened) = editor_sized(Some(Vec2::new(1000.0, 600.0)));
     show(&mut fixture, opened, None);
-    let asked = fixture
+    assert!(
+        !menu_says(&mut fixture, "Notifications"),
+        "the menu offers no mode before the host has said what it is"
+    );
+    fixture
         .test
-        .take_requests()
-        .into_iter()
-        .find_map(|call| match call {
-            HostCall::NotifyModeOf { reply, block } if block == opened.into_bytes() => Some(reply),
-            _ => None,
-        })
-        .expect("showing a block asks how its account is notified about it");
-    fixture.test.answer(asked, Ok(NotifyMode::All));
+        .set_watched::<NotifyModesWatch>(&Some(Vec::new()));
     fixture.settle();
 
     fixture.test.click("dock.editors.menu");
@@ -47,21 +55,38 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         .test
         .snapshot("a_block_tabs_menu_mutes_its_notifications");
     choose(&mut fixture, "Off");
+    assert!(
+        menu_says(&mut fixture, "Notifications: Off"),
+        "the menu shows the mode chosen while the host sets it"
+    );
 
-    let set: Vec<_> = fixture
+    let set = fixture
         .test
         .take_requests()
         .into_iter()
-        .filter_map(|call| match call {
-            HostCall::SetNotifyMode { block, mode, .. } => Some((block, mode)),
+        .find_map(|call| match call {
+            HostCall::SetNotifyMode { reply, block, mode }
+                if block == opened.into_bytes() && mode == NotifyMode::Off =>
+            {
+                Some(reply)
+            }
             _ => None,
         })
-        .collect();
-    assert_eq!(set, [(opened.into_bytes(), NotifyMode::Off)]);
-    fixture.test.click("dock.editors.menu");
+        .expect("choosing Off asks the host to set it");
+    fixture.test.answer(set, Err(Failure::Denied));
     fixture.settle();
     assert!(
-        says(&fixture, "Notifications: Off"),
-        "the menu shows the mode chosen without waiting for the host"
+        menu_says(&mut fixture, "Notifications: All"),
+        "a change the host refused goes back to the mode it publishes"
+    );
+
+    fixture.test.set_watched::<NotifyModesWatch>(&Some(vec![BlockNotifyMode {
+        block: opened.into_bytes(),
+        mode: NotifyMode::Mentions,
+    }]));
+    fixture.settle();
+    assert!(
+        menu_says(&mut fixture, "Notifications: Mentions only"),
+        "a mode set on another device shows as the host publishes it"
     );
 }

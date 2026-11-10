@@ -60,6 +60,8 @@ pub enum Push {
     Paired(PairingMessage),
     ContactsChanged,
     KeyWorkChanged,
+    /// The account's notification modes changed through another of its connections.
+    NotifyModesChanged,
 }
 
 #[derive(Default)]
@@ -490,6 +492,21 @@ impl WatchHub {
                     .get(client)
                     .map(|identity| (*client, *identity))
             })
+            .collect()
+    }
+
+    /// Which of `accounts` have a connection to `organization` open.
+    pub async fn connected(&self, organization: Uuid, accounts: &[Uuid]) -> HashSet<Uuid> {
+        let joined = self.joined.lock().await;
+        accounts
+            .iter()
+            .filter(|account| {
+                joined
+                    .by_member
+                    .get(&(organization, **account))
+                    .is_some_and(|clients| !clients.is_empty())
+            })
+            .copied()
             .collect()
     }
 
