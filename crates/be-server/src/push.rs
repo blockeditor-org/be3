@@ -32,6 +32,9 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 /// its service, so a service that never answers holds at most these, never the pool the
 /// database shares.
 const SENDERS: usize = 32;
+/// Pushes sent at once to one push service's host, so one slow service cannot take every
+/// sender.
+const SENDERS_PER_HOST: usize = 4;
 /// Pushes waiting over the whole server, past which more are dropped.
 const MAX_QUEUED: usize = 16_384;
 /// Pushes waiting for one account's devices, past which more are dropped.
@@ -225,6 +228,56 @@ pub(crate) enum Sent {
     Failed(String),
 }
 
+/// Who may send now: `SENDERS` over the server, and `SENDERS_PER_HOST` to each push host.
+pub(crate) struct Senders {
+    all: Arc<tokio::sync::Semaphore>,
+    hosts: Mutex<HashMap<String, Arc<tokio::sync::Semaphore>>>,
+    per_host: usize,
+}
+
+impl Senders {
+    pub(crate) fn new(all: usize, per_host: usize) -> Self {
+        Self {
+            all: Arc::new(tokio::sync::Semaphore::new(all)),
+            hosts: Mutex::new(HashMap::new()),
+            per_host,
+        }
+    }
+
+    /// Waits for a place to send to `host`: its own first, so a host at its cap holds no
+    /// server-wide place while it waits. Dropping the permits frees the places.
+    pub(crate) async fn acquire(
+        &self,
+        host: &str,
+    ) -> Option<(
+        tokio::sync::OwnedSemaphorePermit,
+        tokio::sync::OwnedSemaphorePermit,
+    )> {
+        let semaphore = {
+            let mut hosts = self.hosts.lock().unwrap_or_else(|held| held.into_inner());
+            Arc::clone(
+                hosts
+                    .entry(host.to_owned())
+                    .or_insert_with(|| Arc::new(tokio::sync::Semaphore::new(self.per_host))),
+            )
+        };
+        let host = semaphore.acquire_owned().await.ok()?;
+        let all = Arc::clone(&self.all).acquire_owned().await.ok()?;
+        Some((host, all))
+    }
+}
+
+/// The host a push goes to, for `Senders::acquire`: an FCM push goes to FCM.
+fn push_host(endpoint: &PushEndpoint) -> String {
+    match endpoint.service {
+        PushService::Fcm => "fcm".to_owned(),
+        PushService::WebPush => url::Url::parse(&endpoint.address)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+            .unwrap_or_default(),
+    }
+}
+
 /// One push waiting to go.
 struct Job {
     organization: Uuid,
@@ -276,7 +329,7 @@ pub(crate) struct Delivery {
 /// push about a block that already waits for a device replaces the one waiting.
 pub(crate) struct Pusher {
     queues: Mutex<Queues>,
-    senders: Arc<tokio::sync::Semaphore>,
+    senders: Senders,
     vapid: Vapid,
     subject: String,
     /// Device endpoints: public addresses only, unless `allow_local_endpoints`, and never
@@ -320,7 +373,7 @@ impl Pusher {
         });
         Arc::new(Self {
             queues: Mutex::new(Queues::default()),
-            senders: Arc::new(tokio::sync::Semaphore::new(SENDERS)),
+            senders: Senders::new(SENDERS, SENDERS_PER_HOST),
             vapid,
             subject,
             endpoints,
@@ -463,7 +516,7 @@ impl Pusher {
                     }
                 }
             };
-            let Ok(permit) = Arc::clone(&self.senders).acquire_owned().await else {
+            let Some(permit) = self.senders.acquire(&push_host(&job.endpoint)).await else {
                 return;
             };
             let address = job.endpoint.address.clone();
