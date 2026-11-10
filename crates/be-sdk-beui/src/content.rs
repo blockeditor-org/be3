@@ -5,6 +5,7 @@ use std::rc::Rc;
 use be_block::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk::{EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
+use be_sdk::LackingEdit;
 use beui::reactive::*;
 
 pub(crate) fn ready<T>(read: Result<T, Unready>) -> Ready<T> {
@@ -27,9 +28,9 @@ struct Projection<C: LiveEdit> {
 
 pub struct ContentProjection<C: LiveEdit>(Stored<Projection<C>>);
 
-/// The edits made on this device that the server lacks, with whether the server refused each
-/// (`ContentProjection::lacking`): a new value whenever the replica says they changed.
-pub struct Lacking<Op>(pub Rc<Vec<(Op, bool)>>);
+/// The edits made on this device that the server lacks (`ContentProjection::lacking`): a new
+/// value whenever the replica says they changed.
+pub struct Lacking<Op>(pub Rc<Vec<LackingEdit<Op>>>);
 
 impl<Op> Clone for Lacking<Op> {
     fn clone(&self) -> Self {
@@ -44,9 +45,9 @@ impl<Op> PartialEq for Lacking<Op> {
 }
 
 impl<Op> std::ops::Deref for Lacking<Op> {
-    type Target = [(Op, bool)];
+    type Target = [LackingEdit<Op>];
 
-    fn deref(&self) -> &[(Op, bool)] {
+    fn deref(&self) -> &[LackingEdit<Op>] {
         &self.0
     }
 }
@@ -230,6 +231,11 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         let read = live.clone();
         keep(live.on_lacking(move || lacking.set(Lacking(Rc::new(read.lacking())))));
         lacking.read_only()
+    }
+
+    /// Lets an edit the server refused go (`LiveContent::dismiss_lacking`).
+    pub fn dismiss_lacking(&self, id: u64) {
+        self.inner().live.dismiss_lacking(id);
     }
 
     pub fn begin_gesture(&self) {
