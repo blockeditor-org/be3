@@ -130,10 +130,26 @@ pub fn Chat(editor: Editor) -> NodeId {
         false => "Send".to_owned(),
     });
 
+    // The messages sent from this device that the server lacks: sending, or not sent once
+    // the server refused them. The replica keeps them, so they show whichever editor sent them.
+    let lacking = chat.lacking();
+    let unsent = create_memo(move || {
+        lacking.with(|lacking| {
+            lacking
+                .iter()
+                .flat_map(|(operation, failed)| {
+                    ChatContent::sent_in(operation)
+                        .into_iter()
+                        .map(move |id| (id, *failed))
+                })
+                .collect::<HashMap<ObjectId, bool>>()
+        })
+    });
+
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         view! {
-            <MessageRow chat={chat} me id row={shown} composer />
+            <MessageRow chat={chat} me id row={shown} composer unsent />
         }
     };
 
@@ -415,6 +431,7 @@ fn MessageRow(
     id: ObjectId,
     row: ReadSignal<Row>,
     composer: Composer,
+    unsent: Memo<HashMap<ObjectId, bool>>,
 ) -> NodeId {
     let author = create_memo(move || row.with(|row| row.author.clone()));
     let time = create_memo(move || row.with(|row| row.time.clone()));
@@ -433,6 +450,12 @@ fn MessageRow(
     });
     let reacted = create_memo(move || reactions.with(|reactions| !reactions.is_empty()));
     let picking = create_memo(move || composer.picking.get() == Some(id));
+    let unsent = create_memo(move || unsent.with(|unsent| unsent.get(&id).copied()));
+    let sending = create_memo(move || unsent.get().is_some());
+    let delivery = create_memo(move || match unsent.get() {
+        Some(true) => "Not sent".to_owned(),
+        _ => "Sending".to_owned(),
+    });
     let fill = create_memo(move || match mine.get() {
         true => ColorRole::AccentSoft,
         false => ColorRole::Control,
@@ -513,6 +536,14 @@ fn MessageRow(
                             <Text style=TextStyle::CAPTION>{time}</Text>
                             <Show condition={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
+                            </Show>
+                            <Show condition={sending}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={format!("chat.message.{id}.sending")}
+                                >
+                                    {delivery}
+                                </Text>
                             </Show>
                         </List>
                     </ListItem>

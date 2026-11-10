@@ -27,6 +27,30 @@ struct Projection<C: LiveEdit> {
 
 pub struct ContentProjection<C: LiveEdit>(Stored<Projection<C>>);
 
+/// The edits made on this device that the server lacks, with whether the server refused each
+/// (`ContentProjection::lacking`): a new value whenever the replica says they changed.
+pub struct Lacking<Op>(pub Rc<Vec<(Op, bool)>>);
+
+impl<Op> Clone for Lacking<Op> {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
+impl<Op> PartialEq for Lacking<Op> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<Op> std::ops::Deref for Lacking<Op> {
+    type Target = [(Op, bool)];
+
+    fn deref(&self) -> &[(Op, bool)] {
+        &self.0
+    }
+}
+
 impl<C: LiveEdit> Clone for ContentProjection<C> {
     fn clone(&self) -> Self {
         *self
@@ -195,6 +219,17 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
 
     pub fn operate_anyway(&self, operation: C::Op) {
         self.inner().live.operate_anyway(operation);
+    }
+
+    /// The edits made on this device that the server lacks, each with whether the server
+    /// refused it (`LiveContent::lacking`), following them from the first call.
+    pub fn lacking(&self) -> ReadSignal<Lacking<C::Op>> {
+        let live = self.live();
+        live.follow_lacking();
+        let lacking = create_signal(Lacking(Rc::new(live.lacking())));
+        let read = live.clone();
+        keep(live.on_lacking(move || lacking.set(Lacking(Rc::new(read.lacking())))));
+        lacking.read_only()
     }
 
     pub fn begin_gesture(&self) {
