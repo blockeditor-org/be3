@@ -39,7 +39,9 @@ interface host {
     put-part: async func(bytes: list<u8>) -> result<part-ref, string>;
 
     /// A compare-and-swap on `expected`, whose commit is the first parent. An
-    /// unchanged save answers `published` with the same head.
+    /// unchanged save answers `published` with the same head; one sealed on
+    /// this device alone, offline or behind others in its outbox, answers
+    /// `kept`, and the replica hears `drained` once it reaches the server.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
@@ -48,6 +50,7 @@ interface host {
 
     variant publish-outcome {
         published(commit-id),
+        kept(commit-id),
         rejected(option<commit-id>),
     }
 
@@ -66,7 +69,9 @@ interface host {
     /// The owner of `generation` appends what it sequenced to the block's
     /// journal, on the device and on the server, and with `relay` the server
     /// relays each entry to every other participant as `send` to peers would.
-    append: async func(generation: u64, entries: list<journal-entry>, relay: bool);
+    /// True once the server holds the entries; false when only the device
+    /// does (offline, or the server did not take them).
+    append: async func(generation: u64, entries: list<journal-entry>, relay: bool) -> bool;
 
     /// The owner of `generation` starts the journal from `base`: after each
     /// commit, and before its first append when the journal it opened with

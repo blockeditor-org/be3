@@ -9,6 +9,7 @@ use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
 mod messages_are_sent_edited_reacted_to_and_deleted;
@@ -22,6 +23,13 @@ const MINUTE: i64 = 60_000;
 /// 09:00 UTC on the day the test wall clock is pinned to, 41 minutes before it.
 const MORNING: i64 = 1_772_442_000_000;
 
+fn host() -> EditorHost {
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_account_id(ME);
+    host
+}
+
 struct Harness {
     editor: BeuiTest<ChatRoot>,
 }
@@ -34,17 +42,26 @@ impl Harness {
             let (_, send) = content.send(CHAT, Message::new(*author, time, *body));
             content.apply(&send);
         }
-        let host = EditorHost::default();
-        host.set_editable(true);
-        host.set_account_id(ME);
         let mut harness = Self {
-            editor: BeuiTest::new(OwnedEditor::new(host, CHAT)),
+            editor: BeuiTest::new(OwnedEditor::new(host(), CHAT)),
         };
         harness
             .editor
             .store()
             .register(be_type_chat::registrations());
         harness.editor.hold(None, content);
+        harness.editor.set_size(vec2(480.0, 560.0));
+        harness.editor.presence_visible(true);
+        harness.run();
+        harness
+    }
+
+    /// The same chat opened again in a new editor, as after switching to another chat and
+    /// back: the block's replica is the one this editor followed.
+    fn reopened(&self) -> Self {
+        let mut harness = Self {
+            editor: BeuiTest::new_beside(&self.editor, OwnedEditor::new(host(), CHAT)),
+        };
         harness.editor.set_size(vec2(480.0, 560.0));
         harness.editor.presence_visible(true);
         harness.run();
@@ -75,9 +92,12 @@ impl Harness {
         self.type_text(text);
     }
 
+    /// Writes and sends `text`, and lets the server take it.
     fn send(&mut self, text: &str) {
         self.write(text);
         self.click("chat.send");
+        self.editor.advance(std::time::Duration::from_millis(500));
+        self.run();
     }
 
     fn content(&self) -> ChatContent {

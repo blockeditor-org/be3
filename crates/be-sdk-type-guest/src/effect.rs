@@ -114,6 +114,8 @@ pub(crate) enum HeadEvent {
     Published {
         token: Token,
         head: CommitId,
+        /// False for a commit kept on this device, which the server lacks until `drained`.
+        held: bool,
     },
     Rejected {
         token: Token,

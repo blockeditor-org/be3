@@ -148,6 +148,7 @@ pub enum Answered {
     ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
+    Append(Reply<bool>, bool),
 }
 
 impl Answered {
@@ -162,6 +163,7 @@ impl Answered {
             Answered::PutPart(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
+            Answered::Append(reply, held) => reply.send(connection, &held),
         }
     }
 }
@@ -693,6 +695,7 @@ impl<H: Host> Replicas<H> {
                         joining_session(head),
                         head,
                         None,
+                        false,
                     ) {
                         self.join_later(replica, block, joining);
                     }
@@ -745,7 +748,7 @@ impl<H: Host> Replicas<H> {
             true => head,
             false => ahead(peer, block).or(head),
         };
-        let journal = journal_for(peer, block, journal, head);
+        let (journal, journal_kept) = journal_for(peer, block, journal, head);
         let Some(replica) = self.start(
             peer,
             block,
@@ -755,6 +758,7 @@ impl<H: Host> Replicas<H> {
             session,
             head,
             journal,
+            journal_kept,
         ) else {
             return;
         };
@@ -784,6 +788,7 @@ impl<H: Host> Replicas<H> {
         session: SessionState,
         head: Option<CommitId>,
         journal: Option<be_block_protocol::Journal>,
+        journal_kept: bool,
     ) -> Option<ReplicaId> {
         if self.blocks.contains_key(&block) {
             return None;
@@ -804,6 +809,7 @@ impl<H: Host> Replicas<H> {
             session: session.clone(),
             lost_edits: lost_edits(journal.as_ref(), tag),
             journal: journal.and_then(|journal| replayable(journal, tag)),
+            journal_kept,
         };
         let handle = self
             .modules
@@ -951,6 +957,7 @@ impl<H: Host> Replicas<H> {
             session,
             lost_edits: lost_edits(journal.as_ref(), self.modules.tag(module)),
             journal: journal.and_then(|journal| replayable(journal, self.modules.tag(module))),
+            journal_kept: false,
         };
         let editors: Vec<(EditorId, bool)> = open
             .editors
@@ -1302,6 +1309,16 @@ impl<H: Host> Replicas<H> {
         self.open.values().all(|open| open.reporting.is_none())
     }
 
+    /// The server holds every commit this device kept of `block`, or with `refused` refused
+    /// them: its replica tells its editors what they sent is held, or will not be.
+    pub fn drained(&mut self, block: Uuid, refused: bool) {
+        if let Some(replica) = self.blocks.get(&block).copied() {
+            self.with_replica(replica, |handle, connection| {
+                handle.drained(connection, refused);
+            });
+        }
+    }
+
     pub fn take_kept(&mut self) -> bool {
         std::mem::take(&mut self.kept)
     }
@@ -1321,7 +1338,7 @@ impl<H: Host> Replicas<H> {
             }
             if let Some(unanswered) = self.publishes.remove(&publish) {
                 self.kept = true;
-                self.answer_publish(unanswered, Ok(PublishOutcome::Published(commit)), None);
+                self.answer_publish(unanswered, Ok(PublishOutcome::Kept(commit)), None);
             }
         }
     }
@@ -1352,7 +1369,7 @@ impl<H: Host> Replicas<H> {
             return;
         }
         if delivered
-            && let Ok(PublishOutcome::Published(head)) = result
+            && let Ok(PublishOutcome::Published(head) | PublishOutcome::Kept(head)) = result
             && open.status.head != Some(head)
         {
             open.reporting = Some(head);
@@ -2133,6 +2150,7 @@ impl<H: Host> Replicas<H> {
                 session: open.session.clone(),
                 journal: None,
                 lost_edits: false,
+                journal_kept: false,
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors
@@ -2356,7 +2374,6 @@ impl<H: Host> Replicas<H> {
                 entries,
                 relay,
             } => {
-                self.acknowledge(module, reply);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
                 let entries = entries
                     .into_iter()
@@ -2370,7 +2387,32 @@ impl<H: Host> Replicas<H> {
                 let appended = peer
                     .append(block, generation, tag, entries, relay, online)
                     .await;
-                self.journaled(shared, appended);
+                // Answered once the server holds the entries, or at once when only this
+                // device does, so the replica can tell its editors what the server holds.
+                match appended {
+                    Ok(Some(answer)) => {
+                        self.relaying += 1;
+                        let (shared, io) = (Arc::clone(shared), self.io.clone());
+                        self.answer_later(replica, module, async move {
+                            let held = match answer.await {
+                                Ok(()) => true,
+                                Err(error) => {
+                                    if !unreachable(&error) {
+                                        H::record(&shared, error);
+                                    }
+                                    false
+                                }
+                            };
+                            let _ = io.send(Io::Relayed);
+                            (Answered::Append(reply, held), None)
+                        });
+                    }
+                    written => {
+                        self.journaled(shared, written);
+                        self.modules
+                            .call(module, |connection| reply.send(connection, &false));
+                    }
+                }
                 false
             }
             Call::RebaseJournal {
@@ -2506,6 +2548,11 @@ impl<H: Host> Replicas<H> {
                     let (result, published) = match saved {
                         Ok(Saved::Published(head)) => {
                             (Ok(PublishOutcome::Published(head)), Some(head))
+                        }
+                        Ok(Saved::Unchanged(head))
+                            if peer.pending_commits(block).contains(&head) =>
+                        {
+                            (Ok(PublishOutcome::Kept(head)), None)
                         }
                         Ok(Saved::Unchanged(head)) => (Ok(PublishOutcome::Published(head)), None),
                         Ok(Saved::Rejected { head }) => (Ok(PublishOutcome::Rejected(head)), None),
@@ -2805,12 +2852,14 @@ async fn reset<H: Host>(
 
 /// The journal a replica opening at `head` loads: the server's (from joining, opened) or this
 /// device's, whichever holds more on that base.
+/// The journal to open `head` on, and whether it is this device's, holding entries the server
+/// lacks.
 fn journal_for<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     server: Option<be_block_protocol::Journal>,
     head: Option<CommitId>,
-) -> Option<be_block_protocol::Journal> {
+) -> (Option<be_block_protocol::Journal>, bool) {
     let on_head = |journal: &be_block_protocol::Journal| journal.base.commit == head;
     let server = server.filter(on_head);
     let local = peer.local_journal(block).ok().flatten().filter(on_head);
@@ -2826,10 +2875,15 @@ fn journal_for<S: be_block_store::ObjectStore>(
                 && local.base.sequence == server.base.sequence
                 && last(&local) > last(&server) =>
         {
-            Some(local)
+            (Some(local), true)
         }
-        (Some(server), _) => Some(server),
-        (None, local) => local,
+        (Some(server), _) => (Some(server), false),
+        (None, local) => {
+            let kept = local
+                .as_ref()
+                .is_some_and(|local| !local.entries.is_empty());
+            (local, kept)
+        }
     }
 }
 
