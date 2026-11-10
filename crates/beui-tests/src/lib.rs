@@ -1010,14 +1010,14 @@ fn TextInputFixture() -> NodeId {
                         />
                     </Frame>
                     <Frame width=240.0>
-                    <beui::styled::TextInput
-                        @test_id="text_input.lazy"
-                        value={lazy}
-                        label="Lazy"
-                        keyboard_on_focus=false
-                    />
-                </Frame>
-                <beui::styled::Button label="Send" submit=true />
+                        <beui::styled::TextInput
+                            @test_id="text_input.lazy"
+                            value={lazy}
+                            label="Lazy"
+                            keyboard_on_focus=false
+                        />
+                    </Frame>
+                    <beui::styled::Button label="Send" submit=true />
                     <Text color={INK}>{report}</Text>
                     <Text color={INK}>{hidden}</Text>
                     <Text color={INK}>{count}</Text>
