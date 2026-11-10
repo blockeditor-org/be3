@@ -65,7 +65,7 @@ pub trait Host: Sized + 'static {
 
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict);
 
-    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize);
+    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize, undurable: usize);
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool);
 }

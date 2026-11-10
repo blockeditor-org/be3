@@ -140,8 +140,11 @@ its head.
 
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and
-`unsaved` (what closing or switching would lose). The close and switch guards
-flush, then ask only while `unsaved` is above zero.
+`unsaved` (what closing or switching would lose: edits not yet in the device's
+journal, `Replicas::counts`' third number, plus queued commands and imports; an
+edit that is journaled but not yet committed is durable and not counted). The
+close and switch guards flush, then ask only while `unsaved` is above zero, and
+the "Saving changes" toast shows only while it stays above zero.
 
 Not built yet: a closing web tab cannot wait for `flush()`, so it asks first
 (`beforeunload`) while anything is unsaved (`Replicas::counts`). Commands that

@@ -159,10 +159,11 @@ impl be_block_type_host::Host for Shared {
         held.touch(block);
     }
 
-    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize) {
+    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize, undurable: usize) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.unsealed = unsealed;
         held.owing = owing;
+        held.undurable = undurable;
     }
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool) {
