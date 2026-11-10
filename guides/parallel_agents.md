@@ -7,8 +7,8 @@ the headless be-host.
 ## Starting sessions
 
 - `create_session` with `source_url` (the repository) and `source_revision` (the integration
-  branch) starts a session on that branch, in the same environment, running commands without
-  approval.
+  branch) starts a session on that branch, in the same environment. Omit `permission_mode`: the child
+  inherits the coordinator's, and a mode more permissive than the coordinator's is refused.
 - Run at most 8 subagents at a time; start the next only after one finishes.
 - A child can't read the coordinator's scratchpad, so each prompt carries the whole protocol:
   its branch, what to check, how to finish and what to report. Keep the shared part word for
