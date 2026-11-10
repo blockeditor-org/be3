@@ -405,14 +405,7 @@ impl Pusher {
             let noted = match sent {
                 Ok(Sent::Delivered) => store.endpoint_answered(address).await,
                 Ok(Sent::Gone) => {
-                    let mut queues = self.queues.lock().unwrap_or_else(|held| held.into_inner());
-                    if let Some(queue) = queues.by_account.get_mut(&account) {
-                        let before = queue.len();
-                        queue.retain(|job| job.endpoint.address != address);
-                        let dropped = before - queue.len();
-                        queues.total = queues.total.saturating_sub(dropped);
-                    }
-                    drop(queues);
+                    self.forget_queued(account, &address);
                     store.drop_endpoint(address).await
                 }
                 Ok(Sent::Throttled) => Ok(()),
@@ -428,6 +421,17 @@ impl Pusher {
             if let Err(error) = noted {
                 tracing::warn!(%error, "recording what became of a push failed");
             }
+        }
+    }
+
+    /// Drops what waits for an endpoint its service said is gone.
+    fn forget_queued(&self, account: Uuid, address: &str) {
+        let mut queues = self.queues.lock().unwrap_or_else(|held| held.into_inner());
+        if let Some(queue) = queues.by_account.get_mut(&account) {
+            let before = queue.len();
+            queue.retain(|job| job.endpoint.address != address);
+            let dropped = before - queue.len();
+            queues.total = queues.total.saturating_sub(dropped);
         }
     }
 
