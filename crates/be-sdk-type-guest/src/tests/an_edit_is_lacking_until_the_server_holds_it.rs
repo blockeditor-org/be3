@@ -9,7 +9,11 @@ fn an_edit_is_lacking_until_the_server_holds_it() {
 
     sim.operate(0, 1, add("alone"));
     sim.settle();
-    assert_eq!(sim.editors[&(0, 1)].pending(), 0, "the replica confirmed the edit");
+    assert_eq!(
+        sim.editors[&(0, 1)].pending(),
+        0,
+        "the replica confirmed the edit"
+    );
     assert_eq!(
         sim.lacking(0, 1),
         1,

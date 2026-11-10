@@ -24,8 +24,8 @@ mod effect;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 mod entropy;
 mod file;
-mod record;
 mod lacking;
+mod record;
 mod replica;
 pub mod wire;
 
