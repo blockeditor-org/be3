@@ -119,7 +119,9 @@ impl Module {
     /// Whether one of `instance`'s views has the keyboard.
     pub(crate) fn has_keyboard(&self, instance: EditorInstanceId) -> Memo<bool> {
         let keyboard = self.registry.keyboard.read_only();
-        create_memo(move || keyboard.with(|views| views.iter().any(|view| view.instance == instance)))
+        create_memo(move || {
+            keyboard.with(|views| views.iter().any(|view| view.instance == instance))
+        })
     }
 
     pub(crate) fn window(&self, region: ViewRef) -> Option<WindowId> {
