@@ -17,7 +17,10 @@ fn an_owner_that_loses_the_session_with_an_append_in_flight_keeps_its_edit_lacki
     sim.claim(1);
     sim.settle();
     sim.unheld_appends = false;
-    assert!(!sim.devices[0].status.owner, "the other device took the session");
+    assert!(
+        !sim.devices[0].status.owner,
+        "the other device took the session"
+    );
     assert_eq!(
         sim.lacking(0, 1),
         1,

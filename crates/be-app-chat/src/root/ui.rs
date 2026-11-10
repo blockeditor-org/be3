@@ -583,7 +583,11 @@ fn MessageRow(
                                 </Text>
                             </Show>
                             <Show condition={failed}>
-                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Xs
+                                >
                                     <Button
                                         label="Send again"
                                         variant=ButtonVariant::Ghost

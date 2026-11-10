@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use be_block::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
-use be_sdk::{EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
 use be_sdk::LackingEdit;
+use be_sdk::{EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
 use beui::reactive::*;
 
 pub(crate) fn ready<T>(read: Result<T, Unready>) -> Ready<T> {
