@@ -35,6 +35,9 @@ pub enum FromEditor {
     /// Asks the replica to follow `ToEditor::Lacking`: what the server lacks of the edits made
     /// on this device, whichever editor made them.
     FollowLacking,
+    /// Lets an edit the server refused (`Lacked::failed`) go: the person sent it again, or
+    /// gave it up.
+    DismissLacking(u64),
     /// Asks for `length` bytes of the block's stored form from `offset`, as the replica holds
     /// it: what a type that loads only its first part left in the store comes this way. The
     /// replica answers `ToEditor::Range` with the same `token`.
@@ -70,6 +73,15 @@ pub struct Snapshot {
     )]
     pub unsettled: Vec<Vec<u8>>,
     pub applied: u64,
+}
+
+/// An edit made on this device that the server lacks, as an editor reads it
+/// (`EditorMirror::lacking`): `operation` is none for one too large to keep.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LackingEdit<Op> {
+    pub id: u64,
+    pub operation: Option<Op>,
+    pub failed: bool,
 }
 
 /// An edit made on this device that the server lacks: sequenced but not yet appended to the
@@ -348,12 +360,17 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.pending.len()
     }
 
-    /// The edits made on this device that the server lacks (`ToEditor::Lacking`), each with
-    /// whether the server refused it, once `FromEditor::FollowLacking` was sent.
-    pub fn lacking(&self) -> Vec<(C::Op, bool)> {
+    /// The edits made on this device that the server lacks (`ToEditor::Lacking`), each with its
+    /// id and whether the server refused it, once `FromEditor::FollowLacking` was sent. An edit
+    /// too large to keep comes without its operation.
+    pub fn lacking(&self) -> Vec<LackingEdit<C::Op>> {
         self.lacking
-            .values()
-            .filter_map(|(operation, failed)| Some((C::decode_operation(operation).ok()?, *failed)))
+            .iter()
+            .map(|(id, (operation, failed))| LackingEdit {
+                id: *id,
+                operation: C::decode_operation(operation).ok(),
+                failed: *failed,
+            })
             .collect()
     }
 

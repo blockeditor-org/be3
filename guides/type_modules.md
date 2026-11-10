@@ -150,8 +150,9 @@ host owes a replica (the WIT documents each call):
 - **What the server holds.** `append` answers whether the server took the
   entries, `publish` answers `kept` for a commit sealed on this device alone
   (offline, or behind others in its outbox), `drained` says those commits
-  reached the server or were refused, and `opening.journal-kept` says it opens
-  on this device's own journal. The replica tells editors from these what the
+  reached the server or were refused, and `opening` says whether it opens on
+  this device's own journal (`journal-kept`) and whether the device still keeps
+  commits of the block (`commits-kept`). The replica tells editors from these what the
   server lacks (guides/blocks/apps.md, "Sending").
 - **IO.** `load`, `publish` (a compare-and-swap on `expected`), `stash` and
   `resume-session` are async imports the host completes. A replica waits on

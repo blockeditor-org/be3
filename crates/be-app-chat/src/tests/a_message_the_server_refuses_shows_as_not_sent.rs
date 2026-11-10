@@ -16,4 +16,18 @@ fn a_message_the_server_refuses_shows_as_not_sent() {
         "a message whose commit the server refused stops sending"
     );
     chat.snapshot("a_message_the_server_refuses_shows_as_not_sent");
+
+    chat.click(&format!("chat.message.{refused}.retry"));
+    chat.editor.advance(Duration::from_millis(500));
+    assert_eq!(
+        chat.bodies(),
+        ["Can you still see this chat?", "I think so"],
+        "sending again replaces the message that failed"
+    );
+    let again = chat.id(1);
+    assert_ne!(again, refused);
+    assert!(
+        !chat.row(again).contains("Sending") && !chat.row(again).contains("Not sent"),
+        "the copy went"
+    );
 }

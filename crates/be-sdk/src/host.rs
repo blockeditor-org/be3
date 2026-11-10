@@ -1331,7 +1331,8 @@ impl EditorHost {
             }
             message @ (FromEditor::Read { .. }
             | FromEditor::PutPart { .. }
-            | FromEditor::FollowLacking) => {
+            | FromEditor::FollowLacking
+            | FromEditor::DismissLacking(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
                 self.waker.wake();
             }

@@ -34,8 +34,10 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
   the replica keeps those edits until the server holds them, across editors
   and replicas, so switching chats and back shows them still sending. For an
   owner alone that is every send for `APPEND_INTERVAL` (250 ms) and a round
-  trip, even online. A host restart forgets them: what it kept in the outbox
-  then shows as sent. The Done check was a be-host-tests test; `drive` has no
+  trip, even online. A message the server refused shows "Not sent", with Send
+  again and Discard. A host or type module restart forgets them: what it kept
+  in the outbox then shows as sent, which a content-level answer (what the
+  local head adds over the server's) would close; that is the user's call. The Done check was a be-host-tests test; `drive` has no
   way to cut the server, so be-host-stack tests and chat's editor tests stand
   in. A `drive` command that cuts the server would let a host test cover it.
 - **Unread counts (1c).** Where the account read each chat up to is theirs,

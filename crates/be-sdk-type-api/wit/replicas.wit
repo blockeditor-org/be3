@@ -29,6 +29,18 @@ interface replicas {
         lost-edits: bool,
         /// `journal` is this device's, holding entries the server lacks.
         journal-kept: bool,
+        /// Whether this device keeps commits of the block the server lacks: an
+        /// edit an earlier replica kept for one is sending, failed, or held.
+        commits-kept: kept-commits,
+    }
+
+    enum kept-commits {
+        /// None: what an earlier replica kept reached the server.
+        none,
+        /// In the outbox, still to be sent.
+        outbox,
+        /// Refused by the server, set aside in the unsent area.
+        refused,
     }
 
     /// The device's one replica of a block. Dropping it closes it: it seals

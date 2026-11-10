@@ -96,6 +96,7 @@ struct Inner {
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
     offline: bool,
     kept: BTreeSet<Uuid>,
+    refused: BTreeSet<Uuid>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
@@ -134,6 +135,7 @@ impl Default for Inner {
             deferred: None,
             offline: false,
             kept: BTreeSet::new(),
+            refused: BTreeSet::new(),
             known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
@@ -369,6 +371,11 @@ impl Inner {
         }
         let (content_type, head) = (held.content_type, held.head);
         let unapplied = std::mem::take(&mut held.unapplied);
+        let commits_kept = match (self.refused.contains(&block), self.kept.contains(&block)) {
+            (true, _) => be_sdk_type_guest::api::KeptCommits::Refused,
+            (false, true) => be_sdk_type_guest::api::KeptCommits::Outbox,
+            (false, false) => be_sdk_type_guest::api::KeptCommits::None,
+        };
         held.followed.clear();
         let replica = Replica::new(
             &mut self.host,
@@ -383,6 +390,7 @@ impl Inner {
                 journal: None,
                 lost_edits: false,
                 journal_kept: false,
+                commits_kept,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {
@@ -566,6 +574,9 @@ impl Inner {
             held.written.push(operation.clone());
             held.taken += 1;
             held.revision += 1;
+        }
+        if self.blocks.get(&block).is_some_and(|held| held.replica.is_none()) {
+            self.open(block);
         }
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
@@ -835,10 +846,22 @@ impl ContentStore {
         let mut inner = self.0.borrow_mut();
         let kept: Vec<Uuid> = std::mem::take(&mut inner.kept).into_iter().collect();
         for block in kept {
+            if refused {
+                inner.refused.insert(block);
+            }
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
                 replica.drained(&mut inner.host, refused);
             }
         }
+        inner.run();
+    }
+
+    /// Closes the block's replica, as the host does once no editor holds it; the next editor
+    /// that asks for the block opens it again.
+    pub fn close_replica(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        inner.close(key);
         inner.run();
     }
 

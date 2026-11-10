@@ -65,6 +65,7 @@ pub(crate) struct Opened {
     pub(crate) journal: Option<Journal>,
     pub(crate) lost_edits: bool,
     pub(crate) journal_kept: bool,
+    pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -430,6 +431,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     lacking: Lacking,
     /// The journal opened on is this device's own (`opening.journal-kept`).
     journal_kept: bool,
+    /// What commits of the block this device keeps (`opening.commits-kept`).
+    commits_kept: be_sdk_type_api::KeptCommits,
     out: Vec<Effect>,
 }
 
@@ -510,6 +513,7 @@ where
 
     fn adopt(&mut self, carried: Carried) {
         self.lacking.adopt(carried);
+        self.lacking.opened_with(self.commits_kept);
     }
 }
 
@@ -588,6 +592,7 @@ where
             puts: BTreeMap::new(),
             lacking: Lacking::default(),
             journal_kept: opened.journal_kept,
+            commits_kept: opened.commits_kept,
             out: Vec::new(),
         }
     }
@@ -700,16 +705,19 @@ where
         if ops.is_empty() {
             return;
         }
+        let from = ops[0].sequence;
         match self.alone() {
             true => {
                 let folded = fold::<C>(ops);
-                self.append(folded, false);
+                self.append(folded, false, from);
             }
-            false => self.append(ops, true),
+            false => self.append(ops, true, from),
         }
     }
 
-    fn append(&mut self, ops: Vec<SessionOp>, relay: bool) {
+    /// Appends `ops`, which hold every operation from `from` on: a folded op holds those it
+    /// absorbed.
+    fn append(&mut self, ops: Vec<SessionOp>, relay: bool, from: u64) {
         if !self.is_owner() || ops.is_empty() {
             return;
         }
@@ -732,6 +740,7 @@ where
             generation: self.state.generation,
             entries,
             relay,
+            from,
         });
     }
 
@@ -1430,6 +1439,7 @@ where
                 self.publish_replacement(content, reply, true, Some(merging), self.base, 0);
             }
             AfterStash::Keep => {
+                self.lacking.handed(commit);
                 self.drop_unconfirmed();
                 self.rebuild_visible();
                 self.hand(Handed {
@@ -1455,6 +1465,7 @@ where
                 applied,
                 ancestor,
             } => {
+                self.lacking.handed(commit);
                 self.drop_unconfirmed();
                 self.confirmed = content;
                 self.rebuild_visible();
@@ -1865,6 +1876,7 @@ where
                 }
             }
             FromEditor::FollowLacking => self.lacking.follow(editor),
+            FromEditor::DismissLacking(id) => self.lacking.dismiss(id),
             FromEditor::Gesture(phase) if editable => {
                 let operations = match phase {
                     Gesture::Begin => {
@@ -2491,6 +2503,7 @@ where
             }
             SessionMessage::Saved { commit } => {
                 self.handed.retain(|handed| handed.commit != commit);
+                self.lacking.saved(commit);
             }
             SessionMessage::Presence { kind, value } => {
                 if from == self.client {
@@ -2656,7 +2669,7 @@ where
         };
         if inherited == Inherited::Continued {
             self.append_unappended();
-            self.append(vec![op.clone()], false);
+            self.append(vec![op.clone()], false, op.sequence);
         }
         self.confirmed.apply(&operation);
         self.visible.apply(&operation);
@@ -2862,7 +2875,8 @@ where
         self.role = Role::Owner(sequencer);
         self.rebased = false;
         self.appended_bytes = 0;
-        self.append(kept, false);
+        let from = kept.first().map_or(0, |op| op.sequence);
+        self.append(kept, false, from);
         self.replace_visible(self.confirmed.clone());
         for handed in self.handed.clone() {
             self.jobs.push_back(Job::Keep(Keeping {
