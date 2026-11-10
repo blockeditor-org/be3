@@ -1,7 +1,7 @@
 use super::*;
 use be_block::{ChildChange, SEARCH_INDEX, be_block_model::BlockRef};
 use be_type_text::{TextBlock, TextContent};
-use be_type_workspace::FolderContent;
+use be_type_workspace::WorkspaceContent;
 
 use crate::search::SearchAsk;
 
@@ -39,7 +39,7 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
     assert_eq!(
         change_child(
             workspace,
-            FolderContent::CONTENT_TYPE,
+            WorkspaceContent::CONTENT_TYPE,
             ChildChange::Add(block)
         ),
         Some(true)
@@ -58,14 +58,14 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     let workspace = Uuid::new_v4();
     create(
         workspace,
-        FolderContent::CONTENT_TYPE,
+        WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
         be_block::BlockMetadata::named("Team"),
         None,
         false,
     );
     wait_until("knew the folder's type", |_| {
-        is_known(FolderContent::CONTENT_TYPE)
+        is_known(WorkspaceContent::CONTENT_TYPE)
     });
     let apples = note(workspace, "apples and pears");
     let bananas = note(workspace, "bananas");
