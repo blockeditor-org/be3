@@ -77,6 +77,7 @@ members = [
     "crates/be-lib-ui-keys",
     "crates/be-lib-ui-preferences",
     "crates/be-lib-ui-types",
+    "crates/be-lib-web-push",
     "crates/be-sdk",
     "crates/be-sdk-api",
     "crates/be-sdk-beui",
