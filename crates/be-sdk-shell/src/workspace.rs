@@ -75,8 +75,9 @@ pub struct Workspace {
     /// The account's notification modes as the host publishes them (`NotifyModesWatch`), none
     /// until the server has said.
     notify_modes: Memo<Option<HashMap<Uuid, NotifyMode>>>,
-    /// Modes this workspace set that the host has not answered for yet, shown meanwhile.
-    setting_modes: Signal<HashMap<Uuid, NotifyMode>>,
+    /// Modes this workspace set, shown until the host publishes them: each with whether the
+    /// host has answered, after which the next published modes take its place.
+    setting_modes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
     error: Signal<Option<String>>,
     routes: Signal<u64>,
     pub(crate) phone: Signal<bool>,
@@ -177,6 +178,15 @@ impl Workspace {
         };
         create_effect(move || {
             workspace.place_windows();
+        });
+        // Modes the host answered for give way to the next modes it publishes, which hold them.
+        create_effect(move || {
+            workspace.notify_modes.with(|_| ());
+            untrack(|| {
+                workspace
+                    .setting_modes
+                    .update(|modes| modes.retain(|_, (_, answered)| !*answered));
+            });
         });
         workspace.list_programs_for_placeholders();
         create_effect(move || {
@@ -1050,7 +1060,7 @@ impl Workspace {
     /// How the account is notified about `block`: a change not yet answered, else what the host
     /// publishes, none until the server has said.
     pub(crate) fn notify_mode(&self, block: Uuid) -> Option<NotifyMode> {
-        if let Some(setting) = self.setting_modes.with(|modes| modes.get(&block).copied()) {
+        if let Some((setting, _)) = self.setting_modes.with(|modes| modes.get(&block).copied()) {
             return Some(setting);
         }
         self.notify_modes.with(|modes| {
@@ -1064,15 +1074,22 @@ impl Workspace {
     /// change the host refuses goes back to what it publishes, and says why.
     pub(crate) fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) {
         self.setting_modes.update(|modes| {
-            modes.insert(block, mode);
+            modes.insert(block, (mode, false));
         });
         let workspace = *self;
         let asked = self.host().set_notify_mode(block, mode);
-        let task = self.editor.then(asked, move |set| {
-            workspace.setting_modes.update(|modes| {
-                modes.remove(&block);
-            });
-            if let Err(failure) = set {
+        let task = self.editor.then(asked, move |set| match set {
+            Ok(()) => workspace.setting_modes.update(|modes| {
+                if let Some((shown, answered)) = modes.get_mut(&block)
+                    && *shown == mode
+                {
+                    *answered = true;
+                }
+            }),
+            Err(failure) => {
+                workspace.setting_modes.update(|modes| {
+                    modes.remove(&block);
+                });
                 workspace.error.set(Some(format!(
                     "The notifications setting was not changed: {failure}"
                 )));

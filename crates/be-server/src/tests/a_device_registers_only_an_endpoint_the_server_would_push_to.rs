@@ -3,25 +3,38 @@ use be_block_protocol::PushService;
 
 #[tokio::test]
 async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
-    let harness = Harness::start().await;
+    let harness = Harness::configured(ServerConfig {
+        push: push::PushConfig {
+            hosts: vec!["ntfy.example.org".to_owned()],
+            ..push::PushConfig::DEFAULT
+        },
+        ..ServerConfig::OPEN
+    })
+    .await;
     let mut member = harness.client().await;
     member.register("member@example.com").await;
     member.personal().await;
     let device = TestDevice::new();
-    let mut refused = Vec::new();
+    let web = |address: &str| device.endpoint(PushService::WebPush, address.to_owned());
+    let mut wrong = Vec::new();
     for (endpoint, why) in [
+        (web("http://fcm.googleapis.com/fcm/send/a"), "not https"),
+        (web("not a url"), "not a URL"),
         (
-            device.endpoint(PushService::WebPush, "http://push.example.com/a".into()),
-            "not https",
-        ),
-        (
-            device.endpoint(PushService::WebPush, "not a url".into()),
-            "not a URL",
-        ),
-        (
-            device.endpoint(PushService::WebPush, "https://push.example.com:25/a".into()),
+            web("https://fcm.googleapis.com:25/fcm/send/a"),
             "a port other than 443",
         ),
+        (web("https://push.example.com/a"), "a host no push service has"),
+        (
+            web("https://fcm.googleapis.com.example.com/a"),
+            "a push service's host inside another",
+        ),
+        (web("https://notify.windows.com/a"), "a suffix's own domain"),
+        (
+            web("https://evilnotify.windows.com/a"),
+            "a host ending in a suffix without its dot",
+        ),
+        (web("https://ntfy.example.org.evil.example/a"), "an added host inside another"),
         (
             device.endpoint(PushService::Fcm, "a-registration-token".into()),
             "FCM on a server without it",
@@ -29,24 +42,39 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         (
             be_block_protocol::PushEndpoint {
                 p256dh: vec![4; 33],
-                ..device.endpoint(PushService::WebPush, "https://push.example.com/a".into())
+                ..web("https://fcm.googleapis.com/fcm/send/a")
             },
             "a compressed key",
+        ),
+        (
+            be_block_protocol::PushEndpoint {
+                p256dh: [vec![4], vec![1; 64]].concat(),
+                ..web("https://fcm.googleapis.com/fcm/send/a")
+            },
+            "a key off the curve",
         ),
     ] {
         let registered = member
             .call(|peer| client::notifications::register_endpoint(peer, endpoint))
             .await;
         if !refused_as(&registered, ErrorCode::InvalidRequest) {
-            refused.push((why, registered));
+            wrong.push((why, registered));
         }
     }
-    assert!(refused.is_empty(), "registered {refused:?}");
-    member
-        .register_endpoint(
-            device.endpoint(PushService::WebPush, "https://push.example.com/a".into()),
-        )
-        .await;
+    assert!(wrong.is_empty(), "registered {wrong:?}");
+    for address in [
+        "https://fcm.googleapis.com/fcm/send/a",
+        "https://FCM.googleapis.com/wp/b",
+        "https://updates.push.services.mozilla.com/wpush/v2/c",
+        "https://web.push.apple.com/d",
+        "https://wns2-par02p.notify.windows.com/w/?token=e",
+        "https://ntfy.example.org/upf",
+    ] {
+        member.register_endpoint(web(address)).await;
+    }
+    assert!(push::allowed_host("db5p.notify.windows.com", &[]));
+    assert!(push::allowed_host("autopush.push.services.mozilla.com", &[]));
+    assert!(!push::allowed_host("ntfy.example.org", &[]));
 
     for (address, public) in [
         ("127.0.0.1", false),
