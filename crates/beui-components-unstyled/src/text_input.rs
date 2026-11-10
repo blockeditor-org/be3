@@ -10,6 +10,7 @@ use beui_view::types::Color;
 use beui_view::types::{CursorIcon, FontId, Pos2, Rect};
 
 use crate::ContextMenuApi;
+use crate::form::Posted;
 use crate::MenuListApi;
 use crate::Prose;
 use crate::SyntaxColors;
@@ -101,8 +102,9 @@ struct Input {
 ///
 /// On the HTML core, when not `multiline`, without `prose` and without
 /// `select_on_focus`, it is a real `<input>` through the platform escape, so the
-/// browser gives it IME, autofill and password managers; `name` and
-/// `autocomplete` only matter there. Otherwise it is a `TextArea` in single-line
+/// browser gives it IME, autofill and password managers; `autocomplete` only matters
+/// there. `name` posts the value to a `Form` on HTML either way (a beui-drawn field
+/// through a hidden input). Otherwise it is a `TextArea` in single-line
 /// mode on both cores, so a fix to text editing lands in both.
 #[component]
 pub fn TextInput(
@@ -346,9 +348,13 @@ pub fn TextInput(
             frame={move |field: Child| surround(field, true)}
         />
     };
-    match multiline {
+    let field = match multiline {
         true => surround(area_node, false),
         false => area_node,
+    };
+    let posted = create_memo(move || Some(value.get()));
+    view! {
+        <Posted name value={posted} disabled content={field} />
     }
 }
 
@@ -570,10 +576,15 @@ impl TextInputApi {
         self.0.focused
     }
 
-    /// The caret's byte index. On the HTML core the browser owns it.
+    /// The caret's byte index: the selection's focus, which comes first in a selection made
+    /// backwards. On the HTML core the browser owns it, and a kind of `<input>` with no
+    /// selection there (`Email`) reports its end.
     pub fn caret(&self) -> usize {
-        if let Some((_, end)) = self.browser_selection() {
-            return end;
+        if self.0.browser {
+            return match self.browser_selection() {
+                Some(selection) => selection.caret(),
+                None => self.value().len(),
+            };
         }
         self.0.state.caret_indices().first().copied().unwrap_or(0)
     }
@@ -582,13 +593,14 @@ impl TextInputApi {
         self.0.state
     }
 
-    /// The selected byte ranges, none when only a caret shows.
+    /// The selected byte ranges, none when only a caret shows. On the HTML core these are
+    /// the `<input>`'s own, and none for a kind with no selection there (`Email`).
     pub fn selection(&self) -> Vec<Range<usize>> {
         if self.0.browser {
             return self
                 .browser_selection()
-                .filter(|(start, end)| start < end)
-                .map(|(start, end)| start..end)
+                .map(|selection| selection.range)
+                .filter(|range| range.start < range.end)
                 .into_iter()
                 .collect();
         }
@@ -601,27 +613,28 @@ impl TextInputApi {
     }
 
     /// Selects the byte range `range` of the value (a caret when it is empty), clamped to
-    /// the value and to character boundaries.
+    /// the value and to character boundaries. On the HTML core it does nothing for a kind
+    /// with no selection there (`Email`).
     pub fn set_selection(&self, range: Range<usize>) {
-        let value = self.value();
-        let boundary = |index: usize| {
-            let mut index = index.min(value.len());
-            while !value.is_char_boundary(index) {
-                index -= 1;
-            }
-            index
-        };
-        let (start, end) = (boundary(range.start), boundary(range.end.max(range.start)));
         if self.0.browser {
             self.0.element.with(|element| {
-                if let Some(input) = element.borrow().as_ref() {
-                    let units = |index: usize| value[..index].encode_utf16().count() as f64;
+                let element = element.borrow();
+                let Some(input) = element.as_ref() else {
+                    return;
+                };
+                let Some(value) = input.string("value") else {
+                    return;
+                };
+                let (start, end) = clamp_range(&value, range);
+                let units = |index: usize| value[..index].encode_utf16().count() as f64;
+                if input.number("selectionStart").is_some() {
                     input.set_number("selectionEnd", units(end));
                     input.set_number("selectionStart", units(start));
                 }
             });
             return;
         }
+        let (start, end) = clamp_range(&self.value(), range);
         let (anchor, focus) = self
             .0
             .state
@@ -631,32 +644,20 @@ impl TextInputApi {
             .execute(EditorCommand::SetSelection { anchor, focus });
     }
 
-    /// The `<input>`'s selection on the HTML core, as byte indices into its value.
-    fn browser_selection(&self) -> Option<(usize, usize)> {
-        if !self.0.browser {
-            return None;
-        }
-        let value = self.value();
-        let (start, end) = self.0.element.with(|element| {
+    /// The `<input>`'s selection on the HTML core, as byte indices into the value the
+    /// browser holds (which it may have trimmed), or `None` for a kind without one.
+    fn browser_selection(&self) -> Option<BrowserSelection> {
+        self.0.element.with(|element| {
             let element = element.borrow();
             let input = element.as_ref()?;
-            Some((
-                input.number("selectionStart")?,
-                input.number("selectionEnd")?,
-            ))
-        })?;
-        let byte = |units: f64| {
-            let mut counted = 0.0;
-            value
-                .char_indices()
-                .find(|(_, char)| {
-                    let before = counted;
-                    counted += char.len_utf16() as f64;
-                    before >= units
-                })
-                .map_or(value.len(), |(index, _)| index)
-        };
-        Some((byte(start), byte(end)))
+            let value = input.string("value")?;
+            let start = utf16_to_byte(&value, input.number("selectionStart")?);
+            let end = utf16_to_byte(&value, input.number("selectionEnd")?);
+            Some(BrowserSelection {
+                range: start..end,
+                backward: input.string("selectionDirection").as_deref() == Some("backward"),
+            })
+        })
     }
 
     pub fn menu_row(&self, tree: &impl Inspect, index: usize) -> Option<NodeId> {
@@ -681,4 +682,44 @@ impl TextInputApi {
         tree.api::<crate::TextAreaApi>(self.0.area.get())
             .handles(tree)
     }
+}
+
+struct BrowserSelection {
+    range: Range<usize>,
+    backward: bool,
+}
+
+impl BrowserSelection {
+    fn caret(&self) -> usize {
+        match self.backward {
+            true => self.range.start,
+            false => self.range.end,
+        }
+    }
+}
+
+/// `range` ordered, clamped to `value` and moved back onto character boundaries.
+fn clamp_range(value: &str, range: Range<usize>) -> (usize, usize) {
+    let boundary = |index: usize| {
+        let mut index = index.min(value.len());
+        while !value.is_char_boundary(index) {
+            index -= 1;
+        }
+        index
+    };
+    (boundary(range.start), boundary(range.end.max(range.start)))
+}
+
+/// The byte index in `value` of a UTF-16 offset, as the DOM counts; an offset inside a
+/// surrogate pair rounds up to the character's end, and one past the end clamps to it.
+fn utf16_to_byte(value: &str, units: f64) -> usize {
+    let mut counted = 0.0;
+    value
+        .char_indices()
+        .find(|(_, char)| {
+            let before = counted;
+            counted += char.len_utf16() as f64;
+            before >= units
+        })
+        .map_or(value.len(), |(index, _)| index)
 }

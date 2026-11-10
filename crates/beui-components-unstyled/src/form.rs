@@ -23,11 +23,18 @@ pub(crate) fn fill_cell(escape: &Escape) {
 }
 
 /// On the HTML core, `content` with a hidden input that posts `value` under `name`
-/// to the `Form` around it, and nothing while `value` is `None` (an unchecked box);
-/// natively, or without a `name`, just `content`. For a field beui draws itself,
-/// which has no `<input>` of its own to post.
+/// to the `Form` around it, and nothing while `value` is `None` (an unchecked box) or
+/// the field is `disabled`, as HTML posts no disabled control; natively, or without a
+/// `name`, just `content`. For a field beui draws itself, which has no `<input>` of its
+/// own to post. With a `name` the wrapper is the field's node on HTML, so a test id or
+/// node ref given to the field lands on it.
 #[component]
-pub(crate) fn Posted(name: Prop<String>, value: Memo<Option<String>>, content: NodeId) -> NodeId {
+pub(crate) fn Posted(
+    name: Prop<String>,
+    value: Memo<Option<String>>,
+    disabled: Memo<bool>,
+    content: NodeId,
+) -> NodeId {
     if CORE != Core::Html || matches!(&name, Prop::Static(name) if name.is_empty()) {
         return content;
     }
@@ -41,7 +48,7 @@ pub(crate) fn Posted(name: Prop<String>, value: Memo<Option<String>>, content: N
                     r#type="hidden"
                     name={name}
                     value={Prop::dynamic(move || value.get())}
-                    disabled={create_memo(move || value.get().is_none())}
+                    disabled={create_memo(move || disabled.get() || value.get().is_none())}
                 />
                 {content}
             </html::Div>
