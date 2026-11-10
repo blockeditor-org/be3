@@ -426,7 +426,10 @@ impl Pusher {
                 if !served {
                     return refuse("a Web Push endpoint is an https:// URL on port 443");
                 }
-                match url.host_str().is_some_and(|host| allowed_host(host, &self.hosts)) {
+                match url
+                    .host_str()
+                    .is_some_and(|host| allowed_host(host, &self.hosts))
+                {
                     true => Ok(()),
                     false => refuse(
                         "this server pushes only to the known push services (FCM, Mozilla, Apple, Windows) and the hosts its operator added with --push-host",

@@ -24,7 +24,10 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
             web("https://fcm.googleapis.com:25/fcm/send/a"),
             "a port other than 443",
         ),
-        (web("https://push.example.com/a"), "a host no push service has"),
+        (
+            web("https://push.example.com/a"),
+            "a host no push service has",
+        ),
         (
             web("https://fcm.googleapis.com.example.com/a"),
             "a push service's host inside another",
@@ -34,7 +37,10 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
             web("https://evilnotify.windows.com/a"),
             "a host ending in a suffix without its dot",
         ),
-        (web("https://ntfy.example.org.evil.example/a"), "an added host inside another"),
+        (
+            web("https://ntfy.example.org.evil.example/a"),
+            "an added host inside another",
+        ),
         (
             device.endpoint(PushService::Fcm, "a-registration-token".into()),
             "FCM on a server without it",
@@ -73,7 +79,10 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         member.register_endpoint(web(address)).await;
     }
     assert!(push::allowed_host("db5p.notify.windows.com", &[]));
-    assert!(push::allowed_host("autopush.push.services.mozilla.com", &[]));
+    assert!(push::allowed_host(
+        "autopush.push.services.mozilla.com",
+        &[]
+    ));
     assert!(!push::allowed_host("ntfy.example.org", &[]));
 
     for (address, public) in [

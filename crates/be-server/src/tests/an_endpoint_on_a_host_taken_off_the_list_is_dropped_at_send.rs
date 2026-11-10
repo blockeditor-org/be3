@@ -6,7 +6,11 @@ fn pushing_to(hosts: &[&str]) -> ServerConfig {
         push: push::PushConfig {
             allow_local_endpoints: true,
             fcm: None,
-            hosts: hosts.iter().map(|host| (*host).to_owned()).collect::<Vec<_>>().into(),
+            hosts: hosts
+                .iter()
+                .map(|host| (*host).to_owned())
+                .collect::<Vec<_>>()
+                .into(),
         },
         ..ServerConfig::OPEN
     }
@@ -38,7 +42,10 @@ async fn an_endpoint_on_a_host_taken_off_the_list_is_dropped_at_send() {
     drop(owner);
 
     // The operator takes 127.0.0.2 off the list.
-    harness.server.restart_with(pushing_to(&["127.0.0.1"])).await;
+    harness
+        .server
+        .restart_with(pushing_to(&["127.0.0.1"]))
+        .await;
     let mut owner = harness.second_connection(&token, organization).await;
     owner.notify(block, b"sealed", Vec::new()).await;
     // One account's pushes go in the order its devices registered, so the old endpoint was
@@ -50,7 +57,9 @@ async fn an_endpoint_on_a_host_taken_off_the_list_is_dropped_at_send() {
         .await
         .unwrap();
     assert_eq!(
-        kept.iter().map(|endpoint| endpoint.address.as_str()).collect::<Vec<_>>(),
+        kept.iter()
+            .map(|endpoint| endpoint.address.as_str())
+            .collect::<Vec<_>>(),
         [format!("{}/kept", service.url)],
         "the endpoint on a host no longer listed was dropped without a request"
     );

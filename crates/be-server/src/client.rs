@@ -2580,8 +2580,13 @@ impl Connection {
         }
         .encode()
         .into();
-        self.pusher
-            .queue(&self.store, identity.organization, block, deliveries, &message);
+        self.pusher.queue(
+            &self.store,
+            identity.organization,
+            block,
+            deliveries,
+            &message,
+        );
         Ok(())
     }
 
