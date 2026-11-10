@@ -24,6 +24,9 @@ use crate::{
 /// which is the state retention prefers to keep.
 pub const QUIET_INTERVAL: u64 = 30_000;
 
+/// How long a follower waits before it puts again the part of an edit whose put failed.
+const PUT_RETRY_INTERVAL: u64 = 5_000;
+
 /// An owner commits at most this long after the first edit since its last commit, while edits
 /// go on, which bounds what a restore point misses and what a reader replays.
 pub const COMMIT_INTERVAL: u64 = 5 * 60_000;
@@ -405,6 +408,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     rebased: bool,
     unappended: Vec<SessionOp>,
     append_at: Option<u64>,
+    /// When a follower puts again the part of an operation whose put failed.
+    put_retry_at: Option<u64>,
     appended_bytes: usize,
     applied_ops: Vec<SessionOp>,
     restarting: bool,
@@ -481,6 +486,10 @@ where
         if self.append_at.is_some_and(|at| self.now >= at) {
             self.append_unappended();
         }
+        if self.put_retry_at.is_some_and(|at| self.now >= at) {
+            self.put_retry_at = None;
+            self.flush();
+        }
         let due = self.commit_at().is_some_and(|at| self.now >= at);
         if due && !self.sealing {
             self.sealing = true;
@@ -502,6 +511,7 @@ where
         };
         seal.into_iter()
             .chain(self.append_at)
+            .chain(self.put_retry_at)
             .chain(self.beat_at())
             .min()
     }
@@ -563,6 +573,7 @@ where
             rebased: false,
             unappended: Vec::new(),
             append_at: None,
+            put_retry_at: None,
             appended_bytes: 0,
             applied_ops: Vec::new(),
             restarting: false,
@@ -803,7 +814,13 @@ where
     /// block yet): it commits what it shows instead, which needs no part. A follower keeps the
     /// operation and puts it again when it next sends.
     fn unput(&mut self) {
-        if !self.is_owner() || self.held.is_empty() || self.putting() {
+        if !self.is_owner() {
+            if !self.unsent.is_empty() {
+                self.put_retry_at = Some(self.now + PUT_RETRY_INTERVAL);
+            }
+            return;
+        }
+        if self.held.is_empty() || self.putting() {
             return;
         }
         self.held.clear();
