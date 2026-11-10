@@ -443,6 +443,10 @@ impl TestClient {
                 "key-work-changed",
                 Opened::Unit(client::keys::key_work_changed(peer)),
             ),
+            (
+                "notify-modes-changed",
+                Opened::Unit(client::notifications::notify_modes_changed(peer)),
+            ),
             ("watch", Opened::Watch(client::blocks::watch(peer, block))),
         ] {
             let answer = match stream {

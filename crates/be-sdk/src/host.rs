@@ -1887,8 +1887,8 @@ impl EditorHost {
         });
     }
 
-    /// Notifies `block_id`'s members who are not connected, on their other devices: the host
-    /// shows `text` under the block's name and the account's, sealed so only members read it.
+    /// Notifies `block_id`'s members who are not connected, on their other devices: `text`,
+    /// sealed so only members read it, each device naming the sender and the block itself.
     /// `mentions` names the accounts the text mentions. Needs Edit on the block.
     pub fn notify(&self, block_id: Uuid, text: impl Into<String>, mentions: &[Uuid]) {
         let text = text.into();
@@ -1899,12 +1899,8 @@ impl EditorHost {
         self.ask(|| host_services::notify(block_id.into_bytes(), text, mentions).detach());
     }
 
-    /// How the signed-in account is notified about `block_id`.
-    pub fn notify_mode(&self, block_id: Uuid) -> Asked<Result<NotifyMode, Failure>> {
-        Asked::of(self.ask(|| host_services::notify_mode_of(block_id.into_bytes())))
-    }
-
-    /// Sets how the signed-in account is notified about `block_id`.
+    /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows
+    /// every block's.
     pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
     }

@@ -571,6 +571,8 @@ struct HostCore {
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
     storage_published: Option<u64>,
+    /// The `be_host_stack::notify_modes_revision` the notify modes watch last published.
+    notify_modes_published: Option<u64>,
     members: members::Members,
     scheduled_organization_list: bool,
     server_url: String,
@@ -868,6 +870,7 @@ impl HostCore {
             agent_created: None,
             contacts: contacts::Contacts::default(),
             storage_published: None,
+            notify_modes_published: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
             server_url,
@@ -2995,6 +2998,7 @@ impl HostCore {
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
         self.publish_storage();
+        self.publish_notify_modes();
         self.load_organizations_if_needed();
         if self.choosing_session {
             self.root_settings.ensure();
@@ -3104,6 +3108,25 @@ impl HostCore {
             quota: usage.quota,
         });
         be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
+    }
+
+    /// Publishes the account's notification modes whenever the host stack read them anew.
+    fn publish_notify_modes(&mut self) {
+        let revision = Some(be_host_stack::notify_modes_revision());
+        if self.notify_modes_published == revision {
+            return;
+        }
+        self.notify_modes_published = revision;
+        let modes = be_host_stack::notify_modes().map(|modes| {
+            modes
+                .into_iter()
+                .map(|(block, mode)| be_sdk_api::BlockNotifyMode {
+                    block: block.into_bytes(),
+                    mode: be_host_stack::app_graph::notify_mode_to(mode),
+                })
+                .collect::<Vec<_>>()
+        });
+        be_host_base::watches::publish::<be_sdk_api::NotifyModesWatch>(&modes);
     }
 
     fn publish_administrator(&self) {

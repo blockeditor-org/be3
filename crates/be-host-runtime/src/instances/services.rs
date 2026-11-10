@@ -481,12 +481,6 @@ impl Instances {
                     );
                 }
             }
-            Call::NotifyModeOf { reply, block } => {
-                let answering = self.answering(instance, reply);
-                be_host_stack::notify_mode(Uuid::from_bytes(block), move |mode| {
-                    answering.send_or_fail(mode.map(be_host_stack::app_graph::notify_mode_to))
-                });
-            }
             Call::SetNotifyMode { reply, block, mode } => {
                 let answering = self.answering(instance, reply);
                 be_host_stack::set_notify_mode(

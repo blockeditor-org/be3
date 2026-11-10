@@ -1843,6 +1843,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-web-push"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "ring",
+]
+
+[[package]]
 name = "be-sdk"
 version = "0.1.0"
 dependencies = [
@@ -2142,6 +2150,7 @@ dependencies = [
  "be-block-sqlite-schema",
  "be-block-store",
  "be-lib-build-id",
+ "be-lib-web-push",
  "be-server-portal",
  "be-wasm-ops",
  "bytes",

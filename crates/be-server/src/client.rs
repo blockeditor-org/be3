@@ -69,9 +69,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
     match call {
         Call::Connection(embed::connection::Call::Ping { .. }) => Rule::Anyone,
         Call::Notifications(call) => match call {
-            notifications::Call::PushKey { .. } | notifications::Call::OffersFcm { .. } => {
-                Rule::SignedIn
-            }
+            notifications::Call::PushKey { .. }
+            | notifications::Call::OffersFcm { .. }
+            | notifications::Call::NotifyModesChanged { .. } => Rule::SignedIn,
             notifications::Call::RegisterEndpoint { .. }
             | notifications::Call::UnregisterEndpoint { .. }
             | notifications::Call::NotifyModes { .. } => Rule::Organization,
@@ -202,6 +202,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | notifications::Call::RegisterEndpoint { .. }
             | notifications::Call::UnregisterEndpoint { .. }
             | notifications::Call::NotifyModes { .. }
+            | notifications::Call::NotifyModesChanged { .. }
             | notifications::Call::SetNotifyMode { .. } => false,
         },
         Call::Account(call) => match call {
@@ -357,6 +358,7 @@ enum Route {
     Paired,
     Contacts,
     KeyWork,
+    NotifyModes,
     Storage,
     Events { session: OpId, block: Place },
 }
@@ -445,6 +447,8 @@ pub(crate) struct Connection {
     pub(crate) pusher: Arc<crate::push::Pusher>,
     /// Notifications each account sent this minute (`Services::notifications`).
     pub(crate) notifications: Arc<crate::address::Rate<Uuid>>,
+    /// Notifications each account sent about each block this minute.
+    pub(crate) block_notifications: Arc<crate::address::Rate<(Uuid, Uuid)>>,
     /// The address the connection comes from; see [`crate::Services::client_address`].
     pub(crate) address: IpAddr,
     /// Since when the connection has had no account.
@@ -504,6 +508,7 @@ impl Client {
                 transfers: services.transfers.clone(),
                 pusher: Arc::clone(&services.pusher),
                 notifications: Arc::clone(&services.notifications),
+                block_notifications: Arc::clone(&services.block_notifications),
                 address,
                 anonymous_since: tokio::time::Instant::now(),
                 anonymous: Some(anonymous),
@@ -719,6 +724,9 @@ impl Client {
                 }
                 Push::KeyWorkChanged => {
                     streams.send(&mut lock, (), |route| *route == Route::KeyWork)?;
+                }
+                Push::NotifyModesChanged => {
+                    streams.send(&mut lock, (), |route| *route == Route::NotifyModes)?;
                 }
             }
         }
@@ -2228,13 +2236,35 @@ impl Client {
             Call::SetNotifyMode { reply, block, mode } => {
                 let set = async {
                     prelude?;
+                    let identity = connection.identity()?;
                     connection
                         .store
-                        .set_notify_mode(connection.identity()?, block, mode)
-                        .await
+                        .set_notify_mode(identity, block, mode)
+                        .await?;
+                    connection
+                        .hub
+                        .send_account(
+                            identity.account,
+                            connection.client,
+                            None,
+                            &Push::NotifyModesChanged,
+                        )
+                        .await;
+                    Ok(())
                 }
                 .await;
                 self.reply(reply, set);
+            }
+            Call::NotifyModesChanged { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams.open_with(
+                    &mut self.peer.lock(),
+                    stream,
+                    Route::NotifyModes,
+                    Backlog::Latest,
+                );
             }
             Call::Notify {
                 reply,
@@ -2515,32 +2545,36 @@ impl Connection {
                 crate::limits::MAX_NOTIFICATIONS_PER_MINUTE,
             ));
         }
+        if !self.block_notifications.allow_key((identity.account, block)) {
+            return Err(crate::limits::too_many(
+                "notifications about one block a minute",
+                crate::limits::MAX_NOTIFICATIONS_PER_BLOCK,
+            ));
+        }
         let recipients = self
             .store
             .notification_recipients(identity, block, mentions)
             .await?;
+        let accounts: Vec<Uuid> = recipients.iter().map(|recipient| recipient.account).collect();
+        let connected = self.hub.connected(identity.organization, &accounts).await;
+        let deliveries: Vec<crate::push::Delivery> = recipients
+            .into_iter()
+            .filter(|recipient| !connected.contains(&recipient.account))
+            .map(|recipient| crate::push::Delivery {
+                account: recipient.account,
+                endpoints: recipient.endpoints,
+                urgent: recipient.mentioned,
+            })
+            .collect();
         let message: Arc<[u8]> = be_block_protocol::PushMessage {
             organization: identity.organization,
             block,
+            sender: identity.account,
             sealed,
         }
         .encode()
         .into();
-        for recipient in recipients {
-            let connected = !self
-                .hub
-                .clients_of(identity.organization, recipient.account)
-                .await
-                .is_empty();
-            if !connected {
-                self.pusher.queue(
-                    &self.store,
-                    recipient.account,
-                    recipient.endpoints,
-                    &message,
-                );
-            }
-        }
+        self.pusher.queue(&self.store, block, deliveries, &message);
         Ok(())
     }
 
