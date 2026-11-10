@@ -35,21 +35,15 @@ pub mod html {
 #[cfg(beui_html)]
 mod html_paintings;
 
-pub fn open_inspector() -> bool {
-    inspector_opener::open()
+/// Whether `open_inspector` opens anything: the inspector reads beui's native
+/// document, so on the HTML core it cannot, and the browser's developer tools serve
+/// instead.
+pub const fn can_open_inspector() -> bool {
+    cfg!(not(beui_html))
 }
 
-#[cfg(not(beui_html))]
-mod inspector_opener {
-    pub(crate) fn open() -> bool {
-        crate::native::with_document(crate::native::Document::open_inspector);
-        true
-    }
-}
-
-#[cfg(beui_html)]
-mod inspector_opener {
-    pub(crate) fn open() -> bool {
-        false
-    }
+/// Opens the inspector over the running program, where `can_open_inspector` says it can.
+pub fn open_inspector() {
+    #[cfg(not(beui_html))]
+    native::with_document(native::Document::open_inspector);
 }

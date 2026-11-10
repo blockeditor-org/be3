@@ -551,7 +551,7 @@ fn apply_marks(model: &TextModel, stops: &Stops) -> bool {
     if registry().is_none() {
         return false;
     }
-    let marks = model.decor.borrow().marks.clone();
+    let marks = model.decor.borrow().all_marks();
     let key = (marks.clone(), model.revision.get());
     if model.decor.borrow().shown.marked.as_ref() == Some(&key) {
         return true;
@@ -595,7 +595,7 @@ fn boxes(
     };
     let mut boxes = Vec::new();
     if !highlighted {
-        for mark in &decor.marks {
+        for mark in &decor.all_marks() {
             let Some(range) = dom_range(stops, mark.range.clone()) else {
                 continue;
             };
@@ -617,7 +617,7 @@ fn boxes(
             }
         }
     }
-    for caret in &decor.carets {
+    for caret in decor.carets.iter().chain(&decor.handles) {
         let (x, line) = spot(frame, stops, caret.at);
         let top = frame.line_top(line);
         let color = css::color(caret.color);

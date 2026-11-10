@@ -169,6 +169,14 @@ handler hears every phase of the back gesture, or `BackGesture::Invoked` alone
 for a key, Escape or press outside. `unstyled::BackSlide` supplies the motion,
 as the stacked dock's tabs use it.
 
+On the HTML core back is the browser's: it reaches the same target, found the
+same way, as `BackGesture::Invoked` alone (crates/beui-core-html/src/back.rs).
+While anything would take it, the page holds one history entry of its own,
+which the back button and Android's back pop; a handler that starts disabled
+never touches history. Browsers skip an entry made without a user activation, so
+a page may get one back per activation before back leaves it. It is not a
+`CloseWatcher`, which would also take Esc from the layers' own Escape handling.
+
 ## Focus and layers
 
 Every layer gives focus back when it closes, however it closes. It remembers

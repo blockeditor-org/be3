@@ -11,6 +11,9 @@
 // place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
 // revealed it; after a reveal every target of the command is found again, as native drive
 // does), so the browser's own focus, key and text paths run.
+// `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
+// `attribute CSS NAME VALUE|none` and `history LENGTH` (browser only) wait for an element's
+// attribute and the history's length; a shared script gives them as `#web` lines.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
@@ -267,6 +270,45 @@ async function step(page, words) {
         case "key":
             for (const pressed of args) await page.keyboard.press(chord(pressed));
             return settle();
+        case "clipboard": {
+            // Sets the clipboard for a following `key ctrl+v`, as native drive's does.
+            if (args.length === 0) throw new Failure("clipboard takes the TEXT to hold; the browser run cannot read it back");
+            await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+            await page.evaluate((text) => navigator.clipboard.writeText(text), args.join(" "));
+            return "";
+        }
+        case "back":
+            if (args.length > 0) throw new Failure("back takes nothing in the browser, which goes back at once");
+            await page.evaluate(() => history.back());
+            return settle();
+        case "attribute": {
+            // attribute CSS NAME VALUE|none: waits until the one element CSS selects has
+            // attribute NAME at VALUE, or none.
+            const [selector, name, value] = args;
+            if (!selector || !name || value === undefined) throw new Failure("attribute takes a CSS selector, a NAME and a VALUE or none");
+            const wanted = value === "none" ? null : value;
+            try {
+                await page.waitForFunction(([selector, name, wanted]) => {
+                    const found = document.querySelectorAll(selector);
+                    return found.length === 1 && found[0].getAttribute(name) === wanted;
+                }, [selector, name, wanted], { timeout: timeout * 1000 });
+            } catch {
+                const shown = await page.evaluate(([selector, name]) => [...document.querySelectorAll(selector)].map((element) => element.getAttribute(name)), [selector, name]);
+                throw new Failure(`${selector} has ${name} ${JSON.stringify(shown)}, not ${JSON.stringify(wanted)}`);
+            }
+            return "";
+        }
+        case "history": {
+            // history LENGTH: waits until the page's history holds LENGTH entries.
+            const wanted = Number(args[0]);
+            if (!Number.isInteger(wanted)) throw new Failure("history takes a LENGTH");
+            try {
+                await page.waitForFunction((wanted) => history.length === wanted, wanted, { timeout: timeout * 1000 });
+            } catch {
+                throw new Failure(`history holds ${await page.evaluate(() => history.length)} entries, not ${wanted}`);
+            }
+            return "";
+        }
         case "selection": {
             const wanted = { none: false, some: true }[args[0]];
             if (wanted === undefined) throw new Failure(`selection takes none or some, not ${args[0]}`);
@@ -385,7 +427,7 @@ async function runScript(script) {
     const opened = await open(`?fixture=${encodeURIComponent(name)}`);
     try {
         if (opened.errors.length) throw new Failure(opened.errors[0]);
-        for (const { line, words } of commands(await readFile(script, "utf8"))) {
+        for (const { line, words } of commands(await readFile(script, "utf8"), { web: true })) {
             transcript.push(`> ${line}`);
             const output = await step(opened.page, words);
             if (output) transcript.push(output.replace(/\n$/, ""));

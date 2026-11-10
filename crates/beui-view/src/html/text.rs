@@ -164,8 +164,6 @@ pub(crate) fn text(
         beui_core_html::text::report_truncated(node, on_truncated);
     }
     if decorated(&hang) || decorated(&marks) || decorated(&carets) {
-        set_style(node, "position", Some("relative".to_owned()));
-        set_style(node, "z-index", Some("0".to_owned()));
         model.decorate();
         let held = model.clone();
         bind(hang, move |hang| held.set_hang(hang));

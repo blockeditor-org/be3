@@ -38,6 +38,7 @@ pub fn Select(
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = Length::Extent(Extent::at_most(TRIGGER_MAX_WIDTH)))] width: Prop<Length>,
+    #[prop(default = String::new())] name: Prop<String>,
 ) -> NodeId {
     let options = options.into_run();
     let placeholder = create_memo(move || placeholder.get());
@@ -48,6 +49,7 @@ pub fn Select(
             selected
             disabled
             label
+            name
             search_placeholder="Search"
             search_content={|handle| view! {
                 <SearchField handle />

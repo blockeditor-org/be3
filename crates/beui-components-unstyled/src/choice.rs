@@ -31,20 +31,36 @@ pub struct ChoiceOptionHandle {
 
 pub struct ChoiceOption {
     label: Memo<String>,
+    value: Memo<String>,
 }
 
 impl ChoiceOption {
     pub fn label(&self) -> Memo<String> {
         self.label
     }
+
+    /// What a `Form` posts for the option: its `value`, or its label without one, as
+    /// `<option>` does.
+    pub fn value(&self) -> Memo<String> {
+        self.value
+    }
 }
 
 beui_view::value_child_type!(ChoiceOption);
 
 #[component]
-pub fn ChoiceOption(label: Prop<String>) -> ChoiceOption {
+pub fn ChoiceOption(
+    label: Prop<String>,
+    #[prop(default = String::new())] value: Prop<String>,
+) -> ChoiceOption {
+    let label = create_memo(move || label.get());
     ChoiceOption {
-        label: create_memo(move || label.get()),
+        label,
+        value: create_memo(move || {
+            Some(value.get())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| label.get())
+        }),
     }
 }
 

@@ -3,12 +3,15 @@
 //!
 //! A script uses only commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`,
 //! `ids`, `find`, `wait`, `gone`, `click` (also `double`, `right`, `middle`), `move`,
-//! `down`/`up`, `drag`, `wheel` (a tick is 40 pixels in the browser), `type`, `key` and
-//! `resize WxH`. Text metrics differ between the cores, so a script names nodes by test id or by
-//! text the screen writes itself; a screen checking a layout prints what it `measure`s in a
+//! `down`/`up`, `drag`, `wheel` (a tick is 40 pixels in the browser), `type`, `key`,
+//! `clipboard TEXT` (then `key ctrl+v` pastes it), `back` and `resize WxH`. Text metrics
+//! differ between the cores, so a script names nodes by test id or by text the screen writes
+//! itself; a screen checking a layout prints what it `measure`s in a
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
-//! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's).
+//! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's), and
+//! `attribute CSS NAME VALUE|none` and `history LENGTH`, which a script both cores run
+//! gives as `#web COMMAND` lines (comments natively).
 //!
 //! The browser run's `settle` waits until no frame is wanted at once; a frame a timer will ask
 //! for later (an indeterminate progress bar's tick) does not count, as natively.
@@ -78,6 +81,15 @@ pub fn Fixture(name: String) -> Root {
         },
         "virtual_list" => view! {
             <VirtualListFixture />
+        },
+        "paste" => view! {
+            <PasteFixture />
+        },
+        "text_hooks" => view! {
+            <TextHooksFixture />
+        },
+        "back" => view! {
+            <BackFixture />
         },
         "canvas" => view! {
             <CanvasFixture />
@@ -349,6 +361,90 @@ fn FocusFixture() -> NodeId {
                     <Frame width=80.0 height=40.0 fill={GREEN} />
                 </Interactive>
             </List>
+            <Text color={INK}>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn TextHooksFixture() -> NodeId {
+    let texts = NodeRef::new();
+    let rows = NodeRef::new();
+    let read = create_signal(String::from("Hooks unread"));
+    let keys: Vec<u32> = (0..100).collect();
+    view! {
+        <List spacing=12.0>
+            <Frame @node_ref=&texts>
+                <List spacing=4.0>
+                    <Text color={INK}>"Alpha"</Text>
+                    <Text color={INK}>""</Text>
+                    <Text color={INK}>"Beta"</Text>
+                </List>
+            </Frame>
+            <Frame width=160.0 height=100.0>
+                <Offset>
+                    <VirtualList @node_ref=&rows keys={keys} item_size=20.0>|row: ReadSignal<u32>|
+                        <Frame height=20.0 fill={BLUE}>
+                            <Text color={PAPER}>{format!("Item {}", row.get_untracked())}</Text>
+                        </Frame>
+                    </VirtualList>
+                </Offset>
+            </Frame>
+            <Button
+                id="text_hooks.read"
+                label="Read hooks"
+                on_click={move || {
+                    let found = texts
+                        .get()
+                        .texts_within()
+                        .iter()
+                        .map(TreeNode::text)
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let offset = rows.get().row_offset(&3_u32);
+                    read.set(format!("Texts {found} row 3 at {offset:?}"));
+                }}
+            />
+            <Text color={INK}>{read}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn PasteFixture() -> NodeId {
+    let pasted = create_signal(String::from("nothing"));
+    let report = create_memo(move || format!("Pasted {}", pasted.get()));
+    view! {
+        <List spacing=12.0>
+            <Interactive
+                @test_id="paste.target"
+                focusable=true
+                ime=true
+                pastes={vec!["text/html".to_owned(), "text/plain".to_owned()]}
+                on_paste={move |clip: beui::ClipItem| {
+                    pasted.set(format!("{} {}", clip.format, String::from_utf8_lossy(&clip.data)));
+                }}
+            >
+                <Frame width=160.0 height=30.0 fill={BLUE} />
+            </Interactive>
+            <Text color={INK}>{report}</Text>
+        </List>
+    }
+}
+
+#[component]
+fn BackFixture() -> NodeId {
+    let catching = create_signal(false);
+    let backs = create_signal(0_u32);
+    let report = create_memo(move || format!("Backs {}", backs.get()));
+    on_back(catching, move |gesture: beui::BackGesture| {
+        if gesture == beui::BackGesture::Invoked {
+            backs.update(|backs| *backs += 1);
+        }
+    });
+    view! {
+        <List spacing=12.0>
+            <beui::styled::Checkbox label="Catch back" checked={catching} />
             <Text color={INK}>{report}</Text>
         </List>
     }
@@ -893,27 +989,65 @@ fn TextInputFixture() -> NodeId {
     let report = create_memo(move || format!("Value {}", value.get()));
     let hidden = create_memo(move || format!("Secret {}", secret.get()));
     let count = create_memo(move || format!("Sent {}", sent.get()));
+    let lazy = create_signal(String::new());
+    let api = ComponentRef::<beui::styled::TextInputApi>::new();
+    let read = create_signal(String::from("Selection unread"));
     view! {
-        <beui::styled::Form on_submit={move || sent.update(|sent| *sent += 1)}>
-            <List spacing=12.0>
-                <Frame width=240.0>
-                    <beui::styled::TextInput @test_id="text_input.field" value={value} />
-                </Frame>
-                <Frame width=240.0>
-                    <beui::styled::TextInput
-                        @test_id="text_input.password"
-                        value={secret}
-                        label="Password"
-                        kind={beui::styled::InputKind::Password}
-                        name="password"
-                        autocomplete="current-password"
-                    />
-                </Frame>
-                <beui::styled::Button label="Send" submit=true />
-                <Text color={INK}>{report}</Text>
-                <Text color={INK}>{hidden}</Text>
-                <Text color={INK}>{count}</Text>
-            </List>
-        </beui::styled::Form>
+        <List spacing=12.0>
+            <beui::styled::Form on_submit={move || sent.update(|sent| *sent += 1)}>
+                <List spacing=12.0>
+                    <Frame width=240.0>
+                        <beui::styled::TextInput @test_id="text_input.field" value={value} api />
+                    </Frame>
+                    <Frame width=240.0>
+                        <beui::styled::TextInput
+                            @test_id="text_input.password"
+                            value={secret}
+                            label="Password"
+                            kind={beui::styled::InputKind::Password}
+                            name="password"
+                            autocomplete="current-password"
+                        />
+                    </Frame>
+                    <Frame width=240.0>
+                        <beui::styled::TextInput
+                            @test_id="text_input.lazy"
+                            value={lazy}
+                            label="Lazy"
+                            keyboard_on_focus=false
+                        />
+                    </Frame>
+                    <beui::styled::Button label="Send" submit=true />
+                    <Text color={INK}>{report}</Text>
+                    <Text color={INK}>{hidden}</Text>
+                    <Text color={INK}>{count}</Text>
+                </List>
+            </beui::styled::Form>
+            <beui::styled::Button
+                label="Select 1 to 3"
+                on_click={move || api.get().set_selection(1..3)}
+            />
+            <beui::styled::Button
+                label="Select 5 to 9"
+                on_click={move || api.get().set_selection(5..9)}
+            />
+            <beui::styled::Button
+                label="Read selection"
+                on_click={move || {
+                    let api = api.get();
+                    let ranges = api
+                        .selection()
+                        .iter()
+                        .map(|range| format!("{}..{}", range.start, range.end))
+                        .collect::<Vec<_>>();
+                    let ranges = match ranges.is_empty() {
+                        true => "none".to_owned(),
+                        false => ranges.join(" "),
+                    };
+                    read.set(format!("Selection {ranges} caret {}", api.caret()));
+                }}
+            />
+            <Text color={INK}>{read}</Text>
+        </List>
     }
 }

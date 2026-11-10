@@ -14,6 +14,7 @@ use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Color;
 use beui_view::types::Outline;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{ICON_MOVE_HORIZONTAL, ICON_MOVE_VERTICAL};
@@ -143,6 +144,7 @@ pub fn Scroll(
 }
 
 pub fn scrollbar_style() -> ScrollbarStyle {
+    let theme = use_theme();
     ScrollbarStyle::new(SCROLLBAR_WIDTH, |handle: ScrollHandle| {
         let ScrollHandle {
             position,
@@ -162,6 +164,10 @@ pub fn scrollbar_style() -> ScrollbarStyle {
         }
     })
     .fading(SCROLL_FADE)
+    .browser_colors(
+        Prop::dynamic(move || theme.scroll_thumb.get()),
+        Color::TRANSPARENT,
+    )
 }
 
 #[component]

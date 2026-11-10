@@ -1,7 +1,7 @@
 use ra_ap_syntax::ast::{self, AstNode};
 use ra_ap_syntax::{SourceFile, SyntaxNode};
 
-const STABLE_CRATES: [&str; 34] = [
+const STABLE_CRATES: [&str; 33] = [
     "beui-reactive",
     "beui-tree",
     "beui-types",
@@ -28,7 +28,6 @@ const STABLE_CRATES: [&str; 34] = [
     "beui-platform-android",
     "beui-renderer-wgpu",
     "beui-font-freetype",
-    "beui-font-browser",
     "beui-demo",
     "beui-runner",
     "be-host-runtime",

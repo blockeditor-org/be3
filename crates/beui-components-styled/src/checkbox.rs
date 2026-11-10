@@ -29,6 +29,7 @@ pub fn Checkbox(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = TextSize::Base)] size: Prop<TextSize>,
+    #[prop(default = String::new())] name: Prop<String>,
 ) -> NodeId {
     view! {
         <Toggle
@@ -36,6 +37,7 @@ pub fn Checkbox(
             checked
             label
             disabled
+            name
             capture_presses
             tab_stop
             press_focus
