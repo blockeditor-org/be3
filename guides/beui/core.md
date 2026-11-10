@@ -221,6 +221,9 @@ modules of `beui-core-html`, each registering a pass with `frame::on_layout`
 that runs before paint; `ResizeObserver`s call `frame::relayout()` so a resize
 is corrected in the same frame.
 
+Back is the browser's back, reaching what `Dismiss::Back` reaches natively
+(guides/beui/overlays.md, Back and `BackSlide`).
+
 A component's accessibility node becomes ARIA through the one table in
 `beui-core-html`'s `aria.rs`. Drive lines come from the accessibility nodes,
 not the ARIA, so they read the same on both cores.

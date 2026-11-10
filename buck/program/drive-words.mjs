@@ -63,10 +63,14 @@ export function words(line) {
 // The lines of a script, `drive -`'s input, as be-drive's `commands` reads
 // them: each line's words, skipping blank lines and lines starting with #,
 // before their quotes are read.
-export function commands(text) {
+// With `web`, a line `#web COMMAND` is a command, as it is to web-test.mjs, for checks only
+// the browser test can make (`attribute`, `history`) in a script both cores run; anywhere
+// else it is a comment.
+export function commands(text, { web = false } = {}) {
     return text
         .split("\n")
         .map((line) => line.trim())
+        .map((line) => (web && line.startsWith("#web ") ? line.slice("#web ".length).trim() : line))
         .filter((line) => line.length > 0 && !line.startsWith("#"))
         .map((line) => ({ line, words: words(line) }))
         .filter(({ words }) => words.length > 0);

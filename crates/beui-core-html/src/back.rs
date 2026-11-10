@@ -1,23 +1,38 @@
-//! `on_back` on the HTML core: the browser's back. While any handler is enabled the
-//! page holds one history entry of its own, so the browser's back (a `popstate`)
-//! pops that entry and reaches the latest enabled handler as `BackGesture::Invoked`
-//! instead of leaving the page. Once none is enabled the entry is taken back.
+//! Back on the HTML core: the browser's back, Android's back and Esc reach `on_back`
+//! handlers and dismissable layers as `Dismiss::Back` does natively, as one
+//! `BackGesture::Invoked` (the web has no gesture in progress).
+//!
+//! The target is found as natively: walking the open layers down from the top, skipping
+//! inert ones, the latest enabled handler shown in a layer takes it, else the layer itself
+//! when it would close on dismiss; a layer that blocks everything stops the walk, and
+//! below every layer a handler in the page takes it. Once a frame, while there is a
+//! target, the page holds one history entry of its own, marked `beuiBack`, which the
+//! back button and Android's back pop; when the target goes the entry is taken back.
+//! Browsers skip an entry made without a user activation, so a page may get only one
+//! back per activation before back leaves it.
+//!
+//! Not a `CloseWatcher`: Esc is a close request too, so a watcher would take Esc from the
+//! layers' own Escape handling, and give it to handlers in the page, which Escape never
+//! reaches natively.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 
 use beui_tree::reactive::Callback;
 use beui_types::BackGesture;
 
+use crate::node::NodeRef;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BackHandlerId(u64);
 
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    expect(dead_code, reason = "only the browser goes back")
+)]
 struct Handler {
     id: BackHandlerId,
+    at: Option<NodeRef>,
     enabled: bool,
-    #[cfg_attr(
-        not(target_arch = "wasm32"),
-        expect(dead_code, reason = "only the browser goes back")
-    )]
     on_back: Callback<BackGesture>,
 }
 
@@ -29,40 +44,41 @@ struct Handlers {
 
 thread_local! {
     static HANDLERS: RefCell<Handlers> = RefCell::default();
-    /// Whether the page's own history entry is on top.
-    static PUSHED: Cell<bool> = const { Cell::new(false) };
-    /// A `popstate` the page caused itself by taking its entry back.
-    static RETRACTING: Cell<bool> = const { Cell::new(false) };
 }
 
-pub fn add(on_back: Callback<BackGesture>) -> BackHandlerId {
+/// Adds a handler for the component at `at` (the page itself when `None`), enabled from
+/// the start or not, so one that starts disabled never touches history.
+pub fn add(at: Option<NodeRef>, enabled: bool, on_back: Callback<BackGesture>) -> BackHandlerId {
     let id = HANDLERS.with(|handlers| {
         let mut handlers = handlers.borrow_mut();
         let id = BackHandlerId(handlers.next);
         handlers.next += 1;
         handlers.handlers.push(Handler {
             id,
-            enabled: true,
+            at,
+            enabled,
             on_back,
         });
         id
     });
-    sync();
+    changed();
     id
 }
 
 pub fn set_enabled(id: BackHandlerId, enabled: bool) {
-    HANDLERS.with(|handlers| {
-        if let Some(handler) = handlers
-            .borrow_mut()
+    let flipped = HANDLERS.with(|handlers| {
+        let mut handlers = handlers.borrow_mut();
+        let handler = handlers
             .handlers
             .iter_mut()
-            .find(|handler| handler.id == id)
-        {
-            handler.enabled = enabled;
-        }
+            .find(|handler| handler.id == id)?;
+        let flipped = handler.enabled != enabled;
+        handler.enabled = enabled;
+        Some(flipped)
     });
-    sync();
+    if flipped == Some(true) {
+        changed();
+    }
 }
 
 pub fn remove(id: BackHandlerId) {
@@ -72,92 +88,205 @@ pub fn remove(id: BackHandlerId) {
             .handlers
             .retain(|handler| handler.id != id)
     });
-    sync();
+    changed();
 }
 
-fn wanted() -> bool {
-    HANDLERS.with(|handlers| {
-        handlers
-            .borrow()
-            .handlers
-            .iter()
-            .any(|handler| handler.enabled)
-    })
-}
-
-/// The browser went back: the latest enabled handler hears it, if the entry it
-/// popped was the page's own.
-#[cfg_attr(
-    not(target_arch = "wasm32"),
-    expect(dead_code, reason = "only the browser goes back")
-)]
-fn popped() {
-    if RETRACTING.with(|retracting| retracting.replace(false)) {
-        return;
-    }
-    if !PUSHED.with(|pushed| pushed.replace(false)) {
-        return;
-    }
-    let on_back = HANDLERS.with(|handlers| {
-        handlers
-            .borrow()
-            .handlers
-            .iter()
-            .rev()
-            .find(|handler| handler.enabled)
-            .map(|handler| handler.on_back)
-    });
-    if let Some(on_back) = on_back {
-        on_back.call(BackGesture::Invoked);
-    }
-    beui_reactive::flush();
-    sync();
-}
-
-fn sync() {
-    let wanted = wanted();
-    let pushed = PUSHED.with(Cell::get);
-    if wanted != pushed {
-        #[cfg(target_arch = "wasm32")]
-        web::sync(wanted);
-        #[cfg(not(target_arch = "wasm32"))]
-        PUSHED.with(|held| held.set(wanted));
-    }
+/// Handlers and layers change many times a flush; history is brought in step once, on
+/// the next frame.
+fn changed() {
+    #[cfg(target_arch = "wasm32")]
+    web::watch();
+    crate::frame::request_frame();
 }
 
 #[cfg(target_arch = "wasm32")]
 mod web {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
 
-    use super::{PUSHED, RETRACTING};
-    use crate::dom::Listener;
+    use beui_types::{BackGesture, Dismiss, LayerPolicy};
+    use wasm_bindgen::JsValue;
 
-    thread_local! {
-        static LISTENER: RefCell<Option<Listener>> = const { RefCell::new(None) };
+    use super::HANDLERS;
+    use crate::dom::{Listener, call};
+    use crate::node::NodeId;
+    use crate::overlay::Layer;
+
+    const MARKER: &str = "beuiBack";
+
+    #[derive(Default)]
+    struct Held {
+        /// The pass that brings history in step each frame, and the popstate listener.
+        pass: Option<(Rc<dyn Fn() -> bool>, Listener)>,
     }
 
-    pub(super) fn sync(wanted: bool) {
-        let Some(window) = crate::dom::window() else {
-            return;
-        };
-        let Ok(history) = js_sys::Reflect::get(&window, &"history".into()) else {
-            return;
-        };
-        LISTENER.with(|listener| {
-            listener.borrow_mut().get_or_insert_with(|| {
-                crate::dom::listen(window.as_ref(), "popstate", false, |_: web_sys::Event| {
-                    super::popped()
-                })
+    thread_local! {
+        static HELD: RefCell<Held> = RefCell::default();
+        /// Whether the page's own entry is current.
+        static PUSHED: Cell<bool> = const { Cell::new(false) };
+        /// `history.length` when the entry was pushed: a popstate that finds it changed
+        /// was a navigation forward (a `#` link), not back.
+        static LENGTH: Cell<f64> = const { Cell::new(0.0) };
+        /// popstates the page caused itself by taking its entry back.
+        static RETRACTING: Cell<u32> = const { Cell::new(0) };
+    }
+
+    enum Target {
+        Handler(beui_tree::reactive::Callback<BackGesture>),
+        Layer(Rc<Layer>),
+    }
+
+    pub(super) fn watch() {
+        HELD.with(|held| {
+            let mut held = held.borrow_mut();
+            if held.pass.is_some() {
+                return;
+            }
+            let Some(window) = crate::dom::window() else {
+                return;
+            };
+            let pass: Rc<dyn Fn() -> bool> = Rc::new(|| {
+                sync();
+                false
             });
+            crate::frame::hold_layout(&pass);
+            let listener =
+                crate::dom::listen(window.as_ref(), "popstate", false, |_: web_sys::Event| {
+                    popped()
+                });
+            held.pass = Some((pass, listener));
         });
-        if wanted {
-            let marker = js_sys::Object::new();
-            let _ = js_sys::Reflect::set(&marker, &"beuiBack".into(), &true.into());
-            crate::dom::call(&history, "pushState", &[marker.into(), "".into()]);
-        } else {
-            RETRACTING.with(|retracting| retracting.set(true));
-            crate::dom::call(&history, "back", &[]);
+    }
+
+    fn history() -> Option<JsValue> {
+        let window = crate::dom::window()?;
+        js_sys::Reflect::get(&window, &"history".into()).ok()
+    }
+
+    fn length(history: &JsValue) -> f64 {
+        js_sys::Reflect::get(history, &"length".into())
+            .ok()
+            .and_then(|length| length.as_f64())
+            .unwrap_or(0.0)
+    }
+
+    fn on_own_entry(history: &JsValue) -> bool {
+        js_sys::Reflect::get(history, &"state".into())
+            .ok()
+            .filter(JsValue::is_object)
+            .and_then(|state| js_sys::Reflect::get(&state, &MARKER.into()).ok())
+            .is_some_and(|marked| marked.is_truthy())
+    }
+
+    /// The innermost layer's dialog around `node`, `None` in the page itself.
+    fn layer_of(node: NodeId) -> Option<web_sys::Element> {
+        let element = crate::dom::element(node)?;
+        element.closest(".beui-overlay").ok().flatten()
+    }
+
+    fn shown(node: NodeId) -> bool {
+        let Some(element) = crate::dom::element(node) else {
+            return false;
+        };
+        element.is_connected()
+            && call(element.as_ref(), "checkVisibility", &[]).is_none_or(|shown| shown.is_truthy())
+    }
+
+    fn handler_in(dialog: Option<&web_sys::Element>) -> Option<Target> {
+        HANDLERS.with(|handlers| {
+            handlers
+                .borrow()
+                .handlers
+                .iter()
+                .rev()
+                .filter(|handler| handler.enabled)
+                .find(|handler| match handler.at {
+                    Some(at) => at
+                        .try_get()
+                        .is_some_and(|node| shown(node) && layer_of(node).as_ref() == dialog),
+                    None => dialog.is_none(),
+                })
+                .map(|handler| Target::Handler(handler.on_back))
+        })
+    }
+
+    fn target() -> Option<Target> {
+        for layer in crate::overlay::stacked().into_iter().rev() {
+            if layer.policy() == LayerPolicy::Inert {
+                continue;
+            }
+            let dialog = crate::dom::element(layer.dialog());
+            if let Some(target) = handler_in(dialog.as_ref()) {
+                return Some(target);
+            }
+            if layer.dismisses() {
+                return Some(Target::Layer(layer));
+            }
+            if layer.blocks_all() {
+                return None;
+            }
         }
-        PUSHED.with(|pushed| pushed.set(wanted));
+        handler_in(None)
+    }
+
+    fn invoke() {
+        match target() {
+            Some(Target::Handler(on_back)) => on_back.call(BackGesture::Invoked),
+            Some(Target::Layer(layer)) => layer.dismiss(Dismiss::Back),
+            None => {}
+        }
+        beui_reactive::flush();
+        crate::frame::request_frame();
+    }
+
+    fn sync() {
+        let wanted = target().is_some();
+        let Some(history) = history() else {
+            return;
+        };
+        let pushed = PUSHED.with(Cell::get);
+        if wanted && !pushed {
+            let marker = js_sys::Object::new();
+            let _ = js_sys::Reflect::set(&marker, &MARKER.into(), &true.into());
+            if call(&history, "pushState", &[marker.into(), "".into()]).is_some() {
+                PUSHED.with(|pushed| pushed.set(true));
+                LENGTH.with(|held| held.set(length(&history)));
+            }
+        } else if !wanted && pushed {
+            PUSHED.with(|pushed| pushed.set(false));
+            if on_own_entry(&history) {
+                RETRACTING.with(|retracting| retracting.set(retracting.get() + 1));
+                call(&history, "back", &[]);
+            }
+        }
+    }
+
+    fn popped() {
+        let Some(history) = history() else {
+            return;
+        };
+        let retracted = RETRACTING.with(|retracting| {
+            let held = retracting.get();
+            retracting.set(held.saturating_sub(1));
+            held > 0
+        });
+        if retracted {
+            return;
+        }
+        if on_own_entry(&history) {
+            // Forward onto the page's own entry: it holds again, and nothing went back.
+            PUSHED.with(|pushed| pushed.set(true));
+            crate::frame::request_frame();
+            return;
+        }
+        if !PUSHED.with(|pushed| pushed.replace(false)) {
+            return;
+        }
+        if length(&history) != LENGTH.with(Cell::get) {
+            // A navigation forward (a `#` link) left the entry behind; it was no back.
+            crate::frame::request_frame();
+            return;
+        }
+        invoke();
     }
 }

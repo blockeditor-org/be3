@@ -1,8 +1,20 @@
-# Going back reaches an enabled on_back handler, and keeps reaching it, rather
-# than leaving the page.
+# A back handler that starts disabled leaves history alone (the browser's run opens the
+# page after about:blank, so it starts with two entries). Once enabled, going back
+# reaches it, and keeps reaching it, rather than leaving the page; disabled again, it
+# takes its history entry back.
 clock stop
 wait 'value="Backs 0"'
+#web history 2
+click 'CheckBox "Catch back"'
+#web history 3
 back
 wait 'value="Backs 1"'
 back
 wait 'value="Backs 2"'
+#web history 3
+click 'CheckBox "Catch back"'
+#web history 3
+click 'CheckBox "Catch back"'
+back
+wait 'value="Backs 3"'
+#web history 3
