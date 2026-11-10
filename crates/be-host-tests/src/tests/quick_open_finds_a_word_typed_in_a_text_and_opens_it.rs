@@ -14,6 +14,9 @@ fn quick_open_finds_a_word_typed_in_a_text_and_opens_it() {
     host.pause(60_000);
     host.run(&["settle"]);
     host.click("#dock.tab.2.close");
+    // My files names its search index once its own edits are sealed, which takes another
+    // quiet while; the text is indexed then.
+    host.pause(60_000);
     host.run(&["settle"]);
     assert_eq!(host.count("Tab \"Orchard notes\""), 0, "the text is closed");
 
