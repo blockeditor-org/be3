@@ -34,7 +34,7 @@ pub use beui_frame::phone_layout;
 pub use block_link::{BlockDisplay, BlockLink, label_glyph, watch_block_label};
 pub use child::{ChildBlock, ChildDockTab, ChildHandle as ChildBlockHandle, Subregion};
 pub use chrome::{NARROW_WIDTH, SIDE_PANEL_WIDTH, Toolbar, narrow_chrome};
-pub use content::{ContentProjection, OwnedContentProjection, Payload};
+pub use content::{ContentProjection, Lacking, OwnedContentProjection, Payload};
 pub use docked::SavedDockLayout;
 pub use editor::{
     Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind, node_anchor,
