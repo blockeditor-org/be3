@@ -47,7 +47,10 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
     let pushed = service.next().await;
     assert_eq!(pushed.path, "/away");
     assert_eq!(pushed.headers["content-encoding"], "aes128gcm");
-    assert_eq!(pushed.headers["urgency"], "normal", "a push that mentions nobody is not urgent");
+    assert_eq!(
+        pushed.headers["urgency"], "normal",
+        "a push that mentions nobody is not urgent"
+    );
     assert_eq!(
         pushed.body.len(),
         be_lib_web_push::HEADER_BYTES + push::PADDED_BYTES + 1 + 16,

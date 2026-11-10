@@ -24,7 +24,10 @@ async fn a_mode_set_on_one_device_is_announced_to_the_others() {
         .await
         .unwrap();
     assert_eq!(
-        modes.iter().map(|row| (row.block, row.mode)).collect::<Vec<_>>(),
+        modes
+            .iter()
+            .map(|row| (row.block, row.mode))
+            .collect::<Vec<_>>(),
         [(block, NotifyMode::Off)]
     );
 

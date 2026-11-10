@@ -308,7 +308,9 @@ impl Pusher {
                 let served = url.host().is_some()
                     && match self.allow_local {
                         true => matches!(url.scheme(), "https" | "http"),
-                        false => url.scheme() == "https" && url.port_or_known_default() == Some(443),
+                        false => {
+                            url.scheme() == "https" && url.port_or_known_default() == Some(443)
+                        }
                     };
                 match served {
                     true => Ok(()),
@@ -337,9 +339,10 @@ impl Pusher {
             let mut added = 0;
             let queue = queues.by_account.entry(delivery.account).or_default();
             for endpoint in delivery.endpoints {
-                if let Some(waiting) = queue.iter_mut().find(|job| {
-                    job.block == block && job.endpoint.address == endpoint.address
-                }) {
+                if let Some(waiting) = queue
+                    .iter_mut()
+                    .find(|job| job.block == block && job.endpoint.address == endpoint.address)
+                {
                     waiting.message = Arc::clone(message);
                     waiting.urgent |= delivery.urgent;
                     continue;
@@ -380,7 +383,11 @@ impl Pusher {
         loop {
             let job = {
                 let mut queues = self.queues.lock().unwrap_or_else(|held| held.into_inner());
-                match queues.by_account.get_mut(&account).and_then(VecDeque::pop_front) {
+                match queues
+                    .by_account
+                    .get_mut(&account)
+                    .and_then(VecDeque::pop_front)
+                {
                     Some(job) => {
                         queues.total = queues.total.saturating_sub(1);
                         job
@@ -439,7 +446,8 @@ impl Pusher {
     /// urgency when `urgent`. Blocks: run it off the runtime.
     pub(crate) fn send(&self, endpoint: &PushEndpoint, message: &[u8], urgent: bool) -> Sent {
         let body =
-            match be_lib_web_push::encrypt(&endpoint.p256dh, &endpoint.auth, message, PADDED_BYTES) {
+            match be_lib_web_push::encrypt(&endpoint.p256dh, &endpoint.auth, message, PADDED_BYTES)
+            {
                 Ok(body) => body,
                 Err(error) => return Sent::Failed(error.to_string()),
             };
