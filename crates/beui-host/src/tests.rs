@@ -1007,6 +1007,8 @@ mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_menu_key_opens_a_dock_tabs_menu_beneath_the_tab;
 mod the_menu_key_opens_a_tree_rows_menu_beneath_the_row;
+mod the_palettes_close_tab_action_closes_the_tab_the_focused_pane_shows;
+mod the_palettes_split_actions_move_the_shown_tab_beside_its_pane;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_more_button_of_a_selection_toolbar_opens_the_full_menu;
 mod the_on_screen_keyboard_opens_in_the_window_holding_the_focused_field;
@@ -2127,6 +2129,14 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+/// The dock's action `id` as the palette finds it from the focus.
+pub(crate) fn dock_action(harness: &Harness, id: &str) -> Action {
+    crate::reactive::active_actions_from(&harness.document().focus_ancestry())
+        .into_iter()
+        .find(|action| action.id() == id)
+        .unwrap_or_else(|| panic!("the palette offers {id} from inside the dock"))
 }
 
 #[derive(Clone, Copy)]
