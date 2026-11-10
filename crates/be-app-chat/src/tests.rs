@@ -5,9 +5,9 @@ use be_sdk_test::BeuiTest;
 use be_type_chat::{ChatContent, Message};
 use uuid::Uuid;
 
-use super::*;
-use crate::root::ChatRoot;
 use std::time::Duration;
+
+use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
