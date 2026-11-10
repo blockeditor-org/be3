@@ -17,9 +17,17 @@ http://:8099 {
 	bind 127.0.0.1
 	@authorized header Authorization "Bearer {env.NL_TUNNEL_TOKEN}"
 	handle @authorized {
-		reverse_proxy h2c://{$NL_TUNNEL_TARGET:10.100.0.1:50052} {
-			header_up -Authorization
-			flush_interval -1
+		# Changes at every NativeLink start (nl-small-restore.sh), when the small tier may have gone back to its last
+		# pack: ./scripts/buck reads it and restarts buck2's daemon and the relay when it changed, since both remember
+		# which blobs the server holds and would never upload one it lost.
+		handle /nl-epoch {
+			respond "{file./run/nl-epoch}" 200
+		}
+		handle {
+			reverse_proxy h2c://{$NL_TUNNEL_TARGET:10.100.0.1:50052} {
+				header_up -Authorization
+				flush_interval -1
+			}
 		}
 	}
 	handle {

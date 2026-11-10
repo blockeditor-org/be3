@@ -80,9 +80,9 @@ port 50052.
   `BE3_BUILD_SERVER=nativelink`, `BE3_NL_URL` to the address without `?_token=` (buck2 then sends no header and the
   proxy adds it) and `BE3_NL_KEY` to any placeholder such as `boat_dummy`, which the proxy replaces. A hosted port has
   two names, `on.boat.dev` and the older `on.ascii.dev`; the network secret's host must be the one `BE3_NL_URL` uses.
-- **The controller** notices a build (a connection from Caddy on port 50052), keeps 2 large workers (8 CPUs, 8 actions each: two per CPU took twice as long, since the big
-  compiles on the critical path ran on half a CPU) alive while it runs
-  by extending their 30-minute lifetime, creates replacements, and stops the scheduler after 4 idle hours. Boat
+- **The controller** notices a build (a connection from Caddy on port 50052), keeps 2 large workers (8 CPUs, 16 actions each, so their CPUs stay busy and the queue makes
+  fewer new workers; worker-direct.json5 says what it costs a build's critical path) alive while it runs
+  by extending their 30-minute lifetime (burst workers have the same), creates replacements, and stops the scheduler after 4 idle hours. Boat
   places a new VM at random and about half cannot reach the scheduler (below), so it creates as many workers as are
   missing, deletes the ones that do not complete a WireGuard handshake within `NL_HANDSHAKE_WAIT` (60 s), and makes
   the shortfall in the next round (up to `NL_SPAWN_ROUNDS`, 4, a tick). It never deletes a VM that reached the
@@ -113,10 +113,19 @@ Things that are not obvious:
   including the ones it deletes at once. A cold fleet of 2 is about 4 starts, in a few rounds. Workers are `large` because boat prices
   every size the same per CPU, so bigger ones cost the same and use fewer starts.
 - **Exposing the port is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
-  working across stop and resume, but a new scheduler has a new one. Never expose it before Caddy checks the token:
+  working across stop and resume, but a new scheduler has a new one. `host url 8099` without `--public` makes it
+  private again (every client then gets `403 ... requires an access token`), so pass `--public` there too. Never expose it before Caddy checks the token:
   the port then lets anyone build and run code on the workers.
 - **After a restore** (boat stopped the VM and started a new machine) enabled services start before the disk has its
-  files, so the units retry (`wg-quick-retry.conf`) instead of failing for good.
+  files, so the units retry (`wg-quick-retry.conf`) instead of failing for good. Boat re-enables only services, not
+  timers, so `nativelink-server.service` starts `nl-small-pack.timer` itself (`Wants=`); with the timer only enabled,
+  a restored scheduler never packed again and every stop sent the small tier back to an old pack.
+- **A stop loses what the last pack missed**, and buck2's daemon (`cas_ttl_secs`, 3 hours) and the relay (10 minutes)
+  both remember which blobs the server holds, so they would never upload one it lost, and the build fails with
+  `action input missing from CAS`. So the controller packs before it stops the scheduler, and every NativeLink start
+  writes a new epoch (`nl-small-restore.sh`, `/run/nl-epoch`) that Caddy serves at `/nl-epoch`: `./scripts/buck` reads
+  it as it connects and writes it into the relay's version and `target/build-server.buckconfig`, so a new one restarts
+  both and they forget.
 
 Setting the VMs up again: `scheduler/setup-scheduler.sh` on a VM made in the `nl-scheduler` environment, then
 `scheduler/install-controller.sh` (`nl-controller.service`, its worker files in /opt/nl/worker, and its boat key, the
@@ -145,7 +154,7 @@ it cannot be turned on later) and a boat login that can create sandboxes:
    `sandbox.read,sandbox.resume`.
 3. `bash scripts/internal/nativelink/new-scheduler.sh NAME` makes the VM, installs NativeLink, Caddy and the
    controller, and prints what is left.
-4. **Expose the port**: `host 8099 --localhost --public`, then `host url 8099` prints the address; store it with
+4. **Expose the port**: `host 8099 --localhost --public`, then `host url 8099 --localhost --public` prints the address; store it with
    `?_token=` and Caddy's token as `BE3_NL_URL`. A new scheduler has a new address.
 5. Delete the old scheduler (`boat delete`), and the clients' secrets are the only thing that changed.
 
@@ -173,6 +182,9 @@ Behind an HTTPS proxy, as in a cloud session, and always for `nativelink`, buck2
   what finished cached. Failing every time means the server is down or overloaded. The proxy
   also cuts every call after five minutes; the relay then repeats the `Execute`, which joins the
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
+- **`action input missing from CAS`** (`not found in either fast or slow store`): the server lost a blob this client
+  remembers it holding (above). A bootstrap that reads the epoch recovers by itself at the next command once the
+  scheduler has started again; otherwise `./scripts/buck kill` and run it again.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
 - **A test's output**: `./scripts/test` prints it from the `--event-log` buck2 test wrote to
