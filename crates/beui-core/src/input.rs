@@ -60,6 +60,7 @@ impl InputState {
         for event in &mut input.events {
             match event {
                 Event::PointerMoved(pos)
+                | Event::PointerRested(pos)
                 | Event::PointerButton { pos, .. }
                 | Event::Touch { pos, .. }
                 | Event::Pen { pos, .. }
@@ -205,6 +206,11 @@ impl InputState {
                     self.pointer.place_mouse(*pos, self.window);
                     self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
                 }
+                Event::PointerRested(pos) if !self.on_finger(*pos) => {
+                    self.pointer.place_mouse(*pos, self.window);
+                    self.pointer.rested = true;
+                    self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
+                }
                 Event::PointerMotion(delta) => {
                     self.pointer.motion += *delta;
                 }
@@ -315,6 +321,9 @@ impl InputState {
             predicted: None,
             time: self.time.unwrap_or_else(crate::timer::now),
             source: self.source,
+            rested: pointer == PointerId::Mouse
+                && phase == PointerPhase::Move
+                && self.pointer.rested,
         });
     }
 
@@ -432,6 +441,7 @@ pub struct Pointer {
     pub motion: Vec2,
     clicks: ClickCounter,
     from_touch: bool,
+    rested: bool,
 }
 
 impl Pointer {
@@ -455,10 +465,17 @@ impl Pointer {
         self.pos.filter(|_| !self.from_touch)
     }
 
+    /// Whether the mouse came to where it is by resting while what is under it moved or
+    /// appeared (`Event::PointerRested`), rather than by moving there.
+    pub fn rested(&self) -> bool {
+        self.rested
+    }
+
     fn place_mouse(&mut self, pos: Pos2, window: beui_types::WindowId) {
         self.pos = Some(pos);
         self.window = window;
         self.from_touch = false;
+        self.rested = false;
     }
 
     fn lift_finger(&mut self) {

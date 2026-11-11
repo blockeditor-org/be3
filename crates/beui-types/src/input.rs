@@ -291,6 +291,8 @@ pub enum Event {
     PointerMotion(Vec2),
     PointerUnlocked,
     PointerMoved(Pos2),
+    /// The pointer at this point without having moved (`Input::PointerRested`).
+    PointerRested(Pos2),
     ScrollStarted,
     /// `delta` is in points. `notches` is set when a mouse wheel turned, and
     /// counts its notches (each scrolls `SCROLL_LINE` points), with the sign of
@@ -352,6 +354,7 @@ impl Event {
                 | Self::PointersCancelled
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
+                | Self::PointerRested(_)
                 | Self::ScrollStarted
                 | Self::Scroll { .. }
                 | Self::ScrollEnded
@@ -420,4 +423,7 @@ pub struct PointerEvent {
     pub predicted: Option<Pos2>,
     pub time: Instant,
     pub source: usize,
+    /// A `Move` of a pointer that stayed where it was while what is under it moved or
+    /// appeared (`Event::PointerRested`).
+    pub rested: bool,
 }

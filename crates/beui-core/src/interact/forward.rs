@@ -182,7 +182,12 @@ pub(super) fn route(
     }
     let pointed = events
         .iter()
-        .any(|event| matches!(event, Event::PointerMoved(_) | Event::PointerButton { .. }));
+        .any(|event| {
+            matches!(
+                event,
+                Event::PointerMoved(_) | Event::PointerRested(_) | Event::PointerButton { .. }
+            )
+        });
     for sink in [doc.forward.hovered, hovered]
         .into_iter()
         .flatten()
@@ -277,6 +282,7 @@ fn resting_move(
         predicted: None,
         time: ctx.now(),
         source: 0,
+        rested: true,
     };
     let over = sink_at(doc, rects, window, pos).map(|node| Over {
         node,
