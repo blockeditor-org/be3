@@ -285,7 +285,11 @@ Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says
   which draws on its own after input; it is not a way to wait in a host test.
 - Do not read the clock, the machine's speed or the order threads finish in. A test that
   passes alone and fails 1 run in 200 under `stress` is a flake whatever its author thinks.
-- Run `stress` on a new host test, 100 runs at 14 at a time, before sending it.
+- Run `stress` on a new host test, 100 runs at 14 at a time, before sending it. On a
+  machine with fewer than 7 cores, 14 at a time is more than 2 hosts per core, and a few
+  runs in a hundred then time out at the very first `wait` (the Files pane still showing
+  "Loading the files" after 30 seconds, nothing wrong): they pass at `--parallel` equal to
+  the cores. Count such a timeout as load, not as the test's flake, and raise nothing.
 - A hang: `gdb -p PID -batch -ex 'thread apply all bt'` on its be-host. Every thread parked with
   the window waiting on data means something changed without `host::wake()`: a lost wake, not a
   deadlock.

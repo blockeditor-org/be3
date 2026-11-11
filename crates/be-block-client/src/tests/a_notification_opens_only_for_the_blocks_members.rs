@@ -40,6 +40,7 @@ async fn a_notification_opens_only_for_the_blocks_members() {
 
     let sent = 1_000_000;
     let notification = crate::Notification {
+        organization: Uuid::nil(),
         block: inside,
         sender: owner.account(),
         sent,
@@ -64,6 +65,18 @@ async fn a_notification_opens_only_for_the_blocks_members() {
         opened.text.len(),
         crate::MAX_NOTIFICATION_TEXT,
         "the text is cut to fit a push"
+    );
+    assert!(
+        guest
+            .open_notification(
+                &PushMessage {
+                    organization: Uuid::from_u128(1),
+                    ..pushed(inside)
+                },
+                sent + 1
+            )
+            .is_err(),
+        "a notification sealed in one organization does not open as another's"
     );
     assert!(
         guest.open_notification(&pushed(beside), sent + 1).is_err(),

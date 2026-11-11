@@ -1836,6 +1836,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    /// What the editor asked of pushes to this device (`host-services.set-push-device`): true
+    /// for on.
+    pub fn take_push_device_requests(&mut self) -> Vec<bool> {
+        self.take_requests_where(|call| match call {
+            Call::SetPushDevice { on, .. } => Ok(on),
+            call => Err(call),
+        })
+    }
+
     pub fn take_child_commits(
         &mut self,
     ) -> Vec<(ChildId, be_sdk_api::BlockLocation, Option<String>)> {

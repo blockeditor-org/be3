@@ -12,3 +12,9 @@ nothing (plans/notifications.md). Decrypting it in the service worker needs:
   page that opens meanwhile (the page takes a Web Lock and exclusive
   `FileSystemSyncAccessHandle`s, which a service worker cannot create;
   `crates/be-host/web/files.js`).
+
+## Hiding a notification's text on the lock screen
+
+A shown notification carries its sender's and block's names and its text in
+plaintext, readable by whoever holds a locked device. A this-device setting
+could show only "New message" there, on the web (sw.js) and on Android.

@@ -1241,6 +1241,45 @@ pub fn set_notify_mode(
     });
 }
 
+/// The server's VAPID public key, which a browser subscribes with.
+pub fn push_key(reply: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
+    send(Command::Push(worker::PushCommand::Key(Box::new(reply))));
+}
+
+/// Registers this device's push endpoint for the signed-in account.
+pub fn register_push_endpoint(
+    endpoint: be_block_protocol::PushEndpoint,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::Push(worker::PushCommand::Register {
+        endpoint,
+        reply: Box::new(reply),
+    }));
+}
+
+pub fn unregister_push_endpoint(
+    address: String,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::Push(worker::PushCommand::Unregister {
+        address,
+        reply: Box::new(reply),
+    }));
+}
+
+/// Opens a push a device received (`Peer::open_notification`), with no network.
+pub fn open_push(
+    message: be_block_protocol::PushMessage,
+    now: i64,
+    reply: impl FnOnce(Result<be_block_client::OpenedNotification, String>) + Send + 'static,
+) {
+    send(Command::Push(worker::PushCommand::Open {
+        message,
+        now,
+        reply: Box::new(reply),
+    }));
+}
+
 pub fn leave(block: Uuid) {
     send(Command::Leave(block));
 }

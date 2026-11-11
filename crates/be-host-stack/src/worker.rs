@@ -242,6 +242,7 @@ pub(super) enum Command {
     Contact(ContactCommand),
     Leave(Uuid),
     Members(MembersCommand),
+    Push(PushCommand),
     Invite {
         email: String,
         role: be_block_protocol::OrganizationRole,
@@ -359,6 +360,7 @@ impl Command {
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
             | Command::BlockAgent { .. }
+            | Command::Push(_)
             | Command::Authorship(_)
             | Command::Sync
             | Command::Storage
@@ -382,6 +384,25 @@ impl Command {
 }
 
 type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
+
+/// What a device does with push notifications; a reply is the peer's error as text.
+pub(super) enum PushCommand {
+    Key(Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>),
+    Register {
+        endpoint: be_block_protocol::PushEndpoint,
+        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+    },
+    Unregister {
+        address: String,
+        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+    },
+    /// Opens one a push carried, offline, from the keys the device keeps.
+    Open {
+        message: be_block_protocol::PushMessage,
+        now: i64,
+        reply: Box<dyn FnOnce(Result<be_block_client::OpenedNotification, String>) + Send>,
+    },
+}
 
 pub(super) enum MembersCommand {
     List(MembersReply),
@@ -1480,6 +1501,12 @@ const NEEDS_CONNECTION: &str =
 
 fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Command> {
     match command {
+        // Opening a push needs only the keys the device kept.
+        Command::Push(PushCommand::Open { .. }) => return Some(command),
+        Command::Push(PushCommand::Key(reply)) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Push(
+            PushCommand::Register { reply, .. } | PushCommand::Unregister { reply, .. },
+        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetAccess { .. } | Command::Leave(_) | Command::ApprovePairing { .. } => {
             shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                 Some(NEEDS_CONNECTION.to_owned());
@@ -1597,6 +1624,36 @@ impl Ran<'_> {
                         }
                     }
                     reply(set.map(|()| mode).map_err(|error| error.to_string()));
+                    be_host_base::host::wake();
+                });
+                false
+            }
+            Command::Push(command) => {
+                let peer = Arc::clone(self.peer);
+                platform::spawn_local(async move {
+                    match command {
+                        PushCommand::Key(reply) => {
+                            reply(peer.push_key().await.map_err(|error| error.to_string()))
+                        }
+                        PushCommand::Register { endpoint, reply } => reply(
+                            peer.register_endpoint(endpoint)
+                                .await
+                                .map_err(|error| error.to_string()),
+                        ),
+                        PushCommand::Unregister { address, reply } => reply(
+                            peer.unregister_endpoint(address)
+                                .await
+                                .map_err(|error| error.to_string()),
+                        ),
+                        PushCommand::Open {
+                            message,
+                            now,
+                            reply,
+                        } => reply(
+                            peer.open_notification(&message, now)
+                                .map_err(|error| error.to_string()),
+                        ),
+                    }
                     be_host_base::host::wake();
                 });
                 false
@@ -2055,6 +2112,7 @@ async fn apply(
         | Command::BlockAgent { .. }
         | Command::Notify { .. }
         | Command::SetNotifyMode { .. }
+        | Command::Push(_)
         | Command::Authorship(_)
         | Command::Storage
         | Command::Sync => false,
