@@ -159,14 +159,19 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   (`merge_appends`), not a merge written for chat. In a live session the owner
   sequences each send, an insert at the end, so a message lands after those
   sequenced before it, the same order.
-- Closing offline. An offline editor may close a segment, and so may another
-  device, over the same messages. A replica applies a `Close` only when its
-  index entry is the one its bytes give (count, first and last message, length
-  and hash) and its edit does no more than remove those messages and add the
-  entry. When two sides closed while apart, an entry both added is one segment
-  (the later copy leaves the index); when each side added entries the other did
-  not, they may overlap and no part is read to tell, so the merge keeps this
-  side's chat and reports one conflict. Edits, deletions and
+- Closing offline. An editor proposes a `Close` only while its replica has
+  nothing unsent, so a device holds at most one unconfirmed close; an offline
+  device may still close, and so may another, over the same messages. A replica
+  applies a `Close` only when its index entry is the one its bytes give (count,
+  first and last message, length and hash) and its edit does no more than remove
+  those messages and add the entry. A chat merge never conflicts (a merge runs on
+  one device and only its result is applied, so it need not match the other
+  direction's): a segment both sides closed is one; when we closed segments they
+  did not, ours stand, and theirs that differ leave the index, their messages
+  that are not in ours' segments (and not deleted) returning to the recent
+  messages in their place (the merge reads those parts, `merge_parts`). Where a
+  part is not at hand (`merge3` of sides that hold only headers) the entries stay
+  as they are. Edits, deletions and
   reactions are kept by message id whether the message is recent or not, so an
   offline edit to a message that moved into a segment merges clean and stays in
   the header's maps. The journal bounds how many closes a session carries

@@ -66,7 +66,8 @@ transfer and revision preview or restore refuse such a block); only `from_stored
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`
-(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes.
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's `merge_parts` reads only the
+segments it must settle, and a chat merge never conflicts (plans/chat.md).
 
 ## Documents: `be_block_model`
 

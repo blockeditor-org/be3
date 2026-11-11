@@ -195,7 +195,9 @@ pub fn Chat(editor: Editor) -> NodeId {
             visible.get(),
             unsent.with(|unsent| unsent.keys().copied().collect::<Vec<ObjectId>>()),
         );
-        if !visible {
+        // Only while nothing of ours is unsent: a device that holds an unconfirmed close or an
+        // unsent message stays out of closing, so two devices rarely close apart.
+        if !visible || !lacking.is_empty() {
             return;
         }
         if let Ok(Some(closing)) = chat.read(|content| content.closing(&lacking)) {
