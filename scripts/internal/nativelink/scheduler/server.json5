@@ -22,11 +22,15 @@
         },
         upper_store: {
           fast_slow: {
+            // What a cache hit on a large object serves from. Most of the large scheduler's 147 GB disk: the system
+            // takes about 24 GB (17 of them boat's lazily loaded image under /var/lib), the small tier and the action
+            // cache up to 9 GB, so 70 GB here leaves about 44 GB for their temp paths, the small tier's pack (0.5 GB)
+            // and the uploads to Bunny in flight. Empty after a restore, like all of /tmp; it refills from Bunny.
             fast: {
               filesystem: {
                 content_path: "/tmp/nativelink/cas/content",
                 temp_path: "/tmp/nativelink/cas/tmp",
-                eviction_policy: { max_bytes: 25000000000 },
+                eviction_policy: { max_bytes: 70000000000 },
               },
             },
             slow: {
