@@ -16,10 +16,7 @@ fn a_rebuilt_catcher_takes_the_keyboard_its_view_had_unless_it_went_elsewhere() 
         refocus_rebuilt(&view(), true),
         "the catcher built in place of one that had the keyboard takes it back"
     );
-    assert!(
-        !refocus_rebuilt(&view(), true),
-        "it takes it back once"
-    );
+    assert!(!refocus_rebuilt(&view(), true), "it takes it back once");
     keep_focus_for_rebuild(&view());
     assert!(
         !refocus_rebuilt(&view(), false),

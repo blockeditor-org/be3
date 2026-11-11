@@ -108,10 +108,15 @@ pub(super) struct App {
 impl Due {
     /// A child's view can take the keys owed to it once a text field in it has the keyboard,
     /// or, for a child with none, once its app has drawn two frames after it had its content
-    /// and the focus: the first can still be the one that shows the content arrive.
+    /// and the focus: the first can still be the one that shows the content arrive. Content
+    /// that goes away again restarts the count.
     fn ready(&mut self, app: App) -> bool {
         let (asked, answered) = app.frames;
-        if self.after.is_none() && self.focused && app.content {
+        if !app.content {
+            // The content went away again (the editor takes a new one): its frames count from
+            // when it is back, as the editor has none of it to take keys until then.
+            self.after = None;
+        } else if self.after.is_none() && self.focused {
             self.after = Some(asked + 2);
         }
         (self.focused && app.typing) || self.after.is_some_and(|after| answered >= after)

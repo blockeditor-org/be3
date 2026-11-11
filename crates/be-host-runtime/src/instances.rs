@@ -3833,7 +3833,11 @@ impl Instances {
             ShellCall::FocusBlockChild { reply, block, .. } => {
                 ack(reply);
                 let block = Uuid::from_bytes(block);
-                if let Some(at) = entry.block_refused.iter().position(|refused| *refused == block) {
+                if let Some(at) = entry
+                    .block_refused
+                    .iter()
+                    .position(|refused| *refused == block)
+                {
                     entry.block_refused.remove(at);
                 } else {
                     // Only the latest ask stands: the person can type into one place.
