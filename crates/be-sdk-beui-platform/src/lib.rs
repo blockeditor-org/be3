@@ -259,7 +259,12 @@ impl ModuleRunner {
         self.focused
             .retain(|id| shown(id) || (!listed.contains(id) && !stale.contains(id)));
         // One still not listed by the next frame closed before it ever showed.
-        self.unlisted = self.focused.iter().filter(|id| !shown(id)).copied().collect();
+        self.unlisted = self
+            .focused
+            .iter()
+            .filter(|id| !shown(id))
+            .copied()
+            .collect();
         if had_keyboard && self.focused.is_empty() {
             self.runner.push(Incoming::logical(Input::Focus(false)));
         }
