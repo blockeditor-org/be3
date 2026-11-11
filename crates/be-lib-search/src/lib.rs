@@ -213,7 +213,7 @@ pub struct Batch {
     pub removed: Vec<(DocId, Commit)>,
     /// Blocks that left the tree, every document of each.
     pub removed_blocks: Vec<(Vec<u8>, Commit)>,
-    /// The graph revision the index has now seen every change up to.
+    /// The sequence of changes (`changed-since`) the index has now seen every change up to.
     pub watermark: Option<u64>,
 }
 

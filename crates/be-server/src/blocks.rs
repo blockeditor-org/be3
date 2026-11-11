@@ -1251,6 +1251,8 @@ impl ServerStore {
                 },
             )?;
             store.follow_payer(graph, &transaction, identity, block, parent)?;
+            // The tree it leaves, for `changed-since` to name it to the readers of that tree.
+            let old_top = graph.ancestors(block).last().unwrap_or(block);
             let mut resized = chain(graph, block);
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
@@ -1278,6 +1280,7 @@ impl ServerStore {
                 &transaction,
                 identity.organization,
                 &graph.subtree(block),
+                old_top,
             )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
                 graph,
@@ -1421,9 +1424,9 @@ impl ServerStore {
         .await
     }
 
-    /// What changed after `since` in `root`'s tree, from `after` (`changes.rs`): the blocks in
-    /// the tree now that changed, and the blocks that moved or were deleted since and are not
-    /// in it. A page ends at `limit` blocks of either kind, or at `MAX_SCANNED` changes looked
+    /// What changed after `since` in `root`'s tree (a top-level block's), from `after`
+    /// (`changes.rs`): the blocks in the tree now that changed, and the blocks that left that
+    /// tree (moved out, or deleted for good from it) since, and are not in it. A page ends at `limit` blocks of either kind, or at `MAX_SCANNED` changes looked
     /// at (the changes of other trees count), with `next` set.
     pub async fn changed_since(
         &self,
@@ -1436,9 +1439,14 @@ impl ServerStore {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             require(graph, &seen, root, Access::View, "readable")?;
+            if graph.get(root).is_none_or(|node| node.parent != BlockParent::Root) {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "changes are asked of a top-level block's tree".into(),
+                ));
+            }
             let organization = identity.organization.to_string();
             let limit = (limit as usize).clamp(1, MAX_CHANGES_PER_PAGE);
-            let first = after.changed == since && after.block == Uuid::max();
             let sequence: i64 = database.query_row(
                 "SELECT change_sequence FROM organizations WHERE id = ?1",
                 params![organization],
@@ -1446,39 +1454,38 @@ impl ServerStore {
             )?;
             let mut summaries = Vec::new();
             let mut removed = Vec::new();
-            if first {
-                let mut gone = database.prepare_cached(
-                    "SELECT block_id FROM block_removals
-                     WHERE organization_id = ?1 AND changed > ?2 ORDER BY changed LIMIT ?3",
-                )?;
-                for id in gone.query_map(
-                    params![organization, since as i64, MAX_CHANGES_PER_PAGE as i64],
-                    |row| row.get::<_, String>(0),
-                )? {
-                    if let Ok(id) = id?.parse::<Uuid>() {
-                        removed.push(id);
-                    }
-                }
-            }
+            // What changed in the tree and what left it, in one order: blocks still held, and
+            // the removal log of the blocks deleted for good that were last in this tree.
             let mut rows = database.prepare_cached(
-                "SELECT id, changed, moved FROM blocks
+                "SELECT id, changed, moved, left_root = ?4 AS left_here, 0 AS gone FROM blocks
                  WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
-                 ORDER BY changed, id",
+                 UNION ALL
+                 SELECT block_id, changed, 0, 1, 1 FROM block_removals
+                 WHERE organization_id = ?1 AND root = ?4
+                   AND (changed > ?2 OR (changed = ?2 AND block_id > ?3))
+                 ORDER BY 2, 1",
             )?;
             let mut rows = rows.query(params![
                 organization,
                 after.changed as i64,
-                after.block.to_string()
+                after.block.to_string(),
+                root.to_string(),
             ])?;
             let (mut scanned, mut next) = (0, None);
             while let Some(row) = rows.next()? {
-                let (id, changed, moved): (String, i64, i64) =
-                    (row.get(0)?, row.get(1)?, row.get(2)?);
+                let (id, changed, moved, left_here, gone): (String, i64, i64, bool, bool) = (
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                );
                 let Ok(id) = id.parse::<Uuid>() else {
                     continue;
                 };
                 scanned += 1;
-                let inside = graph.contains(id)
+                let inside = !gone
+                    && graph.contains(id)
                     && (id == root || graph.ancestors(id).any(|above| above == root));
                 if inside {
                     if seen.can_view(graph, id)
@@ -1486,7 +1493,7 @@ impl ServerStore {
                     {
                         summaries.push(summary);
                     }
-                } else if graph.contains(id) && moved > since as i64 {
+                } else if gone || (graph.contains(id) && left_here && moved > since as i64) {
                     removed.push(id);
                 }
                 if summaries.len() >= limit || removed.len() >= limit || scanned >= MAX_SCANNED {

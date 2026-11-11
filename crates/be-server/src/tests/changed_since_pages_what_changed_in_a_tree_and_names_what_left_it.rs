@@ -52,6 +52,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let inner = owner.create_block(BlockParent::Block(first)).await;
     let stays = owner.create_block(BlockParent::Block(work)).await;
     let elsewhere = owner.create_block(BlockParent::Block(other)).await;
+    let lone = owner.create_block(BlockParent::Root).await;
 
     // From the start, the tree's blocks, however the pages are cut, and none of `other`'s.
     let tree = sorted(vec![work, first, inner, stays]);
@@ -106,6 +107,50 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let (changed, left, _) = changes(&mut owner, work, before_doomed, 100).await;
     assert!(changed.is_empty(), "{changed:?}");
     assert!(left.contains(&doomed), "collected: {left:?}");
+
+    // Several blocks collected for good are all named, however the pages are cut, and a tree
+    // nothing left or joined is told of none of it.
+    let (_, _, before_many) = changes(&mut owner, work, watermark_moved, 100).await;
+    let mut many = Vec::new();
+    for _ in 0..3 {
+        let block = owner.create_block(BlockParent::Block(work)).await;
+        let trashed = owner.move_to(block, BlockParent::Detached).await;
+        assert!(trashed.is_ok(), "{trashed:?}");
+        many.push(block);
+    }
+    let collected = owner
+        .call(|peer| client::blocks::collect_detached(peer))
+        .await;
+    assert!(collected.is_ok(), "{collected:?}");
+    for limit in [1, 2, 100] {
+        let (_, left, _) = changes(&mut owner, work, before_many, limit).await;
+        for block in &many {
+            assert!(left.contains(block), "limit {limit}: {block} missing in {left:?}");
+        }
+    }
+    let (changed, left, _) = changes(&mut owner, lone, 0, 100).await;
+    assert_eq!(changed, vec![lone], "only its own tree");
+    assert!(left.is_empty(), "{left:?}");
+
+    // Only a top-level block's tree can be asked about.
+    let asked = owner
+        .call(|peer| {
+            client::blocks::changed_since(
+                peer,
+                stays,
+                0,
+                ChangeCursor {
+                    changed: 0,
+                    block: Uuid::max(),
+                },
+                10,
+            )
+        })
+        .await;
+    assert!(
+        refused_as(&asked, ErrorCode::InvalidRequest),
+        "{asked:?}"
+    );
 
     harness.stop().await;
 }

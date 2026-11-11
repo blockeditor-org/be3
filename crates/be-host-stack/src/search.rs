@@ -100,6 +100,10 @@ struct Answer {
     missing: Option<u64>,
 }
 
+/// What `wants_index` was worked out at: the graph revision, the sizes of the sets that decide
+/// it, and whether the device is connected.
+type WantKey = (u64, usize, usize, usize, usize, usize, usize, usize, usize, bool);
+
 /// A define that was sent: where it is on its way to the files pane's size.
 #[derive(Clone, Copy)]
 struct Confirm {
@@ -124,6 +128,9 @@ struct Caught {
 struct Settle {
     sequence: u64,
     left: Vec<Uuid>,
+    /// The blocks the catch-up queued: the watermark moves only once each is indexed, or the
+    /// next catch-up, from the old one, lists them again.
+    blocks: BTreeSet<Uuid>,
 }
 
 /// What the worker keeps for search, in `Shared::search`.
@@ -144,6 +151,8 @@ pub struct Searching {
     caught_up: HashSet<Uuid>,
     /// By index: what it is given when the blocks a catch-up queued for it are done.
     settle: HashMap<Uuid, Settle>,
+    /// Blocks a batch that was written put, for a settle to check against.
+    done: HashSet<Uuid>,
     /// Roots just defined, until their define is sent and the mirror has read the root again,
     /// so the size it shows is the server's with the define in it.
     confirming: HashMap<Uuid, Confirm>,
@@ -154,7 +163,7 @@ pub struct Searching {
     /// account had then: tried again when the access changes.
     given_up: HashMap<Uuid, Access>,
     /// `wants_index` for the graph and queues it was last worked out at.
-    wants: std::cell::Cell<Option<((u64, usize, usize, usize, usize), bool)>>,
+    wants: std::cell::Cell<Option<(WantKey, bool)>>,
     /// Failed attempts to name each root's index.
     tries: HashMap<Uuid, u32>,
     /// Blocks whose root's index is being made or named (`creating`).
@@ -342,6 +351,23 @@ impl Searching {
         std::mem::take(&mut self.dirty).into_iter().collect()
     }
 
+    /// The settles that may be written: those whose blocks were all put. A settle with one that
+    /// was not (a commit that could not be fetched, a type that could not be asked) is dropped,
+    /// and the next catch-up lists its blocks again from the old watermark.
+    fn settled(&mut self) -> HashMap<Uuid, Settle> {
+        let mut ready = HashMap::new();
+        for (index, settle) in std::mem::take(&mut self.settle) {
+            let put = settle.blocks.iter().all(|block| self.done.contains(block));
+            for block in &settle.blocks {
+                self.done.remove(block);
+            }
+            if put {
+                ready.insert(index, settle);
+            }
+        }
+        ready
+    }
+
     /// Parks blocks for an index that has no head on this device yet.
     pub(crate) fn park(&mut self, index: Uuid, blocks: Vec<Uuid>) {
         self.parked.push((index, blocks));
@@ -434,7 +460,7 @@ async fn index(
         );
         if held.search.dirty.is_empty() {
             let settles = match held.search.writing.is_empty() {
-                true => std::mem::take(&mut held.search.settle),
+                true => held.search.settled(),
                 false => HashMap::new(),
             };
             held.search.writing.extend(settles.keys().copied());
@@ -500,10 +526,13 @@ async fn index(
     let moved = batches.is_some();
     if let Some((index, blocks)) = batches {
         let mut batch = Batch::default();
+        let mut put_blocks = Vec::new();
         for block in &blocks {
-            batch
-                .put
-                .extend(puts_of(peer, shared, replicas, *block).await);
+            let puts = puts_of(peer, shared, replicas, *block).await;
+            if !puts.is_empty() {
+                put_blocks.push(*block);
+            }
+            batch.put.extend(puts);
         }
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
@@ -516,7 +545,13 @@ async fn index(
                 held.search.writing.remove(&index);
                 match written {
                     // Every answer is read again, whichever index it read.
-                    Ok(true) => held.search.answers.clear(),
+                    Ok(true) => {
+                        for block in &put_blocks {
+                            held.search.caught.remove(block);
+                        }
+                        held.search.done.extend(put_blocks);
+                        held.search.answers.clear();
+                    }
                     // Not on this device yet: made by a command still queued.
                     Ok(false) => held.search.park(index, blocks),
                     Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
@@ -585,10 +620,12 @@ pub(crate) fn wants_index(held: &Shared) -> bool {
         held.search.creating.len(),
         held.search.named.len(),
         held.search.failed.len(),
-        held.search.given_up.len()
-            + held.search.caught_up.len() * 1_000
-            + held.search.catching.len() * 1_000_000
-            + usize::from(held.connected) * 1_000_000_000,
+        held.search.given_up.len(),
+        held.search.caught_up.len(),
+        held.search.catching.len(),
+        held.search.confirming.len(),
+        held.search.settle.len(),
+        held.connected,
     );
     if let Some((cached, wants)) = held.search.wants.get()
         && cached == key
@@ -912,13 +949,14 @@ fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: 
                 held.search.catching.remove(&root);
                 match caught {
                     Ok(Some((blocks, left, sequence))) => {
+                        let settle = held.search.settle.entry(index).or_default();
+                        settle.sequence = sequence;
+                        settle.left.extend(left);
+                        settle.blocks.extend(blocks.iter().map(|(block, _)| *block));
                         for (block, caught) in blocks {
                             held.search.caught.insert(block, caught);
                             held.search.dirty.insert(block);
                         }
-                        let settle = held.search.settle.entry(index).or_default();
-                        settle.sequence = sequence;
-                        settle.left.extend(left);
                         held.search.caught_up.insert(root);
                     }
                     // No head yet: tried again when the graph next moves.
@@ -1023,21 +1061,23 @@ fn settle_indexes(
     settles: HashMap<Uuid, Settle>,
 ) {
     for (index, settle) in settles {
-        let at = be_lib_search::Commit {
-            time: be_block_commit::now_milliseconds(),
-            id: [0; 32],
-        };
-        let batch = Batch {
-            removed_blocks: settle
-                .left
-                .iter()
-                .map(|block| (block.as_bytes().to_vec(), at))
-                .collect(),
-            watermark: Some(settle.sequence),
-            ..Batch::default()
-        };
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
+            let at = be_lib_search::Commit {
+                time: be_block_commit::now_milliseconds(),
+                id: [0; 32],
+            };
+            // Only what the index holds is masked: the call names every block that left the
+            // tree, and an index that never had one has nothing of it to hide.
+            let held = held_blocks(&peer, index, &settle.left).await;
+            let batch = Batch {
+                removed_blocks: held
+                    .iter()
+                    .map(|block| (block.as_bytes().to_vec(), at))
+                    .collect(),
+                watermark: Some(settle.sequence),
+                ..Batch::default()
+            };
             let written = write(&peer, index, batch).await;
             tasks_held.sync(&peer, &shared);
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -1051,6 +1091,24 @@ fn settle_indexes(
             be_host_base::host::wake();
         });
     }
+}
+
+/// Which of `blocks` the index holds a document of.
+async fn held_blocks(peer: &Peer<Store>, index: Uuid, blocks: &[Uuid]) -> Vec<Uuid> {
+    let Some(head) = head_of(peer, index).await else {
+        return Vec::new();
+    };
+    let Ok(content) = load(peer, head).await else {
+        return Vec::new();
+    };
+    let mut held = Vec::new();
+    for block in blocks {
+        let entries = content.entries_of(&PeerParts(peer), block.as_bytes()).await;
+        if entries.is_ok_and(|entries| entries.iter().any(|entry| !entry.is_removed())) {
+            held.push(*block);
+        }
+    }
+    held
 }
 
 /// Once a define is sent the root is read again, whatever order the server's own news of it
@@ -1359,12 +1417,10 @@ async fn show(
     for (asked, found) in unshown {
         let query = Query::parse(&asked.text);
         let mut hits = Vec::new();
-        let mut missing = false;
         for found in found {
             let (content_type, head) = {
                 let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 let Some(node) = held.graph.get(found.block) else {
-                    missing = true;
                     continue;
                 };
                 let viewable = node.access.can_view() && node.parent != Some(BlockParent::Detached);
@@ -1405,7 +1461,6 @@ async fn show(
             });
             // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
             // out of what the search is within, or the mirror may now hold one it lacked.
-            let _ = missing;
             answer.missing = Some(graph);
             held.search.revision += 1;
         }

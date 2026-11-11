@@ -1,11 +1,13 @@
 //! The organization's durable change sequence, which `changed-since` pages through
-//! (plans/search.md, "Step 1, designed").
+//! (plans/search.md, "Left open").
 //!
 //! One strictly increasing counter per organization (`organizations.change_sequence`) is
 //! advanced in the transaction of every write that changes what a block holds or where it
-//! lies, under the lock `ServerStore::with_graph` takes. A block's `changed` is the sequence
-//! of its last such write and `moved` that of its last move (a new parent, trash included);
-//! a block collected for good leaves a row in `block_removals`. Unlike the graph's
+//! lies (every graph change holds the store's one connection, so writes are ordered). A block's `changed` is the sequence
+//! of its last such write and `moved` that of its last move (a new parent, trash included),
+//! with `left_root`, the top-level block of the tree it left; a block collected for good leaves
+//! a row in `block_removals` with that root, so a reader of one tree is told only of blocks
+//! that left that tree. Unlike the graph's
 //! `revision`, which restarts with the process, the sequence survives restarts.
 
 use rusqlite::{Connection, params};
@@ -33,24 +35,25 @@ pub(crate) fn touch(
     organization: Uuid,
     blocks: &[Uuid],
 ) -> Result<(), ServerError> {
-    mark(database, organization, blocks, false)
+    mark(database, organization, blocks, None)
 }
 
-/// Marks blocks as moved: a new parent, so a different tree, which changes for every block
-/// below as well.
+/// Marks blocks as moved out of the tree of `left` (the top-level block above them before the
+/// move): a new parent, so a different tree, which changes for every block below as well.
 pub(crate) fn touch_moved(
     database: &Connection,
     organization: Uuid,
     blocks: &[Uuid],
+    left: Uuid,
 ) -> Result<(), ServerError> {
-    mark(database, organization, blocks, true)
+    mark(database, organization, blocks, Some(left))
 }
 
 fn mark(
     database: &Connection,
     organization: Uuid,
     blocks: &[Uuid],
-    moved: bool,
+    left: Option<Uuid>,
 ) -> Result<(), ServerError> {
     if blocks.is_empty() {
         return Ok(());
@@ -58,11 +61,14 @@ fn mark(
     let organization = organization.to_string();
     let sequence = next(database, &organization)?;
     let mut update = database.prepare_cached(
-        "UPDATE blocks SET changed = ?3, moved = CASE WHEN ?4 THEN ?3 ELSE moved END
+        "UPDATE blocks SET changed = ?3,
+             moved = CASE WHEN ?4 IS NULL THEN moved ELSE ?3 END,
+             left_root = COALESCE(?4, left_root)
          WHERE organization_id = ?1 AND id = ?2",
     )?;
+    let left = left.map(|root| root.to_string());
     for block in blocks {
-        update.execute(params![organization, block.to_string(), sequence, moved])?;
+        update.execute(params![organization, block.to_string(), sequence, left])?;
     }
     Ok(())
 }
@@ -80,9 +86,10 @@ pub(crate) fn removed(
         "DELETE FROM block_removals WHERE organization_id = ?1 AND time < ?2",
         params![organization, now - REMOVALS_KEPT],
     )?;
+    // It left the tree it was last in, which is the one a reader of it must be told of.
     database.execute(
-        "INSERT OR REPLACE INTO block_removals (organization_id, block_id, changed, time)
-         VALUES (?1, ?2, ?3, ?4)",
+        "INSERT OR REPLACE INTO block_removals (organization_id, block_id, changed, time, root)
+         SELECT ?1, ?2, ?3, ?4, left_root FROM blocks WHERE organization_id = ?1 AND id = ?2",
         params![organization, block.to_string(), sequence, now],
     )?;
     Ok(())
