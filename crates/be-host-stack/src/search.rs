@@ -102,7 +102,18 @@ struct Answer {
 
 /// What `wants_index` was worked out at: the graph revision, the sizes of the sets that decide
 /// it, and whether the device is connected.
-type WantKey = (u64, usize, usize, usize, usize, usize, usize, usize, usize, bool);
+type WantKey = (
+    u64,
+    usize,
+    usize,
+    usize,
+    usize,
+    usize,
+    usize,
+    usize,
+    usize,
+    bool,
+);
 
 /// A define that was sent: where it is on its way to the files pane's size.
 #[derive(Clone, Copy)]
@@ -395,7 +406,13 @@ impl Searching {
 
     /// Records a page of a catch-up (a test's way into `settle`).
     #[cfg(test)]
-    pub(crate) fn catch_page(&mut self, index: Uuid, sequence: u64, left: Vec<Uuid>, blocks: &[Uuid]) {
+    pub(crate) fn catch_page(
+        &mut self,
+        index: Uuid,
+        sequence: u64,
+        left: Vec<Uuid>,
+        blocks: &[Uuid],
+    ) {
         self.settle.entry(index).or_default().push(Settle {
             sequence,
             left,

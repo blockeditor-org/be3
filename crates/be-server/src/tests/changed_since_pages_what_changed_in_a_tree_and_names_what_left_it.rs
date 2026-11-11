@@ -138,7 +138,10 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     for limit in [1, 2, 100] {
         let (_, left, _) = changes(&mut owner, work, before_many, limit).await;
         for block in &many {
-            assert!(left.contains(block), "limit {limit}: {block} missing in {left:?}");
+            assert!(
+                left.contains(block),
+                "limit {limit}: {block} missing in {left:?}"
+            );
         }
     }
     let (changed, left, _) = changes(&mut owner, lone, 0, 100).await;
@@ -161,7 +164,11 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     assert!(collected.is_ok(), "{collected:?}");
     let (_, left, _) = changes(&mut owner, work, before_crowd, 500).await;
     for block in &crowd {
-        assert!(left.contains(block), "{block} was left out of {} named", left.len());
+        assert!(
+            left.contains(block),
+            "{block} was left out of {} named",
+            left.len()
+        );
     }
 
     // A block collected between two pages is named by a later one.
@@ -200,7 +207,9 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     }
     assert!(left.contains(&late), "collected between pages: {left:?}");
 
-    let still = owner.call(|peer| client::blocks::read_block(peer, stays)).await;
+    let still = owner
+        .call(|peer| client::blocks::read_block(peer, stays))
+        .await;
     assert!(still.is_ok(), "a live block was collected: {still:?}");
 
     // Only a top-level block's tree can be asked about.
@@ -219,10 +228,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
             )
         })
         .await;
-    assert!(
-        refused_as(&asked, ErrorCode::InvalidRequest),
-        "{asked:?}"
-    );
+    assert!(refused_as(&asked, ErrorCode::InvalidRequest), "{asked:?}");
 
     harness.stop().await;
 }
