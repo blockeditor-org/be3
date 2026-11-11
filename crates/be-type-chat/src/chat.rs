@@ -674,7 +674,8 @@ impl ChatContent {
         let mut taken = 0;
         let mut count = 0;
         for (index, size) in sizes.iter().enumerate() {
-            if lacking.contains(&recent[index].0) || (count > 0 && taken + size > segment::LARGEST) {
+            if lacking.contains(&recent[index].0) || (count > 0 && taken + size > segment::LARGEST)
+            {
                 break;
             }
             taken += size;

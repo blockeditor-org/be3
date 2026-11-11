@@ -427,42 +427,43 @@ impl Older {
     /// and fails the check against the index; the read is tried once more then.
     fn read_segment_at(&self, first: ObjectId, retry: bool) {
         let live = self.chat.live();
-        let Ok(Some((index, range))) = self
-            .chat
-            .read(|content| {
-                let index = content
-                    .segments()
-                    .iter()
-                    .position(|segment| segment.first == first)?;
-                Some((index, content.segment_ranges().get(index).cloned()?))
-            })
-        else {
+        let Ok(Some((index, range))) = self.chat.read(|content| {
+            let index = content
+                .segments()
+                .iter()
+                .position(|segment| segment.first == first)?;
+            Some((index, content.segment_ranges().get(index).cloned()?))
+        }) else {
             return;
         };
         self.reading.set(true);
         self.failed.set(false);
         let this = *self;
-        live.read_range(range.start, range.end.saturating_sub(range.start), move |bytes| {
-            let messages = bytes.ok().and_then(|bytes| {
-                this.chat
-                    .read(|content| content.read_segment(index, &bytes))
-                    .ok()
-                    .flatten()
-            });
-            match messages {
-                Some(messages) => {
-                    this.reading.set(false);
-                    let mut read = this.read.get_untracked();
-                    read.push((first, messages));
-                    this.read.set(read);
+        live.read_range(
+            range.start,
+            range.end.saturating_sub(range.start),
+            move |bytes| {
+                let messages = bytes.ok().and_then(|bytes| {
+                    this.chat
+                        .read(|content| content.read_segment(index, &bytes))
+                        .ok()
+                        .flatten()
+                });
+                match messages {
+                    Some(messages) => {
+                        this.reading.set(false);
+                        let mut read = this.read.get_untracked();
+                        read.push((first, messages));
+                        this.read.set(read);
+                    }
+                    None if retry => this.read_segment_at(first, false),
+                    None => {
+                        this.reading.set(false);
+                        this.failed.set(true);
+                    }
                 }
-                None if retry => this.read_segment_at(first, false),
-                None => {
-                    this.reading.set(false);
-                    this.failed.set(true);
-                }
-            }
-        });
+            },
+        );
     }
 }
 
