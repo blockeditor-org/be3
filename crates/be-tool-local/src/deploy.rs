@@ -18,15 +18,16 @@ usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] 
 Builds be-server, the web bundle, be and the app for every platform in
 release, uploads each be and each of the app's downloads to the mirror, swaps
 the server on the VPS and publishes the web bundle through Bunny, points the mirror's download page at
-the new build, and points be/release on the mirror at the uploaded be, which
-./scripts/be downloads.
+the new build, and points live/be-release on the mirror at the uploaded be,
+which ./scripts/be downloads. index.html and live/ are the mirror's only
+mutable files.
 
 The downloads are the app with its apps for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
 (com.be3.host and be-host), so it installs beside CI's com.be3.host.ci. They go
 to data/BUILD/app/ beside a page linking them, and once the server runs the build,
-web/downloads.html is that unlinked page. It is not
+live/downloads.html is that unlinked page. It is not
 read back from the mirror, whose CDN may hold the last one until it is purged.
 
   --dry-run      print what it would do, uploading and changing nothing
@@ -54,7 +55,7 @@ Environment:
 
 /// The mirror's mutable file naming the build whose `be` `./scripts/be` downloads
 /// (crates/be-tool-bootstrap/src/be.rs reads it), the build the server runs.
-const BE_RELEASE: &str = "be/release";
+const BE_RELEASE: &str = "live/be-release";
 
 struct Options {
     apk_metadata: PathBuf,
@@ -248,12 +249,6 @@ fn run(options: &mut Options) -> Result<(), String> {
         }
     }
     let web_entry = web.map(|_| web_entry_point(&build));
-    let service_worker = web
-        .map(|web| {
-            let path = web.join("sw.js");
-            std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))
-        })
-        .transpose()?;
     let agents = Agents::new();
     let store = Store {
         options,
@@ -408,32 +403,28 @@ fn run(options: &mut Options) -> Result<(), String> {
         )?;
         purge_pages(options, &agents, &api_key, &mirror, &["index.html", ""])?;
     }
-    if let Some(worker) = service_worker.filter(|_| !options.skip_server) {
-        store.put(
-            "the web app's service worker",
-            "sw.js",
-            &worker,
-            "text/javascript; charset=utf-8",
-            false,
-        )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["sw.js"])?;
-    }
 
     if page.is_some() && options.skip_server {
         println!(
-            "the server still runs its last build, so {mirror}/web/downloads.html still offers that one's \
+            "the server still runs its last build, so {mirror}/live/downloads.html still offers that one's \
              downloads; this build's are at {mirror}/data/{build}/app/"
         );
     } else if let Some(page) = page {
         store.put(
             "the latest download page",
-            "web/downloads.html",
+            "live/downloads.html",
             page.as_bytes(),
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["web/downloads.html"])?;
-        println!("the downloads for build {build} are at {mirror}/web/downloads.html");
+        purge_pages(
+            options,
+            &agents,
+            &api_key,
+            &mirror,
+            &["live/downloads.html"],
+        )?;
+        println!("the downloads for build {build} are at {mirror}/live/downloads.html");
     }
 
     if !options.skip_be && !options.skip_server {
@@ -608,11 +599,7 @@ impl Store<'_> {
             return Ok(sha256);
         }
         let source = format!("{}/{path}", self.mirror);
-        let read = download(
-            self.agents.to(&source),
-            &source,
-            path.starts_with("data/") && path.ends_with("/web/index.html"),
-        )?;
+        let read = download(self.agents.to(&source), &source, required_headers(path))?;
         if hex(&Sha256::digest(&read)) != sha256 {
             return Err(format!(
                 "{source} is not what was uploaded to {target}; check \
@@ -915,21 +902,34 @@ fn upload(
     Ok(())
 }
 
-fn download(agent: &ureq::Agent, url: &str, web_entry: bool) -> Result<Vec<u8>, String> {
+/// The headers the pull zone must send with a file for the web build to work: the bundle's page
+/// is cross-origin isolated, and its service worker, which the entry point at `/` registers from
+/// the bundle, may answer for the whole origin (guides/hosting.md, The CDN).
+fn required_headers(path: &str) -> &'static [(&'static str, &'static str)] {
+    if !path.starts_with("data/") {
+        &[]
+    } else if path.ends_with("/web/index.html") {
+        &[
+            ("Cross-Origin-Opener-Policy", "same-origin"),
+            ("Cross-Origin-Embedder-Policy", "require-corp"),
+        ]
+    } else if path.ends_with("/web/sw.js") {
+        &[("Service-Worker-Allowed", "/")]
+    } else {
+        &[]
+    }
+}
+
+fn download(agent: &ureq::Agent, url: &str, required: &[(&str, &str)]) -> Result<Vec<u8>, String> {
     let response = agent
         .get(url)
         .call()
         .map_err(|error| format!("reading {url} back failed: {error}"))?;
-    if web_entry {
-        for (name, expected) in [
-            ("Cross-Origin-Opener-Policy", "same-origin"),
-            ("Cross-Origin-Embedder-Policy", "require-corp"),
-        ] {
-            if response.header(name) != Some(expected) {
-                return Err(format!(
-                    "{url} needs {name}: {expected}; configure the Bunny pull-zone response headers before deployment"
-                ));
-            }
+    for (name, expected) in required {
+        if response.header(name) != Some(*expected) {
+            return Err(format!(
+                "{url} needs {name}: {expected}; configure the Bunny pull-zone response headers before deployment"
+            ));
         }
     }
     let mut bytes = Vec::new();

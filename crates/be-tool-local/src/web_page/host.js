@@ -85,11 +85,15 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 // The module is compiled here rather than inside the glue,
                 // because starting a thread means instantiating this very
                 // module again on a Worker, and only the page holds it.
-                // Kept for opening offline (sw.js), registered beside the
-                // page's own address rather than the bundle's base, since a
-                // service worker only answers for addresses below its own.
+                // Kept for opening offline (sw.js): the bundle's own worker,
+                // answering for the page's own address and below. Deployed,
+                // the page is the entry point at / and the bundle is under
+                // /data/BUILD/web/, whose worker may answer for / because the
+                // CDN sends Service-Worker-Allowed: / (guides/hosting.md).
                 navigator.serviceWorker
-                    ?.register(new URL("sw.js", location.href))
+                    ?.register(new URL("sw.js", document.baseURI), {
+                        scope: new URL("./", location.href).href,
+                    })
                     .catch((error) => console.warn("the app cannot be kept for offline use", error));
                 await ownTheFiles();
                 navigator.storage?.persist?.().catch(() => {});

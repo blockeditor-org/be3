@@ -9,7 +9,7 @@ and merge.
 
 `./scripts/be ARGS`; `./scripts/be help` lists everything. The server refuses a `be` from
 another build, so on every run the script reads the live build's id from
-`https://be3.pfg.pw/be/release`, which each deploy rewrites (guides/hosting.md), and runs that
+`https://be3.pfg.pw/live/be-release`, which each deploy rewrites (guides/hosting.md), and runs that
 build's `be` with its `build-info.json`, downloaded once into `target/tools/be-BUILD/`
 unpinned: the CDN is trusted for it. A `be` built from the checkout
 (`./scripts/buck run //crates/be-tool-cli:native -- ARGS`) talks only to a dev server built from

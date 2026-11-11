@@ -37,7 +37,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     buck::exec(command)
 }
 
-/// Where deployments put `be` (guides/hosting.md, Deploying): `be/release` names the build the
+/// Where deployments put `be` (guides/hosting.md, Deploying): `live/be-release` names the build the
 /// server runs, and `data/<build>/be-<triple>/` holds its `be` and `build-info.json`. Nothing is
 /// pinned: the server refuses a `be` from another build, so this always asks which one is live,
 /// and trusts the CDN for the bytes.
@@ -69,13 +69,13 @@ pub fn ensure() -> Result<std::path::PathBuf> {
     Ok(destination)
 }
 
-/// The build `be/release` names, a Git tree hash.
+/// The build `live/be-release` names, a Git tree hash.
 fn live_release() -> Result<String> {
     let path = repository().join("target/tools/be-release");
     std::fs::create_dir_all(path.parent().unwrap_or(repository()))
         .map_err(|error| format!("could not create {}: {error}", path.display()))?;
     let partial = partial_path(&path);
-    fetch(&format!("{MIRROR}/be/release"), &partial)?;
+    fetch(&format!("{MIRROR}/live/be-release"), &partial)?;
     let read = std::fs::read_to_string(&partial);
     let _ = std::fs::remove_file(&partial);
     let release = read
@@ -88,7 +88,7 @@ fn live_release() -> Result<String> {
             .all(|character| character.is_ascii_hexdigit())
     {
         return Err(format!(
-            "{MIRROR}/be/release does not name a build: '{release}'"
+            "{MIRROR}/live/be-release does not name a build: '{release}'"
         ));
     }
     Ok(release)

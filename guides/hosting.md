@@ -176,10 +176,11 @@ platform in release in one buck2 command, then:
    web bundle to `data/BUILD/web/`;
 3. copies `be-server` and `build-info.json` to the VPS, stops the units, swaps the files and
    starts them;
-4. then publishes the mutable entry points: `/index.html` with a `<base href="/data/BUILD/web/">`,
-   `/sw.js` beside it (a service worker only answers below its own path), and the unlinked
-   `web/downloads.html`, and `be/release`, the build id `./scripts/be` downloads `be` for
-   (guides/tracker.md), and purges them from the CDN.
+4. then publishes the mutable files and purges them from the CDN: `/index.html` with a
+   `<base href="/data/BUILD/web/">`, and under `live/` the unlinked `live/downloads.html` and
+   `live/be-release`, the build id `./scripts/be` downloads `be` for (guides/tracker.md). Nothing
+   else outside `data/` changes. The page registers the bundle's own `data/BUILD/web/sw.js` with
+   scope `/`, so a new build is a new worker.
 
 `--dry-run` changes nothing; `--skip-server` uploads versioned files only; `--skip-downloads` and
 `--skip-android` avoid needing the keystore; `--help` lists the rest. It refuses a dirty working
@@ -187,8 +188,8 @@ tree, so every deployment can be rebuilt, and writes nothing into the checkout.
 
 Versioned paths are the build's Git tree hash. Existing objects are reused only when their
 SHA-256 matches, and deployment refuses to overwrite a versioned path with different bytes, so
-builds never mix. Deployment stops before swapping the server if the web entry point lacks the
-isolation headers.
+builds never mix. Deployment stops before swapping the server if the bundle's page lacks the
+isolation headers or its service worker lacks `Service-Worker-Allowed`.
 
 ### Keys
 
@@ -211,8 +212,8 @@ These are settings of the Bunny pull zone, not something the uploader can set:
 | Paths | Headers and caching |
 | --- | --- |
 | `/data/*`, `/`, `/index.html` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
-| `/data/*` | CDN TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/sw.js`, `/web/downloads.html`, `/be/release` | CDN TTL one hour; `Cache-Control: no-cache` to browsers |
+| `/data/*` | CDN TTL one year; `Cache-Control: public, max-age=31536000, immutable`; `Service-Worker-Allowed: /` |
+| `/`, `/index.html`, `/live/*` | CDN TTL one hour; `Cache-Control: no-cache` to browsers |
 
 The zone resolves directory indexes and keeps uploaded content types (`application/wasm`
 especially).
