@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 pub mod accounts;
 pub mod app_graph;
+pub mod authorship;
 pub mod conflicts;
 pub mod discovery;
 #[cfg(not(target_arch = "wasm32"))]

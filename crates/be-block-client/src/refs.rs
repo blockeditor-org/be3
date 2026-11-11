@@ -40,10 +40,11 @@ pub(crate) enum Table {
     Workspaces,
     JournalBase,
     JournalEntry,
+    Signers,
 }
 
 impl Table {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -56,6 +57,7 @@ impl Table {
         Self::Workspaces,
         Self::JournalBase,
         Self::JournalEntry,
+        Self::Signers,
     ];
 
     pub fn code(self) -> u8 {
@@ -72,6 +74,7 @@ impl Table {
             Self::Workspaces => 10,
             Self::JournalBase => 11,
             Self::JournalEntry => 12,
+            Self::Signers => 13,
         }
     }
 
@@ -271,6 +274,14 @@ pub struct PendingCounts {
     pub unsent: usize,
 }
 
+/// A signing key this device knows an account by (plans/authorship.md): verified when a
+/// contact's card or key change named it, otherwise pinned the first time the server did.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KnownSigner {
+    pub key: [u8; 32],
+    pub verified: bool,
+}
+
 #[derive(Default)]
 struct State {
     session: Option<Session>,
@@ -280,6 +291,7 @@ struct State {
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<(Uuid, WrappedBy), (u64, WrappedKey)>,
     contacts: Vec<(Uuid, [u8; 32])>,
+    signers: HashMap<Uuid, Vec<KnownSigner>>,
     outbox: BTreeMap<u64, Op>,
     unsent: BTreeMap<Uuid, Unsent>,
     journals: HashMap<Uuid, Journaled>,
@@ -340,6 +352,9 @@ impl State {
                     .insert((wrap.key, wrap.wrapped_by), (sequence, wrap));
             }
             Table::Contacts => self.contacts = decode(value)?,
+            Table::Signers => {
+                self.signers.insert(uuid_key(&row.key)?, decode(value)?);
+            }
             Table::Outbox => {
                 let sequence = sequence_key(&row.key)?;
                 self.next = self.next.max(sequence + 1);
@@ -662,6 +677,46 @@ impl Refs {
             state.contacts = contacts.clone();
         }
         self.write(vec![row(Table::Contacts, Vec::new(), &contacts)])
+    }
+
+    /// The signing keys this device knows `account` by, oldest first.
+    pub fn signers(&self, account: Uuid) -> Vec<KnownSigner> {
+        self.state
+            .lock()
+            .unwrap()
+            .signers
+            .get(&account)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
+    /// names it, which no later pin undoes. The newest verified key, last, is the account's current one. A key is
+    /// never forgotten, so what an account signed before a new phrase still verifies, though
+    /// not as its current key (`Peer::verify_authored`).
+    pub fn add_signer(
+        &self,
+        account: Uuid,
+        key: [u8; 32],
+        verified: bool,
+    ) -> Result<(), StoreError> {
+        let known = {
+            let mut state = self.state.lock().unwrap();
+            let known = state.signers.entry(account).or_default();
+            // An existing key never moves: a stale card a server replays must not make an
+            // old key the newest, which is the account's current one.
+            match known.iter_mut().find(|known| known.key == key) {
+                Some(found) if found.verified || !verified => return Ok(()),
+                Some(found) => found.verified = true,
+                None => known.push(KnownSigner { key, verified }),
+            }
+            known.clone()
+        };
+        self.write(vec![row(
+            Table::Signers,
+            account.as_bytes().to_vec(),
+            &known,
+        )])
     }
 
     pub fn push(&self, op: Op) -> Result<u64, StoreError> {

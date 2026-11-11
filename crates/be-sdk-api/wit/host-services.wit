@@ -204,6 +204,43 @@ interface host-services {
     /// follow their press; a refusal answers a failure.
     set-push-device: async func(on: bool) -> result<_, failure>;
 
+    /// Who signed bytes, as far as this device can tell
+    /// (plans/authorship.md).
+    enum signer {
+        /// The account's own key, or a contact's, verified out of band.
+        verified,
+        /// The key the server named the first time this device asked, never
+        /// verified.
+        unverified,
+        /// A key the server names now in place of the one this device first
+        /// took: the account took a new recovery phrase, or the server lies.
+        changed,
+        /// Not the account's signature: forged, or the bytes changed since.
+        bad,
+    }
+
+    /// The block signatures bind to in the block the editor shows: the block
+    /// itself, or in a revision preview the block the revision is of. A record
+    /// that names its block inside what it signs names this one.
+    signing-block: async func() -> result<block-id, failure>;
+
+    /// Signs `bytes` as the person, with a key the app never holds. The
+    /// signature covers the block the editor shows, so it verifies only
+    /// there, and the host also binds the asking app, so another app's `verify`
+    /// never accepts it. At most 64 KiB. Denied in a revision preview.
+    sign: async func(bytes: list<u8>) -> result<list<u8>, failure>;
+
+    /// Whether `account` signed `bytes` in the block the editor shows, through
+    /// the same app (the host binds the asking app, so a signature another app
+    /// made answers `bad`, which is not a verdict that it was forged), and
+    /// how far its key is trusted. `unavailable` while the answer needs the
+    /// server and it cannot be reached.
+    verify: async func(
+        account: account-id,
+        bytes: list<u8>,
+        signature: list<u8>,
+    ) -> result<signer, failure>;
+
     /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;
 

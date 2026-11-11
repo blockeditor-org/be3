@@ -132,6 +132,7 @@ async fn agent(
             organization,
             "Claude".into(),
             public.0,
+            phrase.secret().signing().0,
             be_block_client::contacts::card(
                 peer.account(),
                 peer.keys().identity(),

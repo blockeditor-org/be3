@@ -169,11 +169,7 @@ impl<S: ObjectStore> Peer<S> {
         let contacts =
             crate::contacts::contacts(&self.connection(), self.account, self.keys.identity())
                 .await?;
-        self.adopt_contacts(
-            contacts
-                .iter()
-                .filter_map(|contact| Some((contact.account, contact.public?))),
-        );
+        self.adopt_contacts(&contacts);
         if self.keys.absorb(KeySet::default()) > 0 {
             self.tried.lock().unwrap().clear();
         }

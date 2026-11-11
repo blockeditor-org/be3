@@ -18,6 +18,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let card = |account: Uuid, secret: &be_block_keys::RecoverySecret, email: &str| ContactCard {
         account: account.into_bytes(),
         public: secret.public(),
+        signing: secret.signing(),
         display_name: email.into(),
         email: email.into(),
     };
