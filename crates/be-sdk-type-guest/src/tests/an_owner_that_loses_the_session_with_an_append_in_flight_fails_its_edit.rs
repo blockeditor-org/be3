@@ -42,5 +42,9 @@ fn an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit() {
         0,
         "what was lost with the session is not carried to a replica whose content lacks it"
     );
-    assert_eq!(count(sim.mirror(0, 1)), 0, "the editor's own content lacks it too");
+    assert_eq!(
+        count(sim.mirror(0, 1)),
+        0,
+        "the editor's own content lacks it too"
+    );
 }
