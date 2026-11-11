@@ -29,7 +29,7 @@ use be_block::{
 };
 use be_block_client::{Peer, Write};
 use be_block_commit::CommitId;
-use be_block_graph::{BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
+use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
 use be_block_store::{ObjectStore, PartRef};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
 use be_wasm_threads::Mutex;
@@ -50,7 +50,7 @@ const SHOWN: usize = 20;
 
 /// The most of a document's text the index takes, in bytes: a larger one is indexed by its
 /// start.
-const MAX_TEXT: usize = 1 << 20;
+pub(crate) const MAX_TEXT: usize = 1 << 20;
 
 /// Texts kept for snippets, by document and head, before they are all let go.
 const TEXTS: usize = 256;
@@ -101,6 +101,15 @@ struct Answer {
     missing: Option<u64>,
 }
 
+/// A define that was sent: where it is on its way to the files pane's size.
+#[derive(Clone, Copy)]
+struct Confirm {
+    /// The root was read again once the define was sent.
+    read: bool,
+    /// `Shared::drains` when it was defined: a drain finished after it has sent what it could.
+    drains: u64,
+}
+
 /// What the worker keeps for search, in `Shared::search`.
 #[derive(Default)]
 pub struct Searching {
@@ -112,6 +121,19 @@ pub struct Searching {
     creating: HashMap<Uuid, Uuid>,
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
+    /// Roots just defined, until their define is sent and the mirror has read the root again,
+    /// so the size it shows is the server's with the define in it.
+    confirming: HashMap<Uuid, Confirm>,
+    /// Roots whose index could not be made for want of a connection or a graph: not tried
+    /// again until the graph moves past the revision they failed at.
+    failed: HashMap<Uuid, u64>,
+    /// Roots whose index naming was refused or failed eight times, with the access this
+    /// account had then: tried again when the access changes.
+    given_up: HashMap<Uuid, Access>,
+    /// `wants_index` for the graph and queues it was last worked out at.
+    wants: std::cell::Cell<Option<((u64, usize, usize, usize, usize), bool)>>,
+    /// Failed attempts to name each root's index.
+    tries: HashMap<Uuid, u32>,
     /// Blocks whose root's index is being made or named (`creating`).
     waiting: BTreeSet<Uuid>,
     /// Blocks whose index has no head on this device yet (made by another device, not
@@ -141,12 +163,14 @@ impl Searching {
     /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
     /// written or a wanted search is not answered yet. The index counts in the size of the
     /// tree it is under, so a painting taken before it is named would change.
-    pub(crate) fn busy(&self, graph_revision: u64) -> bool {
-        // A graph the loop has not looked at yet may hold a workspace that wants its index.
+    pub(crate) fn busy(&self, unindexed: bool) -> bool {
+        // A workspace in the mirror that wants its index and has none yet: the loop makes it
+        // next round.
         (!self.off
             && (!self.dirty.is_empty()
                 || !self.creating.is_empty()
-                || self.scanned != Some(graph_revision)))
+                || !self.confirming.is_empty()
+                || unindexed))
             || !self.writing.is_empty()
             || !self.running.is_empty()
             || self.wanted().any(|asked| {
@@ -178,12 +202,124 @@ impl Searching {
 
     pub(crate) fn answer(&self, asked: &SearchAsk) -> Option<Searched> {
         let mut shown = self.answers.get(asked)?.shown.clone()?;
-        shown.complete = self.dirty.is_empty()
+        shown.complete = self.indexed();
+        Some(shown)
+    }
+
+    /// Nothing this device could index is queued, parked, being made or being written.
+    pub(crate) fn indexed(&self) -> bool {
+        self.dirty.is_empty()
             && self.writing.is_empty()
             && self.waiting.is_empty()
             && self.parked.is_empty()
-            && self.creating.is_empty();
-        Some(shown)
+            && self.creating.is_empty()
+    }
+
+    /// An index that could not be made now (a connection, a graph in flux): the root is tried
+    /// again when the graph moves past `revision`.
+    pub(crate) fn make_failed(&mut self, root: Uuid, revision: u64) {
+        self.drop_made(root);
+        self.failed.insert(root, revision);
+    }
+
+    /// An index that is refused, or could not be named in eight tries: the root is tried again
+    /// when this account's `access` to it changes.
+    pub(crate) fn give_up(&mut self, root: Uuid, access: Access) {
+        self.drop_made(root);
+        self.given_up.insert(root, access);
+    }
+
+    /// A root with no index to make or name any more: the blocks that waited for it are looked
+    /// at again, and find no index to wait for.
+    pub(crate) fn drop_made(&mut self, root: Uuid) {
+        self.creating.remove(&root);
+        self.tries.remove(&root);
+        self.made.retain(|(made, _)| *made != root);
+        self.confirming.remove(&root);
+        let waiting = std::mem::take(&mut self.waiting);
+        self.dirty.extend(waiting);
+    }
+
+    /// Forgets the roots given up on whose access has changed since (`access_of` is the
+    /// graph's), so a root demoted and promoted again is tried again.
+    pub(crate) fn prune_given_up(&mut self, access_of: impl Fn(Uuid) -> Option<Access>) {
+        self.given_up
+            .retain(|root, access| access_of(*root) == Some(*access));
+    }
+
+    /// Whether the root is left alone for now, at this graph revision and access.
+    pub(crate) fn excluded(&self, root: Uuid, revision: u64, access: Access) -> bool {
+        self.failed.get(&root) == Some(&revision) || self.given_up.get(&root) == Some(&access)
+    }
+
+    /// The defines to read the root again for: those sent (the outbox is empty). A define
+    /// still in the outbox after a drain ended since it was made is stuck, and is not waited
+    /// for: the size shown is then the old one.
+    pub(crate) fn confirm_due(&mut self, waiting: usize, draining: bool, drains: u64) -> Vec<Uuid> {
+        let sent = waiting == 0 && !draining;
+        let mut due = Vec::new();
+        self.confirming
+            .retain(|root, confirm| match (confirm.read, sent) {
+                (true, _) => true,
+                (false, true) => {
+                    confirm.read = true;
+                    due.push(*root);
+                    true
+                }
+                (false, false) => draining || drains <= confirm.drains,
+            });
+        due
+    }
+
+    /// The root was read again: its size is the server's.
+    pub(crate) fn confirmed(&mut self, root: Uuid) {
+        self.confirming.remove(&root);
+    }
+
+    /// Blocks parked for an index queue again once it has a head (`arrived`) or no root
+    /// names it any more (`named`): the second finds them no index, so they drop out.
+    pub(crate) fn release_parked(
+        &mut self,
+        arrived: impl Fn(Uuid) -> bool,
+        named: impl Fn(Uuid) -> bool,
+    ) {
+        for (index, blocks) in std::mem::take(&mut self.parked) {
+            match arrived(index) || !named(index) {
+                true => self.dirty.extend(blocks),
+                false => self.parked.push((index, blocks)),
+            }
+        }
+    }
+
+    /// Queues a block to wait for its root's index, which is being made (a test's way into
+    /// `index`'s bookkeeping).
+    #[cfg(test)]
+    pub(crate) fn wait_for_index(&mut self, root: Uuid, index: Uuid, block: Uuid) {
+        self.creating.insert(root, index);
+        self.waiting.insert(block);
+    }
+
+    /// Records a define just sent, when `drains` outbox drains had finished.
+    #[cfg(test)]
+    pub(crate) fn defined(&mut self, root: Uuid, drains: u64) {
+        self.confirming.insert(
+            root,
+            Confirm {
+                read: false,
+                drains,
+            },
+        );
+    }
+
+    /// Takes the queued blocks (a test's way to see what `index` would look at).
+    #[cfg(test)]
+    pub(crate) fn take_queued(&mut self) -> Vec<Uuid> {
+        std::mem::take(&mut self.dirty).into_iter().collect()
+    }
+
+    /// Parks blocks for an index that has no head on this device yet.
+    pub(crate) fn park(&mut self, index: Uuid, blocks: Vec<Uuid>) {
+        self.parked.push((index, blocks));
     }
 }
 
@@ -237,6 +373,7 @@ pub(crate) async fn step(
     tasks: &Tasks,
 ) -> bool {
     name_indexes(peer, shared, replicas, tasks).await;
+    confirm_names(peer, shared, tasks);
     let mut moved = index(peer, shared, replicas, tasks).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
@@ -255,18 +392,20 @@ async fn index(
             return false;
         }
         let roots = unindexed_roots(&mut held);
-        let parked = std::mem::take(&mut held.search.parked);
-        for (index, blocks) in parked {
-            let arrived = peer.local_head(index).is_some()
-                || held
-                    .graph
-                    .get(index)
-                    .is_some_and(|node| node.head.is_some());
-            match arrived {
-                true => held.search.dirty.extend(blocks),
-                false => held.search.parked.push((index, blocks)),
-            }
-        }
+        let state = &mut *held;
+        let (graph, named) = (&state.graph, &state.search.named);
+        let roots_naming: HashSet<Uuid> = graph
+            .nodes()
+            .filter(|node| node.parent == Some(BlockParent::Root))
+            .filter_map(|node| index_of(graph, named, node.id))
+            .collect();
+        state.search.release_parked(
+            |index| {
+                peer.local_head(index).is_some()
+                    || graph.get(index).is_some_and(|node| node.head.is_some())
+            },
+            |index| roots_naming.contains(&index),
+        );
         if held.search.dirty.is_empty() {
             drop(held);
             make_indexes(peer, shared, tasks, roots);
@@ -343,7 +482,7 @@ async fn index(
                     // Every answer is read again, whichever index it read.
                     Ok(true) => held.search.answers.clear(),
                     // Not on this device yet: made by a command still queued.
-                    Ok(false) => held.search.parked.push((index, blocks)),
+                    Ok(false) => held.search.park(index, blocks),
                     Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
                 }
             }
@@ -363,21 +502,12 @@ fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
         return Vec::new();
     }
     held.search.scanned = Some(revision);
-    let roots: Vec<Uuid> = held
-        .graph
-        .nodes()
-        .filter(|node| {
-            node.parent == Some(BlockParent::Root)
-                && node.content_type == be_block::WORKSPACE_TYPE
-                && node.access.can_edit()
-                && !node.locked
-                && !node.metadata.contains(&SEARCH_INDEX)
-        })
-        .map(|node| node.id)
-        .filter(|root| {
-            !held.search.creating.contains_key(root) && !held.search.named.contains_key(root)
-        })
-        .collect();
+    let state = &mut *held;
+    let graph = &state.graph;
+    state
+        .search
+        .prune_given_up(|root| graph.get(root).map(|node| node.access));
+    let roots = unindexed(held);
     roots
         .into_iter()
         .map(|root| {
@@ -386,6 +516,49 @@ fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
             (root, index)
         })
         .collect()
+}
+
+/// The workspaces in the mirror this device may edit that name no index and have none being
+/// made.
+pub(crate) fn unindexed(held: &Shared) -> Vec<Uuid> {
+    held.graph
+        .nodes()
+        .filter(|node| {
+            node.parent == Some(BlockParent::Root)
+                && node.content_type == be_block::WORKSPACE_TYPE
+                && node.access.can_edit()
+                && !node.locked
+                && !node.metadata.contains(&SEARCH_INDEX)
+        })
+        .filter(|node| {
+            !held.search.creating.contains_key(&node.id)
+                && !held.search.named.contains_key(&node.id)
+                && !held
+                    .search
+                    .excluded(node.id, held.graph.revision, node.access)
+        })
+        .map(|node| node.id)
+        .collect()
+}
+
+/// Whether some workspace wants an index it has none of, as the worker's `busy` asks: worked
+/// out again only when the graph or the sets that decide it changed.
+pub(crate) fn wants_index(held: &Shared) -> bool {
+    let key = (
+        held.graph.revision,
+        held.search.creating.len(),
+        held.search.named.len(),
+        held.search.failed.len(),
+        held.search.given_up.len(),
+    );
+    if let Some((cached, wants)) = held.search.wants.get()
+        && cached == key
+    {
+        return wants;
+    }
+    let wants = !unindexed(held).is_empty();
+    held.search.wants.set(Some((key, wants)));
+    wants
 }
 
 fn make_indexes(
@@ -404,7 +577,8 @@ fn make_indexes(
                 match made {
                     Ok(()) => held.search.made.push((root, index)),
                     Err(error) => {
-                        held.search.creating.remove(&root);
+                        let revision = held.graph.revision;
+                        held.search.make_failed(root, revision);
                         held.error = Some(format!("Making a search index failed: {error}"));
                     }
                 }
@@ -478,7 +652,7 @@ async fn puts_of(
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
-fn capped(mut text: String) -> String {
+pub(crate) fn capped(mut text: String) -> String {
     if text.len() > MAX_TEXT {
         let mut end = MAX_TEXT;
         while !text.is_char_boundary(end) {
@@ -558,14 +732,22 @@ async fn name_indexes(
     // under a moving session loses, and trying again each round would starve the loop.
     let made: Vec<(Uuid, Uuid)> = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        let (ready, waiting) =
-            std::mem::take(&mut held.search.made)
-                .into_iter()
-                .partition(|(root, _)| {
-                    replicas
-                        .status(*root)
-                        .is_none_or(|status| status.clean && !status.owes_seal)
-                });
+        // A root left, or one this account may no longer edit, has no index to name.
+        let (named, gone): (Vec<_>, Vec<_>) = std::mem::take(&mut held.search.made)
+            .into_iter()
+            .partition(|(root, _)| {
+                held.graph
+                    .get(*root)
+                    .is_some_and(|node| node.access.can_edit() && !node.locked)
+            });
+        for (root, _) in gone {
+            held.search.drop_made(root);
+        }
+        let (ready, waiting): (Vec<_>, Vec<_>) = named.into_iter().partition(|(root, _)| {
+            replicas
+                .status(*root)
+                .is_none_or(|status| status.clean && !status.owes_seal)
+        });
         held.search.made = waiting;
         ready
     };
@@ -580,10 +762,6 @@ async fn name_indexes(
         {
             replicas.moved_here(root, head);
         }
-        let sized = defined
-            .as_ref()
-            .ok()
-            .map(|summary| (summary.size, summary.tree_size));
         // The define is a commit in the outbox: sent now, not at some later drain, so the
         // host never sits idle with it unsaved.
         if defined.is_ok() {
@@ -597,19 +775,66 @@ async fn name_indexes(
                 held.search.named.insert(root, index);
                 let waiting = std::mem::take(&mut held.search.waiting);
                 held.search.dirty.extend(waiting);
+                if peer.is_attached() {
+                    let drains = held.drains;
+                    held.search.confirming.insert(
+                        root,
+                        Confirm {
+                            read: false,
+                            drains,
+                        },
+                    );
+                }
                 held.graph.update(root, |node| {
                     node.metadata.insert(&SEARCH_INDEX, &BlockRef(index));
-                    // The define changed the root's bytes: shown as the server keeps them.
-                    if let Some((size, tree_size)) = sized {
-                        node.size = size;
-                        node.tree_size = tree_size;
-                    }
                 });
                 held.graph.settle(root);
             }
-            // Most often a session that kept moving the root: named again next round.
-            Err(_) => held.search.made.push((root, index)),
+            // Most often a session that kept moving the root: named again next round, a few
+            // times; a refusal, or too many, leaves the root without an index.
+            Err(error) => {
+                let tries = held.search.tries.entry(root).or_default();
+                *tries += 1;
+                match matches!(error, be_block_client::ClientError::Refused(..)) || *tries >= 8 {
+                    true => {
+                        let access = held
+                            .graph
+                            .get(root)
+                            .map_or(Access::default(), |node| node.access);
+                        held.search.give_up(root, access);
+                        held.error = Some(format!("Naming a search index failed: {error}"));
+                    }
+                    false => held.search.made.push((root, index)),
+                }
+            }
         }
+    }
+}
+
+/// Once a define is sent the root is read again, whatever order the server's own news of it
+/// came in, and the host is busy until it has been; a define that stays in the outbox after a
+/// drain, or a lost connection, is not waited for.
+fn confirm_names(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if held.search.confirming.is_empty() {
+        return;
+    }
+    if !peer.is_attached() {
+        held.search.confirming.clear();
+        return;
+    }
+    let (waiting, draining, drains) = (held.waiting, held.draining, held.drains);
+    for root in held.search.confirm_due(waiting, draining, drains) {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move {
+            crate::worker::refresh(&peer, &shared, root).await;
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search
+                .confirmed(root);
+            be_host_base::host::wake();
+        });
     }
 }
 

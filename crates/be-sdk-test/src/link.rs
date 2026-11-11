@@ -99,7 +99,15 @@ impl Link {
         );
     }
 
-    pub(crate) fn call(&mut self, call: Call, store: &ContentStore, connection: &mut Connection) {
+    /// `author` is the account the editor's host is signed in to, which the blocks it makes
+    /// are by.
+    pub(crate) fn call(
+        &mut self,
+        call: Call,
+        store: &ContentStore,
+        connection: &mut Connection,
+        author: Uuid,
+    ) {
         let block = Uuid::from_bytes;
         match call {
             Call::OpenBlock { reply, request } => {
@@ -133,7 +141,9 @@ impl Link {
                 owner_only,
             } => {
                 reply.send(connection, &());
-                store.create_block(block, block_type, parent, defined, content, owner_only);
+                store.create_block(
+                    block, block_type, parent, defined, content, owner_only, author,
+                );
             }
             Call::SetParent {
                 reply,
