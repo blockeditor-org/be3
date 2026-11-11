@@ -459,6 +459,11 @@ struct Session {
     gestures: Vec<Gestures>,
     grabbed: Vec<DroppedFile>,
     clock_stopped: bool,
+    /// Whether the program had nothing to wait for as of the last frame. A pause moves a
+    /// stopped clock on only then, so each frame it runs has been answered by the apps (which
+    /// work on threads of their own) before the next, and what a pause runs does not depend on
+    /// how fast they are.
+    quiet: bool,
     unhurried: bool,
     focused: bool,
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
@@ -482,6 +487,7 @@ impl Session {
             flush: None,
             grabbed: Vec::new(),
             clock_stopped: false,
+            quiet: true,
             unhurried: false,
             focused: true,
             picks: Vec::new(),
@@ -549,6 +555,7 @@ impl Session {
             ..
         }) = &self.active
             && self.clock_stopped
+            && self.quiet
         {
             let step = until.saturating_duration_since(context.now()).min(FRAME);
             context.advance_clock(step);
@@ -711,7 +718,8 @@ impl Session {
         };
         match &active.phase {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
-            Phase::Pausing { .. } if stopped => Some(Duration::ZERO),
+            Phase::Pausing { .. } if stopped && self.quiet => Some(Duration::ZERO),
+            Phase::Pausing { .. } if stopped => None,
             Phase::Pausing { until } => Some(until.saturating_duration_since(now)),
             Phase::Reading { .. } => Some(FRAME),
             _ => None,
@@ -794,6 +802,7 @@ impl Session {
         above: &Above<'_>,
     ) {
         let quiet = settled.busy.is_empty();
+        self.quiet = quiet;
         if quiet
             && let Some(Active {
                 request,
@@ -952,7 +961,9 @@ impl Session {
                 } if drive::waited(view.rendered().lines(), text, *over).is_some() == *present => {
                     Some(Reply::Text(String::new()))
                 }
-                Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
+                Phase::Pausing { until } if view.now >= *until && quiet => {
+                    Some(Reply::Text(String::new()))
+                }
                 Phase::Components => output
                     .comps
                     .as_deref()
