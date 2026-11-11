@@ -1858,6 +1858,8 @@ impl Client {
                                 Push::BlockDeleted { block: place },
                             )
                             .await;
+                        // The collector is left out of the broadcast, so it drops its own watch.
+                        connection.hub.unwatch(place, connection.client).await;
                     }
                     Ok(Collected {
                         blocks: collected.blocks,
