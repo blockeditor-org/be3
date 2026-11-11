@@ -104,6 +104,16 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasm32": {
+            "binaries": {},
+            "deps": [
+                "//third-party/rust:icu_properties-2.4.0",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

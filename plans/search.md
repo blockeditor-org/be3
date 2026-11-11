@@ -1,174 +1,90 @@
 # Search
 
-Depends on: none for steps 1 to 4; step 5 on plans/search_library.md (more
-types).
+Depends on: none for steps 1 and 2; step 3 on plans/search_library.md (more
+types answering `search-text`).
 
-Full-text search over names and content. The server never reads content
-(guides/the_new_block_stack.md, goal 5), so clients build the index, encrypt
-it like any block, and search it locally. `plans/deferred/daily_driver.md`
-("Search") asks for it before daily use.
-
-## The shape
-
-- **One shared index per root block.** Access is the highest grant on the path
-  up (decisions/block_access_is_the_highest_grant_on_the_path_up.md), so
-  anyone who can view a root block (a workspace, My files) can view everything
-  in its tree, and nested scope keys are wrapped under the root's. One index
-  block per root, readable by exactly those people, holds the whole tree.
-  Everyone with Edit on the root writes to it; viewers only read it.
-- **Blocks shared without their root** (Shared with me) and what a viewer's
-  root index lacks are not content-searchable until the personal index
-  (`plans/deferred/search_personal_index.md`).
-- **Every index is a block**, so index writes are saved offline-first like any
-  other edit, and a device searches its own changes as soon as it sealed them.
-- **Names are indexed too**, as a field of each document. There is no search
-  over the graph mirror: the host keeps lazy-loading the tree and never lists
-  a whole organization (guides/blocks/host.md, "The graph mirror"), so a block
-  is found once the index holds it.
-- **Scope**: only the open organization, never the trash.
-
-A query fans out over the indexes of every root the account can view in the
-open organization, merges by block (where two indexes hold different commits of a block, a
-descendant wins, otherwise the later commit time), and drops
-any block the mirror says the account can no longer view (an index can lag a
-move or a revocation).
-
-## The index block
-
-- A block type (`SEARCH_INDEX_TYPE`) in a type module like any other
-  (guides/type_modules.md), referenced from the root's defined metadata by a
-  `SEARCH_INDEX` key, so it is held by its root and never listed among its
-  children (guides/blocks/host.md, "Metadata").
-- **Access only from its parent**, like settings blocks
-  (decisions/settings_blocks_take_their_access_from_their_parent.md), but at
-  the parent's level rather than capped: Edit on the root gives Edit on its
-  index, View gives View. Its own grants and authorship never raise that.
-  Never `ANYONE_INSIDE`: a block shared alone must not read the whole tree's
-  text through it. `level_below` in `be-block-graph`.
-- **The server enforces it by type and parent**, since it cannot read defined
-  metadata: `SEARCH_INDEX_TYPE` is a constant in `be-block-graph` beside
-  `SETTINGS_TYPE`, a block of that type under a root takes its access from the
-  root as above, the server refuses a second one under the same root, and
-  creating, moving or dropping it needs Edit on the root (checked like
-  `require_keeping_settings`). The `SEARCH_INDEX` key is only how clients
-  find it.
-- **Never indexed itself**: the indexer skips blocks of `SEARCH_INDEX_TYPE`
-  and the other metadata-held blocks (settings, edit kinds).
-- **A large block** (guides/blocks/content_types.md, "Parts"): `LOADS` is
-  `Loads::FirstPart`, and the first part is a small header (the segment list,
-  each segment's top-level dictionary, the watermark: the graph revision it
-  has seen every change up to). Under it, a `Node` per segment with its
-  dictionary blocks, postings and positions as leaves, and the document table
-  as a part split by document range. A query loads the header and reads the
-  rest by range (`read-part`); a batch writes its new segment, the changed
-  ranges of the document table and the header, and hands every other part
-  back as `reused`, so nobody ever holds the whole index.
-- **Hand-written content, not a `Document`**, as `Blob` is: documents load
-  whole.
-- **Edited through its replica's session.** The indexer opens the index block
-  like any open block (`be_block_type_host::Replicas`) and sends a batch as an
-  operation adding the segment's parts by hash (`put-part`, guides/type_modules.md, "Parts named by hash") with the
-  document table entries. Two indexers online at once are sequenced by the
-  session owner; offline batches merge by parts (`MergeParts`, guides/type_modules.md,
-  "Merging by parts"), as `be-lib-search` merges two indexes.
-- **History**: the server keeps few states of `SEARCH_INDEX_TYPE` (built:
-  `be_server::retention`, those of its last day), since old index commits would
-  keep terms of blocks that left the tree.
-- Charged to the tree's owner like everything in the tree
-  (decisions/storage_is_charged_to_the_trees_owner.md).
-
-## The indexer
-
-A task in the host-stack worker (`be-host-stack/src/worker.rs`), so `be` can
-run it too. It never runs on a timer of its own (guides/blocks/host.md, "The
-worker").
-
-- **The writer indexes.** A device that seals a commit holds its plaintext
-  already, so after each seal (the session owner's, online or offline, an
-  import) it queues the block for its root's index when it can edit the root.
-  It asks the block's type for `search-text`, passing the parts the index
-  already holds text for as `indexed`, and sends one segment per batch.
-- **Catching up.** Commits from devices that never index (old builds, `be`
-  without it, a viewer's) are found by comparing each document's indexed
-  commit with the block's `head`. The host never lists a whole tree, so add a
-  server call `changed-since(root, revision)` answering, a page at a time, the
-  summaries of blocks in the tree changed after a revision. The indexer runs
-  it from the index's watermark when it opens a root's index and after
-  reconnecting, indexes what is stale, and moves the watermark with each
-  batch, so a long catch-up resumes where it stopped. Search answers from what
-  is indexed so far and says the index is incomplete.
-- **Leaving the tree.** A block moved out of the tree, deleted to the trash or
-  collected gets its documents masked by the device that moved it (it had
-  Manage); its terms leave the head when compaction next merges that segment.
-  Catching up masks what other devices missed.
-- **Rotation.** When a member loses access to the root, the index block rotates
-  with the root's subtree (`Peer::rotate`); metadata-held blocks such as
-  settings must be covered, and step 1's test checks it. After a rotation the
-  index's next save reseals every part it reuses, so a rotation costs one
-  re-upload of the index; plans/deferred/large_blocks_lazy_rekeying.md would
-  remove that, and is deferred.
-
-## Querying: the app protocol
-
-- A search query of its own in `be-sdk` (`src/graph.rs`) and `be-sdk-api`, not
-  a `BlockQuery` variant (that enum is `Copy`, and its answers are block ids):
-  `Search { text, within }` answering hits of block, document key, snippet and
-  match ranges. Plain data, nothing beui-specific. `within` limits it to a
-  block's subtree.
-- **Queries run in the host**, which links `be-lib-search` and reads the
-  index's parts natively; the index's type module only writes and merges it,
-  so there is no query request in the type protocol.
-- The host reads indexes on demand, never in full: each segment's term
-  dictionary, then ranges of postings with `read-part`. What it read stays in
-  the object store (`be-objects/`, the origin private file system on the web),
-  so later and offline queries reuse it.
-- **Snippets** come from the content of the shown hits only: the host asks the
-  hit's type for that document's text (`search-text` with its key) and cuts
-  the snippet around the matched terms. A type that loads whole (text) is
-  loaded and decoded whole for that, on every query change for quick open, so
-  keep the snippet text per (block, commit, key) rather than asking again.
-- Results are pushed again when an index changes, like any query.
-
-## UI
-
-- The file tree's filter field (today it matches loaded rows by name only)
-  answers from the index once it exists.
-- Quick open lists search hits: a `BlockSource` for be-host's palette
-  (`be-host/src/compositor/palette.rs`, guides/apps/editor.md, Actions and the
-  palette), a memo of the hits for the query signal it is handed, in the
-  index's order, each with its matched text as `detail`. Opening a hit at its
-  location needs `OpenableBlock` and `EditorAction::OpenBlock` to carry one;
-  neither does yet.
-- Opening a hit opens the block at its document and highlights the match where
-  the editor supports a location.
+Full-text search over names and content: what is left of it. Built
+(guides/blocks/host.md, "Search"): the index block type `SEARCH_INDEX_TYPE` and its
+access (exactly its root's, checked by the server), indexing on seal into the
+root's index with commits sealed into the outbox and merged by parts, the
+`search-watch` query on the app protocol, the file tree's filter listing hits
+in content, and quick open listing hits. `plans/deferred/daily_driver.md`
+("Search") asks for the rest before daily use.
 
 ## Order of work
 
 Each step is one PR.
 
-1. **The index block type and its access.** `SEARCH_INDEX_TYPE` (the constant
-   is in `be-block-graph` already, for retention), the
-   `SEARCH_INDEX` key, `level_below` and the server checks. Done: server tests
-   that Edit on a root gives Edit on its index and View gives View, that a
-   grant or authorship on the index raises nothing, that someone shared one
-   block inside cannot open it, that a second `SEARCH_INDEX` and a reference
-   made without Edit are refused, and that removing a member rotates the
-   index block with the root's subtree (new epoch, the removed account's
-   wraps gone).
-2. **Indexing on seal, for text.** The indexer, the index's batch operation and
-   merge, the search query and the filter field. Done: a host-stack test types
-   into two text blocks of a workspace, finds each by a word, edits one and no
-   longer finds the old word, finds an edit made offline once it is sealed,
-   and two devices indexing at once both find every word after they sync; a
-   painting of the filter showing hits with snippets.
-3. **`changed-since` and catching up.** Done: a server test of
-   `changed-since` paging; a host-stack test where one device writes with
-   indexing off and another indexes those commits on opening the root's
-   index, resuming after a disconnect mid-catch-up; moving a block out of the
-   tree drops it from results.
-4. **Quick open and locations.** Done: a host test opens quick open, types a
-   word, sees the hit and opens the block at it, with a painting.
-5. **More types**, as their `search-text` lands (plans/search_library.md).
+1. **`changed-since` and catching up.** Commits from devices that never index
+   (old builds, `be` without it, a viewer's, another device's that left the
+   session to this one) are found by comparing each document's indexed commit
+   with the block's `head`. The host never lists a whole tree, so add a server
+   call `changed-since(root, revision)` answering, a page at a time, the
+   summaries of blocks in the tree changed after a revision. The server's graph
+   revision restarts at zero with the process, so the call needs a durable
+   change counter per block (a column the server bumps on every create,
+   publish, move and metadata change). The indexer runs it from the index's
+   watermark (`Batch::watermark`) when it opens a root's index and after
+   reconnecting, indexes what is stale, and moves the watermark with each
+   batch, so a long catch-up resumes where it stopped; `Searched::complete`
+   says it is still catching up. Imports (`Peer::queue_import`) are caught up
+   this way too, since no session seals them.
+   - **Leaving the tree.** A block moved out of the tree, deleted to the trash
+     or collected gets its documents masked (`Batch::removed_blocks`) by the
+     device that moved it (it had Manage); its terms leave the head when
+     compaction next merges that segment. Catching up masks what other devices
+     missed. Today a query only drops hits the mirror shows detached or no
+     longer viewable.
+   - Done: a server test of `changed-since` paging; a host-stack test where one
+     device writes with indexing off (`Searching::off`) and another indexes
+     those commits on opening the root's index, resuming after a disconnect
+     mid-catch-up; moving a block out of the tree drops it from results.
+2. **Locations.** Opening a hit opens the block at its document and highlights
+   the match where the editor supports a location: `OpenableBlock` (be-host's
+   palette), `EditorAction::OpenBlock` and the app protocol's open request
+   carry the document key and match, and the file tree's hit rows pass it on.
+   Done: a host test opens a hit from quick open and the text shows the match
+   selected, with a painting.
+3. **More types**, as they answer `search-text` (plans/search_library.md);
+   the indexer already puts one document per answered key. With them, keep
+   each document's `source` and pass the parts the index holds text for as
+   `indexed`, so reindexing a large block reads only its changed parts.
+
+## Left open
+
+- **Leaving the tree is not masked** (step 3 of "The indexer"): a block moved to
+  a private root, trashed or emptied keeps its text in the old root's index, which
+  every viewer of that root can decrypt. The UI hides it (`show` filters by
+  access) but a modified client reads it. Mask it with `Batch::removed_blocks`
+  from the device that moves it.
+- **Late text in a huge document is not searchable.** A document's text is
+  indexed up to 1 MiB (`MAX_TEXT`); a word past that finds nothing, and nothing
+  in the interface says why. It is capped after the body is loaded, so it does
+  not bound memory, and the number of documents per block is not capped.
+- **A trashed index is not restored.** From Detached it can only return to
+  where it was, which the server refuses for an index; a new one is made.
+- **A forged index.** Any editor of a root is enough to write arbitrary content into its
+  index: forged entries, an unbounded size that every viewer's search reads, and a
+  far-future commit time that wins the merge by commit time in a query. Cap an
+  index's size and refuse commit times in the future when it is cheap.
+- **The writer only.** The device whose session seals a commit indexes it
+  (`Status::owner`); a follower's edits are indexed by the owner device. A
+  device that cannot edit the root never writes its index.
+- **Compaction.** Each batch adds a segment; nothing merges them yet
+  (`Index::compact` exists). Compact on the device that writes, a few segments
+  at a time, when the count passes a threshold, and call
+  `Index::forget_before` past the index block's history retention.
+- **Edited outside a session.** The indexer seals commits straight into the
+  outbox rather than through the index block's replica (`put-part` plus a
+  `SetIndex` operation): two devices online at once diverge and merge by parts
+  instead of being sequenced. `LiveEdit` has no hook for a replica to put a
+  part of its own, which a session needs.
+- **Rotation** reseals every part the index reuses at its next save, so a
+  rotation costs one re-upload of the index;
+  plans/deferred/large_blocks_lazy_rekeying.md would remove that.
+- **Blocks shared without their root** (Shared with me) and what a viewer's
+  root index lacks are not content-searchable until the personal index
+  (`plans/deferred/search_personal_index.md`).
 
 ## Scale
 
@@ -192,5 +108,5 @@ Design notes, not done criteria. The target is a tree with a gigabyte of text
 
 The aim is the same as for every block: hide names and content. The server
 already knows the graph and which blocks each device opens, so it is accepted
-that it also sees index sizes, when they change, which parts change, and which
+that it also sees that a workspace has an index, its size, when it changes, which parts change, and which
 parts and ranges a query reads. It never sees a term, a query or a name.

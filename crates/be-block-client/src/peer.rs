@@ -833,6 +833,16 @@ impl<S: ObjectStore> Peer<S> {
         self.connection.lock().unwrap().clone()
     }
 
+    /// Whether `descendant` has `ancestor` in its history (a commit is its own ancestor).
+    pub async fn descends(
+        &self,
+        descendant: CommitId,
+        ancestor: CommitId,
+    ) -> Result<bool, ClientError> {
+        self.fetch_history(descendant).await?;
+        Ok(self.commits.is_ancestor(ancestor, descendant)?)
+    }
+
     pub fn local_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.head(block)
     }

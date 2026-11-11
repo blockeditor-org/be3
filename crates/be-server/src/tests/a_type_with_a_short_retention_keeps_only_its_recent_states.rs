@@ -33,13 +33,14 @@ async fn a_type_with_a_short_retention_keeps_only_its_recent_states() {
     let account = client.register("indexer@example.com").await;
     client.organization("notes").await;
     let author = Author::new(account);
+    let workspace = client.create_block(BlockParent::Root).await;
     let index = Uuid::new_v4();
     let key = Uuid::new_v4();
     client
         .create_typed(
             index,
             SEARCH_INDEX_TYPE,
-            BlockParent::Root,
+            BlockParent::Block(workspace),
             key,
             KeySet {
                 keys: vec![row(key, index, KeyKind::Data)],
