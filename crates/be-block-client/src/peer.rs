@@ -1681,6 +1681,32 @@ impl<S: ObjectStore> Peer<S> {
         Ok(client::blocks::changed_since(&self.connection(), root, since, after, limit).await??)
     }
 
+    /// Everything that changed after the sequence `since` in `root`'s tree, every page of it:
+    /// the summaries of the blocks in the tree that changed, the blocks that left it, and the
+    /// sequence to continue from.
+    pub async fn changed_since(
+        &self,
+        root: Uuid,
+        since: u64,
+    ) -> Result<(Vec<BlockSummary>, Vec<Uuid>, u64), ClientError> {
+        const PAGE: u32 = 200;
+        let (mut summaries, mut removed) = (Vec::new(), Vec::new());
+        let mut after = client::blocks::ChangeCursor {
+            changed: since,
+            block: Uuid::max(),
+        };
+        loop {
+            let page = self.changed_page(root, since, after, PAGE).await?;
+            self.learn(&page.summaries).await?;
+            summaries.extend(page.summaries);
+            removed.extend(page.removed);
+            match page.next {
+                Some(next) => after = next,
+                None => return Ok((summaries, removed, page.sequence)),
+            }
+        }
+    }
+
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
         if !self.is_attached() || self.refs.has_structural(block) {
             return self.move_locally(block, parent);

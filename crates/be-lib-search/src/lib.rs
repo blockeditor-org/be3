@@ -344,6 +344,11 @@ impl Index {
         table.entries_of(parts, block).await
     }
 
+    /// The newest commit a block was removed from the index at, if it was.
+    pub fn removed_at(&self, block: &[u8]) -> Option<Commit> {
+        self.block_removed_at(block)
+    }
+
     fn block_removed_at(&self, block: &[u8]) -> Option<Commit> {
         self.removed_blocks
             .iter()
