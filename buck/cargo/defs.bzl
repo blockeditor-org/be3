@@ -1,6 +1,6 @@
 load("@root//buck/dev:test.bzl", "be_test")
-load("@root//buck/dynlink:defs.bzl", "UNLINKED_TESTS", "dynlink_deps", "dynlink_flags", "dynlink_library_path")
 load("@root//buck/dev:verify.bzl", "package_fix")
+load("@root//buck/dynlink:defs.bzl", "UNLINKED_TESTS", "dynlink_deps", "dynlink_flags", "dynlink_library_path")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
 load(":inputs.bzl", "cargo_inputs")

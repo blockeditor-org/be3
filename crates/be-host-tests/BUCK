@@ -127,7 +127,9 @@ cargo_test(
     run_env = {
         "BE_BUNDLE": "$(location :host-with-all)",
         "BE_HOST": "$(location //crates/be-host:bin)",
-        "HOST_LIBRARIES": dynlink_library_path("$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu"),
+        "HOST_LIBRARIES": dynlink_library_path(
+            "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu"
+        ),
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
         "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
     },

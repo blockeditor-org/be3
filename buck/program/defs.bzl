@@ -284,9 +284,6 @@ program = rule(
         "executable_name": attrs.string(default = ""),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
-        # Directories whose files are staged beside the executable: the native
-        # dynamic libraries it is linked against (buck/dynlink).
-        "trees": attrs.list(attrs.dep(), default = []),
         # Which libraries the program holds: "include" every one the modules
         # need, "exclude" them, for a program run with the BE_BUNDLE path list
         # (be-lib-build-id) that has them in another, or "only" them and none of
@@ -306,6 +303,9 @@ program = rule(
         # What `buck2 run` runs a bundle without an executable with, followed
         # by the bundle.
         "run_with": attrs.list(attrs.arg(), default = []),
+        # Directories whose files are staged beside the executable: the native
+        # dynamic libraries it is linked against (buck/dynlink).
+        "trees": attrs.list(attrs.dep(), default = []),
         "wasm_bindgen": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
         "_archiver": attrs.default_only(attrs.exec_dep(default = "root//crates/be-host-archive:bin")),
         "_tools": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
