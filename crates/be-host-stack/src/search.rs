@@ -48,6 +48,10 @@ const HITS: usize = 50;
 /// Hits a search answers with a snippet.
 const SHOWN: usize = 20;
 
+/// The most of a document's text the index takes, in bytes: a larger one is indexed by its
+/// start.
+const MAX_TEXT: usize = 1 << 20;
+
 /// Texts kept for snippets, by document and head, before they are all let go.
 const TEXTS: usize = 256;
 
@@ -110,6 +114,9 @@ pub struct Searching {
     made: Vec<(Uuid, Uuid)>,
     /// Blocks whose root's index is being made or named (`creating`).
     waiting: BTreeSet<Uuid>,
+    /// Blocks whose index has no head on this device yet (made by another device, not
+    /// arrived): queued again once it has one, not every round.
+    parked: Vec<(Uuid, Vec<Uuid>)>,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
@@ -164,7 +171,11 @@ impl Searching {
 
     pub(crate) fn answer(&self, asked: &SearchAsk) -> Option<Searched> {
         let mut shown = self.answers.get(asked)?.shown.clone()?;
-        shown.complete = self.dirty.is_empty() && self.writing.is_empty();
+        shown.complete = self.dirty.is_empty()
+            && self.writing.is_empty()
+            && self.waiting.is_empty()
+            && self.parked.is_empty()
+            && self.creating.is_empty();
         Some(shown)
     }
 }
@@ -237,6 +248,15 @@ async fn index(
             return false;
         }
         let roots = unindexed_roots(&mut held);
+        let parked = std::mem::take(&mut held.search.parked);
+        for (index, blocks) in parked {
+            let arrived = peer.local_head(index).is_some()
+                || held.graph.get(index).is_some_and(|node| node.head.is_some());
+            match arrived {
+                true => held.search.dirty.extend(blocks),
+                false => held.search.parked.push((index, blocks)),
+            }
+        }
         if held.search.dirty.is_empty() {
             drop(held);
             make_indexes(peer, shared, tasks, roots);
@@ -310,7 +330,7 @@ async fn index(
                     // Every answer is read again, whichever index it read.
                     Ok(true) => held.search.answers.clear(),
                     // Not on this device yet: made by a command still queued.
-                    Ok(false) => held.search.dirty.extend(blocks),
+                    Ok(false) => held.search.parked.push((index, blocks)),
                     Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
                 }
             }
@@ -439,10 +459,22 @@ async fn puts_of(
                     true => name.clone(),
                     false => document.name.unwrap_or_default(),
                 },
-                body: document.body.unwrap_or_default(),
+                body: capped(document.body.unwrap_or_default()),
             }),
         })
         .collect()
+}
+
+/// `text` cut at `MAX_TEXT` bytes, on a character.
+fn capped(mut text: String) -> String {
+    if text.len() > MAX_TEXT {
+        let mut end = MAX_TEXT;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+    }
+    text
 }
 
 /// A commit's searchable documents, as its type answers `search-text` (only `keys`, when

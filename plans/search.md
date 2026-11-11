@@ -52,6 +52,15 @@ Each step is one PR.
 
 ## Left open
 
+- **Leaving the tree is not masked** (step 3 of "The indexer"): a block moved to
+  a private root, trashed or emptied keeps its text in the old root's index, which
+  every viewer of that root can decrypt. The UI hides it (`show` filters by
+  access) but a modified client reads it. Mask it with `Batch::removed_blocks`
+  from the device that moves it.
+- **A forged index.** Edit on a root is enough to write arbitrary content into its
+  index: forged entries, an unbounded size that every viewer's search reads, and a
+  far-future commit time that wins the merge by commit time in a query. Cap an
+  index's size and refuse commit times in the future when it is cheap.
 - **The writer only.** The device whose session seals a commit indexes it
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.
@@ -93,5 +102,5 @@ Design notes, not done criteria. The target is a tree with a gigabyte of text
 
 The aim is the same as for every block: hide names and content. The server
 already knows the graph and which blocks each device opens, so it is accepted
-that it also sees index sizes, when they change, which parts change, and which
+that it also sees that a workspace has an index, its size, when it changes, which parts change, and which
 parts and ranges a query reads. It never sees a term, a query or a name.

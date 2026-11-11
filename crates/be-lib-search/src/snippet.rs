@@ -81,8 +81,9 @@ fn back(text: &str, at: usize, chars: usize) -> usize {
         return 0;
     }
     text[start..at]
-        .find(char::is_whitespace)
-        .map_or(start, |gap| start + gap + 1)
+        .char_indices()
+        .find(|(_, c)| c.is_whitespace())
+        .map_or(start, |(gap, c)| start + gap + c.len_utf8())
         .min(at)
 }
 

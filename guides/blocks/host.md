@@ -225,9 +225,15 @@ index and search it locally.
   children. Its access is exactly the root's, whatever its own authorship says
   (`BlockNode::is_search_index`, `level_below`), so a block shared alone never
   reads its tree's text through it. The server holds to the type and parent,
-  since it cannot read metadata: an index lies under a block, one held per
-  block, takes no grants of its own, and making or dropping it needs Edit on
-  the root. It rotates with the root's subtree like any block below it.
+  since it cannot read metadata: an index lies under a top-level block, one held
+  per block, never moves under another block (it would read that tree's text as
+  the new parent's), takes no grants of its own, and making or dropping it needs
+  Edit on the root. It rotates with the root's subtree like any block below it.
+- **A block that leaves the tree** (moved to another root, trashed, its text
+  deleted) is not masked yet: its text stays in the old root's index, which
+  every viewer of that root can read, and only `show` hides it by access. Treat
+  a moved or trashed block's old text as still readable by that root's viewers
+  (plans/search.md, "Left open").
 - **The content** is `be_block::search_index::SearchIndexContent`, a
   `be_lib_search::Index` kept as the block's parts: the header first (all a
   replica loads, `Loads::FirstPart`), then every part the header names, read by
@@ -247,7 +253,11 @@ index and search it locally.
   root's open replica has sealed its edits, as a define command is, so the
   define never lands under a moving session. The loop takes one block a round
   and asks only a type whose module already runs: starting one, or retrying a
-  define each round, would stall the opens and edits behind it.
+  define each round, would stall the opens and edits behind it. A document's
+  text is indexed up to `MAX_TEXT` (1 MiB) bytes. Blocks whose index has no
+  head on this device yet are parked until it has one, not queued each round.
+  `Searched::complete` is true when nothing this device could index is queued,
+  being made or written; an edit on a root it cannot edit is never queued.
 - **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches
   an owner shows and `searched` answers each (`search_revision` counts
   answers). A search runs in a task over the index of every root the account

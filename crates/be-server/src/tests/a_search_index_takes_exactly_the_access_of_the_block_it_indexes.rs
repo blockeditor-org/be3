@@ -114,22 +114,35 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
         refused_as(&created, ErrorCode::InvalidRequest),
         "a block took a second index: {created:?}"
     );
-    let (loose, created) = create_index(&mut editor, note).await;
-    assert!(matches!(created, Ok(_)), "{created:?}");
-    let moved = editor
-        .call(|peer| {
-            client::blocks::set_parent(
-                peer,
-                loose,
-                BlockParent::Block(workspace),
-                KeySet::default(),
-            )
-        })
-        .await;
+    let (_, created) = create_index(&mut editor, note).await;
     assert!(
-        refused_as(&moved, ErrorCode::InvalidRequest),
-        "a second index moved under a block: {moved:?}"
+        refused_as(&created, ErrorCode::InvalidRequest),
+        "an index was made under a block inside a tree: {created:?}"
     );
+    let second = owner.create_block(BlockParent::Root).await;
+    let third = owner.create_block(BlockParent::Root).await;
+    for block in [second, third] {
+        let granted = owner.grant(block, editor_id, Access::Edit).await;
+        assert!(matches!(granted, Ok(())), "{granted:?}");
+    }
+    let (loose, created) = create_index(&mut editor, second).await;
+    assert!(matches!(created, Ok(_)), "{created:?}");
+    for target in [workspace, third, note] {
+        let moved = editor
+            .call(|peer| {
+                client::blocks::set_parent(
+                    peer,
+                    loose,
+                    BlockParent::Block(target),
+                    KeySet::default(),
+                )
+            })
+            .await;
+        assert!(
+            refused_as(&moved, ErrorCode::InvalidRequest),
+            "an index moved under another block: {moved:?}"
+        );
+    }
     let referred = refer(&mut viewer, workspace, vec![note, index]).await;
     assert!(
         refused_as(&referred, ErrorCode::PermissionDenied),

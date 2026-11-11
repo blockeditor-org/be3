@@ -208,6 +208,12 @@ fn require_index_place(
             "a search index lies under the block it indexes".into(),
         ));
     };
+    if graph.get(parent).is_none_or(|node| node.parent != BlockParent::Root) {
+        return Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            "a search index lies under a top-level block, the root of the tree it indexes".into(),
+        ));
+    }
     let held = graph
         .children(BlockParent::Block(parent))
         .into_iter()
@@ -1184,6 +1190,15 @@ impl ServerStore {
             }
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             if node.content_type == SEARCH_INDEX_TYPE && parent != BlockParent::Detached {
+                // It indexes the tree of the block it was made under, and takes that block's
+                // access: moving it under another block would read that tree's text as the
+                // new parent's.
+                if node.parent != parent {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a search index stays under the block it indexes".into(),
+                    ));
+                }
                 require_index_place(graph, block, parent)?;
             }
             match parent {
