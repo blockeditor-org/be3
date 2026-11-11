@@ -549,9 +549,14 @@ impl Instances {
                 let Some(block) = self.signed_in(instance) else {
                     return answering.send(Err(Failure::Unavailable));
                 };
-                be_host_stack::authorship::sign(block, bytes, move |signed| {
-                    answering.send_or_fail(signed)
-                });
+                if bytes.len() > MAX_SIGNED_BYTES {
+                    return answering.send(Err(Failure::Denied));
+                }
+                be_host_stack::authorship::sign(
+                    block,
+                    by_app(&self.app_id, &bytes),
+                    move |signed| answering.send_or_fail(signed),
+                );
             }
             Call::Verify {
                 reply,
@@ -564,6 +569,7 @@ impl Instances {
                     return answering.send(Err(Failure::Unavailable));
                 };
                 let account = Uuid::from_bytes(account);
+                let bytes = by_app(&self.app_id, &bytes);
                 be_host_stack::authorship::verify(account, block, bytes, signature, move |found| {
                     answering.send(found.map(signer).map_err(|_| Failure::Unavailable))
                 });
@@ -681,4 +687,16 @@ fn signer(signer: be_host_stack::authorship::Signer) -> Signer {
         Found::Changed => Signer::Changed,
         Found::Bad => Signer::Bad,
     }
+}
+
+/// The most an app may ask the host to sign at once (`sign`): a record's bytes, not a file.
+const MAX_SIGNED_BYTES: usize = 64 * 1024;
+
+/// `bytes` as `app_id` signs or checks them: its manifest id, framed, ahead of them, so one app
+/// cannot make a signature another app's `verify` accepts, even in a block both are shown.
+fn by_app(app_id: &str, bytes: &[u8]) -> Vec<u8> {
+    let mut bound = (app_id.len() as u64).to_be_bytes().to_vec();
+    bound.extend_from_slice(app_id.as_bytes());
+    bound.extend_from_slice(bytes);
+    bound
 }

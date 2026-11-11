@@ -209,7 +209,8 @@ interface host-services {
 
     /// Signs `bytes` as the person, with a key the app never holds. The
     /// signature covers the block the editor shows, so it verifies only
-    /// there. Denied in a revision preview.
+    /// there, and the host also binds the asking app, so another app's `verify`
+    /// never accepts it. At most 64 KiB. Denied in a revision preview.
     sign: async func(bytes: list<u8>) -> result<list<u8>, failure>;
 
     /// Whether `account` signed `bytes` in the block the editor shows, and

@@ -691,7 +691,7 @@ impl Refs {
     }
 
     /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
-    /// names it, which no later pin undoes, and then the account's current one, last. A key is
+    /// names it, which no later pin undoes. The newest verified key, last, is the account's current one. A key is
     /// never forgotten, so what an account signed before a new phrase still verifies, though
     /// not as its current key (`Peer::verify_authored`).
     pub fn add_signer(
@@ -703,18 +703,12 @@ impl Refs {
         let known = {
             let mut state = self.state.lock().unwrap();
             let known = state.signers.entry(account).or_default();
-            let at = known.iter().position(|known| known.key == key);
-            match (at, verified) {
-                (Some(at), false) => {
-                    let _ = at;
-                    return Ok(());
-                }
-                (Some(at), true) if at + 1 == known.len() && known[at].verified => return Ok(()),
-                (Some(at), true) => {
-                    known.remove(at);
-                    known.push(KnownSigner { key, verified });
-                }
-                (None, _) => known.push(KnownSigner { key, verified }),
+            // An existing key never moves: a stale card a server replays must not make an
+            // old key the newest, which is the account's current one.
+            match known.iter_mut().find(|known| known.key == key) {
+                Some(found) if found.verified || !verified => return Ok(()),
+                Some(found) => found.verified = true,
+                None => known.push(KnownSigner { key, verified }),
             }
             known.clone()
         };

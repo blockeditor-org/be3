@@ -145,15 +145,16 @@ Edit can write as someone else.
   signs a domain of its own, the block and the bytes; a signature never
   verifies in another block (`SigningPublic::verifies_authored`).
 - **Domain separation**: what the key signs is `be3.authorship.v1`, the 16-byte
-  block id, then the app's bytes, so the prefix is fixed width and the host, not
-  the app, chooses it. A signature an app asks for can never verify as anything
-  else this key or any other key in the system signs (escrow, key changes and
-  invitations use other keys or other domains), and never in another block than
-  the one the editor shows. An untrusted app can still sign any bytes in a block
-  it is open on, such as a forged-looking chat record in that chat, as one with
-  Edit could write them: apps put their own domain first in their bytes (chat's
-  `be3.chat.message`) so their records can't be mistaken for each other, but
-  that is not a boundary against another editor of the same block.
+  block id, then the bytes, so the prefix is fixed width and the host, not the
+  app, chooses it; a signature never verifies in another block than the one the
+  editor shows, nor as anything else this key or another key signs (escrow, key
+  changes and invitations use other keys or domains). The host also puts the
+  asking app's manifest id, framed, ahead of the app's bytes (`sign` and
+  `verify`, at most 64 KiB), so an app cannot make a signature that another
+  app's `verify` accepts, even in a block both are shown. Apps put their own
+  domain first in their bytes (chat's `be3.chat.message`) so their records can't
+  be mistaken for each other. Reactions and deletions are not signed yet
+  (plans/authorship.md).
 - **Apps** never hold it: host-services' `sign` and `verify`
   (guides/apps/host_services.md) answer from the worker (`be-host-stack`
   `authorship.rs`), in the block the editor shows.
