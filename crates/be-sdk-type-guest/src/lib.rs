@@ -323,7 +323,9 @@ struct State {
     /// Each replica's block, and what the server lacked of the edits made in a block whose
     /// replica ended, for the next one to carry on with (`ToEditor::Lacking`).
     blocks: BTreeMap<ReplicaId, Uuid>,
-    carried: BTreeMap<Uuid, Vec<lacking::Entry>>,
+    carried: BTreeMap<Uuid, lacking::Carried>,
+    /// The blocks in `carried`, oldest first, for dropping the longest unopened.
+    carried_order: std::collections::VecDeque<Uuid>,
 }
 
 struct Shared {
@@ -358,6 +360,7 @@ impl Module {
                     requests: 0,
                     blocks: BTreeMap::new(),
                     carried: BTreeMap::new(),
+                    carried_order: std::collections::VecDeque::new(),
                 }),
                 started: Cell::new(false),
             }),
@@ -437,10 +440,10 @@ impl Module {
             Some(mut opened) => {
                 let carried = match state.replicas.get_mut(&replica) {
                     Some(before) => before.carry(),
-                    None => lacking::Carried {
-                        entries: state.carried.remove(&opening.block).unwrap_or_default(),
-                        ..lacking::Carried::default()
-                    },
+                    None => {
+                        state.carried_order.retain(|block| *block != opening.block);
+                        state.carried.remove(&opening.block).unwrap_or_default()
+                    }
                 };
                 opened.adopt(carried);
                 state.blocks.insert(replica, opening.block);
@@ -564,15 +567,20 @@ impl Module {
             let carried = state
                 .replicas
                 .remove(&id)
-                .map(|mut replica| replica.carry().entries)
+                .map(|mut replica| replica.carry())
                 .unwrap_or_default();
             if let Some(block) = state.blocks.remove(&id)
-                && !carried.is_empty()
+                && (!carried.entries.is_empty() || carried.refused)
             {
+                state.carried_order.retain(|held| *held != block);
+                state.carried_order.push_back(block);
                 state.carried.insert(block, carried);
                 // Kept for the blocks opened again soon; the others ask the host when they open.
                 while state.carried.len() > CARRIED_BLOCKS {
-                    state.carried.pop_first();
+                    match state.carried_order.pop_front() {
+                        Some(oldest) => state.carried.remove(&oldest),
+                        None => state.carried.pop_first().map(|(_, carried)| carried),
+                    };
                 }
             }
         }

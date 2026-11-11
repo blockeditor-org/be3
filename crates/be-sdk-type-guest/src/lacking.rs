@@ -44,17 +44,25 @@ pub(crate) struct Entry {
     operation: Vec<u8>,
     until: Until,
     failed: bool,
+    /// The sequence it had in the journal, once it had one: how a replayed journal entry is
+    /// told from another with the same (or no) bytes, and from a folded one.
+    sequence: Option<u64>,
 }
 
 #[derive(Default)]
 pub(crate) struct Carried {
     pub(crate) entries: Vec<Entry>,
     pub(crate) followers: BTreeSet<EditorId>,
+    /// A refusal of this device's kept commits was already told to the replicas before.
+    pub(crate) refused: bool,
 }
 
 #[derive(Default)]
 pub(crate) struct Lacking {
     entries: Vec<Entry>,
+    /// The refusal of this device's kept commits that opening reported (or a drain told) was
+    /// applied: a commit the device still holds after it was refused is not a new refusal.
+    refused: bool,
     next: u64,
     /// The entries the followers were last told of, by id, with whether each had failed.
     told: Vec<(u64, bool)>,
@@ -75,17 +83,22 @@ impl Lacking {
         }
         // An edit carried from the replica before, made again here (the host replays what it
         // kept), is followed as this one.
-        self.journaled(&operation);
-        self.push(operation, until, false);
+        self.journaled(&operation, None);
+        self.push(operation, until, false, None);
     }
 
-    fn push(&mut self, operation: Vec<u8>, until: Until, failed: bool) {
+    fn push(&mut self, operation: Vec<u8>, until: Until, failed: bool, sequence: Option<u64>) {
         self.next += 1;
+        let sequence = match until {
+            Until::Sequenced(sequence) | Until::Lost(sequence) => Some(sequence),
+            _ => sequence,
+        };
         self.entries.push(Entry {
             id: self.next,
             operation,
             until,
             failed,
+            sequence,
         });
         self.changed = true;
     }
@@ -93,18 +106,20 @@ impl Lacking {
     /// Adds an edit replayed from this device's own journal, which the server lacks, whether an
     /// editor follows yet or not: it opens before they ask.
     pub(crate) fn add_replayed(&mut self, operation: Vec<u8>, sequence: u64) {
-        self.journaled(&operation);
-        self.push(operation, Until::Lost(sequence), false);
+        self.journaled(&operation, Some(sequence));
+        self.push(operation, Until::Lost(sequence), false, None);
     }
 
-    /// The server's journal holds `operation`, or this replica made it again: one edit carried
-    /// from before with those bytes is followed no longer.
-    pub(crate) fn journaled(&mut self, operation: &[u8]) {
-        if let Some(at) = self
-            .entries
-            .iter()
-            .position(|entry| entry.until == Until::Carried && entry.operation == operation)
-        {
+    /// The server's journal holds `operation` at `sequence`, or this replica made it again: one
+    /// edit carried from before with that sequence, or else with those bytes (when it has any),
+    /// is followed no longer.
+    pub(crate) fn journaled(&mut self, operation: &[u8], sequence: Option<u64>) {
+        let named = |entry: &Entry| {
+            entry.until == Until::Carried
+                && (sequence.is_some() && entry.sequence == sequence
+                    || !operation.is_empty() && entry.operation == operation)
+        };
+        if let Some(at) = self.entries.iter().position(named) {
             self.entries.remove(at);
             self.changed = true;
         }
@@ -224,6 +239,7 @@ impl Lacking {
         match refused {
             false => self.forget_kept(),
             true => {
+                self.refused = true;
                 // Edits carried from an earlier replica may be among the refused commits, and
                 // nothing else would ever settle them.
                 for entry in &mut self.entries {
@@ -243,7 +259,10 @@ impl Lacking {
         match kept {
             KeptCommits::None => self.forget_kept(),
             KeptCommits::Outbox => {}
-            KeptCommits::Refused => self.drained(true),
+            // A refused commit stays on the device after its edit was dismissed: only a refusal
+            // not applied yet fails what was kept.
+            KeptCommits::Refused if !self.refused => self.drained(true),
+            KeptCommits::Refused => {}
         }
     }
 
@@ -314,6 +333,10 @@ impl Lacking {
             // nothing could show it: it goes with this replica.
             .filter(|entry| entry.until != Until::Dropped)
             .map(|entry| Entry {
+                sequence: match entry.until {
+                    Until::Sequenced(sequence) | Until::Lost(sequence) => Some(sequence),
+                    _ => entry.sequence,
+                },
                 until: match entry.until {
                     Until::Kept => Until::Kept,
                     _ => Until::Carried,
@@ -324,12 +347,14 @@ impl Lacking {
         Carried {
             entries,
             followers: std::mem::take(&mut self.followers),
+            refused: self.refused,
         }
     }
 
     pub(crate) fn adopt(&mut self, carried: Carried) {
+        self.refused |= carried.refused;
         for entry in carried.entries {
-            self.push(entry.operation, entry.until, entry.failed);
+            self.push(entry.operation, entry.until, entry.failed, entry.sequence);
         }
         for editor in carried.followers {
             self.follow(editor);

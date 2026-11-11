@@ -1992,7 +1992,7 @@ where
             };
             match self.journal_kept {
                 true => self.lacking.add_replayed(bytes, op.sequence),
-                false => self.lacking.journaled(&bytes),
+                false => self.lacking.journaled(&bytes, Some(op.sequence)),
             }
         }
         self.visible = self.confirmed.clone();
