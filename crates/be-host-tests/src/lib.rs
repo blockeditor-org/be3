@@ -232,8 +232,21 @@ impl HostTest {
     /// composites it, and each preview replaced by the preview's own painting. A preview waits
     /// out its cooldown before it paints a second change, so pause for `PREVIEW_COOLDOWN` after
     /// changing a block whose preview the test looks at.
+    ///
+    /// The frame is painted twice, with a settle between, and the two must match: a painting
+    /// that changes between two frames of a program with nothing left to do shows something
+    /// that was still arriving (a hover, an animation's last step, an app's late frame), and
+    /// would be a different painting on a slower machine. The test waits for what it needs, as
+    /// guides/testing_a_gui.md, 6, says.
     pub fn record(&mut self) {
         let painted = self.paint();
+        self.run(&["settle"]);
+        let again = self.paint();
+        if painted.body().ok() != again.body().ok() {
+            self.fail(
+                "the painting is not settled: it changed between two frames, so something was still arriving. Wait for it (`wait`, `gone`) before the snapshot, or park the pointer (`leave`) if it is a hover",
+            );
+        }
         let found = self.run(&["overflows"]);
         self.overflows.extend(found.lines().map(str::to_owned));
         match &mut self.recorded {
