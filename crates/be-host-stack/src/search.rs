@@ -150,7 +150,10 @@ impl Searching {
         // A graph the loop has not looked at yet may hold a workspace that wants its index.
         (!self.off
             && (!self.dirty.is_empty()
-                || self.creating.keys().any(|root| !self.deferred.contains(root))
+                || self
+                    .creating
+                    .keys()
+                    .any(|root| !self.deferred.contains(root))
                 || self.scanned != Some(graph_revision)))
             || !self.writing.is_empty()
             || !self.running.is_empty()
@@ -629,14 +632,13 @@ async fn name_indexes(
     let made: Vec<(Uuid, Uuid)> = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         // A root left, or one this account may no longer edit, has no index to name.
-        let (named, gone): (Vec<_>, Vec<_>) =
-            std::mem::take(&mut held.search.made)
-                .into_iter()
-                .partition(|(root, _)| {
-                    held.graph
-                        .get(*root)
-                        .is_some_and(|node| node.access.can_edit() && !node.locked)
-                });
+        let (named, gone): (Vec<_>, Vec<_>) = std::mem::take(&mut held.search.made)
+            .into_iter()
+            .partition(|(root, _)| {
+                held.graph
+                    .get(*root)
+                    .is_some_and(|node| node.access.can_edit() && !node.locked)
+            });
         for (root, _) in gone {
             held.search.make_failed(root);
         }
