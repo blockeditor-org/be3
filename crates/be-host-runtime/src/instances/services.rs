@@ -371,6 +371,10 @@ impl Instances {
             } => {
                 self.services.answers.push(reply.answer(&()));
                 let holder = Uuid::from_bytes(holder);
+                if blocks.is_empty() {
+                    super::cuts::record([]);
+                    return;
+                }
                 if !self.editable(holder) {
                     return;
                 }

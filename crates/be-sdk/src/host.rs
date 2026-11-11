@@ -1851,7 +1851,8 @@ impl EditorHost {
 
     /// Records a cut of references to `blocks` held in `holder`, when the
     /// editor may change `holder`: the first paste of a block whose parent
-    /// `holder` was moves it, and of any other answers `cut_from`.
+    /// `holder` was moves it, and of any other answers `cut_from`. With no
+    /// `blocks` it forgets every cut, whatever `holder` is.
     pub fn cut_blocks(&self, blocks: &[Uuid], holder: Uuid) {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
         self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());

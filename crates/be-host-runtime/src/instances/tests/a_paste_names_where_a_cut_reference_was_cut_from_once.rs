@@ -121,6 +121,21 @@ fn a_paste_names_where_a_cut_reference_was_cut_from_once() {
     );
 
     cut(&mut instances, linked, holder);
+    ask(
+        &mut instances,
+        Service::CutBlocks {
+            reply: reply(next_op()),
+            blocks: Vec::new(),
+            holder: Uuid::nil().into_bytes(),
+        },
+    );
+    assert_eq!(
+        paste(&mut instances, linked, folder),
+        None,
+        "a copy after the cut forgets it, so the paste links"
+    );
+
+    cut(&mut instances, linked, holder);
     be_host_stack::set_parent(holder, BlockParent::Detached);
     assert_eq!(
         paste(&mut instances, linked, folder),

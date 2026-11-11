@@ -145,7 +145,8 @@ files, read through their types only when a paste asks. Ids inside a
 
 A cut is recorded by the host, not the clip, and only the host keeps it:
 `host().cut_blocks(blocks, holder)`, which it ignores unless `holder` may be
-changed. The canvas then removes its references as a delete does; the files
+changed; `editor.copy_blocks` forgets every cut, so a cut is a copy followed by
+`cut_blocks`. The canvas then removes its references as a delete does; the files
 pane leaves a cut link where it is. A paste of `be3/blocks` goes through
 `host().paste_blocks(blocks, parent)`, which answers with the blocks the
 editor may view (`Pasted`), and the first paste of each uses up its record, so
