@@ -57,7 +57,13 @@ Each step is one PR.
   every viewer of that root can decrypt. The UI hides it (`show` filters by
   access) but a modified client reads it. Mask it with `Batch::removed_blocks`
   from the device that moves it.
-- **A forged index.** Edit on a root is enough to write arbitrary content into its
+- **Late text in a huge document is not searchable.** A document's text is
+  indexed up to 1 MiB (`MAX_TEXT`); a word past that finds nothing, and nothing
+  in the interface says why. It is capped after the body is loaded, so it does
+  not bound memory, and the number of documents per block is not capped.
+- **A trashed index is not restored.** From Detached it can only return to
+  where it was, which the server refuses for an index; a new one is made.
+- **A forged index.** Any editor of a root is enough to write arbitrary content into its
   index: forged entries, an unbounded size that every viewer's search reads, and a
   far-future commit time that wins the merge by commit time in a query. Cap an
   index's size and refuse commit times in the future when it is cheap.
