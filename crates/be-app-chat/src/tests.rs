@@ -2,7 +2,7 @@ use be_sdk_beui::be_block::{Edit, LiveEdit, ObjectId};
 use be_sdk_beui::beui::vec2;
 use be_sdk_beui::{EditorHost, OwnedEditor, Signer};
 use be_sdk_test::BeuiTest;
-use be_type_chat::{ChatContent, Message, Signature};
+use be_type_chat::{ChatContent, ChatOp, Message, Signature};
 use uuid::Uuid;
 
 use std::time::Duration;
@@ -12,6 +12,8 @@ use crate::root::ChatRoot;
 mod a_conversation_shows_each_message_with_its_author_and_time;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_request;
+mod a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed;
 mod a_message_kept_offline_is_sent_once_the_drain_publishes_it_while_the_chat_is_closed;
 mod a_message_sent_after_a_discarded_one_does_not_show_as_not_sent_when_the_chat_opens_again;
 mod a_message_sent_after_a_discarded_one_is_sent_once_its_commit_drains_while_the_chat_is_closed;
@@ -83,7 +85,7 @@ impl Harness {
         for (index, (author, body)) in messages.iter().enumerate() {
             let time = MORNING + index as i64 * 3 * MINUTE;
             let send = signed_by(&content, *author, Message::new(*author, time, *body));
-            content.apply(&send);
+            content.apply(&send.into());
         }
         let mut harness = Self {
             editor: match shown == CHAT {
@@ -122,7 +124,8 @@ impl Harness {
     }
 
     fn arrive(&mut self, operation: Edit) {
-        self.editor.edit::<ChatContent>(None, &operation);
+        self.editor
+            .edit::<ChatContent>(None, &ChatOp::Edit(operation));
         self.run();
     }
 

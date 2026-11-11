@@ -173,8 +173,8 @@ host owes a replica (the WIT documents each call):
 
 ### Parts named by hash
 
-An operation can carry a part by its ref instead of its bytes: chat closing a
-segment, the search index's writer adding one, an edit too large to relay.
+An operation can carry a part by its ref instead of its bytes: the search index's
+writer adding one, an edit too large to relay.
 The sender calls `put-part(bytes)`, which seals the bytes under the block's
 current key, uploads them and has the server hold them for the block
 (`hold-objects` with `hold.until-committed`), and answers the `part-ref`
@@ -185,8 +185,9 @@ block's journal holds no entries (an uncommitted operation may still name the
 part). A type's part is put by an editor: `EditorMirror::put_part`
 (`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
 the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
-replica to put a part of its own (chat's owner closing a segment with no
-editor attached); the replica puts only an oversized operation's bytes. The
+replica to put a part of its own; the replica puts only an oversized operation's
+bytes. (Chat closes a segment without one: the operation carries the segment's
+bytes, which every replica keeps until a save writes them, plans/chat.md.) The
 block must be on the server: a block made offline, or one whose replica has
 not joined yet, is refused.
 
@@ -197,7 +198,7 @@ downloading its nodes, never its chunks: its top object to learn its key, and
 the rest to list the commit's objects. That needs the server, so an owner
 offline cannot seal a commit reusing a part it never fetched. A type that only
 keeps the part (the search index) never reads it. A type that can rebuild the
-bytes (chat) puts a hash of them in the operation, rebuilds them on applying it
+bytes from what it has puts a hash of them in the operation, rebuilds them on applying it
 and keeps them when they match, answering reads of the part from
 `BlockContent::reused_bytes`; when its encoding differs (another build) it
 keeps nothing and reads go to `read-part`. Such a type loads only its first

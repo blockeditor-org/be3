@@ -6,13 +6,15 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_ARROW_DOWN, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER, ICON_PENCIL,
-    ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
+    Glyph, ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER,
+    ICON_PENCIL, ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Signer, utc_offset};
-use be_type_chat::{ChatContent, ChatReads, Message, MessageEdit, ReadPlace, Shown, Signature};
+use be_type_chat::{
+    ChatContent, ChatReads, Message, MessageEdit, ReadPlace, Segment, Shown, Signature,
+};
 use beui::{Align, Direction, ScrollPosition};
 use uuid::Uuid;
 
@@ -98,24 +100,12 @@ pub fn Chat(editor: Editor) -> NodeId {
     });
     on_cleanup(move || asking.cancel());
     let rows = chat.project_keyed(move |content: &ChatContent, rows| {
-        let shown = content.shown();
-        let by_id: HashMap<ObjectId, &Shown> =
-            shown.iter().map(|message| (message.id, message)).collect();
-        let today = local_date(now());
-        let rows_now: Vec<(ObjectId, Row)> = shown
-            .iter()
-            .map(|message| {
-                let row = Row {
-                    proofs: proofs(content, message),
-                    ..row(&by_id, message, me, today)
-                };
-                (message.id, row)
-            })
-            .collect();
-        rows.reconcile_owned(rows_now);
+        rows.reconcile_owned(row_list(content, &content.shown(), me));
     });
     let ids = rows.keys();
-    let empty = create_memo(move || ids.with(Vec::is_empty));
+    let older = Older::new(chat, me);
+    let older_ids = older.rows.keys();
+    let empty = create_memo(move || ids.with(Vec::is_empty) && older_ids.with(Vec::is_empty));
     let composer = Composer {
         draft: create_signal(String::new()),
         replying: create_signal(None),
@@ -124,7 +114,9 @@ pub fn Chat(editor: Editor) -> NodeId {
     };
     // A message replied to or being edited can be deleted, here or elsewhere.
     create_effect(move || {
+        let older_ids = older_ids.get();
         ids.with(|ids| {
+            let ids: Vec<ObjectId> = older_ids.iter().chain(ids.iter()).copied().collect();
             if composer
                 .replying
                 .get_untracked()
@@ -160,7 +152,7 @@ pub fn Chat(editor: Editor) -> NodeId {
     });
     let replying = create_memo(move || {
         let id = composer.replying.get()?;
-        let quoted = rows.try_get(&id)?;
+        let quoted = rows.try_get(&id).or_else(|| older.rows.try_get(&id))?;
         Some(quoted.with(|row| format!("Replying to {}: {}", row.author, excerpt(&row.body))))
     });
     let reply_label = create_memo(move || replying.get().unwrap_or_default());
@@ -193,12 +185,38 @@ pub fn Chat(editor: Editor) -> NodeId {
         })
     });
 
+    // The oldest recent messages close into a segment once the recent ones are long enough.
+    // Any editor may propose it, and the segment closes once: the messages it names are the
+    // oldest ones in the order every replica has, and a second proposal finds them gone.
+    let visible = editor.presence_visible();
+    create_effect(move || {
+        let _ = chat.revision();
+        let (visible, lacking) = (
+            visible.get(),
+            unsent.with(|unsent| unsent.keys().copied().collect::<Vec<ObjectId>>()),
+        );
+        if !visible {
+            return;
+        }
+        if let Ok(Some(closing)) = chat.read(|content| content.closing(&lacking)) {
+            untrack(|| chat.operate(closing));
+        }
+    });
+
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         view! {
             <MessageRow editor chat={chat} me id row={shown} composer unsent block signing />
         }
     };
+    let older_message_rows = move |id: ObjectId| {
+        let shown = older.rows.get(&id);
+        view! {
+            <MessageRow editor chat={chat} me id row={shown} composer unsent block signing />
+        }
+    };
+    let has_older = older.remaining;
+    let older_failed = older.failed;
 
     view! {
         <List spacing=Space::None>
@@ -208,6 +226,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                     follow_end=true
                     on_change={move |position: ScrollPosition| {
                         at_end.set(position.offset >= position.max_offset() - 1.0);
+                        older.at_start.set(position.offset <= 1.0);
                     }}
                 >
                     <Frame padding={Padding::all(Space::Xl)}>
@@ -217,6 +236,28 @@ pub fn Chat(editor: Editor) -> NodeId {
                                     "No messages yet. Say hello below."
                                 </Text>
                             </Show>
+                            <Show condition={has_older}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Sm
+                                >
+                                    <Button
+                                        label="Earlier messages"
+                                        glyph=ICON_ARROW_UP
+                                        variant=ButtonVariant::Secondary
+                                        size=ButtonSize::Small
+                                        @test_id={"chat.older"}
+                                        on_click={move || older.load()}
+                                    />
+                                    <Show condition={older_failed}>
+                                        <Text style=TextStyle::CAPTION>
+                                            "Could not read the earlier messages"
+                                        </Text>
+                                    </Show>
+                                </List>
+                            </Show>
+                            <ForEach keys={older_ids} view={older_message_rows} />
                             <ForEach keys={ids} view={message_rows} />
                         </List>
                     </Frame>
@@ -294,6 +335,136 @@ pub fn Chat(editor: Editor) -> NodeId {
             </Frame>
         </List>
     }
+}
+
+/// The messages of closed segments, read back by range as the person scrolls to the start of
+/// the chat (plans/chat.md, step 1d): the newest segment first, one at a time, each checked
+/// against the index before it shows.
+#[derive(Clone, Copy)]
+struct Older {
+    chat: Chat,
+    /// The segments read so far, each by its first message, with its messages.
+    read: Signal<Vec<(ObjectId, Vec<(ObjectId, Message)>)>>,
+    segments: ReadSignal<Vec<Segment>>,
+    rows: KeyedStore<ObjectId, Row>,
+    reading: Signal<bool>,
+    /// The last read failed, or returned bytes the index does not describe.
+    failed: Signal<bool>,
+    /// The chat is scrolled to its first message.
+    at_start: Signal<bool>,
+    /// A closed segment is left to read.
+    remaining: Memo<bool>,
+}
+
+impl Older {
+    fn new(chat: Chat, me: Uuid) -> Self {
+        let segments = chat.project(|content: &ChatContent| content.segments());
+        let read: Signal<Vec<(ObjectId, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
+        let rows = KeyedStore::new();
+        let older = Self {
+            chat,
+            read,
+            segments,
+            rows,
+            reading: create_signal(false),
+            failed: create_signal(false),
+            at_start: create_signal(false),
+            remaining: create_memo(move || {
+                segments.with(|segments| {
+                    read.with(|read| {
+                        segments
+                            .iter()
+                            .any(|segment| !read.iter().any(|(first, _)| *first == segment.first))
+                    })
+                })
+            }),
+        };
+        // Reaching the start of the chat reads the next older segment.
+        create_effect(move || {
+            if older.at_start.get() {
+                untrack(|| older.load());
+            }
+        });
+        // What was read follows the edits, deletions and reactions made to it since.
+        create_effect(move || {
+            let _ = chat.revision();
+            let (segments, read) = (segments.get(), read.get());
+            let rows_now = chat
+                .read(|content| {
+                    let messages = segments
+                        .iter()
+                        .filter_map(|segment| {
+                            read.iter().find(|(first, _)| *first == segment.first)
+                        })
+                        .flat_map(|(_, messages)| messages.iter().cloned())
+                        .collect();
+                    row_list(content, &content.shown_of(messages), me)
+                })
+                .unwrap_or_default();
+            rows.reconcile_owned(rows_now);
+        });
+        older
+    }
+
+    /// Reads the newest segment not read yet, if there is one and none is being read.
+    fn load(&self) {
+        if self.reading.get_untracked() {
+            return;
+        }
+        let read = self.read.get_untracked();
+        let segments = self.segments.get_untracked();
+        let Some(index) = segments
+            .iter()
+            .rposition(|segment| !read.iter().any(|(first, _)| *first == segment.first))
+        else {
+            return;
+        };
+        let first = segments[index].first;
+        let live = self.chat.live();
+        let Ok(Some(range)) = self
+            .chat
+            .read(|content| content.segment_ranges().get(index).cloned())
+        else {
+            return;
+        };
+        self.reading.set(true);
+        self.failed.set(false);
+        let this = *self;
+        live.read_range(range.start, range.end - range.start, move |bytes| {
+            this.reading.set(false);
+            let messages = bytes.ok().and_then(|bytes| {
+                this.chat
+                    .read(|content| content.read_segment(index, &bytes))
+                    .ok()
+                    .flatten()
+            });
+            match messages {
+                Some(messages) => {
+                    let mut read = this.read.get_untracked();
+                    read.push((first, messages));
+                    this.read.set(read);
+                }
+                None => this.failed.set(true),
+            }
+        });
+    }
+}
+
+/// The rows of `shown` messages, each with its replied-to message and who signed it.
+fn row_list(content: &ChatContent, shown: &[Shown], me: Uuid) -> Vec<(ObjectId, Row)> {
+    let by_id: HashMap<ObjectId, &Shown> =
+        shown.iter().map(|message| (message.id, message)).collect();
+    let today = local_date(now());
+    shown
+        .iter()
+        .map(|message| {
+            let row = Row {
+                proofs: proofs(content, message),
+                ..row(&by_id, message, me, today)
+            };
+            (message.id, row)
+        })
+        .collect()
 }
 
 /// How many messages others sent since this account last read the chat, none until its
@@ -497,7 +668,7 @@ fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer
                     ..edit
                 };
                 if let Ok(change) = chat.read(|content| content.put_edit(message, &edit)) {
-                    chat.operate(change);
+                    chat.operate(change.into());
                 }
             });
             composer.editing.set(None);
@@ -512,7 +683,7 @@ fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer
                         signature: Signature(signed.unwrap_or_default()),
                         ..message
                     };
-                    chat.operate(ChatContent::send_as(id, &message));
+                    chat.operate(ChatContent::send_as(id, &message).into());
                 });
             }
             composer.replying.set(None);
@@ -541,7 +712,7 @@ fn toggle_reaction(chat: &Chat, me: Uuid, message: ObjectId, reaction: &str, min
         false => content.react(message, me, reaction, now()),
     });
     if let Ok(change) = change {
-        chat.operate(change);
+        chat.operate(change.into());
     }
 }
 
@@ -618,11 +789,11 @@ fn MessageRow(
                 Some(content.send(block, again).1)
             });
             if let Ok(Some(send)) = sent {
-                chat.operate(send);
+                chat.operate(send.into());
             }
         }
         if let Ok(delete) = chat.read(|content| content.delete(id, me, now())) {
-            chat.operate(delete);
+            chat.operate(delete.into());
         }
         chat.dismiss_lacking(unsent.lacking);
     };
@@ -812,7 +983,7 @@ fn MessageRow(
                                 @test_id={format!("chat.message.{id}.delete")}
                                 on_click={move || {
                                     if let Ok(delete) = chat.read(|content| content.delete(id, me, now())) {
-                                        chat.operate(delete);
+                                        chat.operate(delete.into());
                                     }
                                     if composer.editing.get_untracked() == Some(id) {
                                         composer.editing.set(None);

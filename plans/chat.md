@@ -1,15 +1,14 @@
 # Chat
 
-Depends on: none; merging by parts (guides/type_modules.md, "Merging by
-parts"), which step 1d uses, has landed. Step 2 needs plans/notifications.md step 1
-(a device that shows a push); the server's side and the `notify` host call
-it uses have landed.
+Depends on: none. The one step left needs plans/notifications.md step 1 (a
+device that shows a push); the server's side and the `notify` host call it uses
+have landed.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
+edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
 
 ## What exists
 
@@ -18,7 +17,7 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
   (its only part, `Loads::FirstPart`) and forwarding `LiveEdit`, `Merge` and
   `Undo` to it. The header holds the messages (a `merge_appends` list),
   `edits`, `deletions` and `reactions` (`LatestMap`s) keyed by message id, and
-  an empty `segments` index. Sending and deleting are not undoable; an edit by
+  the `segments` index of the closed segments. Sending and deleting are not undoable; an edit by
   anyone but the message's author is ignored. Each message stores the hash of the last message its
   author saw (`seen`) and its author's signature; `Message::signed_bytes`,
   `MessageEdit::signed_bytes`, `Deletion::signed_bytes` and
@@ -97,9 +96,37 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
   older messages alike, kept apart from the messages and keyed by message id,
   so closing a segment never drops one; and the segment index (each segment's first
   and last message id, time range and message count).
-- **Segments** (step 1d) are the other parts: about 64–256 KiB of encoded
-  messages each, one part per segment, never changed except by a rewrite. Each
-  segment's references are its node's references, not a list in the header.
+- **Segments (1d)** are the other parts: about 64 to 256 KiB of encoded messages
+  each, one part per segment, never changed once closed (`src/segment.rs`). The
+  stored form is the header, then the segments in the order of the index; each
+  index entry (`Segment`) holds the segment's first and last message, their times,
+  its count, its part's length and SHA-256, and a Bloom filter of its message ids
+  (`may_hold`), so an editor finds a segment's byte range from the index alone
+  (`ChatContent::segment_ranges`) and checks what it read against it
+  (`read_segment`). A replica holds a segment as bytes while it has them unsaved,
+  or as the part it was saved as (`from_stored` takes the refs of the header's
+  siblings); an editor sent only the header holds neither.
+- **Closing a segment** is an operation, `ChatOp::Close`: the header's change
+  (the oldest recent messages leave `messages`, the index gains an entry) and the
+  segment's bytes, which every replica that applies it keeps, so an owner that
+  takes the session over saves the part like any other. The bytes ride in the
+  operation (at most 256 KiB, under what a session relays) rather than being put
+  as a part named by hash: they are the messages the session already relayed, so
+  nothing is uploaded early and no hold is needed. Any attached editor proposes
+  it (`ChatContent::closing`) once the recent messages pass 96 KiB, taking the
+  oldest ones the server holds (not the sending ones), at least 64 KiB of them
+  and leaving at least 32 KiB recent; the segment closes once, since the messages
+  it names must be the oldest recent ones as written, and a second proposal, or one
+  over a message deleted meanwhile, is ignored by every replica alike. A chat
+  nobody has open does not close segments.
+- **Merging** a chat is by parts (`MergeParts`): the header merges as a document
+  and each segment of the merged index keeps the part of the side that has it,
+  reused as saved, so a merge reads none. A segment closed on one side while the
+  other reacted to, edited or deleted a message in it merges clean, since those
+  are kept by message id.
+- **Not built: rewriting a segment** (folding its edits, deletions and reactions
+  into a new part). They stay in the header's maps, keyed by message id, which a
+  rewrite would shrink.
 - **A message** is an object of registers, not `Text`: author, claimed time,
   body, the message it replies to, attachments and an empty signature. Its id
   is its `ObjectId`. 1a also defines a message's hash (over its signed bytes)
@@ -108,20 +135,11 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
   reactions alike, are defined from the start (plans/authorship.md), so
   signing later changes no format. A draft
   stays in the editor until sent.
-- **Closing a segment** is an operation the session owner sequences once the
-  recent messages pass a size: messages a..b become segment k, carried by its
-  hash (`put-part`, guides/type_modules.md, "Parts named by hash").
-  Only an owner online, and only for messages already confirmed. Every replica
-  encodes the segment's bytes itself and checks them against the hash; on a
-  mismatch (another build encoding differently) it reads the part with
-  `read-part` instead. Missing: `put-part` is reachable only from an editor
-  (`FromEditor::PutPart`), so the owner closing a segment with no editor
-  attached needs a type-side hook first (a `LiveEdit` way to ask for a part
-  and sequence the operation that names it once it is put).
-- **Rewriting a segment** folds its pending edits, deletions and reactions in
-  as one new part.
-- **The editor** opens the header and reads segments as the person scrolls
-  back.
+- **The editor** opens the header and shows the recent messages. Scrolled to its
+  first message, or on "Earlier messages", it reads the newest segment it has not
+  read (`FromEditor::Read` by the index's byte range), checks it against the
+  index and shows its messages above the recent ones; what was read follows the
+  edits, deletions and reactions made since.
 - **Attachments** are child blocks.
 
 ### Sending offline
@@ -151,9 +169,12 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
 
 - The newest message and the counts come from the header, so a sidebar of
   chats (not built) reads one small part per chat.
-- With segments (1d), `messages()` holds only the recent ones, and a place it
-  does not hold reads as "not received yet", so all read. 1d has to find a
-  place in an older segment by the segment index instead.
+- With segments, `messages()` holds only the recent ones. A place that is not
+  recent, not a deleted message's, but may be in a closed segment (its Bloom
+  filter) is before every recent message, so each recent message from others
+  counts as unread; a replica does not read a segment to count the unread
+  messages inside it, so those are not counted. A place in none of them is one
+  this replica has not received yet: all read.
 
 ### Deleting
 
@@ -163,12 +184,7 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
 
 ## Order of work
 
-1. **The chat type and editor.**
-   - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
-     messages opens reading only the header; scrolling back reads segments by
-     range; an offline reaction to a message moved into a segment survives the
-     merge; a forced hash mismatch reads the part instead.
-2. **Notifications** for chat: sending a message calls `notify` with its text
+1. **Notifications** (step 2) for chat: sending a message calls `notify` with its text
    and the accounts it mentions (guides/apps/host_services.md), once the
    message is confirmed, since `notify` is not ordered with the save that
    carries it. Done: a member who is
