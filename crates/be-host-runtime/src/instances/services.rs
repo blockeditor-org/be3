@@ -549,7 +549,7 @@ impl Instances {
                 let Some(block) = self.signed_in(instance) else {
                     return answering.send(Err(Failure::Unavailable));
                 };
-                if bytes.len() > MAX_SIGNED_BYTES {
+                if self.app_id.is_empty() || bytes.len() > MAX_SIGNED_BYTES {
                     return answering.send(Err(Failure::Denied));
                 }
                 be_host_stack::authorship::sign(
@@ -568,6 +568,9 @@ impl Instances {
                 let Some(block) = self.signed_in(instance) else {
                     return answering.send(Err(Failure::Unavailable));
                 };
+                if self.app_id.is_empty() {
+                    return answering.send(Err(Failure::Denied));
+                }
                 let account = Uuid::from_bytes(account);
                 let bytes = by_app(&self.app_id, &bytes);
                 be_host_stack::authorship::verify(account, block, bytes, signature, move |found| {

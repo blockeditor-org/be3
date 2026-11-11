@@ -409,11 +409,15 @@ fn proofs(content: &ChatContent, chat: Uuid, message: &Shown) -> Vec<Proof> {
     proofs
 }
 
+/// The longest body sent: well under what `sign` accepts, with the rest of the record.
+const MAX_BODY_BYTES: usize = 32 * 1024;
+
 /// Sends the draft, or saves the edit, once the host signed it as the person; unsigned if the
 /// host could not, which others see as forged rather than lose it.
 fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
     let body = composer.draft.get_untracked().trim().to_owned();
-    if body.is_empty() {
+    // A body the host would refuse to sign stays in the composer rather than go out as forged.
+    if body.is_empty() || body.len() > MAX_BODY_BYTES {
         return;
     }
     let chat = *chat;
