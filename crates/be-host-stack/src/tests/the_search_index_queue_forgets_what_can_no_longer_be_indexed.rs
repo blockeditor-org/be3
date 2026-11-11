@@ -36,12 +36,14 @@ fn the_search_index_queue_forgets_what_can_no_longer_be_indexed() {
     assert_eq!(search.take_queued(), vec![block], "its head arrived");
     assert!(search.indexed());
 
-    // An index made for a root whose replica has unsealed edits does not keep the host busy:
-    // naming waits for them, however long they take.
+    // An index being made or named keeps the host busy, and so does a workspace that wants
+    // one, until the root is given up on.
     let mut search = Searching::default();
     search.wait_for_index(root, index, block);
-    search.defer(root);
     search.take_waiting_for_test();
-    assert!(!search.busy(false), "a deferred index is not busy");
+    assert!(search.busy(false), "an index being named is busy");
+    search.make_failed(root);
+    search.take_queued();
+    assert!(!search.busy(false), "a root given up on is not");
     assert!(search.busy(true), "a workspace wanting its index is");
 }

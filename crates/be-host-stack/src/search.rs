@@ -112,12 +112,9 @@ pub struct Searching {
     creating: HashMap<Uuid, Uuid>,
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
-    /// Roots whose made index waits for the root's open replica to seal its edits, which
-    /// may be long: the host is not busy for it.
-    deferred: HashSet<Uuid>,
-    /// Roots just defined: the size the mirror showed before the define, until the mirror
-    /// shows another, the server's with the define in it.
-    confirming: HashMap<Uuid, u64>,
+    /// Roots just defined, until their define is sent and the mirror has read the root again,
+    /// so the size it shows is the server's with the define in it. True once it is read.
+    confirming: HashMap<Uuid, bool>,
     /// Roots whose index could not be made or named: not tried again, not waited for.
     given_up: HashSet<Uuid>,
     /// Failed attempts to name each root's index.
@@ -156,10 +153,7 @@ impl Searching {
         // next round.
         (!self.off
             && (!self.dirty.is_empty()
-                || self
-                    .creating
-                    .keys()
-                    .any(|root| !self.deferred.contains(root))
+                || !self.creating.is_empty()
                 || !self.confirming.is_empty()
                 || unindexed))
             || !self.writing.is_empty()
@@ -211,7 +205,6 @@ impl Searching {
     pub(crate) fn make_failed(&mut self, root: Uuid) {
         self.creating.remove(&root);
         self.given_up.insert(root);
-        self.deferred.remove(&root);
         self.tries.remove(&root);
         self.made.retain(|(made, _)| *made != root);
         let waiting = std::mem::take(&mut self.waiting);
@@ -239,12 +232,6 @@ impl Searching {
     pub(crate) fn wait_for_index(&mut self, root: Uuid, index: Uuid, block: Uuid) {
         self.creating.insert(root, index);
         self.waiting.insert(block);
-    }
-
-    /// Marks a root's made index as waiting for its replica.
-    #[cfg(test)]
-    pub(crate) fn defer(&mut self, root: Uuid) {
-        self.deferred.insert(root);
     }
 
     /// Drops the blocks waiting for an index (a test looks at `busy` alone).
@@ -315,7 +302,7 @@ pub(crate) async fn step(
     tasks: &Tasks,
 ) -> bool {
     name_indexes(peer, shared, replicas, tasks).await;
-    confirm_names(peer, shared);
+    confirm_names(peer, shared, tasks);
     let mut moved = index(peer, shared, replicas, tasks).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
@@ -662,17 +649,10 @@ async fn name_indexes(
                 .status(*root)
                 .is_none_or(|status| status.clean && !status.owes_seal)
         });
-        held.search.deferred = waiting.iter().map(|(root, _)| *root).collect();
         held.search.made = waiting;
         ready
     };
     for (root, index) in made {
-        let before = shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .graph
-            .get(root)
-            .map_or(0, |node| node.size);
         let defined = peer
             .define(root, |metadata| {
                 metadata.insert(&SEARCH_INDEX, &BlockRef(index));
@@ -697,7 +677,7 @@ async fn name_indexes(
                 let waiting = std::mem::take(&mut held.search.waiting);
                 held.search.dirty.extend(waiting);
                 if peer.is_attached() {
-                    held.search.confirming.insert(root, before);
+                    held.search.confirming.insert(root, false);
                 }
                 held.graph.update(root, |node| {
                     node.metadata.insert(&SEARCH_INDEX, &BlockRef(index));
@@ -721,19 +701,43 @@ async fn name_indexes(
     }
 }
 
-/// Roots whose define the mirror has caught up with (a size other than the one before), or
+/// Roots whose define the mirror has caught up with (the define's head), or
 /// that this device can no longer wait for, stop counting as busy.
-fn confirm_names(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+fn confirm_names(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if held.search.confirming.is_empty() {
         return;
     }
-    let attached = peer.is_attached();
-    let state = &mut *held;
-    let graph = &state.graph;
-    state.search.confirming.retain(|root, before| {
-        attached && graph.get(*root).is_some_and(|node| node.size == *before)
-    });
+    if !peer.is_attached() {
+        held.search.confirming.clear();
+        return;
+    }
+    // Once the define is sent, the root is read again, whatever order the server's own news
+    // of it came in.
+    if held.waiting > 0 || held.draining {
+        return;
+    }
+    let due: Vec<Uuid> = held
+        .search
+        .confirming
+        .iter()
+        .filter(|(_, read)| !**read)
+        .map(|(root, _)| *root)
+        .collect();
+    for root in due {
+        held.search.confirming.insert(root, true);
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move {
+            crate::worker::refresh(&peer, &shared, root).await;
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search
+                .confirming
+                .remove(&root);
+            be_host_base::host::wake();
+        });
+    }
 }
 
 /// Reads a range of a saved part through a peer.

@@ -3125,7 +3125,7 @@ async fn settled(
     }
 }
 
-async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+pub(super) async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     match peer.summary(block).await {
         Ok(summary) => {
             if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
