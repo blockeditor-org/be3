@@ -33,6 +33,9 @@ use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
 const FRAME: Duration = Duration::from_micros(16_667);
+
+/// The frames a long pause is divided into, before the last few of a frame interval each.
+const PAUSE_FRAMES: u32 = 64;
 const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 
 pub const USAGE: &str = "Session:
@@ -332,6 +335,14 @@ struct Settled {
     drawing: bool,
 }
 
+/// How far a pause with `remaining` left moves a stopped clock for the next frame: a frame
+/// interval, or more while a long pause has many left, so a pause takes a bounded number of
+/// frames. Each is run once the apps have answered the one before, so a minute of frames
+/// would otherwise take as many round trips as it has frame intervals.
+fn pause_step(remaining: Duration) -> Duration {
+    remaining.min(FRAME.max(remaining / PAUSE_FRAMES))
+}
+
 fn frame_busy(run: &Frame, clock_stopped: bool) -> Vec<String> {
     let mut reasons = Vec::new();
     if run.deferred {
@@ -557,7 +568,7 @@ impl Session {
             && self.clock_stopped
             && self.quiet
         {
-            let step = until.saturating_duration_since(context.now()).min(FRAME);
+            let step = pause_step(until.saturating_duration_since(context.now()));
             context.advance_clock(step);
             return now + step;
         }
@@ -2073,3 +2084,6 @@ fn shown_at(
     }
     Ok(shown.unwrap_or(rect))
 }
+
+#[cfg(test)]
+mod tests;
