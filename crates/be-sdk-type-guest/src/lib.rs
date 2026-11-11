@@ -993,8 +993,9 @@ impl replicas::GuestReplica for OpenReplica {
         ready(())
     }
 
-    fn drained(&self, refused: Vec<CommitId>) -> impl Future<Output = ()> + 'static {
-        self.module.input(self.id, Input::Drained { refused });
+    fn drained(&self, refused: bool, commits: Vec<CommitId>) -> impl Future<Output = ()> + 'static {
+        self.module
+            .input(self.id, Input::Drained { refused, commits });
         ready(())
     }
 

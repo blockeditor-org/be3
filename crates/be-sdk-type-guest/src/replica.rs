@@ -158,7 +158,8 @@ pub(crate) enum Input {
         held: bool,
     },
     Drained {
-        refused: Vec<CommitId>,
+        refused: bool,
+        commits: Vec<CommitId>,
     },
     Close,
     Claim,
@@ -539,7 +540,7 @@ where
                 through,
                 held,
             } => self.lacking.appended(from, through, held),
-            Input::Drained { refused } => self.lacking.drained(&refused),
+            Input::Drained { refused, commits } => self.lacking.drained(refused, &commits),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
                 | HeadEvent::Rejected { .. }

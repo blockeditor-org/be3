@@ -235,11 +235,11 @@ impl Lacking {
 
     /// The kept commits reached the server, or it refused them: those edits then show as
     /// failed rather than sending for ever.
-    pub(crate) fn drained(&mut self, refused: &[CommitId]) {
-        if refused.is_empty() {
+    pub(crate) fn drained(&mut self, refused: bool, commits: &[CommitId]) {
+        if !refused {
             return self.forget_kept();
         }
-        self.refused.extend(refused.iter().copied());
+        self.refused.extend(commits.iter().copied());
         // Edits carried from an earlier replica may be among the refused commits, and
         // nothing else would ever settle them.
         for entry in &mut self.entries {
@@ -262,7 +262,7 @@ impl Lacking {
             .filter(|commit| !self.refused.contains(commit))
             .collect();
         if !new.is_empty() {
-            self.drained(&new);
+            self.drained(true, &new);
         }
         match kept {
             KeptCommits::None => self.forget_kept(),

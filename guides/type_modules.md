@@ -150,7 +150,8 @@ host owes a replica (the WIT documents each call):
 - **What the server holds.** `append` answers whether the server took the
   entries, `publish` answers `kept` for a commit sealed on this device alone
   (offline, or behind others in its outbox), `drained` says those commits
-  reached the server (no refused commits) or lists the commits it refused, and
+  reached the server, or with `refused` lists the commits it refused (set aside, or
+  left in the outbox to be tried again), and
   `opening` says whether it opens on this device's own journal (`journal-kept`),
   whether the device still keeps commits of the block (`commits-kept`) and which
   refused ones it holds (`refused-commits`). The replica tells editors from these what the

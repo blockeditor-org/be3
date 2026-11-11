@@ -107,8 +107,9 @@ the one carried longest first), and learns from `opening.commits-kept` whether
 those kept commits drained, and from `opening.refused-commits` which commits the
 server refused that the device still holds. A refused commit stays on the device
 after its edit is dismissed, so a replica applies the refusal of each commit id
-once (a live `drained` with refused commits always applies, and a replica carries
-the ids it applied); a commit it did not apply before fails what was kept, and
+once (a live `drained` with `refused` always applies, and a replica carries the
+ids it applied; it fails every kept or carried edit, not only those of the
+refused commits); a commit it did not apply before fails what was kept, and
 one it did leaves what is sent after alone. One opened on this device's
 own journal (`opening.journal-kept`) adds the edits it replays; a carried edit
 is settled by its journal sequence when the journal holds it (by its bytes only
@@ -120,6 +121,8 @@ What is not kept:
   commits kept in the outbox still count when they drain, but a journal entry the
   server lacks shows as sent, and an edit the server refused no longer shows
   "Not sent".
+- A block carried over the module's 64-block limit loses its edits' status: a
+  refused message in it shows as sent.
 - A replica records edits only while an editor follows: edits made before the
   first follower, or after the last one left and before the replica closed, are
   not listed, and a replica reopened after a rejoin lists only what the module

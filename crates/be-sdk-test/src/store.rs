@@ -862,7 +862,7 @@ impl ContentStore {
                 commits.push(commit);
             }
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
-                replica.drained(&mut inner.host, commits);
+                replica.drained(&mut inner.host, refused, commits);
             }
         }
         inner.run();

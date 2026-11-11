@@ -1315,11 +1315,11 @@ impl<H: Host> Replicas<H> {
     }
 
     /// The server holds every commit this device kept of `block`, or with `refused` refused
-    /// the commits in `refused`: its replica tells its editors what they sent is held, or will not be.
-    pub fn drained(&mut self, block: Uuid, refused: Vec<CommitId>) {
+    /// the `commits` listed (`refused`): its replica tells its editors what they sent is held, or will not be.
+    pub fn drained(&mut self, block: Uuid, refused: bool, commits: Vec<CommitId>) {
         if let Some(replica) = self.blocks.get(&block).copied() {
             self.with_replica(replica, |handle, connection| {
-                handle.drained(connection, refused);
+                handle.drained(connection, refused, commits);
             });
         }
     }
@@ -2857,15 +2857,30 @@ async fn reset<H: Host>(
 
 /// The journal a replica opening at `head` loads: the server's (from joining, opened) or this
 /// device's, whichever holds more on that base.
-/// Whether this device keeps commits of `block` the server lacks, in the outbox, and the commits
-/// the server refused that it holds set aside in the unsent area.
-fn kept_commits<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Kept {
-    let refused = peer
-        .unsent()
+/// The commits of `block` the server refused that this device set aside in the unsent area.
+fn unsent_commits<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Vec<CommitId> {
+    peer.unsent()
         .into_iter()
         .filter(|unsent| unsent.block == block)
         .flat_map(|unsent| unsent.commits)
-        .collect();
+        .collect()
+}
+
+/// The commits of `block` the server just refused: those set aside in the unsent area, and
+/// those a refusal left in the outbox to be tried again.
+pub fn refused_commits<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+) -> Vec<CommitId> {
+    let mut commits = unsent_commits(peer, block);
+    commits.extend(peer.pending_commits(block));
+    commits
+}
+
+/// Whether this device keeps commits of `block` the server lacks, in the outbox, and the commits
+/// the server refused that it holds set aside in the unsent area.
+fn kept_commits<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Kept {
+    let refused = unsent_commits(peer, block);
     let kept = match peer.pending_commits(block).is_empty() {
         true => be_sdk_type_api::KeptCommits::None,
         false => be_sdk_type_api::KeptCommits::Outbox,

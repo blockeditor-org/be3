@@ -87,9 +87,10 @@ interface replicas {
         seal: async func(force: bool);
 
         /// Every commit of the block this device kept (`publish-outcome.kept`)
-        /// has reached the server (`refused` empty), or the server refused the
-        /// commits in `refused` and they will not reach it.
-        drained: async func(refused: list<commit-id>);
+        /// has reached the server, or with `refused` the server refused them and
+        /// they will not reach it: `commits` then lists the commits that were
+        /// refused, whether set aside in the unsent area or still in the outbox.
+        drained: async func(refused: bool, commits: list<commit-id>);
     }
 
     /// Seeds the module's entropy, starts its clock and lists its types.
