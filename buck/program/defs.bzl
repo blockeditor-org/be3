@@ -187,6 +187,9 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         add("--executable={}={}".format(executable.basename, name), [executable])
     for file in ctx.attrs.files:
         add("--file=" + file.basename, [file])
+    for tree in ctx.attrs.trees:
+        directory = tree[DefaultInfo].default_outputs[0]
+        add(cmd_args("--tree=", directory, delimiter = ""), [directory])
     libraries = []
     for module in ctx.attrs.modules + ctx.attrs.linked:
         info = module.get(WasmLibrariesInfo)
@@ -281,6 +284,9 @@ program = rule(
         "executable_name": attrs.string(default = ""),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
+        # Directories whose files are staged beside the executable: the native
+        # dynamic libraries it is linked against (buck/dynlink).
+        "trees": attrs.list(attrs.dep(), default = []),
         # Which libraries the program holds: "include" every one the modules
         # need, "exclude" them, for a program run with the BE_BUNDLE path list
         # (be-lib-build-id) that has them in another, or "only" them and none of

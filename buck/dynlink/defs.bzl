@@ -26,28 +26,69 @@ _FORCE = ["-Zunstable-options", "-Cprefer-dynamic"]
 # Every library: the roots it holds and the libraries it sits on, which the
 # BUCK file defines and a binary is linked against. Order is not significant.
 
-# Roots whose C libraries are the system's (ALSA, libinput, ...): a binary that
-# uses one links it itself, so the libraries do not make every test need them.
-_SYSTEM = ["smithay-0.7.0", "rodio-0.20.1"]
-
 # The roots of base: every third-party library Linux x86_64 builds that no other
 # one depends on, so that its closure is all of them, and none that only a build
 # script uses. A crate Cargo.lock gains is in it without a word here.
+#
+# None of the crates that bring C code or link a system library, nor of those
+# that depend on one (wasmtime, wgpu, winit, rustls, zstd, FreeType and the
+# like, from the build scripts that use cc, cmake or pkg-config): the C code's
+# symbols may be hidden, and the generic code of such a crate, which is
+# compiled into whoever uses it, calls them, so a crate outside the library
+# could not link; and a system library the library names has to be found by
+# every test that loads it. A binary that uses one links it and what depends on
+# it itself.
+_C = ["cc-", "cmake-", "pkg-config-"]
+
+# Crates that link a system library by name in their sources. A library
+# naming one that is not in `readelf -d`'s NEEDED list of the build is a bug
+# to be fixed by adding it.
+_SYSTEM = ["xkbcommon-0.8.0"]
+
 def _third_party_roots():
     libraries = {
         key: crate
         for key, crate in third_party.items()
         if "linux-x86_64" in crate["platforms"] and crate["library"] and not crate["library"]["proc_macro"]
     }
+    users = {}
+    for key, crate in libraries.items():
+        for dep in crate["platforms"]["linux-x86_64"].get("deps", []):
+            users.setdefault(dep.removeprefix(":"), []).append(key)
+    unfit = {}
+    pending = _SYSTEM + [
+        key
+        for key, crate in libraries.items()
+        if crate["build_script"] and any([dep.removeprefix(":").startswith(tuple(_C)) for dep in crate["build_script"].get("deps", [])])
+    ]
+    for _ in range(len(libraries)):
+        if not pending:
+            break
+        key = pending.pop()
+        if key in unfit:
+            continue
+        unfit[key] = True
+        pending.extend(users.get(key, []))
     used = {}
-    for crate in third_party.values():
+    for key, crate in third_party.items():
+        if key in unfit:
+            continue
         for plan in crate["platforms"].values():
             for dep in plan.get("deps", []):
                 used[dep.removeprefix(":")] = True
-    for crate in third_party.values():
         for dep in (crate["build_script"] or {}).get("deps", []):
             used[dep.removeprefix(":")] = True
-    return ["//third-party/rust:" + key for key in sorted(libraries) if key not in used and key not in _SYSTEM]
+    roots = []
+    names = {}
+    for key in sorted(libraries):
+        name = libraries[key]["library"]["crate"]
+        if key in used or key in unfit or name in names:
+            # Two versions of a crate are two roots of one name, which
+            # rustc takes only one of; the other stays out of the library.
+            continue
+        names[name] = True
+        roots.append("//third-party/rust:" + key)
+    return roots
 
 DYNLIBS = {
     "base": {
@@ -84,7 +125,11 @@ def _at_link(flags, otherwise = []):
 # rustc the rlibs the libraries were linked from (it reads their metadata) as
 # well as the libraries.
 def dynlink_flags():
-    return _at_link(_FORCE)
+    return _at_link(_FORCE + ["-Clink-arg=-Wl,-rpath,$ORIGIN"])
+
+# The directory of every library, for a program to stage beside its executable.
+def dynlink_trees():
+    return _at_link(["//buck/dynlink:libs"])
 
 def dynlink_deps():
     return _at_link([("//buck/dynlink:{}-crate".format(name), ["force"]) for name in DYNLIBS])

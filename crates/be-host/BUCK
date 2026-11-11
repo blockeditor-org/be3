@@ -1,5 +1,6 @@
 load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_package", "cargo_test")
+load("@root//buck/dynlink:defs.bzl", "dynlink_trees")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/program:defs.bzl", "precompiled_apps", "program")
 load("@root//buck/program:drive.bzl", "headless", "page_test")
@@ -39,6 +40,7 @@ cargo_test(
 # minutes, which every other release build, such as the build helper's for
 # be-launcher, would wait on.
 cargo_binary(
+    dynamic = True,
     rustc_flags = select({
         "DEFAULT": [],
         "root//buck/constraints:lto": ["-Clto=fat", "-Ccodegen-units=1"],
@@ -69,6 +71,7 @@ program(
     manifests = ["//{}:manifest".format(package) for package in app_packages()],
     modules = ["//{}:module".format(package) for package in app_packages()],
     precompiled = ":precompiled",
+    trees = dynlink_trees(),
     visibility = ["//crates/be-tool-bench:", "//crates/be-tool-local:"],
 )
 
@@ -93,6 +96,7 @@ program(
     files = ["//buck/program:build-info.json"],
     manifests = [],
     modules = [],
+    trees = dynlink_trees(),
 )
 
 # The web bundle: be-host for wasi and the gpu shim for wasm32, each through
