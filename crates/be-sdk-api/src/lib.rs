@@ -104,7 +104,7 @@ pub use types::{
 
 pub use account::AccountStorage;
 pub use account::HostPreferenceSources;
-pub use account::{BlockNotifyMode, NotifyMode};
+pub use account::{BlockNotifyMode, NotifyMode, PushDevice};
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
@@ -127,7 +127,8 @@ pub use desktop::{
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{
-    AdministratorWatch, LinkBaseWatch, NotifyModesWatch, PreferenceSourcesWatch, StorageUsageWatch,
+    AdministratorWatch, LinkBaseWatch, NotifyModesWatch, PreferenceSourcesWatch, PushDeviceWatch,
+    StorageUsageWatch,
 };
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{

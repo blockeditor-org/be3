@@ -1962,6 +1962,12 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
     }
 
+    /// Turns pushes to this device on or off; `PushDeviceWatch` follows it. Call it from a
+    /// press, since turning them on asks for the person's permission.
+    pub fn set_push_device(&self, on: bool) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_push_device(on)))
+    }
+
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
         self.audio_commands
             .borrow_mut()

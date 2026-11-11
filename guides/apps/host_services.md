@@ -118,6 +118,10 @@ Notes on particular calls:
   (Notifications: All, Mentions only, Off), showing a change until the host
   answers and going back if it refuses. `BeuiTest::take_notifications`
   records what an editor sent.
+- `set_push_device(on)` turns pushes to this device on or off and `PushDeviceWatch` follows it
+  (none on a host that cannot receive them, which is every host but the web build); turning
+  them on asks for the person's permission, so call it from their press. The settings list's
+  "Notifications" switch is its one user (guides/running/web.md, push notifications).
 - The shell-only calls (share dialog, access lists, show and dialog requests,
   `close_editor`, ...) serve the instance that draws the host's window; no
   other editor has any use for them.

@@ -153,3 +153,58 @@ pub(crate) fn forget_this_device() {
         }
     });
 }
+
+fn push() -> Option<JsValue> {
+    js_sys::Reflect::get(&js_sys::global(), &"bePush".into())
+        .ok()
+        .filter(|push| !push.is_undefined())
+}
+
+/// Calls `bePush.method()` (host.js) and awaits what it returns.
+async fn call(method: &str) -> Result<JsValue, String> {
+    let push = push().ok_or("This browser cannot show notifications.")?;
+    let function = js_sys::Reflect::get(&push, &method.into())
+        .and_then(|function| function.dyn_into::<js_sys::Function>())
+        .map_err(|_| format!("bePush.{method} is missing"))?;
+    let promise = function
+        .call0(&push)
+        .map_err(|error| error_text(&error))?;
+    wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&promise))
+        .await
+        .map_err(|error| error_text(&error))
+}
+
+fn error_text(error: &JsValue) -> String {
+    match error.clone().dyn_into::<js_sys::Error>() {
+        Ok(error) => String::from(error.message()),
+        Err(error) => error.as_string().unwrap_or_else(|| "failed".to_owned()),
+    }
+}
+
+/// Reads this browser's state (`bePush.state`) into the host's.
+async fn refresh() {
+    use be_host_base::push_device::{PushDevice, set_state};
+    let state = match call("state").await.ok().and_then(|state| state.as_string()) {
+        Some(state) => match state.as_str() {
+            "on" => PushDevice::On,
+            "off" => PushDevice::Off,
+            "denied" => PushDevice::Denied,
+            _ => PushDevice::Unsupported,
+        },
+        None => PushDevice::Unsupported,
+    };
+    set_state(state);
+}
+
+/// Lets apps turn pushes on this browser on and off (`host-services.set-push-device`), and
+/// reads what it does now.
+pub(crate) fn install() {
+    be_host_base::push_device::install(std::rc::Rc::new(|on, reply| {
+        wasm_bindgen_futures::spawn_local(async move {
+            let done = call(if on { "enable" } else { "disable" }).await;
+            refresh().await;
+            reply(done.map(|_| ()));
+        });
+    }));
+    wasm_bindgen_futures::spawn_local(refresh());
+}

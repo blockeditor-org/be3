@@ -192,6 +192,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     let mut core =
         HostCore::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     let options = run_options();
+    web_push::install();
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
@@ -575,6 +576,8 @@ struct HostCore {
     storage_published: Option<u64>,
     /// The `be_host_stack::notify_modes_revision` the notify modes watch last published.
     notify_modes_published: Option<u64>,
+    /// The `be_host_base::push_device::revision` the push device watch last published.
+    push_device_published: Option<u64>,
     members: members::Members,
     scheduled_organization_list: bool,
     server_url: String,
@@ -873,6 +876,7 @@ impl HostCore {
             contacts: contacts::Contacts::default(),
             storage_published: None,
             notify_modes_published: None,
+            push_device_published: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
             server_url,
@@ -2394,8 +2398,8 @@ impl HostCore {
         }
     }
 
-    /// Opens the blocks notifications named that were pressed, which are in the
-    /// organization that is open (one in another waits for it to be opened by hand).
+    /// Opens the blocks notifications named that were pressed, switching to their
+    /// organization first.
     #[cfg(target_arch = "wasm32")]
     fn open_pressed_notifications(&mut self) {
         for opening in web_push::take_openings() {
@@ -2405,7 +2409,21 @@ impl HostCore {
                 .map(|organization| organization.id)
                 != Some(opening.organization)
             {
-                web_push::requeue(opening);
+                // A block of another organization opens it first, unless that would discard
+                // changes not saved yet, which the organization menu asks about instead.
+                let other = self
+                    .organizations
+                    .iter()
+                    .find(|organization| organization.id == opening.organization)
+                    .cloned();
+                if let Some(other) = other {
+                    if be_host_stack::status().unsaved == 0 {
+                        self.open_organization(other);
+                        web_push::requeue(opening);
+                    }
+                } else if self.organizations.is_empty() {
+                    web_push::requeue(opening);
+                }
                 continue;
             }
             let Some(node) = be_host_stack::node(opening.block) else {
@@ -3039,6 +3057,7 @@ impl HostCore {
         self.open_pressed_notifications();
         self.publish_storage();
         self.publish_notify_modes();
+        self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
             self.root_settings.ensure();
@@ -3167,6 +3186,25 @@ impl HostCore {
                 .collect::<Vec<_>>()
         });
         be_host_base::watches::publish::<be_sdk_api::NotifyModesWatch>(&modes);
+    }
+
+    /// Publishes whether this device shows pushes whenever it changed.
+    fn publish_push_device(&mut self) {
+        let revision = Some(be_host_base::push_device::revision());
+        if self.push_device_published == revision {
+            return;
+        }
+        self.push_device_published = revision;
+        be_host_base::watches::publish::<be_sdk_api::PushDeviceWatch>(
+            &match be_host_base::push_device::state() {
+                be_host_base::push_device::PushDevice::Unsupported => None,
+                be_host_base::push_device::PushDevice::Off => Some(be_sdk_api::PushDevice::Off),
+                be_host_base::push_device::PushDevice::On => Some(be_sdk_api::PushDevice::On),
+                be_host_base::push_device::PushDevice::Denied => {
+                    Some(be_sdk_api::PushDevice::Denied)
+                }
+            },
+        );
     }
 
     fn publish_administrator(&self) {

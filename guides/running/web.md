@@ -107,9 +107,13 @@ survives a reload. Traps that shape this code:
   `be-host/src/web_push.rs`), shows the answer for up to 3 s, else "New message", and shows a
   repeat (a hash of the sealed bytes, kept in IndexedDB) never. `globalThis.bePush.enable()`
   asks permission, subscribes and registers the endpoint (call it from a gesture); `disable()`
-  and signing out unregister. A pressed notification focuses a window and posts the block to it
-  (`push_open_block`), or opens `?open-block=ORGANIZATION/BLOCK`; a block of another
-  organization than the open one is not opened. `//crates/be-host:push-web-test` runs the real
+  and signing out unregister. The switch is the settings list's "Notifications" row, which asks
+  the host through `set_push_device` (`be_host_base::push_device`, installed by `web_push::install`
+  and published as `PushDeviceWatch`). A pressed notification focuses a window and posts the
+  block to it (`push_open_block`), or opens `?open-block=ORGANIZATION/BLOCK`; a block of another
+  organization first opens that organization, unless changes are unsaved. An endpoint is
+  registered for the organization open when the switch is turned on, so pushes from another
+  organization wait for a later step. `//crates/be-host:push-web-test` runs the real
   `sw.js` and `push.js` in Chromium with pushes delivered through DevTools
   (`deliverPush` in buck/program/page-test.mjs); headless Chromium never grants the permission to
   show a notification, so the test's worker (`web-test/sw.js`) reports what `sw.js` would show.

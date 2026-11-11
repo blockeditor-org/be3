@@ -59,7 +59,7 @@ pub use be_sdk_api::{
     KeyboardLayoutsWatch, LinkBaseWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch,
     MenuAsk, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
-    NotificationSignal, NotificationUrgency, NotificationsWatch, NotifyMode, NotifyModesWatch,
+    NotificationSignal, NotificationUrgency, NotificationsWatch, NotifyMode, NotifyModesWatch, PushDevice, PushDeviceWatch,
     Occluder, OpenProgram, OpenProgramsWatch, PastedBlock, PenPhase, PickedBlock, Picture,
     PlayerCommand, PointerButton, Pointing, PowerAction, PowerAvailability, PowerWatch, Press,
     PreviewImage, ProgramAction, ProgramCatalog, ProgramsWatch, RemapState, RemapsWatch,

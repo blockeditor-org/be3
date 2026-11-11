@@ -56,6 +56,16 @@ export async function subscribePush(serverKey) {
     };
 }
 
+// "unsupported", "denied", "on" (subscribed) or "off".
+export async function pushState() {
+    const permission = pushPermission();
+    if (permission === "unsupported" || permission === "denied") {
+        return permission;
+    }
+    const registration = await navigator.serviceWorker.ready;
+    return (await registration.pushManager.getSubscription()) ? "on" : "off";
+}
+
 // Drops this browser's subscription, resolving to its address, or null when it
 // had none.
 export async function unsubscribePush() {

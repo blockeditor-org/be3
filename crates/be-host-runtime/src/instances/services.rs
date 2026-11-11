@@ -489,6 +489,10 @@ impl Instances {
                     move |set| answering.send_or_fail(set),
                 );
             }
+            Call::SetPushDevice { reply, on } => {
+                let answering = self.answering(instance, reply);
+                be_host_base::push_device::set(on, Box::new(move |set| answering.send_or_fail(set)));
+            }
             Call::MakeContactLink {
                 reply,
                 block,

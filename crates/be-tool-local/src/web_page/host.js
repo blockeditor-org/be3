@@ -9,7 +9,7 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 push_server_key,
                 push_unregister,
             } from "./be_host.js";
-            import { bindPush, pushPermission, subscribePush, unsubscribePush } from "./push.js";
+            import { bindPush, pushPermission, pushState, subscribePush, unsubscribePush } from "./push.js";
 
             const status = document.getElementById("status");
 
@@ -119,6 +119,7 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 // (plans/notifications.md): `enable` must run in a person's gesture.
                 globalThis.bePush = {
                     permission: pushPermission,
+                    state: pushState,
                     unsubscribe: unsubscribePush,
                     async enable() {
                         const { address, p256dh, auth } = await subscribePush(await push_server_key());

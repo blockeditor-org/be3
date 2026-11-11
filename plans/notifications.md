@@ -30,7 +30,8 @@ host call and the mute menu have landed (guides/blocks/server.md,
   files and handles pushes: it asks an open window to open one (`web/push.js`,
   `be-host/src/web_push.rs`) and shows the answer, or "New message"
   (guides/running/web.md). `globalThis.bePush.enable()` subscribes and
-  registers; no setting calls it yet.
+  registers; the settings list's "Notifications" switch calls it
+  (`set_push_device`).
 
 ## The design
 
@@ -101,9 +102,9 @@ host call and the mute menu have landed (guides/blocks/server.md,
 
 ## Order of work
 
-1. The web (built except the setting that calls `bePush.enable()` and a
-   Chromium test of the whole page: `push-web-test` covers the worker and
-   `push.js`): subscribing, the service worker handing the push to an open tab
+1. The web (built except a Chromium test of the whole page: `push-web-test`
+   covers the worker and `push.js`, and the endpoint is registered only for
+   the organization open when the switch is turned on): subscribing, the service worker handing the push to an open tab
    and showing what it answers, opening the block. Done: a Chromium test
    delivers a push to the service worker (DevTools
    `ServiceWorker.deliverPushMessage`): with a tab open the notification shows
