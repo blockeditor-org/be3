@@ -30,7 +30,6 @@ const REACHING_PAST: &[&str] = &[
     "put-contact",
     "remove-contact",
     "set-parent",
-    "delete-block",
     "collect-detached",
     "set-access",
     "list-access",
