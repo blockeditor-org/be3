@@ -242,8 +242,6 @@ host queues settled events per app. The calls stay `local`
   with `on_click`.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses.
-- Remove `BeuiRoot::aspect_ratio()` (`be-sdk-beui/src/lib.rs`): no app
-  overrides it, and `intrinsic_size()` implies it.
 - `SelectableState::select_all()` and the free `select_all(state)` are one;
   keep the method.
 

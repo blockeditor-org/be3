@@ -68,8 +68,7 @@ An editor has no state struct and no `connect`: it is one component,
 `BeuiRoot::View`, handed an `Editor`, a `Copy` handle that closures take with
 `move`. The instance owns the state behind it and frees it after the views
 built on it. The `BeuiRoot` type also answers `intrinsic_size` (or
-`editor.set_intrinsic_size` when it changes) and `aspect_ratio`; leave them out
-for the host's defaults.
+`editor.set_intrinsic_size` when it changes); leave it out for the host's default.
 
 `View` returns a `<Root>` (its `clear_color` is what the frame shows where the
 editor paints nothing) around `<Loaded label="Loading the foo">`, which keeps
