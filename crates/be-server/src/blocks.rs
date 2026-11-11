@@ -208,7 +208,10 @@ fn require_index_place(
             "a search index lies under the block it indexes".into(),
         ));
     };
-    if graph.get(parent).is_none_or(|node| node.parent != BlockParent::Root) {
+    if graph
+        .get(parent)
+        .is_none_or(|node| node.parent != BlockParent::Root)
+    {
         return Err(ServerError::Refused(
             ErrorCode::InvalidRequest,
             "a search index lies under a top-level block, the root of the tree it indexes".into(),

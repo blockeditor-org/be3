@@ -251,7 +251,10 @@ async fn index(
         let parked = std::mem::take(&mut held.search.parked);
         for (index, blocks) in parked {
             let arrived = peer.local_head(index).is_some()
-                || held.graph.get(index).is_some_and(|node| node.head.is_some());
+                || held
+                    .graph
+                    .get(index)
+                    .is_some_and(|node| node.head.is_some());
             match arrived {
                 true => held.search.dirty.extend(blocks),
                 false => held.search.parked.push((index, blocks)),
