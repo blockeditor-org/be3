@@ -595,12 +595,13 @@ async fn load<S: ObjectStore>(
 pub async fn write<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
-    batch: Batch,
+    mut batch: Batch,
 ) -> Result<bool, String> {
     let Some(head) = head_of(peer, index).await else {
         return Ok(false);
     };
     let mut content = load(peer, head).await?;
+    outdate_ancestors(peer, &content, &mut batch).await?;
     content
         .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch)
         .await
@@ -611,6 +612,41 @@ pub async fn write<S: ObjectStore>(
         .await
         .map_err(|error| error.to_string())?;
     Ok(true)
+}
+
+/// A put wins over the entry the index holds for its document only when its commit is the
+/// later: by time, then by id. Commits made in the same millisecond tie on time and the id
+/// is arbitrary, so a put that descends from the held commit takes the time after it: a
+/// descendant is always the newer.
+async fn outdate_ancestors<S: ObjectStore>(
+    peer: &Peer<S>,
+    content: &SearchIndexContent,
+    batch: &mut Batch,
+) -> Result<(), String> {
+    for put in &mut batch.put {
+        let held = content
+            .entries_of(&PeerParts(peer), &put.doc.block)
+            .await
+            .map_err(|error| error.to_string())?;
+        let Some(old) = held.iter().find(|entry| entry.doc == put.doc) else {
+            continue;
+        };
+        if old.commit < put.commit || old.commit.id == put.commit.id {
+            continue;
+        }
+        let (old_id, new_id) = (
+            CommitId::from_hash(be_block_store::Hash::from_bytes(old.commit.id)),
+            CommitId::from_hash(be_block_store::Hash::from_bytes(put.commit.id)),
+        );
+        if peer
+            .descends(new_id, old_id)
+            .await
+            .map_err(|error| error.to_string())?
+        {
+            put.commit.time = old.commit.time.saturating_add(1);
+        }
+    }
+    Ok(())
 }
 
 /// The best hits of `query` in one index, at its newest head.
