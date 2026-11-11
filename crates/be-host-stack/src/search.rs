@@ -618,7 +618,9 @@ fn make_indexes(
                     Err(error) => {
                         let revision = held.graph.revision;
                         held.search.make_failed(root, revision);
-                        held.error = Some(format!("Making a search index failed: {error}"));
+                        if !not_there_yet(&error) {
+                            held.error = Some(format!("Making a search index failed: {error}"));
+                        }
                     }
                 }
             }
@@ -765,7 +767,11 @@ async fn text_of(
 
 /// Makes `root`'s index, empty: in a task, beside the worker's loop, offline-first like any
 /// create; `name_indexes` then names it in the root's metadata.
-async fn make_index(peer: &Peer<Store>, root: Uuid, index: Uuid) -> Result<(), String> {
+async fn make_index(
+    peer: &Peer<Store>,
+    root: Uuid,
+    index: Uuid,
+) -> Result<(), be_block_client::ClientError> {
     peer.create_block(
         index,
         SEARCH_INDEX_TYPE,
@@ -773,15 +779,22 @@ async fn make_index(peer: &Peer<Store>, root: Uuid, index: Uuid) -> Result<(), S
         &BlockMetadata::default(),
         false,
     )
-    .await
-    .map_err(|error| error.to_string())?;
+    .await?;
     let empty = SearchIndexContent::default();
     let write = Write::encoded(SEARCH_INDEX_TYPE, empty.parts(), None)
         .described(Vec::new(), be_block::derived_metadata(&empty));
-    peer.seal(index, write)
-        .await
-        .map_err(|error| error.to_string())?;
+    peer.seal(index, write).await?;
     Ok(())
+}
+
+/// A refusal that passes by itself: the server does not hold the root yet (its own create
+/// still on its way), so the index is made again when the mirror next changes, and no error
+/// is shown.
+pub(crate) fn not_there_yet(error: &be_block_client::ClientError) -> bool {
+    matches!(
+        error,
+        be_block_client::ClientError::Refused(be_block_protocol::ErrorCode::BlockNotFound, _)
+    )
 }
 
 /// Names a made index in its root's metadata, as a define command does: in the loop, so the

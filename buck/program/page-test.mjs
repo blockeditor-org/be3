@@ -6,6 +6,9 @@
 // DIR is served as it is, and its index.html sets globalThis.outcome to a
 // promise of { passed: true, message } or { error }. The browser is BE3_CHROME
 // when set, else Playwright's Chromium, as for buck/program/web-test.mjs.
+// `await deliverPush(text)` delivers a push whose
+// payload is `text` to its service worker, as a push service would (DevTools
+// `ServiceWorker.deliverPushMessage`).
 
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -60,10 +63,24 @@ const browser = await chromium.launch({
 });
 let failed = true;
 try {
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+    const page = await context.newPage();
     page.on("console", (message) => console.log(`[${message.type()}] ${message.text()}`));
     page.on("pageerror", (error) => console.log(`[pageerror] ${error}`));
-    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const session = await context.newCDPSession(page);
+    let registration;
+    session.on("ServiceWorker.workerRegistrationUpdated", ({ registrations }) => {
+        registration = registrations.at(-1)?.registrationId ?? registration;
+    });
+    await session.send("ServiceWorker.enable");
+    await page.exposeFunction("deliverPush", async (data) => {
+        if (!registration) {
+            throw new Error("no service worker is registered");
+        }
+        await session.send("ServiceWorker.deliverPushMessage", { origin, registrationId: registration, data });
+    });
+    await page.goto(`${origin}/`);
     const outcome = await page.evaluate(
         (timeout) =>
             Promise.race([

@@ -107,7 +107,10 @@ modifier pressed and released alone is a tap, judged from key events alone
 (runners disagree on whether `Event::Modifiers` comes first), offered on the
 release as a `KeyInput::Tap` to host and window capture listeners. React to one
 with an action on `Chord::tap(Key::Logo)`. Super is `logo`, except on macOS,
-where Command acts as Ctrl.
+where Command acts as Ctrl. `KeyChord::label` names chords for menus, the
+palette and screen readers as the platform does: "Ctrl+P" elsewhere, "Cmd+P"
+and Option for `alt` on Apple's systems, which a build for them knows and the
+web cores learn from the browser when they start (`name_keys_as_apple`).
 
 **Naming a key.** `Key` is what shortcuts match, and `Key::from_typed` names it
 the same on every platform: the ASCII letter or digit the key types under the

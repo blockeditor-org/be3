@@ -34,7 +34,7 @@ fn copy_and_cut_put_a_block_reference_on_the_clipboard() {
             .test
             .take_requests()
             .iter()
-            .all(|call| !matches!(call, HostCall::CutBlocks { .. })),
+            .all(|call| !matches!(call, HostCall::CutBlocks { blocks, .. } if !blocks.is_empty())),
         "a copy records no cut"
     );
 
@@ -45,7 +45,9 @@ fn copy_and_cut_put_a_block_reference_on_the_clipboard() {
         .take_requests()
         .into_iter()
         .filter_map(|call| match call {
-            HostCall::CutBlocks { blocks, holder, .. } => Some((blocks, holder)),
+            HostCall::CutBlocks { blocks, holder, .. } if !blocks.is_empty() => {
+                Some((blocks, holder))
+            }
             _ => None,
         })
         .collect::<Vec<_>>();

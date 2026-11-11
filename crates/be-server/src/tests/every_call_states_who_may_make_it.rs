@@ -153,6 +153,7 @@ impl TestClient {
                         organization,
                         "agent".into(),
                         [7; 32],
+                        [7; 32],
                         sealed(),
                         sealed(),
                         None,
@@ -358,12 +359,17 @@ impl TestClient {
                     client::keys::set_recovery_key(
                         peer,
                         [7; 32],
+                        [7; 32],
                         Vec::new(),
                         Vec::new(),
                         Vec::new(),
                     )
                     .await,
                 ),
+            ),
+            (
+                "get-signing-keys",
+                answered(client::keys::get_signing_keys(peer, vec![other]).await),
             ),
             (
                 "reseal-keys",

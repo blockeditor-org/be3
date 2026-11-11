@@ -165,6 +165,7 @@ mod web {
         container: &web_sys::Node,
         mount: impl FnOnce() -> beui_html::dom::Mounted,
     ) {
+        beui_web_input::keys::name_keys();
         let page = crate::dom::window().map(|window| crate::page::watch(&window));
         let mut held: Vec<Box<dyn Any>> = vec![Box::new(mount()), Box::new(page)];
         held.push(Box::new(watch_changes(container)));

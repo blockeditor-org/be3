@@ -13,6 +13,7 @@ async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
                 organization,
                 "Helper".into(),
                 [7; 32],
+                [7; 32],
                 Vec::new(),
                 Vec::new(),
                 None,

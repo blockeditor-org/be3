@@ -62,16 +62,17 @@ pub use be_sdk_api::{
     NotificationSignal, NotificationUrgency, NotificationsWatch, NotifyMode, NotifyModesWatch,
     Occluder, OpenProgram, OpenProgramsWatch, PastedBlock, PenPhase, PickedBlock, Picture,
     PlayerCommand, PointerButton, Pointing, PowerAction, PowerAvailability, PowerWatch, Press,
-    PreviewImage, ProgramAction, ProgramCatalog, ProgramsWatch, RemapState, RemapsWatch,
-    ResizeMode, Revision, Rotation, ScreenEdge, ScreenEdgeState, ScreenEdgesWatch,
-    ScreenLockedWatch, ScreenPlacement, ScreenSide, ScrollDelta, SessionEnd, ShellCommand,
-    ShellDialog, Size, Stopped, StorageUsageWatch, SuperKeptWatch, SurfaceRect, TemplateCategory,
-    TemplateDescriptor, TerminalHostBe, TerminalHostDownload, TerminalHostSource, TimedInput,
-    TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus,
-    TrayToggle, TrayWatch, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
-    VersionCommit, VersionOperation, VersionStatus, ViewChange, Watched, WebViewCommand,
-    WebViewEvent, WebViewId, WheelTurn, WifiLink, WifiNetwork, WifiRequest, WifiSecurity,
-    WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
+    PreviewImage, ProgramAction, ProgramCatalog, ProgramsWatch, PushDevice, PushDeviceWatch,
+    RemapState, RemapsWatch, ResizeMode, Revision, Rotation, ScreenEdge, ScreenEdgeState,
+    ScreenEdgesWatch, ScreenLockedWatch, ScreenPlacement, ScreenSide, ScrollDelta, SessionEnd,
+    ShellCommand, ShellDialog, Signer, Size, Stopped, StorageUsageWatch, SuperKeptWatch,
+    SurfaceRect, TemplateCategory, TemplateDescriptor, TerminalHostBe, TerminalHostDownload,
+    TerminalHostSource, TimedInput, TopBar, TouchPhase, TrayClick, TrayMenuEntry, TrayMenuItem,
+    TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch, VersionChange,
+    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus, ViewChange,
+    Watched, WebViewCommand, WebViewEvent, WebViewId, WheelTurn, WifiLink, WifiNetwork,
+    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowRequests,
+    WindowsWatch,
 };
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, PaletteMode, ParentView, Scrim, View,
@@ -80,7 +81,7 @@ pub use be_sdk_api::{
 pub use be_sdk_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,
 };
-pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
+pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, LackingEdit, ToEditor};
 pub use be_sdk_ui;
 pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
 pub use content::{LiveContent, Objects, Projected};
@@ -94,10 +95,10 @@ pub use graph::{
 };
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, ClipRender, EditorHost, FileDrop, FileFilter,
-    FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, PeerMessage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed,
-    RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
-    Waker,
+    FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, Pasted, PeerMessage,
+    PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest,
+    Pushed, RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence,
+    StoredHead, Waker,
 };
 pub use layered_settings::{
     KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget,

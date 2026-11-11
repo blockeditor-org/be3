@@ -4,6 +4,7 @@ mod beui;
 mod document;
 mod fetches;
 mod link;
+mod signatures;
 mod store;
 #[cfg(test)]
 mod tests;
@@ -16,4 +17,5 @@ pub use be_sdk_api::{
 pub use beui::{BeuiTest, HostCall};
 pub use document::DocumentTest;
 pub use fetches::Fetch;
+pub use signatures::signature;
 pub use store::ContentStore;

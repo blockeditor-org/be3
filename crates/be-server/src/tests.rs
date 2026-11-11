@@ -65,6 +65,7 @@ mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_refused_call_keeps_the_cached_graph;
+mod a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_removed_agents_blocks_stay_charged_to_its_creator;
 mod a_reserved_object_counts_only_once_its_bytes_arrive;
@@ -155,6 +156,7 @@ mod senders_are_capped_overall_and_per_push_host;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
+mod signing_keys_are_served_only_for_accounts_the_caller_knows;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
@@ -1066,6 +1068,7 @@ impl TestClient {
                 organization,
                 "Terminal host".into(),
                 [7; 32],
+                [8; 32],
                 Vec::new(),
                 Vec::new(),
                 Some(block),

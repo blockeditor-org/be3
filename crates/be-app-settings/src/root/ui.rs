@@ -13,7 +13,10 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::root_settings::is_own_settings;
-use be_sdk_beui::{BlockParent, BlockQuery, ContentProjection, Editor, LayeredSettings};
+use be_sdk_beui::{
+    BlockParent, BlockQuery, ContentProjection, Editor, LayeredSettings, PushDevice,
+    PushDeviceWatch,
+};
 use be_type_settings::EditorSettingsContent;
 use beui::Overflow;
 use uuid::Uuid;
@@ -74,6 +77,8 @@ pub fn SettingsView(editor: Editor) -> NodeId {
         blocks.watch(BlockQuery::Children(block)),
     ));
     let shown = shown_block(editor);
+    let push_device = editor.watch::<PushDeviceWatch>();
+    let push_supported = create_memo(move || push_device.get().is_some());
     let recoverable = create_memo(move || own.get() && editor.organization_settings().is_some());
     view! {
         <Scroll>
@@ -97,6 +102,9 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 blocked={blocked}
                                 shown={shown}
                             />
+                            <Show condition={push_supported}>
+                                <PushRow editor={editor} device={push_device} />
+                            </Show>
                         </List>
                     </Section>
                     <Devices editor={editor} settings={settings} blocked={blocked} shown={shown} />
@@ -150,6 +158,48 @@ fn StorageRow(editor: Editor) -> NodeId {
                     .open_block_with(block, SettingsContent::CONTENT_TYPE, STORAGE_EDITOR)
             }}
         />
+    }
+}
+
+const PUSH_DENIED: &str =
+    "Notifications are blocked for this site. Allow them in the browser's site settings.";
+
+/// Whether this device shows notifications while the app is closed (plans/notifications.md),
+/// for hosts that can receive pushes; the host asks for the person's permission when it is
+/// turned on, so this runs in their press.
+#[component]
+fn PushRow(editor: Editor, device: Memo<Option<PushDevice>>) -> NodeId {
+    let on = create_memo(move || device.get() == Some(PushDevice::On));
+    let denied = create_memo(move || device.get() == Some(PushDevice::Denied));
+    let failed = create_signal(None::<String>);
+    let note = create_memo(move || match (denied.get(), failed.get()) {
+        (true, _) => PUSH_DENIED.to_owned(),
+        (false, Some(failure)) => failure,
+        (false, None) => String::new(),
+    });
+    view! {
+        <SettingsRow
+            label="Notifications"
+            description="Hear about new messages on this device while be-host is closed"
+            note={note}
+            locked={denied}
+            compact=true
+        >
+            <Switch
+                on={Binding::new(on, move |on: bool| {
+                    failed.set(None);
+                    let asked = editor.host().set_push_device(on);
+                    editor.then(asked, move |set| {
+                        if let Err(failure) = set {
+                            failed.set(Some(failure.to_string()));
+                        }
+                    });
+                })}
+                label="Notifications on this device"
+                disabled={denied}
+                @test_id={"settings.push-device"}
+            />
+        </SettingsRow>
     }
 }
 

@@ -50,11 +50,5 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
     assert_eq!(payload, sealed);
     assert_eq!(author.commits.vault().open(&payload).unwrap(), plaintext);
 
-    let response = peer.relay(block, Some(9_999), sealed).await;
-    assert!(
-        matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidRequest),
-        "{response:?}"
-    );
-
     harness.stop().await;
 }
