@@ -68,15 +68,11 @@ type Joined = Result<
 >;
 
 /// The client, session and remote head, and what commits of the block this device keeps.
-type Rejoined = Result<
-    (
-        ClientId,
-        SessionState,
-        Option<CommitId>,
-        be_sdk_type_api::KeptCommits,
-    ),
-    ClientError,
->;
+type Rejoined = Result<(ClientId, SessionState, Option<CommitId>, Kept), ClientError>;
+
+/// What a replica opens knowing of this device's kept commits: those in the outbox, and the
+/// refused ones set aside.
+type Kept = (be_sdk_type_api::KeptCommits, Vec<CommitId>);
 
 type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
 
@@ -804,6 +800,7 @@ impl<H: Host> Replicas<H> {
         let organization = peer.organization();
         let joining = session.owner == Some(JOINING_OWNER);
         let tag = self.modules.tag(module);
+        let kept = kept_commits(peer, block);
         let opening = Opening {
             block,
             content_type,
@@ -815,7 +812,8 @@ impl<H: Host> Replicas<H> {
             lost_edits: lost_edits(journal.as_ref(), tag),
             journal: journal.and_then(|journal| replayable(journal, tag)),
             journal_kept,
-            commits_kept: kept_commits(peer, block),
+            commits_kept: kept.0,
+            refused_commits: kept.1,
         };
         let handle = self
             .modules
@@ -919,8 +917,8 @@ impl<H: Host> Replicas<H> {
         };
         let journal = journal.filter(|journal| journal.base.commit == from);
         let commits_kept = match ahead.is_some() {
-            true => be_sdk_type_api::KeptCommits::Outbox,
-            false => be_sdk_type_api::KeptCommits::None,
+            true => (be_sdk_type_api::KeptCommits::Outbox, Vec::new()),
+            false => (be_sdk_type_api::KeptCommits::None, Vec::new()),
         };
         self.reopen_joined(replica, client, session, from, journal, commits_kept);
         for replayed in early {
@@ -943,7 +941,7 @@ impl<H: Host> Replicas<H> {
         session: SessionState,
         head: Option<CommitId>,
         journal: Option<be_block_protocol::Journal>,
-        commits_kept: be_sdk_type_api::KeptCommits,
+        commits_kept: Kept,
     ) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -969,7 +967,8 @@ impl<H: Host> Replicas<H> {
             lost_edits: lost_edits(journal.as_ref(), self.modules.tag(module)),
             journal: journal.and_then(|journal| replayable(journal, self.modules.tag(module))),
             journal_kept: false,
-            commits_kept,
+            commits_kept: commits_kept.0,
+            refused_commits: commits_kept.1,
         };
         let editors: Vec<(EditorId, bool)> = open
             .editors
@@ -1316,8 +1315,8 @@ impl<H: Host> Replicas<H> {
     }
 
     /// The server holds every commit this device kept of `block`, or with `refused` refused
-    /// them: its replica tells its editors what they sent is held, or will not be.
-    pub fn drained(&mut self, block: Uuid, refused: bool) {
+    /// the commits in `refused`: its replica tells its editors what they sent is held, or will not be.
+    pub fn drained(&mut self, block: Uuid, refused: Vec<CommitId>) {
         if let Some(replica) = self.blocks.get(&block).copied() {
             self.with_replica(replica, |handle, connection| {
                 handle.drained(connection, refused);
@@ -2143,6 +2142,7 @@ impl<H: Host> Replicas<H> {
             open.epoch += 1;
             open.publishing = 0;
             open.moved.clear();
+            let kept = kept_commits(peer, open.block);
             let opening = Opening {
                 block: open.block,
                 content_type: open.content_type,
@@ -2154,7 +2154,8 @@ impl<H: Host> Replicas<H> {
                 journal: None,
                 lost_edits: false,
                 journal_kept: false,
-                commits_kept: kept_commits(peer, open.block),
+                commits_kept: kept.0,
+                refused_commits: kept.1,
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors
@@ -2856,19 +2857,20 @@ async fn reset<H: Host>(
 
 /// The journal a replica opening at `head` loads: the server's (from joining, opened) or this
 /// device's, whichever holds more on that base.
-/// Whether this device keeps commits of `block` the server lacks: in the outbox, or refused and
-/// set aside in the unsent area.
-fn kept_commits<S: be_block_store::ObjectStore>(
-    peer: &Peer<S>,
-    block: Uuid,
-) -> be_sdk_type_api::KeptCommits {
-    if peer.unsent().iter().any(|unsent| unsent.block == block) {
-        return be_sdk_type_api::KeptCommits::Refused;
-    }
-    match peer.pending_commits(block).is_empty() {
+/// Whether this device keeps commits of `block` the server lacks, in the outbox, and the commits
+/// the server refused that it holds set aside in the unsent area.
+fn kept_commits<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Kept {
+    let refused = peer
+        .unsent()
+        .into_iter()
+        .filter(|unsent| unsent.block == block)
+        .flat_map(|unsent| unsent.commits)
+        .collect();
+    let kept = match peer.pending_commits(block).is_empty() {
         true => be_sdk_type_api::KeptCommits::None,
         false => be_sdk_type_api::KeptCommits::Outbox,
-    }
+    };
+    (kept, refused)
 }
 
 /// The journal to open `head` on, and whether it is this device's, holding entries the server

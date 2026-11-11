@@ -104,9 +104,12 @@ keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
 A replica reopened, or opened again after its editors closed, carries on with
 what the last one lacked (the module keeps it for the last 64 blocks, dropping
 the one carried longest first), and learns from `opening.commits-kept` whether
-those kept commits drained or were refused meanwhile. A refusal fails what was
-kept once: a refused commit stays on the device after its edit is dismissed,
-and is not a new refusal for what is sent after. One opened on this device's
+those kept commits drained, and from `opening.refused-commits` which commits the
+server refused that the device still holds. A refused commit stays on the device
+after its edit is dismissed, so a replica applies the refusal of each commit id
+once (a live `drained` with refused commits always applies, and a replica carries
+the ids it applied); a commit it did not apply before fails what was kept, and
+one it did leaves what is sent after alone. One opened on this device's
 own journal (`opening.journal-kept`) adds the edits it replays; a carried edit
 is settled by its journal sequence when the journal holds it (by its bytes only
 if it has any), so a journal the owner folded still settles it.

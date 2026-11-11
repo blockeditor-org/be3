@@ -96,7 +96,9 @@ struct Inner {
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
     offline: bool,
     kept: BTreeSet<Uuid>,
-    refused: BTreeSet<Uuid>,
+    /// The commits the server refused, by block: they stay on the device.
+    refused: BTreeMap<Uuid, Vec<CommitId>>,
+    refusals: u8,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
@@ -135,7 +137,8 @@ impl Default for Inner {
             deferred: None,
             offline: false,
             kept: BTreeSet::new(),
-            refused: BTreeSet::new(),
+            refused: BTreeMap::new(),
+            refusals: 0,
             known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
@@ -371,11 +374,11 @@ impl Inner {
         }
         let (content_type, head) = (held.content_type, held.head);
         let unapplied = std::mem::take(&mut held.unapplied);
-        let commits_kept = match (self.refused.contains(&block), self.kept.contains(&block)) {
-            (true, _) => be_sdk_type_guest::api::KeptCommits::Refused,
-            (false, true) => be_sdk_type_guest::api::KeptCommits::Outbox,
-            (false, false) => be_sdk_type_guest::api::KeptCommits::None,
+        let commits_kept = match self.kept.contains(&block) {
+            true => be_sdk_type_guest::api::KeptCommits::Outbox,
+            false => be_sdk_type_guest::api::KeptCommits::None,
         };
+        let refused_commits = self.refused.get(&block).cloned().unwrap_or_default();
         held.followed.clear();
         let replica = Replica::new(
             &mut self.host,
@@ -391,6 +394,7 @@ impl Inner {
                 lost_edits: false,
                 journal_kept: false,
                 commits_kept,
+                refused_commits,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {
@@ -850,11 +854,15 @@ impl ContentStore {
         let mut inner = self.0.borrow_mut();
         let kept: Vec<Uuid> = std::mem::take(&mut inner.kept).into_iter().collect();
         for block in kept {
+            let mut commits = Vec::new();
             if refused {
-                inner.refused.insert(block);
+                inner.refusals += 1;
+                let commit = CommitId::from_hash(Hash::from_bytes([inner.refusals; 32]));
+                inner.refused.entry(block).or_default().push(commit);
+                commits.push(commit);
             }
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
-                replica.drained(&mut inner.host, refused);
+                replica.drained(&mut inner.host, commits);
             }
         }
         inner.run();

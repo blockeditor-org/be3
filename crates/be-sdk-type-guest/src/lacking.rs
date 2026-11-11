@@ -53,16 +53,16 @@ pub(crate) struct Entry {
 pub(crate) struct Carried {
     pub(crate) entries: Vec<Entry>,
     pub(crate) followers: BTreeSet<EditorId>,
-    /// A refusal of this device's kept commits was already told to the replicas before.
-    pub(crate) refused: bool,
+    /// The refused commits whose refusal the replicas already applied.
+    pub(crate) refused: BTreeSet<CommitId>,
 }
 
 #[derive(Default)]
 pub(crate) struct Lacking {
     entries: Vec<Entry>,
-    /// The refusal of this device's kept commits that opening reported (or a drain told) was
-    /// applied: a commit the device still holds after it was refused is not a new refusal.
-    refused: bool,
+    /// The refused commits whose refusal was applied (by a drain or on opening): a commit the
+    /// device still holds after it was refused is not refused again.
+    refused: BTreeSet<CommitId>,
     next: u64,
     /// The entries the followers were last told of, by id, with whether each had failed.
     told: Vec<(u64, bool)>,
@@ -116,8 +116,8 @@ impl Lacking {
     pub(crate) fn journaled(&mut self, operation: &[u8], sequence: Option<u64>) {
         let named = |entry: &Entry| {
             entry.until == Until::Carried
-                && (sequence.is_some() && entry.sequence == sequence
-                    || !operation.is_empty() && entry.operation == operation)
+                && ((sequence.is_some() && entry.sequence == sequence)
+                    || (!operation.is_empty() && entry.operation == operation))
         };
         if let Some(at) = self.entries.iter().position(named) {
             self.entries.remove(at);
@@ -235,34 +235,38 @@ impl Lacking {
 
     /// The kept commits reached the server, or it refused them: those edits then show as
     /// failed rather than sending for ever.
-    pub(crate) fn drained(&mut self, refused: bool) {
-        match refused {
-            false => self.forget_kept(),
-            true => {
-                self.refused = true;
-                // Edits carried from an earlier replica may be among the refused commits, and
-                // nothing else would ever settle them.
-                for entry in &mut self.entries {
-                    if matches!(entry.until, Until::Kept | Until::Carried) && !entry.failed {
-                        entry.until = Until::Kept;
-                        entry.failed = true;
-                        self.changed = true;
-                    }
-                }
+    pub(crate) fn drained(&mut self, refused: &[CommitId]) {
+        if refused.is_empty() {
+            return self.forget_kept();
+        }
+        self.refused.extend(refused.iter().copied());
+        // Edits carried from an earlier replica may be among the refused commits, and
+        // nothing else would ever settle them.
+        for entry in &mut self.entries {
+            if matches!(entry.until, Until::Kept | Until::Carried) && !entry.failed {
+                entry.until = Until::Kept;
+                entry.failed = true;
+                self.changed = true;
             }
         }
     }
 
     /// The replica opened knowing what commits of the block this device still keeps: what an
-    /// earlier replica kept reached the server meanwhile, or was refused.
-    pub(crate) fn opened_with(&mut self, kept: KeptCommits) {
+    /// earlier replica kept reached the server meanwhile, or was refused. A refused commit
+    /// stays on the device after its edit is dismissed, so only one not applied before fails
+    /// what was kept.
+    pub(crate) fn opened_with(&mut self, kept: KeptCommits, refused: &[CommitId]) {
+        let new: Vec<CommitId> = refused
+            .iter()
+            .copied()
+            .filter(|commit| !self.refused.contains(commit))
+            .collect();
+        if !new.is_empty() {
+            self.drained(&new);
+        }
         match kept {
             KeptCommits::None => self.forget_kept(),
             KeptCommits::Outbox => {}
-            // A refused commit stays on the device after its edit was dismissed: only a refusal
-            // not applied yet fails what was kept.
-            KeptCommits::Refused if !self.refused => self.drained(true),
-            KeptCommits::Refused => {}
         }
     }
 
@@ -347,12 +351,12 @@ impl Lacking {
         Carried {
             entries,
             followers: std::mem::take(&mut self.followers),
-            refused: self.refused,
+            refused: std::mem::take(&mut self.refused),
         }
     }
 
     pub(crate) fn adopt(&mut self, carried: Carried) {
-        self.refused |= carried.refused;
+        self.refused.extend(carried.refused);
         for entry in carried.entries {
             self.push(entry.operation, entry.until, entry.failed, entry.sequence);
         }

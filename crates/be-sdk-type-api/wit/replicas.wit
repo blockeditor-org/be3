@@ -32,6 +32,10 @@ interface replicas {
         /// Whether this device keeps commits of the block the server lacks: an
         /// edit an earlier replica kept for one is sending, failed, or held.
         commits-kept: kept-commits,
+        /// Commits of the block the server refused that this device still holds, set
+        /// aside in the unsent area. They stay there after the edit that sent them is
+        /// let go, so a replica applies the refusal of each commit once.
+        refused-commits: list<commit-id>,
     }
 
     enum kept-commits {
@@ -39,8 +43,6 @@ interface replicas {
         none,
         /// In the outbox, still to be sent.
         outbox,
-        /// Refused by the server, set aside in the unsent area.
-        refused,
     }
 
     /// The device's one replica of a block. Dropping it closes it: it seals
@@ -85,9 +87,9 @@ interface replicas {
         seal: async func(force: bool);
 
         /// Every commit of the block this device kept (`publish-outcome.kept`)
-        /// has reached the server, or with `refused` the server refused them
-        /// and they will not reach it.
-        drained: async func(refused: bool);
+        /// has reached the server (`refused` empty), or the server refused the
+        /// commits in `refused` and they will not reach it.
+        drained: async func(refused: list<commit-id>);
     }
 
     /// Seeds the module's entropy, starts its clock and lists its types.

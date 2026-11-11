@@ -1101,7 +1101,11 @@ impl Session<'_> {
         // A seal kept since the drain answered keeps its edits sending.
         for (block, refused) in self.tasks.0.take_published() {
             if refused || peer.pending_commits(block).is_empty() {
-                self.replicas.drained(block, refused);
+                let commits = match refused {
+                    true => refused_commits(peer, block),
+                    false => Vec::new(),
+                };
+                self.replicas.drained(block, commits);
             }
         }
         let diverged = self.tasks.0.take_diverged();
@@ -1113,7 +1117,7 @@ impl Session<'_> {
                 .await
             {
                 Ok(_) if peer.pending_commits(block).is_empty() => {
-                    self.replicas.drained(block, false);
+                    self.replicas.drained(block, Vec::new());
                 }
                 Ok(_) => {}
                 Err(error) => record(shared, error),
@@ -1203,6 +1207,15 @@ fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.connected = false;
     held.connection = None;
+}
+
+/// The commits of `block` the server refused that this device holds, set aside.
+fn refused_commits(peer: &Arc<Peer<Store>>, block: Uuid) -> Vec<CommitId> {
+    peer.unsent()
+        .into_iter()
+        .filter(|unsent| unsent.block == block)
+        .flat_map(|unsent| unsent.commits)
+        .collect()
 }
 
 /// Publishes the outbox: answers the blocks that diverged, and those whose kept commits all

@@ -370,6 +370,7 @@ fn opening(
         lost_edits: false,
         journal_kept: false,
         commits_kept: be_sdk_type_api::KeptCommits::None,
+        refused_commits: Vec::new(),
     }
 }
 

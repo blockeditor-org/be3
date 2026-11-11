@@ -96,6 +96,7 @@ pub(crate) struct Opened {
     pub(crate) lost_edits: bool,
     pub(crate) journal_kept: bool,
     pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
+    pub(crate) refused_commits: Vec<CommitId>,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -157,7 +158,7 @@ pub(crate) enum Input {
         held: bool,
     },
     Drained {
-        refused: bool,
+        refused: Vec<CommitId>,
     },
     Close,
     Claim,
@@ -501,6 +502,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     journal_kept: bool,
     /// What commits of the block this device keeps (`opening.commits-kept`).
     commits_kept: be_sdk_type_api::KeptCommits,
+    /// The refused commits this device holds (`opening.refused-commits`).
+    refused_commits: Vec<CommitId>,
     out: Vec<Effect>,
 }
 
@@ -536,7 +539,7 @@ where
                 through,
                 held,
             } => self.lacking.appended(from, through, held),
-            Input::Drained { refused } => self.lacking.drained(refused),
+            Input::Drained { refused } => self.lacking.drained(&refused),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
                 | HeadEvent::Rejected { .. }
@@ -610,7 +613,8 @@ where
 
     fn adopt(&mut self, carried: Carried) {
         self.lacking.adopt(carried);
-        self.lacking.opened_with(self.commits_kept);
+        self.lacking
+            .opened_with(self.commits_kept, &self.refused_commits);
     }
 }
 
@@ -700,6 +704,7 @@ where
             lacking: Lacking::default(),
             journal_kept: opened.journal_kept,
             commits_kept: opened.commits_kept,
+            refused_commits: opened.refused_commits,
             out: Vec::new(),
         }
     }

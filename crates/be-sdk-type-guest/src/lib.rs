@@ -421,6 +421,7 @@ impl Module {
                 lost_edits: opening.lost_edits,
                 journal_kept: opening.journal_kept,
                 commits_kept: opening.commits_kept,
+                refused_commits: opening.refused_commits.clone(),
                 from_file: kind.from_file,
                 now,
             })
@@ -570,17 +571,17 @@ impl Module {
                 .map(|mut replica| replica.carry())
                 .unwrap_or_default();
             if let Some(block) = state.blocks.remove(&id)
-                && (!carried.entries.is_empty() || carried.refused)
+                && (!carried.entries.is_empty() || !carried.refused.is_empty())
             {
                 state.carried_order.retain(|held| *held != block);
                 state.carried_order.push_back(block);
                 state.carried.insert(block, carried);
                 // Kept for the blocks opened again soon; the others ask the host when they open.
                 while state.carried.len() > CARRIED_BLOCKS {
-                    match state.carried_order.pop_front() {
-                        Some(oldest) => state.carried.remove(&oldest),
-                        None => state.carried.pop_first().map(|(_, carried)| carried),
+                    let Some(oldest) = state.carried_order.pop_front() else {
+                        break;
                     };
+                    state.carried.remove(&oldest);
                 }
             }
         }
@@ -992,7 +993,7 @@ impl replicas::GuestReplica for OpenReplica {
         ready(())
     }
 
-    fn drained(&self, refused: bool) -> impl Future<Output = ()> + 'static {
+    fn drained(&self, refused: Vec<CommitId>) -> impl Future<Output = ()> + 'static {
         self.module.input(self.id, Input::Drained { refused });
         ready(())
     }
