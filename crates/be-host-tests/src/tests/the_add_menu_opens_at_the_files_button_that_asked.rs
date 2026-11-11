@@ -15,6 +15,9 @@ fn the_add_menu_opens_at_the_files_button_that_asked() {
         (menu_x - button_x).abs() < 8.0,
         "and starts under the button, at {menu_x} beside {button_x}"
     );
+    // The press that opened the menu left the pointer over its first row, which a slow run
+    // highlights and a fast one does not: park the pointer so the painting does not show it.
+    host.run(&["leave"]);
     host.snapshot("the_add_menu_opens_at_the_files_button_that_asked");
     host.key("Escape");
     host.gone("#picker.more");
