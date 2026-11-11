@@ -495,7 +495,8 @@ impl WatchHub {
             .collect()
     }
 
-    /// Which of `accounts` have a connection to `organization` open.
+    /// Which of `accounts` have a live connection to `organization`: one that has joined it
+    /// (`go_live`), not merely an open socket.
     pub async fn connected(&self, organization: Uuid, accounts: &[Uuid]) -> HashSet<Uuid> {
         let joined = self.joined.lock().await;
         accounts

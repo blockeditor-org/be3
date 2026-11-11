@@ -148,10 +148,23 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
             "gone",
         ),
         (429, r#"{"error":{"code":429}}"#, "throttled"),
+        (401, r#"{"error":{"code":401,"status":"UNAUTHENTICATED"}}"#, "throttled"),
+        (403, r#"{"error":{"code":403}}"#, "throttled"),
+        (
+            403,
+            r#"{"error":{"code":403,"details":[{"errorCode":"SENDER_ID_MISMATCH"}]}}"#,
+            "gone",
+        ),
+        (
+            400,
+            r#"{"error":{"code":400,"details":[{"errorCode":"PERMISSION_DENIED"}]}}"#,
+            "throttled",
+        ),
+        (400, r#"{"error":{"code":400}}"#, "failed"),
     ] {
         let judged = match push::fcm_outcome(status, answer) {
             push::Sent::Gone => "gone",
-            push::Sent::Throttled => "throttled",
+            push::Sent::Throttled(_) => "throttled",
             push::Sent::Failed(_) => "failed",
             push::Sent::Delivered => "delivered",
         };

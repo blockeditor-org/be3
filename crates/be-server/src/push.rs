@@ -222,8 +222,11 @@ pub(crate) enum Sent {
     /// The service says the device is gone (Web Push 404 or 410, FCM `UNREGISTERED`): the
     /// endpoint is dropped.
     Gone,
-    /// The service asked to be sent less (429, 503): not the endpoint's failure.
-    Throttled,
+    /// Not the endpoint's failure, so nothing is counted against it: the service asked to be sent
+    /// less (429, 503), a transient 5xx, this server's own fault (its VAPID key or FCM service
+    /// account refused, a name that does not resolve, a connection that fails) or a push too big.
+    /// Carries why, for the log: a fault of this server hits every device of a service at once.
+    Throttled(String),
     /// Anything else, counted against the endpoint (`MAX_FAILURES`).
     Failed(String),
 }
@@ -270,7 +273,7 @@ impl Senders {
 /// The key a push's host shares its cap under, for `Senders::acquire`: the allowlist entry it
 /// matched (a suffix covers every subdomain), so many hosts of one service share one cap. An FCM
 /// push goes to FCM.
-fn push_host(endpoint: &PushEndpoint, added: &[String]) -> String {
+pub(crate) fn push_host(endpoint: &PushEndpoint, added: &[String]) -> String {
     let PushService::WebPush = endpoint.service else {
         return "fcm".to_owned();
     };
@@ -298,14 +301,17 @@ fn push_host(endpoint: &PushEndpoint, added: &[String]) -> String {
 
 /// What an HTTP status from a push service means for the endpoint: gone on 404 and 410; not the
 /// endpoint's failure on 401 and 403 (this server's VAPID key or subject is refused), 413
-/// (this server's push is too big) and 429 and 503 (asked to send less), which would otherwise
+/// (this server's push is too big), 429 (asked to send less) and 5xx (transient, RFC 8030),
+/// which would otherwise
 /// drop every device of a host for one server-side fault; counted against it otherwise,
 /// a redirect included.
 pub(crate) fn status_outcome(status: u16) -> Sent {
     match status {
         200..=299 => Sent::Delivered,
         404 | 410 => Sent::Gone,
-        401 | 403 | 413 | 429 | 503 => Sent::Throttled,
+        401 | 403 | 413 | 429 | 500 | 502 | 503 | 504 => {
+            Sent::Throttled(format!("the push service answered {status}"))
+        }
         status => Sent::Failed(format!("the push service answered {status}")),
     }
 }
@@ -554,11 +560,8 @@ impl Pusher {
                     }
                 }
             };
-            let Some(permit) = self
-                .senders
-                .acquire(&push_host(&job.endpoint, &self.hosts))
-                .await
-            else {
+            let host = push_host(&job.endpoint, &self.hosts);
+            let Some(permit) = self.senders.acquire(&host).await else {
                 return;
             };
             let address = job.endpoint.address.clone();
@@ -581,9 +584,12 @@ impl Pusher {
                     self.forget_queued(account, &address);
                     store.drop_endpoint(address).await
                 }
-                Ok(Sent::Throttled) => Ok(()),
+                Ok(Sent::Throttled(why)) => {
+                    tracing::warn!(host = %host, %why, "a push was not delivered, and not counted against the device");
+                    Ok(())
+                }
                 Ok(Sent::Failed(error)) => {
-                    tracing::debug!(%error, "a push was not delivered");
+                    tracing::warn!(%error, "a push was not delivered");
                     store.endpoint_failed(account, organization, address).await
                 }
                 Err(error) => {
@@ -647,25 +653,22 @@ impl Pusher {
             .set("Content-Type", "application/octet-stream")
             .set("Authorization", &authorization)
             .send_bytes(body);
+        // Web Push's 401 and 403 say only that the VAPID token was refused, which no answer tells
+        // from this server's fault: they are never counted against the endpoint.
         match sent {
             Ok(answer) => status_outcome(answer.status()),
-            Err(ureq::Error::Status(status @ (401 | 403), _)) => {
-                tracing::warn!(status, host = ?url.host_str(), "a push service refuses this server's pushes");
-                status_outcome(status)
-            }
             Err(ureq::Error::Status(status, _)) => status_outcome(status),
-            Err(ureq::Error::Transport(error)) if error.kind() == ureq::ErrorKind::Dns => {
-                tracing::warn!(host = ?url.host_str(), %error, "a push service's name did not resolve");
-                Sent::Throttled
-            }
-            Err(error) => Sent::Failed(error.to_string()),
+            // Reaching an allowlisted push service fails for this server's reasons: its name, its
+            // network, its TLS.
+            Err(ureq::Error::Transport(error)) => Sent::Throttled(error.to_string()),
         }
     }
 
     fn fcm(&self, fcm: &Fcm, token: &str, body: &[u8], urgent: bool) -> Sent {
         let access = match self.access_token(fcm) {
             Ok(access) => access,
-            Err(error) => return Sent::Failed(error),
+            // The service account's key or the token endpoint: this server's fault.
+            Err(error) => return Sent::Throttled(error),
         };
         let message = ureq::serde_json::json!({
             "message": {
@@ -693,7 +696,7 @@ impl Pusher {
                 let answer = response.into_string().unwrap_or_default();
                 fcm_outcome(status, &answer)
             }
-            Err(error) => Sent::Failed(error.to_string()),
+            Err(error) => Sent::Throttled(error.to_string()),
         }
     }
 
@@ -728,23 +731,32 @@ impl Pusher {
     }
 }
 
-/// What an FCM error answer means for the endpoint: gone only when FCM names the token
-/// `UNREGISTERED`, never for a 404 alone, which a wrong project also answers.
+/// What an FCM error answer means for the endpoint, by the `errorCode` in its details: gone for
+/// `UNREGISTERED` and `SENDER_ID_MISMATCH` (a token of another sender), never for a 404 alone,
+/// which a wrong project also answers; this server's fault for `UNAUTHENTICATED` and
+/// `PERMISSION_DENIED`, as for a 401 and 403.
 pub(crate) fn fcm_outcome(status: u16, answer: &str) -> Sent {
-    let unregistered = ureq::serde_json::from_str::<ureq::serde_json::Value>(answer)
+    let codes: Vec<String> = ureq::serde_json::from_str::<ureq::serde_json::Value>(answer)
         .ok()
         .and_then(|answer| {
             answer["error"]["details"].as_array().map(|details| {
                 details
                     .iter()
-                    .any(|detail| detail["errorCode"] == "UNREGISTERED")
+                    .filter_map(|detail| detail["errorCode"].as_str().map(str::to_owned))
+                    .collect()
             })
         })
-        .unwrap_or(false);
-    match (unregistered, status) {
-        (true, _) => Sent::Gone,
-        (false, 401 | 403 | 413 | 429 | 503) => Sent::Throttled,
-        (false, status) => Sent::Failed(format!("FCM answered {status}: {answer}")),
+        .unwrap_or_default();
+    let has = |name: &str| codes.iter().any(|code| code == name);
+    if has("UNREGISTERED") || has("SENDER_ID_MISMATCH") {
+        Sent::Gone
+    } else if has("UNAUTHENTICATED")
+        || has("PERMISSION_DENIED")
+        || matches!(status, 401 | 403 | 413 | 429 | 500 | 502 | 503 | 504)
+    {
+        Sent::Throttled(format!("FCM answered {status}: {answer}"))
+    } else {
+        Sent::Failed(format!("FCM answered {status}: {answer}"))
     }
 }
 

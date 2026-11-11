@@ -3,7 +3,15 @@ use be_block_protocol::PushService;
 
 #[tokio::test]
 async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_endpoints() {
-    let harness = Harness::configured(pushing_locally()).await;
+    let harness = Harness::configured(ServerConfig {
+        push: push::PushConfig {
+            allow_local_endpoints: true,
+            fcm: None,
+            hosts: vec!["127.0.0.1".to_owned(), "gone.invalid".to_owned()].into(),
+        },
+        ..ServerConfig::OPEN
+    })
+    .await;
     let mut service = TestPushService::start(|path| match path {
         "/redirect" => (302, String::new()),
         "/denied" => (403, String::new()),
@@ -16,6 +24,12 @@ async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_rig
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, account) = viewer_of(&harness, &mut owner, block, "member@example.com").await;
+    // A name that never resolves is this server's trouble, not the device's.
+    member
+        .register_endpoint(
+            TestDevice::new().endpoint(PushService::WebPush, "http://gone.invalid/unresolved".into()),
+        )
+        .await;
     for path in ["/redirect", "/denied", "/unauthorized", "/kept"] {
         member
             .register_endpoint(
@@ -51,6 +65,7 @@ async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_rig
             .find(|(address, _)| address.ends_with(path))
             .map(|(_, failures)| *failures)
     };
+    assert_eq!(failed("/unresolved"), Some(0), "a name that does not resolve");
     assert_eq!(failed("/redirect"), Some(1), "a redirect is not a delivery");
     assert_eq!(failed("/denied"), Some(0), "a 403 is this server's fault");
     assert_eq!(
