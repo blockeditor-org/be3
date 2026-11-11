@@ -35,6 +35,7 @@ pub use blocks::*;
 pub use contacts::*;
 pub use keys::*;
 pub use members::*;
+pub use notifications::*;
 pub use objects::*;
 pub use organizations::*;
 pub use sessions::*;
@@ -46,6 +47,44 @@ pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
 /// The most objects one `upload-urls` or `download-urls` call names, which keeps its answer
 /// well inside a frame.
 pub const MAX_OBJECT_URLS: usize = 1024;
+/// The largest sealed notification `notify` takes: what an app writes is about 1 KiB, and
+/// the push carrying it must stay within the 4 KiB Web Push allows (RFC 8030), encryption
+/// included.
+pub const MAX_NOTIFICATION_BYTES: usize = 2048;
+
+/// What one push carries to a device, encrypted to it (RFC 8291): the block's organization and
+/// id, the account that sent it, which the server vouches for, then the notification sealed
+/// under the block's data key. Bytes, so a service worker reads it without a decoder: 16 bytes
+/// each of organization, block and sender, then the sealed notification. A device names the
+/// sender and the block itself, from its own contacts and graph: the sealed part holds only
+/// the text, bound to the block and the time it was sent (`be_block_client::Notification`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PushMessage {
+    pub organization: Uuid,
+    pub block: Uuid,
+    pub sender: Uuid,
+    pub sealed: Vec<u8>,
+}
+
+impl PushMessage {
+    pub fn encode(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(48 + self.sealed.len());
+        bytes.extend_from_slice(self.organization.as_bytes());
+        bytes.extend_from_slice(self.block.as_bytes());
+        bytes.extend_from_slice(self.sender.as_bytes());
+        bytes.extend_from_slice(&self.sealed);
+        bytes
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        Some(Self {
+            organization: Uuid::from_slice(bytes.get(..16)?).ok()?,
+            block: Uuid::from_slice(bytes.get(16..32)?).ok()?,
+            sender: Uuid::from_slice(bytes.get(32..48)?).ok()?,
+            sealed: bytes.get(48..)?.to_vec(),
+        })
+    }
+}
 
 impl ObjectChange {
     /// What turns the objects `before` holds into those `after` holds.

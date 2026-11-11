@@ -1,0 +1,82 @@
+package be3:server@0.1.0;
+
+/// Push notifications for members who are not connected
+/// (guides/blocks/server.md, "Notifications"). The server never reads one: a
+/// notification is sealed under the block's data key, and the server learns
+/// only which block it is about and whom it mentions.
+interface notifications {
+    use types.{account-id, block-id, error};
+
+    /// The service a device takes pushes from.
+    enum push-service {
+        /// Web Push (RFC 8030): `address` is the URL the server posts to, a
+        /// browser's subscription or a UnifiedPush distributor's.
+        web-push,
+        /// Firebase Cloud Messaging: `address` is the device's registration
+        /// token. Offered only by a server with FCM credentials.
+        fcm,
+    }
+
+    /// Where one device takes pushes, and the keys each push is encrypted to
+    /// (RFC 8291): `p256dh`, the device's P-256 public key, uncompressed (65
+    /// bytes), and `auth`, its 16-byte authentication secret.
+    record push-endpoint {
+        service: push-service,
+        address: string,
+        p256dh: list<u8>,
+        auth: list<u8>,
+    }
+
+    /// Which notifications about a block reach an account.
+    enum notify-mode {
+        all,
+        /// Only those that mention the account.
+        mentions,
+        off,
+    }
+
+    /// The server's VAPID public key (RFC 8292), uncompressed P-256: what a
+    /// browser subscribes with, so only this server can push to it.
+    push-key: async func() -> result<list<u8>, error>;
+
+    /// Whether this server sends through FCM (it was started with
+    /// credentials); without, a device registers only a Web Push endpoint.
+    offers-fcm: async func() -> result<bool, error>;
+
+    /// Registers this device's endpoint for the signed-in account in the open
+    /// organization, replacing one with the same address. An account keeps at
+    /// most `limits::MAX_PUSH_ENDPOINTS` per organization, the oldest going
+    /// first.
+    register-endpoint: async func(endpoint: push-endpoint) -> result<_, error>;
+
+    /// Forgets the endpoint at `address`, as the device stops taking pushes.
+    unregister-endpoint: async func(address: string) -> result<_, error>;
+
+    /// A block whose notifications the account set to other than `all`.
+    record block-notify-mode {
+        block: block-id,
+        mode: notify-mode,
+    }
+
+    /// Every block in the open organization whose mode the signed-in account
+    /// set to other than `all`, which every other block is: one call when a
+    /// device starts, rather than one per block shown.
+    notify-modes: async func() -> result<list<block-notify-mode>, error>;
+
+    set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, error>;
+
+    /// An item whenever the account's modes changed through another
+    /// connection, so the client reads them again; a latest-value stream.
+    notify-modes-changed: func() -> stream;
+
+    /// Pushes `sealed` (at most `be_block_protocol::MAX_NOTIFICATION_BYTES`)
+    /// to every member who may view `block` and has no connection to the
+    /// organization open, but the caller, skipping those whose mode is `off`,
+    /// and those whose mode is `mentions` unless `mentions` names them. Each
+    /// push names the caller's account (`PushMessage::sender`), which the
+    /// server vouches for. At most `limits::MAX_NOTIFICATIONS_PER_MINUTE` a
+    /// minute from one account and `limits::MAX_NOTIFICATIONS_PER_BLOCK` about
+    /// one block. Answered once the pushes are queued; a push service's
+    /// refusal is never the caller's.
+    notify: async func(block: block-id, sealed: list<u8>, mentions: list<account-id>) -> result<_, error>;
+}
