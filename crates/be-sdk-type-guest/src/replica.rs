@@ -39,6 +39,10 @@ const READ_ATTEMPTS: u32 = 4;
 /// it gives up and tells the follower to submit again: it holds every message behind the read,
 /// so it is slower to give up than a follower.
 const OWNER_READ_ATTEMPTS: u32 = 10;
+
+/// How many times a follower submits again at the owner's word before it leaves its edit
+/// pending and reports it.
+const MOST_RESENDS: u32 = 3;
 const READ_RETRY_CEILING: u64 = 60_000;
 const READ_RETRY_INTERVAL: u64 = 1_000;
 
@@ -469,6 +473,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Senders whose owner-only messages a follower ignored because the lease it knew named
     /// another owner: when one becomes the owner, the follower asks to be caught up.
     ignored_owners: Vec<ClientId>,
+    /// How many times the owner told this follower to submit again since one of its edits was
+    /// last accepted.
+    resends: u32,
     /// How many times in a row a put failed.
     put_failures: u32,
     out: Vec<Effect>,
@@ -650,6 +657,7 @@ where
             catch_up_failures: 0,
             catch_up_at: None,
             ignored_owners: Vec::new(),
+            resends: 0,
             put_failures: 0,
             out: Vec::new(),
         }
@@ -958,8 +966,10 @@ where
             | SessionMessage::Replaced { .. }
             | SessionMessage::Resend => {
                 let ignored = Some(from) != self.state.owner;
-                if ignored && !self.ignored_owners.contains(&from) && self.ignored_owners.len() < 8
-                {
+                if ignored && !self.ignored_owners.contains(&from) {
+                    if self.ignored_owners.len() >= 8 {
+                        self.ignored_owners.remove(0);
+                    }
                     self.ignored_owners.push(from);
                 }
                 ignored
@@ -1255,8 +1265,7 @@ where
                 if resynchronize && let Role::Follower(_) = &self.role {
                     self.catch_up_failures = 0;
                     self.catch_up_at = None;
-                    self.catching_up = true;
-                    self.greet();
+                    self.regreet();
                 }
                 self.flush();
             }
@@ -1929,8 +1938,7 @@ where
         self.loaded = true;
         self.described = true;
         if let Role::Follower(_) = &self.role {
-            self.catching_up = true;
-            self.greet();
+            self.regreet();
         }
         self.claim_if_abandoned();
     }
@@ -2762,6 +2770,13 @@ where
                 let Role::Follower(follower) = &mut self.role else {
                     return;
                 };
+                self.resends += 1;
+                if self.resends > MOST_RESENDS {
+                    if self.resends == MOST_RESENDS + 1 {
+                        self.error("the owner could not read an edit, however often it was sent");
+                    }
+                    return;
+                }
                 let applied = follower.applied();
                 let owner = self.state.owner;
                 for message in follower.resynchronize(applied) {
@@ -2929,6 +2944,9 @@ where
         let Role::Follower(follower) = &mut self.role else {
             return;
         };
+        if follower.is_mine(op.id) {
+            self.resends = 0;
+        }
         let unchanged = follower.is_mine(op.id)
             && follower.front() == Some(op.id)
             && follower
@@ -3055,7 +3073,7 @@ where
                 self.send(owner, &handed.message());
             }
             if self.catching_up {
-                self.greet();
+                self.regreet();
             }
             return;
         }

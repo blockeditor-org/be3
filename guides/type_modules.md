@@ -320,8 +320,9 @@ rebase. The rules an agent most needs:
   `LARGEST_PART` is given up on without a read, and so are a follower's held
   messages once more than `MOST_HELD_JOBS` wait behind a read. Giving up
   drops the messages that name the part. An owner reads a follower's part ten times,
-  the waits growing to a minute, holding its queue meanwhile, then tells the
-  sender `Resend`, which submits what it has pending again. A follower asks the
+  the waits growing to a minute (about 4 minutes in all), holding its whole
+  queue meanwhile, then tells the sender `Resend`, which submits all it has
+  pending again; a follower obeys three in a row, then reports the edit. A follower asks the
   owner to catch it up (`catch_up_later`), again after 5 s, 10 s and so on up
   to a minute until an answer applies (a `Snapshot`, a `Sealed` that reloads,
   or a lease change that resynchronizes). Once the owner's commit of the edit

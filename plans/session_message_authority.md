@@ -12,6 +12,10 @@ still accepts a `Submit` from whoever sent it (guides/type_modules.md), so a vie
 can edit through the session, and a viewer's message that names a part makes the
 owner read it.
 
+The owner holds its whole queue for about 4 minutes while it retries the read of an
+unreadable part, so a viewer that forges N distinct bad `Submit`s stalls the session
+for N x 4 minutes until this lands.
+
 Make the server refuse it:
 
 - Relay a message to the participants only if its sender may do what it says: a
