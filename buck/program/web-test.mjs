@@ -12,11 +12,11 @@
 // revealed it; after a reveal every target of the command is found again, as native drive
 // does), so the browser's own focus, key and text paths run.
 // `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
-// `attribute CSS NAME VALUE|none`, `history LENGTH` and `history-state marker|none` (browser
+// `attribute CSS NAME VALUE|none`, `history LENGTH`, `loads COUNT` and `history-state marker|none` (browser
 // only) wait for an element's attribute, the history's length, and whether the current entry's
 // state is the page's own back entry (`history.length` never shrinks on back, so only the state
 // shows an entry taken back), and `reload` reloads the page; a shared script gives them as
-// `#web` lines.
+// `#web` lines. `loads COUNT` fails unless the page has loaded exactly COUNT times.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
@@ -145,6 +145,10 @@ async function open(query, colorScheme = "light") {
     });
     const log = [];
     const errors = [];
+    // How many times the page has loaded, which a reload or a traversal off the page's own
+    // entry raises, but a same-document one does not.
+    page.beuiLoads = 0;
+    page.on("load", () => page.beuiLoads++);
     page.on("console", (message) => log.push(`[${message.type()}] ${message.text()}`));
     page.on("pageerror", (error) => errors.push(String(error?.stack ?? error)));
     await page.goto(origin + query);
@@ -325,6 +329,16 @@ async function step(page, words) {
             } catch {
                 throw new Failure(`history holds ${await page.evaluate(() => history.length)} entries, not ${wanted}`);
             }
+            return "";
+        }
+        case "loads": {
+            // loads COUNT: waits until the page has loaded COUNT times (the first load
+            // counts), so a step that must stay on the document can show it did.
+            const wanted = Number(args[0]);
+            if (!Number.isInteger(wanted)) throw new Failure("loads takes a COUNT");
+            const deadline = Date.now() + timeout * 1000;
+            while (page.beuiLoads < wanted && Date.now() < deadline) await page.waitForTimeout(20);
+            if (page.beuiLoads !== wanted) throw new Failure(`the page loaded ${page.beuiLoads} times, not ${wanted}`);
             return "";
         }
         case "history-state": {

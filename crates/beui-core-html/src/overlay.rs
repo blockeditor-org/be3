@@ -271,6 +271,7 @@ impl Layer {
         self.sync_inert();
         self.place();
         crate::back::layers_changed();
+        crate::frame::request_frame();
     }
 
     fn weak(&self) -> Weak<Layer> {
@@ -289,6 +290,7 @@ impl Layer {
             self.web.borrow_mut().shown = None;
         }
         crate::back::layers_changed();
+        crate::frame::request_frame();
     }
 
     pub fn close(&self) {

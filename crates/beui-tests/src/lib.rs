@@ -10,7 +10,8 @@
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
 //! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's), and
-//! `attribute CSS NAME VALUE|none`, `history LENGTH` and `reload`, which a script both cores
+//! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT` and
+//! `reload`, which a script both cores
 //! run gives as `#web COMMAND` lines (comments natively).
 //!
 //! The browser run's `settle` waits until no frame is wanted at once; a frame a timer will ask

@@ -108,9 +108,12 @@ fn changed() {
         web::watch();
         web::mark();
     }
+    crate::frame::request_frame();
 }
 
 /// A layer opened, closed or rose, which may change what back reaches.
+///
+/// Only history is touched here; the layer's own change asks for its frame.
 pub(crate) fn layers_changed() {
     #[cfg(target_arch = "wasm32")]
     {
@@ -160,7 +163,15 @@ mod web {
         static RETRACTING: Cell<bool> = const { Cell::new(false) };
         /// Watches the handlers' elements for being shown, hidden, moved in or removed,
         /// which `target` depends on and nothing else marks.
-        static OBSERVER: RefCell<Option<(JsValue, Closure<dyn FnMut()>)>> = const { RefCell::new(None) };
+        static OBSERVER: RefCell<Option<Observer>> = const { RefCell::new(None) };
+    }
+
+    struct Observer {
+        made: JsValue,
+        _callback: Closure<dyn FnMut()>,
+        /// What is observed, by handler node, so an element is let go when its handler
+        /// goes or points elsewhere.
+        observed: Vec<(NodeId, web_sys::Element)>,
     }
 
     pub(super) fn mark() {
@@ -203,7 +214,8 @@ mod web {
 
     /// Has a handler's element's size or presence change mark history dirty: a handler
     /// hidden by `display`, a tab switch or removal stops counting, a shown one starts.
-    fn observe(element: &web_sys::Element) {
+    /// (`display: contents` has no box, so it is not reported.)
+    fn observe(node: NodeId, element: &web_sys::Element) {
         OBSERVER.with(|observer| {
             let mut observer = observer.borrow_mut();
             if observer.is_none() {
@@ -219,46 +231,52 @@ mod web {
                 ) else {
                     return;
                 };
-                *observer = Some((made, callback));
+                *observer = Some(Observer {
+                    made,
+                    _callback: callback,
+                    observed: Vec::new(),
+                });
             }
-            if let Some((made, _)) = observer.as_ref() {
-                call(made, "observe", &[element.clone().into()]);
+            let Some(observer) = observer.as_mut() else {
+                return;
+            };
+            if let Some(held) = observer.observed.iter_mut().find(|(held, _)| *held == node) {
+                if held.1 == *element {
+                    return;
+                }
+                call(&observer.made, "unobserve", &[held.1.clone().into()]);
+                held.1 = element.clone();
+            } else {
+                observer.observed.push((node, element.clone()));
             }
+            call(&observer.made, "observe", &[element.clone().into()]);
         });
     }
 
-    /// A reload, or a return without the back-forward cache, may land on the page's own
-    /// entry from before: hold it as pushed, so it is taken back or reused, not stranded
-    /// under a second one.
-    fn adopt_entry() {
-        let Some(history) = history() else {
-            return;
-        };
-        if on_own_entry(&history) {
-            PUSHED.with(|pushed| pushed.set(true));
-            LENGTH.with(|held| held.set(length(&history)));
-            mark();
-        }
-    }
-
-    fn history() -> Option<JsValue> {
-        let window = crate::dom::window()?;
-        js_sys::Reflect::get(&window, &"history".into()).ok()
-    }
-
-    fn length(history: &JsValue) -> f64 {
-        js_sys::Reflect::get(history, &"length".into())
-            .ok()
-            .and_then(|length| length.as_f64())
-            .unwrap_or(0.0)
-    }
-
-    fn on_own_entry(history: &JsValue) -> bool {
-        js_sys::Reflect::get(history, &"state".into())
-            .ok()
-            .filter(JsValue::is_object)
-            .and_then(|state| js_sys::Reflect::get(&state, &MARKER.into()).ok())
-            .is_some_and(|marked| marked.is_truthy())
+    /// Lets go of the elements whose handler is gone.
+    fn unobserve_removed() {
+        let live: Vec<NodeId> = HANDLERS.with(|handlers| {
+            handlers
+                .borrow()
+                .handlers
+                .iter()
+                .filter_map(|handler| handler.at.and_then(|at| at.try_get()))
+                .collect()
+        });
+        OBSERVER.with(|observer| {
+            let mut observer = observer.borrow_mut();
+            let Some(observer) = observer.as_mut() else {
+                return;
+            };
+            let made = observer.made.clone();
+            observer.observed.retain(|(node, element)| {
+                let keep = live.contains(node);
+                if !keep {
+                    call(&made, "unobserve", &[element.clone().into()]);
+                }
+                keep
+            });
+        });
     }
 
     /// The innermost layer's dialog around `node`, `None` in the page itself.
@@ -286,7 +304,7 @@ mod web {
                 .find(|handler| match handler.at {
                     Some(at) => at.try_get().is_some_and(|node| {
                         if let Some(element) = crate::dom::element(node) {
-                            observe(&element);
+                            observe(node, &element);
                         }
                         shown(node) && layer_of(node).as_ref() == dialog
                     }),
@@ -326,6 +344,7 @@ mod web {
     }
 
     fn sync() {
+        unobserve_removed();
         let wanted = target().is_some();
         let Some(history) = history() else {
             return;
@@ -333,11 +352,11 @@ mod web {
         let pushed = PUSHED.with(Cell::get);
         if wanted && !pushed {
             if on_own_entry(&history) {
-                if RETRACTING.with(Cell::get) {
-                    // The entry's retraction is still on its way: it holds again only
-                    // if the popstate does not come, and is pushed anew once it has.
-                    mark();
-                } else {
+                // While the entry's retraction is on its way, popped() marks again once
+                // it comes. If it never does (a `back` that did nothing, a dropped
+                // popstate) nothing pushes and back leaves the page, rather than this
+                // polling every frame.
+                if !RETRACTING.with(Cell::get) {
                     PUSHED.with(|pushed| pushed.set(true));
                     LENGTH.with(|held| held.set(length(&history)));
                 }
@@ -363,8 +382,9 @@ mod web {
             return;
         };
         if RETRACTING.with(|retracting| retracting.replace(false)) {
-            // Whatever this popstate was, it ends the retraction, and the entry is gone.
-            PUSHED.with(|pushed| pushed.set(false));
+            // Whatever this popstate was, it ends the retraction. If it landed on the
+            // page's own entry (a forward) that entry holds again.
+            PUSHED.with(|pushed| pushed.set(on_own_entry(&history)));
             mark();
             return;
         }
