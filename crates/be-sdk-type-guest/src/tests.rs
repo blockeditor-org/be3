@@ -28,8 +28,10 @@ mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_file_maps_to_a_block_and_back;
 mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
+mod a_follower_reads_a_part_again_when_a_read_fails;
 mod a_follower_replaces_the_content_and_the_owner_takes_it;
 mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
+mod a_follower_that_cannot_read_a_part_catches_up_from_the_head;
 mod a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up;
 mod a_follower_that_missed_messages_catches_up_once_resynchronized;
 mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
@@ -50,6 +52,7 @@ mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
 mod a_new_owner_replays_a_journaled_edit_by_its_part;
+mod a_part_longer_than_any_edit_is_not_read;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
@@ -75,6 +78,7 @@ mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
+mod two_oversized_edits_in_a_row_land_in_order;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
@@ -391,6 +395,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     part_reads: usize,
     parts_put: usize,
     fail_puts: usize,
+    fail_reads: usize,
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
@@ -446,6 +451,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             part_reads: 0,
             parts_put: 0,
             fail_puts: 0,
+            fail_reads: 0,
             largest_written: 0,
             written: 0,
             journal: None,
@@ -932,6 +938,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::ReadPart { reply, part, range } => {
                 self.part_reads += 1;
+                if self.fail_reads > 0 {
+                    self.fail_reads -= 1;
+                    let result: Result<Vec<u8>, String> = Err("the server is unreachable".into());
+                    return self.to(device, |host| reply.send(host, &result));
+                }
                 let result = self
                     .vault
                     .read_part(part.into(), range.offset, range.length)

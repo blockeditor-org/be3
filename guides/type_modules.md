@@ -310,7 +310,23 @@ rebase. The rules an agent most needs:
   outside the session misses: `replay` cannot read a part, so it fails and the
   host reads the head alone. No commit holds the part, so the server's hold on
   it lasts the whole upload grace. An owner that cannot put the part (offline,
-  or a block the server does not have yet) commits what it shows instead.
+  or a block the server does not have yet) commits what it shows instead. A
+  follower whose put fails keeps the edit and puts it again after 5 s, then
+  10, 20 and so on up to a minute (`put_retry_at`), and at once on a lease
+  change (the host's `Lease` input), which is what a rejoin looks like; each
+  failure is reported.
+- A read that fails is tried again after 1, 2 and 4 s, with the messages
+  behind it held; the fourth failure gives up on the part. A part longer than
+  `LARGEST_PART` is given up on without a read, and so are the held messages
+  once more than `MOST_HELD_JOBS` wait behind a read. Giving up drops the
+  messages that name the part, and a follower asks the owner to catch it up
+  (`catch_up`): the owner committed the edit at once, so the snapshot it
+  answers with starts at a head that holds it. A part given up on twice
+  without a read in between answering is a divergence (`unreadable_message`),
+  as is an operation whose bytes do not decode. The server holds a part for
+  the whole upload grace (a day), and longer while the block's journal holds
+  entries, far longer than a lagging replica needs; a replica may read only
+  objects of blocks it may view, and opens them with that block's key.
 - A whole-content replacement (`Replace`, `FromFile`) wins outright: the
   replica stashes what it has not saved and publishes the replacement with
   that stash as second parent, and every editor gets a new snapshot. A follower

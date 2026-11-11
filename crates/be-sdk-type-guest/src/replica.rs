@@ -27,6 +27,20 @@ pub const QUIET_INTERVAL: u64 = 30_000;
 /// How long a follower waits before it puts again the part of an edit whose put failed.
 const PUT_RETRY_INTERVAL: u64 = 5_000;
 
+/// The longest a follower waits between puts of an edit's part, which double from
+/// `PUT_RETRY_INTERVAL`.
+const PUT_RETRY_CEILING: u64 = 60_000;
+
+/// How many times a part is read before it counts as unavailable, and how long the first
+/// wait is (it doubles each time).
+const READ_ATTEMPTS: u32 = 4;
+const READ_RETRY_INTERVAL: u64 = 1_000;
+
+/// The longest part a peer may name, and the most messages kept waiting behind a read. A
+/// message over either is not waited for: the replica asks the owner to catch it up instead.
+const LARGEST_PART: u64 = 64 * LARGEST_RELAYED_OPERATION as u64;
+const MOST_HELD_JOBS: usize = 10_000;
+
 /// An owner commits at most this long after the first edit since its last commit, while edits
 /// go on, which bounds what a restore point misses and what a reader replays.
 pub const COMMIT_INTERVAL: u64 = 5 * 60_000;
@@ -439,7 +453,14 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Payload parts being read, by the token of the call.
     reading: BTreeMap<Token, PartRef>,
     /// Payload parts whose read failed: an operation naming one cannot be applied.
-    unread: HashSet<PartRef>,
+    /// Reads of parts that failed, and when each is tried again.
+    read_failures: HashMap<PartRef, u32>,
+    read_retry: HashMap<PartRef, u64>,
+    /// Parts a catch-up was asked for because they could not be read: one named again after
+    /// that is a divergence.
+    gave_up: HashSet<PartRef>,
+    /// How many times in a row a put failed.
+    put_failures: u32,
     out: Vec<Effect>,
 }
 
@@ -486,6 +507,15 @@ where
         if self.append_at.is_some_and(|at| self.now >= at) {
             self.append_unappended();
         }
+        let due: Vec<PartRef> = self
+            .read_retry
+            .iter()
+            .filter(|(_, at)| self.now >= **at)
+            .map(|(part, _)| *part)
+            .collect();
+        for part in due {
+            self.read_retry.remove(&part);
+        }
         if self.put_retry_at.is_some_and(|at| self.now >= at) {
             self.put_retry_at = None;
             self.flush();
@@ -512,6 +542,7 @@ where
         seal.into_iter()
             .chain(self.append_at)
             .chain(self.put_retry_at)
+            .chain(self.read_retry.values().copied())
             .chain(self.beat_at())
             .min()
     }
@@ -597,7 +628,10 @@ where
             uploads: HashMap::new(),
             payloads: HashMap::new(),
             reading: BTreeMap::new(),
-            unread: HashSet::new(),
+            read_failures: HashMap::new(),
+            read_retry: HashMap::new(),
+            gave_up: HashSet::new(),
+            put_failures: 0,
             out: Vec::new(),
         }
     }
@@ -616,18 +650,37 @@ where
             }
             // A peer's message waits for the parts its operations name, and so does all that
             // came after it.
-            let missing: Vec<PartRef> = match job {
-                Job::Heard {
-                    wire: Some(wire), ..
-                } => named_parts(wire)
-                    .into_iter()
-                    .filter(|part| !self.payloads.contains_key(part) && !self.unread.contains(part))
-                    .collect(),
-                _ => Vec::new(),
-            };
-            if !missing.is_empty() {
+            let mut missing = Vec::new();
+            let mut backing_off = false;
+            let mut too_large = None;
+            if let Job::Heard {
+                wire: Some(wire), ..
+            } = job
+            {
+                for part in named_parts(wire) {
+                    if self.payloads.contains_key(&part) {
+                        continue;
+                    }
+                    if part.length() > LARGEST_PART {
+                        too_large = Some(part);
+                    } else if self.read_retry.contains_key(&part) {
+                        backing_off = true;
+                    } else {
+                        missing.push(part);
+                    }
+                }
+            }
+            if let Some(part) = too_large {
+                self.part_unavailable(part);
+                continue;
+            }
+            if !missing.is_empty() || backing_off {
                 for part in missing {
                     self.read_payload(part);
+                }
+                if self.jobs.len() > MOST_HELD_JOBS {
+                    self.jobs.retain(|job| !matches!(job, Job::Heard { .. }));
+                    self.catch_up();
                 }
                 break;
             }
@@ -753,10 +806,23 @@ where
         match result {
             Ok(bytes) => {
                 self.payloads.insert(part, bytes);
+                self.read_failures.remove(&part);
+                self.gave_up.remove(&part);
+            }
+            Err(error) if matches!(self.waiting, Some(Wait::Payloads { .. })) => {
+                self.error(format!("an operation's part could not be read: {error}"));
             }
             Err(error) => {
-                self.error(format!("an operation's part could not be read: {error}"));
-                self.unread.insert(part);
+                let failures = self.read_failures.entry(part).or_default();
+                *failures += 1;
+                let failures = *failures;
+                if failures < READ_ATTEMPTS {
+                    let wait = READ_RETRY_INTERVAL << (failures - 1);
+                    self.read_retry.insert(part, self.now + wait);
+                } else {
+                    self.error(format!("an operation's part could not be read: {error}"));
+                    self.part_unavailable(part);
+                }
             }
         }
         if self.reading.is_empty()
@@ -765,6 +831,36 @@ where
         {
             self.loaded(loaded);
         }
+    }
+
+    /// A part a peer's message names cannot be read, however often it is tried. The message is
+    /// dropped and a follower asks the owner to catch it up, which hands it the commit the
+    /// owner made of the edit. A part still unavailable after that is a divergence.
+    fn part_unavailable(&mut self, part: PartRef) {
+        self.read_failures.remove(&part);
+        self.read_retry.remove(&part);
+        let named = |job: &Job<C>| match job {
+            Job::Heard {
+                wire: Some(wire), ..
+            } => named_parts(wire).contains(&part),
+            _ => false,
+        };
+        self.jobs.retain(|job| !named(job));
+        if !self.is_owner() && self.gave_up.insert(part) {
+            return self.catch_up();
+        }
+        self.gave_up.remove(&part);
+        self.unreadable_message();
+    }
+
+    /// Asks the owner for what this follower missed, and ignores what the owner sends until it
+    /// answers.
+    fn catch_up(&mut self) {
+        if self.is_owner() {
+            return;
+        }
+        self.catching_up = true;
+        self.greet();
     }
 
     /// Drops the bytes of payload parts once nothing waiting or pending names them. Nothing
@@ -791,6 +887,7 @@ where
     fn put_answered(&mut self, hash: Hash, result: Result<PartRef, String>) {
         match result {
             Ok(part) => {
+                self.put_failures = 0;
                 self.uploads.insert(hash, Upload::Put(part));
                 self.jobs.push_back(Job::Unblocked);
             }
@@ -816,7 +913,9 @@ where
     fn unput(&mut self) {
         if !self.is_owner() {
             if !self.unsent.is_empty() {
-                self.put_retry_at = Some(self.now + PUT_RETRY_INTERVAL);
+                let wait = (PUT_RETRY_INTERVAL << self.put_failures.min(4)).min(PUT_RETRY_CEILING);
+                self.put_failures += 1;
+                self.put_retry_at = Some(self.now + wait);
             }
             return;
         }
@@ -1074,10 +1173,6 @@ where
         let Some(wire) = wire else {
             return self.unreadable_message();
         };
-        // A part whose read failed is read again should the operation come back.
-        for part in named_parts(&wire) {
-            self.unread.remove(&part);
-        }
         self.receive(from, wire);
         if self.waiting.is_none() {
             self.flush();
