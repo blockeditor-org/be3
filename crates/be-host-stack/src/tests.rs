@@ -44,6 +44,7 @@ mod a_restore_on_a_follower_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
 mod a_search_index_is_tried_again_when_the_reason_it_failed_has_passed;
+mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_error;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
@@ -58,8 +59,11 @@ mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_apps_signature_verifies_and_a_forged_one_does_not;
 mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
+mod an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published;
 mod an_edit_made_across_a_takeover_is_kept;
+mod an_edit_made_offline_is_lacking_until_the_drain_publishes_it;
 mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
+mod an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publishes;
 mod an_empty_search_request_is_not_a_change;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
@@ -140,6 +144,18 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         loop {
             self.pump();
             if self.mirror.content().is_some_and(&done) {
+                return;
+            }
+            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+        }
+    }
+
+    /// Waits for frames until `done` holds of the editor.
+    fn until(&mut self, _what: &str, done: impl Fn(&Self) -> bool) {
+        let id = self.id;
+        loop {
+            self.pump();
+            if done(self) {
                 return;
             }
             crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));

@@ -6,8 +6,8 @@ use be_block_commit::MergeResult;
 use std::collections::BTreeMap;
 
 use be_block_model::{
-    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Series, Step,
-    Touched,
+    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Place, Series,
+    Step, Touched,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -283,6 +283,25 @@ impl ChatContent {
                     reactions: reactions.remove(&id).unwrap_or_default(),
                     message,
                 })
+            })
+            .collect()
+    }
+
+    /// The messages `operation` sends: what an editor marks as sending while the server lacks
+    /// the edit (`ContentProjection::lacking`).
+    pub fn sent_in(operation: &Edit) -> Vec<ObjectId> {
+        let messages = Place {
+            object: ObjectId::ROOT,
+            field: ChatHeader::MESSAGES.index(),
+        };
+        operation
+            .0
+            .iter()
+            .flat_map(|change| match change {
+                Change::Insert { place, objects, .. } if *place == messages => {
+                    objects.iter().map(|(id, _)| *id).collect()
+                }
+                _ => Vec::new(),
             })
             .collect()
     }

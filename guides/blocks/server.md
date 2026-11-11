@@ -405,7 +405,9 @@ escrow keys per organization (refused as `OverQuota`); and per connection,
 sessions, listings and streams. Names, metadata (held in the graph and sent in
 every summary), sealed blobs, pairing messages and relayed session messages
 have byte limits (refused as `InvalidRequest`). A relay is shared by every
-participant's queue (`Push::Relayed` holds an `Arc`).
+participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one client that has left the
+session (or never joined) is dropped without an error: it is best-effort, and the
+sender cannot know the other left.
 
 The session registry (`sessions.rs`) indexes leases by client, so leaving them
 all on a disconnect costs what that client joined, and remembers an empty

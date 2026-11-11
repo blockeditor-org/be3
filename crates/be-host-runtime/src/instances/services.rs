@@ -384,6 +384,10 @@ impl Instances {
             } => {
                 self.services.answers.push(reply.answer(&()));
                 let holder = Uuid::from_bytes(holder);
+                if blocks.is_empty() {
+                    super::cuts::record([]);
+                    return;
+                }
                 if !self.editable(holder) {
                     return;
                 }
@@ -419,10 +423,25 @@ impl Instances {
                     if moved {
                         be_host_stack::set_parent(block, parent);
                     }
+                    // A cut reference is moved by the editor, which knows how
+                    // its holder keeps it, and only while the holder still
+                    // keeps it and may be changed; otherwise the paste links.
+                    let cut_from = cut
+                        .filter(|cut| !moved && !cut.was_parent && editable)
+                        .map(|cut| cut.holder)
+                        .filter(|holder| {
+                            self.editable(*holder)
+                                && be_host_stack::node(*holder).is_some_and(|holder| {
+                                    holder.parent != Some(be_block_graph::BlockParent::Detached)
+                                        && holder.references.contains(&block)
+                                })
+                        })
+                        .map(|holder| self.local(instance, holder.into_bytes()));
                     pasted.push(PastedBlock {
                         block_id: self.local(instance, block.into_bytes()),
                         block_type: node.content_type.into_bytes(),
                         moved,
+                        cut_from,
                     });
                 }
                 self.answer_now(reply, Ok(pasted));

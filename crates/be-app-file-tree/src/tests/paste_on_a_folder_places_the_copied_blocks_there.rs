@@ -14,7 +14,7 @@ fn paste_on_a_folder_places_the_copied_blocks_there() {
     fixture.test.take_requests();
     fixture.test.take_block_commands();
 
-    paste_into_folder(&mut fixture, folder, notes.id, false);
+    paste_into_folder(&mut fixture, folder, notes.id, false, None);
     assert_eq!(
         fixture.test.take_block_commands(),
         vec![(
@@ -28,7 +28,7 @@ fn paste_on_a_folder_places_the_copied_blocks_there() {
         "a copied block is linked into the folder"
     );
 
-    paste_into_folder(&mut fixture, folder, notes.id, true);
+    paste_into_folder(&mut fixture, folder, notes.id, true, None);
     assert_eq!(
         fixture.test.take_block_commands(),
         Vec::new(),

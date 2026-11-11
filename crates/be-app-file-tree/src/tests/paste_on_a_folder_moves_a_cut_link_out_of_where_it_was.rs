@@ -16,7 +16,7 @@ fn paste_on_a_folder_moves_a_cut_link_out_of_where_it_was() {
     fixture.choose(link.id, "Cut");
     fixture.test.take_requests();
     fixture.test.take_block_commands();
-    paste_into_folder(&mut fixture, folder, link.id, false);
+    paste_into_folder(&mut fixture, folder, link.id, false, Some(MY_FILES));
     assert_eq!(
         fixture.test.take_block_commands(),
         vec![(
@@ -28,10 +28,20 @@ fn paste_on_a_folder_moves_a_cut_link_out_of_where_it_was() {
                 is_reference: true,
             }
         )],
-        "the link leaves where it was cut from for the folder"
+        "the link leaves the block the host says it was cut from for the folder"
     );
 
-    paste_into_folder(&mut fixture, folder, link.id, false);
+    paste_into_folder(&mut fixture, folder, link.id, false, Some(folder));
+    assert_eq!(
+        fixture.test.take_block_commands(),
+        Vec::new(),
+        "a link cut from the folder it is pasted on stays where it is"
+    );
+
+    fixture.choose(link.id, "Cut");
+    fixture.test.take_requests();
+    fixture.test.take_block_commands();
+    paste_into_folder(&mut fixture, folder, link.id, false, None);
     assert_eq!(
         fixture.test.take_block_commands(),
         vec![(
@@ -42,6 +52,6 @@ fn paste_on_a_folder_moves_a_cut_link_out_of_where_it_was() {
                 linked: true,
             }
         )],
-        "a second paste links it again"
+        "once a paste elsewhere used the cut up, the host names no source and the pane links"
     );
 }

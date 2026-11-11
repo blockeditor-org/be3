@@ -81,7 +81,7 @@ pub use be_sdk_api::{
 pub use be_sdk_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSourcesWatch, Preferences, ThemeKind,
 };
-pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, ToEditor};
+pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, LackingEdit, ToEditor};
 pub use be_sdk_ui;
 pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
 pub use content::{LiveContent, Objects, Projected};
@@ -95,10 +95,10 @@ pub use graph::{
 };
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, ClipRender, EditorHost, FileDrop, FileFilter,
-    FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, PeerMessage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed,
-    RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
-    Waker,
+    FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, Pasted, PeerMessage,
+    PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest,
+    Pushed, RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence,
+    StoredHead, Waker,
 };
 pub use layered_settings::{
     KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget,

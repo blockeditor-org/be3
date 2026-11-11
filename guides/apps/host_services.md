@@ -156,14 +156,19 @@ as plain text, each title and its link; the host adds the blocks' exported
 files, read through their types only when a paste asks. Ids inside a
 `be3/blocks` item are translated like any other crossing the protocol.
 
-A cut is recorded by the host, not the clip: `host().cut_blocks(blocks, holder)`
-before the editor removes its references as a delete does. A paste of
-`be3/blocks` goes through `host().paste_blocks(blocks, parent)`, which answers
-with the blocks the editor may view; a block cut from its parent moves to
-`parent` (`moved`), and every paste uses up the record, so later ones add
-references. The files pane keeps a link it cut where it is until that first
-paste, which moves it (`move_block` with `is_reference`); pasting any other
-block on a folder links it there (`place_block`). A drag over an editor carries the same clip with a `DropAction`
+A cut is recorded by the host, not the clip, and only the host keeps it:
+`host().cut_blocks(blocks, holder)`, which it ignores unless `holder` may be
+changed; `editor.copy_blocks` forgets every cut, so a cut is a copy followed by
+`cut_blocks`. The canvas then removes its references as a delete does; the files
+pane leaves a cut link where it is. A paste of `be3/blocks` goes through
+`host().paste_blocks(blocks, parent)`, which answers with the blocks the
+editor may view (`Pasted`), and the first paste of each uses up its record, so
+later ones add references. A block cut from its parent moves to `parent`
+(`moved`). For any other cut block the answer names the holder (`cut_from`)
+while it still lists the reference, is not deleted and may be changed; the
+files pane moves the link out of it (`move_block` with `is_reference`), and
+links every block answered without one (`place_block`).
+A drag over an editor carries the same clip with a `DropAction`
 the host picked from the modifiers (`DropAction::of`): a move, Ctrl or Alt for a
 copy (`copy_blocks`), Ctrl+Shift for a reference.
 

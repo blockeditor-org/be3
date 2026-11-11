@@ -2087,12 +2087,10 @@ impl Client {
                         Some(target) if participants.contains(&target) => {
                             connection.hub.send_to(target, message).await;
                         }
-                        Some(_) => {
-                            return Err(ServerError::Refused(
-                                ErrorCode::InvalidRequest,
-                                "that client is not in this session".into(),
-                            ));
-                        }
+                        // Named for one client, which has left (or never joined): the relay
+                        // is best-effort, so there is nobody to deliver it to, and the sender,
+                        // which cannot know it left, is not told of an error.
+                        Some(_) => {}
                         None => {
                             connection
                                 .hub
