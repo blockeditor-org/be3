@@ -1,7 +1,7 @@
 use be_sdk_beui::beui::icons::Glyph;
-use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN_LEFT, ICON_ARROW_UP_RIGHT, ICON_EYE};
+use be_sdk_beui::beui::icons::{ICON_ARROW_DOWN_LEFT, ICON_ARROW_UP_RIGHT, ICON_BELL, ICON_EYE};
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::{AccessLevel, BlockParent, label_glyph};
+use be_sdk_beui::{AccessLevel, BlockParent, NotifyMode, label_glyph};
 
 use super::panel::{Refs, TabInfo};
 use super::tab::TabItem;
@@ -30,6 +30,7 @@ pub(crate) fn with_block_menu(
         &info.backrefs,
     ));
     added.push(access(workspace, info));
+    added.extend(notifications(workspace, info));
     added.push(MenuNode::Separator);
     let at = nodes
         .iter()
@@ -100,6 +101,44 @@ fn access(workspace: Workspace, info: &TabInfo) -> MenuNode {
         ICON_EYE,
         items,
     )
+}
+
+/// How the account is notified about the block: every notification, only those that mention
+/// it, or none. Read here rather than in `TabInfo`, so the host's answer changes the menu and
+/// nothing else about the tab.
+fn notifications(workspace: Workspace, info: &TabInfo) -> Option<MenuNode> {
+    if !info.access.can_view() {
+        return None;
+    }
+    let id = info.item.id;
+    let mode = workspace.notify_mode(id)?;
+    let modes = [
+        (NotifyMode::All, "all", "All"),
+        (NotifyMode::Mentions, "mentions", "Mentions only"),
+        (NotifyMode::Off, "off", "Off"),
+    ];
+    let items = modes
+        .into_iter()
+        .map(|(choice, key, label)| {
+            let chosen = Action::new(format!("workspace.notify.{key}"), label, move || {
+                workspace.set_notify_mode(id, choice);
+            })
+            .radio(mode == choice)
+            .detached();
+            MenuNode::action(&chosen)
+        })
+        .collect();
+    let title = match mode {
+        NotifyMode::All => "Notifications: All",
+        NotifyMode::Mentions => "Notifications: Mentions only",
+        NotifyMode::Off => "Notifications: Off",
+    };
+    Some(MenuNode::submenu(
+        "workspace.notify",
+        title,
+        ICON_BELL,
+        items,
+    ))
 }
 
 fn chosen(access: AccessLevel) -> AccessLevel {

@@ -20,9 +20,9 @@ use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
-    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe, ViewChange,
-    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
+    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe,
+    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -1885,6 +1885,24 @@ impl EditorHost {
         self.ask(|| {
             host_services::set_access(block_id.into_bytes(), account.into_bytes(), access).detach()
         });
+    }
+
+    /// Notifies `block_id`'s members who are not connected, on their other devices: `text`,
+    /// sealed so only members read it, each device naming the sender and the block itself.
+    /// `mentions` names the accounts the text mentions. Needs Edit on the block.
+    pub fn notify(&self, block_id: Uuid, text: impl Into<String>, mentions: &[Uuid]) {
+        let text = text.into();
+        let mentions = mentions
+            .iter()
+            .map(|account| account.into_bytes())
+            .collect();
+        self.ask(|| host_services::notify(block_id.into_bytes(), text, mentions).detach());
+    }
+
+    /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows
+    /// every block's.
+    pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {

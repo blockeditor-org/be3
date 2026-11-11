@@ -225,6 +225,7 @@ impl Layer {
 
     pub fn set_policy(&self, policy: LayerPolicy) {
         self.policy.set(policy);
+        crate::back::layers_changed();
         set_style(
             self.parts.dialog,
             "pointer-events",
@@ -246,6 +247,7 @@ impl Layer {
 
     pub fn set_dismissable(&self, dismissable: bool) {
         self.dismissable.set(dismissable);
+        crate::back::layers_changed();
     }
 
     pub fn dismisses(&self) -> bool {
@@ -268,6 +270,7 @@ impl Layer {
         self.sync_attributes();
         self.sync_inert();
         self.place();
+        crate::back::layers_changed();
         crate::frame::request_frame();
     }
 
@@ -286,6 +289,7 @@ impl Layer {
         {
             self.web.borrow_mut().shown = None;
         }
+        crate::back::layers_changed();
         crate::frame::request_frame();
     }
 
