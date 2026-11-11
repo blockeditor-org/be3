@@ -467,10 +467,7 @@ fn MessageRow(
     let unsent = create_memo(move || unsent.with(|unsent| unsent.get(&id).copied()));
     let sending = create_memo(move || unsent.get().is_some());
     let failed = create_memo(move || unsent.get().is_some_and(|unsent| unsent.failed));
-    let delivery = create_memo(move || match failed.get() {
-        true => "Not sent".to_owned(),
-        false => "Sending".to_owned(),
-    });
+    let sending_now = create_memo(move || sending.get() && !failed.get());
     // A message the server refused is sent again as a new one, or given up; either way the
     // one that failed goes.
     let let_go = move |again: bool| {
@@ -574,12 +571,21 @@ fn MessageRow(
                             <Show condition={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
                             </Show>
-                            <Show condition={sending}>
+                            <Show condition={sending_now}>
                                 <Text
                                     style=TextStyle::CAPTION
                                     @test_id={format!("chat.message.{id}.sending")}
                                 >
-                                    {delivery}
+                                    "Sending"
+                                </Text>
+                            </Show>
+                            <Show condition={failed}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    color=TextColor::Danger
+                                    @test_id={format!("chat.message.{id}.not_sent")}
+                                >
+                                    "Not sent"
                                 </Text>
                             </Show>
                             <Show condition={failed}>
