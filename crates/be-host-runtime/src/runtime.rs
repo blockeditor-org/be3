@@ -2485,10 +2485,6 @@ pub fn take_bar_actions(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_
     .unwrap_or_default()
 }
 
-pub fn aspect_ratio(app_id: &str, instance: EditorInstanceId) -> Option<f32> {
-    with(app_id, |runtime| runtime.instances.aspect_ratio(instance)).flatten()
-}
-
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
     with(app_id, |runtime| runtime.instances.assigned_size(instance)).flatten()
 }

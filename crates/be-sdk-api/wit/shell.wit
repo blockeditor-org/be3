@@ -120,7 +120,6 @@ interface shell-types {
         child: child-id,
         available: bool,
         intrinsic: option<size>,
-        aspect-ratio: option<f32>,
         active: bool,
         interaction: interaction-mode,
         capabilities: editor-capabilities,
@@ -284,7 +283,8 @@ interface shell-types {
         name: option<string>,
     }
 
-    /// What an editor tells the shell around it, in the order it happened.
+    /// What an editor tells the shell around it. One `tell` carries a pass's
+    /// messages in a fixed order by kind, not the order the editor made them in.
     variant shell-message {
         /// The menu of one view, replacing its last.
         menu(menu-set),
@@ -297,8 +297,6 @@ interface shell-types {
         drag-block(drag-start),
         /// Whether the editor takes the block dragged over it.
         drag-accepted(bool),
-        /// The width over height the editor keeps, when it keeps one.
-        aspect-ratio(option<f32>),
         /// The size the editor's content wants, when it has one: a hint to a
         /// placer that chooses the child's size, such as a canvas card. A child
         /// placed sized to its content (`child-placement.fit`) reports the size it
@@ -414,7 +412,7 @@ interface shell {
         next: async func() -> catalog;
     }
 
-    /// What the editor tells the shell, in the order it happened. The host
-    /// answers once the whole list is taken.
+    /// What the editor tells the shell: one pass's messages, in the order the
+    /// guest sends them. The host answers once the whole list is taken.
     tell: async func(instance: editor-instance-id, messages: list<shell-message>);
 }

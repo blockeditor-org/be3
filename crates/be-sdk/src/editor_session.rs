@@ -44,7 +44,6 @@ pub struct EditorSession {
     own_block: Option<Uuid>,
     dragged: Option<(ViewId, Dragged)>,
     intrinsic: Option<Vec2>,
-    aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
     sent_menus: std::collections::BTreeMap<ViewId, Vec<MenuEntry>>,
     sent_card: bool,
@@ -162,7 +161,6 @@ impl EditorSession {
             own_block: None,
             dragged: None,
             intrinsic: None,
-            aspect_ratio: None,
             artifact: None,
             sent_menus: std::collections::BTreeMap::new(),
             sent_card: false,
@@ -468,11 +466,6 @@ impl EditorSession {
                 width: size.x,
                 height: size.y,
             })));
-        }
-        let aspect_ratio = self.editor.aspect_ratio();
-        if aspect_ratio != self.aspect_ratio {
-            self.aspect_ratio = aspect_ratio;
-            tell.push(ShellMessage::AspectRatio(aspect_ratio));
         }
         if let Some(handles) = self.host.take_handles_dismiss() {
             tell.push(ShellMessage::HandlesDismiss(handles));
