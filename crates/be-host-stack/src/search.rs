@@ -131,11 +131,11 @@ impl Searching {
         self.dirty.insert(block);
     }
 
-    /// Whether blocks wait to be indexed, an index is being made, a batch is being written or a
-    /// wanted search is not answered yet. An index made and waiting for its root's edits to be
-    /// sealed before it is named does not count.
+    /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
+    /// written or a wanted search is not answered yet. The index counts in the size of the
+    /// tree it is under, so a painting taken before it is named would change.
     pub(crate) fn busy(&self) -> bool {
-        (!self.off && (!self.dirty.is_empty() || self.creating.len() > self.made.len()))
+        (!self.off && (!self.dirty.is_empty() || !self.creating.is_empty()))
             || !self.writing.is_empty()
             || !self.running.is_empty()
             || self.wanted().any(|asked| {
@@ -535,6 +535,10 @@ async fn name_indexes(
         {
             replicas.moved_here(root, head);
         }
+        let sized = defined
+            .as_ref()
+            .ok()
+            .map(|summary| (summary.size, summary.tree_size));
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match defined {
             // The mirror takes the name at once, and settles: it is defined already.
@@ -545,6 +549,11 @@ async fn name_indexes(
                 held.search.dirty.extend(waiting);
                 held.graph.update(root, |node| {
                     node.metadata.insert(&SEARCH_INDEX, &BlockRef(index));
+                    // The define changed the root's bytes: shown as the server keeps them.
+                    if let Some((size, tree_size)) = sized {
+                        node.size = size;
+                        node.tree_size = tree_size;
+                    }
                 });
                 held.graph.settle(root);
             }
