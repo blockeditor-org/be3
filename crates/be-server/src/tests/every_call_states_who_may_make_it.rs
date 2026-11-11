@@ -320,10 +320,6 @@ impl TestClient {
                 answered(client::blocks::list_access(peer, block).await),
             ),
             (
-                "delete-block",
-                answered(client::blocks::delete_block(peer, block).await),
-            ),
-            (
                 "get-keys",
                 answered(client::keys::get_keys(peer, Some(vec![block])).await),
             ),

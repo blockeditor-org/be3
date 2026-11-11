@@ -133,8 +133,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             },
             blocks::Call::SetMetadata { block: of, .. }
             | blocks::Call::Publish { block: of, .. }
-            | blocks::Call::SetParent { block: of, .. }
-            | blocks::Call::DeleteBlock { block: of, .. } => block(*of, Access::Edit),
+            | blocks::Call::SetParent { block: of, .. } => block(*of, Access::Edit),
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
             blocks::Call::ListHistory { block: of, .. } | blocks::Call::Watch { block: of, .. } => {
@@ -269,8 +268,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::Changes { .. } => true,
             // A block it trashed would leave what it reaches, and no one else could see it to
             // restore or collect it.
-            blocks::Call::DeleteBlock { .. }
-            | blocks::Call::SetAccess { .. }
+            blocks::Call::SetAccess { .. }
             | blocks::Call::ListAccess { .. }
             | blocks::Call::CollectDetached { .. } => false,
         },
@@ -1782,6 +1780,20 @@ impl Client {
                                 .await;
                         }
                     }
+                    if parent == BlockParent::Detached {
+                        let place = Place {
+                            organization: identity.organization,
+                            block,
+                        };
+                        connection
+                            .hub
+                            .broadcast(
+                                place,
+                                connection.client,
+                                Push::BlockDeleted { block: place },
+                            )
+                            .await;
+                    }
                     Ok(())
                 }
                 .await;
@@ -1822,31 +1834,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, listed);
-            }
-            Call::DeleteBlock { reply, block } => {
-                let deleted = async {
-                    prelude?;
-                    let identity = connection.identity()?;
-                    let before = connection.store.delete_block(identity, block).await?;
-                    connection
-                        .reannounce(identity, vec![block], true, before)
-                        .await;
-                    let place = Place {
-                        organization: identity.organization,
-                        block,
-                    };
-                    connection
-                        .hub
-                        .broadcast(
-                            place,
-                            connection.client,
-                            Push::BlockDeleted { block: place },
-                        )
-                        .await;
-                    Ok(())
-                }
-                .await;
-                self.reply(reply, deleted);
             }
             Call::CollectDetached { reply } => {
                 let collected = async {

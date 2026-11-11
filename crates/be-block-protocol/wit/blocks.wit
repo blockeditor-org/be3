@@ -219,8 +219,6 @@ interface blocks {
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
 
-    delete-block: async func(block: block-id) -> result<_, error>;
-
     /// Deletes the detached blocks nothing reaches any more.
     collect-detached: async func() -> result<collected, error>;
 

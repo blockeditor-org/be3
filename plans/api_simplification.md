@@ -5,34 +5,8 @@ Depends on: none.
 Places where many requests, WIT functions or public functions do one job.
 Each step replaces them with fewer, conceptually simpler ones that behave
 the same. The steps are independent unless a step says otherwise, and each
-lands on its own. No format is frozen, so wire and WIT changes need no
+lands on its own. Step numbers stay as written when a step is done and removed. `RemoveAgent` never calls `key_work_changed` while `RemoveMember` does; step 9 removes the difference. No format is frozen, so wire and WIT changes need no
 migration. Line numbers are from when this plan was written.
-
-## 1. Deleting a block is one call, and it rotates keys
-
-`delete-block` (`be-block-protocol/wit/blocks.wit`) is `set-parent(detached)`:
-the store's `delete_block` calls `set_parent(…, Detached)`
-(`be-server/src/blocks.rs`). The two handlers in `be-server/src/client.rs`
-differ in ways that are both bugs:
-
-- Only `DeleteBlock` pushes `Push::BlockDeleted` to watchers. The host trashes
-  blocks with `set-parent(detached)` (`be-host-stack/src/version.rs`), so
-  watchers never hear a trashed block was deleted.
-- Only `SetParent` runs `key_work_changed` and `evict_sessions`, so a
-  `delete-block` call never rotates keys or evicts sessions for accounts that
-  lose access.
-
-Remove `delete-block`, its `Call` arm, rule and store method, and
-`Peer::delete`. `set-parent` to `detached` tells watchers (or, after step 4,
-the `changes` stream does). The two callers (`be-tool-cli/src/tracker.rs`,
-`be-block-sync/src/pass.rs`) call `set_parent` with `Detached`.
-
-In the same handler file, `RemoveAgent` never calls `key_work_changed` while
-`RemoveMember` does; step 9 removes the difference, but fix it here if step 9
-waits.
-
-A server test: a watcher of a block hears it deleted after `set-parent` to
-`detached`, and the key work of an account that loses access changes.
 
 ## 2. The shell's one-way reports are one batched call
 
@@ -174,7 +148,7 @@ content part is a set of blocks.
   `changes` stream already reports every head change for blocks the
   connection read, and no consumer reads `head-moved.author`. `changes` gains
   the originating client so a client skips its own publishes; deletion is a
-  summary with parent `detached` (step 1). The client's watch registry
+  summary with parent `detached`. The client's watch registry
   (`be-block-client/src/connection.rs`) goes.
 - One convention for change streams: a stream carries the latest value and
   starts with it. Remove `storage-usage` (only `be-block-frozen` calls it);

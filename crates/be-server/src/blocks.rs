@@ -1429,17 +1429,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn delete_block(
-        &self,
-        identity: Identity,
-        block: Uuid,
-    ) -> Result<BTreeSet<Uuid>, ServerError> {
-        let (before, _) = self
-            .set_parent(identity, block, BlockParent::Detached, KeySet::default())
-            .await?;
-        Ok(before)
-    }
-
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             store.keeping_refs(database, || {

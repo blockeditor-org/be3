@@ -170,7 +170,7 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         sorted(vec![private.data, private.scope])
     );
     let _ = owner
-        .call(|peer| client::blocks::delete_block(peer, private.block))
+        .call(|peer| client::blocks::set_parent(peer, private.block, BlockParent::Detached, KeySet::default()))
         .await;
     let response = owner
         .call(|peer| client::blocks::collect_detached(peer))

@@ -35,7 +35,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let child = author.create_block(BlockParent::Block(folder)).await;
     other.graph_change().await;
     let response = author
-        .call(|peer| client::blocks::delete_block(peer, child))
+        .call(|peer| client::blocks::set_parent(peer, child, BlockParent::Detached, KeySet::default()))
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let detached = other.graph_change().await;
