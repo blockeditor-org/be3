@@ -755,7 +755,7 @@ impl Space {
             Input::PointerMotion(motion) if !self.program_locked => {
                 self.move_cursor(self.pixels(units, motion), out);
             }
-            Input::PointerMoved(at) => {
+            Input::PointerMoved(at) | Input::PointerRested(at) => {
                 let ray = self.ray_of(units, window, at);
                 if let Some(Gesture::Turn { aim, .. }) = &mut self.mouse.gesture {
                     *aim = ray.direction;
@@ -2746,6 +2746,7 @@ fn chrome_cursor(part: Part, held: bool) -> CursorIcon {
 fn position(input: &Input) -> Option<Pos2> {
     match input {
         Input::PointerMoved(pos)
+        | Input::PointerRested(pos)
         | Input::Predicted(pos)
         | Input::PointerButton { pos, .. }
         | Input::Touch { pos, .. }

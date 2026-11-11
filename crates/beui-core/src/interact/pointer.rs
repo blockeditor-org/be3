@@ -1622,7 +1622,8 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
             node.on_pointed_change.clone().call(false);
         }
     }
-    let moved = pointer != doc.pointers.hovered_at;
+    let rested = frame.ctx.input(|input| input.pointer.rested());
+    let moved = pointer != doc.pointers.hovered_at && !rested;
     doc.pointers.hovered_at = pointer;
     if let Some((_, pos)) = pointer {
         for id in path.iter().rev() {

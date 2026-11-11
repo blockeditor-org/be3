@@ -21,14 +21,20 @@ rules make that hard to write and easy to find.
   `./scripts/test` stages the apps a test names.
 - The rules for writing a test live in guides/testing_a_gui.md, 6.
 
-## Not known
+## The add-menu painting's flipping hover
 
-The add-menu painting flipped between a highlighted first row and a plain one (the hover
-the press that opened the menu left under the pointer). The cause was not found: beui
-re-tests a resting pointer after every layout, so the row should highlight every time or never,
-and it did one or the other in all of the roughly 1,000 runs tried. The test parks the pointer
-(`leave`), which hides the flip and does not explain it. The settled-painting check above would
-have caught it where it happened.
+The add-menu painting flipped between a highlighted first row and a plain one: the pointer
+that pressed "New in My files…" rests where the picker's first row opens. beui points at a node
+(`pointed`, which a menu highlights) only when the pointer moved (`hover` in
+`interact/pointer.rs`: `moved` is the position differing from the last hover), and a pointer
+the host forwards to a view that has just appeared under it arrived as a move. The flip was not
+reproduced in the host, so this is the reading of the code that fits both paintings: whether the row
+was there when that first move arrived would decide it: if it was, the row was pointed at; if the
+app had not built it yet, the move was spent on nothing and the row never was. The host now
+sends such a pointer as `PointerRested` (`Input`, `Event`, `PointerEvent::rested`): the nodes
+under it are hovered, none is pointed at, in either order
+(crates/beui-host/src/tests/a_row_that_appears_under_a_still_pointer_is_hovered_without_being_pointed_at.rs).
+A menu that opens under a pointer highlights nothing until it moves, as it does natively.
 
 ## Why
 
