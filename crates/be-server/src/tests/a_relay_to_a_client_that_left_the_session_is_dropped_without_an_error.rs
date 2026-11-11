@@ -2,6 +2,12 @@ use super::*;
 
 #[tokio::test]
 async fn a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error() {
+    tokio::time::timeout(std::time::Duration::from_secs(40), body())
+        .await
+        .expect("the test hung");
+}
+
+async fn body() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     let account = owner.register("owner@example.com").await;
