@@ -9,7 +9,7 @@ async fn a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error()
     let block = owner.create_block(BlockParent::Root).await;
     let author = Author::new(account);
 
-    owner.join_session(block).await;
+    let (_, state) = owner.join_session(block).await;
     let mut peer = harness
         .second_connection(&owner.token.clone(), organization)
         .await;
@@ -24,12 +24,17 @@ async fn a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error()
     // The peer leaves (dropping its session), and the owner, which cannot know yet, answers
     // it: the answer goes nowhere and is not an error.
     peer.sessions.remove(&block);
-    let left = owner.notification().await;
-    assert!(
-        matches!(left, Notice::SessionChanged { state: ref changed, .. }
-            if !changed.participants.contains(&peer_id)),
-        "the owner was not told the peer left: {left:?}"
-    );
+    let mut gone = false;
+    for _ in 0..200 {
+        let beat = owner.heartbeat(block, state.generation, None).await;
+        let beat = beat.expect("the owner's heartbeat was answered");
+        if !beat.participants.contains(&peer_id) {
+            gone = true;
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert!(gone, "the peer never left the session");
     let sealed = author.commits.vault().seal(KEY, b"sequenced").unwrap();
     let response = owner.relay(block, Some(peer_id), sealed.clone()).await;
     assert!(matches!(response, Ok(())), "{response:?}");
