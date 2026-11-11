@@ -40,8 +40,8 @@ fn the_search_index_queue_forgets_what_can_no_longer_be_indexed() {
     // naming waits for them, however long they take.
     let mut search = Searching::default();
     search.wait_for_index(root, index, block);
-    search.defer(root, 7);
+    search.defer(root);
     search.take_waiting_for_test();
-    assert!(!search.busy(7), "a deferred index is not busy");
-    assert!(search.busy(8), "a graph not looked at yet is");
+    assert!(!search.busy(false), "a deferred index is not busy");
+    assert!(search.busy(true), "a workspace wanting its index is");
 }

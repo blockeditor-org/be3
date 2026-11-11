@@ -537,7 +537,7 @@ impl Shared {
                 "the block store loads the organization's graph",
             ),
             (
-                self.search.busy(self.graph.revision),
+                self.search.busy(!super::search::unindexed(self).is_empty()),
                 "the block store indexes edits or answers a search",
             ),
         ]

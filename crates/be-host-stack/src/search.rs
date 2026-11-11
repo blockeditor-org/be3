@@ -115,6 +115,11 @@ pub struct Searching {
     /// Roots whose made index waits for the root's open replica to seal its edits, which
     /// may be long: the host is not busy for it.
     deferred: HashSet<Uuid>,
+    /// Roots just defined: the size the mirror showed before the define, until the mirror
+    /// shows another, the server's with the define in it.
+    confirming: HashMap<Uuid, u64>,
+    /// Roots whose index could not be made or named: not tried again, not waited for.
+    given_up: HashSet<Uuid>,
     /// Failed attempts to name each root's index.
     tries: HashMap<Uuid, u32>,
     /// Blocks whose root's index is being made or named (`creating`).
@@ -146,15 +151,17 @@ impl Searching {
     /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
     /// written or a wanted search is not answered yet. The index counts in the size of the
     /// tree it is under, so a painting taken before it is named would change.
-    pub(crate) fn busy(&self, graph_revision: u64) -> bool {
-        // A graph the loop has not looked at yet may hold a workspace that wants its index.
+    pub(crate) fn busy(&self, unindexed: bool) -> bool {
+        // A workspace in the mirror that wants its index and has none yet: the loop makes it
+        // next round.
         (!self.off
             && (!self.dirty.is_empty()
                 || self
                     .creating
                     .keys()
                     .any(|root| !self.deferred.contains(root))
-                || self.scanned != Some(graph_revision)))
+                || !self.confirming.is_empty()
+                || unindexed))
             || !self.writing.is_empty()
             || !self.running.is_empty()
             || self.wanted().any(|asked| {
@@ -203,6 +210,7 @@ impl Searching {
     /// again, and find no index to wait for.
     pub(crate) fn make_failed(&mut self, root: Uuid) {
         self.creating.remove(&root);
+        self.given_up.insert(root);
         self.deferred.remove(&root);
         self.tries.remove(&root);
         self.made.retain(|(made, _)| *made != root);
@@ -233,10 +241,9 @@ impl Searching {
         self.waiting.insert(block);
     }
 
-    /// Marks the graph as looked at, and a root's made index as waiting for its replica.
+    /// Marks a root's made index as waiting for its replica.
     #[cfg(test)]
-    pub(crate) fn defer(&mut self, root: Uuid, revision: u64) {
-        self.scanned = Some(revision);
+    pub(crate) fn defer(&mut self, root: Uuid) {
         self.deferred.insert(root);
     }
 
@@ -308,6 +315,7 @@ pub(crate) async fn step(
     tasks: &Tasks,
 ) -> bool {
     name_indexes(peer, shared, replicas, tasks).await;
+    confirm_names(peer, shared);
     let mut moved = index(peer, shared, replicas, tasks).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
@@ -436,8 +444,21 @@ fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
         return Vec::new();
     }
     held.search.scanned = Some(revision);
-    let roots: Vec<Uuid> = held
-        .graph
+    let roots = unindexed(held);
+    roots
+        .into_iter()
+        .map(|root| {
+            let index = Uuid::now_v7();
+            held.search.creating.insert(root, index);
+            (root, index)
+        })
+        .collect()
+}
+
+/// The workspaces in the mirror this device may edit that name no index and have none being
+/// made.
+pub(crate) fn unindexed(held: &Shared) -> Vec<Uuid> {
+    held.graph
         .nodes()
         .filter(|node| {
             node.parent == Some(BlockParent::Root)
@@ -448,15 +469,9 @@ fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
         })
         .map(|node| node.id)
         .filter(|root| {
-            !held.search.creating.contains_key(root) && !held.search.named.contains_key(root)
-        })
-        .collect();
-    roots
-        .into_iter()
-        .map(|root| {
-            let index = Uuid::now_v7();
-            held.search.creating.insert(root, index);
-            (root, index)
+            !held.search.creating.contains_key(root)
+                && !held.search.named.contains_key(root)
+                && !held.search.given_up.contains(root)
         })
         .collect()
 }
@@ -652,6 +667,12 @@ async fn name_indexes(
         ready
     };
     for (root, index) in made {
+        let before = shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .get(root)
+            .map_or(0, |node| node.size);
         let defined = peer
             .define(root, |metadata| {
                 metadata.insert(&SEARCH_INDEX, &BlockRef(index));
@@ -662,10 +683,6 @@ async fn name_indexes(
         {
             replicas.moved_here(root, head);
         }
-        let sized = defined
-            .as_ref()
-            .ok()
-            .map(|summary| (summary.size, summary.tree_size));
         // The define is a commit in the outbox: sent now, not at some later drain, so the
         // host never sits idle with it unsaved.
         if defined.is_ok() {
@@ -679,13 +696,11 @@ async fn name_indexes(
                 held.search.named.insert(root, index);
                 let waiting = std::mem::take(&mut held.search.waiting);
                 held.search.dirty.extend(waiting);
+                if peer.is_attached() {
+                    held.search.confirming.insert(root, before);
+                }
                 held.graph.update(root, |node| {
                     node.metadata.insert(&SEARCH_INDEX, &BlockRef(index));
-                    // The define changed the root's bytes: shown as the server keeps them.
-                    if let Some((size, tree_size)) = sized {
-                        node.size = size;
-                        node.tree_size = tree_size;
-                    }
                 });
                 held.graph.settle(root);
             }
@@ -704,6 +719,21 @@ async fn name_indexes(
             }
         }
     }
+}
+
+/// Roots whose define the mirror has caught up with (a size other than the one before), or
+/// that this device can no longer wait for, stop counting as busy.
+fn confirm_names(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if held.search.confirming.is_empty() {
+        return;
+    }
+    let attached = peer.is_attached();
+    let state = &mut *held;
+    let graph = &state.graph;
+    state.search.confirming.retain(|root, before| {
+        attached && graph.get(*root).is_some_and(|node| node.size == *before)
+    });
 }
 
 /// Reads a range of a saved part through a peer.
