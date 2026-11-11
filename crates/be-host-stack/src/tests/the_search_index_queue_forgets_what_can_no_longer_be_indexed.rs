@@ -35,4 +35,13 @@ fn the_search_index_queue_forgets_what_can_no_longer_be_indexed() {
     search.release_parked(|_| true, |_| true);
     assert_eq!(search.take_queued(), vec![block], "its head arrived");
     assert!(search.indexed());
+
+    // An index made for a root whose replica has unsealed edits does not keep the host busy:
+    // naming waits for them, however long they take.
+    let mut search = Searching::default();
+    search.wait_for_index(root, index, block);
+    search.defer(root, 7);
+    search.take_waiting_for_test();
+    assert!(!search.busy(7), "a deferred index is not busy");
+    assert!(search.busy(8), "a graph not looked at yet is");
 }

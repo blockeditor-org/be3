@@ -112,6 +112,11 @@ pub struct Searching {
     creating: HashMap<Uuid, Uuid>,
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
+    /// Roots whose made index waits for the root's open replica to seal its edits, which
+    /// may be long: the host is not busy for it.
+    deferred: HashSet<Uuid>,
+    /// Failed attempts to name each root's index.
+    tries: HashMap<Uuid, u32>,
     /// Blocks whose root's index is being made or named (`creating`).
     waiting: BTreeSet<Uuid>,
     /// Blocks whose index has no head on this device yet (made by another device, not
@@ -145,7 +150,7 @@ impl Searching {
         // A graph the loop has not looked at yet may hold a workspace that wants its index.
         (!self.off
             && (!self.dirty.is_empty()
-                || !self.creating.is_empty()
+                || self.creating.keys().any(|root| !self.deferred.contains(root))
                 || self.scanned != Some(graph_revision)))
             || !self.writing.is_empty()
             || !self.running.is_empty()
@@ -195,6 +200,9 @@ impl Searching {
     /// again, and find no index to wait for.
     pub(crate) fn make_failed(&mut self, root: Uuid) {
         self.creating.remove(&root);
+        self.deferred.remove(&root);
+        self.tries.remove(&root);
+        self.made.retain(|(made, _)| *made != root);
         let waiting = std::mem::take(&mut self.waiting);
         self.dirty.extend(waiting);
     }
@@ -220,6 +228,19 @@ impl Searching {
     pub(crate) fn wait_for_index(&mut self, root: Uuid, index: Uuid, block: Uuid) {
         self.creating.insert(root, index);
         self.waiting.insert(block);
+    }
+
+    /// Marks the graph as looked at, and a root's made index as waiting for its replica.
+    #[cfg(test)]
+    pub(crate) fn defer(&mut self, root: Uuid, revision: u64) {
+        self.scanned = Some(revision);
+        self.deferred.insert(root);
+    }
+
+    /// Drops the blocks waiting for an index (a test looks at `busy` alone).
+    #[cfg(test)]
+    pub(crate) fn take_waiting_for_test(&mut self) {
+        self.waiting.clear();
     }
 
     /// Takes the queued blocks (a test's way to see what `index` would look at).
@@ -607,14 +628,24 @@ async fn name_indexes(
     // under a moving session loses, and trying again each round would starve the loop.
     let made: Vec<(Uuid, Uuid)> = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        let (ready, waiting) =
+        // A root left, or one this account may no longer edit, has no index to name.
+        let (named, gone): (Vec<_>, Vec<_>) =
             std::mem::take(&mut held.search.made)
                 .into_iter()
                 .partition(|(root, _)| {
-                    replicas
-                        .status(*root)
-                        .is_none_or(|status| status.clean && !status.owes_seal)
+                    held.graph
+                        .get(*root)
+                        .is_some_and(|node| node.access.can_edit() && !node.locked)
                 });
+        for (root, _) in gone {
+            held.search.make_failed(root);
+        }
+        let (ready, waiting): (Vec<_>, Vec<_>) = named.into_iter().partition(|(root, _)| {
+            replicas
+                .status(*root)
+                .is_none_or(|status| status.clean && !status.owes_seal)
+        });
+        held.search.deferred = waiting.iter().map(|(root, _)| *root).collect();
         held.search.made = waiting;
         ready
     };
@@ -656,8 +687,19 @@ async fn name_indexes(
                 });
                 held.graph.settle(root);
             }
-            // Most often a session that kept moving the root: named again next round.
-            Err(_) => held.search.made.push((root, index)),
+            // Most often a session that kept moving the root: named again next round, a few
+            // times; a refusal, or too many, leaves the root without an index.
+            Err(error) => {
+                let tries = held.search.tries.entry(root).or_default();
+                *tries += 1;
+                match matches!(error, be_block_client::ClientError::Refused(..)) || *tries >= 8 {
+                    true => {
+                        held.search.make_failed(root);
+                        held.error = Some(format!("Naming a search index failed: {error}"));
+                    }
+                    false => held.search.made.push((root, index)),
+                }
+            }
         }
     }
 }
