@@ -3767,18 +3767,16 @@ impl Instances {
                     entry.bar_actions.push(action);
                 }
             }
-            ShellMessage::Menu(MenuSet { view, items }) => {
-                match MenuEntry::nest(items.clone()) {
-                    Ok(menu) => {
-                        match menu.is_empty() {
-                            true => entry.menus.remove(&view),
-                            false => entry.menus.insert(view, menu),
-                        };
-                        super::docks::set_menu(instance, view, items);
-                    }
-                    Err(_) => return false,
+            ShellMessage::Menu(MenuSet { view, items }) => match MenuEntry::nest(items.clone()) {
+                Ok(menu) => {
+                    match menu.is_empty() {
+                        true => entry.menus.remove(&view),
+                        false => entry.menus.insert(view, menu),
+                    };
+                    super::docks::set_menu(instance, view, items);
                 }
-            }
+                Err(_) => return false,
+            },
             ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, anchor }) => {
                 entry.child_menu_picks.push((child, id, anchor));
             }

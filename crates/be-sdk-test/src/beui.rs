@@ -1,10 +1,10 @@
 use be_sdk_api::Opening;
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
+use be_sdk_api::ops::{Connection, Incoming, Side};
 use be_sdk_api::shell_types::{
     BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
 };
-use be_sdk_api::ops::{Connection, Incoming, Side};
 use be_sdk_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
     HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
@@ -1885,7 +1885,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_child_menu_picks(&mut self) -> Vec<(ChildId, String)> {
         self.take_calls(|call| match call {
-            ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, .. }) => Some((*child, id.clone())),
+            ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, .. }) => {
+                Some((*child, id.clone()))
+            }
             _ => None,
         })
     }

@@ -1334,11 +1334,18 @@ impl Runtime {
                 }
                 Answer::Shell(mut call) => {
                     self.instances.translate(&mut call, true);
-                    if let be_sdk_api::embed::shell::Call::OpenPalette { instance, mode, .. } =
-                        &call
-                        && self.instances.may_open_palette(*instance)
+                    if let be_sdk_api::embed::shell::Call::Tell {
+                        instance, messages, ..
+                    } = &call
                     {
-                        crate::palette::ask(self.id(), *instance, *mode);
+                        for message in messages {
+                            if let be_sdk_api::shell_types::ShellMessage::OpenPalette(mode) =
+                                message
+                                && self.instances.may_open_palette(*instance)
+                            {
+                                crate::palette::ask(self.id(), *instance, *mode);
+                            }
+                        }
                     }
                     self.instances.shell_call(call)
                 }
