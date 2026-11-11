@@ -53,6 +53,13 @@ pub trait Program: std::any::Any {
         Vec::new()
     }
 
+    /// What keeps the program from being in step with its server: `None` for a program that
+    /// keeps nothing on one, and no reason once it has nothing waiting to send and has caught
+    /// up since it last connected. drive's `synced` waits for that.
+    fn unsynced(&self) -> Option<Vec<String>> {
+        None
+    }
+
     fn environment(&self) -> Vec<(String, String)> {
         Vec::new()
     }

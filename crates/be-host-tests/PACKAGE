@@ -17,9 +17,13 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -29,9 +33,13 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -41,9 +49,13 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -53,9 +65,13 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -65,9 +81,13 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -77,9 +97,13 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
@@ -89,9 +113,13 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
+                "//third-party/rust:tokio-1.52.3",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],

@@ -480,6 +480,9 @@ pub struct Shared {
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
+    /// Between connecting and having asked for everything the device must catch up on: the
+    /// outbox settled, listings and open blocks asked for again (`Session::arrive`).
+    pub arriving: bool,
     pub draining: bool,
     /// Counts finished drains of the outbox.
     pub drains: u64,
@@ -544,6 +547,29 @@ impl Wall {
 impl Shared {
     pub fn touch(&mut self, block: Uuid) {
         self.touched.insert(block);
+    }
+
+    /// What keeps the device from being in step with the server, apart from `busy`: drive's
+    /// `synced` waits until there is nothing.
+    pub fn unsynced(&self) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if !self.connected {
+            reasons.push(match &self.error {
+                Some(error) => format!("the block store is not connected to the server: {error}"),
+                None => "the block store is not connected to the server".to_owned(),
+            });
+        }
+        if self.arriving {
+            reasons.push("the block store catches up with the server after connecting".to_owned());
+        }
+        if self.draining {
+            reasons.push("the block store sends the edits it kept".to_owned());
+        }
+        let waiting = self.unsealed + self.waiting;
+        if waiting > 0 {
+            reasons.push(format!("{waiting} edit(s) wait to be sent"));
+        }
+        reasons
     }
 
     pub fn busy(&self) -> Vec<&'static str> {
@@ -1195,6 +1221,7 @@ impl Session<'_> {
                 held.connection_due = Some(peer.connection().due());
             }
             held.reached = true;
+            held.arriving = true;
             held.error = None;
         }
         self.changed.notify_all();
@@ -1224,6 +1251,10 @@ impl Session<'_> {
         self.versions.reconnected();
         self.refresh_versions().await;
         report(peer, shared);
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .arriving = false;
         self.changed.notify_all();
         be_host_base::host::wake();
     }
@@ -1232,6 +1263,7 @@ impl Session<'_> {
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.connected = false;
+    held.arriving = false;
     held.connection = None;
 }
 

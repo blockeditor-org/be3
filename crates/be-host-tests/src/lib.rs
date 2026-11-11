@@ -1,13 +1,22 @@
 use std::cell::Cell;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use be_block_fault_relay::Relay;
 use be_tool_drive::Driven;
 use beui_layer_drive::Reply;
 use beui_paint_snapshot::{Painting, Snapshot};
 
+mod server;
+
+pub use server::{Account, Server};
+
 const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
+const FILES: &str = "Pane \"Files\"";
+const SHOW_A_CODE: &str = "Button \"Show a code\"";
+const FILE_TREE: &str = "#file-tree.filter";
 
 /// be-host started headless with the dev workspace open, driven as `drive` drives it, for a test
 /// of what happens between editors (guides/testing_a_gui.md, 6).
@@ -16,6 +25,10 @@ const SLOW_WAIT: Duration = Duration::from_secs(5);
 /// costs only the frames it runs; a closing menu or sheet stays until a pause as long as its
 /// animation. The wall clock is the headless platform's fixed moment plus the frame clock.
 /// A test that does not end with [`HostTest::close`] fails.
+///
+/// Each host embeds a server of its own, except a device ([`HostTest::device`]), which joins a
+/// [`Server`] the test owns as a device of one of its accounts: a test of what happens between
+/// devices (sync, going offline, restarting) runs two of them.
 pub struct HostTest {
     host: Option<Driven>,
     steps: Vec<String>,
@@ -26,11 +39,124 @@ pub struct HostTest {
     reported: Cell<bool>,
     space: bool,
     editors: Option<String>,
+    device: Option<Device>,
+}
+
+/// What a host joined to a test's [`Server`] keeps: its account and its own network to the
+/// server.
+struct Device {
+    account: Account,
+    relay: Arc<Relay>,
 }
 
 impl HostTest {
     pub fn start() -> Self {
-        Self::start_with(&[], "Pane \"Files\"")
+        Self::start_with(&[], FILES)
+    }
+
+    /// Starts a device of `account` on its test [`Server`], in a data directory of its own,
+    /// and opens its My files as `start` does: the account's first device, which sets its key.
+    /// Start its other devices with [`HostTest::another_device`], which unlocks them with that
+    /// key.
+    pub fn device(account: &Account) -> Self {
+        Self::join(account, FILES, true)
+    }
+
+    /// Starts another device of this one's account, as [`HostTest::device`] does, and pairs it
+    /// with this one, as a person adding a device does: the new device shows a code, which is
+    /// typed into this one. It returns once the new device shows its My files.
+    ///
+    /// The new device's clock runs until then, as a host's does until `start` returns: with it
+    /// stopped from the unlock screen on, its file tree waits for a frame nothing asks for once
+    /// it opens.
+    pub fn another_device(&mut self) -> Self {
+        let account = self.joined("another_device").account.clone();
+        let mut other = Self::join(&account, SHOW_A_CODE, false);
+        other.click(SHOW_A_CODE);
+        other.wait("Type this code on the other device:");
+        let tree = other.tree();
+        let code = tree
+            .split('"')
+            .find(|word| pairing_code(word))
+            .unwrap_or_else(|| other.fail("the new device shows no pairing code"))
+            .to_owned();
+        self.wait("Add a device");
+        self.click("TextInput \"Code\"");
+        self.type_text(&code);
+        self.click("Button \"Approve\"");
+        self.gone("Add a device");
+        other.wait(FILE_TREE);
+        other.run(&["clock", "stop"]);
+        other
+    }
+
+    /// Closes the host, failing unless it exits cleanly, and starts it again on the data it
+    /// kept, as a person quitting it and opening it again. A device keeps its network: one
+    /// [`HostTest::offline`] starts offline.
+    pub fn restart(&mut self) {
+        self.steps.push("restart".to_owned());
+        let restarted = self
+            .host
+            .as_mut()
+            .expect("the host is still open")
+            .restart();
+        if let Err(error) = restarted {
+            self.fail(&format!("the host did not restart: {error}"));
+        }
+        self.wait(FILES);
+        self.run(&["clock", "stop"]);
+    }
+
+    /// Takes this device's network to the server away: its connections drop and it cannot
+    /// connect, as a laptop that lost its Wi-Fi. What it does meanwhile waits in its outbox.
+    pub fn offline(&mut self) {
+        self.steps.push("# offline".to_owned());
+        self.joined("offline").relay.offline(true);
+    }
+
+    /// Gives this device its network back and tells it so (`drive network`), as the system tells
+    /// a program the network came back, so it reconnects at once instead of when its wait for
+    /// the next try runs out. Wait for what it should catch up on with [`HostTest::synced`].
+    pub fn online(&mut self) {
+        self.steps.push("# online".to_owned());
+        self.joined("online").relay.offline(false);
+        self.run(&["network"]);
+    }
+
+    /// Waits until the device is connected to its server, has sent everything it kept, and has
+    /// asked for what changed while it was away (`drive synced`). What another device changes
+    /// arrives as the server pushes it, after that: wait for it to show.
+    pub fn synced(&mut self) {
+        self.run(&["synced"]);
+    }
+
+    fn joined(&self, what: &str) -> &Device {
+        self.device.as_ref().unwrap_or_else(|| {
+            self.fail(&format!(
+                "{what} is for a device of a test's server; start it with HostTest::device"
+            ))
+        })
+    }
+
+    fn join(account: &Account, ready: &str, stop_clock: bool) -> Self {
+        let relay = account.server.relay();
+        let url = format!("http://{}", relay.address());
+        let token = account.server.token(account.id);
+        let start = be_tool_drive::Start {
+            arguments: vec![format!("--dev-workspace={url}")],
+            environment: vec![("BE_DEV_TOKEN".to_owned(), token)],
+            ..Self::program(false, false)
+        };
+        Self::begin(
+            start,
+            ready,
+            false,
+            Some(Device {
+                account: account.clone(),
+                relay,
+            }),
+            stop_clock,
+        )
     }
 
     pub fn start_desktop() -> Self {
@@ -56,20 +182,36 @@ impl HostTest {
     }
 
     fn launch(arguments: &[&str], ready: &str, space: bool, render: bool) -> Self {
-        let started = Instant::now();
-        let program = std::env::var("BE_HOST")
-            .expect("BE_HOST names the host to test; run these through ./scripts/buck test //crates/be-host-tests:test");
-        let mut all = vec!["--dev-workspace"];
-        all.extend_from_slice(arguments);
-        let host = Driven::start(
-            &program,
-            &all,
-            SIZE,
-            std::env::var("HOST_LIBRARIES").ok(),
+        let mut start = Self::program(space, render);
+        start.arguments = std::iter::once("--dev-workspace")
+            .chain(arguments.iter().copied())
+            .map(str::to_owned)
+            .collect();
+        Self::begin(start, ready, space, None, true)
+    }
+
+    fn program(space: bool, render: bool) -> be_tool_drive::Start {
+        be_tool_drive::Start {
+            program: std::env::var("BE_HOST")
+                .expect("BE_HOST names the host to test; run these through ./scripts/buck test //crates/be-host-tests:test"),
+            size: SIZE.to_owned(),
+            libraries: std::env::var("HOST_LIBRARIES").ok(),
             space,
             render,
-        )
-        .unwrap_or_else(|error| panic!("be-host did not start: {error}"));
+            ..be_tool_drive::Start::default()
+        }
+    }
+
+    fn begin(
+        start: be_tool_drive::Start,
+        ready: &str,
+        space: bool,
+        device: Option<Device>,
+        stop_clock: bool,
+    ) -> Self {
+        let started = Instant::now();
+        let host = Driven::start(start)
+            .unwrap_or_else(|error| panic!("be-host did not start: {error}"));
         let mut test = Self {
             host: Some(host),
             steps: Vec::new(),
@@ -80,9 +222,12 @@ impl HostTest {
             reported: Cell::new(false),
             space,
             editors: std::env::var("HOST_TEST_APPS").ok(),
+            device,
         };
         test.wait(ready);
-        test.run(&["clock", "stop"]);
+        if stop_clock {
+            test.run(&["clock", "stop"]);
+        }
         test
     }
 
@@ -356,6 +501,16 @@ fn editors_naming(text: &str) -> Vec<String> {
                 .map(str::to_owned)
         })
         .collect()
+}
+
+/// A pairing code as the unlock screen shows it: `XXXX-XXXX`.
+fn pairing_code(word: &str) -> bool {
+    let bytes = word.as_bytes();
+    bytes.len() == 9
+        && bytes.iter().enumerate().all(|(at, byte)| match at {
+            4 => *byte == b'-',
+            _ => byte.is_ascii_uppercase() || byte.is_ascii_digit(),
+        })
 }
 
 fn missing(error: &str) -> bool {

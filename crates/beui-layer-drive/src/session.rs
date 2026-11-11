@@ -48,6 +48,9 @@ pub const USAGE: &str = "Session:
                             the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
                             open, to ask about unsaved changes, answers with what changed
+  synced                    wait until the program has settled with nothing waiting to send to its
+                            server and has caught up since it last connected (be-host); an error
+                            for a program that keeps nothing on a server
   help                      this
 Reading the program:
   tree                      the accessibility tree, one node per line
@@ -83,6 +86,8 @@ The platform's side:
   resize WIDTHxHEIGHT[@SCALE]   resize the headless window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen headless window fills
   focus / blur              the window gains or loses focus; blur cancels the pointers and lets go of held keys
+  network                   the platform says the network changed, as when it comes back, so a
+                            program waiting to reconnect tries at once
   clipboard [TEXT]          read the clipboard, or put TEXT on it
   upload FILE [TARGET]      answer the file dialog with FILE, clicking TARGET first to open it
   save FILE [TARGET]        answer the save dialog by writing what it saves to FILE, clicking
@@ -159,7 +164,8 @@ enum Kind {
 
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
-        "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
+        "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" | "synced"
+        | "network" => Kind::Session,
         "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act"
         | "a11y" | "wait" | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
@@ -333,6 +339,8 @@ impl<'a> View<'a> {
 struct Settled {
     busy: Vec<String>,
     drawing: bool,
+    /// While `synced` waits: what keeps the program from being in step with its server.
+    unsynced: Vec<String>,
 }
 
 /// How far a pause with `remaining` left moves a stopped clock for the next frame: a frame
@@ -381,6 +389,7 @@ enum Phase {
     Settling {
         before: Option<Rc<Rendered>>,
     },
+    Syncing,
     Waiting {
         text: String,
         present: bool,
@@ -763,8 +772,17 @@ impl Session {
         }
         let mut busy = frame_busy(run, self.clock_stopped);
         busy.extend(frame.program.busy());
+        let unsynced = match &self.active {
+            Some(Active {
+                phase: Phase::Syncing,
+                ..
+            }) => frame.program.unsynced().unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        // A wait for the server is no frame owed, so it is only named if `synced` times out.
+        let named: Vec<String> = busy.iter().chain(&unsynced).cloned().collect();
         self.inbox.note_busy(
-            &busy,
+            &named,
             // A pause is what lets the stopped clock move: it is not the held frame that
             // keeps it from replying.
             frame_held(run, self.clock_stopped).filter(|_| {
@@ -778,6 +796,7 @@ impl Session {
         let settled = Settled {
             busy,
             drawing: frame.program.drawing(),
+            unsynced,
         };
         self.settle(view, settled, output, &frame.above);
         run.unpaced |= self.clock_stopped && owed && self.active.is_some();
@@ -973,6 +992,9 @@ impl Session {
                             capped(changes(before.text(), view.rendered().text()), limit)
                         }
                     }))
+                }
+                Phase::Syncing if quiet && settled.unsynced.is_empty() => {
+                    Some(Reply::Text(String::new()))
                 }
                 Phase::Waiting {
                     text,
@@ -1254,6 +1276,16 @@ impl Session {
                     before: Some(view.rendered()),
                 })),
             },
+            "synced" => match frame.program.unsynced() {
+                Some(_) => Ok(Started::Phase(Phase::Syncing)),
+                None => Err("this program keeps nothing on a server to be in step with".to_owned()),
+            },
+            "network" => {
+                frame
+                    .program
+                    .lifecycle(beui_core::program::Lifecycle::NetworkChanged);
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
             "hurry" => {
                 self.unhurried = match argument(0)? {
                     "on" => false,

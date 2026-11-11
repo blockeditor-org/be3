@@ -569,8 +569,11 @@ the web build.
   (`be_host_stack::testing::serve_in_process`).
 - `crates/be-block-fault-relay` sits between a client and a server and can
   `stall`, `stall_at_next_request`, `cut`, `hold_new` or `jam_at_next_request`
-  connections, and `count` the calls the client starts (method ids are
+  connections, go `offline` (cut them and refuse new ones until it is back), and `count` the calls the client starts (method ids are
   `be_block_protocol::__args::<INTERFACE>_<FUNCTION>`), so a test waits for a
   ping or heartbeat to be sent.
+- crates/be-host-tests' `Server` runs one in a host test's process, and be-hosts
+  join it as devices of its accounts, each through a relay of its own
+  (guides/testing_a_gui.md, 6).
 - The graph's tests check access against random graphs
   (`be-block-graph/src/tests.rs`).

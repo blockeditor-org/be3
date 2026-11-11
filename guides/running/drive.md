@@ -25,7 +25,9 @@ export (guides/running/web.md).
 
 A command goes where it can only mean one thing:
 
-- the session's own: `settle`, `pause`, `clock`, `hurry`, `frames`, `close`;
+- the session's own: `settle`, `synced`, `pause`, `clock`, `hurry`, `frames`, `close`, and
+  `network`, which tells the program its network changed (`Lifecycle::NetworkChanged`), as a
+  platform does when it comes back;
 - reading the program: `tree`, `ids`, `find`, `paint`, `overflows`, `windows`, `actions`, ...;
 - the platform's side, below every layer: `shot`, the file and save dialogs drive stands in
   for, the clipboard, resizing the headless window, focus, files dragged in;
@@ -160,6 +162,12 @@ A program has settled once a frame asks for no other and `Program::busy` gives n
 be-host is busy while an app starts, owes a frame or has unanswered input, while an editor on
 screen waits for content, while an account request is pending, and while the block store has
 work queued or edits to seal or send. It is never busy on its error screen.
+
+`drive synced` waits for more: settled, and `Program::unsynced` gives no reason. be-host gives
+one while its block store is not connected, has edits waiting to be sent, or is still asking for
+what changed since it connected; it fails on a program with no server. A device waiting to
+reconnect tries again only when its wait runs out, so after its network comes back `drive
+network` first, as crates/be-host-tests' `HostTest::online` does.
 
 Work the program cannot see is not waited for:
 

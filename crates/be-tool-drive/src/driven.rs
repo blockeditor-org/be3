@@ -11,6 +11,21 @@ const CLOSING: Duration = Duration::from_secs(60);
 const LOG_TAIL: usize = 40;
 const PANIC_LINES: usize = 12;
 
+/// What [`Driven::start`] starts.
+#[derive(Clone, Debug, Default)]
+pub struct Start {
+    pub program: String,
+    pub arguments: Vec<String>,
+    /// The headless window's size, `WIDTHxHEIGHT[@SCALE]`.
+    pub size: String,
+    /// `LD_LIBRARY_PATH` for the program.
+    pub libraries: Option<String>,
+    pub space: bool,
+    pub render: bool,
+    /// Set in the program's environment on top of what `be-drive run` sets.
+    pub environment: Vec<(String, String)>,
+}
+
 /// A program started headless for a test, with fresh data in a directory of its own and its
 /// clock pinned, as `be-drive run` starts one: crates/be-host-tests drives be-host through it.
 ///
@@ -23,17 +38,12 @@ pub struct Driven {
     socket: PathBuf,
     log: PathBuf,
     timeout: Duration,
+    start: Start,
+    starts: u32,
 }
 
 impl Driven {
-    pub fn start(
-        program: &str,
-        arguments: &[&str],
-        size: &str,
-        libraries: Option<String>,
-        space: bool,
-        render: bool,
-    ) -> Result<Self, String> {
+    pub fn start(start: Start) -> Result<Self, String> {
         static STARTED: AtomicU32 = AtomicU32::new(0);
         let dir = Path::new("/tmp").join(format!(
             "be3-{}-{}",
@@ -44,26 +54,27 @@ impl Driven {
         std::fs::create_dir_all(&dir)
             .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
         let log = dir.join("app.log");
-        let child = launch::start(
-            program,
-            arguments
-                .iter()
-                .map(|argument| (*argument).to_owned())
-                .collect(),
-            size,
-            libraries,
-            space,
-            render,
-            &dir,
-            &log,
-        )?;
+        let child = launch::start(&start, true, &dir, &log)?;
         Ok(Self {
             child: Some(child),
             socket: dir.join("drive.sock"),
             dir,
             log,
             timeout: crate::TIMEOUT,
+            start,
+            starts: 1,
         })
+    }
+
+    /// Closes the program as [`Driven::close`] does, failing unless it exits cleanly, and
+    /// starts it again on the data it kept, as a person quitting and opening it again. The log
+    /// starts over in a file of its own, so the one before stays beside it.
+    pub fn restart(&mut self) -> Result<(), String> {
+        self.close_child()?;
+        self.starts += 1;
+        self.log = self.dir.join(format!("app.{}.log", self.starts));
+        self.child = Some(launch::start(&self.start, false, &self.dir, &self.log)?);
+        Ok(())
     }
 
     pub fn set_timeout(&mut self, timeout: Duration) {
@@ -81,6 +92,10 @@ impl Driven {
 
     /// Asks the program to close and fails unless it exits cleanly within [`CLOSING`].
     pub fn close(mut self) -> Result<(), String> {
+        self.close_child()
+    }
+
+    fn close_child(&mut self) -> Result<(), String> {
         let Some(child) = self.child.take() else {
             return Ok(());
         };
