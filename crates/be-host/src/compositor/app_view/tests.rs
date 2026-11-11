@@ -100,6 +100,7 @@ fn press() -> Forwarded {
             predicted: None,
             time: beui::reactive::now(),
             source: 0,
+            rested: false,
         },
         over: None,
     }

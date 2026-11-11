@@ -139,6 +139,7 @@ pub(crate) fn to_host(input: Input, to_host: be_sdk_api::HostTransform) -> Input
     let at = |pos: Pos2| to_host.point(pos);
     match input {
         Input::PointerMoved(pos) => Input::PointerMoved(at(pos)),
+        Input::PointerRested(pos) => Input::PointerRested(at(pos)),
         Input::PointerButton {
             pos,
             button,

@@ -396,6 +396,7 @@ mod a_row_let_go_away_from_every_list_glides_home_without_the_list_jumping;
 mod a_row_no_other_list_takes_stays_in_its_list_and_settles_in_its_slot;
 mod a_row_pulled_out_of_its_list_shows_its_preview_under_the_pointer;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
+mod a_row_that_appears_under_a_still_pointer_is_hovered_without_being_pointed_at;
 mod a_runner_whose_program_panics_lets_the_program_exit_and_reports_why;
 mod a_scope_disposed_with_no_document_installed_still_removes_its_nodes;
 mod a_screen_reader_follows_the_highlight_through_a_search_list;
@@ -1009,6 +1010,7 @@ mod the_menu_key_opens_a_tree_rows_menu_beneath_the_row;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_more_button_of_a_selection_toolbar_opens_the_full_menu;
 mod the_on_screen_keyboard_opens_in_the_window_holding_the_focused_field;
+mod the_order_a_pointer_rests_and_a_row_appears_in_does_not_decide_what_is_pointed_at;
 mod the_program_and_the_inspector_paint_displays_a_renderer_can_tell_apart;
 mod the_program_tab_shows_the_document_below_the_stacked_bar;
 mod the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_program_it_returns_to;
@@ -2592,6 +2594,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 }
 
 use crate::native::Document;
+use crate::primitives::Interactive;
 use crate::unstyled::Scroll;
 use beui::WHEEL_LATCH_TIMEOUT;
 
@@ -3464,4 +3467,54 @@ pub(crate) fn staged_nested_dock() -> (Document, StagedNestedDock) {
     });
     let (outer, inner) = built.get().expect("the dock was built");
     (document, StagedNestedDock { outer, inner })
+}
+
+const ROW: f32 = 20.0;
+struct Menu {
+    _root: crate::reactive::RootScope,
+    harness: Harness,
+    shown: Signal<bool>,
+    hovered: Signal<bool>,
+    pointed: Signal<bool>,
+}
+/// A header row and, below it, a row that `shown` brings: what a menu does when it opens under
+/// the pointer that pressed the button which opened it.
+fn menu() -> Menu {
+    let root = crate::reactive::RootScope::new();
+    let shown = create_signal(false);
+    let hovered = create_signal(false);
+    let pointed = create_signal(false);
+    let document = build_node(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame height=ROW />
+                <Show condition={shown}>
+                    <Interactive on_hover_change={hovered} on_pointed_change={pointed}>
+                        <Frame height=ROW />
+                    </Interactive>
+                </Show>
+            </List>
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    Menu {
+        _root: root,
+        harness,
+        shown,
+        hovered,
+        pointed,
+    }
+}
+fn under_the_row() -> Pos2 {
+    pos2(10.0, ROW + 5.0)
+}
+/// The row is hovered, as it is by anything under the pointer, but not pointed at: a pointer
+/// that did not move has not chosen it, so a menu does not highlight it.
+fn assert_hovered_not_pointed(rows: &Menu, what: &str) {
+    assert!(rows.hovered.get_untracked(), "{what}: the row is hovered");
+    assert!(
+        !rows.pointed.get_untracked(),
+        "{what}: the pointer did not move, so it is not pointed at"
+    );
 }
