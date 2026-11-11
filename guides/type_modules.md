@@ -317,14 +317,21 @@ rebase. The rules an agent most needs:
   failure is reported.
 - A read that fails is tried again after 1, 2 and 4 s, with the messages
   behind it held; the fourth failure gives up on the part. A part longer than
-  `LARGEST_PART` is given up on without a read, and so are the held messages
-  once more than `MOST_HELD_JOBS` wait behind a read. Giving up drops the
-  messages that name the part, and a follower asks the owner to catch it up
-  (`catch_up`): the owner committed the edit at once, so the snapshot it
-  answers with starts at a head that holds it. A part given up on twice
-  without a read in between answering is a divergence (`unreadable_message`),
-  as is an operation whose bytes do not decode. The server holds a part for
-  the whole upload grace (a day), and longer while the block's journal holds
+  `LARGEST_PART` is given up on without a read, and so are a follower's held
+  messages once more than `MOST_HELD_JOBS` wait behind a read. Giving up
+  drops the messages that name the part (an owner's report is all it does; the
+  sender's edit stays pending until it resynchronizes), and a follower asks the
+  owner to catch it up (`catch_up_later`), again after 5 s, 10 s and so on up
+  to a minute until an answer applies (a `Snapshot`, a `Sealed` that reloads,
+  or a lease change that resynchronizes). Once the owner's commit of the edit
+  lands, the snapshot starts at a head that holds it; before that it still
+  names the part, so the follower waits. Giving up is never a divergence, only
+  bytes that do not decode are. A follower heeds `Accepted`, `Snapshot`,
+  `Sealed` and `Replaced` from the owner alone (`not_from_the_owner`), since
+  the server relays what any participant, a viewer included, sends: that the
+  server does not limit `Submit` and the owner's messages to editors and the
+  owner is a known gap (plans/session_message_authority.md). The server holds a
+  part for the whole upload grace (a day), and longer while the block's journal holds
   entries, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.
 - A whole-content replacement (`Replace`, `FromFile`) wins outright: the

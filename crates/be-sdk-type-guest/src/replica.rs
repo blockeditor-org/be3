@@ -456,9 +456,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Reads of parts that failed, and when each is tried again.
     read_failures: HashMap<PartRef, u32>,
     read_retry: HashMap<PartRef, u64>,
-    /// Parts a catch-up was asked for because they could not be read: one named again after
-    /// that is a divergence.
-    gave_up: HashSet<PartRef>,
+    /// How many catch-ups in a row were asked for because a part could not be read, and when
+    /// the next is asked for if no answer came.
+    catch_up_failures: u32,
+    catch_up_at: Option<u64>,
     /// How many times in a row a put failed.
     put_failures: u32,
     out: Vec<Effect>,
@@ -516,6 +517,12 @@ where
         for part in due {
             self.read_retry.remove(&part);
         }
+        if self.catch_up_at.is_some_and(|at| self.now >= at) {
+            self.catch_up_at = None;
+            if self.catching_up {
+                self.regreet();
+            }
+        }
         if self.put_retry_at.is_some_and(|at| self.now >= at) {
             self.put_retry_at = None;
             self.flush();
@@ -542,6 +549,7 @@ where
         seal.into_iter()
             .chain(self.append_at)
             .chain(self.put_retry_at)
+            .chain(self.catch_up_at)
             .chain(self.read_retry.values().copied())
             .chain(self.beat_at())
             .min()
@@ -630,7 +638,8 @@ where
             reading: BTreeMap::new(),
             read_failures: HashMap::new(),
             read_retry: HashMap::new(),
-            gave_up: HashSet::new(),
+            catch_up_failures: 0,
+            catch_up_at: None,
             put_failures: 0,
             out: Vec::new(),
         }
@@ -650,6 +659,15 @@ where
             }
             // A peer's message waits for the parts its operations name, and so does all that
             // came after it.
+            if let Job::Heard {
+                from,
+                wire: Some(wire),
+            } = job
+                && self.not_from_the_owner(*from, wire)
+            {
+                self.jobs.pop_front();
+                continue;
+            }
             let mut missing = Vec::new();
             let mut backing_off = false;
             let mut too_large = None;
@@ -678,9 +696,9 @@ where
                 for part in missing {
                     self.read_payload(part);
                 }
-                if self.jobs.len() > MOST_HELD_JOBS {
-                    self.jobs.retain(|job| !matches!(job, Job::Heard { .. }));
-                    self.catch_up();
+                if self.jobs.len() > MOST_HELD_JOBS && !self.is_owner() {
+                    self.drop_heard(|_| true);
+                    self.catch_up_later();
                 }
                 break;
             }
@@ -807,7 +825,6 @@ where
             Ok(bytes) => {
                 self.payloads.insert(part, bytes);
                 self.read_failures.remove(&part);
-                self.gave_up.remove(&part);
             }
             Err(error) if matches!(self.waiting, Some(Wait::Payloads { .. })) => {
                 self.error(format!("an operation's part could not be read: {error}"));
@@ -833,24 +850,74 @@ where
         }
     }
 
-    /// A part a peer's message names cannot be read, however often it is tried. The message is
-    /// dropped and a follower asks the owner to catch it up, which hands it the commit the
-    /// owner made of the edit. A part still unavailable after that is a divergence.
+    /// A part a peer's message names cannot be read, however often it is tried. The messages
+    /// that name it are dropped. A follower asks the owner to catch it up, which hands it the
+    /// commit the owner made of the edit, and asks again, ever less often, until an answer
+    /// applies; the owner reports it, and the sender's edit stays pending until it resynchronizes.
+    /// Nothing here is a divergence: only bytes that do not decode are.
     fn part_unavailable(&mut self, part: PartRef) {
-        self.read_failures.remove(&part);
-        self.read_retry.remove(&part);
         let named = |job: &Job<C>| match job {
             Job::Heard {
                 wire: Some(wire), ..
             } => named_parts(wire).contains(&part),
             _ => false,
         };
-        self.jobs.retain(|job| !named(job));
-        if !self.is_owner() && self.gave_up.insert(part) {
-            return self.catch_up();
+        self.drop_heard(named);
+        if !self.is_owner() {
+            self.catch_up_later();
         }
-        self.gave_up.remove(&part);
-        self.unreadable_message();
+    }
+
+    /// Drops the peer messages `drop` picks, and what was known of reading their parts.
+    fn drop_heard(&mut self, pick: impl Fn(&Job<C>) -> bool) {
+        let jobs = std::mem::take(&mut self.jobs);
+        for job in jobs {
+            if !matches!(job, Job::Heard { .. }) || !pick(&job) {
+                self.jobs.push_back(job);
+                continue;
+            }
+            if let Job::Heard {
+                wire: Some(wire), ..
+            } = &job
+            {
+                for part in named_parts(wire) {
+                    self.read_failures.remove(&part);
+                    self.read_retry.remove(&part);
+                }
+            }
+        }
+    }
+
+    /// Asks the owner to catch this follower up now if it has not been asked for lately, and
+    /// again after 5 s, 10 s and so on up to a minute should no answer apply.
+    fn catch_up_later(&mut self) {
+        match self.catch_up_failures {
+            0 => self.regreet(),
+            _ => self.catching_up = true,
+        }
+    }
+
+    fn regreet(&mut self) {
+        let wait = (PUT_RETRY_INTERVAL << self.catch_up_failures.min(4)).min(PUT_RETRY_CEILING);
+        self.catch_up();
+        self.catch_up_failures += 1;
+        self.catch_up_at = Some(self.now + wait);
+    }
+
+    /// Whether `wire` is a message only the owner sends, and `from` is not the owner. A viewer
+    /// can relay anything, so a follower heeds these from the owner alone.
+    fn not_from_the_owner(&self, from: ClientId, wire: &Wire) -> bool {
+        matches!(self.role, Role::Follower(_))
+            && Some(from) != self.state.owner
+            && matches!(
+                wire,
+                Wire::Session(
+                    SessionMessage::Accepted { .. }
+                        | SessionMessage::Snapshot { .. }
+                        | SessionMessage::Sealed { .. }
+                        | SessionMessage::Replaced { .. }
+                )
+            )
     }
 
     /// Asks the owner for what this follower missed, and ignores what the owner sends until it
@@ -1138,6 +1205,8 @@ where
             } => {
                 self.adopt(session);
                 if resynchronize && let Role::Follower(_) = &self.role {
+                    self.catch_up_failures = 0;
+                    self.catch_up_at = None;
                     self.catching_up = true;
                     self.greet();
                 }
@@ -1304,6 +1373,8 @@ where
                 state,
                 restart,
             } => {
+                self.catch_up_failures = 0;
+                self.catch_up_at = None;
                 let before = std::mem::replace(&mut self.confirmed, next());
                 match state.is_empty() {
                     true => self.sealed_state = self.confirmed.session_state(),
@@ -2610,6 +2681,8 @@ where
                     return;
                 };
                 self.catching_up = false;
+                self.catch_up_failures = 0;
+                self.catch_up_at = None;
                 let applied = follower.applied();
                 if head != self.base || sealed != self.sealed || applied < sealed {
                     return self.read(
