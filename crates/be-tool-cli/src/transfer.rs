@@ -40,6 +40,20 @@ impl<S: ObjectStore> Tracker<S> {
         let mut blocks = Vec::with_capacity(read.len());
         for ((entry, parent), read) in order.into_iter().zip(read) {
             let summary = read.summary.clone();
+            // A type that loads its first part keeps more after it (chat's closed segments); a
+            // transfer carries bytes, so it would drop them: refuse until it carries parts.
+            if be_block_type_host::kind_of(entry.block_type).is_some_and(|kind| kind.first_part)
+                && read
+                    .stored
+                    .as_ref()
+                    .and_then(|stored| stored.root.as_ref())
+                    .is_some_and(|root| root.children.len() > 1)
+            {
+                return Err(format!(
+                    "block {} keeps parts after its first, which a transfer does not carry yet",
+                    entry.id
+                ));
+            }
             let content = match read.journal {
                 Some(_) => self.types().await.readable(read).await,
                 None => read.stored.map(|stored| stored.bytes),

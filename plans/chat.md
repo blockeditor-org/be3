@@ -127,9 +127,8 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
 - **Not built: rewriting a segment**: plans/deferred/chat_segment_rewrite.md.
   A deleted message's body stays in its closed segment until then. A chat
   rebuilt from the header's bytes (a view) saves the header alone, never a
-  placeholder part. Known gap: Duplicate and `be` transfer of a chat with
-  segments take that path and lose the closed history in the copy, as does a
-  revision restore (a no-op); they should refuse until a parts-aware copy exists.
+  placeholder part. Duplicate, `be` transfer and revision preview or restore refuse a block of a
+  first-part type that has parts after its first, until a copy of parts exists.
 - **Limits.** A message larger than the largest segment closes alone. A
   segment's Bloom filter can name a message it does not hold (unread counts
   may read one segment too many, never too few). A replica holds a closed

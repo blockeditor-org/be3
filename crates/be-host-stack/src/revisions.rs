@@ -284,6 +284,22 @@ async fn perform(
     if saved.manifest.content_type != summary.content_type {
         return Err("The revision has a different file type.".into());
     }
+    // A type that loads its first part keeps more after it (chat's closed segments); its whole
+    // bytes are not content a replica can take, so a revision of it cannot be shown or restored
+    // by bytes yet.
+    if replicas
+        .kind(summary.content_type)
+        .await
+        .is_some_and(|kind| kind.first_part)
+    {
+        let first = peer
+            .load_first_part(&saved.manifest)
+            .await
+            .map_err(|error| error.to_string())?;
+        if (first.bytes.len() as u64) < saved.manifest.length() {
+            return Err("This revision keeps parts that cannot be shown or restored yet.".into());
+        }
+    }
     let bytes = peer
         .read_manifest(&saved.manifest)
         .await

@@ -2435,6 +2435,28 @@ async fn apply(
                     .settle(to);
                 return false;
             }
+            // A type that loads its first part keeps more after it (chat's closed segments), which
+            // a copy through bytes cannot carry: refuse until a copy of parts exists.
+            if replicas
+                .kind(content_type)
+                .await
+                .is_some_and(|kind| kind.first_part)
+                && has_later_parts(peer, from).await.unwrap_or(false)
+            {
+                record(
+                    shared,
+                    ClientError::Encoding(
+                        "this block keeps parts after its first, which a copy does not carry yet"
+                            .to_string(),
+                    ),
+                );
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .settle(to);
+                return false;
+            }
             let created = peer
                 .create_block(to, content_type, BlockParent::Detached, &metadata, false)
                 .await;
@@ -2698,6 +2720,16 @@ async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, Clie
     };
     let commit = peer.load_commit(head).await?;
     Ok(Some(peer.read_manifest(&commit.manifest).await?))
+}
+
+/// Whether the block's newest save holds more than the first part a type loads.
+async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<bool, ClientError> {
+    let Some(head) = peer.newest_head(block).await? else {
+        return Ok(false);
+    };
+    let commit = peer.load_commit(head).await?;
+    let first = peer.load_first_part(&commit.manifest).await?;
+    Ok((first.bytes.len() as u64) < commit.manifest.length())
 }
 
 async fn seed(
