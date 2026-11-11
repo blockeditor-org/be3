@@ -13,13 +13,15 @@ use uuid::Uuid;
 use super::Peer;
 use crate::ClientError;
 
-/// What a notification's sender wrote, sealed under the block's data key, with the block, the
-/// sender's account and the time it was sent sealed in, so a server that resends it later,
-/// under another block, or as another member's is found out (`Peer::open_notification`). The
+/// What a notification's sender wrote, sealed under the block's data key, with the
+/// organization, the block, the sender's account and the time it was sent sealed in, so a
+/// server that resends it later, under another block or organization, or as another member's
+/// is found out (`Peer::open_notification`). The
 /// server vouches for the sender too (`PushMessage::sender`), so a member cannot claim to be
 /// another, nor the server without a member's help. The device names both itself.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Notification {
+    pub organization: Uuid,
     pub block: Uuid,
     pub sender: Uuid,
     /// Milliseconds since the epoch, by the sender's clock.
@@ -86,6 +88,7 @@ impl<S: ObjectStore> Peer<S> {
         mentions: Vec<Uuid>,
     ) -> Result<(), ClientError> {
         let notification = Notification {
+            organization: self.organization,
             block,
             sender: self.account,
             sent: now_milliseconds(),
@@ -120,6 +123,11 @@ impl<S: ObjectStore> Peer<S> {
         now: i64,
     ) -> Result<OpenedNotification, ClientError> {
         let notification = Notification::decode(&self.commits.vault().open(&message.sealed)?)?;
+        if notification.organization != message.organization {
+            return Err(ClientError::Encoding(
+                "the notification was sealed about another organization".into(),
+            ));
+        }
         if notification.block != message.block {
             return Err(ClientError::Encoding(
                 "the notification was sealed about another block".into(),

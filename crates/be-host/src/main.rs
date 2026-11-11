@@ -20,6 +20,8 @@ mod root_settings;
 mod shell_route;
 mod surfaces;
 mod ui;
+#[cfg(target_arch = "wasm32")]
+mod web_push;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -190,6 +192,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     let mut core =
         HostCore::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     let options = run_options();
+    web_push::install();
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
@@ -573,6 +576,16 @@ struct HostCore {
     storage_published: Option<u64>,
     /// The `be_host_stack::notify_modes_revision` the notify modes watch last published.
     notify_modes_published: Option<u64>,
+    /// The `be_host_base::push_device::revision` the push device watch last published.
+    push_device_published: Option<u64>,
+    /// What a pressed notification's block last waited on (the open organization, how many
+    /// there are, the graph's revision, the changes unsaved), so it is tried again only when
+    /// that changes.
+    #[cfg(target_arch = "wasm32")]
+    pressed_waiting_on: Option<(Option<Uuid>, usize, u64, usize)>,
+    /// The organization this browser's push subscription was last registered for.
+    #[cfg(target_arch = "wasm32")]
+    push_synced: Option<Uuid>,
     members: members::Members,
     scheduled_organization_list: bool,
     server_url: String,
@@ -871,6 +884,11 @@ impl HostCore {
             contacts: contacts::Contacts::default(),
             storage_published: None,
             notify_modes_published: None,
+            push_device_published: None,
+            #[cfg(target_arch = "wasm32")]
+            pressed_waiting_on: None,
+            #[cfg(target_arch = "wasm32")]
+            push_synced: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
             server_url,
@@ -1396,6 +1414,10 @@ impl HostCore {
     }
 
     fn forget_account(&mut self, account: &Account) {
+        #[cfg(target_arch = "wasm32")]
+        if self.account.server == account.server && self.account.id == account.id {
+            web_push::forget_this_device(self.accounts.len() <= 1);
+        }
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
@@ -2390,6 +2412,94 @@ impl HostCore {
         }
     }
 
+    /// Opens the blocks notifications named that were pressed, switching to their
+    /// organization first. One that cannot open yet (the organization or the block is not
+    /// loaded, or changes are unsaved) is held until the organizations, the graph or the
+    /// unsaved changes change, and dropped after `web_push::OPENING_PATIENCE`.
+    #[cfg(target_arch = "wasm32")]
+    fn open_pressed_notifications(&mut self) {
+        let waiting = |host: &Self| {
+            (
+                host.organization
+                    .as_ref()
+                    .map(|organization| organization.id),
+                host.organizations.len(),
+                be_host_stack::graph_revision(),
+                be_host_stack::status().unsaved,
+            )
+        };
+        if !web_push::has_openings() || self.pressed_waiting_on == Some(waiting(self)) {
+            return;
+        }
+        self.pressed_waiting_on = None;
+        for opening in web_push::take_openings() {
+            if opening.pressed.elapsed() > web_push::OPENING_PATIENCE {
+                continue;
+            }
+            let now = waiting(self);
+            if now.0 != Some(opening.organization) {
+                // A block of another organization opens it first, unless that would discard
+                // changes not saved yet, which the organization menu asks about instead: it
+                // waits for them to be saved.
+                let other = self
+                    .organizations
+                    .iter()
+                    .find(|organization| organization.id == opening.organization)
+                    .cloned();
+                match other {
+                    Some(other) if now.3 == 0 => {
+                        self.open_organization(other);
+                        web_push::hold(opening);
+                    }
+                    // The organizations are listed and it is not among them: the person
+                    // is not a member, so there is nothing to open.
+                    None if !self.organizations.is_empty() => {}
+                    _ => {
+                        web_push::hold(opening);
+                        self.pressed_waiting_on = Some(now);
+                    }
+                }
+                continue;
+            }
+            let Some(node) = be_host_stack::node(opening.block) else {
+                web_push::hold(opening);
+                self.pressed_waiting_on = Some(now);
+                continue;
+            };
+            self.show_block(
+                None,
+                BlockOpen {
+                    id: opening.block,
+                    block_type: node.content_type,
+                    via: None,
+                    editor: None,
+                },
+            );
+        }
+    }
+
+    /// Registers this browser's push subscription for each organization as it is opened, once
+    /// it connects (`bePush.sync`): the person turned pushes on in one, and a subscription the
+    /// push service replaced is found here.
+    #[cfg(target_arch = "wasm32")]
+    fn sync_push_subscription(&mut self) {
+        let Some(organization) = self
+            .organization
+            .as_ref()
+            .map(|organization| organization.id)
+        else {
+            return;
+        };
+        if self.push_synced == Some(organization)
+            || !be_host_stack::status().connected
+            || be_host_base::push_device::state() != be_host_base::push_device::PushDevice::On
+        {
+            return;
+        }
+        self.push_synced = Some(organization);
+        web_push::sync();
+    }
+
     fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
         self.block_types.insert(open.id, open.block_type);
         if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
@@ -2999,8 +3109,14 @@ impl HostCore {
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.open_pressed_notifications();
+            self.sync_push_subscription();
+        }
         self.publish_storage();
         self.publish_notify_modes();
+        self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
             self.root_settings.ensure();
@@ -3129,6 +3245,25 @@ impl HostCore {
                 .collect::<Vec<_>>()
         });
         be_host_base::watches::publish::<be_sdk_api::NotifyModesWatch>(&modes);
+    }
+
+    /// Publishes whether this device shows pushes whenever it changed.
+    fn publish_push_device(&mut self) {
+        let revision = Some(be_host_base::push_device::revision());
+        if self.push_device_published == revision {
+            return;
+        }
+        self.push_device_published = revision;
+        be_host_base::watches::publish::<be_sdk_api::PushDeviceWatch>(
+            &match be_host_base::push_device::state() {
+                be_host_base::push_device::PushDevice::Unsupported => None,
+                be_host_base::push_device::PushDevice::Off => Some(be_sdk_api::PushDevice::Off),
+                be_host_base::push_device::PushDevice::On => Some(be_sdk_api::PushDevice::On),
+                be_host_base::push_device::PushDevice::Denied => {
+                    Some(be_sdk_api::PushDevice::Denied)
+                }
+            },
+        );
     }
 
     fn publish_administrator(&self) {
