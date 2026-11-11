@@ -537,7 +537,7 @@ impl Shared {
                 "the block store loads the organization's graph",
             ),
             (
-                self.search.busy(),
+                self.search.busy(self.graph.revision),
                 "the block store indexes edits or answers a search",
             ),
         ]

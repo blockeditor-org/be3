@@ -141,8 +141,12 @@ impl Searching {
     /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
     /// written or a wanted search is not answered yet. The index counts in the size of the
     /// tree it is under, so a painting taken before it is named would change.
-    pub(crate) fn busy(&self) -> bool {
-        (!self.off && (!self.dirty.is_empty() || !self.creating.is_empty()))
+    pub(crate) fn busy(&self, graph_revision: u64) -> bool {
+        // A graph the loop has not looked at yet may hold a workspace that wants its index.
+        (!self.off
+            && (!self.dirty.is_empty()
+                || !self.creating.is_empty()
+                || self.scanned != Some(graph_revision)))
             || !self.writing.is_empty()
             || !self.running.is_empty()
             || self.wanted().any(|asked| {
@@ -157,7 +161,10 @@ impl Searching {
     }
 
     pub(crate) fn want(&mut self, owner: Owner, asked: Vec<SearchAsk>) -> bool {
-        if self.wanted.get(&owner) == Some(&asked) {
+        // Nothing asked, and nothing was: not a change, and callers say so every frame.
+        if self.wanted.get(&owner) == Some(&asked)
+            || (asked.is_empty() && !self.wanted.contains_key(&owner))
+        {
             return false;
         }
         match asked.is_empty() {
@@ -229,7 +236,7 @@ pub(crate) async fn step(
     replicas: &mut Replicas,
     tasks: &Tasks,
 ) -> bool {
-    name_indexes(peer, shared, replicas).await;
+    name_indexes(peer, shared, replicas, tasks).await;
     let mut moved = index(peer, shared, replicas, tasks).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
@@ -326,6 +333,9 @@ async fn index(
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
             let written = write(&peer, index, batch).await;
+            // Sent before the batch stops counting as busy, so the host is never idle with the
+            // sealed commit unsent.
+            tasks_held.sync(&peer, &shared);
             {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 held.search.writing.remove(&index);
@@ -337,7 +347,6 @@ async fn index(
                     Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
                 }
             }
-            tasks_held.sync(&peer, &shared);
             be_host_base::host::wake();
         });
     }
@@ -389,6 +398,7 @@ fn make_indexes(
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
             let made = make_index(&peer, root, index).await;
+            tasks_held.sync(&peer, &shared);
             {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 match made {
@@ -399,7 +409,6 @@ fn make_indexes(
                     }
                 }
             }
-            tasks_held.sync(&peer, &shared);
             be_host_base::host::wake();
         });
     }
@@ -543,6 +552,7 @@ async fn name_indexes(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
+    tasks: &Tasks,
 ) {
     // A root whose open replica holds edits not sealed yet waits until they are: a define
     // under a moving session loses, and trying again each round would starve the loop.
@@ -574,6 +584,11 @@ async fn name_indexes(
             .as_ref()
             .ok()
             .map(|summary| (summary.size, summary.tree_size));
+        // The define is a commit in the outbox: sent now, not at some later drain, so the
+        // host never sits idle with it unsaved.
+        if defined.is_ok() {
+            tasks.sync(peer, shared);
+        }
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match defined {
             // The mirror takes the name at once, and settles: it is defined already.
