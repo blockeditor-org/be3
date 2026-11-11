@@ -114,13 +114,9 @@ pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
 /// A notification was pressed: the host opens its block on the next frame.
 #[wasm_bindgen]
 pub fn push_open_block(organization: String, block: String) {
-    if let (Ok(organization), Ok(block)) =
-        (organization.parse::<Uuid>(), block.parse::<Uuid>())
-    {
+    if let (Ok(organization), Ok(block)) = (organization.parse::<Uuid>(), block.parse::<Uuid>()) {
         OPENINGS.with(|openings| {
-            openings
-                .borrow_mut()
-                .push(Opening {
+            openings.borrow_mut().push(Opening {
                 organization,
                 block,
                 waited: 0,
@@ -147,7 +143,8 @@ pub(crate) fn forget_this_device() {
         let Ok(promise) = unsubscribe.call0(&push) else {
             return;
         };
-        let Ok(address) = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await
+        let Ok(address) =
+            wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await
         else {
             return;
         };

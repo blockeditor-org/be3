@@ -2399,7 +2399,10 @@ impl HostCore {
     #[cfg(target_arch = "wasm32")]
     fn open_pressed_notifications(&mut self) {
         for opening in web_push::take_openings() {
-            if self.organization.as_ref().map(|organization| organization.id)
+            if self
+                .organization
+                .as_ref()
+                .map(|organization| organization.id)
                 != Some(opening.organization)
             {
                 web_push::requeue(opening);

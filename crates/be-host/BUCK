@@ -312,7 +312,7 @@ page_test(
     files = {
         "index.html": "web-test/index.html",
         "push.js": "web/push.js",
-        "sw.js": "web-test/sw.js",
         "sw-under-test.js": "web/sw.js",
+        "sw.js": "web-test/sw.js",
     },
 )

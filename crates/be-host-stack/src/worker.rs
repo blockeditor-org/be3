@@ -1636,7 +1636,11 @@ impl Ran<'_> {
                                 .await
                                 .map_err(|error| error.to_string()),
                         ),
-                        PushCommand::Open { message, now, reply } => reply(
+                        PushCommand::Open {
+                            message,
+                            now,
+                            reply,
+                        } => reply(
                             peer.open_notification(&message, now)
                                 .map_err(|error| error.to_string()),
                         ),
