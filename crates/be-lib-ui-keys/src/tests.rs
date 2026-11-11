@@ -1,5 +1,6 @@
 use super::*;
 
 mod a_character_key_is_its_letter_or_digit_or_else_its_place;
+mod a_chord_is_named_with_the_platforms_modifier_names;
 mod a_physical_code_names_the_evdev_key_in_its_place;
 mod the_context_menu_key_is_named_from_every_source;

@@ -2219,7 +2219,10 @@ impl CanvasState {
                     if !state.is_alive() {
                         return;
                     }
-                    let allowed = pasted.iter().map(|(id, ..)| *id).collect::<HashSet<_>>();
+                    let allowed = pasted
+                        .iter()
+                        .map(|pasted| pasted.block)
+                        .collect::<HashSet<_>>();
                     let entities = entities
                         .into_iter()
                         .filter(|entity| entity.block.is_none_or(|block| allowed.contains(&block)))
@@ -2254,10 +2257,10 @@ impl CanvasState {
             if !state.is_alive() {
                 return;
             }
-            for (index, (block, ..)) in pasted.into_iter().enumerate() {
+            for (index, pasted) in pasted.into_iter().enumerate() {
                 let offset = IMPORT_CASCADE_OFFSET * index as f32;
                 state.add_direct_editor(
-                    block,
+                    pasted.block,
                     CanvasPoint::new(center.x + offset, center.y + offset),
                 );
             }
