@@ -129,6 +129,9 @@ tree), without waiting for a catch-up.
   (`show` filters by access and by what the search is within). Removals are kept a
   day on the server: a device that was away longer misses a block collected for
   good in between (it is only hidden by `show`).
+- **No host test for a second device.** be-host-tests start one host with its own
+  dev server, so catching up what another device wrote, and a host restart, are
+  only tested in be-host-stack: a harness for a second device and a host restart.
 - **A viewer's device does not catch up.** Only an editor of the root writes its
   index, so a viewer's searches show the text the last editor catch-up indexed.
 - **Late text in a huge document is not searchable.** A document's text is
