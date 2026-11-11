@@ -447,6 +447,8 @@ pub struct Shared {
     pub unsealed: usize,
     pub saves: u64,
     pub owing: usize,
+    /// Open replicas with edits that are not in the device's journal yet.
+    pub undurable: usize,
     pub connected: bool,
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
     #[cfg(test)]
@@ -1620,7 +1622,7 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
-            (held.unsealed, held.owing) = self.replicas.counts();
+            (held.unsealed, held.owing, held.undurable) = self.replicas.counts();
             held.typing = !self.replicas.modules.settled();
         }
         be_host_base::host::wake();
