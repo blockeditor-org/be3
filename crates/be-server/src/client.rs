@@ -1778,9 +1778,18 @@ impl Client {
                         .await;
                     if !lost.is_empty() {
                         connection
-                            .key_work_changed(identity.organization, before)
+                            .key_work_changed(identity.organization, before.clone())
                             .await;
                         for account in lost {
+                            connection
+                                .evict_sessions(identity.organization, account)
+                                .await;
+                        }
+                    }
+                    if parent == BlockParent::Detached {
+                        // Trash is reversible, so no keys rotate; but whoever can no longer view
+                        // the block stops watching it and leaves its sessions.
+                        for account in before {
                             connection
                                 .evict_sessions(identity.organization, account)
                                 .await;
@@ -2638,9 +2647,16 @@ impl Connection {
         }
     }
 
+    /// Ends what `account` holds on blocks it can no longer view: its sessions and its watches.
     async fn evict_sessions(&self, organization: Uuid, account: Uuid) {
         for (client, identity) in self.hub.clients_of(organization, account).await {
-            for block in self.registry.blocks_of(client).await {
+            let mut held = self.registry.blocks_of(client).await;
+            for block in self.hub.watched_by(client).await {
+                if !held.contains(&block) {
+                    held.push(block);
+                }
+            }
+            for block in held {
                 let kept = block.organization != organization
                     || self
                         .store
