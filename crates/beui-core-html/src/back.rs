@@ -279,6 +279,26 @@ mod web {
         });
     }
 
+    fn history() -> Option<JsValue> {
+        let window = crate::dom::window()?;
+        js_sys::Reflect::get(&window, &"history".into()).ok()
+    }
+
+    fn length(history: &JsValue) -> f64 {
+        js_sys::Reflect::get(history, &"length".into())
+            .ok()
+            .and_then(|length| length.as_f64())
+            .unwrap_or(0.0)
+    }
+
+    fn on_own_entry(history: &JsValue) -> bool {
+        js_sys::Reflect::get(history, &"state".into())
+            .ok()
+            .filter(JsValue::is_object)
+            .and_then(|state| js_sys::Reflect::get(&state, &MARKER.into()).ok())
+            .is_some_and(|marked| marked.is_truthy())
+    }
+
     /// The innermost layer's dialog around `node`, `None` in the page itself.
     fn layer_of(node: NodeId) -> Option<web_sys::Element> {
         let element = crate::dom::element(node)?;
