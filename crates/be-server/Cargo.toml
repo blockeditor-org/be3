@@ -25,8 +25,6 @@ http = "1"
 httparse = "1"
 hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
 rand = "0.9"
-ring = "0.17"
-be-lib-web-push = { path = "../be-lib-web-push" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 rusty-s3 = "0.11"
 s3s = "0.17"

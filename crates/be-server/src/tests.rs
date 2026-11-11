@@ -45,23 +45,17 @@ mod a_connection_keeps_only_so_many_refused_listings;
 mod a_connection_reads_more_blocks_than_it_may_hold_listings;
 mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
-mod a_device_registers_only_an_endpoint_the_server_would_push_to;
 mod a_download_does_not_wait_behind_another_organizations_store_call;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_message_arriving_slowly_is_not_taken_for_silence;
-mod a_mode_set_on_one_device_is_announced_to_the_others;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
-mod a_push_hosts_cap_is_keyed_by_its_allowlist_entry_and_statuses_are_judged;
-mod a_push_reaches_members_who_are_not_connected_and_want_it;
-mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_endpoints;
-mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_refused_call_keeps_the_cached_graph;
@@ -84,9 +78,6 @@ mod an_agent_signs_in_with_its_token_until_it_is_removed;
 mod an_agent_stores_against_its_creators_quota;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
-mod an_endpoint_its_push_service_says_is_gone_is_dropped;
-mod an_endpoint_on_a_host_taken_off_the_list_is_dropped_at_send;
-mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
@@ -111,7 +102,6 @@ mod every_call_states_who_may_make_it;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded;
-mod fcm_sends_a_data_message_with_the_service_accounts_token;
 mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
 mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
@@ -129,7 +119,6 @@ mod one_address_holds_only_so_many_connections_and_http_sessions;
 mod one_shot_calls_only_sign_in_and_are_rate_limited;
 mod only_a_manager_lets_go_of_a_blocks_settings;
 mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
-mod only_members_who_may_view_and_did_not_mute_a_block_are_notified;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod password_changes_rotate_the_browser_and_revoke_other_sessions;
 mod password_hashing_refuses_past_its_queue_and_each_addresss_share;
@@ -149,7 +138,6 @@ mod requests_sent_before_a_close_are_still_carried_out;
 mod revoking_a_session_announces_only_a_change;
 mod revoking_an_http_session_removes_its_access;
 mod rotating_an_agents_token_revokes_every_older_one;
-mod senders_are_capped_overall_and_per_push_host;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
@@ -1338,215 +1326,4 @@ fn csrf(page: &str) -> String {
         .next()
         .unwrap()
         .into()
-}
-
-/// A push service in the test, on loopback: it takes each POST, answers it with what `answer`
-/// gives for its path (status 0: never), and hands the request to the test.
-struct TestPushService {
-    url: String,
-    received: tokio::sync::mpsc::UnboundedReceiver<PushRequest>,
-}
-
-#[derive(Debug)]
-struct PushRequest {
-    path: String,
-    headers: std::collections::HashMap<String, String>,
-    body: Vec<u8>,
-}
-
-impl TestPushService {
-    async fn start(answer: impl Fn(&str) -> (u16, String) + Send + Sync + 'static) -> Self {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("http://{}", listener.local_addr().unwrap());
-        let (sending, received) = tokio::sync::mpsc::unbounded_channel();
-        let answer = Arc::new(answer);
-        tokio::spawn(async move {
-            while let Ok((mut stream, _)) = listener.accept().await {
-                let (sending, answer) = (sending.clone(), Arc::clone(&answer));
-                tokio::spawn(async move {
-                    let Some(request) = read_request(&mut stream).await else {
-                        return;
-                    };
-                    let (status, body) = answer(&request.path);
-                    if status == 0 {
-                        // A service that takes the request and never answers.
-                        // The task, and its stream with it, waits forever.
-                        let _ = sending.send(request);
-                        return std::future::pending::<()>().await;
-                    }
-                    let response = format!(
-                        "HTTP/1.1 {status} Answered\r\nContent-Type: application/json\r\n\
-                         Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                        body.len()
-                    );
-                    let _ = stream.write_all(response.as_bytes()).await;
-                    let _ = stream.shutdown().await;
-                    let _ = sending.send(request);
-                });
-            }
-        });
-        Self { url, received }
-    }
-
-    async fn next(&mut self) -> PushRequest {
-        self.received
-            .recv()
-            .await
-            .expect("the push service stays open")
-    }
-}
-
-async fn read_request(stream: &mut tokio::net::TcpStream) -> Option<PushRequest> {
-    let mut bytes = Vec::new();
-    let mut buffer = [0; 8192];
-    loop {
-        let read = stream.read(&mut buffer).await.ok()?;
-        if read == 0 {
-            return None;
-        }
-        bytes.extend_from_slice(&buffer[..read]);
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        let mut request = httparse::Request::new(&mut headers);
-        let httparse::Status::Complete(start) = request.parse(&bytes).ok()? else {
-            continue;
-        };
-        let headers: std::collections::HashMap<String, String> = request
-            .headers
-            .iter()
-            .map(|header| {
-                (
-                    header.name.to_ascii_lowercase(),
-                    String::from_utf8_lossy(header.value).into_owned(),
-                )
-            })
-            .collect();
-        let length: usize = headers
-            .get("content-length")
-            .and_then(|length| length.parse().ok())
-            .unwrap_or(0);
-        let path = request.path?.to_owned();
-        while bytes.len() < start + length {
-            let read = stream.read(&mut buffer).await.ok()?;
-            if read == 0 {
-                return None;
-            }
-            bytes.extend_from_slice(&buffer[..read]);
-        }
-        return Some(PushRequest {
-            path,
-            headers,
-            body: bytes[start..start + length].to_vec(),
-        });
-    }
-}
-
-/// A device taking pushes: its P-256 key and authentication secret (RFC 8291). Its key is
-/// ring's ephemeral kind, so it decrypts one push.
-struct TestDevice {
-    private: ring::agreement::EphemeralPrivateKey,
-    public: Vec<u8>,
-    auth: [u8; 16],
-}
-
-impl TestDevice {
-    fn new() -> Self {
-        let random = ring::rand::SystemRandom::new();
-        let private =
-            ring::agreement::EphemeralPrivateKey::generate(&ring::agreement::ECDH_P256, &random)
-                .unwrap();
-        let public = private.compute_public_key().unwrap().as_ref().to_vec();
-        let mut auth = [0; 16];
-        ring::rand::SecureRandom::fill(&random, &mut auth).unwrap();
-        Self {
-            private,
-            public,
-            auth,
-        }
-    }
-
-    fn endpoint(
-        &self,
-        service: be_block_protocol::PushService,
-        address: String,
-    ) -> be_block_protocol::PushEndpoint {
-        be_block_protocol::PushEndpoint {
-            service,
-            address,
-            p256dh: self.public.clone(),
-            auth: self.auth.to_vec(),
-        }
-    }
-
-    /// Decrypts a push's body into what it carries.
-    fn open(self, body: &[u8]) -> be_block_protocol::PushMessage {
-        let sender = be_lib_web_push::sender_key(body).expect("a push names its sender's key");
-        let peer = ring::agreement::UnparsedPublicKey::new(&ring::agreement::ECDH_P256, sender);
-        let plain = ring::agreement::agree_ephemeral(self.private, &peer, |secret| {
-            be_lib_web_push::open(secret, &self.public, &self.auth, body)
-        })
-        .unwrap()
-        .expect("the push decrypts with the device's keys");
-        be_block_protocol::PushMessage::decode(&plain).expect("a push carries a push message")
-    }
-}
-
-impl TestClient {
-    async fn register_endpoint(&mut self, endpoint: be_block_protocol::PushEndpoint) {
-        let registered = self
-            .call(|peer| client::notifications::register_endpoint(peer, endpoint))
-            .await;
-        assert!(registered.is_ok(), "{registered:?}");
-    }
-
-    async fn set_notify_mode(&mut self, block: Uuid, mode: be_block_protocol::NotifyMode) {
-        let set = self
-            .call(|peer| client::notifications::set_notify_mode(peer, block, mode))
-            .await;
-        assert!(set.is_ok(), "{set:?}");
-    }
-
-    async fn notify(&mut self, block: Uuid, sealed: &[u8], mentions: Vec<Uuid>) {
-        let sealed = sealed.to_vec();
-        let notified = self
-            .call(|peer| client::notifications::notify(peer, block, sealed, mentions))
-            .await;
-        assert!(notified.is_ok(), "{notified:?}");
-    }
-
-    /// Signs out, which leaves the server's record of who is connected before it answers.
-    async fn sign_out(&mut self) {
-        let logged_out = self.call(|peer| client::account::logout(peer)).await;
-        assert!(logged_out.is_ok(), "{logged_out:?}");
-    }
-}
-
-/// A member of `owner`'s personal organization who is `owner`'s contact and may view `block`.
-async fn viewer_of(
-    harness: &Harness,
-    owner: &mut TestClient,
-    block: Uuid,
-    email: &str,
-) -> (TestClient, Uuid) {
-    let mut member = harness.client().await;
-    let account = member.register(email).await;
-    member.personal().await;
-    let link = owner.link(None).await;
-    let accepted = member.accept(link, &[]).await;
-    assert!(accepted.is_ok(), "{accepted:?}");
-    let granted = owner
-        .grant(block, account, be_block_graph::Access::View)
-        .await;
-    assert!(granted.is_ok(), "{granted:?}");
-    (member, account)
-}
-
-fn pushing_locally() -> ServerConfig {
-    ServerConfig {
-        push: push::PushConfig {
-            allow_local_endpoints: true,
-            fcm: None,
-            hosts: vec!["127.0.0.1".to_owned()].into(),
-        },
-        ..ServerConfig::OPEN
-    }
 }

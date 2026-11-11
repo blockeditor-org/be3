@@ -79,5 +79,4 @@ world client {
     import blocks;
     import sessions;
     import keys;
-    import notifications;
 }

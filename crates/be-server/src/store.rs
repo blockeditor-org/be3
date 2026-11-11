@@ -1686,7 +1686,6 @@ fn remove_from(
         "DELETE FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
         params![organization.to_string(), account.to_string()],
     )?;
-    crate::notifications::forget_member(connection, organization, account)?;
     connection.execute(
         "DELETE FROM wrapped_keys WHERE organization_id = ?1 AND wrapped_by = ?2",
         params![

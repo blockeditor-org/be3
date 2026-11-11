@@ -41,10 +41,8 @@ mod http;
 pub mod journal;
 pub mod keys;
 pub mod limits;
-mod notifications;
 pub mod objects;
 mod organization;
-pub mod push;
 pub mod retention;
 pub mod s3;
 pub mod schema;
@@ -159,9 +157,6 @@ pub struct ServerConfig {
     /// the server's own S3 endpoint below it. None for `http://` and the address it listens
     /// on, which is right wherever clients connect to it directly.
     pub public_url: Option<String>,
-    /// Where pushes may go, and FCM's credentials when it sends through FCM
-    /// (`--fcm-credentials`).
-    pub push: push::PushConfig,
 }
 
 impl ServerConfig {
@@ -182,7 +177,6 @@ impl ServerConfig {
         sign_in_poll_interval: browser_auth::POLL_INTERVAL,
         bucket: None,
         public_url: None,
-        push: push::PushConfig::DEFAULT,
     };
 
     pub const OPEN: Self = Self {
@@ -347,31 +341,7 @@ pub async fn serve_with_mail(
         },
         config.bucket.as_ref(),
     )?);
-    let vapid = store
-        .with_database(|_, database| push::Vapid::load_or_create(database))
-        .await?;
-    // RFC 8292 wants an https: URL or a mailto: to reach the operator by; some push services
-    // refuse anything else.
-    let subject = config
-        .auth_origin
-        .clone()
-        .unwrap_or_else(|| public_url.to_string());
-    if !subject.starts_with("https://") {
-        tracing::warn!(
-            %subject,
-            "push services may refuse this server's pushes: set --auth-origin or --public-url to an https:// URL"
-        );
-    }
     let services = Services {
-        pusher: push::Pusher::new(vapid, subject, &config.push),
-        notifications: Arc::new(address::Rate::new(
-            limits::MAX_NOTIFICATIONS_PER_MINUTE,
-            Duration::from_secs(60),
-        )),
-        block_notifications: Arc::new(address::Rate::new(
-            limits::MAX_NOTIFICATIONS_PER_BLOCK,
-            Duration::from_secs(60),
-        )),
         portal: config
             .portal
             .map(|portal| Arc::new(portal::Served::new(portal))),
@@ -524,12 +494,6 @@ pub(crate) struct Services {
     /// The S3 endpoint over the server's objects (`s3`), served only when they are kept on its
     /// own disk: with a bucket, clients move bytes to and from the bucket directly.
     s3: Option<s3s::service::S3Service>,
-    /// Sends pushes to members who are not connected.
-    pusher: Arc<push::Pusher>,
-    /// Notifications each account sent this minute.
-    notifications: Arc<address::Rate<uuid::Uuid>>,
-    /// Notifications each account sent about each block this minute.
-    block_notifications: Arc<address::Rate<(uuid::Uuid, uuid::Uuid)>>,
 }
 
 /// What a connection was let in with: its place among its address's connections and among

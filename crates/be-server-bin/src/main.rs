@@ -8,7 +8,6 @@ Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
             [--trusted-proxy ADDR]... [--object-cache BYTES] [--public-url URL]
-            [--fcm-credentials FILE] [--push-host HOST]...
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -37,12 +36,6 @@ Usage:
                             proxy (https://api.be3.pfg.pw/api/be). Without a bucket, clients
                             move object bytes through the server's S3 endpoint below it
                             (default: http:// and the address it listens on)
-  --fcm-credentials FILE    A Firebase project's service account (its JSON key file), to
-                            push notifications to Android devices through FCM; without it,
-                            notifications go only through Web Push
-  --push-host HOST          Also push to Web Push endpoints on HOST, exactly: a self-hosted
-                            UnifiedPush server such as ntfy. Without, only the known push
-                            services (FCM, Mozilla, Apple, Windows) are pushed to
 
 Objects are kept in DIR/objects, or, when BE_S3_ENDPOINT, BE_S3_REGION,
 BE_S3_BUCKET, BE_S3_ACCESS_KEY and BE_S3_SECRET_KEY are all set, in that bucket
@@ -180,23 +173,6 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             "--public-url" => {
                 config.public_url = Some(arguments.next().ok_or("--public-url needs a URL")?);
             }
-            "--fcm-credentials" => {
-                let file = arguments.next().ok_or("--fcm-credentials needs a file")?;
-                let json = std::fs::read_to_string(&file)
-                    .map_err(|error| format!("reading {file}: {error}"))?;
-                config.push.fcm = Some(be_server::push::FcmConfig::from_service_account(&json)?);
-            }
-            "--push-host" => {
-                let host = arguments.next().ok_or("--push-host needs a host name")?;
-                let host = host.trim_end_matches('.').to_ascii_lowercase();
-                if host.is_empty() || host.contains([':', '/', '@', '\\', ' ']) {
-                    return Err(format!(
-                        "--push-host takes a bare host name, not {host:?} (no scheme, port or path)"
-                    )
-                    .into());
-                }
-                config.push.hosts.to_mut().push(host);
-            }
             "--object-cache" => {
                 cache_bytes = arguments
                     .next()
@@ -210,7 +186,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
         }
     }
-    config.bucket = bucket(cache_bytes).map_err(|error| error.to_string())?;
+    config.bucket = bucket(cache_bytes)?;
 
     let build = be_lib_build_id::current()?;
     let listener = TcpListener::bind(address).await?;
@@ -221,7 +197,6 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
         registration = config.allow_registration,
         bucket = ?config.bucket.as_ref().map(|config| &config.bucket),
         public_url = ?config.public_url,
-        fcm = config.push.fcm.is_some(),
         build,
         "be-server listening"
     );

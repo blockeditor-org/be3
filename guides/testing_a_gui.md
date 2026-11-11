@@ -284,11 +284,6 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
   lockfile names) and Chromium's libraries from `buck/sysroot:amd64-browser`; it fails rather than
   skipping when the browser is missing. To run it by hand, set `BE3_CHROME` to a Chrome or
   Chromium and put Node's `playwright` package on `NODE_PATH`.
-- A script both cores run marks a step only the browser can make with `#web COMMAND` (a comment
-  natively): the browser-only commands are `attribute`, `history`, `history-state` (the current
-  history entry holds the page's own back entry or not), `loads` (how many times the page has
-  loaded), `reload`, `selection`, `role` and
-  `roles`; web-test.mjs's header says what each takes.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`; in a browser,
   serve `:web` with COOP `same-origin` and COEP `require-corp` and open
   `index.html?fixture=NAME`.

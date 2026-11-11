@@ -222,16 +222,16 @@ impl Drop for Anonymous {
     }
 }
 
-/// Counts what each key, by default an address (see [`unsigned_key`]), does in each `window`, up
-/// to `limit`.
-pub(crate) struct Rate<K = IpAddr> {
-    held: Mutex<RateHeld<K>>,
+/// Counts what each address (see [`unsigned_key`]) does in each `window`, up to `limit`.
+pub(crate) struct Rate {
+    held: Mutex<RateHeld>,
     limit: u32,
     window: std::time::Duration,
 }
 
-struct RateHeld<K> {
-    counts: HashMap<K, (tokio::time::Instant, u32)>,
+#[derive(Default)]
+struct RateHeld {
+    counts: HashMap<IpAddr, (tokio::time::Instant, u32)>,
     /// How many addresses were counted after the last pass dropping finished windows; the next
     /// pass waits until there are twice as many, so passes cost O(1) a call on average.
     pruned: usize,
@@ -241,27 +241,16 @@ struct RateHeld<K> {
 const RATE_PRUNE_AT: usize = 1024;
 
 impl Rate {
-    /// Counts one more for `address` (by `unsigned_key`), or answers false once it did `limit`
-    /// in this window.
-    pub(crate) fn allow(&self, address: IpAddr) -> bool {
-        self.allow_key(unsigned_key(address))
-    }
-}
-
-impl<K: Eq + std::hash::Hash> Rate<K> {
     pub(crate) fn new(limit: u32, window: std::time::Duration) -> Self {
         Self {
-            held: Mutex::new(RateHeld {
-                counts: HashMap::new(),
-                pruned: 0,
-            }),
+            held: Mutex::new(RateHeld::default()),
             limit,
             window,
         }
     }
 
-    /// Counts one more for `key`, or answers false once it did `limit` in this window.
-    pub(crate) fn allow_key(&self, key: K) -> bool {
+    /// Counts one more for `address`, or answers false once it did `limit` in this window.
+    pub(crate) fn allow(&self, address: IpAddr) -> bool {
         let now = tokio::time::Instant::now();
         let mut held = self.held.lock().unwrap();
         if held.counts.len() >= (2 * held.pruned).max(RATE_PRUNE_AT) {
@@ -269,7 +258,7 @@ impl<K: Eq + std::hash::Hash> Rate<K> {
             held.counts.retain(|_, (start, _)| *start + window > now);
             held.pruned = held.counts.len();
         }
-        let (start, count) = held.counts.entry(key).or_insert((now, 0));
+        let (start, count) = held.counts.entry(unsigned_key(address)).or_insert((now, 0));
         if *start + self.window <= now {
             *start = now;
             *count = 0;

@@ -333,32 +333,4 @@ const SCHEMA: &str = "
         payload         BLOB NOT NULL,
         PRIMARY KEY (organization_id, block_id, sequence)
     );
-
-    CREATE TABLE push_key (
-        id              INTEGER PRIMARY KEY CHECK (id = 1),
-        pkcs8           BLOB NOT NULL
-    );
-
-    CREATE TABLE push_endpoints (
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        address         TEXT NOT NULL,
-        service         TEXT NOT NULL,
-        p256dh          BLOB NOT NULL,
-        auth            BLOB NOT NULL,
-        failures        INTEGER NOT NULL DEFAULT 0,
-        failing_since   INTEGER,
-        PRIMARY KEY (account_id, organization_id, address)
-    );
-
-    CREATE INDEX push_endpoints_address ON push_endpoints (address);
-    CREATE INDEX push_endpoints_organization ON push_endpoints (organization_id);
-
-    CREATE TABLE notify_modes (
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        block_id        TEXT NOT NULL,
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        mode            TEXT NOT NULL,
-        PRIMARY KEY (organization_id, block_id, account_id)
-    );
 ";

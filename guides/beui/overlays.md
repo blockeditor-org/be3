@@ -171,24 +171,11 @@ as the stacked dock's tabs use it.
 
 On the HTML core back is the browser's: it reaches the same target, found the
 same way, as `BackGesture::Invoked` alone (crates/beui-core-html/src/back.rs).
-While anything would take it, the page holds one history entry of its own, which
-the back button and Android's back pop. A handler that starts disabled never
-touches history. A page reloaded onto its entry clears the marker in place with
-`replaceState`: the entry below belongs to the document that is gone, so going
-back to it would load the page again, and a fresh entry is pushed if something
-wants one.
-
-History is brought in step once on a frame after something changed: a handler or
-layer, or a handler's element shown, hidden or removed. When the target goes,
-the page takes its entry back with one `history.back()`, and the next popstate,
-whatever it was, ends that retraction. A push waits until then, and is skipped
-if the page is still on its own entry. If that popstate never comes (a `back`
-that did nothing, a dropped traversal) nothing is pushed and back leaves the
-page, rather than the page polling for it. A handler's element is watched with
-a `ResizeObserver`, so `display: contents`, which has no box, is not seen. Browsers skip an entry made without a
-user activation, so a page may get one back per activation before back leaves
-it. It is not a `CloseWatcher`, which would also take Esc from the layers' own
-Escape handling.
+While anything would take it, the page holds one history entry of its own,
+which the back button and Android's back pop; a handler that starts disabled
+never touches history. Browsers skip an entry made without a user activation, so
+a page may get one back per activation before back leaves it. It is not a
+`CloseWatcher`, which would also take Esc from the layers' own Escape handling.
 
 ## Focus and layers
 

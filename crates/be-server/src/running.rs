@@ -72,12 +72,6 @@ impl Running {
             .1
     }
 
-    /// Restarts the server on the same data with `config`, as an operator changing its flags.
-    pub async fn restart_with(&mut self, config: ServerConfig) {
-        self.config = config;
-        self.restart().await;
-    }
-
     pub async fn restart(&mut self) {
         self.halt().await;
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

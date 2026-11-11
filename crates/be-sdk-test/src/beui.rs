@@ -1782,24 +1782,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    /// The notifications the editor sent (`host-services.notify`): the block, the text and
-    /// the accounts it mentions.
-    pub fn take_notifications(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {
-        self.take_requests_where(|call| match call {
-            Call::Notify {
-                block,
-                text,
-                mentions,
-                ..
-            } => Ok((
-                Uuid::from_bytes(block),
-                text,
-                mentions.into_iter().map(Uuid::from_bytes).collect(),
-            )),
-            call => Err(call),
-        })
-    }
-
     pub fn take_child_commits(
         &mut self,
     ) -> Vec<(ChildId, be_sdk_api::BlockLocation, Option<String>)> {

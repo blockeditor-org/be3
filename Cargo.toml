@@ -102,7 +102,6 @@ members = [
     "crates/be-tool-cargo-offline",
     "crates/be-tool-build-helper",
     "crates/be-lib-build-id",
-    "crates/be-lib-web-push",
     "crates/be-tool-bootstrap",
     "crates/be-tool-browser-rasterizer",
     "crates/cvl2",
