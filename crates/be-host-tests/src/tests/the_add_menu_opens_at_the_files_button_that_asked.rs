@@ -15,10 +15,6 @@ fn the_add_menu_opens_at_the_files_button_that_asked() {
         (menu_x - button_x).abs() < 8.0,
         "and starts under the button, at {menu_x} beside {button_x}"
     );
-    // The press that opened the menu leaves the pointer over its first row. Some builds highlight
-    // that row and some do not (the painting flipped between the two), and why is not known, so park
-    // the pointer: the painting is of the menu, not of where the pointer was left.
-    host.run(&["leave"]);
     host.snapshot("the_add_menu_opens_at_the_files_button_that_asked");
     host.key("Escape");
     host.gone("#picker.more");

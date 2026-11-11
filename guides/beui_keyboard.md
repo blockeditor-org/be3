@@ -197,7 +197,9 @@ focus of its own (`be_host_runtime::forward_view` for an app,
 focus, interception and the lock apply to both by one set of rules.
 `beui_core::interact::forward::Replay` turns a `ForwardedInput` back into the
 raw `Input` a platform would push (positions relative to the catcher over its
-zoom, `PointersCancelled` for a press that ended unreleased); the app host
+zoom, `PointersCancelled` for a press that ended unreleased, `PointerRested` for a
+pointer the host reports as not having moved, which hovers what is under it but
+points at nothing until it moves); the app host
 fills its `InputBatch` with it, so an app's runner sees what a window's does.
 An app has a `Replay` per view but its runner keeps one set of modifiers, so
 the app's replays share one `Heard`: modifiers go out with a press or key only

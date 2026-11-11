@@ -40,6 +40,7 @@ fn mouse(phase: PointerPhase, at: Pos2) -> ForwardedInput {
                 predicted: None,
                 time: beui::reactive::now(),
                 source: 0,
+                rested: false,
             },
             over: None,
         }],

@@ -72,6 +72,7 @@ fn from_host(input: Input, to_host: HostTransform) -> Input {
     let at = |pos: Pos2| to_host.inverse_point(pos);
     match input {
         Input::PointerMoved(pos) => Input::PointerMoved(at(pos)),
+        Input::PointerRested(pos) => Input::PointerRested(at(pos)),
         Input::PointerButton {
             pos,
             button,
@@ -282,11 +283,14 @@ impl Intake {
                 }
             }
             Input::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
-            Input::PointerMoved(pos) => {
+            Input::PointerMoved(pos) | Input::PointerRested(pos) => {
                 self.pointer = points(pos);
                 self.back_inside(drain);
                 if !drain.touch_emulation {
-                    events.push(Event::PointerMoved(self.pointer));
+                    events.push(match input {
+                        Input::PointerRested(_) => Event::PointerRested(self.pointer),
+                        _ => Event::PointerMoved(self.pointer),
+                    });
                 } else if self.emulated_touch {
                     events.push(self.touch(TouchPhase::Move));
                 }
@@ -512,6 +516,7 @@ fn points_into_window(input: &Input) -> bool {
     matches!(
         input,
         Input::PointerMoved(_)
+            | Input::PointerRested(_)
             | Input::PointerButton { .. }
             | Input::PointerLeft
             | Input::Touch { .. }
