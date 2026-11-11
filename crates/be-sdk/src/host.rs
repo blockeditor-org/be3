@@ -2689,7 +2689,7 @@ impl EditorHost {
         self.host_palette.set(host_palette);
     }
 
-    /// Asks the host to open its command palette (`shell.open-palette`).
+    /// Asks the host to open its command palette (`shell-message.open-palette`).
     pub fn open_palette(&self, mode: be_sdk_api::PaletteMode) {
         self.palette_opens.borrow_mut().push(mode);
         self.changed();

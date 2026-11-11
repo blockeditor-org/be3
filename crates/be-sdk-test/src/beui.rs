@@ -1756,7 +1756,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
-    /// The palettes the editor asked the host to open (`shell.open-palette`).
+    /// The palettes the editor asked the host to open (`shell-message.open-palette`).
     pub fn take_palette_opens(&mut self) -> Vec<be_sdk_api::PaletteMode> {
         self.take_calls(|call| match call {
             ShellMessage::OpenPalette(mode) => Some(*mode),
