@@ -202,10 +202,11 @@ chords do not reach it while a child has the focus
 the workspace itself has the focus) asks for it, and the host lists blocks to
 open from a `BlockSource` (`palette.rs`): handed quick open's query and which
 opening this is (0 while the palette lists actions), it answers a memo of blocks already filtered and ordered, which the
-palette keeps (`PaletteItem::ranked`). The default, `loaded_blocks`, reads the
-graph's placed, viewable blocks of a type an editor shows each time quick
-open opens (open ones first) and matches them fuzzily; plans/search.md swaps in
-search hits. The workspace's other commands (Settings, Show files, New file) are its
+palette keeps (`PaletteItem::ranked`). The default, `found_blocks`, lists the
+graph's placed, viewable blocks of a type an editor shows, read each time quick
+open opens (open ones first) and matched fuzzily by name (`loaded_blocks`),
+then the search index's hits for the query, each with its snippet as detail
+(guides/blocks/host.md, "Search"). The workspace's other commands (Settings, Show files, New file) are its
 own actions, and the tab keys and Split right, Split down and Close tab are
 beui-dock-host's (guides/beui/docking.md).
 

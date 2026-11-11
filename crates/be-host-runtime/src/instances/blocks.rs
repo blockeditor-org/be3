@@ -16,6 +16,8 @@ pub(super) enum Subject {
     Artifact(Uuid),
     Version,
     Shows,
+    /// A full-text search, named by its watch: `Instance::searches` holds what it asks.
+    Search(OpId),
 }
 
 pub(super) struct Watch {
@@ -323,6 +325,23 @@ impl Instances {
                 resource.op(),
                 Subject::Artifact(Uuid::from_bytes(block)),
             ),
+            Call::SearchWatchNew {
+                resource,
+                text,
+                within,
+            } => {
+                let op = resource.op();
+                if let Some(entry) = self.entries.get_mut(&instance) {
+                    entry.searches.insert(
+                        op,
+                        be_host_stack::SearchAsk {
+                            text,
+                            within: within.map(Uuid::from_bytes),
+                        },
+                    );
+                }
+                self.watch(instance, op, Subject::Search(op))
+            }
             Call::VersionWatchNew { resource } => {
                 self.watch(instance, resource.op(), Subject::Version)
             }
@@ -333,6 +352,7 @@ impl Instances {
             | Call::BlocksWatchNext { .. }
             | Call::HistoryWatchNext { .. }
             | Call::HeadWatchNext { .. }
+            | Call::SearchWatchNext { .. }
             | Call::ArtifactWatchNext { .. }
             | Call::VersionWatchNext { .. }
             | Call::ShowRequestsNext { .. }) => {
@@ -371,6 +391,7 @@ impl Instances {
         entry.watches.insert(op, Watch::new(watched));
         match watched {
             Subject::Blocks(_) => entry.blocks_seen = None,
+            Subject::Search(_) => entry.searches_seen = None,
             Subject::Head(block) => entry.heads.watch(block),
             Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
             Subject::Version => entry.version_sent = None,
@@ -433,6 +454,9 @@ impl Instances {
                     }
                 }
                 Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
+                Subject::Search(op) => {
+                    entry.searches.remove(&op);
+                }
                 Subject::Blocks(_) | Subject::History(_) | Subject::Version | Subject::Shows => {}
             }
             return;

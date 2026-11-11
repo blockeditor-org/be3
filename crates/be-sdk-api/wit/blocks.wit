@@ -306,6 +306,33 @@ interface blocks {
         next: async func() -> result<list<block-info>, failure>;
     }
 
+    /// A document full-text search found (plans/search.md).
+    record search-hit {
+        block-id: block-id,
+        /// The document within the block; empty for a block that is one document.
+        key: string,
+        /// The stretch of its text around the first match, or its start when only the
+        /// block's name matched.
+        snippet: string,
+        /// The matched words, as byte ranges of `snippet`.
+        matches: list<tuple<u32, u32>>,
+    }
+
+    record search-results {
+        /// The best first.
+        hits: list<search-hit>,
+        /// Every edit this device made is indexed.
+        complete: bool,
+    }
+
+    /// Full-text search over names and content, of everything the account views in the
+    /// open organization or of `within`'s tree: words, `"quoted phrases"`, the last word
+    /// a prefix. `next` answers again whenever an index it read changes.
+    resource search-watch {
+        constructor(text: string, within: option<block-id>);
+        next: async func() -> search-results;
+    }
+
     resource history-watch {
         constructor(block: block-id);
         next: async func() -> block-history;

@@ -183,6 +183,9 @@ struct Instance {
     watches: HashMap<be_sdk_api::ops::OpId, blocks::Watch>,
     shows: Vec<be_sdk_api::blocks::ShowRequest>,
     blocks_seen: Option<u64>,
+    /// What each search watch asks (`Subject::Search`).
+    searches: std::collections::BTreeMap<be_sdk_api::ops::OpId, be_host_stack::SearchAsk>,
+    searches_seen: Option<u64>,
     version_sent: Option<u64>,
     stale: bool,
 }
@@ -342,6 +345,8 @@ impl Instance {
             watches: HashMap::default(),
             shows: Vec::new(),
             blocks_seen: None,
+            searches: std::collections::BTreeMap::new(),
+            searches_seen: None,
             version_sent: None,
             stale: true,
             content: match role {
@@ -391,6 +396,50 @@ impl Instance {
             }
             self.offer(Subject::Blocks(query), &answer);
         }
+    }
+
+    fn offer_searches(&mut self, scope: Option<be_host_stack::Scope>) {
+        let revision = be_host_stack::search_revision();
+        if self.searches_seen == Some(revision) {
+            return;
+        }
+        self.searches_seen = Some(revision);
+        let asked: Vec<_> = self
+            .searches
+            .iter()
+            .map(|(op, asked)| (*op, asked.clone()))
+            .collect();
+        for (op, asked) in asked {
+            let Some(found) = be_host_stack::searched(&asked) else {
+                continue;
+            };
+            let mut results = be_sdk_api::SearchResults {
+                hits: found
+                    .hits
+                    .into_iter()
+                    .map(|hit| be_sdk_api::SearchHit {
+                        block_id: hit.block.into_bytes(),
+                        key: hit.key,
+                        snippet: hit.snippet,
+                        matches: hit
+                            .matches
+                            .into_iter()
+                            .map(|range| (range.start as u32, range.end as u32))
+                            .collect(),
+                    })
+                    .collect(),
+                complete: found.complete,
+            };
+            Instances::translated(scope, false, |visit| results.visit_block_ids(visit));
+            self.offer(Subject::Search(op), &results);
+        }
+    }
+
+    fn search_asks(&self) -> Vec<be_host_stack::SearchAsk> {
+        let mut asks: Vec<_> = self.searches.values().cloned().collect();
+        asks.sort();
+        asks.dedup();
+        asks
     }
 
     fn wants(&self) -> Vec<be_host_stack::Query> {
@@ -886,6 +935,7 @@ impl Instances {
         };
         self.owners.retain(|_, owner| *owner != instance);
         be_host_stack::want(be_host_stack::Owner::Editor(instance.0), Vec::new());
+        be_host_stack::want_searches(be_host_stack::Owner::Editor(instance.0), Vec::new());
         let mut entry = entry;
         let shown: Vec<(Uuid, Uuid)> = entry.shown.iter().copied().collect();
         let shown_on = |block: Uuid| -> Vec<Uuid> {
@@ -2005,6 +2055,10 @@ impl Instances {
                 continue;
             };
             be_host_stack::want(be_host_stack::Owner::Editor(instance.0), entry.wants());
+            be_host_stack::want_searches(
+                be_host_stack::Owner::Editor(instance.0),
+                entry.search_asks(),
+            );
             let docked = super::docks::docked(instance);
             let mut regions: Vec<_> = entry
                 .screens
@@ -2144,6 +2198,7 @@ impl Instances {
                 }
             }
             entry.offer_blocks(scope);
+            entry.offer_searches(scope);
             if stale {
                 entry.offer_version();
             }

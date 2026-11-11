@@ -213,6 +213,66 @@ metadata, or uses `SetMetadata` on a block with no content yet;
 `describe_implicitly` keeps an open block's derived metadata current until it
 is saved.
 
+## Search
+
+Full-text search over names and content (`be-host-stack/src/search.rs`; what is
+left: plans/search.md). The server never reads content, so clients build the
+index and search it locally.
+
+- **One index per root block** (a workspace, My files): a block of
+  `be_block_graph::SEARCH_INDEX_TYPE` under the root, named by its
+  `SEARCH_INDEX` metadata, so it is held by the root and never listed among its
+  children. Its access is exactly the root's, whatever its own authorship says
+  (`BlockNode::is_search_index`, `level_below`), so a block shared alone never
+  reads its tree's text through it. The server holds to the type and parent,
+  since it cannot read metadata: an index lies under a top-level block, one held
+  per block, never moves under another block (it would read that tree's text as
+  the new parent's), takes no grants of its own, and making or dropping it needs
+  Edit on the root. It rotates with the root's subtree like any block below it.
+- **A block that leaves the tree** (moved to another root, trashed, its text
+  deleted) is not masked yet: its text stays in the old root's index, which
+  every viewer of that root can read, and only `show` hides it by access. Treat
+  a moved or trashed block's old text as still readable by that root's viewers
+  (plans/search.md, "Left open").
+- **The content** is `be_block::search_index::SearchIndexContent`, a
+  `be_lib_search::Index` kept as the block's parts: the header first (all a
+  replica loads, `Loads::FirstPart`), then every part the header names, read by
+  range. Two sides merge by parts (`MergeParts`, the union `Index::merge`
+  makes); it is registered with the host's own types (`be-sdk-type-host`).
+- **Indexing.** A head this device's session moves (`Host::status` with
+  `owner`) queues the block (`Searching::sealed`). Each round of the worker's
+  loop takes the queued blocks whose root it may edit, reads each one's name
+  from the mirror and its documents' text at its head with `search-text`
+  (`Replicas::search_text`; a type that answers nothing is found by its name),
+  and hands each index one batch in a task, which applies it to the index's
+  newest head and seals the commit into the outbox: it is saved offline-first,
+  published by the next drain, and two devices' batches meet as a diverged
+  block that merges by parts. A workspace (`WORKSPACE_TYPE` at the top) with no
+  index gets one as soon as a device that may edit it sees it in the mirror:
+  made in a task, then named in the root's metadata from the loop once the
+  root's open replica has sealed its edits, as a define command is, so the
+  define never lands under a moving session. The loop takes one block a round
+  and asks only a type whose module already runs: starting one, or retrying a
+  define each round, would stall the opens and edits behind it. A document's
+  text is indexed up to `MAX_TEXT` (1 MiB) bytes. Blocks whose index has no
+  head on this device yet are parked until it has one, not queued each round.
+  `Searched::complete` is true when nothing this device could index is queued,
+  being made or written; an edit on a root it cannot edit is never queued.
+- **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches
+  an owner shows and `searched` answers each (`search_revision` counts
+  answers). A search runs in a task over the index of every root the account
+  views in the mirror (or of `within`'s root), reading only the parts it needs
+  with `Peer::read_part`, and again whenever one of those indexes' heads moves.
+  The loop then cuts the shown hits' snippets (`Query::snippet`) from their
+  documents' text (`search-text` with the hit's key), kept per document and
+  head, and drops hits the mirror shows
+  detached, unviewable or outside `within`; it lists each hit block
+  (`Owner::Search`) and shows a hit only once the mirror holds it.
+- **Apps** watch a search with `search-watch` (`Editor::search` in
+  be-sdk-beui); the file tree's filter lists the hits under "In content", and
+  be-host's quick open (`found_blocks` in `compositor/palette.rs`) lists them
+  after the blocks whose names match.
+
 ## Creating, seeding and replacing
 
 - **Creating.** `create-block` carries the first content, written as the first

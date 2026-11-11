@@ -580,6 +580,87 @@ impl BlockGraph {
     }
 }
 
+/// A full-text search over names and content (plans/search.md): words, `"quoted phrases"`, the
+/// last word a prefix, over everything the account views or within a block's tree. Watched
+/// with `EditorHost::watch_search`, it is answered again whenever an index it read changes.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Search {
+    pub text: String,
+    pub within: Option<Uuid>,
+}
+
+/// A document a search found.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SearchHit {
+    pub block: Uuid,
+    /// The document within the block; empty for a block that is one document.
+    pub key: String,
+    /// The stretch of its text around the first match, or its start when only the block's
+    /// name matched.
+    pub snippet: String,
+    /// The matched words, as byte ranges of `snippet`.
+    pub matches: Vec<std::ops::Range<usize>>,
+}
+
+/// A search's answer, the best hit first.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SearchResults {
+    pub hits: Vec<SearchHit>,
+    /// Every edit this device made is indexed.
+    pub complete: bool,
+}
+
+impl SearchResults {
+    pub fn encode(&self) -> be_sdk_api::SearchResults {
+        be_sdk_api::SearchResults {
+            hits: self
+                .hits
+                .iter()
+                .map(|hit| be_sdk_api::SearchHit {
+                    block_id: hit.block.into_bytes(),
+                    key: hit.key.clone(),
+                    snippet: hit.snippet.clone(),
+                    matches: hit
+                        .matches
+                        .iter()
+                        .map(|range| (range.start as u32, range.end as u32))
+                        .collect(),
+                })
+                .collect(),
+            complete: self.complete,
+        }
+    }
+
+    /// Drops match ranges that are not inside their snippet on character boundaries.
+    pub fn decode(results: be_sdk_api::SearchResults) -> Self {
+        Self {
+            hits: results
+                .hits
+                .into_iter()
+                .map(|hit| {
+                    let matches = hit
+                        .matches
+                        .into_iter()
+                        .map(|(start, end)| start as usize..end as usize)
+                        .filter(|range| {
+                            range.start <= range.end
+                                && hit.snippet.is_char_boundary(range.start)
+                                && hit.snippet.is_char_boundary(range.end)
+                        })
+                        .collect();
+                    SearchHit {
+                        block: Uuid::from_bytes(hit.block_id),
+                        key: hit.key,
+                        snippet: hit.snippet,
+                        matches,
+                    }
+                })
+                .collect(),
+            complete: results.complete,
+        }
+    }
+}
+
 pub struct BlockWatch {
     graph: Rc<GraphState>,
     query: BlockQuery,

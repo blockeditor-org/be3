@@ -1,6 +1,7 @@
 use crate::{
     ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockQuery, ChildContent,
-    ChildPlacements, EditorInstanceId, LayoutCommit, Opening, VersionCommand, blocks::OpenRequest,
+    ChildPlacements, EditorInstanceId, LayoutCommit, Opening, SearchResults, VersionCommand,
+    blocks::OpenRequest,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -164,6 +165,14 @@ impl BlockInfo {
     }
 }
 
+impl SearchResults {
+    pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
+        for hit in &mut self.hits {
+            visit(BlockIdRole::Existing, &mut hit.block_id);
+        }
+    }
+}
+
 impl ArtifactState {
     pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
         visit(BlockIdRole::Existing, &mut self.block_id);
@@ -263,9 +272,15 @@ impl crate::embed::blocks::Call {
             }
             Self::OpenBlock { request, .. } => request.visit_block_ids(visit),
             Self::BlocksWatchNew { query, .. } => query.visit_block_ids(visit),
+            Self::SearchWatchNew { within, .. } => {
+                if let Some(within) = within {
+                    visit(existing, within);
+                }
+            }
             Self::ReplicaFrames { .. }
             | Self::ReplicaSend { .. }
             | Self::BlocksWatchNext { .. }
+            | Self::SearchWatchNext { .. }
             | Self::HistoryWatchNext { .. }
             | Self::HeadWatchNext { .. }
             | Self::ArtifactWatchNext { .. }

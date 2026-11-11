@@ -574,6 +574,7 @@ impl Wire {
             Blocks::BlocksWatchNext { this, .. } => owner(this.op()),
             Blocks::HistoryWatchNext { this, .. } => owner(this.op()),
             Blocks::HeadWatchNext { this, .. } => owner(this.op()),
+            Blocks::SearchWatchNext { this, .. } => owner(this.op()),
             Blocks::ArtifactWatchNext { this, .. } => owner(this.op()),
             Blocks::VersionWatchNext { this, .. } => owner(this.op()),
             Blocks::ShowRequestsNext { this, .. } => owner(this.op()),
@@ -590,6 +591,7 @@ impl Wire {
             Blocks::BlocksWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
             Blocks::HistoryWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
             Blocks::HeadWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
+            Blocks::SearchWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
             Blocks::ArtifactWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
             Blocks::VersionWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
             Blocks::ShowRequestsNext { this, reply } => Ok((this.op(), reply.into_op())),
@@ -626,6 +628,9 @@ impl Wire {
                 self.held.owners.insert(resource.op(), instance)
             }
             Blocks::HeadWatchNew { resource, .. } => {
+                self.held.owners.insert(resource.op(), instance)
+            }
+            Blocks::SearchWatchNew { resource, .. } => {
                 self.held.owners.insert(resource.op(), instance)
             }
             Blocks::ArtifactWatchNew { resource, .. } => {
