@@ -1,5 +1,8 @@
 use super::*;
 
+/// A guard, not a reproduction: a pointer that moved there already passes on the code before
+/// `PointerRested`, since the layout re-test sees an unchanged position. The test next to it,
+/// which sends a rest, is the one that needs `PointerRested`.
 #[test]
 fn a_row_that_appears_under_a_still_pointer_is_hovered_without_being_pointed_at() {
     // The pointer is there before the row, whichever way it got there.

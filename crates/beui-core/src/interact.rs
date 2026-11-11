@@ -552,6 +552,9 @@ fn from_program(doc: &mut Document, input: KeyInput) {
     let _ = answer(outer(doc, &route, KeyPhase::Capture), event);
 }
 
+/// What counts as the person using the program, for the idle timer and the lock screen. A
+/// `PointerRested` is left out on purpose: the host sends it for a pointer that did not move,
+/// to a view that appeared under it, so it is not the person doing anything.
 fn is_activity(event: &Event) -> bool {
     matches!(
         event,
