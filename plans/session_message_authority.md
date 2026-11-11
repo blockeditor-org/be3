@@ -7,10 +7,10 @@ participant who joined, and joining needs only view access. It does not look at
 the payload. So a viewer can relay a `Submit` as if it were an editor, and an
 owner's `Accepted`, `Snapshot`, `Sealed` or `Replaced` as if it were the owner.
 
-A follower now heeds those four from the owner alone (`not_from_the_owner` in
-`be-sdk-type-guest/src/replica.rs`), but an owner still accepts a `Submit` from
-whoever sent it, so a viewer can edit through the session, and a viewer's
-message that names a part makes the owner read it.
+A follower ignores what a non-owner sends that only the owner sends, and an owner
+still accepts a `Submit` from whoever sent it (guides/type_modules.md), so a viewer
+can edit through the session, and a viewer's message that names a part makes the
+owner read it.
 
 Make the server refuse it:
 

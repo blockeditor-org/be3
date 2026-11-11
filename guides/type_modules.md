@@ -319,16 +319,20 @@ rebase. The rules an agent most needs:
   behind it held; the fourth failure gives up on the part. A part longer than
   `LARGEST_PART` is given up on without a read, and so are a follower's held
   messages once more than `MOST_HELD_JOBS` wait behind a read. Giving up
-  drops the messages that name the part (an owner's report is all it does; the
-  sender's edit stays pending until it resynchronizes), and a follower asks the
+  drops the messages that name the part. An owner reads a follower's part ten times,
+  the waits growing to a minute, holding its queue meanwhile, then tells the
+  sender `Resend`, which submits what it has pending again. A follower asks the
   owner to catch it up (`catch_up_later`), again after 5 s, 10 s and so on up
   to a minute until an answer applies (a `Snapshot`, a `Sealed` that reloads,
   or a lease change that resynchronizes). Once the owner's commit of the edit
   lands, the snapshot starts at a head that holds it; before that it still
   names the part, so the follower waits. Giving up is never a divergence, only
   bytes that do not decode are. A follower heeds `Accepted`, `Snapshot`,
-  `Sealed` and `Replaced` from the owner alone (`not_from_the_owner`), since
-  the server relays what any participant, a viewer included, sends: that the
+  `Sealed`, `Replaced` and `Resend` from the owner alone and ignores `Submit`,
+  `Catchup` and `Kept` (`not_heeded`), before it reads any part they name,
+  since the server relays what any participant, a viewer included, sends. One
+  from a sender it did not know as the owner is remembered, and it asks to be
+  caught up should that sender become the owner. That the
   server does not limit `Submit` and the owner's messages to editors and the
   owner is a known gap (plans/session_message_authority.md). The server holds a
   part for the whole upload grace (a day), and longer while the block's journal holds

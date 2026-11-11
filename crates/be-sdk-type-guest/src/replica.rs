@@ -34,6 +34,12 @@ const PUT_RETRY_CEILING: u64 = 60_000;
 /// How many times a part is read before it counts as unavailable, and how long the first
 /// wait is (it doubles each time).
 const READ_ATTEMPTS: u32 = 4;
+
+/// An owner reads a follower's part this many times, the waits growing to a minute, before
+/// it gives up and tells the follower to submit again: it holds every message behind the read,
+/// so it is slower to give up than a follower.
+const OWNER_READ_ATTEMPTS: u32 = 10;
+const READ_RETRY_CEILING: u64 = 60_000;
 const READ_RETRY_INTERVAL: u64 = 1_000;
 
 /// The longest part a peer may name, and the most messages kept waiting behind a read. A
@@ -460,6 +466,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// the next is asked for if no answer came.
     catch_up_failures: u32,
     catch_up_at: Option<u64>,
+    /// Senders whose owner-only messages a follower ignored because the lease it knew named
+    /// another owner: when one becomes the owner, the follower asks to be caught up.
+    ignored_owners: Vec<ClientId>,
     /// How many times in a row a put failed.
     put_failures: u32,
     out: Vec<Effect>,
@@ -640,6 +649,7 @@ where
             read_retry: HashMap::new(),
             catch_up_failures: 0,
             catch_up_at: None,
+            ignored_owners: Vec::new(),
             put_failures: 0,
             out: Vec::new(),
         }
@@ -663,11 +673,16 @@ where
                 from,
                 wire: Some(wire),
             } = job
-                && self.not_from_the_owner(*from, wire)
             {
-                self.jobs.pop_front();
-                continue;
+                let (from, wire) = (*from, wire.clone());
+                if self.not_heeded(from, &wire) {
+                    self.jobs.pop_front();
+                    continue;
+                }
             }
+            let Some(job) = self.jobs.front() else {
+                break;
+            };
             let mut missing = Vec::new();
             let mut backing_off = false;
             let mut too_large = None;
@@ -833,8 +848,13 @@ where
                 let failures = self.read_failures.entry(part).or_default();
                 *failures += 1;
                 let failures = *failures;
-                if failures < READ_ATTEMPTS {
-                    let wait = READ_RETRY_INTERVAL << (failures - 1);
+                let limit = match self.is_owner() {
+                    true => OWNER_READ_ATTEMPTS,
+                    false => READ_ATTEMPTS,
+                };
+                if failures < limit {
+                    let wait =
+                        (READ_RETRY_INTERVAL << (failures - 1).min(6)).min(READ_RETRY_CEILING);
                     self.read_retry.insert(part, self.now + wait);
                 } else {
                     self.error(format!("an operation's part could not be read: {error}"));
@@ -862,14 +882,20 @@ where
             } => named_parts(wire).contains(&part),
             _ => false,
         };
-        self.drop_heard(named);
-        if !self.is_owner() {
+        let senders = self.drop_heard(named);
+        if self.is_owner() {
+            for from in senders {
+                self.send(Some(from), &SessionMessage::Resend);
+            }
+        } else {
             self.catch_up_later();
         }
     }
 
     /// Drops the peer messages `drop` picks, and what was known of reading their parts.
-    fn drop_heard(&mut self, pick: impl Fn(&Job<C>) -> bool) {
+    /// Answers who sent the `Submit`s among them.
+    fn drop_heard(&mut self, pick: impl Fn(&Job<C>) -> bool) -> Vec<ClientId> {
+        let mut senders = Vec::new();
         let jobs = std::mem::take(&mut self.jobs);
         for job in jobs {
             if !matches!(job, Job::Heard { .. }) || !pick(&job) {
@@ -877,23 +903,30 @@ where
                 continue;
             }
             if let Job::Heard {
-                wire: Some(wire), ..
+                from,
+                wire: Some(wire),
             } = &job
             {
+                if matches!(wire, Wire::Session(SessionMessage::Submit { .. }))
+                    && !senders.contains(from)
+                {
+                    senders.push(*from);
+                }
                 for part in named_parts(wire) {
                     self.read_failures.remove(&part);
                     self.read_retry.remove(&part);
                 }
             }
         }
+        senders
     }
 
     /// Asks the owner to catch this follower up now if it has not been asked for lately, and
     /// again after 5 s, 10 s and so on up to a minute should no answer apply.
     fn catch_up_later(&mut self) {
-        match self.catch_up_failures {
-            0 => self.regreet(),
-            _ => self.catching_up = true,
+        match self.catch_up_failures == 0 || self.catch_up_at.is_none() {
+            true => self.regreet(),
+            false => self.catching_up = true,
         }
     }
 
@@ -904,20 +937,35 @@ where
         self.catch_up_at = Some(self.now + wait);
     }
 
-    /// Whether `wire` is a message only the owner sends, and `from` is not the owner. A viewer
-    /// can relay anything, so a follower heeds these from the owner alone.
-    fn not_from_the_owner(&self, from: ClientId, wire: &Wire) -> bool {
-        matches!(self.role, Role::Follower(_))
-            && Some(from) != self.state.owner
-            && matches!(
-                wire,
-                Wire::Session(
-                    SessionMessage::Accepted { .. }
-                        | SessionMessage::Snapshot { .. }
-                        | SessionMessage::Sealed { .. }
-                        | SessionMessage::Replaced { .. }
-                )
-            )
+    /// Whether a follower ignores `wire` from `from`: what only the owner sends from anyone
+    /// else (a viewer can relay anything), and what only the owner acts on. One from a sender
+    /// that may be an owner the follower has not heard of yet is remembered, so that the
+    /// follower asks to be caught up should that sender become the owner.
+    fn not_heeded(&mut self, from: ClientId, wire: &Wire) -> bool {
+        if !matches!(self.role, Role::Follower(_)) {
+            return false;
+        }
+        let Wire::Session(message) = wire else {
+            return false;
+        };
+        match message {
+            SessionMessage::Submit { .. }
+            | SessionMessage::Catchup { .. }
+            | SessionMessage::Kept { .. } => true,
+            SessionMessage::Accepted { .. }
+            | SessionMessage::Snapshot { .. }
+            | SessionMessage::Sealed { .. }
+            | SessionMessage::Replaced { .. }
+            | SessionMessage::Resend => {
+                let ignored = Some(from) != self.state.owner;
+                if ignored && !self.ignored_owners.contains(&from) && self.ignored_owners.len() < 8
+                {
+                    self.ignored_owners.push(from);
+                }
+                ignored
+            }
+            _ => false,
+        }
     }
 
     /// Asks the owner for what this follower missed, and ignores what the owner sends until it
@@ -2710,6 +2758,16 @@ where
                     }));
                 }
             }
+            SessionMessage::Resend => {
+                let Role::Follower(follower) = &mut self.role else {
+                    return;
+                };
+                let applied = follower.applied();
+                let owner = self.state.owner;
+                for message in follower.resynchronize(applied) {
+                    self.send(owner, &message);
+                }
+            }
             SessionMessage::Saved { commit } => {
                 self.handed.retain(|handed| handed.commit != commit);
             }
@@ -2962,6 +3020,8 @@ where
                 self.role = Role::Follower(Follower::continuing(self.client, sequence));
                 self.applied_ops.clear();
                 self.reload = false;
+                self.catch_up_failures = 0;
+                self.catch_up_at = None;
                 // What it held back while a part was put it now submits.
                 return self.sequence_held();
             }
@@ -2969,6 +3029,16 @@ where
         };
         let replacement = self.awaiting.take().filter(|_| self.replacing);
         self.replacing = false;
+        let missed = self
+            .state
+            .owner
+            .is_some_and(|owner| self.ignored_owners.contains(&owner));
+        self.ignored_owners.clear();
+        self.catch_up_failures = 0;
+        self.catch_up_at = None;
+        if missed {
+            self.catching_up = true;
+        }
         if !self.state.is_owner(self.client) {
             let applied = follower.applied();
             let resubmit = follower.resynchronize(applied);
@@ -3009,6 +3079,8 @@ where
                 Vec::new(),
             ),
         };
+        self.catch_up_failures = 0;
+        self.catch_up_at = None;
         if std::mem::take(&mut self.catching_up) {
             sequencer.carry_unsealed();
             self.reload = true;

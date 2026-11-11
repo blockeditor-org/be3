@@ -94,6 +94,9 @@ pub enum SessionMessage {
     Saved {
         commit: CommitId,
     },
+    /// The owner could not read the part of a `Submit` it was sent: the follower submits what
+    /// it has pending again.
+    Resend,
     Presence {
         kind: uuid::Uuid,
         #[serde(with = "serde_bytes")]
