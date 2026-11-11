@@ -6,7 +6,7 @@ use std::{
 
 use be_block::be_block_model::{Document, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
-use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture};
+use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture, LackingEdit};
 
 use crate::EditorHost;
 use crate::state::{Callbacks, Subscription, Unready};
@@ -24,6 +24,9 @@ struct Projection<C: LiveEdit> {
     touched: RefCell<Vec<Touched>>,
     announced: Cell<u64>,
     revisions: Callbacks<(), dyn Fn(u64)>,
+    lacking_revision: Cell<u64>,
+    lacking_followed: Cell<bool>,
+    lacking_changes: Callbacks<(), dyn Fn()>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
     reads: RefCell<HashMap<u64, Box<Read>>>,
 }
@@ -64,6 +67,9 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             touched: RefCell::new(Vec::new()),
             announced: Cell::new(0),
             revisions: Callbacks::default(),
+            lacking_revision: Cell::new(0),
+            lacking_followed: Cell::new(false),
+            lacking_changes: Callbacks::default(),
             due: RefCell::new(None),
             reads: RefCell::new(HashMap::default()),
         }))
@@ -131,6 +137,35 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
 
     pub fn on_revision(&self, run: impl Fn(u64) + 'static) -> Subscription {
         self.0.revisions.add((), Rc::new(run))
+    }
+
+    /// The edits made on this device that the server lacks, each with whether the server
+    /// refused it (`ToEditor::Lacking`): an editor shows what they made as still sending, or
+    /// as not sent. Empty until the first answer to `follow_lacking`.
+    pub fn lacking(&self) -> Vec<LackingEdit<C::Op>> {
+        self.0.mirror.borrow().lacking()
+    }
+
+    /// Lets an edit the server refused go (`FromEditor::DismissLacking`): the editor sent it
+    /// again, or the person gave it up.
+    pub fn dismiss_lacking(&self, id: u64) {
+        self.0
+            .host
+            .send_to_replica(self.0.block, FromEditor::DismissLacking(id));
+    }
+
+    /// Asks the replica to follow what the server lacks (`FromEditor::FollowLacking`), and
+    /// again with each snapshot, which a new replica sends.
+    pub fn follow_lacking(&self) {
+        if !self.0.lacking_followed.replace(true) {
+            self.0
+                .host
+                .send_to_replica(self.0.block, FromEditor::FollowLacking);
+        }
+    }
+
+    pub fn on_lacking(&self, run: impl Fn() + 'static) -> Subscription {
+        self.0.lacking_changes.add((), Rc::new(run))
     }
 
     /// The whole stored form's length, of which a type that loads only its first part
@@ -215,6 +250,12 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     fn announce(&self) {
+        let lacking = self.0.mirror.borrow().lacking_revision();
+        if self.0.lacking_revision.replace(lacking) != lacking {
+            for run in self.0.lacking_changes.all() {
+                run();
+            }
+        }
         let revision = self.0.mirror.borrow().revision();
         if self.0.announced.replace(revision) == revision {
             return;
@@ -260,11 +301,18 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     fn adopt(&self) {
+        let snapshots = self.0.mirror.borrow().snapshots();
         for update in self.0.host.take_content_updates(self.0.block) {
             let answer = self.0.mirror.borrow_mut().receive(update);
             if let Some(answer) = answer {
                 self.0.host.send_to_replica(self.0.block, answer);
             }
+        }
+        // A replica that sends a snapshot may be new, or may not have heard the first ask.
+        if self.0.lacking_followed.get() && self.0.mirror.borrow().snapshots() != snapshots {
+            self.0
+                .host
+                .send_to_replica(self.0.block, FromEditor::FollowLacking);
         }
         self.collect_touched();
         let ranges = self.0.mirror.borrow_mut().take_ranges();

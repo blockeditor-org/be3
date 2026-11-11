@@ -147,6 +147,15 @@ host owes a replica (the WIT documents each call):
   one in `opening`; the replica does not reconcile on opening. After a
   reconnect, `reopen` starts the replica over and the host replays what it
   kept and re-asks what was unanswered.
+- **What the server holds.** `append` answers whether the server took the
+  entries, `publish` answers `kept` for a commit sealed on this device alone
+  (offline, or behind others in its outbox), `drained` says those commits
+  reached the server, or with `refused` lists the commits it refused (set aside, or
+  left in the outbox to be tried again), and
+  `opening` says whether it opens on this device's own journal (`journal-kept`),
+  whether the device still keeps commits of the block (`commits-kept`) and which
+  refused ones it holds (`refused-commits`). The replica tells editors from these what the
+  server lacks (guides/blocks/apps.md, "Sending").
 - **IO.** `load`, `publish` (a compare-and-swap on `expected`), `stash` and
   `resume-session` are async imports the host completes. A replica waits on
   one answer at a time. `load` answers a commit's stored form with the parts it

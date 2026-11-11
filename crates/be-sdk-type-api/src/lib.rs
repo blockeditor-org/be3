@@ -28,7 +28,7 @@ be_wasm_ops_bindgen::generate!({
 });
 
 pub use host::PublishOutcome;
-pub use replicas::Opening;
+pub use replicas::{KeptCommits, Opening};
 pub use types::*;
 
 pub type ReplicaId = OpId;
