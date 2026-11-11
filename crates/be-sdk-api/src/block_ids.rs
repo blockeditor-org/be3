@@ -124,6 +124,7 @@ impl crate::embed::host_services::Call {
             | Self::TerminalHostBinary { .. }
             | Self::TerminalHostBuild { .. }
             | Self::ListData { .. }
+            | Self::SetPushDevice { .. }
             | Self::ReadData { .. } => {}
         }
     }

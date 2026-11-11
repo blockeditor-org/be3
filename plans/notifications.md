@@ -19,18 +19,19 @@ host call and the mute menu have landed (guides/blocks/server.md,
 - **The push** a device gets decrypts with `be_lib_web_push::open` (its own
   keys) to a `be_block_protocol::PushMessage`: organization, block, the sender
   the server vouches for, then the text sealed under the block's data key with
-  the block and the time it was sent. `Peer::open_notification` opens that
+  the organization, block, sender and time it was sent. `Peer::open_notification` opens that
   offline, from the key rows the device keeps in its refs database
   (`Peer::cached`, guides/blocks/client.md), refusing one sealed about another
-  block or older than `MAX_NOTIFICATION_AGE_MILLISECONDS`.
+  organization, block or sender, or older than `MAX_NOTIFICATION_AGE_MILLISECONDS`.
 - **The app protocol**: `host-services.notify(block, text, mentions)`, which
   the host seals (`Peer::notify`); `NotifyModesWatch` and `set-notify-mode`,
   which the workspace's block menu uses.
-- Nothing registers an endpoint: no device subscribes yet
-  (`Peer::push_key`, `register_endpoint` and `unregister_endpoint` wait for
-  step 1).
-- The web build has a service worker (`crates/be-host/web/sw.js`), which only
-  caches the host's files.
+- The web build's service worker (`crates/be-host/web/sw.js`) caches the host's
+  files and handles pushes: it asks an open window to open one (`web/push.js`,
+  `be-host/src/web_push.rs`) and shows the answer, or "New message"
+  (guides/running/web.md). `globalThis.bePush.enable()` subscribes and
+  registers; the settings list's "Notifications" switch calls it
+  (`set_push_device`).
 
 ## The design
 
@@ -52,6 +53,46 @@ host call and the mute menu have landed (guides/blocks/server.md,
   naming nothing. Decrypting with no tab open is deferred
   (plans/deferred/notifications.md). Subscribing asks the browser's
   permission, so it waits for a person's gesture (a setting on this device).
+- **Web, step by step** (the choices below are defaults until the user says
+  otherwise).
+  - *The browser decrypts.* A Web Push service worker receives the RFC 8291
+    payload already decrypted (`event.data`), so the web build never runs
+    `be_lib_web_push::open`: the worker holds the `PushMessage` bytes
+    (`be_block_protocol::PushMessage::decode` layout, 48 bytes of ids then the
+    sealed text) and never a key.
+  - *Subscribing* is the page's job and needs a person's gesture: a "Notify me
+    on this device" switch in the host's this-device settings. Turning it on
+    asks `Notification.requestPermission()`, then
+    `registration.pushManager.subscribe({userVisibleOnly: true,
+    applicationServerKey: Peer::push_key})`, then
+    `Peer::register_endpoint` with `service: web-push`, the subscription's
+    endpoint and its `p256dh` and `auth` keys. Off, or signing out, calls
+    `unregister_endpoint` and `subscription.unsubscribe()`. The page shows
+    the switch off when permission is denied.
+  - *Tab and worker.* On a push the worker posts `{push: bytes, id}` to every
+    window client over a `MessageChannel` and waits up to 3 s for one answer
+    `{title, body, block, organization}`, then shows it. The page forwards the
+    bytes to the host, which runs `Peer::open_notification`, names the sender
+    from the contacts and the block from the graph, and answers; on any failure
+    it answers nothing. With no window, no answer or no key the worker shows
+    "New message" naming nothing (a push must always show one).
+  - *Once only.* The worker keeps a hash of each shown push's sealed bytes and
+    the block it was about, never its text, in IndexedDB for
+    `MAX_NOTIFICATION_AGE_MILLISECONDS`, and does not open a repeat again: what
+    is on screen stays, and one dismissed or pressed comes back as "New
+    message", silently. The notification's `tag` is the block, so a later one
+    about the same block replaces the earlier.
+  - *Opening.* A click focuses a window client, or opens the host with
+    `?open-block=ORG/BLOCK`, and posts `{open: {organization, block}}`; the host
+    opens the block as it does for a link.
+  - *Tests.* A Chromium test (Playwright over the web bundle) grants
+    notification permission, subscribes against a local Web Push service, and
+    delivers with DevTools `ServiceWorker.deliverPushMessage` the four cases
+    of step 1; the message layout and the worker's choices are plain functions
+    in `sw.js` unit-tested in Node.
+- **The lock screen** shows a notification's text in plaintext, whoever holds
+  the device. A setting to show only "New message" there is a follow-up
+  (plans/deferred/notifications.md).
 - **On Android** pushes arrive with the app closed, so a service receives them
   and loads the Rust library without the activity, decrypting RFC 8291 itself
   with be-lib-web-push. UnifiedPush works with
@@ -66,7 +107,9 @@ host call and the mute menu have landed (guides/blocks/server.md,
 
 ## Order of work
 
-1. The web: subscribing, the service worker handing the push to an open tab
+1. The web (built except a Chromium test of the whole page: `push-web-test`
+   covers the worker and `push.js`, and the endpoint is registered only for
+   the organization open when the switch is turned on): subscribing, the service worker handing the push to an open tab
    and showing what it answers, opening the block. Done: a Chromium test
    delivers a push to the service worker (DevTools
    `ServiceWorker.deliverPushMessage`): with a tab open the notification shows
