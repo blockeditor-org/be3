@@ -10,9 +10,11 @@ fn a_new_image_asks_for_its_file_in_the_image_editors_own_dialog() {
     // on its own thread, and which no frame waits for.
     host.run(&["pause", "600"]);
     let (_, actions_y, _, actions_height) = host.place("#creation.actions");
-    let (_, card_y, _, card_height) = host.place_until("#picker.child", "no taller than its actions need", |(_, y, _, height)| {
-        y + height - (actions_y + actions_height) <= 30.0
-    });
+    let (_, card_y, _, card_height) = host.place_until(
+        "#picker.child",
+        "no taller than its actions need",
+        |(_, y, _, height)| y + height - (actions_y + actions_height) <= 30.0,
+    );
     let below = card_y + card_height - (actions_y + actions_height);
     host.run(&["pause", "600"]);
     assert!(
