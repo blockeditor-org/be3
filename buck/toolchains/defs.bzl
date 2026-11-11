@@ -107,6 +107,7 @@ def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
             panic_abort = std["panic_abort"],
             others = [dep for name, dep in std.items() if name not in ["core", "proc_macro", "std", "panic_unwind", "panic_abort"]],
         ) if std else None,
+        extra_rustc_flags = ctx.attrs.extra_rustc_flags,
         linker_flags = ctx.attrs.linker_flags,
         allow_lints = ctx.attrs.allow_lints,
         clippy_driver = ctx.attrs.clippy_driver[RunInfo],
@@ -133,6 +134,7 @@ pinned_rust_toolchain = rule(
     attrs = {
         "advanced_unstable_linking": attrs.bool(default = False),
         "allow_lints": attrs.list(attrs.string(), default = []),
+        "extra_rustc_flags": attrs.list(attrs.arg(), default = []),
         "linker_flags": attrs.list(attrs.arg(), default = []),
         "std": attrs.dict(attrs.string(), attrs.option(attrs.dep(providers = [RustLinkInfo])), default = {}),
         "clippy_driver": attrs.exec_dep(providers = [RunInfo]),

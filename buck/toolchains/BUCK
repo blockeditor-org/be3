@@ -296,6 +296,12 @@ pinned_rust_toolchain(
     # names them, as the app profile inherits them from dev.
     # buck/constraints:release, which `-m release` adds, is cargo's release
     # profile.
+    # --extern noprelude:, which the standard library's crates are named with.
+    extra_rustc_flags = select({
+        ":linux_x86_64_release": [],
+        ":linux_x86_64": ["-Zunstable-options"],
+        "DEFAULT": [],
+    }),
     rustc_flags = select({
         "DEFAULT": select({
             "DEFAULT": ["-Copt-level={}".format(_host_opt), "-Cdebuginfo=line-tables-only"],

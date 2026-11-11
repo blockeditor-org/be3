@@ -54,8 +54,7 @@ load(
     "RustNativeLinkDeps",
     "TransitiveDeps",
 )
-load("@prelude//third-party:build.bzl", "create_third_party_build_info")
-load("@prelude//third-party:providers.bzl", "ThirdPartyBuildInfo")
+load("@prelude//third-party:providers.bzl", "ThirdPartyBuildInfo", "third_party_build_info")
 load("@prelude//unix:providers.bzl", "UnixEnv", "create_unix_env_info")
 
 _SO = "libbe_rust_std.so"
@@ -64,7 +63,7 @@ _SO = "libbe_rust_std.so"
 # c, m, rt, pthread, util, dl, and unwind's gcc_s.
 _SYSTEM_LIBS = ["-lc", "-lm", "-lrt", "-lpthread", "-lutil", "-ldl", "-lgcc_s"]
 
-RustStdInfo = provider(fields = {"metadata": dict[str, Artifact]})
+RustStdInfo = provider(fields = {"metadata": dict[str, Artifact], "rlibs": dict[str, Artifact]})
 
 def _lib_dir(ctx: AnalysisContext) -> Artifact:
     return ctx.attrs.component[DefaultInfo].default_outputs[0].project("lib/rustlib/{}/lib".format(ctx.attrs.triple))
@@ -138,12 +137,15 @@ def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
     )
     return [
         DefaultInfo(default_output = linked.output),
-        RustStdInfo(metadata = {name: lib_dir.project(file) for name, file in ctx.attrs.crates.items()}),
+        RustStdInfo(
+            metadata = {name: lib_dir.project(file) for name, file in ctx.attrs.crates.items()},
+            rlibs = {name: lib_dir.project(file.replace(".rmeta", ".rlib")) for name, file in ctx.attrs.crates.items()},
+        ),
         merged,
         shared_library_info,
         graph,
         merge_link_group_lib_info(),
-        create_third_party_build_info(ctx = ctx, shared_libs = shared_libs.libraries),
+        third_party_build_info(actions = ctx.actions),
         create_unix_env_info(
             actions = ctx.actions,
             env = UnixEnv(label = ctx.label, native_libs = [shared_libs]),
@@ -167,19 +169,26 @@ def _rust_std_crate_impl(ctx: AnalysisContext) -> list[Provider]:
     metadata = libs[RustStdInfo].metadata
     crate = CrateName(simple = ctx.attrs.crate, dynamic = None)
     own = metadata[ctx.attrs.crate]
+    own_rlib = libs[RustStdInfo].rlibs[ctx.attrs.crate]
 
     # Every crate of the standard library is on rustc's -L, as this crate's
     # transitive dependencies: it loads the ones it names by their hashes.
-    transitive = ctx.actions.tset(TransitiveDeps, children = [
-        ctx.actions.tset(TransitiveDeps, value = RustArtifact(artifact = rmeta, crate = CrateName(simple = name, dynamic = None)))
-        for name, rmeta in metadata.items()
-    ])
-    singleton = ctx.actions.tset(TransitiveDeps, value = RustArtifact(artifact = own, crate = crate))
+    def everything(artifacts):
+        return ctx.actions.tset(TransitiveDeps, children = [
+            ctx.actions.tset(TransitiveDeps, value = RustArtifact(artifact = artifact, crate = CrateName(simple = name, dynamic = None)))
+            for name, artifact in artifacts.items()
+        ])
+
+    transitive = {kind: everything(metadata) for kind in MetadataKind}
+    transitive[MetadataKind("full")] = everything(libs[RustStdInfo].rlibs)
+    outputs = {kind: own for kind in MetadataKind}
+    outputs[MetadataKind("full")] = own_rlib
+    singleton = {kind: ctx.actions.tset(TransitiveDeps, value = RustArtifact(artifact = outputs[kind], crate = crate)) for kind in MetadataKind}
     strategies = {
         strategy: RustLinkStrategyInfo(
-            outputs = {kind: own for kind in MetadataKind},
-            singleton_tset = {kind: singleton for kind in MetadataKind},
-            transitive_deps = {kind: transitive for kind in MetadataKind},
+            outputs = outputs,
+            singleton_tset = singleton,
+            transitive_deps = transitive,
             transitive_proc_macro_deps = set(),
             rust_debug_info = None,
         )
