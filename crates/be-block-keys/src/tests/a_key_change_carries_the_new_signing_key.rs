@@ -17,11 +17,11 @@ fn a_key_change_carries_the_new_signing_key() {
     };
     let changed = contact.open_key_change(&from, theirs, &sealed).unwrap();
     assert_eq!(changed, fresh.identity());
-    assert!(
-        changed
-            .signing
-            .verifies_authored([3; 16], b"after", &fresh.sign_authored([3; 16], b"after"))
-    );
+    assert!(changed.signing.verifies_authored(
+        [3; 16],
+        b"after",
+        &fresh.sign_authored([3; 16], b"after")
+    ));
 
     let forger = RecoveryPhrase::generate().secret();
     let forged = forger.seal_key_change(account, &to, forger.identity());

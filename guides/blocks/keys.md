@@ -149,7 +149,8 @@ Edit can write as someone else.
   database keeps the signing keys known per account (`RefsDb` table `Signers`,
   never forgotten, so what was signed before a new phrase still verifies). A
   contact's key, from its card or a key change, and the account's own are
-  verified; an account with one is checked only against verified keys, after
+  verified, the newest being current: an older verified key answers `Changed`,
+  since someone holding the old phrase can sign with it. An account with one is checked only against verified keys, after
   rereading the contacts once, so the server cannot sign as a contact. Any other
   member's key comes from the server (`get-signing-keys`: the caller, its
   contacts and the members of the organization open, which in the personal

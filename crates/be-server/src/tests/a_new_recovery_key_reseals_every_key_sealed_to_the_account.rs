@@ -21,7 +21,14 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
 
     let response = owner
         .call(|peer| {
-            client::keys::set_recovery_key(peer, [1; 32], [1; 32], Vec::new(), Vec::new(), Vec::new())
+            client::keys::set_recovery_key(
+                peer,
+                [1; 32],
+                [1; 32],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -62,7 +69,14 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
 
     let refused = owner
         .call(|peer| {
-            client::keys::set_recovery_key(peer, [2; 32], [2; 32], Vec::new(), Vec::new(), Vec::new())
+            client::keys::set_recovery_key(
+                peer,
+                [2; 32],
+                [2; 32],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
         })
         .await;
     assert!(

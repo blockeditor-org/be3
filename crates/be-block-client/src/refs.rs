@@ -691,20 +691,38 @@ impl Refs {
     }
 
     /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
-    /// names it, which no later pin undoes. A key is never forgotten, so what an account signed
-    /// before a new phrase still verifies.
-    pub fn add_signer(&self, account: Uuid, key: [u8; 32], verified: bool) -> Result<(), StoreError> {
+    /// names it, which no later pin undoes, and then the account's current one, last. A key is
+    /// never forgotten, so what an account signed before a new phrase still verifies, though
+    /// not as its current key (`Peer::verify_authored`).
+    pub fn add_signer(
+        &self,
+        account: Uuid,
+        key: [u8; 32],
+        verified: bool,
+    ) -> Result<(), StoreError> {
         let known = {
             let mut state = self.state.lock().unwrap();
             let known = state.signers.entry(account).or_default();
-            match known.iter_mut().find(|known| known.key == key) {
-                Some(found) if found.verified || !verified => return Ok(()),
-                Some(found) => found.verified = true,
-                None => known.push(KnownSigner { key, verified }),
+            let at = known.iter().position(|known| known.key == key);
+            match (at, verified) {
+                (Some(at), false) => {
+                    let _ = at;
+                    return Ok(());
+                }
+                (Some(at), true) if at + 1 == known.len() && known[at].verified => return Ok(()),
+                (Some(at), true) => {
+                    known.remove(at);
+                    known.push(KnownSigner { key, verified });
+                }
+                (None, _) => known.push(KnownSigner { key, verified }),
             }
             known.clone()
         };
-        self.write(vec![row(Table::Signers, account.as_bytes().to_vec(), &known)])
+        self.write(vec![row(
+            Table::Signers,
+            account.as_bytes().to_vec(),
+            &known,
+        )])
     }
 
     pub fn push(&self, op: Op) -> Result<u64, StoreError> {

@@ -145,8 +145,12 @@ impl Message {
 }
 
 impl MessageEdit {
-    pub fn signed_bytes(&self, chat: Uuid, message: ObjectId) -> Vec<u8> {
+    /// What an edit's signature covers: the chat, the message and its hash (so an edit signed
+    /// for one message never verifies on another that took its id), author, claimed time and
+    /// the new body's hash.
+    pub fn signed_bytes(&self, chat: Uuid, message: ObjectId, of: MessageHash) -> Vec<u8> {
         Signed::new("be3.chat.edit", chat, message)
+            .seen(Some(of))
             .uuid(self.author)
             .time(self.time)
             .body(&self.body)

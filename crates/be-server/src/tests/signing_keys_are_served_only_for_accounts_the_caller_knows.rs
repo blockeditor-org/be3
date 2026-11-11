@@ -46,7 +46,11 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
     ];
     expected.sort_by_key(|key| key.account);
     assert_eq!(
-        signing_keys(&mut owner, vec![me, agent, stranger_account, Uuid::new_v4()]).await,
+        signing_keys(
+            &mut owner,
+            vec![me, agent, stranger_account, Uuid::new_v4()]
+        )
+        .await,
         expected,
         "the caller's own key and a member's, and nothing of an account it does not know"
     );

@@ -124,7 +124,6 @@ pub fn Chat(editor: Editor) -> NodeId {
             }
         });
     });
-    let block = editor.block_id();
     let send = move || submit(editor, &chat, block, me, composer);
     let scroll = ComponentRef::<ScrollApi>::new();
     let at_end = create_signal(true);
@@ -403,7 +402,7 @@ fn proofs(content: &ChatContent, chat: Uuid, message: &Shown) -> Vec<Proof> {
     if let Some(edit) = content.edit_of(message.id) {
         proofs.push(Proof {
             author: edit.author,
-            bytes: edit.signed_bytes(chat, message.id),
+            bytes: edit.signed_bytes(chat, message.id, message.message.hash(chat, message.id)),
             signature: edit.signature.0.clone(),
         });
     }
@@ -426,7 +425,14 @@ fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer
                 body,
                 signature: Signature::default(),
             };
-            let signing = editor.host().sign(edit.signed_bytes(block, message));
+            let of = chat
+                .read(|content| content.hash(block, message))
+                .ok()
+                .flatten();
+            let signing = match of {
+                Some(of) => editor.host().sign(edit.signed_bytes(block, message, of)),
+                None => return,
+            };
             editor.then(signing, move |signed| {
                 let edit = MessageEdit {
                     signature: Signature(signed.unwrap_or_default()),

@@ -18,8 +18,9 @@ pub enum Signer {
     /// The key the server named the first time this device asked, pinned since and never
     /// verified.
     Unverified,
-    /// A key the server names now that is not the one this device pinned: the account took a
-    /// new phrase, or the server is lying.
+    /// A key other than the account's current one: the server names one that is not the one
+    /// this device pinned, or a contact's key a new phrase replaced. The account took a new
+    /// phrase, or the server is lying, or someone holds the old phrase.
     Changed,
     /// No key this device knows the account by, nor one the server names, made the signature:
     /// a forgery, or bytes changed since they were signed.
@@ -49,10 +50,17 @@ impl<S: ObjectStore> Peer<S> {
             SigningPublic(key).verifies_authored(block.into_bytes(), bytes, signature)
         };
         let known = self.refs.signers(account);
-        if known.iter().any(|known| known.verified && made(known.key)) {
+        // The newest verified key is the account's own; one it replaced since still verifies
+        // what it signed, but is shown as changed, since someone holding the old phrase can
+        // sign with it too.
+        let verified: Vec<_> = known.iter().filter(|known| known.verified).collect();
+        if verified.last().is_some_and(|current| made(current.key)) {
             return Ok(Signer::Verified);
         }
-        let contact = known.iter().any(|known| known.verified);
+        if verified.iter().any(|old| made(old.key)) {
+            return Ok(Signer::Changed);
+        }
+        let contact = !verified.is_empty();
         if !contact && known.iter().any(|known| made(known.key)) {
             return Ok(Signer::Unverified);
         }
@@ -65,12 +73,14 @@ impl<S: ObjectStore> Peer<S> {
             // A contact's new phrase reaches this device with its next look at the contacts.
             self.refresh_contacts().await?;
             let known = self.refs.signers(account);
-            return Ok(
-                match known.iter().any(|known| known.verified && made(known.key)) {
-                    true => Signer::Verified,
-                    false => Signer::Bad,
-                },
-            );
+            let verified: Vec<_> = known.iter().filter(|known| known.verified).collect();
+            return Ok(if verified.last().is_some_and(|key| made(key.key)) {
+                Signer::Verified
+            } else if verified.iter().any(|old| made(old.key)) {
+                Signer::Changed
+            } else {
+                Signer::Bad
+            });
         }
         let served = client::keys::get_signing_keys(&self.connection(), vec![account])
             .await??
