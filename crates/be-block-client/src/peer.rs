@@ -1669,6 +1669,18 @@ impl<S: ObjectStore> Peer<S> {
         Ok(client::blocks::list_history(&self.connection(), block).await??)
     }
 
+    /// One page of what changed after the sequence `since` in `root`'s tree, from `after`
+    /// (`ChangeCursor { changed: since, block: Uuid::max() }` starts): see `changed_pages`.
+    pub async fn changed_page(
+        &self,
+        root: Uuid,
+        since: u64,
+        after: client::blocks::ChangeCursor,
+        limit: u32,
+    ) -> Result<client::blocks::ChangedPage, ClientError> {
+        Ok(client::blocks::changed_since(&self.connection(), root, since, after, limit).await??)
+    }
+
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
         if !self.is_attached() || self.refs.has_structural(block) {
             return self.move_locally(block, parent);

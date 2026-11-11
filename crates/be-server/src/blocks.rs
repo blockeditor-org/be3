@@ -4,13 +4,19 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, Hold, KeyKind, KeySet,
+    AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry, Hold, KeyKind, KeySet,
     ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
+
+/// The most blocks of either kind a page of `changed-since` holds.
+const MAX_CHANGES_PER_PAGE: usize = 500;
+
+/// The most changes one page of `changed-since` looks at, those of other trees included.
+const MAX_SCANNED: usize = 20_000;
 
 use crate::{
     ServerError,
@@ -455,6 +461,7 @@ impl ServerStore {
                     owner_only,
                 ],
             )?;
+            crate::changes::touch(&transaction, identity.organization, &[block])?;
             store_edges(
                 &transaction,
                 &identity.organization.to_string(),
@@ -502,6 +509,7 @@ impl ServerStore {
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
                 params![organization, block.to_string(), metadata],
             )?;
+            crate::changes::touch(&transaction, identity.organization, &[block])?;
             if relinked.is_some() {
                 let before = graph.references(block);
                 change_edges(&transaction, &organization, block, &before, &references)?;
@@ -802,6 +810,7 @@ impl ServerStore {
                         metadata
                     ],
                 )?;
+                crate::changes::touch(&transaction, identity.organization, &[block])?;
                 if relinked.is_some() {
                     let before = graph.references(block);
                     change_edges(&transaction, &organization, block, &before, &references)?;
@@ -1264,6 +1273,12 @@ impl ServerStore {
                     parent_id
                 ],
             )?;
+            // The block and everything below it lie in another tree now.
+            crate::changes::touch_moved(
+                &transaction,
+                identity.organization,
+                &graph.subtree(block),
+            )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
                 graph,
                 &transaction,
@@ -1406,6 +1421,92 @@ impl ServerStore {
         .await
     }
 
+    /// What changed after `since` in `root`'s tree, from `after` (`changes.rs`): the blocks in
+    /// the tree now that changed, and the blocks that moved or were deleted since and are not
+    /// in it. A page ends at `limit` blocks of either kind, or at `MAX_SCANNED` changes looked
+    /// at (the changes of other trees count), with `next` set.
+    pub async fn changed_since(
+        &self,
+        identity: Identity,
+        root: Uuid,
+        since: u64,
+        after: ChangeCursor,
+        limit: u32,
+    ) -> Result<ChangedPage, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            let seen = visibility(identity);
+            require(graph, &seen, root, Access::View, "readable")?;
+            let organization = identity.organization.to_string();
+            let limit = (limit as usize).clamp(1, MAX_CHANGES_PER_PAGE);
+            let first = after.changed == since && after.block == Uuid::max();
+            let sequence: i64 = database.query_row(
+                "SELECT change_sequence FROM organizations WHERE id = ?1",
+                params![organization],
+                |row| row.get(0),
+            )?;
+            let mut summaries = Vec::new();
+            let mut removed = Vec::new();
+            if first {
+                let mut gone = database.prepare_cached(
+                    "SELECT block_id FROM block_removals
+                     WHERE organization_id = ?1 AND changed > ?2 ORDER BY changed LIMIT ?3",
+                )?;
+                for id in gone.query_map(
+                    params![organization, since as i64, MAX_CHANGES_PER_PAGE as i64],
+                    |row| row.get::<_, String>(0),
+                )? {
+                    if let Ok(id) = id?.parse::<Uuid>() {
+                        removed.push(id);
+                    }
+                }
+            }
+            let mut rows = database.prepare_cached(
+                "SELECT id, changed, moved FROM blocks
+                 WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
+                 ORDER BY changed, id",
+            )?;
+            let mut rows = rows.query(params![
+                organization,
+                after.changed as i64,
+                after.block.to_string()
+            ])?;
+            let (mut scanned, mut next) = (0, None);
+            while let Some(row) = rows.next()? {
+                let (id, changed, moved): (String, i64, i64) =
+                    (row.get(0)?, row.get(1)?, row.get(2)?);
+                let Ok(id) = id.parse::<Uuid>() else {
+                    continue;
+                };
+                scanned += 1;
+                let inside = graph.contains(id)
+                    && (id == root || graph.ancestors(id).any(|above| above == root));
+                if inside {
+                    if seen.can_view(graph, id)
+                        && let Some(summary) = summary_with(graph, &seen, id)
+                    {
+                        summaries.push(summary);
+                    }
+                } else if graph.contains(id) && moved > since as i64 {
+                    removed.push(id);
+                }
+                if summaries.len() >= limit || removed.len() >= limit || scanned >= MAX_SCANNED {
+                    next = Some(ChangeCursor {
+                        changed: changed as u64,
+                        block: id,
+                    });
+                    break;
+                }
+            }
+            Ok(ChangedPage {
+                summaries,
+                removed,
+                next,
+                sequence: sequence as u64,
+            })
+        })
+        .await
+    }
+
     pub async fn list_history(
         &self,
         identity: Identity,
@@ -1513,6 +1614,12 @@ impl ServerStore {
                     transaction.execute(
                         "DELETE FROM opened_kinds WHERE organization_id = ?1 AND block_id = ?2",
                         params![organization, block.to_string()],
+                    )?;
+                    crate::changes::removed(
+                        &transaction,
+                        identity.organization,
+                        block,
+                        be_block_commit::now_milliseconds(),
                     )?;
                     transaction.execute(
                         "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",

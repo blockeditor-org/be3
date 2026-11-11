@@ -1,0 +1,106 @@
+use be_block_protocol::ChangeCursor;
+
+use super::*;
+
+/// Every page after `since` in `root`'s tree: the blocks changed, the blocks that left, and the
+/// sequence to continue from.
+async fn changes(
+    client: &mut TestClient,
+    root: Uuid,
+    since: u64,
+    limit: u32,
+) -> (Vec<Uuid>, Vec<Uuid>, u64) {
+    let (mut changed, mut left) = (Vec::new(), Vec::new());
+    let mut after = ChangeCursor {
+        changed: since,
+        block: Uuid::max(),
+    };
+    for _ in 0..100 {
+        let page = client
+            .call(|peer| client::blocks::changed_since(peer, root, since, after.clone(), limit))
+            .await
+            .expect("changed-since failed");
+        changed.extend(page.summaries.iter().map(|summary| summary.id));
+        left.extend(page.removed);
+        match page.next {
+            Some(next) => after = next,
+            None => {
+                changed.sort();
+                left.sort();
+                return (changed, left, page.sequence);
+            }
+        }
+    }
+    panic!("the pages never ended");
+}
+
+fn sorted(mut blocks: Vec<Uuid>) -> Vec<Uuid> {
+    blocks.sort();
+    blocks
+}
+
+#[tokio::test]
+async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
+    let harness = Harness::start().await;
+    let mut owner = harness.client().await;
+    owner.register("owner@example.com").await;
+    owner.organization("notes").await;
+
+    let work = owner.create_block(BlockParent::Root).await;
+    let other = owner.create_block(BlockParent::Root).await;
+    let first = owner.create_block(BlockParent::Block(work)).await;
+    let inner = owner.create_block(BlockParent::Block(first)).await;
+    let stays = owner.create_block(BlockParent::Block(work)).await;
+    let elsewhere = owner.create_block(BlockParent::Block(other)).await;
+
+    // From the start, the tree's blocks, however the pages are cut, and none of `other`'s.
+    let tree = sorted(vec![work, first, inner, stays]);
+    for limit in [1, 2, 100] {
+        let (changed, left, _) = changes(&mut owner, work, 0, limit).await;
+        assert_eq!(changed, tree, "limit {limit}");
+        assert!(left.is_empty(), "nothing has left yet: {left:?}");
+    }
+    let (_, _, watermark) = changes(&mut owner, work, 0, 100).await;
+
+    // Nothing changed since: nothing is listed, and the sequence has not moved.
+    let (changed, left, again) = changes(&mut owner, work, watermark, 100).await;
+    assert!(changed.is_empty() && left.is_empty(), "{changed:?} {left:?}");
+    assert_eq!(again, watermark);
+
+    // A change to one block lists that block alone.
+    let referred = owner
+        .call(|peer| client::blocks::set_metadata(peer, stays, Vec::new(), Vec::new()))
+        .await;
+    assert!(referred.is_ok(), "{referred:?}");
+    let (changed, left, watermark_after) = changes(&mut owner, work, watermark, 100).await;
+    assert_eq!(changed, vec![stays]);
+    assert!(left.is_empty());
+    assert!(watermark_after > watermark, "the sequence moves with a write");
+
+    // A block moved out takes what is below it, and both are named; one moved in is listed.
+    let moved = owner.move_to(first, BlockParent::Block(other)).await;
+    assert!(moved.is_ok(), "{moved:?}");
+    let moved = owner.move_to(elsewhere, BlockParent::Block(work)).await;
+    assert!(moved.is_ok(), "{moved:?}");
+    let (changed, left, watermark_moved) =
+        changes(&mut owner, work, watermark_after, 1).await;
+    assert_eq!(changed, vec![elsewhere]);
+    assert_eq!(left, sorted(vec![first, inner]));
+
+    // A block trashed and then collected for good is still named, from before it was either.
+    let doomed = owner.create_block(BlockParent::Block(work)).await;
+    let (_, _, before_doomed) = changes(&mut owner, work, watermark_moved, 100).await;
+    let trashed = owner.move_to(doomed, BlockParent::Detached).await;
+    assert!(trashed.is_ok(), "{trashed:?}");
+    let (_, left, _) = changes(&mut owner, work, before_doomed, 100).await;
+    assert_eq!(left, vec![doomed], "trashed: it left the tree");
+    let collected = owner
+        .call(|peer| client::blocks::collect_detached(peer))
+        .await;
+    assert!(collected.is_ok(), "{collected:?}");
+    let (changed, left, _) = changes(&mut owner, work, before_doomed, 100).await;
+    assert!(changed.is_empty(), "{changed:?}");
+    assert!(left.contains(&doomed), "collected: {left:?}");
+
+    harness.stop().await;
+}
