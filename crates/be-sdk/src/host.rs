@@ -512,7 +512,7 @@ pub struct EditorHost {
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
-    changes: Rc<Cell<u64>>,
+    reads: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
@@ -624,6 +624,7 @@ impl EditorHost {
     }
 
     pub fn revision(&self, pushed: Pushed) -> u64 {
+        self.read();
         self.pushed[pushed as usize].get()
     }
 
@@ -657,12 +658,27 @@ impl EditorHost {
         made
     }
 
-    pub fn changes(&self) -> u64 {
-        self.changes.get() + self.graph.deferred()
+    /// A flag raised whenever anything the editor mirrors from the host changes, or the
+    /// graph defers a change until the next frame, and raised to begin with: an editor's
+    /// frame reads the host only when its flag is up, and takes it down.
+    pub fn change_flag(&self) -> Rc<Cell<bool>> {
+        self.graph.changes.flag()
     }
 
     fn changed(&self) {
-        self.changes.set(self.changes.get() + 1);
+        self.graph.changes.raise();
+    }
+
+    /// How many times anything read the state the host pushed (every getter an editor's
+    /// frame can reach counts). A test hook: tests check an editor's frame with nothing
+    /// pushed reads nothing.
+    #[doc(hidden)]
+    pub fn reads(&self) -> u64 {
+        self.reads.get()
+    }
+
+    fn read(&self) {
+        self.reads.set(self.reads.get() + 1);
     }
 
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
@@ -756,10 +772,12 @@ impl EditorHost {
     }
 
     pub(crate) fn card(&self) -> bool {
+        self.read();
         self.card.get()
     }
 
     pub(crate) fn take_picked(&self) -> Option<BlockPick> {
+        self.read();
         self.picked.borrow_mut().take()
     }
 
@@ -883,6 +901,7 @@ impl EditorHost {
     }
 
     pub fn watch_revision_of(&self, watch: TypeId) -> u64 {
+        self.read();
         self.watches
             .borrow()
             .revisions
@@ -1209,6 +1228,7 @@ impl EditorHost {
     }
 
     pub fn editable(&self) -> bool {
+        self.read();
         self.editable.get()
     }
 
@@ -1281,6 +1301,7 @@ impl EditorHost {
     }
 
     pub fn updated_content(&self) -> Vec<Option<Uuid>> {
+        self.read();
         self.content_updates.borrow().keys().copied().collect()
     }
 
@@ -1598,10 +1619,12 @@ impl EditorHost {
     }
 
     pub fn view(&self) -> Option<Rect> {
+        self.read();
         self.framed_view().map(|view| view.rect)
     }
 
     pub fn view_scale(&self) -> Option<f32> {
+        self.read();
         self.framed_view().map(|view| view.scale)
     }
 
@@ -1644,6 +1667,7 @@ impl EditorHost {
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
+        self.read();
         let view = self.shown_view()?;
         match self.drops.borrow().get(&view)?.dragged {
             Some(Dragged::Block(drag)) => Some(drag),
@@ -1652,6 +1676,7 @@ impl EditorHost {
     }
 
     pub fn files(&self) -> Option<FileDrop> {
+        self.read();
         let view = self.shown_view()?;
         match &self.drops.borrow().get(&view)?.dragged {
             Some(Dragged::Files(drop)) => Some(drop.clone()),
@@ -1990,10 +2015,12 @@ impl EditorHost {
     }
 
     pub fn chrome_shown(&self) -> bool {
+        self.read();
         self.chrome.get().unwrap_or(true)
     }
 
     pub fn placed_content(&self) -> Option<Rect> {
+        self.read();
         self.placed_content.get()
     }
 
@@ -2120,6 +2147,7 @@ impl EditorHost {
     }
 
     pub fn frame_anchor(&self) -> Option<Rect> {
+        self.read();
         self.frame_anchor.get()
     }
 
@@ -2179,6 +2207,7 @@ impl EditorHost {
     }
 
     pub fn presenting(&self) -> bool {
+        self.read();
         self.presenting.get()
     }
 
@@ -2263,6 +2292,7 @@ impl EditorHost {
     }
 
     pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
+        self.read();
         self.child_statuses.borrow().get(&child).cloned()
     }
 
@@ -2366,6 +2396,7 @@ impl EditorHost {
     }
 
     pub fn flush_graph(&self) {
+        self.read();
         self.graph.flush();
     }
 
@@ -2482,6 +2513,7 @@ impl EditorHost {
     }
 
     pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
+        self.read();
         self.child_bars
             .borrow_mut()
             .remove(&child)
@@ -2489,6 +2521,7 @@ impl EditorHost {
     }
 
     pub fn take_child_focus(&self, child: ChildId) -> bool {
+        self.read();
         self.child_focuses.borrow_mut().remove(&child)
     }
 

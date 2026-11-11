@@ -47,6 +47,8 @@ mod my_files_offers_no_delete_but_another_workspace_does;
 mod open_with_offers_the_programs_that_open_a_files_extension;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod opens_in_keeps_an_editor_for_one_block;
+mod paste_on_a_folder_moves_a_cut_link_out_of_where_it_was;
+mod paste_on_a_folder_places_the_copied_blocks_there;
 mod renaming_a_row_edits_its_name_in_place;
 mod renaming_a_row_on_a_phone_edits_it_in_place;
 mod reopening_a_folder_shows_its_children_at_once;
@@ -173,6 +175,57 @@ impl Fixture {
             .map(|open| open.block_id)
             .collect()
     }
+}
+
+/// Pastes `block` on `folder` from its row menu, the host answering `moved`.
+fn paste_into_folder(fixture: &mut Fixture, folder: Uuid, block: Uuid, moved: bool) {
+    fixture.choose(folder, "Paste");
+    let copied = be_sdk_beui::beui::clipboard::Blocks {
+        blocks: vec![be_sdk_beui::beui::clipboard::ClipBlock {
+            id: block,
+            organization: None,
+            block_type: PLAIN,
+            title: "Notes".to_owned(),
+        }],
+    };
+    fixture.test.step(vec![Input::Paste(
+        be_sdk_beui::beui::clipboard::ClipFormat::encode(&copied),
+    )]);
+    fixture.settle();
+    let asked = fixture
+        .test
+        .take_requests()
+        .into_iter()
+        .filter_map(|call| match call {
+            be_sdk_test::HostCall::PasteBlocks {
+                reply,
+                blocks,
+                parent,
+                ..
+            } => Some((reply, blocks, parent)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(reply, blocks, parent)]: [_; 1] = asked
+        .try_into()
+        .unwrap_or_else(|asked: Vec<_>| panic!("the paste asks the host once, asked {asked:?}"));
+    assert_eq!(
+        (blocks, parent),
+        (
+            vec![block.into_bytes()],
+            be_sdk_beui::BlockParent::Block(folder).encode()
+        ),
+        "the clip goes into the folder the menu was opened on"
+    );
+    fixture.test.answer(
+        reply,
+        Ok(vec![be_sdk_beui::PastedBlock {
+            block_id: block.into_bytes(),
+            block_type: PLAIN.into_bytes(),
+            moved,
+        }]),
+    );
+    fixture.settle();
 }
 
 const MY_FILES: Uuid = be_sdk_beui::be_block::my_files(Uuid::nil(), Uuid::nil());

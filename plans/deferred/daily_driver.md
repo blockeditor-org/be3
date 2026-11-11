@@ -1,6 +1,6 @@
 # Daily driver
 
-Depends on: plans/search.md, and plans/backlog.md item 1 (Push, don't poll).
+Depends on: plans/search.md.
 
 A plan to get the host to the point where the user keeps their own notes in it.
 Each item says what "done" looks like.
@@ -93,7 +93,6 @@ llvmpipe.
 6. **Idle.**
    - Stop the caret blink (`CARET_BLINK`, `beui-core/src/base/text.rs`) after a
      few seconds without input, as most editors do.
-   - Finish the "Push, don't poll" backlog item.
    - Done when a test confirms a focused, idle editor requests no frames.
 
 Add a frame-time benchmark that types into a generated 10 MB markdown file
