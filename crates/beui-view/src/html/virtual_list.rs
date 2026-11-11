@@ -253,8 +253,20 @@ where
         untrack(|| held.set_keys(keys));
     });
     untrack(|| rows.lay_out());
+    beui_core_html::document::set_state(list, Box::new(Rc::clone(&rows)));
     let held = Rc::clone(&rows);
     on_cleanup(move || drop(held.items.retain(&[])));
     beui_core_html::frame::on_layout(Rc::new(move || rows.lay_out()));
     list
+}
+
+/// Where the row of `key` starts along `list`, from the sizes measured so far, as natively.
+pub(crate) fn row_offset<K: Clone + Hash + Eq + 'static>(list: NodeId, key: &K) -> Option<f32> {
+    let rows = beui_core_html::document::state::<Rc<Rows<K>>>(list)?;
+    let index = rows
+        .keys
+        .borrow()
+        .iter()
+        .position(|numbered| numbered.0 == *key && numbered.1 == 0)?;
+    Some(rows.metrics.borrow().position(index))
 }

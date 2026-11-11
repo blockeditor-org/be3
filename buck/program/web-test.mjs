@@ -11,6 +11,12 @@
 // place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
 // revealed it; after a reveal every target of the command is found again, as native drive
 // does), so the browser's own focus, key and text paths run.
+// `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
+// `attribute CSS NAME VALUE|none`, `history LENGTH`, `loads COUNT` and `history-state marker|none` (browser
+// only) wait for an element's attribute, the history's length, and whether the current entry's
+// state is the page's own back entry (`history.length` never shrinks on back, so only the state
+// shows an entry taken back), and `reload` reloads the page; a shared script gives them as
+// `#web` lines. `loads COUNT` fails unless the page has loaded exactly COUNT times.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
@@ -139,6 +145,10 @@ async function open(query, colorScheme = "light") {
     });
     const log = [];
     const errors = [];
+    // How many times the page has loaded, which a reload or a traversal off the page's own
+    // entry raises, but a same-document one does not.
+    page.beuiLoads = 0;
+    page.on("load", () => page.beuiLoads++);
     page.on("console", (message) => log.push(`[${message.type()}] ${message.text()}`));
     page.on("pageerror", (error) => errors.push(String(error?.stack ?? error)));
     await page.goto(origin + query);
@@ -267,6 +277,82 @@ async function step(page, words) {
         case "key":
             for (const pressed of args) await page.keyboard.press(chord(pressed));
             return settle();
+        case "clipboard": {
+            // Sets the clipboard for a following `key ctrl+v`, as native drive's does.
+            if (args.length === 0) throw new Failure("clipboard takes the TEXT to hold; the browser run cannot read it back");
+            await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+            await page.evaluate((text) => navigator.clipboard.writeText(text), args.join(" "));
+            return "";
+        }
+        case "back":
+            if (args.length > 0) throw new Failure("back takes nothing in the browser, which goes back at once");
+            await page.evaluate(() => history.back());
+            return settle();
+        case "attribute": {
+            // attribute CSS NAME VALUE|none: waits until the one element CSS selects has
+            // attribute NAME at VALUE, or none.
+            const [selector, name, value] = args;
+            if (!selector || !name || value === undefined) throw new Failure("attribute takes a CSS selector, a NAME and a VALUE or none");
+            const wanted = value === "none" ? null : value;
+            try {
+                await page.waitForFunction(([selector, name, wanted]) => {
+                    const found = document.querySelectorAll(selector);
+                    return found.length === 1 && found[0].getAttribute(name) === wanted;
+                }, [selector, name, wanted], { timeout: timeout * 1000 });
+            } catch {
+                const shown = await page.evaluate(([selector, name]) => [...document.querySelectorAll(selector)].map((element) => element.getAttribute(name)), [selector, name]);
+                throw new Failure(`${selector} has ${name} ${JSON.stringify(shown)}, not ${JSON.stringify(wanted)}`);
+            }
+            return "";
+        }
+        case "reload": {
+            // reload: reloads the page, and waits for it to start and settle again.
+            await page.reload();
+            await page.waitForFunction(() => globalThis.beuiStarted !== undefined);
+            const started = await page.evaluate(async () => {
+                try {
+                    await globalThis.beuiStarted;
+                    return null;
+                } catch (error) {
+                    return String(error?.stack ?? error);
+                }
+            });
+            if (started) throw new Failure(`the page did not start after the reload: ${started}`);
+            return settle();
+        }
+        case "history": {
+            // history LENGTH: waits until the page's history holds LENGTH entries.
+            const wanted = Number(args[0]);
+            if (!Number.isInteger(wanted)) throw new Failure("history takes a LENGTH");
+            try {
+                await page.waitForFunction((wanted) => history.length === wanted, wanted, { timeout: timeout * 1000 });
+            } catch {
+                throw new Failure(`history holds ${await page.evaluate(() => history.length)} entries, not ${wanted}`);
+            }
+            return "";
+        }
+        case "loads": {
+            // loads COUNT: waits until the page has loaded COUNT times (the first load
+            // counts), so a step that must stay on the document can show it did.
+            const wanted = Number(args[0]);
+            if (!Number.isInteger(wanted)) throw new Failure("loads takes a COUNT");
+            const deadline = Date.now() + timeout * 1000;
+            while (page.beuiLoads < wanted && Date.now() < deadline) await page.waitForTimeout(20);
+            if (page.beuiLoads !== wanted) throw new Failure(`the page loaded ${page.beuiLoads} times, not ${wanted}`);
+            return "";
+        }
+        case "history-state": {
+            // history-state marker|none: waits until the current history entry holds the
+            // page's own back entry (state beuiBack), or none of it.
+            const wanted = { marker: true, none: false }[args[0]];
+            if (wanted === undefined) throw new Failure(`history-state takes marker or none, not ${args[0]}`);
+            try {
+                await page.waitForFunction((wanted) => (history.state?.beuiBack === true) === wanted, wanted, { timeout: timeout * 1000 });
+            } catch {
+                throw new Failure(`the history entry's state is ${JSON.stringify(await page.evaluate(() => history.state))}, not ${args[0]}`);
+            }
+            return "";
+        }
         case "selection": {
             const wanted = { none: false, some: true }[args[0]];
             if (wanted === undefined) throw new Failure(`selection takes none or some, not ${args[0]}`);
@@ -385,7 +471,7 @@ async function runScript(script) {
     const opened = await open(`?fixture=${encodeURIComponent(name)}`);
     try {
         if (opened.errors.length) throw new Failure(opened.errors[0]);
-        for (const { line, words } of commands(await readFile(script, "utf8"))) {
+        for (const { line, words } of commands(await readFile(script, "utf8"), { web: true })) {
             transcript.push(`> ${line}`);
             const output = await step(opened.page, words);
             if (output) transcript.push(output.replace(/\n$/, ""));

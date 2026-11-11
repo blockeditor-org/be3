@@ -120,10 +120,13 @@ struct Instance {
     child_dismissals: Vec<ChildId>,
     child_closes: Vec<ChildId>,
     child_focus: Vec<ChildId>,
-    /// Blocks the editor asked to give the keyboard to once a child shows them, each with
-    /// whether a layout commit has gone by since: a gift whose block no child shows by the
-    /// commit after that ends.
-    block_focus: Vec<(Uuid, bool)>,
+    /// Blocks the editor asked to give the keyboard to once a child shows them. A gift ends
+    /// when a child shows its block or when it is refused, never after a number of commits: how
+    /// long the editor takes to place the child (its content must change first) is not bounded.
+    block_focus: Vec<Uuid>,
+    /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
+    /// after the failed call) ends at once.
+    block_refused: Vec<Uuid>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
@@ -291,6 +294,7 @@ impl Instance {
             child_closes: Vec::new(),
             child_focus: Vec::new(),
             block_focus: Vec::new(),
+            block_refused: Vec::new(),
             created: None,
             screens: HashMap::default(),
             anchored: Vec::new(),
@@ -2985,11 +2989,16 @@ impl Instances {
     }
 
     /// After a layout commit: a block gift whose block a child now shows becomes a gift to that
-    /// child; one whose block no child showed by the commit after the one it was asked in ends,
-    /// as when the block was never made or the editor stopped showing it.
+    /// child. One whose block no child shows yet stays, as the editor may still be placing it,
+    /// unless the editor has no view left.
     pub(super) fn settle_block_focus(&mut self) {
         for entry in self.entries.values_mut() {
             if entry.block_focus.is_empty() {
+                continue;
+            }
+            if entry.screens.is_empty() && entry.anchored.is_empty() {
+                // No view of the editor is left to give the keyboard from.
+                entry.block_focus.clear();
                 continue;
             }
             let anchored = entry.anchored.iter().map(|held| &held.screen);
@@ -3002,14 +3011,12 @@ impl Instances {
                 .filter_map(|placed| Some((placed.child, shown_block(&placed.content)?)))
                 .collect();
             let mut given = Vec::new();
-            entry.block_focus.retain_mut(|(block, seen)| {
-                if let Some((child, _)) = shown.iter().find(|(_, shows)| shows == block) {
-                    given.push(*child);
-                    return false;
-                }
-                let first = !*seen;
-                *seen = true;
-                first
+            entry.block_focus.retain(|block| {
+                let Some((child, _)) = shown.iter().find(|(_, shows)| shows == block) else {
+                    return true;
+                };
+                given.push(*child);
+                false
             });
             for child in given {
                 if !entry.child_focus.contains(&child) {
@@ -3881,8 +3888,16 @@ impl Instances {
             ShellCall::FocusBlockChild { reply, block, .. } => {
                 ack(reply);
                 let block = Uuid::from_bytes(block);
-                if !entry.block_focus.iter().any(|(asked, _)| *asked == block) {
-                    entry.block_focus.push((block, false));
+                if let Some(at) = entry
+                    .block_refused
+                    .iter()
+                    .position(|refused| *refused == block)
+                {
+                    entry.block_refused.remove(at);
+                } else {
+                    // Only the latest ask stands: the person can type into one place.
+                    entry.block_focus.clear();
+                    entry.block_focus.push(block);
                 }
             }
             ShellCall::ShowCard { reply, card, .. } => {

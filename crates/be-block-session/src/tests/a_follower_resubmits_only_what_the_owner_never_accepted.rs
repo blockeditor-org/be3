@@ -8,11 +8,13 @@ fn a_follower_resubmits_only_what_the_owner_never_accepted() {
 
     let SessionMessage::Submit {
         id: first, payload, ..
-    } = follower.submit(b"insert one".to_vec())
+    } = follower.submit(Payload::Inline(b"insert one".to_vec()))
     else {
         panic!("a submission is a submit message");
     };
-    let SessionMessage::Submit { id: second, .. } = follower.submit(b"insert two".to_vec()) else {
+    let SessionMessage::Submit { id: second, .. } =
+        follower.submit(Payload::Inline(b"insert two".to_vec()))
+    else {
         panic!("a submission is a submit message");
     };
     assert_eq!(follower.pending(), 2);
@@ -46,7 +48,7 @@ fn a_follower_resubmits_only_what_the_owner_never_accepted() {
                 client: 9,
                 counter: 1,
             },
-            b"from elsewhere".to_vec(),
+            Payload::Inline(b"from elsewhere".to_vec()),
         )
         .unwrap();
     assert!(follower.accepted(&peer), "a peer's op should be applied");

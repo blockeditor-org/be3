@@ -16,7 +16,7 @@ use beui_view::drag::EdgeScroller;
 use beui_view::escape::beui_html::{
     Event as HtmlEvent, Node as HtmlNode, attr, elements as html, on,
 };
-use beui_view::escape::html_escape;
+use beui_view::escape::{Escape, html_escape};
 use beui_view::primitives::*;
 use beui_view::reactive::KeyAt;
 use beui_view::reactive::NodeId;
@@ -32,7 +32,7 @@ use beui_view::types::{
     AutoscrollGesture, CursorIcon, DragGesture, Key, KeyPress, PointerPress, ScrollGesture, Vec2,
     WHEEL_LATCH_TIMEOUT, WheelInput,
 };
-use beui_view::types::{Direction, Justify, ScrollPosition};
+use beui_view::types::{Color, Direction, Justify, ScrollPosition};
 use beui_view::{CORE, Core};
 
 const STEP: f32 = 40.0;
@@ -59,6 +59,7 @@ pub struct ScrollHandle {
 pub struct ScrollbarStyle {
     bar: Option<(f32, RenderFn<ScrollHandle, NodeId>)>,
     fade: f32,
+    browser: Option<(Prop<Color>, Prop<Color>)>,
 }
 
 impl ScrollbarStyle {
@@ -66,6 +67,17 @@ impl ScrollbarStyle {
         Self {
             bar: Some((width, RenderFn::new(bar))),
             fade: 0.0,
+            browser: None,
+        }
+    }
+
+    /// The thumb and track colours of the browser's own bar, which every scroll
+    /// on the HTML core shows in place of `bar`; thin, as `scrollbar-color`.
+    /// Natively they do nothing.
+    pub fn browser_colors(self, thumb: impl IntoProp<Color>, track: impl IntoProp<Color>) -> Self {
+        Self {
+            browser: Some((thumb.into_prop(), track.into_prop())),
+            ..self
         }
     }
 
@@ -1077,6 +1089,18 @@ fn BrowserScroll(
         escape.style("overflow-anchor", "auto".to_owned());
         if bare {
             escape.style("scrollbar-width", "none".to_owned());
+        } else if let Some((thumb, track)) = scrollbar.browser {
+            escape.style("scrollbar-width", "thin".to_owned());
+            escape.style(
+                "scrollbar-color",
+                Prop::dynamic(move || {
+                    Some(format!(
+                        "{} {}",
+                        Escape::color(thumb.get()),
+                        Escape::color(track.get())
+                    ))
+                }),
+            );
         }
         escape.style("display", "grid".to_owned());
         let track = "minmax(100%, max-content)";

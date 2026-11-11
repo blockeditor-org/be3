@@ -36,6 +36,13 @@ const REACHING_PAST: &[&str] = &[
     "list-access",
     "set-recovery-key",
     "create-escrow",
+    "push-key",
+    "offers-fcm",
+    "register-endpoint",
+    "unregister-endpoint",
+    "notify-modes",
+    "notify-modes-changed",
+    "set-notify-mode",
 ];
 
 /// Calls that name no block, which a terminal host makes on connecting; each answers only

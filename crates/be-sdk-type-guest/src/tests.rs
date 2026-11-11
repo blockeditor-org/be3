@@ -28,17 +28,24 @@ mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_file_maps_to_a_block_and_back;
 mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
+mod a_follower_obeys_only_three_resends_in_a_row;
+mod a_follower_reads_a_part_again_when_a_read_fails;
 mod a_follower_replaces_the_content_and_the_owner_takes_it;
 mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
+mod a_follower_that_cannot_read_a_part_catches_up_from_the_head;
 mod a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up;
+mod a_follower_that_gave_up_twice_across_a_promotion_still_catches_up;
 mod a_follower_that_missed_messages_catches_up_once_resynchronized;
 mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
 mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
 mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
+mod a_follower_whose_catchup_was_lost_asks_again;
 mod a_followers_edit_too_large_to_relay_lands_once;
 mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
 mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
+mod a_followers_paste_too_large_to_relay_lands_once_over_the_owners_unsealed_edits_and_undoes_alone;
+mod a_followers_put_that_failed_is_tried_again;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
@@ -47,6 +54,8 @@ mod a_late_joiner_types_where_it_sees_the_caret;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
+mod a_new_owner_replays_a_journaled_edit_by_its_part;
+mod a_part_longer_than_any_edit_is_not_read;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
@@ -56,21 +65,28 @@ mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over
 mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
+mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
+mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
+mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
-mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
+mod an_owner_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_owner;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
+mod an_owner_that_cannot_read_a_followers_part_has_it_sent_again;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
+mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
+mod messages_piled_behind_an_unreadable_part_make_a_follower_catch_up;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
+mod two_oversized_edits_in_a_row_land_in_order;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
@@ -386,6 +402,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_relay: usize,
     part_reads: usize,
     parts_put: usize,
+    fail_puts: usize,
+    fail_reads: usize,
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
@@ -440,6 +458,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             largest_relay: 0,
             part_reads: 0,
             parts_put: 0,
+            fail_puts: 0,
+            fail_reads: 0,
             largest_written: 0,
             written: 0,
             journal: None,
@@ -520,9 +540,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         if let Some(head) = self.head
             && local != self.head
         {
-            self.with_replica(device, |replica, host| {
-                replica.head_moved(host, head, false)
-            });
+            self.with_replica(device, |replica, host| replica.head_moved(host, head));
         }
         self.lease_changed(Some(device));
         self.settle();
@@ -684,9 +702,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             if Some(device) == publisher {
                 continue;
             }
-            self.with_replica(device, |replica, host| {
-                replica.head_moved(host, head, false)
-            });
+            self.with_replica(device, |replica, host| replica.head_moved(host, head));
         }
     }
 
@@ -930,14 +946,26 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::ReadPart { reply, part, range } => {
                 self.part_reads += 1;
+                if self.fail_reads > 0 {
+                    self.fail_reads -= 1;
+                    let result: Result<Vec<u8>, String> = Err("the server is unreachable".into());
+                    return self.to(device, |host| reply.send(host, &result));
+                }
                 let result = self
                     .vault
                     .read_part(part.into(), range.offset, range.length)
                     .map_err(|error| error.to_string());
                 self.to(device, |host| reply.send(host, &result));
             }
+            call @ Call::PutPart { .. } if self.stalled => self.held.push((device, call)),
             Call::PutPart { reply, bytes } => {
                 self.parts_put += 1;
+                if self.fail_puts > 0 {
+                    self.fail_puts -= 1;
+                    let result: Result<be_sdk_type_api::PartRef, String> =
+                        Err("the server is unreachable".to_owned());
+                    return self.to(device, |host| reply.send(host, &result));
+                }
                 let result = self
                     .vault
                     .write(SEALING, Uuid::nil(), be_block::Part::from(bytes.as_slice()))

@@ -1,8 +1,10 @@
 use be_sdk_beui::be_block::{self, BlockContent, SettingsContent};
+use be_sdk_beui::beui::ClipItem;
+use be_sdk_beui::beui::clipboard::Blocks;
 use be_sdk_beui::beui::icons::{
-    ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE,
-    ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS, ICON_SHARE_2,
-    ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
+    ICON_CLIPBOARD_PASTE, ICON_COPY, ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP,
+    ICON_PALETTE, ICON_PENCIL_LINE, ICON_ROTATE_CCW_CLOCK, ICON_SCISSORS, ICON_SETTINGS,
+    ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -26,7 +28,20 @@ pub(crate) struct RowTools {
     pub(crate) inspected_from: NodeRef,
     pub(crate) zoom: Zoom,
     pub(crate) renaming: Renaming,
+    pub(crate) tree_api: ComponentRef<TreeApi<RowKey>>,
+    pub(crate) cut: CutReference,
 }
+
+/// A link this files pane cut, which the paste that uses up the host's record
+/// of the cut moves out of where it was cut from rather than linking again.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) struct CutLink {
+    block: Uuid,
+    block_type: Uuid,
+    source: BlockParent,
+}
+
+pub(crate) type CutReference = Stored<std::cell::Cell<Option<CutLink>>>;
 
 #[component]
 pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
@@ -208,6 +223,8 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
         inspect,
         inspected_from,
         renaming,
+        tree_api,
+        cut: cut_link,
         ..
     } = tools;
     let leavable = leavable(editor, row);
@@ -291,12 +308,27 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     };
     let copy_row = move || {
         if let Some((id, shown)) = shown() {
+            cut_link.value().set(None);
             editor.copy_blocks(&[(id, shown.block_type, shown.label.clone())]);
+        }
+    };
+    let paste = move || {
+        // The paste reaches the focus, so the row the menu was opened on takes it.
+        if let Some((_, shown)) = shown().filter(|(_, shown)| shown.can_add) {
+            if let Some(api) = tree_api.try_get() {
+                api.focus(shown.key);
+            }
+            be_sdk_beui::beui::reactive::request_paste();
         }
     };
     let cut = move || {
         if let Some((id, shown)) = shown() {
             editor.copy_blocks(&[(id, shown.block_type, shown.label.clone())]);
+            cut_link.value().set(shown.is_reference.then_some(CutLink {
+                block: id,
+                block_type: shown.block_type,
+                source: shown.source,
+            }));
             if let Some(container) = shown.container {
                 editor.host().cut_blocks(&[id], container);
             }
@@ -384,6 +416,13 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 disabled={rooted}
                 row_test_id={"file-tree.cut".to_owned()}
                 on_click={cut}
+            />
+            <MenuItem
+                label="Paste"
+                glyph=ICON_CLIPBOARD_PASTE
+                disabled={add}
+                row_test_id={"file-tree.paste".to_owned()}
+                on_click={paste}
             />
             <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
@@ -473,4 +512,34 @@ fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) ->
     view! {
         <MenuItem label="Settings" glyph=ICON_SETTINGS disabled row_test_id on_click={open} />
     }
+}
+
+/// Pastes a `be3/blocks` clip into the folder `row` shows. The host
+/// (`paste-blocks`) moves a block cut from its parent there and answers with
+/// the blocks this editor may view. A link this pane cut moves out of where it
+/// was cut from; every other block answered is linked into the folder here, as
+/// the add picker links a block.
+pub(crate) fn paste_into(editor: Editor, cut: CutReference, row: Option<Row>, pasted: ClipItem) {
+    let Some(folder) = row.filter(|row| row.can_add).and_then(|row| row.id) else {
+        return;
+    };
+    let Some(blocks) = pasted.decode::<Blocks>() else {
+        return;
+    };
+    let ids: Vec<Uuid> = blocks.blocks.iter().map(|block| block.id).collect();
+    let host = editor.host();
+    let asked = host.paste_blocks(&ids, BlockParent::Block(folder));
+    let _ = editor.then(asked, move |pasted| {
+        let link = cut.try_with(|cut| cut.take()).flatten();
+        for (block, block_type, moved) in pasted {
+            if moved {
+                continue;
+            }
+            match link.filter(|link| link.block == block) {
+                Some(link) if link.source == BlockParent::Block(folder) => {}
+                Some(link) => host.move_block(block, link.block_type, link.source, folder, true),
+                None => host.place_block(block, block_type, folder, true),
+            }
+        }
+    });
 }

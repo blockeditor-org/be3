@@ -332,7 +332,7 @@ def spawn(missing, burst=False):
     save_state(st)
 
 
-def reap_and_extend(workers, active, wanted):
+def reap_and_extend(workers, active, wanted, alive):
     names = {w["name"] for w in workers}
     peers, _ = wg_peers()
     # The running interface must match the config file: drop any peer that is no longer in the file.
@@ -349,7 +349,10 @@ def reap_and_extend(workers, active, wanted):
     if not active:
         return
     for w in workers:
-        if w["name"] not in wanted:
+        # A worker that runs out mid-build takes its running actions with it, and the scheduler gives them to another
+        # only after its worker timeout (120 s), so while a build runs every connected worker is kept; past the target
+        # they lapse once builds stop.
+        if w["name"] not in wanted and w["name"] not in alive:
             continue
         burst = w["name"].startswith("nl-w-b")
         left = (parse_time(w.get("archiveAfter")) or 0) - time.time()
@@ -401,7 +404,7 @@ def tick(state, force_active):
     state["target"] = target
     log(f"build running: {active} | workers: {len(workers)} ({len(alive)} connected, {len(starting)} starting) | target {target}{note}")
     wanted = {w["name"] for w in sorted(alive + starting, key=lambda w: parse_time(w.get("createdAt")) or 0)[:target]}
-    reap_and_extend(workers, active, wanted)
+    reap_and_extend(workers, active, wanted, {w["name"] for w in alive})
     if active:
         missing = target - len(alive) - len(starting)
         if missing > 0:

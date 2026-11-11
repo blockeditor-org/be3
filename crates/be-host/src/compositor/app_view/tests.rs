@@ -1,6 +1,9 @@
+use super::held_keys::{self, App, View};
 use super::*;
 use be_host_runtime::HostContent;
 use be_sdk_api::{ChildLayer, ChildMode, HostWindowId, TopBar};
+use be_sdk_api::{EditorInstanceId, ViewId};
+use beui::{KeyPress, PointerButton};
 
 pub(super) fn child(clip: Rect) -> HostChild {
     HostChild {
@@ -68,5 +71,67 @@ pub(super) fn placed(children: Vec<HostChild>) -> PlacedView {
 mod a_child_moving_into_another_view_of_its_instance_keeps_its_node_and_follows_it;
 mod a_child_moving_out_of_a_view_during_layout_leaves_no_removed_node_to_paint;
 mod a_pan_drag_asked_for_late_pans_from_the_press;
+mod a_rebuilt_catcher_takes_the_keyboard_its_view_had_unless_it_went_elsewhere;
+mod keys_owed_to_a_child_wait_again_when_its_content_is_replaced;
+mod keys_typed_after_a_press_the_app_was_never_sent_are_not_held;
 mod keys_typed_before_a_child_takes_the_keyboard_wait_for_it;
+mod keys_typed_right_after_a_press_wait_for_the_frame_that_answers_it;
 mod the_view_opened_last_of_those_that_want_the_keyboard_holds_it;
+
+const DECK: (&str, EditorInstanceId) = ("be3.presentation", EditorInstanceId(16));
+const TEXT: (&str, EditorInstanceId) = ("be3.text", EditorInstanceId(17));
+fn deck_view() -> View {
+    (DECK.0.to_owned(), DECK.1, ViewId::MAIN)
+}
+fn notes_view() -> View {
+    (TEXT.0.to_owned(), TEXT.1, ViewId::MAIN)
+}
+fn press() -> Forwarded {
+    Forwarded::Pointer {
+        event: PointerEvent {
+            pointer: PointerId::Mouse,
+            window: beui::WindowId::MAIN,
+            phase: PointerPhase::Down(PointerButton::Primary),
+            pos: pos2(10.0, 10.0),
+            modifiers: Default::default(),
+            clicks: 1,
+            force: None,
+            pen: None,
+            predicted: None,
+            time: beui::reactive::now(),
+            source: 0,
+        },
+        over: None,
+    }
+}
+fn letter(text: &str) -> Forwarded {
+    Forwarded::Input(beui::Event::Key {
+        press: KeyPress {
+            key: beui::Key::A,
+            pressed: true,
+            repeat: false,
+            modifiers: beui::Modifiers::NONE,
+        },
+        evdev: None,
+        text: Some(text.to_owned()),
+    })
+}
+fn app(asked: u64, answered: u64) -> App {
+    App {
+        frames: (asked, answered),
+        content: true,
+        typing: false,
+    }
+}
+fn deck(pending: bool, frames: App, events: Vec<Forwarded>) -> Vec<Forwarded> {
+    let mut input = ForwardedInput {
+        events,
+        rect: Rect::ZERO,
+        hovered: true,
+        focused: true,
+        pointer: None,
+        modifiers: beui::Modifiers::NONE,
+    };
+    held_keys::route(&deck_view(), pending, frames, &mut input);
+    input.events
+}

@@ -3,6 +3,8 @@
 # has a value it rests.
 settle
 wait 'ProgressIndicator "Upload"'
+# A pause on a running clock replies once its time has passed, though the bar repaints forever.
+pause 100
 wait 'value="Uploading"'
 click 'Button "Finish"'
 wait 'value="Upload done"'

@@ -203,7 +203,8 @@ be-tool-fix-rust-source enforces the layout:
   server-rendered page and both cores agree; on HTML they become `var(--…)`
   and follow the scheme without a redraw.
 
-The inspector and app hosting are native only. On HTML a `Window` shows as its
+The inspector and app hosting are native only; `beui::can_open_inspector()`
+says in advance whether one opens. On HTML a `Window` shows as its
 overlay and `window_of` is always the main window.
 
 ### The HTML core
@@ -219,6 +220,9 @@ of their own (`scroll`, `rows`, `canvas`, `overlay`, `portal`, `text`) are
 modules of `beui-core-html`, each registering a pass with `frame::on_layout`
 that runs before paint; `ResizeObserver`s call `frame::relayout()` so a resize
 is corrected in the same frame.
+
+Back is the browser's back, reaching what `Dismiss::Back` reaches natively
+(guides/beui/overlays.md, Back and `BackSlide`).
 
 A component's accessibility node becomes ARIA through the one table in
 `beui-core-html`'s `aria.rs`. Drive lines come from the accessibility nodes,

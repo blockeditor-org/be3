@@ -93,7 +93,8 @@ be-sdk-beui turns each into a signal, so beui editors never see callbacks.
 
 The editor state over `EditorHost` is plain too (`be-sdk/src/editor_state.rs`):
 `EditorCore` (content cache, view state, peers, pan and zoom, reported sizes,
-placed children; `begin_frame` reads a `ShownEditor` in framework points),
+placed children; `begin_frame` reads a `ShownEditor` in framework points, and
+reads the host only while its `EditorHost::change_flag` is raised),
 `ArtifactsCore`, `CreationCore`, `SettingsLayers<R>` and `SettingsChangeLog`.
 be-sdk-beui's `Editor`, `Artifacts`, `Creation`, `Fitting` and
 `LayeredSettings` wrap them with signals; what needs beui (placing children,

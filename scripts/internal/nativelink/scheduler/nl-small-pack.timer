@@ -1,7 +1,7 @@
 [Unit]
-Description=Pack NativeLink's small-object tier every 5 minutes
+Description=Pack NativeLink's small-object tier every 15 minutes
 [Timer]
 OnBootSec=3min
-OnUnitActiveSec=5min
+OnUnitActiveSec=15min
 [Install]
 WantedBy=timers.target

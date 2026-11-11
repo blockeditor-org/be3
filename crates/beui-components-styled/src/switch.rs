@@ -23,6 +23,7 @@ pub fn Switch(
     #[prop(default = false)] indeterminate: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = String::new())] name: Prop<String>,
 ) -> NodeId {
     view! {
         <Toggle
@@ -31,6 +32,7 @@ pub fn Switch(
             mixed={indeterminate}
             label
             disabled
+            name
             role=Role::Switch
         >|handle: ToggleHandle|
             <SwitchTrack handle />

@@ -4,19 +4,20 @@ use std::collections::HashSet;
 use be_sdk_beui::BlockParent;
 use be_sdk_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
+use be_sdk_beui::beui::clipboard::formats;
 use be_sdk_beui::beui::icons::{
     Glyph, ICON_DOWNLOAD, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Color32, NodeId, Rect};
+use be_sdk_beui::beui::{ClipItem, Color32, NodeId, Rect};
 use be_sdk_beui::{AdministratorWatch, BlockFilter, Drag, Editor, phone_layout};
 use be_sdk_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter};
 use super::hits::{ContentHits, content_hits};
-use super::menu::{RowMenu, RowTools};
+use super::menu::{RowMenu, RowTools, paste_into};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use super::toolbar::{Adding, FilesToolbar};
@@ -53,6 +54,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         inspected_from,
         zoom,
         renaming,
+        tree_api: tree_ref,
+        cut: store(std::cell::Cell::new(None)),
     };
     let rows = tree.rows();
     let focused_block = editor.focused_block();
@@ -238,6 +241,21 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         }}
                                         editing={renaming.editing()}
                                         reorder=true
+                                        pastes={move |key: RowKey| {
+                                            let folder = rows.with_untracked(|rows| {
+                                                rows.iter().any(|row| row.key == key && row.can_add)
+                                            });
+                                            match folder {
+                                                true => vec![formats::BLOCKS.to_owned()],
+                                                false => Vec::new(),
+                                            }
+                                        }}
+                                        on_paste={move |(key, pasted): (RowKey, ClipItem)| {
+                                            let row = tree.rows().with_untracked(|rows| {
+                                                rows.iter().find(|row| row.key == key).cloned()
+                                            });
+                                            paste_into(editor, tools.cut, row, pasted)
+                                        }}
                                         on_select={open}
                                         on_expand={expand}
                                         on_reveal={reveal}
