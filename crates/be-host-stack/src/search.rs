@@ -50,7 +50,7 @@ const SHOWN: usize = 20;
 
 /// The most of a document's text the index takes, in bytes: a larger one is indexed by its
 /// start.
-const MAX_TEXT: usize = 1 << 20;
+pub(crate) const MAX_TEXT: usize = 1 << 20;
 
 /// Texts kept for snippets, by document and head, before they are all let go.
 const TEXTS: usize = 256;
@@ -178,12 +178,59 @@ impl Searching {
 
     pub(crate) fn answer(&self, asked: &SearchAsk) -> Option<Searched> {
         let mut shown = self.answers.get(asked)?.shown.clone()?;
-        shown.complete = self.dirty.is_empty()
+        shown.complete = self.indexed();
+        Some(shown)
+    }
+
+    /// Nothing this device could index is queued, parked, being made or being written.
+    pub(crate) fn indexed(&self) -> bool {
+        self.dirty.is_empty()
             && self.writing.is_empty()
             && self.waiting.is_empty()
             && self.parked.is_empty()
-            && self.creating.is_empty();
-        Some(shown)
+            && self.creating.is_empty()
+    }
+
+    /// An index that could not be made: its root's blocks that waited for it are looked at
+    /// again, and find no index to wait for.
+    pub(crate) fn make_failed(&mut self, root: Uuid) {
+        self.creating.remove(&root);
+        let waiting = std::mem::take(&mut self.waiting);
+        self.dirty.extend(waiting);
+    }
+
+    /// Blocks parked for an index queue again once it has a head (`arrived`) or no root
+    /// names it any more (`named`): the second finds them no index, so they drop out.
+    pub(crate) fn release_parked(
+        &mut self,
+        arrived: impl Fn(Uuid) -> bool,
+        named: impl Fn(Uuid) -> bool,
+    ) {
+        for (index, blocks) in std::mem::take(&mut self.parked) {
+            match arrived(index) || !named(index) {
+                true => self.dirty.extend(blocks),
+                false => self.parked.push((index, blocks)),
+            }
+        }
+    }
+
+    /// Queues a block to wait for its root's index, which is being made (a test's way into
+    /// `index`'s bookkeeping).
+    #[cfg(test)]
+    pub(crate) fn wait_for_index(&mut self, root: Uuid, index: Uuid, block: Uuid) {
+        self.creating.insert(root, index);
+        self.waiting.insert(block);
+    }
+
+    /// Takes the queued blocks (a test's way to see what `index` would look at).
+    #[cfg(test)]
+    pub(crate) fn take_queued(&mut self) -> Vec<Uuid> {
+        std::mem::take(&mut self.dirty).into_iter().collect()
+    }
+
+    /// Parks blocks for an index that has no head on this device yet.
+    pub(crate) fn park(&mut self, index: Uuid, blocks: Vec<Uuid>) {
+        self.parked.push((index, blocks));
     }
 }
 
@@ -255,18 +302,20 @@ async fn index(
             return false;
         }
         let roots = unindexed_roots(&mut held);
-        let parked = std::mem::take(&mut held.search.parked);
-        for (index, blocks) in parked {
-            let arrived = peer.local_head(index).is_some()
-                || held
-                    .graph
-                    .get(index)
-                    .is_some_and(|node| node.head.is_some());
-            match arrived {
-                true => held.search.dirty.extend(blocks),
-                false => held.search.parked.push((index, blocks)),
-            }
-        }
+        let state = &mut *held;
+        let (graph, named) = (&state.graph, &state.search.named);
+        let roots_naming: HashSet<Uuid> = graph
+            .nodes()
+            .filter(|node| node.parent == Some(BlockParent::Root))
+            .filter_map(|node| index_of(graph, named, node.id))
+            .collect();
+        state.search.release_parked(
+            |index| {
+                peer.local_head(index).is_some()
+                    || graph.get(index).is_some_and(|node| node.head.is_some())
+            },
+            |index| roots_naming.contains(&index),
+        );
         if held.search.dirty.is_empty() {
             drop(held);
             make_indexes(peer, shared, tasks, roots);
@@ -343,7 +392,7 @@ async fn index(
                     // Every answer is read again, whichever index it read.
                     Ok(true) => held.search.answers.clear(),
                     // Not on this device yet: made by a command still queued.
-                    Ok(false) => held.search.parked.push((index, blocks)),
+                    Ok(false) => held.search.park(index, blocks),
                     Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
                 }
             }
@@ -404,7 +453,7 @@ fn make_indexes(
                 match made {
                     Ok(()) => held.search.made.push((root, index)),
                     Err(error) => {
-                        held.search.creating.remove(&root);
+                        held.search.make_failed(root);
                         held.error = Some(format!("Making a search index failed: {error}"));
                     }
                 }
@@ -478,7 +527,7 @@ async fn puts_of(
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
-fn capped(mut text: String) -> String {
+pub(crate) fn capped(mut text: String) -> String {
     if text.len() > MAX_TEXT {
         let mut end = MAX_TEXT;
         while !text.is_char_boundary(end) {

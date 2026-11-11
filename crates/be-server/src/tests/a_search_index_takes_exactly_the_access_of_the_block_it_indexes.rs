@@ -28,6 +28,10 @@ async fn create_index(
     (block, response)
 }
 
+fn refused_with<T: std::fmt::Debug>(response: &Result<T, Error>, message: &str) -> bool {
+    matches!(response, Err(error) if error.code == ErrorCode::InvalidRequest && error.message.contains(message))
+}
+
 async fn refer(
     client: &mut TestClient,
     block: Uuid,
@@ -143,6 +147,29 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
             "an index moved under another block: {moved:?}"
         );
     }
+    // The owner may move it (Manage skips the access checks), so which check refuses shows.
+    let child = owner.create_block(BlockParent::Block(second)).await;
+    for target in [child, third, workspace] {
+        let moved = owner
+            .call(|peer| {
+                client::blocks::set_parent(
+                    peer,
+                    loose,
+                    BlockParent::Block(target),
+                    KeySet::default(),
+                )
+            })
+            .await;
+        assert!(
+            refused_with(&moved, "stays under the block it indexes"),
+            "the owner moved an index under another block: {moved:?}"
+        );
+    }
+    let (_, created) = create_index(&mut owner, child).await;
+    assert!(
+        refused_with(&created, "under a top-level block"),
+        "an index was made under a nested block: {created:?}"
+    );
     let referred = refer(&mut viewer, workspace, vec![note, index]).await;
     assert!(
         refused_as(&referred, ErrorCode::PermissionDenied),
