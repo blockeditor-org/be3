@@ -163,3 +163,16 @@ RUSTC_THREADS = "-Zthreads=" + (read_root_config("be3", "rustc_threads", "8") if
 # leaving two copies that are a third of buck-out. Spread into every rust target;
 # empty on a build server, so nothing there changes.
 RUST_LOCAL = {"use_content_based_paths": False} if LOCAL_BUILD else {}
+
+# How a Rust binary links its dependencies. Where the toolchain links through cxx
+# (buck/toolchains/BUCK: Linux on x86_64 outside a release), every crate is a
+# shared library of its own that the binaries, test harnesses and be-host share,
+# rather than each statically linking them all; a release is static, and the other
+# platforms link as they always have.
+BINARY_LINK_STYLE = {
+    "link_style": select({
+        "toolchains//:linux_x86_64_release": "static",
+        "toolchains//:linux_x86_64": "shared",
+        "DEFAULT": "static",
+    }),
+}

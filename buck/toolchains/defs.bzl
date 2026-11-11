@@ -1,5 +1,6 @@
 load("@prelude//cxx:cxx_toolchain_types.bzl", "CxxPlatformInfo", "CxxToolchainInfo", "LinkerInfo", "LinkerType", "RuntimeDependencyHandling")
-load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
+load("@prelude//rust:link_info.bzl", "RustLinkInfo")
+load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustExplicitSysrootDeps", "RustToolchainInfo")
 load("@prelude//toolchains:cxx.bzl", "CxxToolsInfo")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 
@@ -95,7 +96,18 @@ wasm_cxx_tools = rule(
 # prelude//toolchains:rust.bzl's system_rust_toolchain, with its tools as
 # artifacts, so a different rustc is a different action key.
 def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
+    std = {name: dep for name, dep in ctx.attrs.std.items() if dep != None}
     info = RustToolchainInfo(
+        advanced_unstable_linking = ctx.attrs.advanced_unstable_linking,
+        explicit_sysroot_deps = RustExplicitSysrootDeps(
+            core = std["core"],
+            proc_macro = std["proc_macro"],
+            std = std["std"],
+            panic_unwind = std["panic_unwind"],
+            panic_abort = std["panic_abort"],
+            others = [dep for name, dep in std.items() if name not in ["core", "proc_macro", "std", "panic_unwind", "panic_abort"]],
+        ) if std else None,
+        linker_flags = ctx.attrs.linker_flags,
         allow_lints = ctx.attrs.allow_lints,
         clippy_driver = ctx.attrs.clippy_driver[RunInfo],
         clippy_toml = ctx.attrs.clippy_toml,
@@ -119,7 +131,10 @@ def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
 
 pinned_rust_toolchain = rule(
     attrs = {
+        "advanced_unstable_linking": attrs.bool(default = False),
         "allow_lints": attrs.list(attrs.string(), default = []),
+        "linker_flags": attrs.list(attrs.arg(), default = []),
+        "std": attrs.dict(attrs.string(), attrs.option(attrs.dep(providers = [RustLinkInfo])), default = {}),
         "clippy_driver": attrs.exec_dep(providers = [RunInfo]),
         "clippy_toml": attrs.source(),
         "compiler": attrs.exec_dep(providers = [RunInfo]),

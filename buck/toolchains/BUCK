@@ -7,6 +7,7 @@ load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "OPT_LEVELS")
 load("@root//buck/tools:defs.bzl", "worker_properties")
+load(":rust_std.bzl", "rust_std_crate", "rust_std_libs")
 load(":defs.bzl", "cross_tool", "host_cxx_tools", "pinned_rust_toolchain", "remote_linking_cxx_toolchain", "wasm_cxx_tools")
 
 # Every tool comes from buck/tools, which downloads them, because every action
@@ -170,12 +171,106 @@ toolchain_alias(
     visibility = ["PUBLIC"],
 )
 
+
+# The Rust standard library for the Linux x86_64 toolchain below, which links Rust
+# through the cxx toolchain (advanced_unstable_linking), so that outside a release a
+# crate is a shared library of its own: the pinned rust-std component's rlibs, one
+# hashed file name each, which change with rust_version in buck/tools/BUCK.
+_std_hashes = {
+    "addr2line": "9bf1503802f1fe1f",
+    "adler2": "1855b06535e3a6dc",
+    "alloc": "ca14532e0afe7a5d",
+    "cfg_if": "380714c6ea67686e",
+    "compiler_builtins": "b8411246c6de4c7a",
+    "core": "a6075fd9c05de416",
+    "getopts": "02c32a91bb4b14fa",
+    "gimli": "b05ed1427e633af3",
+    "hashbrown": "5616f5bf81fe0066",
+    "libc": "f28c4264f0143d08",
+    "memchr": "438369955a1aeb02",
+    "miniz_oxide": "80dd92fda65ee391",
+    "object": "539315557aa33d2a",
+    "panic_abort": "0d311229c3300097",
+    "panic_unwind": "b12739ac718ad94d",
+    "proc_macro": "f5bcf216899e1faf",
+    "rustc_demangle": "7e135abb3d08f85c",
+    "rustc_literal_escaper": "12f46c3d6b9a3a65",
+    "rustc_std_workspace_alloc": "4eb375f3ee2d977f",
+    "rustc_std_workspace_core": "ae5f5e65a4426175",
+    "rustc_std_workspace_std": "2f6cfb1d83a94e28",
+    "std": "2e38004a9ef1deab",
+    "std_detect": "8ebd82e261ed1599",
+    "test": "f749e999e116a5ef",
+    "unwind": "c548baaa1b36fffe",
+}
+
+rust_std_libs(
+    name = "rust_std_libs",
+    component = tools + ":rust-std-x86_64-unknown-linux-gnu",
+    crates = {name: "lib{}-{}.rmeta".format(name, hash) for name, hash in _std_hashes.items()},
+    rlibs = ["lib{}-{}.rlib".format(name, hash) for name, hash in _std_hashes.items()],
+    triple = "x86_64-unknown-linux-gnu",
+    visibility = ["PUBLIC"],
+)
+
+[
+    rust_std_crate(
+        name = "rust_std_" + name,
+        crate = name,
+        libs = ":rust_std_libs",
+        visibility = ["PUBLIC"],
+    )
+    for name in _std_hashes
+]
+
+# Which toolchains link through cxx: Linux on x86_64, outside a release.
+config_setting(
+    name = "linux_x86_64",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[x86_64]",
+        "prelude//os/constraints:os[linux]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "linux_x86_64_release",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[x86_64]",
+        "prelude//os/constraints:os[linux]",
+        "root//buck/constraints:release",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+_cxx_linked = select({
+    ":linux_x86_64_release": False,
+    ":linux_x86_64": True,
+    "DEFAULT": False,
+})
+
+_std_sysroot = select({
+    ":linux_x86_64_release": {},
+    ":linux_x86_64": {
+        name: ":rust_std_" + name
+        for name in ["core", "proc_macro", "std", "panic_unwind", "panic_abort", "alloc", "test"]
+    },
+    "DEFAULT": {},
+})
+
 _host_opt, _wasm_opt, _release_opt = OPT_LEVELS["toolchain"]
 
 _release = ["-Copt-level={}".format(_release_opt), "-Cdebuginfo=0", "-Cforce-frame-pointers=yes"]
 
 pinned_rust_toolchain(
     name = "rust",
+    advanced_unstable_linking = _cxx_linked,
+    # What -Clink-arg passed, which a link through cxx drops.
+    linker_flags = select({
+        "DEFAULT": [],
+        ":linux_x86_64": ["-Wl,--compress-debug-sections=zlib"],
+    }),
+    std = _std_sysroot,
     # What cargo reads out of Cargo.toml's [workspace.lints]. A warning fails
     # the build here the way `cargo clippy -- -D warnings` fails it there.
     allow_lints = ["clippy::too_many_arguments"],
@@ -229,7 +324,13 @@ pinned_rust_toolchain(
         # the linked file, and backtraces read them as they are. Compressing
         # them in each object too (-Zdebuginfo-compression) made rust-lld
         # crash linking the larger binaries.
-        "prelude//os:linux": ["-Clink-arg=-Wl,--compress-debug-sections=zlib"],
+        "prelude//os:linux": select({
+            "DEFAULT": ["-Clink-arg=-Wl,--compress-debug-sections=zlib"],
+            ":linux_x86_64": select({
+                ":linux_x86_64_release": ["-Clink-arg=-Wl,--compress-debug-sections=zlib"],
+                "DEFAULT": [],
+            }),
+        }),
     })
     + select({
         "DEFAULT": [],

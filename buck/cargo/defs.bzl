@@ -1,7 +1,7 @@
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "BINARY_LINK_STYLE", "RUST_LOCAL", "dev_only", "opt_flags")
 load(":inputs.bzl", "cargo_inputs")
 load(":layers.bzl", "check_layers")
 load(":members.bzl", "members")
@@ -219,7 +219,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         rustc_flags = rustc_flags + ["--test"],
         srcs = cargo_test_sources(),
-        **(kwargs | RUST_LOCAL),
+        **(BINARY_LINK_STYLE | kwargs | RUST_LOCAL),
     )
     test = dict(
         harness = ":" + name + "-harness",
@@ -272,7 +272,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, binary["crate_root"]),
-        **(kwargs | RUST_LOCAL),
+        **(BINARY_LINK_STYLE | kwargs | RUST_LOCAL),
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
@@ -299,7 +299,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
-        **(kwargs | RUST_LOCAL),
+        **(BINARY_LINK_STYLE | kwargs | RUST_LOCAL),
     )
 
 # A crate's every target from its Cargo.toml: the library, if it has one, and
