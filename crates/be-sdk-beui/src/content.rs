@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use be_block::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
+use be_sdk::LackingEdit;
 use be_sdk::{EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
 use beui::reactive::*;
 
@@ -26,6 +27,30 @@ struct Projection<C: LiveEdit> {
 }
 
 pub struct ContentProjection<C: LiveEdit>(Stored<Projection<C>>);
+
+/// The edits made on this device that the server lacks (`ContentProjection::lacking`): a new
+/// value whenever the replica says they changed.
+pub struct Lacking<Op>(pub Rc<Vec<LackingEdit<Op>>>);
+
+impl<Op> Clone for Lacking<Op> {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
+impl<Op> PartialEq for Lacking<Op> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<Op> std::ops::Deref for Lacking<Op> {
+    type Target = [LackingEdit<Op>];
+
+    fn deref(&self) -> &[LackingEdit<Op>] {
+        &self.0
+    }
+}
 
 impl<C: LiveEdit> Clone for ContentProjection<C> {
     fn clone(&self) -> Self {
@@ -195,6 +220,22 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
 
     pub fn operate_anyway(&self, operation: C::Op) {
         self.inner().live.operate_anyway(operation);
+    }
+
+    /// The edits made on this device that the server lacks, each with whether the server
+    /// refused it (`LiveContent::lacking`), following them from the first call.
+    pub fn lacking(&self) -> ReadSignal<Lacking<C::Op>> {
+        let live = self.live();
+        live.follow_lacking();
+        let lacking = create_signal(Lacking(Rc::new(live.lacking())));
+        let read = live.clone();
+        keep(live.on_lacking(move || lacking.set(Lacking(Rc::new(read.lacking())))));
+        lacking.read_only()
+    }
+
+    /// Lets an edit the server refused go (`LiveContent::dismiss_lacking`).
+    pub fn dismiss_lacking(&self, id: u64) {
+        self.inner().live.dismiss_lacking(id);
     }
 
     pub fn begin_gesture(&self) {

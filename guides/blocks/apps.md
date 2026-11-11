@@ -29,7 +29,8 @@ the instance and the replica.
   where `applied` counts operations *this instance* sent that the snapshot
   holds, which is how an app tells its own unacknowledged edits from others';
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
-  operation that goes beneath them, the rebased `beneath`); `Presence`;
+  operation that goes beneath them, the rebased `beneath`); `Lacking` (below,
+  "Sending"); `Presence`;
   `PeerMessages`; `Range`.
 - `write-content` writes content outright, since it may name a block nothing
   follows (guides/blocks/host.md, "Creating, seeding and replacing").
@@ -37,8 +38,11 @@ the instance and the replica.
 On the app side, `editor.block_content::<C>()` is a `ContentProjection` built
 on `be_sdk_type_guest::editor::EditorMirror<C>`. `operate` applies to what the
 view sees and queues for the host. A `mine` operation coming back only
-confirms; another's is applied on top, or beneath this instance's in-flight
-edit (`LiveEdit::apply_beneath`). Only another instance's unsettled operation
+confirms, and only that this device's replica took the edit: it confirms at
+once, before any owner accepted it (on a follower it is still `unsettled`), so
+it says nothing of whether the server holds it (below, "Sending"); another's
+is applied on top, or beneath this instance's in-flight edit
+(`LiveEdit::apply_beneath`). Only another instance's unsettled operation
 arriving while this one has an edit in flight rebuilds the view. Applying
 reports what it touched (`LiveEdit::apply_touching`), and projections run only
 when something they watch was touched (guides/reactive.md). `read` answers
@@ -71,6 +75,49 @@ to name (guides/type_modules.md, "Parts named by hash"). Offsets are into the wh
 A blob editor uses `ContentProjection::payload()` instead, a signal of the
 payload that reads it once per snapshot (so a header edit reads nothing) and
 holds what a host-made snapshot already carried.
+
+### Sending
+
+An editor that shows what is still sending sends `FromEditor::FollowLacking`
+(`ContentProjection::lacking`), again with each snapshot; the replica then
+sends `ToEditor::Lacking`: the edits made on this device that the server lacks,
+each as its operation's bytes (none past 1 MiB), so the editor maps them to
+what they made (chat's messages), whichever editor made them. The first answer
+has them all (`reset`), later ones what was added or failed and the ids the
+server now holds. The replica records edits only while an editor follows, and
+keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
+- as owner, until the host answers the journal append holding it (`append`
+  answers whether the server took the entries; a folded entry holds the run it
+  absorbed) or a commit holding it is published to the server;
+- as follower, until the owner accepts it, which it does only through an append
+  the server relays once it took it; a stash the follower handed the owner,
+  until the owner says `Saved`;
+- an edit too large to relay goes by its part, so it is followed as the others: it
+  waits while its part is put, then as owner until the append holding it is
+  answered, as follower until the owner accepts it (its bytes are not kept past
+  1 MiB: the editor sees only that something is sending);
+- in a commit kept in this device's outbox (`publish-outcome.kept`), until the
+  host says it `drained`, or with `refused` that the server refused it: the
+  edit then shows as failed, until the editor lets it go
+  (`FromEditor::DismissLacking`, after sending it again or giving it up).
+
+A replica reopened, or opened again after its editors closed, carries on with
+what the last one lacked (the module keeps it for the last 64 blocks), and
+learns from `opening.commits-kept` whether those kept commits drained or were
+refused meanwhile; one opened on this device's own journal
+(`opening.journal-kept`) adds the edits it replays. A host or type module that
+restarts loses its list of edits (the host opens the new replica with
+`commits-kept`, so commits kept in the outbox still show, but a journal entry
+the server lacks shows as sent; an edit the server refused stays "Not sent" until the editor dismisses it). A replica records edits only while an editor
+follows: edits made before the first follower, or after the last one left and
+before the replica closed, are not listed, and a replica reopened after a
+rejoin lists only what the module carried. An owner that loses the session with
+an append the server never took shows that edit as failed, since the new owner
+never had it (it is not carried to a replica opened after, whose content lacks it). In chat, Discard deletes the message with a delete edit, like any
+other, and lets the failed edit go; the refused commit the device still holds is
+not shown again. be-sdk-test's `ContentStore::set_online`, `refuse_kept` and
+`close_replica` drive this in an
+editor test.
 
 ## State and change callbacks
 

@@ -94,6 +94,9 @@ struct Inner {
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
     left: BTreeSet<BlockQuery>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
+    offline: bool,
+    kept: BTreeSet<Uuid>,
+    refused: BTreeSet<Uuid>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
@@ -130,6 +133,9 @@ impl Default for Inner {
             answered: BTreeMap::new(),
             left: BTreeSet::new(),
             deferred: None,
+            offline: false,
+            kept: BTreeSet::new(),
+            refused: BTreeSet::new(),
             known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
@@ -269,7 +275,14 @@ impl Inner {
                 if let Some(held) = self.blocks.get_mut(&block) {
                     held.head = Some(head);
                 }
-                reply.send(&mut self.host, &Ok(PublishOutcome::Published(head)));
+                let outcome = match self.offline {
+                    true => {
+                        self.kept.insert(block);
+                        PublishOutcome::Kept(head)
+                    }
+                    false => PublishOutcome::Published(head),
+                };
+                reply.send(&mut self.host, &Ok(outcome));
             }
             Call::Stash { reply, content, .. } => {
                 let commit = self.write(content.bytes);
@@ -318,10 +331,13 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
+            Call::Append { reply, .. } => {
+                let held = !self.offline;
+                reply.send(&mut self.host, &held);
+            }
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
-            | Call::Append { reply, .. }
             | Call::RebaseJournal { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::History { reply, .. }
@@ -355,6 +371,11 @@ impl Inner {
         }
         let (content_type, head) = (held.content_type, held.head);
         let unapplied = std::mem::take(&mut held.unapplied);
+        let commits_kept = match (self.refused.contains(&block), self.kept.contains(&block)) {
+            (true, _) => be_sdk_type_guest::api::KeptCommits::Refused,
+            (false, true) => be_sdk_type_guest::api::KeptCommits::Outbox,
+            (false, false) => be_sdk_type_guest::api::KeptCommits::None,
+        };
         held.followed.clear();
         let replica = Replica::new(
             &mut self.host,
@@ -368,6 +389,8 @@ impl Inner {
                 session: session(),
                 journal: None,
                 lost_edits: false,
+                journal_kept: false,
+                commits_kept,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {
@@ -551,6 +574,13 @@ impl Inner {
             held.written.push(operation.clone());
             held.taken += 1;
             held.revision += 1;
+        }
+        if self
+            .blocks
+            .get(&block)
+            .is_some_and(|held| held.replica.is_none())
+        {
+            self.open(block);
         }
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
@@ -796,6 +826,47 @@ impl ContentStore {
                 be_block_session::SessionMessage::Channel { channel, payload },
             );
         }
+    }
+
+    /// Takes this device off the server or puts it back, as for an editor's sending state
+    /// (`ToEditor::Lacking`): offline, journal appends are answered as kept on the device alone
+    /// and a seal as kept in the outbox (`publish-outcome.kept`); back online, the replicas
+    /// holding kept commits are told they are `drained`.
+    pub fn set_online(&self, online: bool) {
+        self.0.borrow_mut().offline = !online;
+        if online {
+            self.drain(false);
+        }
+    }
+
+    /// Back online, the server refuses the commits kept offline, as a drain refused for lost
+    /// access does: the replicas holding them are told they will not reach it.
+    pub fn refuse_kept(&self) {
+        self.0.borrow_mut().offline = false;
+        self.drain(true);
+    }
+
+    fn drain(&self, refused: bool) {
+        let mut inner = self.0.borrow_mut();
+        let kept: Vec<Uuid> = std::mem::take(&mut inner.kept).into_iter().collect();
+        for block in kept {
+            if refused {
+                inner.refused.insert(block);
+            }
+            if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
+                replica.drained(&mut inner.host, refused);
+            }
+        }
+        inner.run();
+    }
+
+    /// Closes the block's replica, as the host does once no editor holds it; the next editor
+    /// that asks for the block opens it again.
+    pub fn close_replica(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        inner.close(key);
+        inner.run();
     }
 
     /// Holds the editor's operations back until called with false, to test what the editor
