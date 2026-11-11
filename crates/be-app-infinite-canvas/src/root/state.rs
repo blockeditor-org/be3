@@ -2219,7 +2219,10 @@ impl CanvasState {
                     if !state.is_alive() {
                         return;
                     }
-                    let allowed = pasted.iter().map(|pasted| pasted.block).collect::<HashSet<_>>();
+                    let allowed = pasted
+                        .iter()
+                        .map(|pasted| pasted.block)
+                        .collect::<HashSet<_>>();
                     let entities = entities
                         .into_iter()
                         .filter(|entity| entity.block.is_none_or(|block| allowed.contains(&block)))

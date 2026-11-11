@@ -95,7 +95,11 @@ fn a_paste_names_where_a_cut_reference_was_cut_from_once() {
     });
     be_host_stack::set_parent(holder, BlockParent::Root);
 
-    assert_eq!(paste(&mut instances, linked, folder), None, "nothing was cut");
+    assert_eq!(
+        paste(&mut instances, linked, folder),
+        None,
+        "nothing was cut"
+    );
 
     cut(&mut instances, linked, holder);
     assert_eq!(
