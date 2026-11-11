@@ -120,7 +120,10 @@ fn caret_when_given_the_keyboard(state: State) {
             }
             armed.set(false);
             let empty = state.text.bytes().is_empty();
-            if empty && !read_only.get() && focused_node().is_none() {
+            // Whatever else has the focus is what the window gave its first focusable (a window
+            // that has just taken the keyboard does), which is not the person's choice; an
+            // embed they pressed into is.
+            if empty && !read_only.get() && state.focused_embed.get_untracked().is_none() {
                 state.text.focus();
             }
         });
