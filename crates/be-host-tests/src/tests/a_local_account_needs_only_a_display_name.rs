@@ -15,6 +15,7 @@ fn a_local_account_needs_only_a_display_name() {
     host.crop("Dialog \"Create local account\"");
     host.snapshot("a_local_account_needs_only_a_display_name");
     host.click("#account.confirm");
-    host.wait("Heading \"Check that you saved them\"");
+    host.wait("Button \"Personal\"");
+    assert!(!host.tree().contains("Check that you saved them"));
     host.close();
 }
