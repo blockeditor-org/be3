@@ -224,6 +224,14 @@ pinned_rust_toolchain(
     })
     + select({
         "DEFAULT": [],
+        # Line tables were about half of a test binary's sections, and every
+        # binary is fetched by the workers that run it. lld compresses them in
+        # the linked file, and backtraces read them as they are. Objects get
+        # theirs compressed by DEBUGINFO_COMPRESSION (profile.bzl).
+        "prelude//os:linux": ["-Clink-arg=-Wl,--compress-debug-sections=zlib"],
+    })
+    + select({
+        "DEFAULT": [],
         "prelude//cpu:wasm32": ["-Cstrip=debuginfo"],
         # Packed, macOS's default, runs dsymutil after the link, which is
         # Apple's and not something a Linux worker has.
