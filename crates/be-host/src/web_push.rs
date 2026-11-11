@@ -11,36 +11,29 @@ use uuid::Uuid;
 use wasm_bindgen::{JsCast, JsValue, prelude::wasm_bindgen};
 use web_sys::js_sys;
 
-/// A block a pressed notification named, waiting for the host's next frame.
+/// A block a pressed notification named, waiting until the host can open it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Opening {
     pub(crate) organization: Uuid,
     pub(crate) block: Uuid,
-    /// Frames it has waited for the block to be known, which a page opened by a press
-    /// has to do while the organization loads.
-    pub(crate) waited: u32,
-}
-
-/// How many frames an opening waits for its block before it is dropped.
-pub(crate) const OPENING_PATIENCE: u32 = 600;
-
-pub(crate) fn requeue(opening: Opening) {
-    if opening.waited < OPENING_PATIENCE {
-        OPENINGS.with(|openings| {
-            openings.borrow_mut().push(Opening {
-                waited: opening.waited + 1,
-                ..opening
-            })
-        });
-    }
 }
 
 thread_local! {
     static OPENINGS: RefCell<Vec<Opening>> = const { RefCell::new(Vec::new()) };
 }
 
+pub(crate) fn has_openings() -> bool {
+    OPENINGS.with(|openings| !openings.borrow().is_empty())
+}
+
 pub(crate) fn take_openings() -> Vec<Opening> {
     OPENINGS.with(|openings| std::mem::take(&mut *openings.borrow_mut()))
+}
+
+/// Holds an opening that could not happen yet: the host tries again when its organization or
+/// graph changes.
+pub(crate) fn hold(opening: Opening) {
+    OPENINGS.with(|openings| openings.borrow_mut().push(opening));
 }
 
 async fn answered<T>(
@@ -82,7 +75,8 @@ pub async fn push_unregister(address: String) -> Result<(), JsValue> {
     answered(|reply| be_host_stack::unregister_push_endpoint(address, reply)).await
 }
 
-/// Opens a push the service worker received: `{ title, body }` for its notification, or
+/// Opens a push the service worker received: `{ title, body, block, organization }` for its
+/// notification (the block and organization the push was sealed about), or
 /// null when this device cannot open it (no key yet, another block's, too old).
 #[wasm_bindgen]
 pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
@@ -108,6 +102,12 @@ pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
     let answer = js_sys::Object::new();
     js_sys::Reflect::set(&answer, &"title".into(), &title.into())?;
     js_sys::Reflect::set(&answer, &"body".into(), &body.into())?;
+    js_sys::Reflect::set(&answer, &"block".into(), &opened.block.to_string().into())?;
+    js_sys::Reflect::set(
+        &answer,
+        &"organization".into(),
+        &opened.organization.to_string().into(),
+    )?;
     Ok(answer.into())
 }
 
@@ -115,41 +115,29 @@ pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub fn push_open_block(organization: String, block: String) {
     if let (Ok(organization), Ok(block)) = (organization.parse::<Uuid>(), block.parse::<Uuid>()) {
-        OPENINGS.with(|openings| {
-            openings.borrow_mut().push(Opening {
-                organization,
-                block,
-                waited: 0,
-            })
+        hold(Opening {
+            organization,
+            block,
         });
         be_host_base::host::wake();
     }
 }
 
-/// Signing out: drops this browser's subscription (host.js's `bePush.unsubscribe`) and asks
-/// the server to forget its endpoint. The server's request may not get through before the
-/// account's connection closes; the dropped subscription makes the push service answer 404 or
-/// 410 to the next push, and the server drops the endpoint then.
-pub(crate) fn forget_this_device() {
-    wasm_bindgen_futures::spawn_local(async {
-        let Ok(push) = js_sys::Reflect::get(&js_sys::global(), &"bePush".into()) else {
-            return;
-        };
-        let Ok(unsubscribe) = js_sys::Reflect::get(&push, &"unsubscribe".into())
-            .and_then(|function| function.dyn_into::<js_sys::Function>())
-        else {
-            return;
-        };
-        let Ok(promise) = unsubscribe.call0(&push) else {
-            return;
-        };
-        let Ok(address) =
-            wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(promise)).await
-        else {
-            return;
-        };
-        if let Some(address) = address.as_string() {
+/// Signing out: asks the server to forget this browser's endpoint for the account, and drops
+/// the browser's subscription too when `unsubscribe` (no saved account is left to use it). The
+/// server's request may not get through before the account's connection closes; a dropped
+/// subscription makes the push service answer 404 or 410 to the next push, and the server drops
+/// the endpoint then. Another account removed while this one is open keeps its endpoint until
+/// then.
+pub(crate) fn forget_this_device(unsubscribe: bool) {
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Some(address) = call("address").await.ok().and_then(|address| address.as_string()) {
             let _ = push_unregister(address).await;
+        }
+        if unsubscribe && let Err(error) = call("unsubscribe").await {
+            web_sys::console::warn_1(&JsValue::from_str(&format!(
+                "be-host: the browser's push subscription was not dropped: {error}"
+            )));
         }
     });
 }
@@ -207,4 +195,13 @@ pub(crate) fn install() {
         });
     }));
     wasm_bindgen_futures::spawn_local(refresh());
+}
+
+/// Tells the server about this browser's subscription for the open organization
+/// (`bePush.sync`): the push service may have replaced it, and an endpoint is registered per
+/// organization.
+pub(crate) fn sync() {
+    wasm_bindgen_futures::spawn_local(async {
+        let _ = call("sync").await;
+    });
 }

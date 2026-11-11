@@ -112,11 +112,16 @@ survives a reload. Traps that shape this code:
   and published as `PushDeviceWatch`). A pressed notification focuses a window and posts the
   block to it (`push_open_block`), or opens `?open-block=ORGANIZATION/BLOCK`; a block of another
   organization first opens that organization, unless changes are unsaved. An endpoint is
-  registered for the organization open when the switch is turned on, so pushes from another
-  organization wait for a later step. `//crates/be-host:push-web-test` runs the real
+  registered per organization, so the host registers the browser's subscription again
+  (`bePush.sync`) each time it connects to an organization with pushes on, which also finds a
+  subscription the push service replaced (`pushsubscriptionchange`, which `sw.js` renews).
+  Signing out unregisters the endpoint and drops the browser's subscription only when no
+  saved account is left; another account removed while one is open keeps its endpoint until a
+  push to it fails. `//crates/be-host:push-web-test` runs the real
   `sw.js` and `push.js` in Chromium with pushes delivered through DevTools
   (`deliverPush` in buck/program/page-test.mjs); headless Chromium never grants the permission to
-  show a notification, so the test's worker (`web-test/sw.js`) reports what `sw.js` would show.
+  show a notification, so the test's worker (`web-test/sw.js`) reports what `sw.js` would show,
+  moves its clock on, and raises the press and subscription-change events.
 - The host closes its tab when it exits, unless the page is already leaving.
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the

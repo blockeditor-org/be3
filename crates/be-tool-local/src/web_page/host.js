@@ -9,7 +9,14 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 push_server_key,
                 push_unregister,
             } from "./be_host.js";
-            import { bindPush, pushPermission, pushState, subscribePush, unsubscribePush } from "./push.js";
+            import {
+                bindPush,
+                currentPush,
+                pushPermission,
+                pushState,
+                subscribePush,
+                unsubscribePush,
+            } from "./push.js";
 
             const status = document.getElementById("status");
 
@@ -114,16 +121,30 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 bindPush({
                     open: push_open,
                     openBlock: ({ organization, block }) => push_open_block(organization, block),
+                    changed: () => globalThis.bePush.sync().catch(() => {}),
                 });
-                // What the host's "Notify me on this device" switch calls
-                // (plans/notifications.md): `enable` must run in a person's gesture.
+                // What the host's "Notifications" switch calls (plans/notifications.md):
+                // `enable` must run in a person's gesture.
                 globalThis.bePush = {
                     permission: pushPermission,
                     state: pushState,
+                    // The address of this browser's subscription, or null.
+                    async address() {
+                        return (await currentPush())?.address ?? null;
+                    },
                     unsubscribe: unsubscribePush,
                     async enable() {
-                        const { address, p256dh, auth } = await subscribePush(await push_server_key());
-                        await push_register(address, p256dh, auth);
+                        const { address, p256dh, auth, replaced } = await subscribePush(await push_server_key());
+                        try {
+                            if (replaced) {
+                                await push_unregister(replaced).catch(() => {});
+                            }
+                            await push_register(address, p256dh, auth);
+                        } catch (error) {
+                            // Not registered, so not on: leave no subscription behind.
+                            await unsubscribePush().catch(() => {});
+                            throw error;
+                        }
                         return address;
                     },
                     async disable() {
@@ -132,11 +153,31 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                             await push_unregister(address);
                         }
                     },
+                    // Tells the server about this browser's subscription for the open
+                    // organization: it is registered per organization, and the push service
+                    // may have replaced it while no page was open.
+                    async sync() {
+                        const current = await currentPush();
+                        if (current) {
+                            await push_register(current.address, current.p256dh, current.auth);
+                        }
+                    },
                 };
-                const opened = new URLSearchParams(location.search).get("open-block");
-                if (opened) {
-                    const [organization, block] = opened.split("/");
-                    push_open_block(organization, block);
+                // A page opened by pressing a notification names its block in the address.
+                try {
+                    const url = new URL(location.href);
+                    const opened = url.searchParams.get("open-block");
+                    if (opened !== null) {
+                        const [organization, block, ...rest] = opened.split("/");
+                        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                        if (rest.length === 0 && uuid.test(organization) && uuid.test(block)) {
+                            push_open_block(organization, block);
+                        }
+                        url.searchParams.delete("open-block");
+                        history.replaceState(history.state, "", url);
+                    }
+                } catch (error) {
+                    console.warn("the block a notification named could not be opened", error);
                 }
                 started.resolve();
 

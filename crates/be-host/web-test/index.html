@@ -3,40 +3,55 @@
 <title>push notifications</title>
 <script type="module">
     // plans/notifications.md, the web: a push reaches sw.js, which asks this page (push.js)
-    // to open it and shows what it answers. The host's calls are stubs here.
+    // to open it and shows what it answers. The host's calls are stubs here. Nothing waits for
+    // a time to pass: each step resumes from the message that ends it.
     import { bindPush } from "./push.js";
 
+    const ORGANIZATION = "41414141-4141-4141-4141-414141414141";
+    const BLOCK = "42424242-4242-4242-4242-424242424242";
+
     const calls = [];
+    const opened = [];
+    let changes = 0;
     let answer;
     bindPush({
-        open: async (bytes) => {
+        open: (bytes) => {
             calls.push(bytes);
-            return answer;
+            return typeof answer === "function" ? answer() : Promise.resolve(answer);
         },
-        openBlock: () => {},
+        openBlock: (named) => opened.push(named),
+        changed: () => changes++,
     });
 
-    // A PushMessage: 16 bytes each of organization, block and sender, then the sealed text.
-    // The bytes stay ASCII, which is all a DevTools push carries.
-    function message(sealed) {
-        const ids = [0x41, 0x42, 0x43].map((fill) => String.fromCharCode(fill).repeat(16));
-        return ids.join("") + sealed;
-    }
-
-    // What the worker showed, as it reports it (web-test/sw.js).
+    // What the worker showed and told this page, in order, with what waits for the next.
     const shown = [];
+    const waiting = [];
     navigator.serviceWorker.addEventListener("message", (event) => {
         if (event.data?.shown) {
             shown.push(event.data.shown);
         }
+        for (const check of waiting.splice(0)) {
+            check();
+        }
     });
 
-    async function showing(count) {
-        while (shown.length < count) {
-            await new Promise((resolve) => setTimeout(resolve, 20));
-        }
-        return shown;
+    // Resolves once `done()` holds, as the worker's messages arrive (the harness times the
+    // whole test out).
+    function until(done) {
+        return new Promise((resolve) => {
+            const check = () => (done() ? resolve() : waiting.push(check));
+            check();
+        });
     }
+
+    // A PushMessage: 16 bytes each of organization, block and sender, then the sealed text.
+    // DevTools carries it as text, so the ids are text too: ASCII, or letters of two UTF-8
+    // bytes each.
+    function message(ids, sealed) {
+        return ids.join("") + sealed;
+    }
+    const ascii = ["A", "B", "C"].map((fill) => fill.repeat(16));
+    const letters = ["é", "è", "ê"].map((fill) => fill.repeat(8));
 
     function expect(condition, what) {
         if (!condition) {
@@ -44,39 +59,80 @@
         }
     }
 
+    async function worker() {
+        return (await navigator.serviceWorker.ready).active;
+    }
+
     globalThis.outcome = (async () => {
         try {
             await navigator.serviceWorker.register("./sw.js");
-            await navigator.serviceWorker.ready;
+            const active = await worker();
 
             // With a window to open it, the notification shows what the window answers.
-            answer = { title: "Roadmap", body: "Alice: lunch?" };
-            await deliverPush(message("first"));
-            let notification = (await showing(1))[0];
-            expect(notification.title === "Roadmap", `title was ${notification.title}`);
-            expect(notification.body === "Alice: lunch?", `body was ${notification.body}`);
-            expect(notification.tag === "42424242-4242-4242-4242-424242424242", `tag was ${notification.tag}`);
-            expect(notification.data.block.startsWith("42424242"), "the notification names its block");
+            answer = { title: "Roadmap", body: "Alice: lunch?", block: BLOCK, organization: ORGANIZATION };
+            await deliverPush(message(ascii, "first"));
+            await until(() => shown.length === 1);
+            expect(shown[0].title === "Roadmap", `title was ${shown[0].title}`);
+            expect(shown[0].body === "Alice: lunch?", `body was ${shown[0].body}`);
+            expect(shown[0].tag === BLOCK, `tag was ${shown[0].tag}`);
+            expect(shown[0].renotify === true, "a push sounds");
+            expect(shown[0].data.block === BLOCK && shown[0].data.organization === ORGANIZATION, "it names its block");
             expect(calls.length === 1, "the window opened the push once");
 
-            // The same push again shows nothing more, and the window is not asked again.
-            await deliverPush(message("first"));
-            await new Promise((resolve) => setTimeout(resolve, 500));
-            expect(shown.length === 1, "a repeat showed again");
+            // The same push again is not opened again; what was shown stays, replaced
+            // under its tag without a sound, so the push still shows something.
+            await deliverPush(message(ascii, "first"));
+            await until(() => shown.length === 2);
             expect(calls.length === 1, "the window was asked about a repeat");
+            expect(shown[1].title === "Roadmap" && shown[1].tag === BLOCK, "a repeat shows what was shown");
+            expect(shown[1].renotify === false, "a repeat makes no sound");
 
-            // A window that cannot open it (no key): a notification naming nothing.
+            // A window that cannot open one (no key): a notification naming nothing.
             answer = null;
-            await deliverPush(message("second"));
-            notification = (await showing(2))[1];
-            expect(notification.title === "New message", `title was ${notification.title}`);
-            expect(notification.body === "", "the generic one names nothing");
+            await deliverPush(message(ascii, "second"));
+            await until(() => shown.length === 3);
+            expect(shown[2].title === "New message" && shown[2].body === "", "the generic one names nothing");
             expect(calls.length === 2, "the window was asked about the second push");
 
             // Bytes that are no push at all still show one.
             await deliverPush("x");
-            notification = (await showing(3))[2];
-            expect(notification.title === "New message", `title was ${notification.title}`);
+            await until(() => shown.length === 4);
+            expect(shown[3].title === "New message", `title was ${shown[3].title}`);
+
+            // A push is forgotten once a device would refuse it as too old, so a push the
+            // server sends again then is opened afresh.
+            answer = { title: "Roadmap again", body: "", block: BLOCK, organization: ORGANIZATION };
+            active.postMessage({ advance: 2 * 24 * 60 * 60 * 1000 + 1 });
+            await deliverPush(message(ascii, "first"));
+            await until(() => shown.length === 5);
+            expect(calls.length === 3, "an old push was not opened again");
+            expect(shown[4].title === "Roadmap again", `title was ${shown[4].title}`);
+
+            // Ids that are not ASCII arrive whole.
+            answer = { title: "Letters", body: "", block: BLOCK, organization: ORGANIZATION };
+            await deliverPush(message(letters, "ünï"));
+            await until(() => shown.length === 6);
+            const bytes = calls[3];
+            expect(bytes.length === 48 + 5, `the push was ${bytes.length} bytes`);
+            expect(
+                Array.from(bytes.subarray(0, 4), (byte) => byte.toString(16)).join("") === "c3a9c3a9",
+                "the organization's bytes were kept",
+            );
+
+            // No window answering in time: a notification naming nothing, after a while.
+            answer = () => new Promise(() => {});
+            await deliverPush(message(ascii, "third"));
+            await until(() => shown.length === 7);
+            expect(shown[6].title === "New message", `title was ${shown[6].title}`);
+
+            // A press opens the block in the window.
+            active.postMessage({ click: { organization: ORGANIZATION, block: BLOCK } });
+            await until(() => opened.length === 1);
+            expect(opened[0].block === BLOCK && opened[0].organization === ORGANIZATION, "the press named its block");
+
+            // The push service replacing the subscription is told to the window.
+            active.postMessage({ changed: true });
+            await until(() => changes === 1);
 
             return { passed: true, message: "pushes show the window's answer, once, or name nothing" };
         } catch (error) {

@@ -578,6 +578,13 @@ struct HostCore {
     notify_modes_published: Option<u64>,
     /// The `be_host_base::push_device::revision` the push device watch last published.
     push_device_published: Option<u64>,
+    /// What a pressed notification's block last waited on (the open organization, how many
+    /// there are, the graph's revision), so it is tried again only when that changes.
+    #[cfg(target_arch = "wasm32")]
+    pressed_waiting_on: Option<(Option<Uuid>, usize, u64)>,
+    /// The organization this browser's push subscription was last registered for.
+    #[cfg(target_arch = "wasm32")]
+    push_synced: Option<Uuid>,
     members: members::Members,
     scheduled_organization_list: bool,
     server_url: String,
@@ -877,6 +884,10 @@ impl HostCore {
             storage_published: None,
             notify_modes_published: None,
             push_device_published: None,
+            #[cfg(target_arch = "wasm32")]
+            pressed_waiting_on: None,
+            #[cfg(target_arch = "wasm32")]
+            push_synced: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
             server_url,
@@ -1404,7 +1415,7 @@ impl HostCore {
     fn forget_account(&mut self, account: &Account) {
         #[cfg(target_arch = "wasm32")]
         if self.account.server == account.server && self.account.id == account.id {
-            web_push::forget_this_device();
+            web_push::forget_this_device(self.accounts.len() <= 1);
         }
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
@@ -2399,16 +2410,21 @@ impl HostCore {
     }
 
     /// Opens the blocks notifications named that were pressed, switching to their
-    /// organization first.
+    /// organization first. One that cannot open yet (the organization or the block is not
+    /// loaded) is held until the organizations or the graph change.
     #[cfg(target_arch = "wasm32")]
     fn open_pressed_notifications(&mut self) {
+        let now = (
+            self.organization.as_ref().map(|organization| organization.id),
+            self.organizations.len(),
+            be_host_stack::graph_revision(),
+        );
+        if !web_push::has_openings() || self.pressed_waiting_on == Some(now) {
+            return;
+        }
+        self.pressed_waiting_on = None;
         for opening in web_push::take_openings() {
-            if self
-                .organization
-                .as_ref()
-                .map(|organization| organization.id)
-                != Some(opening.organization)
-            {
+            if now.0 != Some(opening.organization) {
                 // A block of another organization opens it first, unless that would discard
                 // changes not saved yet, which the organization menu asks about instead.
                 let other = self
@@ -2416,32 +2432,53 @@ impl HostCore {
                     .iter()
                     .find(|organization| organization.id == opening.organization)
                     .cloned();
-                if let Some(other) = other {
-                    if be_host_stack::status().unsaved == 0 {
+                match other {
+                    Some(other) if be_host_stack::status().unsaved == 0 => {
                         self.open_organization(other);
-                        web_push::requeue(opening);
+                        web_push::hold(opening);
                     }
-                } else if self.organizations.is_empty() {
-                    web_push::requeue(opening);
+                    Some(_) => {}
+                    None => {
+                        web_push::hold(opening);
+                        self.pressed_waiting_on = Some(now);
+                    }
                 }
                 continue;
             }
             let Some(node) = be_host_stack::node(opening.block) else {
-                web_push::requeue(opening);
+                web_push::hold(opening);
+                self.pressed_waiting_on = Some(now);
                 continue;
             };
-            {
-                self.show_block(
-                    None,
-                    BlockOpen {
-                        id: opening.block,
-                        block_type: node.content_type,
-                        via: None,
-                        editor: None,
-                    },
-                );
-            }
+            self.show_block(
+                None,
+                BlockOpen {
+                    id: opening.block,
+                    block_type: node.content_type,
+                    via: None,
+                    editor: None,
+                },
+            );
         }
+    }
+
+    /// Registers this browser's push subscription for each organization as it is opened, once
+    /// it connects (`bePush.sync`): the person turned pushes on in one, and a subscription the
+    /// push service replaced is found here.
+    #[cfg(target_arch = "wasm32")]
+    fn sync_push_subscription(&mut self) {
+        let Some(organization) = self.organization.as_ref().map(|organization| organization.id)
+        else {
+            return;
+        };
+        if self.push_synced == Some(organization)
+            || !be_host_stack::status().connected
+            || be_host_base::push_device::state() != be_host_base::push_device::PushDevice::On
+        {
+            return;
+        }
+        self.push_synced = Some(organization);
+        web_push::sync();
     }
 
     fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
@@ -3054,7 +3091,10 @@ impl HostCore {
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
         #[cfg(target_arch = "wasm32")]
-        self.open_pressed_notifications();
+        {
+            self.open_pressed_notifications();
+            self.sync_push_subscription();
+        }
         self.publish_storage();
         self.publish_notify_modes();
         self.publish_push_device();

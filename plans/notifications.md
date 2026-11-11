@@ -88,6 +88,9 @@ host call and the mute menu have landed (guides/blocks/server.md,
     delivers with DevTools `ServiceWorker.deliverPushMessage` the four cases
     of step 1; the message layout and the worker's choices are plain functions
     in `sw.js` unit-tested in Node.
+- **The lock screen** shows a notification's text in plaintext, whoever holds
+  the device. A setting to show only "New message" there is a follow-up
+  (plans/deferred/notifications.md).
 - **On Android** pushes arrive with the app closed, so a service receives them
   and loads the Rust library without the activity, decrypting RFC 8291 itself
   with be-lib-web-push. UnifiedPush works with
