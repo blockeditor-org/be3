@@ -20,9 +20,9 @@ use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
-    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe, ViewChange,
-    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
+    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe,
+    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -462,10 +462,11 @@ pub enum Pushed {
     PeerMessages,
     Heads,
     Docks,
+    Searches,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -479,6 +480,7 @@ impl Pushed {
         Self::PeerMessages,
         Self::Heads,
         Self::Docks,
+        Self::Searches,
     ];
 }
 
@@ -512,7 +514,7 @@ pub struct EditorHost {
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
-    changes: Rc<Cell<u64>>,
+    reads: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
@@ -526,6 +528,10 @@ pub struct EditorHost {
     heads: Rc<RefCell<HashMap<Uuid, HeadRead>>>,
     watched_heads: Rc<RefCell<Vec<Uuid>>>,
     reported_heads: Rc<RefCell<Option<Vec<Uuid>>>>,
+    searches: Rc<RefCell<HashMap<crate::Search, crate::SearchResults>>>,
+    /// Each search watched, with how many watch it.
+    watched_searches: Rc<RefCell<std::collections::BTreeMap<crate::Search, usize>>>,
+    reported_searches: Rc<RefCell<Option<Vec<crate::Search>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     shell_commands: Rc<RefCell<Vec<(Uuid, ShellCommand)>>>,
@@ -624,6 +630,7 @@ impl EditorHost {
     }
 
     pub fn revision(&self, pushed: Pushed) -> u64 {
+        self.read();
         self.pushed[pushed as usize].get()
     }
 
@@ -657,12 +664,27 @@ impl EditorHost {
         made
     }
 
-    pub fn changes(&self) -> u64 {
-        self.changes.get() + self.graph.deferred()
+    /// A flag raised whenever anything the editor mirrors from the host changes, or the
+    /// graph defers a change until the next frame, and raised to begin with: an editor's
+    /// frame reads the host only when its flag is up, and takes it down.
+    pub fn change_flag(&self) -> Rc<Cell<bool>> {
+        self.graph.changes.flag()
     }
 
     fn changed(&self) {
-        self.changes.set(self.changes.get() + 1);
+        self.graph.changes.raise();
+    }
+
+    /// How many times anything read the state the host pushed (every getter an editor's
+    /// frame can reach counts). A test hook: tests check an editor's frame with nothing
+    /// pushed reads nothing.
+    #[doc(hidden)]
+    pub fn reads(&self) -> u64 {
+        self.reads.get()
+    }
+
+    fn read(&self) {
+        self.reads.set(self.reads.get() + 1);
     }
 
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
@@ -756,10 +778,12 @@ impl EditorHost {
     }
 
     pub(crate) fn card(&self) -> bool {
+        self.read();
         self.card.get()
     }
 
     pub(crate) fn take_picked(&self) -> Option<BlockPick> {
+        self.read();
         self.picked.borrow_mut().take()
     }
 
@@ -838,6 +862,7 @@ impl EditorHost {
                     while let Ok(value) = watch.next().await {
                         each(value);
                         host.changed();
+                        host.waker.wake();
                     }
                 });
             }));
@@ -868,6 +893,10 @@ impl EditorHost {
         for run in runs {
             run();
         }
+        // A value comes from a task, not from a call the host made to the editor, so nothing
+        // else tells the runtime this editor has a frame to draw: without it the page keeps
+        // what it showed until something else wakes the editor.
+        self.waker.wake();
     }
 
     pub fn on_watched<W: Watched>(&self, run: impl Fn() + 'static) -> Subscription {
@@ -883,6 +912,7 @@ impl EditorHost {
     }
 
     pub fn watch_revision_of(&self, watch: TypeId) -> u64 {
+        self.read();
         self.watches
             .borrow()
             .revisions
@@ -1016,6 +1046,52 @@ impl EditorHost {
     pub fn set_head(&self, block: Uuid, head: HeadRead) {
         self.heads.borrow_mut().insert(block, head);
         self.push(Pushed::Heads);
+    }
+
+    /// Asks for a search's results (`search`), until as many `unwatch_search` calls let go.
+    pub fn watch_search(&self, search: crate::Search) {
+        *self
+            .watched_searches
+            .borrow_mut()
+            .entry(search)
+            .or_default() += 1;
+    }
+
+    pub fn unwatch_search(&self, search: &crate::Search) {
+        let mut watched = self.watched_searches.borrow_mut();
+        if let Some(count) = watched.get_mut(search) {
+            *count -= 1;
+            if *count == 0 {
+                watched.remove(search);
+                self.searches.borrow_mut().remove(search);
+            }
+        }
+    }
+
+    /// A watched search's latest results; none until the host answers.
+    pub fn search(&self, search: &crate::Search) -> Option<crate::SearchResults> {
+        self.searches.borrow().get(search).cloned()
+    }
+
+    pub(crate) fn take_search_watch(&self) -> Option<Vec<crate::Search>> {
+        let searches: Vec<crate::Search> = self.watched_searches.borrow().keys().cloned().collect();
+        let mut reported = self.reported_searches.borrow_mut();
+        if reported
+            .as_ref()
+            .map_or(searches.is_empty(), |reported| *reported == searches)
+        {
+            return None;
+        }
+        *reported = Some(searches.clone());
+        Some(searches)
+    }
+
+    pub fn set_search(&self, search: crate::Search, results: crate::SearchResults) {
+        if !self.watched_searches.borrow().contains_key(&search) {
+            return;
+        }
+        self.searches.borrow_mut().insert(search, results);
+        self.push(Pushed::Searches);
     }
 
     pub fn undo(&self, block_id: Uuid) {
@@ -1209,6 +1285,7 @@ impl EditorHost {
     }
 
     pub fn editable(&self) -> bool {
+        self.read();
         self.editable.get()
     }
 
@@ -1281,6 +1358,7 @@ impl EditorHost {
     }
 
     pub fn updated_content(&self) -> Vec<Option<Uuid>> {
+        self.read();
         self.content_updates.borrow().keys().copied().collect()
     }
 
@@ -1598,10 +1676,12 @@ impl EditorHost {
     }
 
     pub fn view(&self) -> Option<Rect> {
+        self.read();
         self.framed_view().map(|view| view.rect)
     }
 
     pub fn view_scale(&self) -> Option<f32> {
+        self.read();
         self.framed_view().map(|view| view.scale)
     }
 
@@ -1644,6 +1724,7 @@ impl EditorHost {
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
+        self.read();
         let view = self.shown_view()?;
         match self.drops.borrow().get(&view)?.dragged {
             Some(Dragged::Block(drag)) => Some(drag),
@@ -1652,6 +1733,7 @@ impl EditorHost {
     }
 
     pub fn files(&self) -> Option<FileDrop> {
+        self.read();
         let view = self.shown_view()?;
         match &self.drops.borrow().get(&view)?.dragged {
             Some(Dragged::Files(drop)) => Some(drop.clone()),
@@ -1862,6 +1944,24 @@ impl EditorHost {
         });
     }
 
+    /// Notifies `block_id`'s members who are not connected, on their other devices: `text`,
+    /// sealed so only members read it, each device naming the sender and the block itself.
+    /// `mentions` names the accounts the text mentions. Needs Edit on the block.
+    pub fn notify(&self, block_id: Uuid, text: impl Into<String>, mentions: &[Uuid]) {
+        let text = text.into();
+        let mentions = mentions
+            .iter()
+            .map(|account| account.into_bytes())
+            .collect();
+        self.ask(|| host_services::notify(block_id.into_bytes(), text, mentions).detach());
+    }
+
+    /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows
+    /// every block's.
+    pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
+    }
+
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
         self.audio_commands
             .borrow_mut()
@@ -1990,10 +2090,12 @@ impl EditorHost {
     }
 
     pub fn chrome_shown(&self) -> bool {
+        self.read();
         self.chrome.get().unwrap_or(true)
     }
 
     pub fn placed_content(&self) -> Option<Rect> {
+        self.read();
         self.placed_content.get()
     }
 
@@ -2120,6 +2222,7 @@ impl EditorHost {
     }
 
     pub fn frame_anchor(&self) -> Option<Rect> {
+        self.read();
         self.frame_anchor.get()
     }
 
@@ -2179,6 +2282,7 @@ impl EditorHost {
     }
 
     pub fn presenting(&self) -> bool {
+        self.read();
         self.presenting.get()
     }
 
@@ -2263,6 +2367,7 @@ impl EditorHost {
     }
 
     pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
+        self.read();
         self.child_statuses.borrow().get(&child).cloned()
     }
 
@@ -2366,6 +2471,7 @@ impl EditorHost {
     }
 
     pub fn flush_graph(&self) {
+        self.read();
         self.graph.flush();
     }
 
@@ -2482,6 +2588,7 @@ impl EditorHost {
     }
 
     pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
+        self.read();
         self.child_bars
             .borrow_mut()
             .remove(&child)
@@ -2489,6 +2596,7 @@ impl EditorHost {
     }
 
     pub fn take_child_focus(&self, child: ChildId) -> bool {
+        self.read();
         self.child_focuses.borrow_mut().remove(&child)
     }
 

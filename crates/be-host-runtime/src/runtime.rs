@@ -436,9 +436,17 @@ impl Pacing {
         self.requested_at.is_some() && self.asked_in == pass && !self.painting
     }
 
+    /// Asks for a frame. One asked for while a frame is in flight is asked again once that
+    /// frame is answered, which `ready` would otherwise clear along with the frame's own need.
     fn need(&mut self) {
         self.needed = true;
         self.needed_again |= self.requested_at.is_some();
+    }
+
+    fn need_if(&mut self, needed: bool) {
+        if needed {
+            self.need();
+        }
     }
 
     fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
@@ -665,7 +673,7 @@ impl Runtime {
                     if matches!(**opening, Opening::Block(_) | Opening::Artifact(_))
             )
         });
-        self.pacing.needed |= !messages.is_empty();
+        self.pacing.need_if(!messages.is_empty());
         self.send(messages);
         self.answer();
         if awaited {
@@ -679,7 +687,7 @@ impl Runtime {
             return;
         }
         let messages = self.instances.drive_web_views();
-        self.pacing.needed |= !messages.is_empty();
+        self.pacing.need_if(!messages.is_empty());
         self.send(messages);
     }
 
@@ -737,7 +745,7 @@ impl Runtime {
         screen: ScreenId,
         request: beui::accesskit::ActionRequest,
     ) {
-        self.pacing.needed = true;
+        self.pacing.need();
         self.send(vec![Outbound::App(AppCall::NodeAction {
             screen,
             request: request.into(),
@@ -746,7 +754,7 @@ impl Runtime {
     }
 
     pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
-        self.pacing.needed = true;
+        self.pacing.need();
         self.send(vec![Outbound::App(AppCall::RunAction { screen, id })]);
         host::request_repaint();
     }
@@ -855,7 +863,7 @@ impl Runtime {
         let drawing = self.session.granted_surface().is_some();
         let seen = host::seen();
         let pass = host::pass();
-        self.pacing.needed |= seen && self.pacing.unseen;
+        self.pacing.need_if(seen && self.pacing.unseen);
         let due = drawing && self.pacing.due(self.now(), pass);
         self.awaiting_input = false;
         if due && (held || self.pacing.asked_in == pass) {
@@ -1678,7 +1686,7 @@ pub fn report_children(
             .instances
             .set_child_statuses(instance, region, statuses);
         if !messages.is_empty() {
-            runtime.pacing.needed = true;
+            runtime.pacing.need();
             host::request_repaint();
         }
         runtime.send(messages);
@@ -2094,7 +2102,7 @@ pub fn set_focus(block: Option<(Uuid, Uuid)>, editor: Option<Uuid>, via: Vec<Uui
         host.focus = focus.clone();
         for runtime in host.runtimes.values_mut() {
             if runtime.instances.set_focus(focus.clone()) {
-                runtime.pacing.needed = true;
+                runtime.pacing.need();
             }
         }
     });
@@ -2108,7 +2116,7 @@ impl be_host_base::watches::WatchHost for Watches {
             let mut host = host.borrow_mut();
             for (app_id, runtime) in &mut host.runtimes {
                 if runtime.instances.publish(open, Arc::clone(&value)) {
-                    runtime.pacing.needed = true;
+                    runtime.pacing.need();
                     mark(app_id);
                     host::request_repaint();
                 }
@@ -2151,7 +2159,7 @@ pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
                 .filter(|(shell, _)| shell == app_id)
                 .map(|(_, instance)| *instance);
             if runtime.instances.set_shell(instance) {
-                runtime.pacing.needed = true;
+                runtime.pacing.need();
                 mark(app_id);
                 host::request_repaint();
             }
@@ -2389,7 +2397,7 @@ pub fn present(app_id: &str, instance: EditorInstanceId, presenting: bool) {
 pub fn set_presented(app_id: &str, instance: EditorInstanceId, presented: bool) {
     with(app_id, |runtime| {
         if runtime.instances.set_presented(instance, presented) {
-            runtime.pacing.needed = true;
+            runtime.pacing.need();
             mark(app_id);
             host::request_repaint();
         }
@@ -2913,7 +2921,7 @@ pub fn forward_anchored(
         let messages = runtime
             .instances
             .forward_anchored(instance, region, layer, input);
-        runtime.pacing.needed |= !messages.is_empty();
+        runtime.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -2929,12 +2937,14 @@ pub fn dismiss_anchored_views(
         let messages = runtime
             .instances
             .dismiss_anchored_views(instance, region, dismissed);
-        runtime.pacing.needed |= !messages.is_empty();
+        runtime.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
 }
 
+/// Forwards the input a view heard to its app. Whether the app was sent anything: if so it will
+/// draw a frame that answers it.
 pub fn forward_view(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2942,18 +2952,21 @@ pub fn forward_view(
     input: &beui::ForwardedInput,
     aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
     target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, ViewId)>,
-) {
+) -> bool {
     with(app_id, |runtime| {
         runtime.refresh_anchor_space(instance, region);
         let (messages, revoked) = runtime
             .instances
             .forward(instance, region, input, aim, target);
-        runtime.pacing.needed |= !messages.is_empty();
+        let sent = !messages.is_empty();
+        runtime.pacing.need_if(sent);
         runtime.send(messages);
         if revoked {
             mark(app_id);
         }
-    });
+        sent
+    })
+    .unwrap_or(false)
 }
 
 pub fn pressed_outside_view(app_id: &str, instance: EditorInstanceId, region: ViewId) {
@@ -2972,7 +2985,7 @@ pub fn back_view(
 ) {
     with(app_id, |runtime| {
         let messages = runtime.instances.back(instance, region, gesture);
-        runtime.pacing.needed |= !messages.is_empty();
+        runtime.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -2989,7 +3002,7 @@ pub fn intercept_view(
         let messages = runtime
             .instances
             .intercepted(instance, region, press, modifiers);
-        runtime.pacing.needed |= !messages.is_empty();
+        runtime.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -3005,7 +3018,7 @@ pub fn view_has_keyboard(app_id: &str, instance: EditorInstanceId, region: ViewI
 pub fn intercept_tap(app_id: &str, instance: EditorInstanceId, region: ViewId, key: beui::Key) {
     with(app_id, |runtime| {
         let messages = runtime.instances.intercepted_tap(instance, region, key);
-        runtime.pacing.needed |= !messages.is_empty();
+        runtime.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -3434,7 +3447,7 @@ pub fn drag_over_view(
         let messages = runtime
             .instances
             .drag(instance, region, DragKind::Block, event);
-        runtime.pacing.needed |= !messages.is_empty();
+        runtime.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
         if was != runtime.instances.dragging(instance, region) {
             mark(app_id);

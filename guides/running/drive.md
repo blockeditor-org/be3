@@ -174,7 +174,9 @@ Work the program cannot see is not waited for:
 `drive clock stop` stops the program's clock. Time then passes only with `drive pause MS`, one
 frame at a time, so an animation can be captured at any point the same way every run and a
 program that animates forever still settles. A pause runs its frames at once, costing only
-the frames, not the time it names. `drive clock run` restarts it. With the clock stopped:
+the frames, not the time it names. With the clock stopped, it runs each frame only once the program has nothing to wait
+for, such as an app's answer to the one before, so what apps report across threads of their own
+does not depend on how fast they are. `drive clock run` restarts it. With the clock stopped:
 
 - a menu or sheet that closes stays in the tree until its animation ends, so `gone` after
   closing it needs a `pause` first;

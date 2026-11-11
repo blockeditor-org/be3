@@ -1,0 +1,5 @@
+# A node lists the laid-out texts with text below it, and a virtual list says
+# where a row starts.
+clock stop
+click '#text_hooks.read'
+wait 'value="Texts Alpha,Beta row 3 at Some(60.0)"'

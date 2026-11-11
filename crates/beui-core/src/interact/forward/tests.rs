@@ -13,6 +13,7 @@ use super::*;
 mod a_held_press_is_replayed_where_the_pointer_is_and_leaves_once_over_nothing;
 mod a_mouse_press_the_host_gave_up_is_cancelled;
 mod a_move_carries_its_prediction_along;
+mod a_pointer_that_rested_is_replayed_as_a_rest;
 mod a_scroll_is_replayed_in_unzoomed_pixels;
 mod a_wheel_is_replayed_in_its_notches;
 mod an_unnamed_key_is_replayed_as_a_keystroke;
@@ -42,6 +43,7 @@ fn pointer(pointer: PointerId, phase: PointerPhase, pos: Pos2) -> PointerEvent {
         predicted: None,
         time: crate::timer::now(),
         source: 0,
+        rested: false,
     }
 }
 

@@ -9,7 +9,7 @@ fn a_new_owner_keeps_the_numbering_of_what_the_old_one_accepted_late() {
             counter: 6,
         },
         sequence: 6,
-        payload: b"accepted by the old owner".to_vec(),
+        payload: Payload::Inline(b"accepted by the old owner".to_vec()),
     };
 
     assert_eq!(owner.inherit(&late), Inherited::Continued);
@@ -23,7 +23,7 @@ fn a_new_owner_keeps_the_numbering_of_what_the_old_one_accepted_late() {
                 client: 2,
                 counter: 1,
             },
-            b"accepted by the new owner".to_vec(),
+            Payload::Inline(b"accepted by the new owner".to_vec()),
         )
         .unwrap();
     assert_eq!(mine.sequence, 7);
@@ -34,7 +34,7 @@ fn a_new_owner_keeps_the_numbering_of_what_the_old_one_accepted_late() {
             counter: 7,
         },
         sequence: 7,
-        payload: b"numbered like the new owner's".to_vec(),
+        payload: Payload::Inline(b"numbered like the new owner's".to_vec()),
     };
     assert_eq!(owner.inherit(&clash), Inherited::Unnumbered);
     assert_eq!(owner.sequence(), 7, "a clashing number was taken");

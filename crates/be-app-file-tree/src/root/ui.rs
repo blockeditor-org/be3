@@ -4,18 +4,20 @@ use std::collections::HashSet;
 use be_sdk_beui::BlockParent;
 use be_sdk_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
+use be_sdk_beui::beui::clipboard::formats;
 use be_sdk_beui::beui::icons::{
     Glyph, ICON_DOWNLOAD, ICON_MOVE, ICON_SETTINGS, ICON_SHARE_2, ICON_SPARKLES,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Color32, NodeId, Rect};
+use be_sdk_beui::beui::{ClipItem, Color32, NodeId, Rect};
 use be_sdk_beui::{AdministratorWatch, BlockFilter, Drag, Editor, phone_layout};
 use be_sdk_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter};
-use super::menu::{RowMenu, RowTools};
+use super::hits::{ContentHits, content_hits};
+use super::menu::{RowMenu, RowTools, paste_into};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use super::toolbar::{Adding, FilesToolbar};
@@ -24,7 +26,7 @@ use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::styled::Span;
 use beui::{Align, Direction};
 
-const PADDING: Space = Space::Md;
+pub(crate) const PADDING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Sm;
 const INSPECT_WIDTH: Size = Size::Dialog;
 const FIELD_SPACING: Space = Space::Xs2;
@@ -52,6 +54,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         inspected_from,
         zoom,
         renaming,
+        tree_api: tree_ref,
+        cut: store(std::cell::Cell::new(None)),
     };
     let rows = tree.rows();
     let focused_block = editor.focused_block();
@@ -164,12 +168,16 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let filtering = create_memo(move || !filter.with(String::is_empty));
     let found = create_memo(move || filter.with(|filter| filtered(rows, keys, filter)));
     let shown_keys = create_memo(move || found.get().keys);
+    let content = content_hits(editor, filter);
     let count = create_memo(move || {
         let hits = found.with(|found| found.hits);
-        match hits {
-            0 => format!("Nothing matches \u{201c}{}\u{201d}", query.get().trim()),
-            1 => "1 match".to_owned(),
-            hits => format!("{hits} matches"),
+        let in_content = content.with(Vec::len);
+        match (hits, in_content) {
+            (0, 0) => format!("Nothing matches \u{201c}{}\u{201d}", query.get().trim()),
+            (0, 1) => "1 match in content".to_owned(),
+            (0, in_content) => format!("{in_content} matches in content"),
+            (1, _) => "1 match".to_owned(),
+            (hits, _) => format!("{hits} matches"),
         }
     });
     let adding = Adding {
@@ -180,8 +188,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         renaming,
         query,
     };
-    let content = NodeRef::new();
-    editor.content(&content);
+    let content_node = NodeRef::new();
+    editor.content(&content_node);
     create_effect(move || {
         let landed = arrival(editor, held, rows, tree_ref, drag);
         landing.set(landed);
@@ -190,7 +198,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         <List spacing=Space::None>
             <FilesToolbar adding shown={toolbar} />
             <ListItem grow=1.0>
-                <Frame @node_ref={&content}>
+                <Frame @node_ref={&content_node}>
                     <BackSlide enabled={swipes} on_back={move || zoom.up()}>
                         <Frame fill=ColorRole::Background>
                             <List spacing=Space::None>
@@ -205,6 +213,9 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                             {count}
                                         </Text>
                                     </Frame>
+                                </Show>
+                                <Show condition={filtering}>
+                                    <ContentHits editor hits={content} />
                                 </Show>
                                 <Show condition={failed}>
                                     <Frame padding=PADDING>
@@ -230,6 +241,21 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         }}
                                         editing={renaming.editing()}
                                         reorder=true
+                                        pastes={move |key: RowKey| {
+                                            let folder = rows.with_untracked(|rows| {
+                                                rows.iter().any(|row| row.key == key && row.can_add)
+                                            });
+                                            match folder {
+                                                true => vec![formats::BLOCKS.to_owned()],
+                                                false => Vec::new(),
+                                            }
+                                        }}
+                                        on_paste={move |(key, pasted): (RowKey, ClipItem)| {
+                                            let row = tree.rows().with_untracked(|rows| {
+                                                rows.iter().find(|row| row.key == key).cloned()
+                                            });
+                                            paste_into(editor, tools.cut, row, pasted)
+                                        }}
                                         on_select={open}
                                         on_expand={expand}
                                         on_reveal={reveal}

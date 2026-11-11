@@ -110,6 +110,9 @@ impl be_block_type_host::Host for Shared {
             let before = held.graph.get(block).and_then(|node| node.head);
             if before != status.head {
                 held.saves += 1;
+                if status.owner {
+                    held.search.sealed(block);
+                }
                 held.touch(block);
                 if let Some((from, message)) = held.module_error.take() {
                     match from == block && held.error.as_ref() == Some(&message) {

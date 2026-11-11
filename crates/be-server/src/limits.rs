@@ -21,6 +21,17 @@ pub const MAX_INVITATIONS_PER_ORGANIZATION: i64 = 1_000;
 /// Escrow keys an organization may make; each rotation makes one.
 pub const MAX_ESCROWS_PER_ORGANIZATION: i64 = 1_000;
 
+/// Push endpoints (devices) one account keeps per organization; registering another drops the
+/// oldest.
+pub const MAX_PUSH_ENDPOINTS: i64 = 32;
+/// Notifications one account may send a minute, over all blocks.
+pub const MAX_NOTIFICATIONS_PER_MINUTE: u32 = 60;
+/// Notifications one account may send a minute about one block; more waiting for one device
+/// replace each other (`Pusher::queue`).
+pub const MAX_NOTIFICATIONS_PER_BLOCK: u32 = 10;
+/// Accounts one notification may mention.
+pub const MAX_MENTIONS: usize = 1_024;
+
 /// Live sessions one connection may be joined to at once.
 pub const MAX_SESSIONS_PER_CONNECTION: usize = 1_024;
 /// Listings one connection may hold at once: folders, references and backlinks open. A block's
@@ -41,8 +52,9 @@ pub const MAX_SEALED_BYTES: usize = 64 * 1024;
 /// A pairing message between an account's connections.
 pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// A message relayed in a live session. Replicas relay operations of at most 1 MiB and send a
-/// larger edit as a commit (`LARGEST_RELAYED_OPERATION` in be-sdk-type-guest); a catch-up
-/// snapshot carries the operations since the last seal, so this leaves room for both.
+/// larger one by the part they put its bytes as (`LARGEST_RELAYED_OPERATION` in
+/// be-sdk-type-guest); a catch-up snapshot carries the operations since the last seal, so this
+/// leaves room for both.
 pub const MAX_RELAY_BYTES: usize = MAX_FRAME_BYTES / 2;
 
 pub(crate) fn too_many(what: &str, limit: impl std::fmt::Display) -> ServerError {

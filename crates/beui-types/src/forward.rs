@@ -255,7 +255,10 @@ impl Replay {
             }));
         } else {
             match event.phase {
-                PointerPhase::Move => out.push(timed(Input::PointerMoved(pos))),
+                PointerPhase::Move => out.push(timed(match event.rested {
+                    true => Input::PointerRested(pos),
+                    false => Input::PointerMoved(pos),
+                })),
                 PointerPhase::Down(button) | PointerPhase::Up(button) => {
                     let pressed = matches!(event.phase, PointerPhase::Down(_));
                     self.pressed = match pressed {

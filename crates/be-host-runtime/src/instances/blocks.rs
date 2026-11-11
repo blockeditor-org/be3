@@ -16,6 +16,8 @@ pub(super) enum Subject {
     Artifact(Uuid),
     Version,
     Shows,
+    /// A full-text search, named by its watch: `Instance::searches` holds what it asks.
+    Search(OpId),
 }
 
 pub(super) struct Watch {
@@ -218,16 +220,16 @@ impl Instances {
                 content,
                 owner_only,
             } => {
+                let block = Uuid::from_bytes(block);
                 let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    self.refuse_block(instance, block);
                     return self.acknowledge(reply, None);
                 };
                 if parent.block().is_some_and(|parent| !self.editable(parent))
                     || (owner_only && !own_settings(parent))
+                    || be_host_stack::node(block).is_some()
                 {
-                    return self.acknowledge(reply, None);
-                }
-                let block = Uuid::from_bytes(block);
-                if be_host_stack::node(block).is_some() {
+                    self.refuse_block(instance, block);
                     return self.acknowledge(reply, None);
                 }
                 let mut defined = be_host_stack::app_graph::entries_of(defined);
@@ -323,6 +325,23 @@ impl Instances {
                 resource.op(),
                 Subject::Artifact(Uuid::from_bytes(block)),
             ),
+            Call::SearchWatchNew {
+                resource,
+                text,
+                within,
+            } => {
+                let op = resource.op();
+                if let Some(entry) = self.entries.get_mut(&instance) {
+                    entry.searches.insert(
+                        op,
+                        be_host_stack::SearchAsk {
+                            text,
+                            within: within.map(Uuid::from_bytes),
+                        },
+                    );
+                }
+                self.watch(instance, op, Subject::Search(op))
+            }
             Call::VersionWatchNew { resource } => {
                 self.watch(instance, resource.op(), Subject::Version)
             }
@@ -333,6 +352,7 @@ impl Instances {
             | Call::BlocksWatchNext { .. }
             | Call::HistoryWatchNext { .. }
             | Call::HeadWatchNext { .. }
+            | Call::SearchWatchNext { .. }
             | Call::ArtifactWatchNext { .. }
             | Call::VersionWatchNext { .. }
             | Call::ShowRequestsNext { .. }) => {
@@ -341,6 +361,17 @@ impl Instances {
                     .push(call.refuse(OpError::Unsupported));
                 false
             }
+        }
+    }
+
+    /// Notes that the host refused to make `block` for the instance, so a gift of the keyboard
+    /// to the child that would have shown it never starts.
+    fn refuse_block(&mut self, instance: EditorInstanceId, block: Uuid) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.block_focus.retain(|asked| *asked != block);
+            entry.block_refused.push(block);
+            let extra = entry.block_refused.len().saturating_sub(8);
+            entry.block_refused.drain(..extra);
         }
     }
 
@@ -360,6 +391,7 @@ impl Instances {
         entry.watches.insert(op, Watch::new(watched));
         match watched {
             Subject::Blocks(_) => entry.blocks_seen = None,
+            Subject::Search(_) => entry.searches_seen = None,
             Subject::Head(block) => entry.heads.watch(block),
             Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
             Subject::Version => entry.version_sent = None,
@@ -422,6 +454,9 @@ impl Instances {
                     }
                 }
                 Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
+                Subject::Search(op) => {
+                    entry.searches.remove(&op);
+                }
                 Subject::Blocks(_) | Subject::History(_) | Subject::Version | Subject::Shows => {}
             }
             return;

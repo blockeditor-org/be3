@@ -129,6 +129,17 @@ impl Node {
         }
     }
 
+    /// A string property of the live element, such as an `<input>`'s `value`.
+    pub fn string(&self, property: &str) -> Option<String> {
+        #[cfg(target_arch = "wasm32")]
+        return dom::string(self, property);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = property;
+            None
+        }
+    }
+
     pub fn set_number(&self, property: &str, value: f64) {
         #[cfg(target_arch = "wasm32")]
         dom::set_number(self, property, value);

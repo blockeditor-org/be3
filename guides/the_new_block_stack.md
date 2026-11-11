@@ -31,7 +31,7 @@ be-block-protocol  the wire format (WIT be3:server)      client + server
 be-block-keys      account-level cryptography            client + server
 be-block-model     objects with ids, merge, undo         client
 be-lib-sequence    the ordered sequence under text/lists client
-be-lib-search      the full-text index, kept as parts     client (plans/search.md)
+be-lib-search      the full-text index, kept as parts     client (guides/blocks/host.md, Search)
 be-block           content traits and content types      client
 be-block-vcs       snapshot trees, diff, tree merge      client
 be-block-client    a peer: local store, refs db, relay   client
@@ -78,8 +78,8 @@ Which formats are frozen (none yet): guides/frozen_formats.md.
   stores each move's account as a field the sender fills in. Signing operations
   is not enough, since the session owner sequences and relays everything; the
   stored items would have to carry their own signatures.
-- **Search and previews from content.** Server-side search is impossible under
-  end-to-end encryption, so it has to be client-side over the local cache or a
-  client-built encrypted index.
+- **Previews from content.** Server-side previews are impossible under
+  end-to-end encryption. Search is a client-built index per root block
+  (guides/blocks/host.md, "Search").
 - **Direct peer connections.** Sessions relay through the server.
 - Gaps specific to one area are listed in its part.

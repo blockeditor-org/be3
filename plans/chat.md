@@ -1,14 +1,15 @@
 # Chat
 
 Depends on: none; merging by parts (guides/type_modules.md, "Merging by
-parts"), which step 1d uses, has landed. Owner-only settings, for step 1c, have landed
-(guides/settings.md, Owner only). plans/notifications.md for step 2.
+parts"), which step 1d uses, has landed. Step 2 needs plans/notifications.md step 1
+(a device that shows a push); the server's side and the `notify` host call
+it uses have landed.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Step 1a has landed.
+edited (the journal, guides/blocks/client.md). Steps 1a and 1c have landed.
 
 ## What exists
 
@@ -29,6 +30,20 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
   "Member" and their account's first digits, since no host service names
   members to an app yet. Attachments are in the model but the editor cannot
   add or show them yet.
+- **Unread counts (1c).** Where the account read each chat up to is theirs,
+  never in the chat, where it would be a read receipt: the owner-only settings
+  kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are
+  escrowed, and administrators could read them), one place per device, so a
+  device behind or offline never takes another's reading back. The furthest
+  place counts, by message order: a deleted message's `Deletion` names the one
+  before it. Each place is a key of its own (`chat/device/message`), and a
+  device moving on drops only places it has seen that are not further than
+  its new one, so a move made elsewhere meanwhile survives.
+  `ChatContent::unread` counts others' messages after it and after my own
+  newest message (answering is reading), reading only their authors. The editor reads the chat while it is shown, its view has the
+  keyboard and it is scrolled to its newest message; otherwise it shows "N new
+  messages" above the message box, which scrolls to the end. No sidebar or
+  block row shows the count yet.
 - **Member names.** Apps have no way to learn a member's name: the `contacts`
   watch is the shell's alone. Step 1b or a later one needs a host service that
   names the accounts in a block's members (contacts by their card, others by
@@ -125,13 +140,11 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
 
 ### Unread counts
 
-- Where each person has read up to is theirs, not part of the shared document,
-  where it would be a read receipt. It is kept in an owner-only settings kind
-  of chat's own (`KindVisibility::Owner`, guides/settings.md), keyed by chat id, so it matches
-  across devices; ordinary user settings are escrowed, and administrators
-  could read them.
 - The newest message and the counts come from the header, so a sidebar of
-  chats reads one small part per chat.
+  chats (not built) reads one small part per chat.
+- With segments (1d), `messages()` holds only the recent ones, and a place it
+  does not hold reads as "not received yet", so all read. 1d has to find a
+  place in an older segment by the segment index instead.
 
 ### Deleting
 
@@ -145,13 +158,14 @@ edited (the journal, guides/blocks/client.md). Step 1a has landed.
    - **1b.** Sending state and `published-head`. Done: a host test sends a
      message while the server is unreachable and the painting shows it as
      sending until the drain publishes it.
-   - **1c.** Unread counts in an owner-only kind. Done: reading on one device clears
-     the count on another; a painting of the count.
    - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
      messages opens reading only the header; scrolling back reads segments by
      range; an offline reaction to a message moved into a segment survives the
      merge; a forced hash mismatch reads the part instead.
-2. **Notifications** for chat, on plans/notifications.md. Done: a member who is
+2. **Notifications** for chat: sending a message calls `notify` with its text
+   and the accounts it mentions (guides/apps/host_services.md), once the
+   message is confirmed, since `notify` is not ordered with the save that
+   carries it. Done: a member who is
    not connected gets a notification naming the chat and author, and none for
    a muted chat.
 

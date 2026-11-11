@@ -93,7 +93,8 @@ be-sdk-beui turns each into a signal, so beui editors never see callbacks.
 
 The editor state over `EditorHost` is plain too (`be-sdk/src/editor_state.rs`):
 `EditorCore` (content cache, view state, peers, pan and zoom, reported sizes,
-placed children; `begin_frame` reads a `ShownEditor` in framework points),
+placed children; `begin_frame` reads a `ShownEditor` in framework points, and
+reads the host only while its `EditorHost::change_flag` is raised),
 `ArtifactsCore`, `CreationCore`, `SettingsLayers<R>` and `SettingsChangeLog`.
 be-sdk-beui's `Editor`, `Artifacts`, `Creation`, `Fitting` and
 `LayeredSettings` wrap them with signals; what needs beui (placing children,
@@ -119,6 +120,11 @@ An app watches a `BlockQuery` with a `blocks-watch` resource, answered from
 the host's mirror whenever the answer changes (`be-host-stack/src/app_graph.rs`);
 on the app side `editor.watch_blocks(query)` and `editor.blocks()`, held while
 anything holds the `BlockList`.
+
+Full-text search is a query of its own, not a `BlockQuery`: a `search-watch`
+(text and an optional `within` block) answers hits of block, document key,
+snippet and match ranges, again whenever an index it read changes
+(`editor.search(memo)` in be-sdk-beui; guides/blocks/host.md, "Search").
 
 A `BlockInfo` carries type, author, parent (`BlockLocation`), name, references,
 access, artifact source, `locked` (viewable but no key yet, so metadata is

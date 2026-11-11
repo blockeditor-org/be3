@@ -24,8 +24,10 @@ mod a_sheet_open_before_its_view_has_an_anchor_space_moves_into_an_anchored_view
 mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
 mod a_view_describes_itself_and_does_what_a_screen_reader_asks;
 mod a_view_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_out;
+mod a_view_given_the_keyboard_that_never_shows_does_not_hold_it_for_ever;
 mod a_view_lays_out_over_its_whole_rect_not_just_what_shows;
 mod a_view_tells_the_host_it_locks_the_pointer_and_when_it_stops;
+mod a_view_that_closes_with_the_keyboard_tells_the_program_and_one_without_does_not;
 mod a_view_that_loses_the_keyboard_mid_press_keeps_the_press;
 mod a_views_keyboard_reaches_the_host_with_its_asks;
 mod a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on;
@@ -229,4 +231,31 @@ fn launched(host: &EditorHost, program: impl Program + 'static) -> Box<Driver<Mo
     handler
         .downcast()
         .expect("the app platform's handler drives a ModuleRunner")
+}
+
+fn preview() -> ShownView {
+    ShownView {
+        view: be_sdk::View::PREVIEW,
+        ..whole(80.0, 60.0)
+    }
+}
+
+fn focus_events(events: &Rc<std::cell::RefCell<Vec<Event>>>) -> Vec<bool> {
+    events
+        .borrow()
+        .iter()
+        .filter_map(|event| match event {
+            Event::Focus(focused) => Some(*focused),
+            _ => None,
+        })
+        .collect()
+}
+
+fn watched() -> (Windowed, Rc<std::cell::RefCell<Vec<Event>>>) {
+    let events = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen = events.clone();
+    let program = Windowed::empty().hooked(move |context| {
+        context.input(|input| seen.borrow_mut().extend(input.events.iter().cloned()));
+    });
+    (program, events)
 }

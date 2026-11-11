@@ -301,6 +301,8 @@ pub fn started() -> bool {
 pub(crate) fn start() {
     STARTED.with(|started| started.set(true));
     beui_reactive::wake_with(wake);
+    #[cfg(target_arch = "wasm32")]
+    crate::back::start();
     request_frame();
 }
 

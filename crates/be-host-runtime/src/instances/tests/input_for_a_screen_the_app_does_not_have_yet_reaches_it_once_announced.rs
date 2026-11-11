@@ -16,6 +16,7 @@ fn input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced() {
             predicted: None,
             time: std::time::Instant::now(),
             source: 0,
+            rested: false,
         },
         over: None,
     };

@@ -5,15 +5,6 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
-## 1. Push, don't poll
-
-Each piece of host state the editor mirrors already notifies its own
-subscribers (`Mirror` in `be-sdk-beui/src/editor.rs`), but `Editor::begin_frame`
-still compares the host's change counter (`host().changes()`) every frame
-before syncing the mirror. Make it fully push-based, so a frame does no
-checking at all. Done: a test with a host that counts calls shows a frame with
-no pushes calls nothing on the host.
-
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,
@@ -48,9 +39,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   (Xvfb, installed with apt on the test machine and started by the test,
   skipping with a message when absent) reads both targets from one clip;
   Windows compiles.
-- **Paste in the files pane.** `be-app-file-tree` copies and cuts blocks
-  (`root/menu.rs`) but takes no paste. Done: Paste on a folder places a
-  `be3/blocks` clip there through `paste-blocks`.
 - **Block ids inside any clip, inside a checkout.** The host translates the
   ids of a clip crossing the app protocol for an instance in a checkout
   (guides/blocks/version_control.md, "Scopes and local ids"), but only for
@@ -77,8 +65,7 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   is fine). Marks whose keys belong to another schema are dropped on paste;
   embeds cross in the clip's `refs`, translated like any other. Done: a
   paste between two rich texts keeps bold, links and an embed, and pasting
-  from a browser's `text/html` gives bold and links. Text editing on the
-  shared sequence is plans/text.md; land this apart from its items.
+  from a browser's `text/html` gives bold and links.
 
 ## 5. Loading part of a document
 

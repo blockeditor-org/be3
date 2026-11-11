@@ -1,3 +1,4 @@
+use crate::form::Posted;
 use accesskit::{Node, Role, Toggled};
 use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
@@ -36,6 +37,7 @@ pub fn Toggle(
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
+    #[prop(default = String::new())] name: Prop<String>,
     #[prop(children)] content: Option<Render<ToggleHandle>>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
@@ -115,7 +117,7 @@ pub fn Toggle(
 
     api.fill(ToggleApi(checked));
 
-    view! {
+    let toggle = view! {
         <Interactive
             focusable=true
             tab_stop
@@ -132,6 +134,10 @@ pub fn Toggle(
             on_active_change={active}
             children={content_node}
         />
+    };
+    let posted = create_memo(move || checked.get().then(|| "on".to_owned()));
+    view! {
+        <Posted name value={posted} disabled content={toggle} />
     }
 }
 

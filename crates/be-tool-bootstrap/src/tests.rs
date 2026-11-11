@@ -4,6 +4,7 @@ mod a_build_server_address_gives_the_host_and_the_token;
 mod a_build_server_epoch_is_read_only_from_its_own_answer;
 mod a_crate_has_a_test_target_unless_its_macro_is_told_not_to;
 mod a_local_build_is_any_spelling_of_the_local_platforms;
+mod a_redirect_from_the_build_server_means_it_needs_waking;
 mod a_tar_file_is_found_by_its_long_name;
 mod a_test_is_named_by_its_module_path;
 mod cksum_matches_posix;

@@ -27,3 +27,31 @@ key Enter
 wait 'value="Sent 1"'
 click 'Button "Send"'
 wait 'value="Sent 2"'
+# TextInputApi sets and reads the selection; on HTML it is the input's own.
+click 'Button "Read selection"'
+wait 'value="Selection none caret 5"'
+click 'Button "Select 1 to 3"'
+click 'Button "Read selection"'
+wait 'value="Selection 1..3 caret 3"'
+# Offsets are bytes of the value on both cores, though the browser counts UTF-16
+# units, and the caret of a selection made backwards is its start.
+click '#text_input.field'
+key End
+type '😀b'
+wait 'value="Value xabyd😀b"'
+click 'Button "Select 5 to 9"'
+click 'Button "Read selection"'
+wait 'value="Selection 5..9 caret 9"'
+click '#text_input.field'
+key End
+key shift+ArrowLeft
+key shift+ArrowLeft
+click 'Button "Read selection"'
+wait 'value="Selection 5..10 caret 5"'
+# Without keyboard_on_focus the browser's keyboard waits for a press: its policy is
+# manual until one lands, and again once focus leaves.
+#web attribute '[data-testid~="text_input.lazy"] input' virtualkeyboardpolicy manual
+click '#text_input.lazy'
+#web attribute '[data-testid~="text_input.lazy"] input' virtualkeyboardpolicy none
+click 'Button "Read selection"'
+#web attribute '[data-testid~="text_input.lazy"] input' virtualkeyboardpolicy manual

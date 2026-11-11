@@ -21,5 +21,7 @@ pub fn registrations() -> Vec<Registration> {
         Registration::of::<HomeContent>().undo::<HomeContent>(),
         Registration::of::<OrganizationPoliciesContent>(),
         Registration::of::<OfflineSettingsContent>(),
+        Registration::of::<be_block::search_index::SearchIndexContent>()
+            .merge_parts::<be_block::search_index::SearchIndexContent>(),
     ]
 }

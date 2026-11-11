@@ -25,7 +25,4 @@ gone 'Nothing open'
 wait '#dock.splitter.shell' over 264,300
 drag '#dock.splitter.shell' '#dock.splitter.shell+203,300' 6
 wait '#dock.splitter.shell' over 464,300
-click '#demo.inspector'
-wait '#demo.inspector.stand_in'
-key Escape
-gone '#demo.inspector.stand_in'
+role button 'Open the inspector' disabled

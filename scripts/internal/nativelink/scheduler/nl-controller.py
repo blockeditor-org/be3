@@ -3,11 +3,13 @@
 
 What it does, every tick:
   * A build is running when some client holds a connection to the scheduler's frontend port from a client address.
-  * While a build runs it keeps BASE worker VMs alive and scales between BASE and CAP on the queue: NativeLink reports
-    how many actions are queued (waiting for a worker) and executing, each worker takes SLOTS at once, and work that
-    has waited means more workers are needed. It extends their lifetime before it runs out and creates replacements for
-    any that are gone. Workers beyond BASE are a burst: they live a short time and are simply not extended once the
-    queue has been short for a while.
+  * While a build runs it keeps BASE worker VMs alive and scales between BASE and the cap on the queue: NativeLink
+    reports how many actions are queued (waiting for a worker) and executing, each worker takes SLOTS at once, and work
+    that has waited means more workers are needed. It extends their lifetime before it runs out and creates
+    replacements for any that are gone. Workers beyond BASE are a burst: they live a short time and are simply not
+    extended once the queue has been short for a while.
+  * The cap follows the plan's VM time (see pace): BASE workers and the scheduler are always allowed, and only what
+    the period has left above that floor buys workers past BASE, up to CAP_MAX.
   * A new worker is created with its WireGuard config and bootstrap script handed over at creation (no SSH, which its
     key does not have). Boat places a new VM at random, and about half of them cannot reach the scheduler, so the
     controller creates enough to expect the ones it needs (it learns the share), keeps the ones that complete a
@@ -17,11 +19,13 @@ What it does, every tick:
   * After SCHEDULER_IDLE_STOP seconds with no build and no worker it packs the small tier and stops the scheduler itself.
 
 Its only boat credential is a key limited to the nl-worker environment that can create, read, extend and delete the
-workers it created (boat api-key, actions sandbox.create, sandbox.read, sandbox.update, sandbox.delete-own).
+workers it created (boat api-key, actions sandbox.create, sandbox.read, sandbox.update, sandbox.delete-own), and read
+`boat limits` (account.read).
 
-  nl-controller.py [--once] [--dry-run] [--force-active]
+  nl-controller.py [--once] [--dry-run] [--force-active] [--limits FILE]
 """
 import argparse
+import calendar
 import concurrent.futures as cf
 import json
 import math
@@ -34,7 +38,9 @@ import time
 import urllib.request
 
 BASE = int(os.environ.get("NL_WORKERS_BASE", "2"))           # workers kept while any build runs
-CAP = int(os.environ.get("NL_WORKERS_CAP", "6"))             # the most it will burst to
+# The most it will burst to. 12 large workers are 96 CPUs. The large scheduler carried 6 workers' writes at 87% idle,
+# so 12 would keep it about 75% idle; the worker addresses allow 49, and a full cold fleet is about 2 starts a worker.
+CAP_MAX = int(os.environ.get("NL_WORKERS_CAP_MAX", "12"))
 UP_AFTER = int(os.environ.get("NL_UP_AFTER", "60"))          # seconds work must have waited before adding a worker
 UP_EVERY = int(os.environ.get("NL_UP_EVERY", "60"))          # seconds at least between adding workers
 DOWN_AFTER = int(os.environ.get("NL_DOWN_AFTER", "300"))     # seconds with spare workers before they are let go
@@ -47,6 +53,21 @@ WORKER_TYPE = os.environ.get("NL_WORKER_TYPE", "large")
 WORKER_TTL = int(os.environ.get("NL_WORKER_TTL", "1800"))    # a worker's lifetime, extended while builds run
 EXTEND_WHEN_LEFT = int(os.environ.get("NL_EXTEND_WHEN_LEFT", "900"))   # extend when less than this is left
 SCHEDULER_IDLE_STOP = int(os.environ.get("NL_SCHEDULER_IDLE_STOP", str(4 * 3600)))
+
+# Money. The plan includes VM time for each billing period (`boat limits`: planIncluded.vmHoursRemaining, in hours of a
+# default VM, and periodEnd); past it, VM time comes out of the wallet. Every sandbox of the account draws on it, this
+# scheduler included, so boat's count is the meter. The floor, BASE workers for FLOOR_HOURS of builds a day and the
+# scheduler for those hours plus its idle stop, is always allowed; the cap past BASE spends only the rest, spread over
+# the hours left in the period (pace).
+RATES = {"small": 0.018, "default": 0.036, "large": 0.072, "xlarge": 0.20}   # dollars an hour; xlarge costs more per CPU
+WORKER_RATE = RATES[WORKER_TYPE]
+SCHEDULER_RATE = RATES[{2: "small", 4: "default", 8: "large", 16: "xlarge"}.get(os.cpu_count(), "large")]
+FLOOR_HOURS = float(os.environ.get("NL_FLOOR_HOURS", "12"))   # hours of builds a day the floor pays for
+BURST_K = float(os.environ.get("NL_BURST_K", "4"))   # 1 / the share of the time burst workers run, until state measures it
+K_RANGE = (1.0, 8.0)                                  # what a measured K is held to
+K_HISTORY = 7 * 86400                                 # burst use measured over this long, once it covers a day
+BUDGET_EVERY = int(os.environ.get("NL_BUDGET_EVERY", "300"))   # seconds between moves of the cap, one worker each
+IDLE_DELETE = int(os.environ.get("NL_IDLE_DELETE", "600"))     # idle this long with nothing to spare: delete bursts early
 TICK = int(os.environ.get("NL_TICK", "15"))
 HANDSHAKE_WAIT = int(os.environ.get("NL_HANDSHAKE_WAIT", "60"))        # a good worker handshakes within ~25 s of creation
 ROUNDS = int(os.environ.get("NL_SPAWN_ROUNDS", "4"))                   # rounds of replacing VMs that cannot reach it
@@ -57,7 +78,8 @@ METRICS_URL = os.environ.get("NL_METRICS_URL", "http://127.0.0.1:8889/metrics") 
 # whichever window is highest, and fails above it (docs.boat.dev/limits#extra-starts). Over-provisioning spends starts
 # on VMs that are deleted at once, so past the included number it costs money. By default the controller never pays
 # for a start: it leaves RESERVE of each window for everybody else's VMs and stops when the rest is used.
-INCLUDED = {"day": 200, "hour": 60, "minute": 12}            # the $20 plan, used when the key cannot read `boat limits`
+# The smallest plan's, used only before any `boat limits` reading has been saved: never more than any plan includes.
+INCLUDED = {"day": 200, "hour": 60, "minute": 12}
 RESERVE = {"day": int(os.environ.get("NL_RESERVE_DAY", "5")), "hour": int(os.environ.get("NL_RESERVE_HOUR", "10")),
            "minute": 0}
 MAX_START_PRICE = float(os.environ.get("NL_MAX_START_PRICE", "0"))       # dollars: the dearest start it will pay for
@@ -84,6 +106,7 @@ SK_HOME = os.environ.get("NL_BOAT_HOME", "/var/lib/nl-controller/sk-home")
 STATE = os.environ.get("NL_STATE", "/var/lib/nl-controller/state.json")
 
 DRY = False
+LIMITS_FILE = None          # --limits: read this canned `boat limits --json` instead of asking boat (testing)
 
 
 def log(msg):
@@ -172,7 +195,7 @@ def list_workers():
 
 
 def parse_time(ts):
-    return time.mktime(time.strptime(ts.split(".")[0], "%Y-%m-%dT%H:%M:%S")) - time.timezone if ts else None
+    return calendar.timegm(time.strptime(ts.split(".")[0].rstrip("Z"), "%Y-%m-%dT%H:%M:%S")) if ts else None
 
 
 def load_state():
@@ -183,6 +206,8 @@ def load_state():
 
 
 def save_state(st):
+    if DRY:
+        return
     os.makedirs(os.path.dirname(STATE), exist_ok=True)
     json.dump(st, open(STATE, "w"))
 
@@ -221,34 +246,56 @@ def create_candidate(name, ip, hub, tmp, ttl):
     return None
 
 
-def limits():
-    """Starts left in each window and the price of the next one, if this key may read `boat limits` (account.read)."""
-    rc, out, _ = boat("--json", "limits", timeout=30)
-    if rc != 0:
-        return None
+def parse_limits(text, now):
+    """The parts of `boat limits --json` the controller uses, or None."""
     try:
-        d = json.loads(out)
-        left = {w: d["starts"][w]["remaining"] for w in ("day", "hour", "minute")}
-        return {**left, "price": float(d.get("nextStartDollars") or 0)}
-    except (ValueError, KeyError, TypeError):
+        d = json.loads(text)
+        inc = d["planIncluded"]
+        return {"at": now,
+                "starts": {w: {"limit": int(d["starts"][w]["limit"]), "remaining": int(d["starts"][w]["remaining"])}
+                           for w in ("day", "hour", "minute")},
+                "price": float(d.get("nextStartDollars") or 0),
+                "vm_hours_left": float(inc["vmHoursRemaining"]),
+                "vm_hour_dollars": float((d.get("overagePrices") or {}).get("vmHourDollars") or 0.036),
+                "period_end": parse_time(inc["periodEnd"]),
+                "wallet": float((d.get("wallet") or {}).get("balanceDollars") or 0)}
+    except (ValueError, KeyError, TypeError, AttributeError):
         return None
+
+
+def limits(st):
+    """The account's limits, read live if this key may (account.read), and saved in st as the last good reading. When
+    boat does not answer, the saved reading, marked stale (its starts left are then counted from st's own creates);
+    None only before any reading."""
+    now = time.time()
+    if LIMITS_FILE:
+        text = open(LIMITS_FILE).read()
+    else:
+        rc, text, _ = boat("--json", "limits", timeout=30)
+        text = text if rc == 0 else ""
+    lim = parse_limits(text, now)
+    if lim is not None:
+        st["limits"] = lim
+        return dict(lim, stale=False)
+    return dict(st["limits"], stale=True) if st.get("limits") else None
 
 
 def start_allowance(want, st):
     """How many VMs may be created now, and what each start over the included number costs. Free starts come first,
     minus the reserve; paid ones only when a price and a monthly budget allow."""
     now = time.time()
-    lim = limits()
-    if lim is None:
+    lim = limits(st)
+    if lim is None or lim["stale"]:
         spans = {"day": 86400, "hour": 3600, "minute": 60}
-        left = {w: INCLUDED[w] - sum(1 for t in st["creates"] if now - t < spans[w]) for w in spans}
+        included = {w: lim["starts"][w]["limit"] for w in spans} if lim else INCLUDED
+        left = {w: included[w] - sum(1 for t in st["creates"] if now - t < spans[w]) for w in spans}
         price = 0.0
     else:
-        left, price = {w: lim[w] for w in ("day", "hour", "minute")}, lim["price"]
+        left, price = {w: lim["starts"][w]["remaining"] for w in ("day", "hour", "minute")}, lim["price"]
     free = max(0, min(left[w] - RESERVE[w] for w in left))
     allowed = min(want, free)
     extra = 0
-    if lim is not None and allowed < want and price > 0 and MAX_START_PRICE >= price:
+    if lim is not None and not lim["stale"] and allowed < want and price > 0 and MAX_START_PRICE >= price:
         spent = sum(d for t, d in st.get("extra_spend", []) if now - t < 30 * 86400)
         extra = min(want - allowed, int(max(0.0, EXTRA_START_BUDGET - spent) // price))
     return allowed + extra, price, extra
@@ -268,6 +315,80 @@ def demand():
         if stage:
             totals[stage.group(1)] = totals.get(stage.group(1), 0.0) + float(m.group(2))
     return max(0, round(totals.get("queued", 0))), max(0, round(totals.get("executing", 0)))
+
+
+def floor_rate():
+    """Dollars an hour, averaged over the day, that the guaranteed floor costs: BASE workers for FLOOR_HOURS of builds,
+    and the scheduler for those hours and the idle stop after them."""
+    return (BASE * WORKER_RATE * FLOOR_HOURS + SCHEDULER_RATE * min(24.0, FLOOR_HOURS + SCHEDULER_IDLE_STOP / 3600)) / 24
+
+
+def pace(lim, now, k):
+    """How many workers past BASE the plan's VM time allows now: what the period has left over the floor's share of the
+    hours left is a rate in dollars an hour (surplus_rate), and burst workers run about a share 1/k of the time, so
+    k * surplus_rate / WORKER_RATE of them may run while they do. Early in a period the floor's whole remaining cost
+    is held back; time the floor did not use comes back as the period ends."""
+    remaining = lim["vm_hours_left"] * lim["vm_hour_dollars"]
+    hours_left = max(0.25, ((lim["period_end"] or now) - now) / 3600)
+    surplus_rate = (remaining - floor_rate() * hours_left) / hours_left
+    extra = min(CAP_MAX - BASE, max(0, round(k * surplus_rate / WORKER_RATE)))
+    return {"remaining": remaining, "hours_left": hours_left, "surplus_rate": surplus_rate, "allows": BASE + extra}
+
+
+def burst_k(st, now):
+    """K measured from the last K_HISTORY: the workers past BASE that the cap allowed on average while the controller
+    ran, over the ones that actually ran on average over the whole time (bursts run only while it runs). BURST_K until
+    the record covers a day with some burst allowed."""
+    hist = [b for b in st.get("burst", []) if now - b[0] < K_HISTORY]
+    st["burst"] = hist
+    if not hist or now - hist[0][0] < 86400:
+        return BURST_K, False
+    on, used, allowed = (sum(b[i] for b in hist) for i in (1, 2, 3))
+    if allowed <= 0 or on <= 0:
+        return BURST_K, False
+    k = K_RANGE[1] if used <= 0 else (allowed / on) / (used / (now - hist[0][0]))
+    return min(K_RANGE[1], max(K_RANGE[0], k)), True
+
+
+def record_burst(st, now, workers, cap):
+    """Add this tick to the hourly record burst_k reads: [hour, seconds on, burst worker-seconds, allowed ones]."""
+    dt = min(60.0, now - st.get("burst_at", now))
+    st["burst_at"] = now
+    hour = now - now % 3600
+    hist = st.setdefault("burst", [])
+    if not hist or hist[-1][0] != hour:
+        hist.append([hour, 0.0, 0.0, 0.0])
+    hist[-1][1] += dt
+    hist[-1][2] += dt * max(0, workers - BASE)
+    hist[-1][3] += dt * (cap - BASE)
+
+
+def budget(st, now, workers):
+    """The cap for this tick: re-read the limits and move the cap one worker toward what pace allows every BUDGET_EVERY
+    seconds, so it does not flap. With no reading at all, BASE."""
+    cap = st.get("cap", BASE)
+    k, measured = burst_k(st, now)
+    lim = st.get("pace_limits")
+    if now - st.get("cap_at", 0) >= BUDGET_EVERY or lim is None:
+        lim = limits(st)
+        st["pace_limits"] = lim
+        if lim is not None:
+            p = pace(lim, now, k)
+            cap += (p["allows"] > cap) - (p["allows"] < cap)
+        else:
+            cap = BASE
+        st["cap_at"] = now
+    cap = min(CAP_MAX, max(BASE, cap))
+    st["cap"] = cap
+    record_burst(st, now, workers, cap)
+    if lim is None:
+        return cap, None, "pace: no `boat limits` reading yet, cap at the base"
+    p = pace(lim, now, k)
+    line = (f"pace: ${p['remaining']:.2f} of VM time left, {p['hours_left']:.0f}h to the period's end, floor "
+            f"${floor_rate():.3f}/h, surplus ${p['surplus_rate']:+.3f}/h, K {k:.1f}{'' if measured else ' (default)'} "
+            f"| cap {cap} (budget allows {p['allows']}) | wallet ${lim['wallet']:.2f}"
+            + (f" | boat limits failed, using the reading from {int(now - lim['at'])}s ago" if lim["stale"] else ""))
+    return cap, p, line
 
 
 def spawn(missing, burst=False):
@@ -332,7 +453,7 @@ def spawn(missing, burst=False):
     save_state(st)
 
 
-def reap_and_extend(workers, active, wanted):
+def reap_and_extend(workers, active, wanted, kept):
     names = {w["name"] for w in workers}
     peers, _ = wg_peers()
     # The running interface must match the config file: drop any peer that is no longer in the file.
@@ -349,7 +470,10 @@ def reap_and_extend(workers, active, wanted):
     if not active:
         return
     for w in workers:
-        if w["name"] not in wanted:
+        # A worker that runs out mid-build takes its running actions with it, and the scheduler gives them to another
+        # only after its worker timeout (30 s), so while a build runs every connected worker within the cap is kept;
+        # past the target they lapse once builds stop. Past the cap the budget wins: those run out their lifetime.
+        if w["name"] not in wanted and w["name"] not in kept:
             continue
         burst = w["name"].startswith("nl-w-b")
         left = (parse_time(w.get("archiveAfter")) or 0) - time.time()
@@ -357,6 +481,25 @@ def reap_and_extend(workers, active, wanted):
             log(f"  extending {w['name']} ({int(left)}s left)")
             if not DRY:
                 boat("extend", w["id"], "--ttl", str(BURST_TTL if burst else WORKER_TTL))
+
+
+def idle_tails(state, now, active, queue, oldest, p, lim):
+    """With nothing to spare (surplus_rate <= 0), delete the workers past BASE once the fleet has run nothing for
+    IDLE_DELETE, instead of paying for the rest of their lifetime. Only while more than half of the hour's and the day's
+    starts are left, since a replacement costs about 2 starts and 30-60 s; the oldest BASE keep their lifetime."""
+    idle = not active or queue == (0, 0)
+    state["idle_since"] = (state.get("idle_since") or now) if idle and queue is not None else None
+    extra = oldest[BASE:]
+    if not extra or p is None or p["surplus_rate"] > 0 or now - (state["idle_since"] or now) < IDLE_DELETE:
+        return
+    starts = lim["starts"]
+    if lim["stale"] or any(starts[w]["remaining"] <= starts[w]["limit"] / 2 for w in ("hour", "day")):
+        return
+    for w in extra:
+        log(f"  idle {int(now - state['idle_since'])}s with no surplus: deleting {w['name']}")
+        if not DRY:
+            boat("delete", "--yes", w["id"])
+            run(["/usr/local/bin/remove-peer.sh", w["name"]])
 
 
 def tick(state, force_active):
@@ -369,8 +512,11 @@ def tick(state, force_active):
     alive = [w for w in workers if w["name"] in peers and age.get(peers[w["name"]][0]) is not None
              and age[peers[w["name"]][0]] < 180]
     starting = [w for w in workers if w not in alive and now - (parse_time(w.get("createdAt")) or 0) < 120]
-    queue = demand() if active else None
-    target = max(BASE, state.get("target", BASE)) if active else BASE
+    st = load_state()
+    cap, p, pace_line = budget(st, now, len(workers))
+    save_state(st)
+    queue = demand() if active or workers else None
+    target = min(cap, max(BASE, state.get("target", BASE))) if active else BASE
     note = ""
     if active and queue is not None:
         queued, executing = queue
@@ -382,8 +528,8 @@ def tick(state, force_active):
         # still booting) is no reason to want more, and raising the target then only spends starts.
         state["queued_since"] = (state.get("queued_since") or now) if queued > 0 else None
         if (queued > 0 and now - state["queued_since"] >= UP_AFTER and now - state.get("last_up", 0) >= UP_EVERY
-                and target < CAP and not starting and len(alive) >= target):
-            target = min(CAP, target + 1)
+                and target < cap and not starting and len(alive) >= target):
+            target = min(cap, target + 1)
             state["last_up"] = now
             log(f"  {queued} actions have waited {int(now - state['queued_since'])}s: scaling up to {target}")
         # Spare workers: not extended once there has been no queue and room to spare for DOWN_AFTER.
@@ -400,8 +546,11 @@ def tick(state, force_active):
         target = BASE
     state["target"] = target
     log(f"build running: {active} | workers: {len(workers)} ({len(alive)} connected, {len(starting)} starting) | target {target}{note}")
-    wanted = {w["name"] for w in sorted(alive + starting, key=lambda w: parse_time(w.get("createdAt")) or 0)[:target]}
-    reap_and_extend(workers, active, wanted)
+    log(f"  {pace_line}")
+    oldest = sorted(alive + starting, key=lambda w: parse_time(w.get("createdAt")) or 0)
+    wanted = {w["name"] for w in oldest[:target]}
+    reap_and_extend(workers, active, wanted, {w["name"] for w in oldest[:cap] if w in alive})
+    idle_tails(state, now, active, queue, oldest, p, st.get("pace_limits"))
     if active:
         missing = target - len(alive) - len(starting)
         if missing > 0:
@@ -419,16 +568,19 @@ def tick(state, force_active):
 
 
 def main():
-    global DRY
+    global DRY, LIMITS_FILE
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="decide and log, but create, delete, extend and stop nothing")
     ap.add_argument("--force-active", action="store_true", help="act as if a build were running (testing)")
+    ap.add_argument("--limits", metavar="FILE", help="read this `boat limits --json` instead of asking boat (testing)")
     a = ap.parse_args()
     DRY = a.dry_run
+    LIMITS_FILE = a.limits
     state = {"last_active": time.time()}    # a freshly woken scheduler gets the full idle time
-    log(f"nl-controller: {BASE}-{CAP} x {WORKER_TYPE} workers, worker ttl {WORKER_TTL}s, scheduler idle stop {SCHEDULER_IDLE_STOP}s, "
-        f"start price limit ${MAX_START_PRICE:.2f}, extra-start budget ${EXTRA_START_BUDGET:.2f}/month"
+    log(f"nl-controller: {BASE}-{CAP_MAX} x {WORKER_TYPE} workers, worker ttl {WORKER_TTL}s, scheduler idle stop {SCHEDULER_IDLE_STOP}s, "
+        f"start price limit ${MAX_START_PRICE:.2f}, extra-start budget ${EXTRA_START_BUDGET:.2f}/month, "
+        f"floor ${floor_rate():.3f}/h ({BASE} workers for {FLOOR_HOURS:g}h a day and the scheduler)"
         + (" [dry-run]" if DRY else ""))
     while True:
         try:

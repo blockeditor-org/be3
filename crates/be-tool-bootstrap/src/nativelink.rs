@@ -133,8 +133,8 @@ fn probe(host: &str, token: &str) -> Result<std::result::Result<String, String>>
                  NL_TUNNEL_TOKEN, or, in a cloud session, the proxy's network secret for {host} (guides/build_server.md)."
             ));
         }
-        200..=499 => Ok(parse_epoch(status, body)),
         0 => Err(String::from_utf8_lossy(&output.stderr).trim().to_owned()),
+        status if answers(status) => Ok(parse_epoch(status, body)),
         _ => Err(format!("{host} answered {status}")),
     })
 }
@@ -150,6 +150,13 @@ pub fn parse_epoch(status: u16, body: &str) -> String {
     } else {
         String::new()
     }
+}
+
+/// Whether an HTTP status from the scheduler's front means NativeLink is there. Caddy and NativeLink answer a plain
+/// request with a 4xx; a redirect is boat's own answer for a hosted port whose sandbox is stopped (it sends the
+/// browser to a fallback page), so it means the scheduler needs waking.
+pub fn answers(status: u16) -> bool {
+    matches!(status, 200..=299 | 400..=499)
 }
 
 /// The scheduler's host and Caddy's token, from `BE3_NL_URL` (`https://NAME-8099.on.boat.dev/?_token=TOKEN`).

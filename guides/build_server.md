@@ -51,7 +51,7 @@ itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KE
 
 ## The NativeLink server on boat (`nativelink`)
 
-Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A small `nl-scheduler` VM runs
+Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A large `nl-scheduler` VM runs
 NativeLink (CAS, action cache, scheduler), `nl-controller.py` and Caddy; boat VMs named `nl-w-*` in the
 `nl-worker` environment run the actions, each NativeLink's worker inside the image `worker_properties` names. The
 scheduler and the workers meet in a WireGuard network, 10.100.0.0/24: the scheduler is 10.100.0.1 and serves buck2 on
@@ -82,16 +82,31 @@ port 50052.
   two names, `on.boat.dev` and the older `on.ascii.dev`; the network secret's host must be the one `BE3_NL_URL` uses.
 - **The controller** notices a build (a connection from Caddy on port 50052), keeps 2 large workers (8 CPUs, 16 actions each, so their CPUs stay busy and the queue makes
   fewer new workers; worker-direct.json5 says what it costs a build's critical path) alive while it runs
-  by extending their 30-minute lifetime (burst workers have the same), creates replacements, and stops the scheduler after 4 idle hours. Boat
+  by extending their 30-minute lifetime (burst workers have the same; every connected worker within the cap is kept
+  while a build runs, since one that lapses takes its running actions with it), creates replacements, and stops the
+  scheduler after 4 idle hours. How many workers past those 2 it may have depends on the plan's VM time (What the
+  controller spends, below). Boat
   places a new VM at random and about half cannot reach the scheduler (below), so it creates as many workers as are
   missing, deletes the ones that do not complete a WireGuard handshake within `NL_HANDSHAKE_WAIT` (60 s), and makes
   the shortfall in the next round (up to `NL_SPAWN_ROUNDS`, 4, a tick). It never deletes a VM that reached the
   scheduler, so each start that goes to a reachable VM is kept. Its own boat key is limited to the `nl-worker`
   environment (create, read, update, delete-own).
 - **Storage**: the workers read objects of 16 KB and up straight from the Bunny zone `be-nativelink-s3` with its
-  read-only key (the `nl-worker` environment's secret file `worker-ro.env`); the scheduler keeps small objects and the
-  action cache in /tmp, persisted as one packed Bunny object every 5 minutes and restored on boot, and writes
-  everything else to Bunny with the full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
+  read-only key (the `nl-worker` environment's secret file `worker-ro.env`), and the scheduler for what Bunny lacks;
+  they write everything to the scheduler. Writing to Bunny directly took the scheduler out of the path, but a worker
+  that read a just-written object a second later got NoSuchKey and failed the build. The scheduler keeps small
+  objects (up to 8 GB; one it evicts is lost) and the action cache in /tmp, persisted as one packed Bunny object every
+  15 minutes and restored on boot, and writes everything else to Bunny with the full-access key (the `nl-scheduler`
+  environment's `nl-bunny.env`), keeping the last 70 GB of it on its own disk to serve cache hits from; that tier is
+  empty after a restore and refills from Bunny as builds read it. Each worker keeps up to 60 GB (`WORKER_FAST_SLOW_STORE`): one verify after a
+  be-lib-geometry change writes about 10 GB, and at 15 GB workers evicted the libraries the next actions needed.
+- **Scheduling**: actions go to the worker running the fewest (`allocation_strategy: "least_loaded"`); the default,
+  least recently used, gave a worker already running several 3-4 GB links as much new work as an idle one, and its
+  links then took minutes. A worker that sends nothing for 30 s (`worker_timeout_s`; it sends a keepalive every
+  2.5 s) is dropped and its actions go to another.
+- **Rust objects carry no LLVM bitcode** (`-Cembed-bitcode=no` in buck/toolchains/BUCK, except under
+  buck/constraints:lto): it was most of an rlib's bytes, and every worker that compiles or links against one fetches
+  it.
 - **Speed** (4 default-size workers, the same 16 CPUs as 2 large ones, taken before Caddy replaced a WebSocket tunnel, over the scheduler's private address, so
   boat's public edge was not in the path; scripts/internal/nativelink/bench/ repeats them through the edge):
   - A one-file change to be-lib-geometry, one build alone: 250-350 s with a fresh worker fleet, 190-230 s with a warm one.
@@ -102,6 +117,19 @@ port 50052.
   - 8 such builds at once from 3 VMs, each a different one-file change so that nothing is shared: all passed, in 860-888 s
     each, about half the time of running them one after another (8 x 190-230 s). The workers went from 4 to 6 to 9 on
     CPU (average 45-72% busy), and the burst and its client VMs used 10 starts.
+  - A one-file change to be-lib-geometry, one build alone, from a default-size client VM with a warm daemon, on the
+    large scheduler with 6 warm large workers: 115-162 s (critical path: about 40 s fetching inputs, 50-70 s running,
+    25 s in between). A worker that boat takes away mid-build (it puts VMs into `updating`) costs one action the 30 s
+    timeout, and a link on a worker whose caches were just restarted can take minutes.
+  - The same 8 builds with the workers writing through the scheduler, debug sections compressed and third-party crates
+    at opt-level 1 (buck/cargo/third_party.bzl): all passed, in 737-894 s, the 6 workers full and 130-300 actions
+    queued. The scheduler averaged 54% idle (12% at its lowest) with the workers' writes coming in at 14 MB/s on
+    average and 65 MB/s at most: it carries what 6 workers write, and its CPU, not its link, is what more workers would
+    run out of first.
+  - The same 8 builds (`bench/run-timings.sh 3 8`) on a large scheduler, with the workers writing to Bunny directly, 6
+    large workers (then the cap) at 16 actions each: all passed, in 918-1030 s. The scheduler stayed 85-95% idle with no swap
+    (a small one had been out of CPU and swapping); 200-400 actions waited for a worker most of the time, so the
+    workers' cap is now what limits a burst.
 
 Things that are not obvious:
 
@@ -109,13 +137,26 @@ Things that are not obvious:
   does not touch clients, whose traffic goes through boat's proxy, but it does touch the scheduler and its workers,
   which is why the controller replaces the workers that cannot reach it. A scheduler that boat resumed as a new machine can land where its workers
   cannot reach it; stopping and resuming it again, or forking it, picks another place.
-- **Boat's start limits** (60 an hour, 200 a day on the $20 plan; `boat limits`) count every VM the controller creates,
+- **Boat's start limits** (`boat limits`: 30 a minute, 210 an hour, 840 a day on the $100 plan; 12, 60 and 200 on
+  the $20 plan) count every VM the controller creates,
   including the ones it deletes at once. A cold fleet of 2 is about 4 starts, in a few rounds. Workers are `large` because boat prices
   every size the same per CPU, so bigger ones cost the same and use fewer starts.
+- **The scheduler has no boat lifetime** (`new-scheduler.sh` makes it with `--no-auto-stop`): the controller stops it
+  after `SCHEDULER_IDLE_STOP`, and a boat lifetime would stop it mid-build, since nothing extends the scheduler's own
+  (an 8-hour one did, once).
+- **A stopped scheduler's port answers a redirect**, to boat's fallback page, not an error. The bootstrap counts any
+  redirect (and any 5xx) as "not answering" and wakes the scheduler with `BE3_NL_KEY`; only a 2xx or 4xx (Caddy or
+  NativeLink) means it is up.
 - **Exposing the port is one manual step** on the scheduler, `host 8099 --localhost --public`; the address keeps
   working across stop and resume, but a new scheduler has a new one. `host url 8099` without `--public` makes it
   private again (every client then gets `403 ... requires an access token`), so pass `--public` there too. Never expose it before Caddy checks the token:
   the port then lets anyone build and run code on the workers.
+- **Restarting `nativelink-server` means restarting the workers** (`systemctl restart nativelink-worker` on each):
+  they reconnect to the scheduler, but a worker's reads of small objects from it can hang until the 10-minute download
+  timeout, and the actions waiting on them with it.
+- **NativeLink's `directory_cache`** (with `experimental_subtree_caching`, and with `max_concurrent_input_downloads`)
+  made input setup several times slower on these workers: a geometry verify took 800-1060 s instead of about 230 s.
+  It is off.
 - **After a restore** (boat stopped the VM and started a new machine) enabled services start before the disk has its
   files, so the units retry (`wg-quick-retry.conf`) instead of failing for good. Boat re-enables only services, not
   timers, so `nativelink-server.service` starts `nl-small-pack.timer` itself (`Wants=`); with the timer only enabled,
@@ -160,17 +201,44 @@ it cannot be turned on later) and a boat login that can create sandboxes:
 
 ### What the controller spends
 
-Every VM it creates is a start. Past the plan's included starts a start costs $0.03 (up to 1.5 times the included
-number), $0.05 (up to 2 times) or $0.07 (up to 6 times, 3 times a minute), and fails above that; the price is the highest
-of the per-minute, per-hour and per-day ones (docs.boat.dev/limits#extra-starts). A VM created and deleted at once (one
-that could not reach the scheduler) is a start too; the controller logs the share of new VMs that reach the scheduler. Its default is never to pay: it leaves 5 starts of the day (`NL_RESERVE_DAY`) and 10 of
-the hour (`NL_RESERVE_HOUR`) for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the dearest start it will
-buy) and `NL_EXTRA_START_BUDGET` (dollars a month) let it buy more; with `account.read` it asks boat what the next
-start costs, without it it can only count its own. Between `NL_WORKERS_BASE` (2) and `NL_WORKERS_CAP` (6) workers (`NL_WORKER_TYPE`, `large`) it
-scales on NativeLink's queue (read through `nl-otelcol`): once actions have waited a minute (`NL_UP_AFTER`) and every
-worker it wants is connected, it adds one worker, and another each minute the queue lasts (`NL_UP_EVERY`), since a
-build's bursts are often over before a new worker would help; it lowers the target after five minutes without a queue. Work
-queued only because workers are still being made, or because no starts are left, does not raise it.
+**Starts.** Every VM it creates is a start. Past the plan's included starts a start costs $0.03 (up to 1.5 times the
+included number), $0.05 (up to 2 times) or $0.07 (up to 6 times, 3 times a minute), and fails above that; the price is
+the highest of the per-minute, per-hour and per-day ones (docs.boat.dev/limits#extra-starts). A VM created and deleted
+at once (one that could not reach the scheduler) is a start too; the controller logs the share of new VMs that reach
+the scheduler. Its default is never to pay: it leaves 5 starts of the day (`NL_RESERVE_DAY`) and 10 of the hour
+(`NL_RESERVE_HOUR`) for everybody else's VMs and stops creating when the rest is used. `NL_MAX_START_PRICE` (the
+dearest start it will buy) and `NL_EXTRA_START_BUDGET` (dollars a month) let it buy more. It reads `boat limits`
+(`account.read`) and saves the last good reading in its state (/var/lib/nl-controller/state.json); when boat does not
+answer, it counts its own starts against that reading's limits.
+
+**VM time.** A plan includes VM time for each billing period ($20 or $100 of it; `boat limits --json`:
+`planIncluded.vmHoursRemaining`, in hours of a `default` VM at `overagePrices.vmHourDollars`, $0.036, and
+`planIncluded.periodEnd`); past it, VM time comes out of the wallet. Every sandbox of the account draws on it, the
+scheduler and agents' VMs included, so boat's figure is the meter and the controller counts nothing itself. Sizes cost
+the same per CPU ($0.072 an hour for a large), except `xlarge`, which costs more and is never used. The floor is
+always allowed: 2 workers for 12 hours of builds a day (`NL_FLOOR_HOURS`) and the scheduler for those hours plus its
+4-hour idle stop, $0.120 an hour averaged over the day, about $87 a month with a large scheduler. Only the rest pays
+for workers past the 2: every 5 minutes (`NL_BUDGET_EVERY`) it works out
+
+    surplus_rate = (remaining dollars - floor_rate x hours left in the period) / hours left
+    cap          = 2 + clamp(round(K x surplus_rate / 0.072), 0, NL_WORKERS_CAP_MAX - 2)
+
+and moves the cap one worker toward that. `K` is 1 over the share of the time burst workers run: `NL_BURST_K` (4)
+until its state holds a day of history, then measured over the last 7 days (the extra workers the cap allowed while
+the controller ran, over the ones that ran on average over all hours), held to 1-8. The floor's hours that go unused
+come back as the period ends: with 5 days and $50 left the cap is `NL_WORKERS_CAP_MAX` (12: the large scheduler
+carried 6 workers' writes at 87% idle), at the start of a $100 period about 3, and 2 whenever spending is ahead of
+the floor's pace; the $20 plan never pays for more than the floor. Each tick logs this as a `pace:` line in
+`journalctl -u nl-controller`. Workers past the cap are not extended and run out their lifetime instead of being
+killed mid-action; with no surplus at all, the ones past 2 are deleted once the fleet has run nothing for 10 minutes
+(`NL_IDLE_DELETE`), but only while more than half of the hour's and the day's starts are left, since a replacement
+costs about 2 starts and 30-60 s.
+
+**Scaling.** Between `NL_WORKERS_BASE` (2) and the cap (`NL_WORKER_TYPE`, `large`) it scales on NativeLink's queue
+(read through `nl-otelcol`): once actions have waited a minute (`NL_UP_AFTER`) and every worker it wants is connected,
+it adds one worker, and another each minute the queue lasts (`NL_UP_EVERY`), since a build's bursts are often over
+before a new worker would help; it lowers the target after five minutes without a queue. Work queued only because
+workers are still being made, or because no starts are left, does not raise it.
 
 ## When a build keeps failing
 

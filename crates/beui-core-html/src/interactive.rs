@@ -51,6 +51,9 @@ pub struct Switches {
     pub grabs_pointer: Cell<bool>,
     pub repeat_drag: Cell<bool>,
     pub keyboard: Cell<SoftKeyboard>,
+    /// The clip formats `on_paste` takes, preferred first; plain text for a node
+    /// that only takes typed text, as natively.
+    pub pastes: RefCell<Vec<String>>,
 }
 
 pub fn covers(area: &Area, local: Pos2) -> bool {
@@ -80,6 +83,7 @@ mod web {
     use std::cell::{Cell, RefCell};
     use std::rc::Rc;
 
+    use beui_types::clipboard::formats;
     use beui_types::input::{
         ImeEvent, Input, KeyPress, PointerButton, PointerId, PointerInput, PointerPhase,
         PointerPress, PointerStage, ScrollGesture, TouchId, WheelInput, ZoomGesture, scrolled,
@@ -302,6 +306,7 @@ mod web {
                 predicted: None,
                 time: input.time,
                 source: 0,
+                rested: false,
             };
             self.handlers.on_forward.call(super::ForwardedInput {
                 events: vec![beui_types::forward::Forwarded::Pointer { event, over: None }],
@@ -520,6 +525,49 @@ mod web {
             at = current.parent_element();
         }
         false
+    }
+
+    enum Pasted {
+        Now(ClipItem),
+        File(String, web_sys::File),
+    }
+
+    /// The first of `taken` that a paste's `data` holds: a file of that type, or text
+    /// under it. be3's own formats are skipped: a paste event's `DataTransfer` never
+    /// carries the browser's custom `web ` formats, which only the async clipboard reads
+    /// (and this core's own copying writes text only).
+    fn pasted(data: &web_sys::DataTransfer, taken: &[String]) -> Option<Pasted> {
+        taken
+            .iter()
+            .filter(|format| !formats::is_be3(format))
+            .find_map(|format| {
+                let files = data.files()?;
+                let file = (0..files.length())
+                    .filter_map(|index| files.get(index))
+                    .find(|file| file.type_() == *format);
+                if let Some(file) = file {
+                    return Some(Pasted::File(format.clone(), file));
+                }
+                let text = data.get_data(format).ok().filter(|text| !text.is_empty())?;
+                Some(Pasted::Now(ClipItem::new(
+                    format.clone(),
+                    text.into_bytes(),
+                )))
+            })
+    }
+
+    fn read_file(file: web_sys::File, done: impl FnOnce(Vec<u8>) + 'static) {
+        let Ok(reader) = web_sys::FileReader::new() else {
+            return;
+        };
+        let read = reader.clone();
+        let on_load = wasm_bindgen::closure::Closure::once_into_js(move || {
+            if let Ok(result) = read.result() {
+                done(js_sys::Uint8Array::new(&result).to_vec());
+            }
+        });
+        reader.set_onloadend(Some(on_load.unchecked_ref()));
+        let _ = reader.read_as_array_buffer(&file);
     }
 
     fn handled(event: &web_sys::Event, handled: bool) {
@@ -949,13 +997,31 @@ mod web {
                 if held.handlers.on_paste.is_empty() {
                     return;
                 }
-                let text = event
+                let Some(data) = event
                     .dyn_ref::<web_sys::ClipboardEvent>()
                     .and_then(web_sys::ClipboardEvent::clipboard_data)
-                    .and_then(|data| data.get_data("text/plain").ok());
-                if let Some(text) = text {
-                    held.handlers.on_paste.call(ClipItem::text(text));
-                    handled(&event, true);
+                else {
+                    return;
+                };
+                let taken = held.switches.pastes.borrow().clone();
+                let taken = match (taken.is_empty(), held.handlers.on_text.is_empty()) {
+                    (false, _) => taken,
+                    (true, false) => vec![formats::TEXT.to_owned()],
+                    (true, true) => return,
+                };
+                let Some(clip) = pasted(&data, &taken) else {
+                    return;
+                };
+                handled(&event, true);
+                match clip {
+                    Pasted::Now(item) => held.handlers.on_paste.call(item),
+                    Pasted::File(format, file) => {
+                        let on_paste = held.handlers.on_paste;
+                        read_file(file, move |data| {
+                            on_paste.call(ClipItem::new(format, data));
+                            beui_reactive::flush();
+                        });
+                    }
                 }
             }),
         ));

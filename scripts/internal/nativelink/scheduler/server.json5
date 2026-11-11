@@ -7,7 +7,9 @@
     {
       // Objects under 16 KB are 94% of the objects and under 1% of the bytes. They stay in
       // /tmp/nativelink/small (lost on a snapshot restore) and persist as ONE packed object in
-      // Bunny (nl-small-pack.sh); only larger objects go to Bunny one by one.
+      // Bunny (nl-small-pack.sh); only larger objects go to Bunny one by one. A small object it
+      // evicts is lost (it is in no other store) while clients may still take the server to hold
+      // it, so the limit is well above what a day of builds writes: 3 GB filled and evicted.
       name: "CAS_STORE",
       size_partitioning: {
         size: "16kb",
@@ -15,16 +17,20 @@
           filesystem: {
             content_path: "/tmp/nativelink/small/content",
             temp_path: "/tmp/nativelink/small/tmp",
-            eviction_policy: { max_bytes: 3000000000 },
+            eviction_policy: { max_bytes: 8000000000 },
           },
         },
         upper_store: {
           fast_slow: {
+            // What a cache hit on a large object serves from. Most of the large scheduler's 147 GB disk: the system
+            // takes about 24 GB (17 of them boat's lazily loaded image under /var/lib), the small tier and the action
+            // cache up to 9 GB, so 70 GB here leaves about 44 GB for their temp paths, the small tier's pack (0.5 GB)
+            // and the uploads to Bunny in flight. Empty after a restore, like all of /tmp; it refills from Bunny.
             fast: {
               filesystem: {
                 content_path: "/tmp/nativelink/cas/content",
                 temp_path: "/tmp/nativelink/cas/tmp",
-                eviction_policy: { max_bytes: 25000000000 },
+                eviction_policy: { max_bytes: 70000000000 },
               },
             },
             slow: {
@@ -76,9 +82,13 @@
     {
       name: "MAIN_SCHEDULER",
       simple: {
-        // Workers run actions at load 50-100 on 4 vCPU and can miss the 10 s default
-        // keepalive; a dropped worker fails its actions and buck2 sees an infra error.
-        worker_timeout_s: 120,
+        // A worker sends a keepalive every 2.5 s, and evicting one requeues what it ran. 120 s was set when 4-CPU
+        // workers at load 50-100 behind a 2-CPU scheduler missed the 10 s default; but a worker boat takes away
+        // (it updates its VMs, or one is lost) then held its actions for the whole 120 s, on a build's critical path.
+        worker_timeout_s: 30,
+        // To the worker running the fewest actions. The default, least recently used, gave a worker that was already
+        // running several 3-4 GB links more work as often as an idle one, and its links then took minutes.
+        allocation_strategy: "least_loaded",
         supported_platform_properties: {
           OSFamily: "exact",
           "container-image": "exact",
