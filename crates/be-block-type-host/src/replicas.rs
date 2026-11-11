@@ -285,7 +285,6 @@ enum Replayed {
     },
     Moved {
         head: CommitId,
-        from_this_device: bool,
     },
     Lease {
         session: SessionState,
@@ -316,11 +315,8 @@ impl Replayed {
             Replayed::Message { from, bytes, at } => {
                 replica.message(connection, from, bytes, at);
             }
-            Replayed::Moved {
-                head,
-                from_this_device,
-            } => {
-                replica.head_moved(connection, head, from_this_device);
+            Replayed::Moved { head } => {
+                replica.head_moved(connection, head);
             }
             Replayed::Lease {
                 session,
@@ -1167,13 +1163,7 @@ impl<H: Host> Replicas<H> {
             open.published.drain(..=index);
             return;
         }
-        self.replay(
-            replica,
-            Replayed::Moved {
-                head,
-                from_this_device,
-            },
-        );
+        self.replay(replica, Replayed::Moved { head });
     }
 
     async fn on_replica<T, E: Decode<T>>(
@@ -1780,10 +1770,7 @@ impl<H: Host> Replicas<H> {
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining
                 {
-                    return open.early.push(Replayed::Moved {
-                        head: *head,
-                        from_this_device: false,
-                    });
+                    return open.early.push(Replayed::Moved { head: *head });
                 }
                 self.moved(replica, *head, false);
             }

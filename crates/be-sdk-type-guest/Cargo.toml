@@ -10,6 +10,7 @@ be-block-commit = { path = "../be-block-commit", default-features = false }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-block-protocol = { path = "../be-block-protocol" }
 be-block-session = { path = "../be-block-session", default-features = false }
+be-block-store = { path = "../be-block-store", default-features = false }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 postcard = { version = "1", features = ["use-std"] }
