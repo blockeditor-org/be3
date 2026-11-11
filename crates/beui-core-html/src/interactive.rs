@@ -306,6 +306,7 @@ mod web {
                 predicted: None,
                 time: input.time,
                 source: 0,
+                rested: false,
             };
             self.handlers.on_forward.call(super::ForwardedInput {
                 events: vec![beui_types::forward::Forwarded::Pointer { event, over: None }],

@@ -109,6 +109,7 @@ impl Carrying {
                 predicted: None,
                 time: beui::reactive::now(),
                 source: 0,
+                rested: false,
             };
             follow(
                 key,
