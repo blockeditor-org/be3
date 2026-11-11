@@ -253,7 +253,7 @@ _std_sysroot = select({
     ":linux_x86_64_release": {},
     ":linux_x86_64": {
         name: ":rust_std_" + name
-        for name in ["core", "proc_macro", "std", "panic_unwind", "panic_abort", "alloc", "test"]
+        for name in ["core", "proc_macro", "std", "panic_unwind", "panic_abort", "alloc", "compiler_builtins", "test"]
     },
     "DEFAULT": {},
 })

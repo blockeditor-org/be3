@@ -169,7 +169,6 @@ def _rust_std_crate_impl(ctx: AnalysisContext) -> list[Provider]:
     metadata = libs[RustStdInfo].metadata
     crate = CrateName(simple = ctx.attrs.crate, dynamic = None)
     own = metadata[ctx.attrs.crate]
-    own_rlib = libs[RustStdInfo].rlibs[ctx.attrs.crate]
 
     # Every crate of the standard library is on rustc's -L, as this crate's
     # transitive dependencies: it loads the ones it names by their hashes.
@@ -180,9 +179,11 @@ def _rust_std_crate_impl(ctx: AnalysisContext) -> list[Provider]:
         ])
 
     transitive = {kind: everything(metadata) for kind in MetadataKind}
-    transitive[MetadataKind("full")] = everything(libs[RustStdInfo].rlibs)
+
+    # Linking an executable wants each crate's rlib beside its rmeta; --extern
+    # names the rmeta, since an rlib's own metadata is a stub.
+    transitive[MetadataKind("full")] = ctx.actions.tset(TransitiveDeps, children = [transitive[MetadataKind("full")], everything(libs[RustStdInfo].rlibs)])
     outputs = {kind: own for kind in MetadataKind}
-    outputs[MetadataKind("full")] = own_rlib
     singleton = {kind: ctx.actions.tset(TransitiveDeps, value = RustArtifact(artifact = outputs[kind], crate = crate)) for kind in MetadataKind}
     strategies = {
         strategy: RustLinkStrategyInfo(
