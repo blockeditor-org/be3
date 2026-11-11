@@ -18,7 +18,8 @@ usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] 
 Builds be-server, the web bundle, be and the app for every platform in
 release, uploads each be and each of the app's downloads to the mirror, swaps
 the server on the VPS and publishes the web bundle through Bunny, points the mirror's download page at
-the new build, and pins the uploaded be in scripts/internal/pins.
+the new build, and points be/release on the mirror at the uploaded be, which
+./scripts/be downloads.
 
 The downloads are the app with its apps for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
@@ -50,6 +51,10 @@ Environment:
   BE3_DEPLOY_DIR      the directory there that holds be-server (be-server)
   BE3_DEPLOY_UNITS    the units stopped around the swap (be-server)
   Web files are uploaded under data/BUILD/web/; /index.html selects the live build.";
+
+/// The mirror's mutable file naming the build whose `be` `./scripts/be` downloads
+/// (crates/be-tool-bootstrap/src/be.rs reads it), the build the server runs.
+const BE_RELEASE: &str = "be/release";
 
 struct Options {
     apk_metadata: PathBuf,
@@ -223,7 +228,9 @@ fn run(options: &mut Options) -> Result<(), String> {
     };
     let web = options.web.as_ref().filter(|_| !options.skip_web);
     let publishes_pages = !options.skip_server
-        && (web.is_some() || (!options.skip_downloads && !options.downloads.is_empty()));
+        && (web.is_some()
+            || !options.skip_be
+            || (!options.skip_downloads && !options.downloads.is_empty()));
     let api_key = if publishes_pages && !options.dry_run {
         secret(
             "BUNNY_API_KEY",
@@ -256,7 +263,6 @@ fn run(options: &mut Options) -> Result<(), String> {
         key: &key,
     };
 
-    let mut pins = Vec::new();
     if !options.skip_be {
         for (triple, bundle) in &options.be {
             let directory = format!("data/{build}/be-{triple}");
@@ -264,18 +270,13 @@ fn run(options: &mut Options) -> Result<(), String> {
                 let bytes = std::fs::read(bundle.join(name)).map_err(|error| {
                     format!("cannot read {}: {error}", bundle.join(name).display())
                 })?;
-                let sha256 = store.put(
+                store.put(
                     &bundle.join(name).display().to_string(),
                     &format!("{directory}/{name}"),
                     &bytes,
                     "application/octet-stream",
                     true,
                 )?;
-                let tool = if name == "be" { "be" } else { "be_metadata" };
-                pins.push((
-                    format!("{tool}_sha256_{}", triple.replace('-', "_")),
-                    sha256,
-                ));
             }
         }
     }
@@ -435,17 +436,19 @@ fn run(options: &mut Options) -> Result<(), String> {
         println!("the downloads for build {build} are at {mirror}/web/downloads.html");
     }
 
-    if !pins.is_empty() {
-        let common = options.repository.join("scripts/internal/pins");
-        if options.dry_run {
-            println!("pin be {build} from {mirror} in {}", common.display());
-        } else {
-            pin(&common, &build, &pins, &mirror)?;
-            println!(
-                "pinned be {build} in {}; commit it so ./scripts/be runs this build",
-                common.display()
-            );
-        }
+    if !options.skip_be && !options.skip_server {
+        store.put(
+            "the release ./scripts/be downloads",
+            BE_RELEASE,
+            format!("{build}\n").as_bytes(),
+            "text/plain; charset=utf-8",
+            false,
+        )?;
+        purge_pages(options, &agents, &api_key, &mirror, &[BE_RELEASE])?;
+    } else if !options.skip_be {
+        println!(
+            "the server still runs its last build, so {mirror}/{BE_RELEASE} still names that one's be"
+        );
     }
     Ok(())
 }
@@ -953,32 +956,6 @@ fn shell(options: &Options, program: &str, arguments: &[&str]) -> Result<(), Str
             arguments.join(" ")
         )),
     }
-}
-
-fn pin(common: &Path, build: &str, pins: &[(String, String)], mirror: &str) -> Result<(), String> {
-    let text = std::fs::read_to_string(common)
-        .map_err(|error| format!("cannot read {}: {error}", common.display()))?;
-    let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
-    let mut set = |name: &str, value: &str| -> Result<(), String> {
-        let line = lines
-            .iter_mut()
-            .find(|line| line.starts_with(&format!("{name}=")))
-            .ok_or_else(|| format!("{} has no {name}= line", common.display()))?;
-        *line = format!("{name}='{value}'");
-        Ok(())
-    };
-    set("be_release", build)?;
-    set("be_metadata_file", "build-info.json")?;
-    set("be_mirror", &format!("{mirror}/data"))?;
-    for (name, sha256) in pins {
-        set(name, sha256)?;
-    }
-    let mut written = lines.join("\n");
-    if text.ends_with('\n') {
-        written.push('\n');
-    }
-    std::fs::write(common, written)
-        .map_err(|error| format!("cannot write {}: {error}", common.display()))
 }
 
 #[cfg(test)]

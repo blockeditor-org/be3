@@ -1,6 +1,6 @@
 # Hosting be-server
 
-`./scripts/deploy` updates an existing server. The host's systemd service, reverse proxy (Caddy),
+The Deploy workflow (.github/workflows/deploy.yml), run by hand on any branch, updates an existing server with `./scripts/deploy`. The host's systemd service, reverse proxy (Caddy),
 data directory and backup schedule are managed on the host, with no templates in this
 repository, and deployment leaves them alone.
 
@@ -158,12 +158,17 @@ A deployed download connects only to a server of its own build.
 
 ## Deploying
 
+Deploy from the Actions tab: the Deploy workflow, dispatched on a branch, runs `./scripts/deploy`
+on that branch's head, its inputs turning off the steps below as the `--skip-*` flags do, or
+making it a `--dry-run`. Its keys are secrets of the `deploy` environment (Keys, below), whose
+protection rules decide who and which branches may deploy. `./scripts/deploy` still runs from a
+checkout with the keys, but nothing needs it to.
+
 `./scripts/deploy` (be-tool-local's `deploy`) builds be-server, `be` and be-host for every
 platform in release in one buck2 command, then:
 
-1. uploads `be` for Linux x86_64 and arm64 to the Bunny storage zone under `data/BUILD/`, reads
-   each back to check its hash, and pins it in `scripts/internal/pins` (guides/tracker.md);
-   every download's `build-info.json` (the APK's too) names each `be`'s URL and SHA-256
+1. uploads `be` for Linux x86_64 and arm64 to the Bunny storage zone under `data/BUILD/` and
+   reads each back to check its hash; every download's `build-info.json` (the APK's too) names each `be`'s URL and SHA-256
    (`terminal_hosts`), so the host installs a terminal host of its own build
    (guides/terminal.md, A terminal host in a boat.dev sandbox);
 2. uploads be-host's downloads (every desktop platform, the web bundle, and the release-signed
@@ -173,11 +178,12 @@ platform in release in one buck2 command, then:
    starts them;
 4. then publishes the mutable entry points: `/index.html` with a `<base href="/data/BUILD/web/">`,
    `/sw.js` beside it (a service worker only answers below its own path), and the unlinked
-   `web/downloads.html`, and purges them from the CDN.
+   `web/downloads.html`, and `be/release`, the build id `./scripts/be` downloads `be` for
+   (guides/tracker.md), and purges them from the CDN.
 
 `--dry-run` changes nothing; `--skip-server` uploads versioned files only; `--skip-downloads` and
 `--skip-android` avoid needing the keystore; `--help` lists the rest. It refuses a dirty working
-tree, so every deployment can be rebuilt; commit the pin it writes.
+tree, so every deployment can be rebuilt, and writes nothing into the checkout.
 
 Versioned paths are the build's Git tree hash. Existing objects are reused only when their
 SHA-256 matches, and deployment refuses to overwrite a versioned path with different bytes, so
@@ -186,10 +192,17 @@ isolation headers.
 
 ### Keys
 
-After the build, a Rust step loads `BUNNY_STORAGE_KEY`, `BUNNY_API_KEY` (for purges) and the
-Android release keystore, asking at a terminal for any that are missing and saving them in
-`~/.config/be3`. It signs the APK locally; no key enters a remote build action. Keep a backup of
-the keystore: installed apps accept updates only with the same certificate.
+After the build, a Rust step loads `BUNNY_STORAGE_KEY` (the `be-app` zone's password),
+`BUNNY_API_KEY` (for purges) and the Android release keystore (`BE3_ANDROID_RELEASE_KEYSTORE`, a
+path), asking at a terminal for any that are missing and saving them in `~/.config/be3`. It
+signs the APK locally; no key enters a remote build action. Keep a backup of the keystore:
+installed apps accept updates only with the same certificate.
+
+The workflow's `deploy` environment holds them as `BE3_DEPLOY_BUNNY_STORAGE_KEY`,
+`BE3_DEPLOY_BUNNY_API_KEY` and `BE3_ANDROID_RELEASE_KEYSTORE` (the keystore's base64), with
+`BE3_DEPLOY_SSH_KEY`, a private key the VPS's `ubuntu` accepts, `BE3_DEPLOY_KNOWN_HOSTS`, the
+VPS's `known_hosts` line, and the build server's `BE3_NL_URL` and `BE3_NL_KEY`
+(guides/build_server.md).
 
 ### The CDN
 
@@ -199,7 +212,7 @@ These are settings of the Bunny pull zone, not something the uploader can set:
 | --- | --- |
 | `/data/*`, `/`, `/index.html` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
 | `/data/*` | CDN TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/sw.js`, `/web/downloads.html` | CDN TTL one hour; `Cache-Control: no-cache` to browsers |
+| `/`, `/index.html`, `/sw.js`, `/web/downloads.html`, `/be/release` | CDN TTL one hour; `Cache-Control: no-cache` to browsers |
 
 The zone resolves directory indexes and keeps uploaded content types (`application/wasm`
 especially).

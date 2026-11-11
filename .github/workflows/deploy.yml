@@ -1,0 +1,114 @@
+name: Deploy
+
+# ./scripts/deploy (guides/hosting.md, Deploying), run by hand from the Actions
+# tab on whichever branch "Use workflow from" names. It builds be-server, be and
+# be-host's downloads from that branch's head, uploads them to the be-app Bunny
+# zone, swaps the server on the VPS and points the live pages and be/release at
+# the new build.
+#
+# It runs the dispatched branch's code with every deployment key, so the keys
+# live in the deploy environment, whose protection rules (required reviewers,
+# which branches may deploy) are set in the repository's settings rather than
+# here. Only someone with write access can dispatch it, and a ref can only be
+# dispatched if it has this file.
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: Swap the server and publish the live pages and be/release (off uploads versioned files only)
+        type: boolean
+        default: true
+      be:
+        description: Upload be
+        type: boolean
+        default: true
+      web:
+        description: Upload the web bundle
+        type: boolean
+        default: true
+      downloads:
+        description: Upload the app's downloads
+        type: boolean
+        default: true
+      android:
+        description: Upload the Android APK (with the downloads)
+        type: boolean
+        default: true
+      dry-run:
+        description: Build, then print what it would do, uploading and changing nothing
+        type: boolean
+        default: false
+
+# One deployment at a time, and none cancelled halfway through a server swap.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-24.04
+    environment: deploy
+    timeout-minutes: 180
+    env:
+      # The build server, as in ci.yml's ci job.
+      BE3_BUILD_SERVER: nativelink
+      BE3_NL_URL: ${{ secrets.BE3_NL_URL }}
+      BE3_NL_KEY: ${{ secrets.BE3_NL_KEY }}
+      # As in ci.yml: the pinned bootstrap predates the nativelink server.
+      # Remove it with ci.yml's once a release that knows the server is pinned.
+      BE3_BOOTSTRAP: cargo
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/buck2
+
+      # ssh and scp reach the VPS with this key, checking the host against the
+      # recorded key rather than trusting the first one offered. The release
+      # keystore signs the APK on this runner; no key enters a build action.
+      - name: Install the deployment keys
+        env:
+          SSH_KEY: ${{ secrets.BE3_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.BE3_DEPLOY_KNOWN_HOSTS }}
+          KEYSTORE: ${{ secrets.BE3_ANDROID_RELEASE_KEYSTORE }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          if [ -n "$KEYSTORE" ]; then
+            keystore="$RUNNER_TEMP/android-release-keystore.base64"
+            printf '%s\n' "$KEYSTORE" > "$keystore"
+            chmod 600 "$keystore"
+            echo "BE3_ANDROID_RELEASE_KEYSTORE=$keystore" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run ./scripts/deploy
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BE3_DEPLOY_BUNNY_STORAGE_KEY }}
+          BUNNY_API_KEY: ${{ secrets.BE3_DEPLOY_BUNNY_API_KEY }}
+          SERVER: ${{ inputs.server }}
+          BE: ${{ inputs.be }}
+          WEB: ${{ inputs.web }}
+          DOWNLOADS: ${{ inputs.downloads }}
+          ANDROID: ${{ inputs.android }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          set --
+          [ "$SERVER" = true ] || set -- "$@" --skip-server
+          [ "$BE" = true ] || set -- "$@" --skip-be
+          [ "$WEB" = true ] || set -- "$@" --skip-web
+          [ "$DOWNLOADS" = true ] || set -- "$@" --skip-downloads
+          [ "$ANDROID" = true ] || set -- "$@" --skip-android
+          [ "$DRY_RUN" = false ] || set -- "$@" --dry-run
+          ./scripts/deploy "$@"
+
+      - name: Remove the deployment keys
+        if: ${{ always() }}
+        run: rm -f ~/.ssh/id_ed25519 "$RUNNER_TEMP/android-release-keystore.base64"
