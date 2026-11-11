@@ -604,7 +604,6 @@ async fn every_call_states_who_may_make_it() {
         "set-parent",
         "list-history",
         "list-access",
-        "delete-block",
         "set-access",
         "rotate",
         "watch",

@@ -254,6 +254,8 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             blocks::Call::CreateBlock { block, parent, .. } => {
                 *block == root || matches!(parent, BlockParent::Block(_))
             }
+            // A block it trashed would leave what it reaches, and no one else could see it to
+            // restore or collect it.
             blocks::Call::SetParent { block, parent, .. } => {
                 *block != root && matches!(parent, BlockParent::Block(_))
             }
@@ -267,8 +269,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::ListHistory { .. }
             | blocks::Call::Watch { .. }
             | blocks::Call::Changes { .. } => true,
-            // A block it trashed would leave what it reaches, and no one else could see it to
-            // restore or collect it.
             blocks::Call::SetAccess { .. }
             | blocks::Call::ListAccess { .. }
             | blocks::Call::CollectDetached { .. } => false,
@@ -1786,20 +1786,6 @@ impl Client {
                                 .await;
                         }
                     }
-                    if parent == BlockParent::Detached {
-                        let place = Place {
-                            organization: identity.organization,
-                            block,
-                        };
-                        connection
-                            .hub
-                            .broadcast(
-                                place,
-                                connection.client,
-                                Push::BlockDeleted { block: place },
-                            )
-                            .await;
-                    }
                     Ok(())
                 }
                 .await;
@@ -1850,6 +1836,18 @@ impl Client {
                         connection
                             .hub
                             .removed(identity.organization, *block, collected.revision)
+                            .await;
+                        let place = Place {
+                            organization: identity.organization,
+                            block: *block,
+                        };
+                        connection
+                            .hub
+                            .broadcast(
+                                place,
+                                connection.client,
+                                Push::BlockDeleted { block: place },
+                            )
                             .await;
                     }
                     Ok(Collected {
