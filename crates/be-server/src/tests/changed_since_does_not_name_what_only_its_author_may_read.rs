@@ -92,7 +92,11 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
 
     let mut names = left(&mut viewer, workspace).await;
     names.sort();
-    assert_eq!(names, vec![plain], "a reader is not told of the owner's own block");
+    assert_eq!(
+        names,
+        vec![plain],
+        "a reader is not told of the owner's own block"
+    );
     assert!(
         !left(&mut editor, workspace).await.contains(&secret),
         "nor is an editor"
