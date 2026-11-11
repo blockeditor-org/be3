@@ -129,6 +129,5 @@ pub(crate) enum HeadEvent {
     },
     Moved {
         head: CommitId,
-        from_this_device: bool,
     },
 }

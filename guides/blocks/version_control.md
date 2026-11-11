@@ -68,7 +68,7 @@ operation so every head is current.
 
 A checkout replaces content someone has open through the replica's reconcile
 on `head-moved` (the block's `watch` stream's `moved`); the worker calls
-`head-moved` with `from-this-device` for what it publishes itself.
+`head-moved` for what it publishes itself (`Replicas::moved_here`).
 
 ## Not built yet
 

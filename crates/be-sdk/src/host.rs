@@ -856,6 +856,7 @@ impl EditorHost {
                     while let Ok(value) = watch.next().await {
                         each(value);
                         host.changed();
+                        host.waker.wake();
                     }
                 });
             }));
@@ -886,6 +887,10 @@ impl EditorHost {
         for run in runs {
             run();
         }
+        // A value comes from a task, not from a call the host made to the editor, so nothing
+        // else tells the runtime this editor has a frame to draw: without it the page keeps
+        // what it showed until something else wakes the editor.
+        self.waker.wake();
     }
 
     pub fn on_watched<W: Watched>(&self, run: impl Fn() + 'static) -> Subscription {

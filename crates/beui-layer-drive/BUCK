@@ -1,4 +1,4 @@
 load("@root//buck/cargo:defs.bzl", "cargo_crate")
 
 # drive as a layer: guides/running/drive.md.
-cargo_crate(test = False)
+cargo_crate()

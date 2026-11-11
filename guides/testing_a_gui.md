@@ -252,8 +252,40 @@ Debugging:
   `./scripts/buck run //crates/be-host:dev -- --fresh`, plus `drive tree` and the end of the
   host's log with every panic in full. A step that times out while the tree shows nothing
   pending means something asks for a frame every frame.
-- A flake that shows only under load: run the harness locally, many tests at once (the
-  comment above `cargo_test` in crates/be-host-tests/BUCK says how).
+- A flake that shows only under load: `./scripts/buck run //crates/be-tool-local:bin -- stress NAME
+  [--repeat N] [--parallel K] [--limit SECONDS]` builds the host tests' harness once and runs
+  the tests whose names contain NAME N times (20), K at a time (twice the cores), killing a
+  run that takes more than SECONDS (300). It prints how many runs failed, grouped by the
+  panic's message with the numbers blurred and the first logs of each group, which are under
+  target/stress/NAME/. Every run uses the host that has every app, not the apps a test names
+  in `APPS`. `./scripts/test` caches a passing run, so repeating it proves nothing. More at
+  once slows every step down, but at 7 or more per core single steps pass 30 seconds with
+  nothing wrong. Report a fix with its failure counts before and after, such as "3 of 200
+  before, 0 of 800 after": a rate of one in a few hundred needs hundreds of runs.
+  `CHANGED_PAINTINGS=DIR UPDATE_SNAPSHOTS=1` writes each painting that differs from the
+  accepted one to DIR with what changed in a `.why` beside it, so a painting that flips keeps
+  the variant to compare (`rasterize`, then compare the pictures).
+
+Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says why these):
+
+- Wait for what the test needs, never for time. A `pause` runs frames, and runs each only
+  once the apps have answered the one before it, so an animation that spans one ends the same
+  under load; it is not a way to wait for a thread, a server or the network. For those use
+  `wait`/`gone` on a line of the tree, or on a node's place (`gone ID over ID+X,Y`).
+- Whatever the pointer rests on is part of the painting. A press that opens a menu or a card
+  under the pointer leaves it over the new content, and whether that is highlighted depends on
+  how the frames fell. A painting that is not about hover moves the pointer away first
+  (`host.run(&["leave"])`); one that is about hover puts it there on purpose (`move`).
+- Take a painting only of what has settled: `paint` waits until the host, the apps and the
+  store have nothing left to do, and fails with what kept them busy. `HostTest::record` (so
+  `snapshot`) paints twice with a settle between and fails with "the painting is not settled"
+  if the two differ, whatever the test did: a hover, an animation's last step or an app's late
+  frame is caught the first time it shows, on any machine. Wait for it, not for time.
+- `drive pause 200` before a `shot`, as drive.md says, is for a hosted Wayland or X11 program,
+  which draws on its own after input; it is not a way to wait in a host test.
+- Do not read the clock, the machine's speed or the order threads finish in. A test that
+  passes alone and fails 1 run in 200 under `stress` is a flake whatever its author thinks.
+- Run `stress` on a new host test, 100 runs at 14 at a time, before sending it.
 - A hang: `gdb -p PID -batch -ex 'thread apply all bt'` on its be-host. Every thread parked with
   the window waiting on data means something changed without `host::wake()`: a lost wake, not a
   deadlock.

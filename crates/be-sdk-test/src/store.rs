@@ -455,7 +455,7 @@ impl Inner {
             be_block_session::SessionMessage::Submit {
                 id,
                 base: u64::MAX,
-                payload: operation,
+                payload: be_block_session::Payload::Inline(operation),
             },
         );
     }

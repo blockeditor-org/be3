@@ -117,6 +117,7 @@ impl Input {
     pub fn translated(mut self, by: Vec2) -> Self {
         match &mut self {
             Self::PointerMoved(pos)
+            | Self::PointerRested(pos)
             | Self::Predicted(pos)
             | Self::PointerButton { pos, .. }
             | Self::Touch { pos, .. }
@@ -129,6 +130,7 @@ impl Input {
     pub fn scaled(mut self, factor: f32) -> Self {
         match &mut self {
             Self::PointerMoved(pos)
+            | Self::PointerRested(pos)
             | Self::Predicted(pos)
             | Self::PointerButton { pos, .. }
             | Self::Touch { pos, .. }
