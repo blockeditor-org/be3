@@ -12,6 +12,17 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
 
+/// What `changes` needs of a block that leaves a tree.
+fn departing(graph: &BlockGraph, block: Uuid) -> crate::changes::Departing {
+    crate::changes::Departing {
+        block,
+        owner: graph
+            .owner_only_root(block)
+            .and_then(|root| graph.get(root))
+            .map(|root| root.author),
+    }
+}
+
 /// The top-level block whose tree `block` is in, if it is in one (and not in the trash).
 fn tree_of(graph: &BlockGraph, block: Uuid) -> Option<Uuid> {
     let top = graph.ancestors(block).last().unwrap_or(block);
@@ -1262,6 +1273,13 @@ impl ServerStore {
             store.follow_payer(graph, &transaction, identity, block, parent)?;
             // The tree it leaves, for `changed-since` to name it to the readers of that tree.
             let old_top = tree_of(graph, block);
+            // What leaves with it, read before it moves: a move within the same tree is not a
+            // departure from it.
+            let leaving: Vec<crate::changes::Departing> = graph
+                .subtree(block)
+                .into_iter()
+                .map(|below| departing(graph, below))
+                .collect();
             let mut resized = chain(graph, block);
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
@@ -1285,11 +1303,12 @@ impl ServerStore {
                 ],
             )?;
             // The block and everything below it lie in another tree now.
+            let stays_in_tree = old_top.is_some() && tree_of(graph, block) == old_top;
             crate::changes::touch_moved(
                 &transaction,
                 identity.organization,
-                &graph.subtree(block),
-                old_top,
+                &leaving,
+                old_top.filter(|_| !stays_in_tree),
                 be_block_commit::now_milliseconds(),
             )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
@@ -1473,7 +1492,7 @@ impl ServerStore {
                  WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
                  UNION ALL
                  SELECT block_id, changed, 1 FROM block_departures
-                 WHERE organization_id = ?1 AND root = ?4 AND owner_only = 0
+                 WHERE organization_id = ?1 AND root = ?4 AND (owner IS NULL OR owner = ?5)
                    AND (changed > ?2 OR (changed = ?2 AND block_id > ?3))
                  ORDER BY 2, 1",
             )?;
@@ -1482,6 +1501,7 @@ impl ServerStore {
                 after.changed as i64,
                 after.block.to_string(),
                 root.to_string(),
+                identity.account.to_string(),
             ])?;
             // A page that stops on a block of another tree must not name it in its cursor:
             // it reads on to the end of that sequence (one write's blocks) and ends on a
@@ -1659,7 +1679,7 @@ impl ServerStore {
                         &transaction,
                         identity.organization,
                         tree_of(graph, block),
-                        block,
+                        departing(graph, block),
                         be_block_commit::now_milliseconds(),
                     )?;
                     transaction.execute(

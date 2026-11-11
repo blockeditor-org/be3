@@ -407,7 +407,9 @@ transaction (`touch`: create, publish, metadata and references, grants;
 `touch_moved`: a new parent, for the block and everything below it). A block
 that leaves a top-level block's tree (moved out, trashed, or deleted for good
 while in it) leaves a row in `block_departures` for that root, kept a day, so
-every tree a block has been in hears of its leaving, however often it moved on.
+every tree a block has been in hears of its leaving, however often it moved on
+(a move within one tree writes none); a reader away for more than a day misses what left
+in between, moved out, trashed or deleted.
 `blocks.changed-since(root, after, limit)` asks about a top-level block's tree
 (View on `root`) and pages through `blocks_changed` and that tree's departures in
 one order, oldest first: the summaries of blocks in the tree now that changed, and

@@ -57,9 +57,9 @@ that they do not do, or do differently:
   is indexed, not with each batch: an interrupted catch-up starts again from the
   old watermark.
 - Departures (`block_departures`, kept a day) are kept per tree a block left, so a call
-  for one tree names only what left that tree, however often the block moved on. A device that was
-  away longer than a day misses a block collected for good in between, and
-  nothing tells it so.
+  for one tree names only what left that tree, however often the block moved on. A
+  device that was away longer than a day misses every block that left in between, moved
+  out, trashed or collected, and nothing tells it so.
 - The catch-up runs on connecting, not on a head change, and a viewer's device
   runs none.
 - `Index::forget_before` has no caller yet, so the index's header keeps every
@@ -72,9 +72,13 @@ that they do not do, or do differently:
   in the old root's index until a device that may edit the root next catches up,
   and only the catch-up masks it (no mask at the moment of the move). Until then
   every viewer of that root can decrypt it with a modified client; the UI hides it
-  (`show` filters by access and by what the search is within). Removals are kept a
-  day on the server: a device that was away longer misses a block collected for
-  good in between (it is only hidden by `show`).
+  (`show` filters by access and by what the search is within). Departures are kept a
+  day on the server: a device that was away longer misses every block that left in
+  between, moved out, trashed or collected (it is only hidden by `show`).
+- **A block let go stays stale.** A block whose commit could not be read three times is
+  counted as indexed (`MAX_READ_FAILURES`), so a catch-up ends: its entry in the index is
+  stale or missing until the block next changes. Answers are filtered by the mirror, so
+  only snippets and ranking use the stale text.
 - **No host test for a second device.** be-host-tests start one host with its own
   dev server, so catching up what another device wrote, and a host restart, are
   only tested in be-host-stack: a harness for a second device and a host restart.

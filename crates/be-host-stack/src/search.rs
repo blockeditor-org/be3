@@ -612,6 +612,13 @@ async fn index(
             // None: held back (a commit or part that could not be read), so not put.
             match puts_of(peer, shared, replicas, *block).await {
                 Some(puts) => {
+                    // Failures count the reads in a row that failed.
+                    shared
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .search
+                        .failures
+                        .remove(block);
                     put_blocks.push(*block);
                     batch.put.extend(puts);
                 }

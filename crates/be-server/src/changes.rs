@@ -63,17 +63,26 @@ fn mark(
 pub(crate) fn touch_moved(
     database: &Connection,
     organization: Uuid,
-    blocks: &[Uuid],
+    blocks: &[Departing],
     from: Option<Uuid>,
     now: i64,
 ) -> Result<(), ServerError> {
     let organization = organization.to_string();
     let sequence = next(database, &organization)?;
-    mark(database, &organization, blocks, sequence)?;
+    let ids: Vec<Uuid> = blocks.iter().map(|departing| departing.block).collect();
+    mark(database, &organization, &ids, sequence)?;
     if let Some(from) = from {
         departed(database, &organization, from, blocks, sequence, now)?;
     }
     Ok(())
+}
+
+/// A block that leaves a tree, and the account that alone may read it if it lies in an
+/// owner-only block (read before the move, while it still does).
+#[derive(Clone, Copy)]
+pub(crate) struct Departing {
+    pub block: Uuid,
+    pub owner: Option<Uuid>,
 }
 
 /// Records that a block is deleted for good while in the tree of `root`, which a block in the
@@ -82,7 +91,7 @@ pub(crate) fn removed(
     database: &Connection,
     organization: Uuid,
     root: Option<Uuid>,
-    block: Uuid,
+    block: Departing,
     now: i64,
 ) -> Result<(), ServerError> {
     let Some(root) = root else {
@@ -99,7 +108,7 @@ fn departed(
     database: &Connection,
     organization: &str,
     root: Uuid,
-    blocks: &[Uuid],
+    blocks: &[Departing],
     sequence: i64,
     now: i64,
 ) -> Result<(), ServerError> {
@@ -107,20 +116,20 @@ fn departed(
         "DELETE FROM block_departures WHERE organization_id = ?1 AND time < ?2",
         params![organization, now - DEPARTURES_KEPT],
     )?;
-    // A block only its author may read is not named to the readers of the tree it left.
+    // A block in an owner-only block is named only to the account that may read it.
     let mut insert = database.prepare_cached(
         "INSERT OR REPLACE INTO block_departures
-             (organization_id, root, block_id, changed, time, owner_only)
-         SELECT ?1, ?2, id, ?4, ?5, owner_only FROM blocks
-         WHERE organization_id = ?1 AND id = ?3",
+             (organization_id, root, block_id, changed, time, owner)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     )?;
-    for block in blocks {
+    for departing in blocks {
         insert.execute(params![
             organization,
             root.to_string(),
-            block.to_string(),
+            departing.block.to_string(),
             sequence,
-            now
+            now,
+            departing.owner.map(|owner| owner.to_string()),
         ])?;
     }
     Ok(())
