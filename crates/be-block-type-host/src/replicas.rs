@@ -2765,7 +2765,11 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub fn counts(&self) -> (usize, usize) {
+    /// How many open replicas have edits not yet committed, how many owe a seal, and how many
+    /// hold edits that are not yet durable: not in the journal on this device (still with the
+    /// module, or not yet appended). A journaled edit survives a restart, so it is only waiting
+    /// for its commit.
+    pub fn counts(&self) -> (usize, usize, usize) {
         let unsealed = self
             .open
             .values()
@@ -2776,12 +2780,17 @@ impl<H: Host> Replicas<H> {
             .values()
             .filter(|open| open.status.owes_seal)
             .count();
-        (unsealed, owing)
+        let undurable = self
+            .open
+            .values()
+            .filter(|open| open.unreported || (!open.status.clean && !open.status.journaled))
+            .count();
+        (unsealed, owing, undurable)
     }
 
     fn counted(&self, shared: &Arc<Mutex<H>>) {
-        let (unsealed, owing) = self.counts();
-        H::counted(shared, unsealed, owing);
+        let (unsealed, owing, undurable) = self.counts();
+        H::counted(shared, unsealed, owing, undurable);
     }
 }
 

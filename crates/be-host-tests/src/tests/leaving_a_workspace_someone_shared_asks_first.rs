@@ -1,4 +1,3 @@
-use super::a_contact_link_asks_before_connecting_two_accounts::confirm_phrase;
 use super::*;
 
 #[test]
@@ -28,8 +27,6 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     host.click("#account.name");
     host.type_text("Ada");
     host.click("#account.confirm");
-    host.wait("Heading \"Check that you saved them\"");
-    confirm_phrase(&mut host);
     host.click("Button \"Personal\"");
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");

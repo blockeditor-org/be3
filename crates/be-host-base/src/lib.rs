@@ -6,4 +6,5 @@ pub mod password;
 pub mod performance;
 pub mod platform;
 pub mod program_editors;
+pub mod push_device;
 pub mod watches;

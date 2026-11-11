@@ -27,8 +27,6 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     host.click("#account.name");
     host.type_text("Ada");
     host.click("#account.confirm");
-    host.wait("Heading \"Check that you saved them\"");
-    confirm_phrase(&mut host);
     host.click("Button \"Personal\"");
 
     host.click("#file-tree.host-menu");
@@ -44,34 +42,4 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     host.crop("Dialog \"Contacts\"");
     host.snapshot("a_contact_link_asks_before_connecting_two_accounts_and_lists_the_contact");
     host.close();
-}
-
-pub(super) fn confirm_phrase(host: &mut HostTest) {
-    let tree = host.tree();
-    let phrase = tree
-        .lines()
-        .find_map(|line| {
-            let (_, value) = line.split_once("value=\"1. ")?;
-            Some(format!(
-                "1. {}",
-                value.split('"').next()?.replace("\\n", " ")
-            ))
-        })
-        .expect("the recovery phrase is shown");
-    let words: Vec<&str> = phrase
-        .split_whitespace()
-        .filter(|word| !word.ends_with('.'))
-        .collect();
-    let asked: Vec<usize> = tree
-        .lines()
-        .filter_map(|line| {
-            let (_, rest) = line.split_once("TextInput \"Word ")?;
-            rest.split('"').next()?.parse().ok()
-        })
-        .collect();
-    for position in asked {
-        host.click(&format!("TextInput \"Word {position}\""));
-        host.type_text(words[position - 1]);
-    }
-    host.click("Button \"I saved them\"");
 }

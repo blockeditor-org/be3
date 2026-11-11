@@ -110,7 +110,9 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   server stores the public half (`SetRecoveryKey`). A device keeps the secret
   (`HostStateStore::identity`); without it, or with one that does not match,
   the account opens on the unlock screen (`be-host-stack/src/keys.rs`,
-  `ui/keys.rs`).
+  `ui/keys.rs`). A local account (`ServerLocation::Local`) is never asked to
+  save its phrase: its secret sits beside its database anyway, so be-host saves
+  the first phrase without the check screen, as the dev workspace does.
 - **A new phrase** must reseal every row sealed to the account by itself or a
   verified contact, and everything it sealed for itself (`OwnSealed`), which
   the server checks, so only a device with the old secret can make one. Each

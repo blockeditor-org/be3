@@ -62,6 +62,22 @@ interface account {
         mode: notify-mode,
     }
 
+    /// Whether this device shows notifications pushed to it.
+    enum push-device {
+        off,
+        on,
+        /// The person refused the permission to show notifications; only the
+        /// browser's own settings undo that.
+        denied,
+    }
+
+    /// This device's state, which `host-services.set-push-device` changes; none
+    /// on a host that cannot receive pushes (no browser push service).
+    resource push-device-watch {
+        constructor();
+        next: async func() -> option<push-device>;
+    }
+
     /// Every block whose mode the account set to other than `all`, which
     /// every other block is; none until the server has said (or on a host with
     /// no server). Changes made on other devices arrive as the server tells

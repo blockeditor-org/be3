@@ -192,6 +192,11 @@ interface host-services {
     /// (`account.notify-modes-watch` follows every block's).
     set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, failure>;
 
+    /// Turns pushes to this device on or off (`account.push-device-watch`
+    /// follows them). Turning them on asks the person's permission, so it must
+    /// follow their press; a refusal answers a failure.
+    set-push-device: async func(on: bool) -> result<_, failure>;
+
     /// The files the app ships in its data directory.
     list-data: async func() -> result<list<string>, failure>;
 
