@@ -579,7 +579,8 @@ struct HostCore {
     /// The `be_host_base::push_device::revision` the push device watch last published.
     push_device_published: Option<u64>,
     /// What a pressed notification's block last waited on (the open organization, how many
-    /// there are, the graph's revision, the changes unsaved), so it is tried again only when that changes.
+    /// there are, the graph's revision, the changes unsaved), so it is tried again only when
+    /// that changes.
     #[cfg(target_arch = "wasm32")]
     pressed_waiting_on: Option<(Option<Uuid>, usize, u64, usize)>,
     /// The organization this browser's push subscription was last registered for.
@@ -2411,7 +2412,8 @@ impl HostCore {
 
     /// Opens the blocks notifications named that were pressed, switching to their
     /// organization first. One that cannot open yet (the organization or the block is not
-    /// loaded) is held until the organizations or the graph change.
+    /// loaded, or changes are unsaved) is held until the organizations, the graph or the
+    /// unsaved changes change, and dropped after `web_push::OPENING_PATIENCE`.
     #[cfg(target_arch = "wasm32")]
     fn open_pressed_notifications(&mut self) {
         let waiting = |host: &Self| {
@@ -2429,6 +2431,9 @@ impl HostCore {
         }
         self.pressed_waiting_on = None;
         for opening in web_push::take_openings() {
+            if opening.pressed.elapsed() > web_push::OPENING_PATIENCE {
+                continue;
+            }
             let now = waiting(self);
             if now.0 != Some(opening.organization) {
                 // A block of another organization opens it first, unless that would discard

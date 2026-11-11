@@ -4,6 +4,7 @@
 //! plans/notifications.md has the design.
 
 use std::cell::RefCell;
+use std::time::{Duration, Instant};
 
 use be_block_protocol::{PushEndpoint, PushMessage, PushService};
 use tokio::sync::oneshot;
@@ -16,7 +17,13 @@ use web_sys::js_sys;
 pub(crate) struct Opening {
     pub(crate) organization: Uuid,
     pub(crate) block: Uuid,
+    /// When the notification was pressed.
+    pub(crate) pressed: Instant,
 }
+
+/// How long an opening waits before it is dropped, so a press made while changes were unsaved
+/// does not switch organization much later, unprompted.
+pub(crate) const OPENING_PATIENCE: Duration = Duration::from_secs(30);
 
 thread_local! {
     static OPENINGS: RefCell<Vec<Opening>> = const { RefCell::new(Vec::new()) };
@@ -118,6 +125,7 @@ pub fn push_open_block(organization: String, block: String) {
         hold(Opening {
             organization,
             block,
+            pressed: Instant::now(),
         });
         be_host_base::host::wake();
     }

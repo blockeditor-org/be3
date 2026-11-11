@@ -133,8 +133,14 @@ async function digest(bytes) {
 
 function database() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open("be-push", 1);
-        request.onupgradeneeded = () => request.result.createObjectStore("shown");
+        // Version 2 keeps no text: an earlier version's store is dropped.
+        const request = indexedDB.open("be-push", 2);
+        request.onupgradeneeded = () => {
+            if (request.result.objectStoreNames.contains("shown")) {
+                request.result.deleteObjectStore("shown");
+            }
+            request.result.createObjectStore("shown");
+        };
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
     });

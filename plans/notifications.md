@@ -19,10 +19,10 @@ host call and the mute menu have landed (guides/blocks/server.md,
 - **The push** a device gets decrypts with `be_lib_web_push::open` (its own
   keys) to a `be_block_protocol::PushMessage`: organization, block, the sender
   the server vouches for, then the text sealed under the block's data key with
-  the block and the time it was sent. `Peer::open_notification` opens that
+  the organization, block, sender and time it was sent. `Peer::open_notification` opens that
   offline, from the key rows the device keeps in its refs database
   (`Peer::cached`, guides/blocks/client.md), refusing one sealed about another
-  block or older than `MAX_NOTIFICATION_AGE_MILLISECONDS`.
+  organization, block or sender, or older than `MAX_NOTIFICATION_AGE_MILLISECONDS`.
 - **The app protocol**: `host-services.notify(block, text, mentions)`, which
   the host seals (`Peer::notify`); `NotifyModesWatch` and `set-notify-mode`,
   which the workspace's block menu uses.
@@ -76,10 +76,12 @@ host call and the mute menu have landed (guides/blocks/server.md,
     from the contacts and the block from the graph, and answers; on any failure
     it answers nothing. With no window, no answer or no key the worker shows
     "New message" naming nothing (a push must always show one).
-  - *Once only.* The worker keeps a hash of each shown push's sealed bytes in
-    IndexedDB for `MAX_NOTIFICATION_AGE_MILLISECONDS` and shows nothing more
-    for a repeat; the notification's `tag` is the block, so a later one about
-    the same block replaces the earlier.
+  - *Once only.* The worker keeps a hash of each shown push's sealed bytes and
+    the block it was about, never its text, in IndexedDB for
+    `MAX_NOTIFICATION_AGE_MILLISECONDS`, and does not open a repeat again: what
+    is on screen stays, and one dismissed or pressed comes back as "New
+    message", silently. The notification's `tag` is the block, so a later one
+    about the same block replaces the earlier.
   - *Opening.* A click focuses a window client, or opens the host with
     `?open-block=ORG/BLOCK`, and posts `{open: {organization, block}}`; the host
     opens the block as it does for a link.

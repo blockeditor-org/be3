@@ -14,8 +14,9 @@ use super::Peer;
 use crate::ClientError;
 
 /// What a notification's sender wrote, sealed under the block's data key, with the
-/// organization, the block, the sender's account and the time it was sent sealed in, so a server that resends it later,
-/// under another block, or as another member's is found out (`Peer::open_notification`). The
+/// organization, the block, the sender's account and the time it was sent sealed in, so a
+/// server that resends it later, under another block or organization, or as another member's
+/// is found out (`Peer::open_notification`). The
 /// server vouches for the sender too (`PushMessage::sender`), so a member cannot claim to be
 /// another, nor the server without a member's help. The device names both itself.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -117,11 +117,12 @@ export async function unsubscribePush() {
         return null;
     }
     const subscription = await (await registration()).pushManager.getSubscription();
-    if (!subscription) {
-        return null;
-    }
-    await subscription.unsubscribe();
-    // What the worker kept of the pushes it showed (sw.js) goes with the subscription.
-    indexedDB.deleteDatabase("be-push");
-    return subscription.endpoint;
+    await subscription?.unsubscribe();
+    // What the worker kept of the pushes it showed (sw.js) goes with the subscription, and
+    // whatever an earlier revision kept of their text with it.
+    await new Promise((resolve) => {
+        const deleted = indexedDB.deleteDatabase("be-push");
+        deleted.onsuccess = deleted.onerror = deleted.onblocked = resolve;
+    });
+    return subscription?.endpoint ?? null;
 }
