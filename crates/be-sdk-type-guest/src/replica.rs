@@ -2738,6 +2738,7 @@ where
                 };
                 self.catching_up = false;
                 self.catch_up_failures = 0;
+                self.resends = 0;
                 self.catch_up_at = None;
                 let applied = follower.applied();
                 if head != self.base || sealed != self.sealed || applied < sealed {
@@ -3039,6 +3040,7 @@ where
                 self.applied_ops.clear();
                 self.reload = false;
                 self.catch_up_failures = 0;
+                self.resends = 0;
                 self.catch_up_at = None;
                 // What it held back while a part was put it now submits.
                 return self.sequence_held();
@@ -3053,6 +3055,7 @@ where
             .is_some_and(|owner| self.ignored_owners.contains(&owner));
         self.ignored_owners.clear();
         self.catch_up_failures = 0;
+        self.resends = 0;
         self.catch_up_at = None;
         if missed {
             self.catching_up = true;
