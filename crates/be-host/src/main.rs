@@ -20,6 +20,8 @@ mod root_settings;
 mod shell_route;
 mod surfaces;
 mod ui;
+#[cfg(target_arch = "wasm32")]
+mod web_push;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -1396,6 +1398,10 @@ impl HostCore {
     }
 
     fn forget_account(&mut self, account: &Account) {
+        #[cfg(target_arch = "wasm32")]
+        if self.account.server == account.server && self.account.id == account.id {
+            web_push::forget_this_device();
+        }
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
@@ -2388,6 +2394,35 @@ impl HostCore {
         }
     }
 
+    /// Opens the blocks notifications named that were pressed, which are in the
+    /// organization that is open (one in another waits for it to be opened by hand).
+    #[cfg(target_arch = "wasm32")]
+    fn open_pressed_notifications(&mut self) {
+        for opening in web_push::take_openings() {
+            if self.organization.as_ref().map(|organization| organization.id)
+                != Some(opening.organization)
+            {
+                web_push::requeue(opening);
+                continue;
+            }
+            let Some(node) = be_host_stack::node(opening.block) else {
+                web_push::requeue(opening);
+                continue;
+            };
+            {
+                self.show_block(
+                    None,
+                    BlockOpen {
+                        id: opening.block,
+                        block_type: node.content_type,
+                        via: None,
+                        editor: None,
+                    },
+                );
+            }
+        }
+    }
+
     fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
         self.block_types.insert(open.id, open.block_type);
         if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
@@ -2997,6 +3032,8 @@ impl HostCore {
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
         self.contacts.publish();
+        #[cfg(target_arch = "wasm32")]
+        self.open_pressed_notifications();
         self.publish_storage();
         self.publish_notify_modes();
         self.load_organizations_if_needed();

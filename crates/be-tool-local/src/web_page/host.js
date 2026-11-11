@@ -1,7 +1,15 @@
 import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
             import { bindMemory as bindEnvironmentMemory } from "./env.js";
             import { bindThreads } from "./threads.js";
-            import init, { run_web } from "./be_host.js";
+            import init, {
+                run_web,
+                push_open,
+                push_open_block,
+                push_register,
+                push_server_key,
+                push_unregister,
+            } from "./be_host.js";
+            import { bindPush, pushPermission, subscribePush, unsubscribePush } from "./push.js";
 
             const status = document.getElementById("status");
 
@@ -103,6 +111,32 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 bindThreads(module, wasm.memory);
                 files.worker.postMessage({ memory: wasm.memory });
                 bindFiles(files.channel);
+                bindPush({
+                    open: push_open,
+                    openBlock: ({ organization, block }) => push_open_block(organization, block),
+                });
+                // What the host's "Notify me on this device" switch calls
+                // (plans/notifications.md): `enable` must run in a person's gesture.
+                globalThis.bePush = {
+                    permission: pushPermission,
+                    unsubscribe: unsubscribePush,
+                    async enable() {
+                        const { address, p256dh, auth } = await subscribePush(await push_server_key());
+                        await push_register(address, p256dh, auth);
+                        return address;
+                    },
+                    async disable() {
+                        const address = await unsubscribePush();
+                        if (address) {
+                            await push_unregister(address);
+                        }
+                    },
+                };
+                const opened = new URLSearchParams(location.search).get("open-block");
+                if (opened) {
+                    const [organization, block] = opened.split("/");
+                    push_open_block(organization, block);
+                }
                 started.resolve();
 
                 status.hidden = true;

@@ -1,0 +1,86 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>push notifications</title>
+<script type="module">
+    // plans/notifications.md, the web: a push reaches sw.js, which asks this page (push.js)
+    // to open it and shows what it answers. The host's calls are stubs here.
+    import { bindPush } from "./push.js";
+
+    const calls = [];
+    let answer;
+    bindPush({
+        open: async (bytes) => {
+            calls.push(bytes);
+            return answer;
+        },
+        openBlock: () => {},
+    });
+
+    // A PushMessage: 16 bytes each of organization, block and sender, then the sealed text.
+    // The bytes stay ASCII, which is all a DevTools push carries.
+    function message(sealed) {
+        const ids = [0x41, 0x42, 0x43].map((fill) => String.fromCharCode(fill).repeat(16));
+        return ids.join("") + sealed;
+    }
+
+    // What the worker showed, as it reports it (web-test/sw.js).
+    const shown = [];
+    navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.shown) {
+            shown.push(event.data.shown);
+        }
+    });
+
+    async function showing(count) {
+        while (shown.length < count) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        return shown;
+    }
+
+    function expect(condition, what) {
+        if (!condition) {
+            throw new Error(what);
+        }
+    }
+
+    globalThis.outcome = (async () => {
+        try {
+            await navigator.serviceWorker.register("./sw.js");
+            await navigator.serviceWorker.ready;
+
+            // With a window to open it, the notification shows what the window answers.
+            answer = { title: "Roadmap", body: "Alice: lunch?" };
+            await deliverPush(message("first"));
+            let notification = (await showing(1))[0];
+            expect(notification.title === "Roadmap", `title was ${notification.title}`);
+            expect(notification.body === "Alice: lunch?", `body was ${notification.body}`);
+            expect(notification.tag === "42424242-4242-4242-4242-424242424242", `tag was ${notification.tag}`);
+            expect(notification.data.block.startsWith("42424242"), "the notification names its block");
+            expect(calls.length === 1, "the window opened the push once");
+
+            // The same push again shows nothing more, and the window is not asked again.
+            await deliverPush(message("first"));
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            expect(shown.length === 1, "a repeat showed again");
+            expect(calls.length === 1, "the window was asked about a repeat");
+
+            // A window that cannot open it (no key): a notification naming nothing.
+            answer = null;
+            await deliverPush(message("second"));
+            notification = (await showing(2))[1];
+            expect(notification.title === "New message", `title was ${notification.title}`);
+            expect(notification.body === "", "the generic one names nothing");
+            expect(calls.length === 2, "the window was asked about the second push");
+
+            // Bytes that are no push at all still show one.
+            await deliverPush("x");
+            notification = (await showing(3))[2];
+            expect(notification.title === "New message", `title was ${notification.title}`);
+
+            return { passed: true, message: "pushes show the window's answer, once, or name nothing" };
+        } catch (error) {
+            return { error: String(error?.stack ?? error) };
+        }
+    })();
+</script>

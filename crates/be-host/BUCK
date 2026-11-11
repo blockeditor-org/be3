@@ -2,7 +2,7 @@ load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_package", "cargo_test")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/program:defs.bzl", "precompiled_apps", "program")
-load("@root//buck/program:drive.bzl", "headless")
+load("@root//buck/program:drive.bzl", "headless", "page_test")
 load("@root//buck/wasm:defs.bzl", "wasi_program_module", "web_library")
 
 cargo_package()
@@ -301,4 +301,18 @@ headless(
     data = True,
     program = "be-host",
     program_name = "dev",
+)
+
+# Push notifications on the web (plans/notifications.md): a real service worker in Chromium
+# gets pushes delivered as a push service would, and a page standing in for the host opens
+# them (sw.js and push.js are the real ones; headless Chromium never grants the permission to
+# show a notification, so web-test/sw.js reports what the worker shows to the page instead).
+page_test(
+    name = "push-web-test",
+    files = {
+        "index.html": "web-test/index.html",
+        "push.js": "web/push.js",
+        "sw.js": "web-test/sw.js",
+        "sw-under-test.js": "web/sw.js",
+    },
 )

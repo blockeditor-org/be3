@@ -100,6 +100,19 @@ survives a reload. Traps that shape this code:
   the same time in the page and the worker.
 - `web/sw.js`, the service worker, keeps what the page fetched (network first, except `/api` and
   `/auth`; a network silent for 3 s gets the kept answer), so a page opened once opens offline.
+- Push notifications (plans/notifications.md): the browser decrypts a Web Push payload before
+  `sw.js` sees it, so the worker holds a `PushMessage`'s bytes, never a key. It asks every open
+  window to open it (`web/push.js`, bound in `host.js` to the module's `push_open`, which runs
+  `Peer::open_notification` and names the sender and block from the host's contacts and graph,
+  `be-host/src/web_push.rs`), shows the answer for up to 3 s, else "New message", and shows a
+  repeat (a hash of the sealed bytes, kept in IndexedDB) never. `globalThis.bePush.enable()`
+  asks permission, subscribes and registers the endpoint (call it from a gesture); `disable()`
+  and signing out unregister. A pressed notification focuses a window and posts the block to it
+  (`push_open_block`), or opens `?open-block=ORGANIZATION/BLOCK`; a block of another
+  organization than the open one is not opened. `//crates/be-host:push-web-test` runs the real
+  `sw.js` and `push.js` in Chromium with pushes delivered through DevTools
+  (`deliverPush` in buck/program/page-test.mjs); headless Chromium never grants the permission to
+  show a notification, so the test's worker (`web-test/sw.js`) reports what `sw.js` would show.
 - The host closes its tab when it exits, unless the page is already leaving.
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the

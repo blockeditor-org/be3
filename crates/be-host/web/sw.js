@@ -96,3 +96,149 @@ self.addEventListener("fetch", (event) => {
         event.respondWith(answer(event.request));
     }
 });
+
+// Push notifications (plans/notifications.md).
+//
+// The browser decrypts a Web Push payload (RFC 8291) before the worker sees it,
+// so `event.data` is a be_block_protocol::PushMessage: 16 bytes each of
+// organization, block and sender, then the sealed text, which only the page can
+// open. The worker therefore asks an open window to open it, and shows what the
+// window answers; with no window, no answer in time or no key, it shows a
+// notification naming nothing, since a push must always show one.
+
+// How long a window may take to answer, and how long a shown push is kept to
+// recognise a repeat of: MAX_NOTIFICATION_AGE_MILLISECONDS, which a device
+// refuses a push older than.
+const ANSWER_WITHIN = 3000;
+const KEEP_SHOWN = 2 * 24 * 60 * 60 * 1000;
+const GENERIC = { title: "New message", body: "" };
+
+function uuid(bytes, at) {
+    const hex = Array.from(bytes.subarray(at, at + 16), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+// The ids a push names, or none for bytes that are not one.
+function pushed(bytes) {
+    if (bytes.length < 48) {
+        return null;
+    }
+    return { organization: uuid(bytes, 0), block: uuid(bytes, 16), sender: uuid(bytes, 32) };
+}
+
+async function digest(bytes) {
+    const hash = await crypto.subtle.digest("SHA-256", bytes.subarray(48));
+    return Array.from(new Uint8Array(hash).subarray(0, 16), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function shown() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open("be-push", 1);
+        request.onupgradeneeded = () => request.result.createObjectStore("shown");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Records `id` as shown, answering whether it already was within KEEP_SHOWN.
+// The dropped are those older than that, so the store never grows.
+async function seen(id) {
+    const database = await shown();
+    try {
+        return await new Promise((resolve, reject) => {
+            const transaction = database.transaction("shown", "readwrite");
+            const store = transaction.objectStore("shown");
+            const now = Date.now();
+            let repeat = false;
+            const read = store.get(id);
+            read.onsuccess = () => {
+                repeat = typeof read.result === "number" && now - read.result < KEEP_SHOWN;
+                if (!repeat) {
+                    store.put(now, id);
+                }
+            };
+            store.openCursor().onsuccess = (event) => {
+                const cursor = event.target.result;
+                if (cursor) {
+                    if (now - cursor.value >= KEEP_SHOWN) {
+                        cursor.delete();
+                    }
+                    cursor.continue();
+                }
+            };
+            transaction.oncomplete = () => resolve(repeat);
+            transaction.onerror = () => reject(transaction.error);
+        });
+    } finally {
+        database.close();
+    }
+}
+
+// What the first window to answer says to `bytes`: { title, body } of the
+// notification, or null. Every window is asked at once, since one that is
+// waiting for another tab to close never answers.
+async function asked(bytes) {
+    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const answers = clients.map(
+        (client) =>
+            new Promise((resolve) => {
+                const channel = new MessageChannel();
+                const timer = setTimeout(() => resolve(null), ANSWER_WITHIN);
+                channel.port1.onmessage = (event) => {
+                    clearTimeout(timer);
+                    resolve(event.data && typeof event.data.title === "string" ? event.data : null);
+                };
+                client.postMessage({ push: bytes }, [channel.port2]);
+            }),
+    );
+    const settled = answers.map((answer) => answer.then((value) => value ?? new Promise(() => {})));
+    return Promise.race([...settled, Promise.all(answers).then(() => null)]);
+}
+
+async function show(data) {
+    const bytes = new Uint8Array(await data.arrayBuffer());
+    const ids = pushed(bytes);
+    if (ids && (await seen(await digest(bytes)))) {
+        // The server resent one already shown: a push must show something, but
+        // not twice, so the one shown stays.
+        return;
+    }
+    const answer = ids ? await asked(bytes) : null;
+    const { title, body } = answer ?? GENERIC;
+    await self.registration.showNotification(title, {
+        body,
+        // A later one about the same block replaces the earlier; one naming
+        // nothing is not about any.
+        tag: answer && ids ? ids.block : undefined,
+        data: answer && ids ? { organization: ids.organization, block: ids.block } : {},
+    });
+}
+
+self.addEventListener("push", (event) => {
+    if (event.data) {
+        event.waitUntil(show(event.data));
+    } else {
+        event.waitUntil(self.registration.showNotification(GENERIC.title));
+    }
+});
+
+// A press opens the block in a window, focusing one that is open.
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const open = event.notification.data?.block ? event.notification.data : null;
+    event.waitUntil(
+        (async () => {
+            const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+            const client = clients[0];
+            if (client) {
+                await client.focus();
+                if (open) {
+                    client.postMessage({ open });
+                }
+            } else {
+                const query = open ? `?open-block=${open.organization}/${open.block}` : "";
+                await self.clients.openWindow(new URL(query, self.registration.scope).href);
+            }
+        })(),
+    );
+});

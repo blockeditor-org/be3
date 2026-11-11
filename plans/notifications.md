@@ -26,11 +26,11 @@ host call and the mute menu have landed (guides/blocks/server.md,
 - **The app protocol**: `host-services.notify(block, text, mentions)`, which
   the host seals (`Peer::notify`); `NotifyModesWatch` and `set-notify-mode`,
   which the workspace's block menu uses.
-- Nothing registers an endpoint: no device subscribes yet
-  (`Peer::push_key`, `register_endpoint` and `unregister_endpoint` wait for
-  step 1).
-- The web build has a service worker (`crates/be-host/web/sw.js`), which only
-  caches the host's files.
+- The web build's service worker (`crates/be-host/web/sw.js`) caches the host's
+  files and handles pushes: it asks an open window to open one (`web/push.js`,
+  `be-host/src/web_push.rs`) and shows the answer, or "New message"
+  (guides/running/web.md). `globalThis.bePush.enable()` subscribes and
+  registers; no setting calls it yet.
 
 ## The design
 
@@ -101,7 +101,9 @@ host call and the mute menu have landed (guides/blocks/server.md,
 
 ## Order of work
 
-1. The web: subscribing, the service worker handing the push to an open tab
+1. The web (built except the setting that calls `bePush.enable()` and a
+   Chromium test of the whole page: `push-web-test` covers the worker and
+   `push.js`): subscribing, the service worker handing the push to an open tab
    and showing what it answers, opening the block. Done: a Chromium test
    delivers a push to the service worker (DevTools
    `ServiceWorker.deliverPushMessage`): with a tab open the notification shows
