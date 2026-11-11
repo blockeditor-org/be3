@@ -40,12 +40,15 @@ mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
 mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
 mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
 mod a_follower_whose_catchup_was_lost_asks_again;
+mod a_followers_edit_too_large_to_relay_is_lacking_until_the_owner_accepts_it;
 mod a_followers_edit_too_large_to_relay_lands_once;
 mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
+mod a_followers_edits_stay_lacking_through_a_takeover_until_its_seal;
 mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
 mod a_followers_paste_too_large_to_relay_lands_once_over_the_owners_unsealed_edits_and_undoes_alone;
 mod a_followers_put_that_failed_is_tried_again;
+mod a_followers_stash_kept_offline_by_the_new_owner_keeps_lacking_until_the_outbox_drains;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
@@ -57,6 +60,8 @@ mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
 mod a_new_owner_replays_a_journaled_edit_by_its_part;
 mod a_part_longer_than_any_edit_is_not_read;
 mod a_peer_running_another_build_is_refused;
+mod a_promoted_followers_handed_stash_stops_lacking_once_it_keeps_it_itself;
+mod a_refusal_that_leaves_the_commit_in_the_outbox_fails_the_edit_instead_of_settling_it;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
 mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
@@ -69,6 +74,7 @@ mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
 mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
+mod an_edit_is_lacking_until_the_server_holds_it;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
@@ -76,8 +82,10 @@ mod an_operation_adds_a_part_by_its_hash;
 mod an_owner_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_owner;
 mod an_owner_renews_its_lease_while_it_holds_the_session;
 mod an_owner_that_cannot_read_a_followers_part_has_it_sent_again;
+mod an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
+mod an_owners_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
@@ -87,6 +95,7 @@ mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_oversized_edits_in_a_row_land_in_order;
+mod two_quick_edits_folded_into_one_append_are_both_held_by_it;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
@@ -360,6 +369,9 @@ fn opening(
         session,
         journal: None,
         lost_edits: false,
+        journal_kept: false,
+        commits_kept: be_sdk_type_api::KeptCommits::None,
+        refused_commits: Vec::new(),
     }
 }
 
@@ -397,6 +409,10 @@ struct Sim<C: LiveEdit + Clone + Default> {
     errors: Vec<(usize, String)>,
     quiet: bool,
     stalled: bool,
+    /// Appends are answered as kept on the device alone, and reach no one.
+    unheld_appends: bool,
+    /// Commits are published to the device's outbox alone, not to the server.
+    kept_publishes: bool,
     held: Vec<(usize, Call)>,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
@@ -453,6 +469,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             errors: Vec::new(),
             quiet: false,
             stalled: false,
+            unheld_appends: false,
+            kept_publishes: false,
             held: Vec::new(),
             deaf: BTreeSet::new(),
             largest_relay: 0,
@@ -544,6 +562,42 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         }
         self.lease_changed(Some(device));
         self.settle();
+    }
+
+    /// Starts the device's replica over on the head and the journal on it, as a host does after
+    /// it reconnects, and attaches its editors again.
+    fn reopen(&mut self, device: usize) {
+        let client = self.devices[device].client;
+        let journal = self
+            .journal
+            .clone()
+            .filter(|journal| journal.base.commit == self.head);
+        let opening = Opening {
+            content_type: C::CONTENT_TYPE,
+            tag: self.devices[device].tag,
+            journal,
+            ..opening(client, self.head, self.lease.state().clone())
+        };
+        self.with_replica(device, |replica, host| replica.reopen(host, opening));
+        let editors: Vec<EditorId> = self
+            .editors
+            .keys()
+            .filter(|(on, _)| *on == device)
+            .map(|(_, editor)| *editor)
+            .collect();
+        for editor in editors {
+            self.with_replica(device, |replica, host| replica.attach(host, editor, true));
+        }
+        self.settle();
+    }
+
+    fn follow_lacking(&mut self, device: usize, editor: EditorId) {
+        self.send_from_editor(device, editor, FromEditor::FollowLacking);
+        self.settle();
+    }
+
+    fn lacking(&self, device: usize, editor: EditorId) -> usize {
+        self.editors[&(device, editor)].lacking().len()
     }
 
     fn resynchronize(&mut self, device: usize) {
@@ -896,8 +950,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     && merging.is_none()
                     && self.commits[&head].manifest == manifest
                 {
+                    let kept = self.kept_publishes;
                     return self.to(device, |host| {
-                        reply.send(host, &Ok(PublishOutcome::Published(head)))
+                        let outcome = match kept {
+                            true => PublishOutcome::Kept(head),
+                            false => PublishOutcome::Published(head),
+                        };
+                        reply.send(host, &Ok(outcome))
                     });
                 }
                 let parents = expected
@@ -907,8 +966,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let head = self.commit(manifest, parents);
                 self.head = Some(head);
                 self.publishes += 1;
+                let kept = self.kept_publishes;
                 self.to(device, |host| {
-                    reply.send(host, &Ok(PublishOutcome::Published(head)))
+                    let outcome = match kept {
+                        true => PublishOutcome::Kept(head),
+                        false => PublishOutcome::Published(head),
+                    };
+                    reply.send(host, &Ok(outcome))
                 });
                 if !self.quiet {
                     self.moved(head, Some(device));
@@ -998,7 +1062,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 entries,
                 relay,
             } => {
-                self.to(device, |host| reply.send(host, &()));
+                if self.unheld_appends {
+                    return self.to(device, |host| reply.send(host, &false));
+                }
+                self.to(device, |host| reply.send(host, &true));
                 if relay {
                     let participants = self.lease.state().participants.clone();
                     for entry in &entries {

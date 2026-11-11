@@ -58,8 +58,11 @@ mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
+mod an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published;
 mod an_edit_made_across_a_takeover_is_kept;
+mod an_edit_made_offline_is_lacking_until_the_drain_publishes_it;
 mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
+mod an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publishes;
 mod an_empty_search_request_is_not_a_change;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
@@ -140,6 +143,18 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         loop {
             self.pump();
             if self.mirror.content().is_some_and(&done) {
+                return;
+            }
+            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+        }
+    }
+
+    /// Waits for frames until `done` holds of the editor.
+    fn until(&mut self, _what: &str, done: impl Fn(&Self) -> bool) {
+        let id = self.id;
+        loop {
+            self.pump();
+            if done(self) {
                 return;
             }
             crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));

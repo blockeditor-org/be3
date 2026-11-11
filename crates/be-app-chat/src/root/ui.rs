@@ -130,10 +130,32 @@ pub fn Chat(editor: Editor) -> NodeId {
         false => "Send".to_owned(),
     });
 
+    // The messages sent from this device that the server lacks: sending, or not sent once
+    // the server refused them. The replica keeps them, so they show whichever editor sent them.
+    let lacking = chat.lacking();
+    let unsent = create_memo(move || {
+        lacking.with(|lacking| {
+            lacking
+                .iter()
+                .flat_map(|edit| {
+                    let unsent = Unsent {
+                        lacking: edit.id,
+                        failed: edit.failed,
+                    };
+                    edit.operation
+                        .iter()
+                        .flat_map(ChatContent::sent_in)
+                        .map(move |id| (id, unsent))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<HashMap<ObjectId, Unsent>>()
+        })
+    });
+
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         view! {
-            <MessageRow chat={chat} me id row={shown} composer />
+            <MessageRow chat={chat} me id row={shown} composer unsent block />
         }
     };
 
@@ -361,6 +383,13 @@ fn time(millis: i64, today: i64) -> String {
     }
 }
 
+/// A message the server lacks: the edit that sent it, and whether the server refused it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Unsent {
+    lacking: u64,
+    failed: bool,
+}
+
 fn excerpt(body: &str) -> String {
     const LONGEST: usize = 48;
     let line = body.lines().next().unwrap_or_default();
@@ -415,6 +444,8 @@ fn MessageRow(
     id: ObjectId,
     row: ReadSignal<Row>,
     composer: Composer,
+    unsent: Memo<HashMap<ObjectId, Unsent>>,
+    block: Uuid,
 ) -> NodeId {
     let author = create_memo(move || row.with(|row| row.author.clone()));
     let time = create_memo(move || row.with(|row| row.time.clone()));
@@ -433,6 +464,32 @@ fn MessageRow(
     });
     let reacted = create_memo(move || reactions.with(|reactions| !reactions.is_empty()));
     let picking = create_memo(move || composer.picking.get() == Some(id));
+    let unsent = create_memo(move || unsent.with(|unsent| unsent.get(&id).copied()));
+    let sending = create_memo(move || unsent.get().is_some());
+    let failed = create_memo(move || unsent.get().is_some_and(|unsent| unsent.failed));
+    let sending_now = create_memo(move || sending.get() && !failed.get());
+    // A message the server refused is sent again as a new one, or given up; either way the
+    // one that failed goes.
+    let let_go = move |again: bool| {
+        let Some(unsent) = unsent.get_untracked() else {
+            return;
+        };
+        if again {
+            let sent = chat.read(|content| {
+                let message = content.message(id)?;
+                let body = content.body(id)?;
+                let again = Message::new(me, now(), body).replying_to(message.reply_to);
+                Some(content.send(block, again).1)
+            });
+            if let Ok(Some(send)) = sent {
+                chat.operate(send);
+            }
+        }
+        if let Ok(delete) = chat.read(|content| content.delete(id, me, now())) {
+            chat.operate(delete);
+        }
+        chat.dismiss_lacking(unsent.lacking);
+    };
     let fill = create_memo(move || match mine.get() {
         true => ColorRole::AccentSoft,
         false => ColorRole::Control,
@@ -513,6 +570,45 @@ fn MessageRow(
                             <Text style=TextStyle::CAPTION>{time}</Text>
                             <Show condition={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
+                            </Show>
+                            <Show condition={sending_now}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={format!("chat.message.{id}.sending")}
+                                >
+                                    "Sending"
+                                </Text>
+                            </Show>
+                            <Show condition={failed}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    color=TextColor::Danger
+                                    @test_id={format!("chat.message.{id}.not_sent")}
+                                >
+                                    "Not sent"
+                                </Text>
+                            </Show>
+                            <Show condition={failed}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Xs
+                                >
+                                    <Button
+                                        label="Send again"
+                                        variant=ButtonVariant::Ghost
+                                        size=ButtonSize::Small
+                                        @test_id={format!("chat.message.{id}.retry")}
+                                        on_click={move || let_go(true)}
+                                    />
+                                    <Button
+                                        label="Discard"
+                                        variant=ButtonVariant::Ghost
+                                        size=ButtonSize::Small
+                                        @test_id={format!("chat.message.{id}.discard")}
+                                        on_click={move || let_go(false)}
+                                    />
+                                </List>
                             </Show>
                         </List>
                     </ListItem>
