@@ -3313,7 +3313,7 @@ impl Instances {
             .collect()
     }
 
-    /// Whether the instance may open the host's palette (`shell.open-palette`): it is no
+    /// Whether the instance may open the host's palette (`shell-message.open-palette`): it is no
     /// revision preview, shows a view, and either one of its views has the keyboard or the
     /// person picked from its frame menu within its last `MENU_PICK_COMMITS` layout commits
     /// (whose "Command palette" asks for it while a menu the host draws has the focus), so an

@@ -62,7 +62,7 @@ pub(crate) fn searched() -> ReadSignal<u64> {
     })
 }
 
-/// What apps asked of the host's palette (`shell.open-palette`) since it last heard, with a
+/// What apps asked of the host's palette (`shell-message.open-palette`) since it last heard, with a
 /// count that moves with each batch.
 pub(crate) fn palette_asks() -> ReadSignal<(u64, Vec<be_host_runtime::PaletteAsk>)> {
     PALETTE_ASKS.with(|asks| {

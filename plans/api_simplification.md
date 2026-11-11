@@ -54,8 +54,8 @@ value matches its subject. `show-requests` stays separate: it is a queue.
 ## 5. Acting on a block is one call
 
 Today a block is changed through `blocks.act(block, block-command)`,
-`blocks.version(block, version-command)`, `shell.act(instance, block,
-shell-command)` and the graph calls `create-block`, `set-parent` and `define`.
+`blocks.version(block, version-command)`, the `act` shell message (`block-act`: a
+block and a `shell-command`) and the graph calls `create-block`, `set-parent` and `define`.
 The guest's `GraphCommand` (`be-sdk/src/graph.rs`) is split back into three
 calls by `be-sdk/src/link.rs`.
 
