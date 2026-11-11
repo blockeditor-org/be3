@@ -1,20 +1,44 @@
 # A back handler that starts disabled leaves history alone (the browser's run opens the
 # page after about:blank, so it starts with two entries). Once enabled, going back
 # reaches it, and keeps reaching it, rather than leaving the page; disabled again, it
-# takes its history entry back.
+# takes its history entry back. history.length never shrinks on back, so the browser run
+# reads the current entry's state: the page's own marker, or none.
 clock stop
 wait 'value="Backs 0"'
 #web history 2
+#web history-state none
 click 'CheckBox "Catch back"'
 #web history 3
+#web history-state marker
 back
 wait 'value="Backs 1"'
+#web history-state marker
 back
 wait 'value="Backs 2"'
-#web history 3
+#web history-state marker
 click 'CheckBox "Catch back"'
-#web history 3
+#web history-state none
 click 'CheckBox "Catch back"'
+#web history-state marker
+# Disabled and enabled straight away, the entry is kept or made anew, never doubled: one
+# back reaches the handler, and the entry below is not the page's.
+click 'CheckBox "Catch back"'
+click 'CheckBox "Catch back"'
+#web history-state marker
 back
 wait 'value="Backs 3"'
 #web history 3
+#web history-state marker
+# Reloaded on its own entry, the page takes that entry over rather than stranding it:
+# with no handler enabled it steps back off it (the state was the marker before the
+# reload), and enabling one makes it again.
+#web reload
+#web wait 'value="Backs 0"'
+#web history-state none
+#web history 3
+#web click 'CheckBox "Catch back"'
+#web history-state marker
+#web history 3
+#web back
+#web wait 'value="Backs 1"'
+#web history-state marker
