@@ -45,9 +45,12 @@ signs in. One mechanism, three kinds:
 
 Sign-in stays in the browser portal (`begin-browser-login`,
 `poll-browser-login`), so the credential only has to work in a browser. A
-device that cannot open one (the DRM login session, the PineNote) shows a URL
-and a code, and the person opens the URL on another device and signs in there;
-the first device's poll then completes. That ability is a requirement: every
+device always shows the URL and a code beside the button that opens a
+browser (as it does now), so a browser that fails to open silently, or opens
+the wrong one, still has a way through: the person opens the URL on another
+device and signs in there, and the first device's poll then completes. A
+device with no browser at all (the DRM login session, the PineNote) relies on
+it alone. Every
 method here must work through that URL, so none may need the browser to be on
 the device being signed in. No client needs OAuth or WebAuthn code of its own.
 
@@ -106,7 +109,8 @@ passwordless.
    - The link works for someone with no account: it opens the portal showing who
      invited them and to what, takes them through registration or sign-in with
      any identity above, and returns to the accepted invite without losing it.
-     Registration through an invite link needs no operator invite code.
+     An operator invite code still applies to registering, invite link or not;
+     the page asks for one when the server requires it.
    - Opening it signed in as the wrong account says whose invite it is and
      offers to sign in as another, not a bare error.
    - Accepting makes the two accounts contacts, as now.
@@ -115,7 +119,10 @@ passwordless.
    decision records below.
 
 Registration admission (operator invite codes) stays a separate policy from the
-credential kind.
+credential kind and from member invitations. It is temporary, for while the
+server is not safe enough to let anyone make an account, and for self-hosters
+who don't want strangers signing up to their node, so it gets no UX work beyond
+asking for the code when the server wants one.
 
 ## Decisions to record
 
