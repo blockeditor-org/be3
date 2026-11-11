@@ -1,7 +1,7 @@
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("@root//buck/platforms:profile.bzl", "DEBUGINFO_COMPRESSION", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
+load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
 load(":inputs.bzl", "cargo_inputs")
 load(":layers.bzl", "check_layers")
 load(":members.bzl", "members")
@@ -152,7 +152,7 @@ def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
     return (
-        [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + DEBUGINFO_COMPRESSION + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
+        [RUSTC_THREADS] + RELEASE_SYMBOL_FLAGS + opt_flags("member") + dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
     )
 
 # A proc macro's own visibility, which the root PACKAGE's default cannot give:

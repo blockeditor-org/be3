@@ -123,15 +123,6 @@ released = rule(
 # a symbol is a third the length: 16 MB less in be-host, whose backtraces
 # still name each function, and a seventh off the apps, whose name sections
 # and exports are made of these symbols.
-# Line tables compressed in each Linux object, so the rlibs the workers fetch to
-# compile and link against are smaller. A -Z flag, so a crate's own rustc_flags
-# rather than the toolchain's: the prelude's `rustc --print cfg` reads those and
-# runs without RUSTC_BOOTSTRAP.
-DEBUGINFO_COMPRESSION = select({
-    "DEFAULT": [],
-    "prelude//os:linux": ["-Zdebuginfo-compression=zlib"],
-})
-
 RELEASE_SYMBOL_FLAGS = select({
     "DEFAULT": [],
     "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
