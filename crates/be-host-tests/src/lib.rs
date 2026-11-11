@@ -8,7 +8,6 @@ use beui_paint_snapshot::{Painting, Snapshot};
 const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
-const PLACE_FRAMES: usize = 5000;
 
 /// be-host started headless with the dev workspace open, driven as `drive` drives it, for a test
 /// of what happens between editors (guides/testing_a_gui.md, 6).
@@ -209,25 +208,6 @@ impl HostTest {
             [x, y, width, height, ..] => (x, y, width, height),
             _ => self.fail(&format!("find answered {found:?}, not a place")),
         }
-    }
-
-    /// Moves the stopped clock on a frame at a time until `target` is placed as `placed` asks,
-    /// then answers where it is. For what no line of the tree says, such as a size an app's own
-    /// thread has yet to report: each frame hands the host the app's answers that have come.
-    pub fn place_until(
-        &mut self,
-        target: &str,
-        what: &str,
-        placed: impl Fn((f32, f32, f32, f32)) -> bool,
-    ) -> (f32, f32, f32, f32) {
-        for _ in 0..PLACE_FRAMES {
-            let found = self.place(target);
-            if placed(found) {
-                return found;
-            }
-            self.run(&["pause", "16"]);
-        }
-        self.fail(&format!("{target} never came to be {what}"))
     }
 
     pub fn count(&mut self, text: &str) -> usize {
