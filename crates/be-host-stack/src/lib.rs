@@ -691,7 +691,6 @@ pub fn watch_storage(on: bool) {
     let changed =
         with_shared_mut(|shared| std::mem::replace(&mut shared.storage_watched, on) != on)
             .unwrap_or(false);
-    eprintln!("DIAG watch_storage on={on} changed={changed}");
     if changed {
         send(Command::Storage);
     }

@@ -952,9 +952,7 @@ impl Session {
                 } if drive::waited(view.rendered().lines(), text, *over).is_some() == *present => {
                     Some(Reply::Text(String::new()))
                 }
-                Phase::Pausing { until } if view.now >= *until && quiet => {
-                    Some(Reply::Text(String::new()))
-                }
+                Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
                 Phase::Components => output
                     .comps
                     .as_deref()

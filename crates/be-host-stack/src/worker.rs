@@ -2871,7 +2871,6 @@ impl Tasks {
             .unwrap_or_else(PoisonError::into_inner)
             .storage_watched;
         let mut following = self.storage.borrow_mut();
-        eprintln!("DIAG storage() watched={watched} following={:?} attached={}", following.as_ref().map(|s| !s.is_closed()), peer.is_attached());
         if !watched {
             following.take();
             return;
@@ -2890,7 +2889,6 @@ impl Tasks {
                     Either::Left((next, _)) => next,
                     Either::Right(_) => return,
                 };
-                eprintln!("DIAG storage stream next={}", next.is_some());
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 match next {
                     Some(next) => {

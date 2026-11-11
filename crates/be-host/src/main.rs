@@ -3094,7 +3094,6 @@ impl HostCore {
             be_sdk_api::StorageUsageWatch,
         >());
         let revision = Some(be_host_stack::storage_revision());
-        if self.storage_published != revision { eprintln!("DIAG publish_storage rev={revision:?}"); }
         if self.storage_published == revision {
             return;
         }
