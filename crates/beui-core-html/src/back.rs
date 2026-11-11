@@ -279,6 +279,20 @@ mod web {
         });
     }
 
+    /// A reload, or a return without the back-forward cache, may land on the page's own
+    /// entry from before. The entry below it belongs to a document that is gone, so
+    /// stepping off with `history.back()` would load the page again: the marker is
+    /// cleared in place instead, and a fresh entry is pushed if something wants one.
+    fn adopt_entry() {
+        let Some(history) = history() else {
+            return;
+        };
+        if on_own_entry(&history) {
+            call(&history, "replaceState", &[JsValue::NULL, "".into()]);
+            mark();
+        }
+    }
+
     fn history() -> Option<JsValue> {
         let window = crate::dom::window()?;
         js_sys::Reflect::get(&window, &"history".into()).ok()
