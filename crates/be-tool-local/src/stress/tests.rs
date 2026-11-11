@@ -2,5 +2,4 @@ use super::*;
 
 mod failures_that_differ_only_in_numbers_are_one_group;
 mod options_name_the_tests_and_how_many_runs_at_once;
-mod run_env_names_what_stress_sets;
 mod the_reason_is_the_panics_message_or_how_the_harness_ended;

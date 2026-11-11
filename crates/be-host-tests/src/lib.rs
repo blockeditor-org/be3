@@ -242,7 +242,7 @@ impl HostTest {
         let painted = self.paint();
         self.run(&["settle"]);
         let again = self.paint();
-        if painted.body().ok() != again.body().ok() {
+        if painted != again {
             self.fail(
                 "the painting is not settled: it changed between two frames, so something was still arriving. Wait for it (`wait`, `gone`) before the snapshot, or park the pointer (`leave`) if it is a hover",
             );

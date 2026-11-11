@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitCode, Stdio};
 use std::sync::Mutex;
@@ -24,8 +23,10 @@ const LIMIT: Duration = Duration::from_secs(300);
 /// Where a failing run's output goes, one file each, under the name stressed.
 const OUTPUT: &str = "target/stress";
 
-/// The environment variables `run_env` in crates/be-host-tests/BUCK sets for the harness;
-/// `tests::run_env_names_what_stress_sets` keeps the two in step.
+/// The environment variables `run_env` in crates/be-host-tests/BUCK sets for the harness, and
+/// `CARGO_MANIFEST_DIR`. Nothing checks the two lists agree (a test cannot read that BUCK file
+/// from its sandbox): a variable added there is added here, and a harness that fails at once
+/// with a missing variable says so.
 const ENVIRONMENT: [&str; 6] = [
     "BE_BUNDLE",
     "BE_HOST",
