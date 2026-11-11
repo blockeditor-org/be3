@@ -455,6 +455,8 @@ pub struct Shared {
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
     pub draining: bool,
+    /// Counts finished drains of the outbox.
+    pub drains: u64,
     pub leaving: bool,
     pub error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
@@ -537,7 +539,7 @@ impl Shared {
                 "the block store loads the organization's graph",
             ),
             (
-                self.search.busy(self.graph.revision),
+                self.search.busy(super::search::wants_index(self)),
                 "the block store indexes edits or answers a search",
             ),
         ]
@@ -1231,10 +1233,13 @@ async fn drain_outbox(
 }
 
 fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
-    shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .draining = draining;
+    {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.draining = draining;
+        if !draining {
+            held.drains += 1;
+        }
+    }
     be_host_base::host::wake();
 }
 
@@ -3125,7 +3130,7 @@ async fn settled(
     }
 }
 
-async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+pub(super) async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     match peer.summary(block).await {
         Ok(summary) => {
             if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
