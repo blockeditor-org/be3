@@ -28,12 +28,11 @@ fn an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit() {
          becomes a follower"
     );
     assert!(
-        sim.editors[&(0, 1)].lacking().iter().all(|lacked| lacked.failed),
+        sim.editors[&(0, 1)]
+            .lacking()
+            .iter()
+            .all(|lacked| lacked.failed),
         "it is lost for good, so it shows as not sent, to send again or discard"
     );
-    assert_eq!(
-        count(sim.mirror(1, 1)),
-        0,
-        "the new owner never had it"
-    );
+    assert_eq!(count(sim.mirror(1, 1)), 0, "the new owner never had it");
 }
