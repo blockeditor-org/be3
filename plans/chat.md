@@ -1,15 +1,13 @@
 # Chat
 
 Depends on: none; merging by parts (guides/type_modules.md, "Merging by
-parts"), which step 1d uses, has landed. Step 2 needs plans/notifications.md step 1
-(a device that shows a push); the server's side and the `notify` host call
-it uses have landed.
+parts"), which step 1d uses, has landed.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
+edited (the journal, guides/blocks/client.md). Steps 1a to 1c and 2 have landed.
 
 ## What exists
 
@@ -43,6 +41,18 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
   would close that, which is the user's call. `drive` has no way to cut the
   server, so there is no be-host-tests test of this: be-host-stack tests and
   chat's editor tests stand in. A `drive` command that cuts the server would let a host test cover it.
+- **Notifications (2).** Each message sent from this device calls
+  `host.notify(block, text, mentions)` (guides/apps/host_services.md) once the
+  server holds it: when the message stops being one the server lacks (1b) and is
+  still in the chat, since `notify` is not ordered with the save that carries it.
+  A message the server refused, or one discarded, tells nobody; one kept offline
+  tells the members when the drain publishes it. The text is the message's body
+  (the host cuts it to `MAX_NOTIFICATION_TEXT`). Its mentions are the author of
+  the message it replies to (when that is not the sender), since apps cannot yet
+  name a member to mention otherwise; a member whose mode for the chat is
+  "mentions only" is told for those. The server tells only members with no
+  connection open, and none whose mode is "off" (plans/notifications.md); the
+  device that shows the push names the sender and the chat.
 - **Unread counts (1c).** Where the account read each chat up to is theirs,
   never in the chat, where it would be a read receipt: the owner-only settings
   kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are
@@ -164,16 +174,11 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
 ## Order of work
 
 1. **The chat type and editor.**
+
    - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
      messages opens reading only the header; scrolling back reads segments by
      range; an offline reaction to a message moved into a segment survives the
      merge; a forced hash mismatch reads the part instead.
-2. **Notifications** for chat: sending a message calls `notify` with its text
-   and the accounts it mentions (guides/apps/host_services.md), once the
-   message is confirmed, since `notify` is not ordered with the save that
-   carries it. Done: a member who is
-   not connected gets a notification naming the chat and author, and none for
-   a muted chat.
 
 ## Not planned here
 
