@@ -1414,7 +1414,6 @@ impl HostCore {
     }
 
     fn begin_organization_request(&mut self, operation: OrganizationOperation) {
-        eprintln!("DIAG begin {} pending={}", match &operation { OrganizationOperation::Load => "load", OrganizationOperation::Create(_) => "create", _ => "other" }, self.pending_organization_request.is_some());
         if self.pending_organization_request.is_some() {
             return;
         }
@@ -1503,7 +1502,6 @@ impl HostCore {
         &mut self,
         result: Result<OrganizationResult, OrganizationRequestError>,
     ) {
-        eprintln!("DIAG answered signed_in={} kind={}", self.signed_in, match &result { Ok(OrganizationResult::Loaded(..)) => "loaded", Ok(OrganizationResult::Cached(..)) => "cached", Ok(OrganizationResult::Created(..)) => "created", Ok(_) => "other", Err(e) => &e.message });
         if !self.signed_in {
             return;
         }
@@ -1555,7 +1553,10 @@ impl HostCore {
                 if self.refresh_open_organization() {
                     return;
                 }
-                if let Some(last_organization_id) = self.account.last_organization_id
+                // The organization already open stays as it is: opening it again restarts its
+                // stack under the first start's requests that are still on their way.
+                if self.organization.is_none()
+                    && let Some(last_organization_id) = self.account.last_organization_id
                     && let Some(organization) = self
                         .organizations
                         .iter()
@@ -3062,7 +3063,6 @@ impl HostCore {
             return;
         };
         let Some(identity) = self.identity else {
-            eprintln!("DIAG no identity");
             return;
         };
         if be_host_stack::installed_for(self.account.id, organization) {
@@ -3094,6 +3094,7 @@ impl HostCore {
             be_sdk_api::StorageUsageWatch,
         >());
         let revision = Some(be_host_stack::storage_revision());
+        if self.storage_published != revision { eprintln!("DIAG publish_storage rev={revision:?}"); }
         if self.storage_published == revision {
             return;
         }
