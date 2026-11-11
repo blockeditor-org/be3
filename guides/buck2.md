@@ -221,6 +221,34 @@ again while every passing one still comes from the cache.
 - A binary's tests run on threads, so tests touching process-wide state race unless they take
   turns.
 
+## Native dynamic libraries (prototype)
+
+Outside a release build (and without `-m lto`), on Linux x86_64, every native test harness and
+be-host's binary link against one Rust dylib, `//buck/dynlink:base`, instead of each linking its
+third-party crates statically; std is `libstd-*.so` (`-Cprefer-dynamic`). `buck/dynlink/defs.bzl`
+holds the rules and says how; what matters when working here:
+
+- The library is a `rust_library(preferred_linkage = "shared")`'s `[dylib]` output over every
+  third-party library crate Cargo.lock gives Linux x86_64 that no other one depends on
+  (`_third_party_roots`, computed from `third-party/rust/crates.bzl`, nothing listed by hand), minus
+  crates that compile C or link a system library (build scripts using cc, cmake or pkg-config, and
+  everything depending on them, plus `_SYSTEM` for `#[link]` in sources): their C symbols may be
+  hidden, and their generics are compiled into the user and call them, and a system library the
+  dylib names must be found by every test. Those stay static in the binaries that use them.
+- Crates stay the same rlibs everywhere, so nothing compiles twice. The dylib is linked from those
+  rlibs (`--extern force:`, unstable, so nightly features) and a harness or binary is compiled
+  against the same rlibs plus the dylib, `flagged_deps = [(":base-crate", ["force"])]`, so rustc
+  takes the crates from the dylib (`Linkage::IncludedFromDylib`). Every rlib in the dylib's closure
+  is an input of the harness's link, for their metadata.
+- `cargo_test` adds the libraries to the test's `LD_LIBRARY_PATH` (`//buck/dynlink:libs`, a directory
+  with the dylib and the sysroot's libstd), `cargo_binary(dynamic = True)` is for a binary that runs
+  where they are found (be-host: `$ORIGIN`, `program(trees = ...)` stages the directory beside it);
+  a build tool that actions run must stay static.
+- The dylib exports everything and holds every object of every archive (`--version-script`,
+  `--whole-archive`), so C symbols a crate's native library defines reach the crates outside it.
+- Loading the dylib loads every crate under it, so their trait impls are in scope: a test whose
+  inference relied on their absence fails to compile (`UNLINKED_TESTS`).
+
 ## What verify builds
 
 `./scripts/verify` and `./scripts/ci` are one `buck2 bxl --keep-going` of `buck/dev/verify.bxl`,

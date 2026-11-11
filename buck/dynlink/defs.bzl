@@ -97,6 +97,12 @@ DYNLIBS = {
     },
 }
 
+# Crates whose tests do not compile with the libraries loaded: rustc loads every
+# crate under them, and the impls those bring make an inference the test
+# relies on ambiguous (be-type-terminal's `assert_eq!(f([]), vec![])`). The
+# tests link everything themselves.
+UNLINKED_TESTS = ["be-type-terminal"]
+
 def _crate(name):
     return "dyn_" + name.replace("-", "_")
 

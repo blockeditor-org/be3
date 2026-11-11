@@ -1,5 +1,5 @@
 load("@root//buck/dev:test.bzl", "be_test")
-load("@root//buck/dynlink:defs.bzl", "dynlink_deps", "dynlink_flags", "dynlink_library_path")
+load("@root//buck/dynlink:defs.bzl", "UNLINKED_TESTS", "dynlink_deps", "dynlink_flags", "dynlink_library_path")
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
@@ -208,7 +208,8 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
     rustc_flags = _rustc_flags(crate, kwargs)
     if library["proc_macro"]:
         rustc_flags = rustc_flags + ["--extern", "proc_macro"]
-    rustc_flags = rustc_flags + dynlink_flags()
+    dynamic = crate["name"] not in UNLINKED_TESTS
+    rustc_flags = rustc_flags + (dynlink_flags() if dynamic else [])
     compile_env = _env(crate, library["crate"], {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"})
     native.rust_binary(
         name = name + "-harness",
@@ -218,7 +219,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         edition = crate["edition"],
         env = compile_env,
         features = _per_platform(crate, lambda entry: entry["test_features"]),
-        flagged_deps = dynlink_deps(),
+        flagged_deps = dynlink_deps() if dynamic else [],
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         rustc_flags = rustc_flags + ["--test"],
         srcs = cargo_test_sources(),
@@ -232,7 +233,8 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
     if paints:
         test.update(manifest = "Cargo.toml", paintings = native.glob(["snapshots/*.paint"]), paints = True)
     run_env = compile_env | env | run_env
-    run_env["LD_LIBRARY_PATH"] = dynlink_library_path(run_env.get("LD_LIBRARY_PATH"))
+    if dynamic:
+        run_env["LD_LIBRARY_PATH"] = dynlink_library_path(run_env.get("LD_LIBRARY_PATH"))
     parts = {}
     if run_apart:
         tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in native.glob(["src/tests/*.rs"])]
