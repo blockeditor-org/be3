@@ -64,7 +64,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
             account: guest.account().into_bytes(),
             public: guest.keys().identity().public(),
         },
-        stranger.keys().identity().public(),
+        stranger.keys().identity().identity(),
     );
     harness
         .database()
@@ -82,6 +82,8 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         crate::ask(client::keys::get_recovery_key(&owner.connection()))
             .await
             .expect("the server answers with the recovery key");
+    let block = Uuid::new_v4();
+    let before = owner.sign_authored(block, b"before");
     let resealed = crate::contacts::new_identity(
         owner.account(),
         owner.keys().identity(),
@@ -94,6 +96,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     crate::ask(client::keys::set_recovery_key(
         &owner.connection(),
         fresh.public().0,
+        fresh.signing().0,
         resealed.sealed,
         resealed.own,
         resealed.changes,
@@ -102,11 +105,34 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     .unwrap();
 
     let owner = with_identity(&harness, &owner, fresh.clone()).await;
-    let guest = harness.second(&guest).await;
+    let watcher = guest;
+    let guest = harness.second(&watcher).await;
     assert_eq!(
         guest.keys().contact(owner.account()),
         Some(fresh.public()),
         "the guest took the owner's new key from the change it sealed with its old one"
+    );
+    assert_eq!(
+        guest
+            .verify_authored(
+                owner.account(),
+                block,
+                b"after",
+                &owner.sign_authored(block, b"after"),
+            )
+            .await
+            .unwrap(),
+        Signer::Verified,
+        "the change carried the owner's new signing key too"
+    );
+    watcher.refresh_contacts().await.unwrap();
+    assert_eq!(
+        watcher
+            .verify_authored(owner.account(), block, b"before", &before)
+            .await
+            .unwrap(),
+        Signer::Changed,
+        "what the old key signed still verifies, but the old key is no longer the owner's"
     );
     assert_eq!(text(&guest, from_owner).await, "from the owner");
     assert_eq!(text(&owner, from_guest).await, "from the guest");

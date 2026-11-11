@@ -106,8 +106,9 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
 
 ### Identity, new phrases and devices
 
-- **Identity**: a twelve-word recovery phrase derives an X25519 key pair; the
-  server stores the public half (`SetRecoveryKey`). A device keeps the secret
+- **Identity**: a twelve-word recovery phrase derives an X25519 key pair, and
+  from its secret an Ed25519 signing key (next section); the server stores both
+  public halves (`SetRecoveryKey`). A device keeps the secret
   (`HostStateStore::identity`); without it, or with one that does not match,
   the account opens on the unlock screen (`be-host-stack/src/keys.rs`,
   `ui/keys.rs`). A local account (`ServerLocation::Local`) is never asked to
@@ -116,8 +117,9 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
 - **A new phrase** must reseal every row sealed to the account by itself or a
   verified contact, and everything it sealed for itself (`OwnSealed`), which
   the server checks, so only a device with the old secret can make one. Each
-  verified contact gets a key change (`contacts::new_identity`,
-  `RecoverySecret::seal_key_change`, kept in `key_changes`); a contact's device
+  verified contact gets a key change naming both new public keys
+  (`contacts::new_identity`, `RecoverySecret::seal_key_change`, kept in
+  `key_changes`); a contact's device
   follows changes one at a time from the key it holds, reseals what that
   account sealed to it (`ResealKeys`) and replaces its row (`PutContact`).
 - **Inviting**: the only way into an organization, and it hands over no key.
@@ -132,13 +134,50 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   (`Pair`, `Paired`), and the open device seals the identity secret under the
   agreed key. A wrong code ends the request, so the server gets one guess.
 
+### Signing what a person writes
+
+What a member authors is signed (plans/authorship.md, chat first;
+decisions/an_ed25519_signing_key_beside_the_identity_key.md), so nobody with
+Edit can write as someone else.
+
+- **The key**: `RecoverySecret::signing`, Ed25519 derived from the identity
+  secret, so every device of the account has it. `sign_authored(block, bytes)`
+  signs a domain of its own, the block and the bytes; a signature never
+  verifies in another block (`SigningPublic::verifies_authored`).
+- **Domain separation**: what the key signs is `be3.authorship.v1`, the 16-byte
+  block id, then the bytes, so the prefix is fixed width and the host, not the
+  app, chooses it; a signature never verifies in another block than the one the
+  editor shows, nor as anything else this key or another key signs (escrow, key
+  changes and invitations use other keys or domains). The host also puts the
+  asking app's manifest id, framed, ahead of the app's bytes (`sign` and
+  `verify`, at most 64 KiB), so an app cannot make a signature that another
+  app's `verify` accepts, even in a block both are shown. Apps put their own
+  domain first in their bytes (chat's `be3.chat.message`) so their records can't
+  be mistaken for each other. `signing-block` names the block signatures bind to, which a record that names its chat or block inside its bytes uses (the block the revision is of, in a revision preview, where `editor.block_id()` is the preview's own). Signatures verify only in the app that made them: another app's `verify` answers `Bad`, which is not a forgery verdict. Reactions and deletions are not signed yet
+  (plans/authorship.md).
+- **Apps** never hold it: host-services' `sign` and `verify`
+  (guides/apps/host_services.md) answer from the worker (`be-host-stack`
+  `authorship.rs`), in the block the editor shows.
+- **Verifying** (`Peer::verify_authored`, answering `Signer`): the refs
+  database keeps the signing keys known per account (`RefsDb` table `Signers`,
+  never forgotten, so what was signed before a new phrase still verifies). A
+  contact's key, from its card or a key change, and the account's own are
+  verified, the newest being current: an older verified key answers `Changed`,
+  since someone holding the old phrase can sign with it. An account with one is checked only against verified keys, after
+  rereading the contacts once, so the server cannot sign as a contact. Any other
+  member's key comes from the server (`get-signing-keys`: the caller, its
+  contacts and the members of the organization open, which in the personal
+  organization is every account) and is pinned the first time, unverified; a
+  different key the server names later answers `Changed` for what it signed.
+  Nothing known that made the signature answers `Bad`.
+
 ## Contacts
 
 Every sharing relationship starts with a link passed outside the host, and a
 device seals a key only to a contact's public key verified that way.
 
 - A **contact card** (`be_block_keys::ContactCard`: account id, identity public
-  key, name, email) is sealed with a link's code (`ContactCard::seal`, keyed by
+  key, signing key, name, email) is sealed with a link's code (`ContactCard::seal`, keyed by
   code and side). A contact link is `{server}/#contact/{CODE}`. What an
   account keeps for itself (cards, link codes) is sealed with a key derived
   from its identity secret (`RecoverySecret::seal_own`): sealing to the public
@@ -172,7 +211,9 @@ will seal with: keys sealed to an account are sender-authenticated and taken
 only from verified contacts; a contact's key changes only by a change sealed
 with the verified key; cards, codes, pending grants and invitation escrow keys
 are sealed with codes it never sees; a device wraps only under keys it trusts;
-escrow keys are used only when pinned or signed down from a pinned one.
+escrow keys are used only when pinned or signed down from a pinned one. It
+cannot sign as a contact: a contact's signing key comes from its card or a key
+change.
 
 It still decides, and devices trust it for: which held key is a block's current
 data key and which epoch is newest (so a server colluding with someone who lost
@@ -180,7 +221,8 @@ access, or a demoted administrator, can keep a device writing under a key that
 person knows); grants, membership and roles (a device seals to any verified
 contact the server lists as granted, and the escrow secret to any verified
 contact it lists as an administrator); which blocks an account knows exist;
-and the graph's shape, sizes and timings.
+the graph's shape, sizes and timings; and the signing key of a member who is
+not a contact, taken on first use (a later change shows as `Changed`).
 
 Search does not change what a key protects, and it adds one thing to remember. A
 workspace's search index is a block with exactly its workspace's access, so anyone

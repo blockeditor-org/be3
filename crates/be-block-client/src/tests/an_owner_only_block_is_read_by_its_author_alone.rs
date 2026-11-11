@@ -198,6 +198,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
     crate::ask(client::keys::set_recovery_key(
         &member.connection(),
         fresh.public().0,
+        fresh.signing().0,
         resealed.sealed,
         resealed.own,
         resealed.changes,

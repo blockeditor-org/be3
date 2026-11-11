@@ -26,6 +26,8 @@ const FROM_INFO: &[u8] = b"be3.from.v1";
 const ESCROW_SIGNING_INFO: &[u8] = b"be3.escrow.signing.v1";
 const ESCROW_PIN_INFO: &[u8] = b"be3.escrow.pin.v1";
 const KEY_CHANGE_INFO: &[u8] = b"be3.key.change.v1";
+const IDENTITY_SIGNING_INFO: &[u8] = b"be3.identity.signing.v1";
+const AUTHORSHIP_INFO: &[u8] = b"be3.authorship.v1";
 const INVITE_ENTROPY: usize = 25;
 const INVITE_LEN: usize = INVITE_ENTROPY * 8 / 5;
 const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -191,6 +193,40 @@ impl RecoverySecret {
         expand(&self.0.to_bytes(), OWN_INFO, OWN_INFO)
     }
 
+    fn signing_key(&self) -> ed25519_dalek::SigningKey {
+        ed25519_dalek::SigningKey::from_bytes(&expand(
+            &self.0.to_bytes(),
+            IDENTITY_SIGNING_INFO,
+            IDENTITY_SIGNING_INFO,
+        ))
+    }
+
+    /// The public half of the Ed25519 key the account signs what it writes with, derived from
+    /// the identity secret as `EscrowSecret` derives its own
+    /// (decisions/an_ed25519_signing_key_beside_the_identity_key.md).
+    pub fn signing(&self) -> SigningPublic {
+        SigningPublic(self.signing_key().verifying_key().to_bytes())
+    }
+
+    /// Both public halves, which a contact card and a key change carry.
+    pub fn identity(&self) -> PublicIdentity {
+        PublicIdentity {
+            public: self.public(),
+            signing: self.signing(),
+        }
+    }
+
+    /// Signs `bytes` the account wrote in `block`. The signature covers the block too, so one
+    /// made for a block never verifies in another, and a domain of its own, so it can never be
+    /// read as anything else this key might sign.
+    pub fn sign_authored(&self, block: [u8; 16], bytes: &[u8]) -> Vec<u8> {
+        use ed25519_dalek::Signer;
+        self.signing_key()
+            .sign(&authored(block, bytes))
+            .to_bytes()
+            .to_vec()
+    }
+
     pub fn open_anonymous(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
         let (ephemeral, rest) = sealed.split_at_checked(32).ok_or(KeyError::Corrupt)?;
         let ephemeral: [u8; 32] = ephemeral.try_into().map_err(|_| KeyError::Corrupt)?;
@@ -280,6 +316,29 @@ fn from_key(
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct RecoveryPublic(pub [u8; 32]);
+
+/// The public half of an account's signing key.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct SigningPublic(pub [u8; 32]);
+
+impl SigningPublic {
+    /// Whether `signature` is this key's `RecoverySecret::sign_authored` over `bytes` in
+    /// `block`.
+    pub fn verifies_authored(&self, block: [u8; 16], bytes: &[u8], signature: &[u8]) -> bool {
+        verify_signature(&self.0, &authored(block, bytes), signature)
+    }
+}
+
+fn authored(block: [u8; 16], bytes: &[u8]) -> Vec<u8> {
+    [AUTHORSHIP_INFO, &block, bytes].concat()
+}
+
+/// An account's public keys: the identity key keys are sealed to, and the signing key.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct PublicIdentity {
+    pub public: RecoveryPublic,
+    pub signing: SigningPublic,
+}
 
 impl RecoveryPublic {
     pub fn seal_anonymous(&self, plain: &[u8]) -> Vec<u8> {
@@ -401,6 +460,7 @@ impl CardRole {
 pub struct ContactCard {
     pub account: [u8; 16],
     pub public: RecoveryPublic,
+    pub signing: SigningPublic,
     pub display_name: String,
     pub email: String,
 }
@@ -526,12 +586,14 @@ impl InviteCode {
 }
 
 impl RecoverySecret {
-    pub fn seal_key_change(&self, from: [u8; 16], to: &Party, new: RecoveryPublic) -> Vec<u8> {
+    /// Tells a contact `to` the account's new keys, sealed with the old identity key the
+    /// contact verified.
+    pub fn seal_key_change(&self, from: [u8; 16], to: &Party, new: PublicIdentity) -> Vec<u8> {
         self.seal_for(
             from,
             to,
             KEY_CHANGE_INFO,
-            &[from.as_slice(), &new.0].concat(),
+            &[from.as_slice(), &new.public.0, &new.signing.0].concat(),
         )
     }
 
@@ -540,14 +602,17 @@ impl RecoverySecret {
         from: &Party,
         to: [u8; 16],
         sealed: &[u8],
-    ) -> Result<RecoveryPublic, KeyError> {
+    ) -> Result<PublicIdentity, KeyError> {
         let plain = self.open_from(from, to, KEY_CHANGE_INFO, sealed)?;
-        match plain.split_at_checked(16) {
-            Some((account, public)) if account == from.account => Ok(RecoveryPublic(
-                public.try_into().map_err(|_| KeyError::Sender)?,
-            )),
-            _ => Err(KeyError::Sender),
+        let (account, keys) = plain.split_at_checked(16).ok_or(KeyError::Sender)?;
+        if account != from.account || keys.len() != 64 {
+            return Err(KeyError::Sender);
         }
+        let (public, signing) = keys.split_at(32);
+        Ok(PublicIdentity {
+            public: RecoveryPublic(public.try_into().map_err(|_| KeyError::Sender)?),
+            signing: SigningPublic(signing.try_into().map_err(|_| KeyError::Sender)?),
+        })
     }
 
     pub fn seal_pin(&self, organization: [u8; 16], escrow: &[u8]) -> Vec<u8> {

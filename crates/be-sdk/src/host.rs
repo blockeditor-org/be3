@@ -21,8 +21,9 @@ use be_sdk_api::{
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
     FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
-    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe,
-    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Signer, Size,
+    TerminalHostBe, ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent,
+    WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -1949,6 +1950,29 @@ impl EditorHost {
     /// machine runs. Needs the manifest's `block_agents`.
     pub fn terminal_host_build(&self) -> Asked<Result<String, Failure>> {
         Asked::of(self.ask(host_services::terminal_host_build))
+    }
+
+    /// The block signatures bind to: the one the editor shows, or in a revision preview the one
+    /// it is of. Records that name their block in what they sign name this one.
+    pub fn signing_block(&self) -> Asked<Result<Uuid, Failure>> {
+        Asked::of(self.ask(host_services::signing_block)).map(|block| block.map(Uuid::from_bytes))
+    }
+
+    /// Signs `bytes` as the person who runs the editor, with a key the app never holds
+    /// (plans/authorship.md). The signature verifies only in the block the editor shows.
+    pub fn sign(&self, bytes: Vec<u8>) -> Asked<Result<Vec<u8>, Failure>> {
+        Asked::of(self.ask(|| host_services::sign(bytes)))
+    }
+
+    /// Whether `account` signed `bytes` in the block the editor shows, and how far its key is
+    /// trusted.
+    pub fn verify(
+        &self,
+        account: Uuid,
+        bytes: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Asked<Result<Signer, Failure>> {
+        Asked::of(self.ask(|| host_services::verify(account.into_bytes(), bytes, signature)))
     }
 
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {

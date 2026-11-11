@@ -11,6 +11,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
     let honest = ContactCard {
         account: owner_id.into_bytes(),
         public: RecoveryPhrase::generate().secret().public(),
+        signing: RecoveryPhrase::generate().secret().signing(),
         display_name: "Owner".into(),
         email: "owner@example.com".into(),
     };

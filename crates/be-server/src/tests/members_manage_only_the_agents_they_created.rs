@@ -22,6 +22,7 @@ async fn members_manage_only_the_agents_they_created() {
                     organization,
                     "Helper".into(),
                     [7; 32],
+                    [7; 32],
                     Vec::new(),
                     Vec::new(),
                     None,

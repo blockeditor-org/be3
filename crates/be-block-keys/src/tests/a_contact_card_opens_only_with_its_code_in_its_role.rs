@@ -6,6 +6,7 @@ fn a_contact_card_opens_only_with_its_code_in_its_role() {
     let card = ContactCard {
         account: [7; 16],
         public: RecoveryPhrase::generate().secret().public(),
+        signing: RecoveryPhrase::generate().secret().signing(),
         display_name: "Ada".into(),
         email: "ada@example.com".into(),
     };

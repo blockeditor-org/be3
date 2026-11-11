@@ -111,7 +111,7 @@ interface members {
     remove-member: async func(account: account-id) -> result<_, error>;
 
     /// Makes an agent account in `organization` with the recovery key
-    /// `recovery`, a contact card for the caller, and its escrow key sealed
+    /// `recovery` and the signing key `signing` derived with it, a contact card for the caller, and its escrow key sealed
     /// for it. With `bound-to`, which needs Manage on that block, the agent
     /// is granted Edit on it and reaches nothing else: it is a block's agent,
     /// left out of `list-agents` and removed with its grant or its block.
@@ -119,6 +119,7 @@ interface members {
         organization: organization-id,
         name: string,
         recovery: public-key,
+        signing: public-key,
         contact: list<u8>,
         escrow: list<u8>,
         bound-to: option<block-id>,
