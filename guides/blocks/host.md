@@ -256,6 +256,15 @@ index and search it locally.
   define each round, would stall the opens and edits behind it. A document's
   text is indexed up to `MAX_TEXT` (1 MiB) bytes. Blocks whose index has no
   head on this device yet are parked until it has one, not queued each round.
+  The host is busy (`Searching::busy`, which tests settle on) while a workspace
+  it may edit wants an index and has none, while one is being made or named, and
+  after a define is sent until the root's summary is read again, so the size the
+  files pane shows is the server's with the define in it; a define still in the
+  outbox after a drain that ended since is not waited for. Naming is tried at most
+  eight times, and a refused define gives up on the root with an error shown, until
+  this account's access to it changes; a root whose index could not be made is tried
+  again when the mirror next changes. A root that was left or can no longer be edited
+  drops its index and the blocks waiting for it.
   `Searched::complete` is true when nothing this device could index is queued,
   being made or written; an edit on a root it cannot edit is never queued.
 - **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches

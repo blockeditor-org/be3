@@ -10,7 +10,7 @@ fn the_search_index_queue_forgets_what_can_no_longer_be_indexed() {
     let mut search = Searching::default();
     search.wait_for_index(root, index, block);
     assert!(!search.indexed(), "a block waits for its root's index");
-    search.make_failed(root);
+    search.make_failed(root, 5);
     assert!(
         !search.indexed(),
         "the block is queued again, to find no index"
@@ -35,15 +35,4 @@ fn the_search_index_queue_forgets_what_can_no_longer_be_indexed() {
     search.release_parked(|_| true, |_| true);
     assert_eq!(search.take_queued(), vec![block], "its head arrived");
     assert!(search.indexed());
-
-    // An index being made or named keeps the host busy, and so does a workspace that wants
-    // one, until the root is given up on.
-    let mut search = Searching::default();
-    search.wait_for_index(root, index, block);
-    search.take_waiting_for_test();
-    assert!(search.busy(false), "an index being named is busy");
-    search.make_failed(root);
-    search.take_queued();
-    assert!(!search.busy(false), "a root given up on is not");
-    assert!(search.busy(true), "a workspace wanting its index is");
 }
