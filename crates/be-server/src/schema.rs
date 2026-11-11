@@ -129,6 +129,7 @@ const SCHEMA: &str = "
         block_id        TEXT NOT NULL,
         changed         INTEGER NOT NULL,
         time            INTEGER NOT NULL,
+        owner_only      INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, root, block_id)
     );
 

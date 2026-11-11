@@ -42,6 +42,10 @@ use crate::{
     worker::{Shared, Store, Tasks},
 };
 
+/// How often a commit that cannot be read holds a catch-up's watermark back before it is let
+/// go (a history collected under the head it was listed at never reads).
+const MAX_READ_FAILURES: u8 = 3;
+
 /// Hits a search reads from each index, the best first.
 const HITS: usize = 50;
 
@@ -178,6 +182,9 @@ pub struct Searching {
     settle: HashMap<Uuid, Vec<Settle>>,
     /// Blocks a batch that was written put, for a settle to check against.
     done: HashSet<Uuid>,
+    /// How often a block's commit could not be read: held back a few times, then counted as
+    /// put, since a catch-up that lists it again would otherwise never end.
+    failures: HashMap<Uuid, u8>,
     /// Roots just defined, until their define is sent and the mirror has read the root again,
     /// so the size it shows is the server's with the define in it.
     confirming: HashMap<Uuid, Confirm>,
@@ -602,9 +609,20 @@ async fn index(
         let mut put_blocks = Vec::new();
         for block in &blocks {
             // None: held back (a commit or part that could not be read), so not put.
-            if let Some(puts) = puts_of(peer, shared, replicas, *block).await {
-                put_blocks.push(*block);
-                batch.put.extend(puts);
+            match puts_of(peer, shared, replicas, *block).await {
+                Some(puts) => {
+                    put_blocks.push(*block);
+                    batch.put.extend(puts);
+                }
+                None => {
+                    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                    let failures = held.search.failures.entry(*block).or_default();
+                    *failures += 1;
+                    if *failures >= MAX_READ_FAILURES {
+                        held.search.failures.remove(block);
+                        put_blocks.push(*block);
+                    }
+                }
             }
         }
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());

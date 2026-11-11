@@ -413,7 +413,7 @@ every tree a block has been in hears of its leaving, however often it moved on.
 one order, oldest first: the summaries of blocks in the tree now that changed, and
 the ids of blocks that left THAT tree and are not in it now (ids of blocks a
 reader may not view are named too: a reader of a tree is told that a block left
-it), a cursor, and the organization's current sequence, which counts the writes
+it, except blocks only their author may read), a cursor, and the organization's current sequence, which counts the writes
 the organization has made. A page ends at `MAX_CHANGES_PER_PAGE` blocks of either
 kind or `MAX_SCANNED` rows looked at; a page that stops on another tree's change
 reads on to the end of that change's sequence and returns a cursor that names no

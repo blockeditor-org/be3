@@ -108,9 +108,12 @@ fn departed(
         "DELETE FROM block_departures WHERE organization_id = ?1 AND time < ?2",
         params![organization, now - DEPARTURES_KEPT],
     )?;
+    // A block only its author may read is not named to the readers of the tree it left.
     let mut insert = database.prepare_cached(
-        "INSERT OR REPLACE INTO block_departures (organization_id, root, block_id, changed, time)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT OR REPLACE INTO block_departures
+             (organization_id, root, block_id, changed, time, owner_only)
+         SELECT ?1, ?2, id, ?4, ?5, owner_only FROM blocks
+         WHERE organization_id = ?1 AND id = ?3",
     )?;
     for block in blocks {
         insert.execute(params![

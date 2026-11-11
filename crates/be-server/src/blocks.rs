@@ -1470,7 +1470,7 @@ impl ServerStore {
                  WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
                  UNION ALL
                  SELECT block_id, changed, 1 FROM block_departures
-                 WHERE organization_id = ?1 AND root = ?4
+                 WHERE organization_id = ?1 AND root = ?4 AND owner_only = 0
                    AND (changed > ?2 OR (changed = ?2 AND block_id > ?3))
                  ORDER BY 2, 1",
             )?;
