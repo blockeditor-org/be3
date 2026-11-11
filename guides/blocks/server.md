@@ -396,6 +396,23 @@ Every `BlockSummary` and `BlockRemoved` carries a `revision`
 (a reply overtakes announcements queued before it), and the revision is how a
 client puts them back in order.
 
+### Changes since
+
+`changes.rs` keeps a durable, organization-wide change sequence
+(`organizations.change_sequence`), which unlike the graph's `revision` survives
+a restart. Every write that changes what a block holds or where it lies sets
+the block's `changed` to the next sequence in its own transaction (`touch`:
+create, publish, metadata and references; `touch_moved`: a new parent, which
+marks the whole subtree, and sets `moved`); a block deleted for good leaves a
+row in `block_removals` for a day. `blocks.changed-since(root, since, after,
+limit)` (View on `root`) pages through `blocks_changed`, oldest first, answering
+the summaries of blocks in `root`'s tree now that changed, the ids of blocks
+that moved or were deleted since and are not in it (ids only; a viewer learns
+that a block left, whatever it can see of where it went), a cursor, and the
+sequence to continue from. A page ends at `MAX_CHANGES_PER_PAGE` blocks of
+either kind or `MAX_SCANNED` rows looked at, so other trees' changes cost a
+page, not the tree.
+
 ### Limits
 
 `limits.rs` names what one account or connection may make the server keep:

@@ -47,7 +47,7 @@ Each step is one PR.
    each document's `source` and pass the parts the index holds text for as
    `indexed`, so reindexing a large block reads only its changed parts.
 
-## Step 1, designed
+## Step 1, designed and built
 
 **What exists.** `blocks.version` is a per-block counter bumped on publish,
 metadata change, move and the like (`blocks.rs`: `version = version + 1`). It
@@ -121,11 +121,16 @@ tree), without waiting for a catch-up.
 
 ## Left open
 
-- **Leaving the tree is not masked** (until step 1) (step 3 of "The indexer"): a block moved to
-  a private root, trashed or emptied keeps its text in the old root's index, which
-  every viewer of that root can decrypt. The UI hides it (`show` filters by
-  access) but a modified client reads it. Mask it with `Batch::removed_blocks`
-  from the device that moves it.
+- **Leaving the tree is masked on the next connection** (`changed-since`, built),
+  not at once: a block moved to a private root, trashed or emptied keeps its text
+  in the old root's index until a device that may edit the root next catches up,
+  and only the catch-up masks it (no mask at the moment of the move). Until then
+  every viewer of that root can decrypt it with a modified client; the UI hides it
+  (`show` filters by access and by what the search is within). Removals are kept a
+  day on the server: a device that was away longer misses a block collected for
+  good in between (it is only hidden by `show`).
+- **A viewer's device does not catch up.** Only an editor of the root writes its
+  index, so a viewer's searches show the text the last editor catch-up indexed.
 - **Late text in a huge document is not searchable.** A document's text is
   indexed up to 1 MiB (`MAX_TEXT`); a word past that finds nothing, and nothing
   in the interface says why. It is capped after the body is loaded, so it does
