@@ -315,7 +315,6 @@ impl TestClient {
                     client::blocks::changed_since(
                         peer,
                         block,
-                        0,
                         ChangeCursor {
                             changed: 0,
                             block: Uuid::max(),

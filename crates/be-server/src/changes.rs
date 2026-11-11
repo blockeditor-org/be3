@@ -2,22 +2,22 @@
 //! (plans/search.md, "Left open").
 //!
 //! One strictly increasing counter per organization (`organizations.change_sequence`) is
-//! advanced in the transaction of every write that changes what a block holds or where it
-//! lies (every graph change holds the store's one connection, so writes are ordered). A block's `changed` is the sequence
-//! of its last such write and `moved` that of its last move (a new parent, trash included),
-//! with `left_root`, the top-level block of the tree it left; a block collected for good leaves
-//! a row in `block_removals` with that root, so a reader of one tree is told only of blocks
-//! that left that tree. Unlike the graph's
-//! `revision`, which restarts with the process, the sequence survives restarts.
+//! advanced in the transaction of every write that changes what a block holds, where it lies
+//! or who may view it (every graph change holds the store's one database mutex, so writes are
+//! ordered). A block's `changed` is the sequence of its last such write. A block that leaves a
+//! top-level block's tree (moved out of it, trashed, or deleted for good while in it) leaves a
+//! row in `block_departures` for that root, so a reader of one tree is told of each block
+//! that left that tree, and of no other. Unlike the graph's `revision`, which restarts with the
+//! process, the sequence survives restarts.
 
 use rusqlite::{Connection, params};
 use uuid::Uuid;
 
 use crate::ServerError;
 
-/// How long a collected block is remembered, in milliseconds (a day, as the search index
-/// keeps its own history).
-const REMOVALS_KEPT: i64 = 24 * 60 * 60 * 1000;
+/// How long a departure is remembered, in milliseconds (a day, as the search index keeps its
+/// own history).
+const DEPARTURES_KEPT: i64 = 24 * 60 * 60 * 1000;
 
 /// The next sequence of the organization.
 fn next(database: &Connection, organization: &str) -> Result<i64, ServerError> {
@@ -29,68 +29,97 @@ fn next(database: &Connection, organization: &str) -> Result<i64, ServerError> {
     )?)
 }
 
-/// Marks blocks as changed (their content, name or references).
+/// Marks blocks as changed (their content, name, references or who may view them).
 pub(crate) fn touch(
     database: &Connection,
     organization: Uuid,
     blocks: &[Uuid],
-) -> Result<(), ServerError> {
-    mark(database, organization, blocks, None)
-}
-
-/// Marks blocks as moved out of the tree of `left` (the top-level block above them before the
-/// move): a new parent, so a different tree, which changes for every block below as well.
-pub(crate) fn touch_moved(
-    database: &Connection,
-    organization: Uuid,
-    blocks: &[Uuid],
-    left: Uuid,
-) -> Result<(), ServerError> {
-    mark(database, organization, blocks, Some(left))
-}
-
-fn mark(
-    database: &Connection,
-    organization: Uuid,
-    blocks: &[Uuid],
-    left: Option<Uuid>,
 ) -> Result<(), ServerError> {
     if blocks.is_empty() {
         return Ok(());
     }
     let organization = organization.to_string();
     let sequence = next(database, &organization)?;
+    mark(database, &organization, blocks, sequence)
+}
+
+fn mark(
+    database: &Connection,
+    organization: &str,
+    blocks: &[Uuid],
+    sequence: i64,
+) -> Result<(), ServerError> {
     let mut update = database.prepare_cached(
-        "UPDATE blocks SET changed = ?3,
-             moved = CASE WHEN ?4 IS NULL THEN moved ELSE ?3 END,
-             left_root = COALESCE(?4, left_root)
-         WHERE organization_id = ?1 AND id = ?2",
+        "UPDATE blocks SET changed = ?3 WHERE organization_id = ?1 AND id = ?2",
     )?;
-    let left = left.map(|root| root.to_string());
     for block in blocks {
-        update.execute(params![organization, block.to_string(), sequence, left])?;
+        update.execute(params![organization, block.to_string(), sequence])?;
     }
     Ok(())
 }
 
-/// Remembers a block that is deleted for good, and forgets the removals past `REMOVALS_KEPT`.
-pub(crate) fn removed(
+/// Marks blocks as moved: they and everything below them lie in another tree now, and they
+/// left `from`, the top-level block of the tree they were in (none when it was not a tree:
+/// from the trash).
+pub(crate) fn touch_moved(
     database: &Connection,
     organization: Uuid,
-    block: Uuid,
+    blocks: &[Uuid],
+    from: Option<Uuid>,
     now: i64,
 ) -> Result<(), ServerError> {
     let organization = organization.to_string();
     let sequence = next(database, &organization)?;
+    mark(database, &organization, blocks, sequence)?;
+    if let Some(from) = from {
+        departed(database, &organization, from, blocks, sequence, now)?;
+    }
+    Ok(())
+}
+
+/// Records that a block is deleted for good while in the tree of `root`, which a block in the
+/// trash already recorded when it was trashed.
+pub(crate) fn removed(
+    database: &Connection,
+    organization: Uuid,
+    root: Option<Uuid>,
+    block: Uuid,
+    now: i64,
+) -> Result<(), ServerError> {
+    let Some(root) = root else {
+        return Ok(());
+    };
+    let organization = organization.to_string();
+    let sequence = next(database, &organization)?;
+    departed(database, &organization, root, &[block], sequence, now)
+}
+
+/// Remembers that `blocks` left `root`'s tree, and forgets the departures past
+/// `DEPARTURES_KEPT`.
+fn departed(
+    database: &Connection,
+    organization: &str,
+    root: Uuid,
+    blocks: &[Uuid],
+    sequence: i64,
+    now: i64,
+) -> Result<(), ServerError> {
     database.execute(
-        "DELETE FROM block_removals WHERE organization_id = ?1 AND time < ?2",
-        params![organization, now - REMOVALS_KEPT],
+        "DELETE FROM block_departures WHERE organization_id = ?1 AND time < ?2",
+        params![organization, now - DEPARTURES_KEPT],
     )?;
-    // It left the tree it was last in, which is the one a reader of it must be told of.
-    database.execute(
-        "INSERT OR REPLACE INTO block_removals (organization_id, block_id, changed, time, root)
-         SELECT ?1, ?2, ?3, ?4, left_root FROM blocks WHERE organization_id = ?1 AND id = ?2",
-        params![organization, block.to_string(), sequence, now],
+    let mut insert = database.prepare_cached(
+        "INSERT OR REPLACE INTO block_departures (organization_id, root, block_id, changed, time)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
     )?;
+    for block in blocks {
+        insert.execute(params![
+            organization,
+            root.to_string(),
+            block.to_string(),
+            sequence,
+            now
+        ])?;
+    }
     Ok(())
 }

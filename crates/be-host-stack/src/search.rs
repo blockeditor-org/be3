@@ -423,7 +423,22 @@ impl Searching {
     /// Records that a batch put a block.
     #[cfg(test)]
     pub(crate) fn put(&mut self, block: Uuid) {
-        self.done.insert(block);
+        self.mark_put(vec![block]);
+    }
+
+    /// Records blocks a written batch put, for a page of a catch-up to count: only those a
+    /// pending page names, so what live edits put is not kept.
+    fn mark_put(&mut self, blocks: Vec<Uuid>) {
+        for block in blocks {
+            if self
+                .settle
+                .values()
+                .flatten()
+                .any(|page| page.blocks.contains(&block))
+            {
+                self.done.insert(block);
+            }
+        }
     }
 
     /// Parks blocks for an index that has no head on this device yet.
@@ -586,11 +601,11 @@ async fn index(
         let mut batch = Batch::default();
         let mut put_blocks = Vec::new();
         for block in &blocks {
-            let puts = puts_of(peer, shared, replicas, *block).await;
-            if !puts.is_empty() {
+            // None: held back (a commit or part that could not be read), so not put.
+            if let Some(puts) = puts_of(peer, shared, replicas, *block).await {
                 put_blocks.push(*block);
+                batch.put.extend(puts);
             }
-            batch.put.extend(puts);
         }
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
@@ -607,7 +622,7 @@ async fn index(
                         for block in &put_blocks {
                             held.search.caught.remove(block);
                         }
-                        held.search.done.extend(put_blocks);
+                        held.search.mark_put(put_blocks);
                         held.search.answers.clear();
                     }
                     // Not on this device yet: made by a command still queued.
@@ -673,18 +688,18 @@ pub(crate) fn unindexed(held: &Shared) -> Vec<Uuid> {
 /// Whether some workspace wants an index it has none of, as the worker's `busy` asks: worked
 /// out again only when the graph or the sets that decide it changed.
 pub(crate) fn wants_index(held: &Shared) -> bool {
-    let key = (
-        held.graph.revision,
-        held.search.creating.len(),
-        held.search.named.len(),
-        held.search.failed.len(),
-        held.search.given_up.len(),
-        held.search.caught_up.len(),
-        held.search.catching.len(),
-        held.search.confirming.len(),
-        held.search.settle.len(),
-        held.connected,
-    );
+    let key = WantKey {
+        graph: held.graph.revision,
+        creating: held.search.creating.len(),
+        named: held.search.named.len(),
+        failed: held.search.failed.len(),
+        given_up: held.search.given_up.len(),
+        caught_up: held.search.caught_up.len(),
+        catching: held.search.catching.len(),
+        confirming: held.search.confirming.len(),
+        settle: held.search.settle.len(),
+        connected: held.connected,
+    };
     if let Some((cached, wants)) = held.search.wants.get()
         && cached == key
     {
@@ -731,7 +746,7 @@ async fn puts_of(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     block: Uuid,
-) -> Vec<Put> {
+) -> Option<Vec<Put>> {
     let Some((content_type, name, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match held.graph.get(block) {
@@ -747,7 +762,8 @@ async fn puts_of(
                 .map(|caught| (caught.content_type, caught.name.clone(), caught.head)),
         }
     }) else {
-        return Vec::new();
+        // Gone from the mirror and from what a catch-up named: nothing to index.
+        return Some(Vec::new());
     };
     let caught_head = shared
         .lock()
@@ -757,7 +773,9 @@ async fn puts_of(
         .get(&block)
         .and_then(|caught| caught.head);
     // A block a catch-up named is read at the head it was listed at, unless this device holds
-    // a newer one (an edit not sent yet); a local head that lags the server's is not used.
+    // a newer one (an edit not sent yet); a local head that lags the server's is not used, and
+    // a local head that is not a descendant (a concurrent edit not sent) is indexed once it is
+    // sent. The walk of the local head's history is what it costs.
     let head = match (peer.local_head(block), caught_head) {
         (Some(local), Some(listed)) if local != listed => {
             match peer.descends(local, listed).await {
@@ -769,11 +787,13 @@ async fn puts_of(
         (None, listed) => listed.or(head),
     };
     let Some(head) = head else {
-        return Vec::new();
+        // A block no one has written to has nothing to index.
+        return Some(Vec::new());
     };
-    let commit = match peer.load_commit(head).await {
-        Ok(commit) => commit,
-        Err(_) => return Vec::new(),
+    // A commit that cannot be fetched now (a connection, a key) is held back: the block is not
+    // put, and a catch-up that listed it does not move its watermark past it.
+    let Ok(commit) = peer.load_commit(head).await else {
+        return None;
     };
     let at = be_lib_search::Commit {
         time: commit.time,
@@ -793,7 +813,7 @@ async fn puts_of(
         false => crate::kind_of(content_type).is_some(),
     };
     let mut documents = match known {
-        true => documents_of(peer, shared, replicas, content_type, &commit, None).await,
+        true => documents_of(peer, shared, replicas, content_type, &commit, None).await?,
         false => Vec::new(),
     };
     if !documents.iter().any(|document| document.key.is_empty()) {
@@ -804,9 +824,10 @@ async fn puts_of(
             body: Some(String::new()),
         });
     }
-    documents
-        .into_iter()
-        .map(|document| Put {
+    Some(
+        documents
+            .into_iter()
+            .map(|document| Put {
             doc: DocId {
                 block: block.as_bytes().to_vec(),
                 key: document.key.clone(),
@@ -821,7 +842,8 @@ async fn puts_of(
                 body: capped(document.body.unwrap_or_default()),
             }),
         })
-        .collect()
+        .collect(),
+    )
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
@@ -845,12 +867,17 @@ async fn documents_of(
     content_type: Uuid,
     commit: &be_block_commit::Commit,
     keys: Option<Vec<String>>,
-) -> Vec<be_sdk_type_api::SearchDocument> {
-    replicas
+) -> Option<Vec<be_sdk_type_api::SearchDocument>> {
+    match replicas
         .search_text((peer, shared), content_type, &commit.manifest, keys, &[])
         .await
-        .map(|searched| searched.documents)
-        .unwrap_or_default()
+    {
+        Ok(searched) => Some(searched.documents),
+        // A part that could not be read (offline, a key): held back, as a commit is.
+        Err(be_block_type_host::NotSearched::Read(_)) => None,
+        // A type that answers nothing, or breaks the rules: found by its name alone.
+        Err(_) => Some(Vec::new()),
+    }
 }
 
 /// A document's text at a block's head, for a snippet.
@@ -866,7 +893,7 @@ async fn text_of(
     let commit = peer.load_commit(head).await.ok()?;
     let keys = Some(vec![key.to_owned()]);
     documents_of(peer, shared, replicas, content_type, &commit, keys)
-        .await
+        .await?
         .into_iter()
         .find(|document| document.key == key)?
         .body
@@ -1091,7 +1118,7 @@ async fn catch_up(
         block: Uuid::max(),
     };
     loop {
-        let page = peer.changed_page(root, since, after, PAGE).await?;
+        let page = peer.changed_page(root, after, PAGE).await?;
         peer.learn(&page.summaries).await?;
         let blocks: Vec<(Uuid, Caught)> = page
             .summaries
@@ -1128,6 +1155,10 @@ async fn catch_up(
         };
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            // What a live edit put before is not what this page lists.
+            for (block, _) in &blocks {
+                held.search.done.remove(block);
+            }
             held.search.settle.entry(index).or_default().push(Settle {
                 sequence: reached,
                 left: page.removed,

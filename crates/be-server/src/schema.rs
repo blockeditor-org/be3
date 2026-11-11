@@ -117,28 +117,23 @@ const SCHEMA: &str = "
         payer           TEXT NOT NULL,
         owner_only      INTEGER NOT NULL DEFAULT 0,
         changed         INTEGER NOT NULL DEFAULT 0,
-        moved           INTEGER NOT NULL DEFAULT 0,
-        left_root       TEXT,
         PRIMARY KEY (organization_id, id)
     );
 
     CREATE INDEX blocks_changed
         ON blocks (organization_id, changed, id);
 
-    CREATE INDEX blocks_moved
-        ON blocks (organization_id, left_root, moved);
-
-    CREATE TABLE block_removals (
+    CREATE TABLE block_departures (
         organization_id TEXT NOT NULL,
+        root            TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         changed         INTEGER NOT NULL,
         time            INTEGER NOT NULL,
-        root            TEXT,
-        PRIMARY KEY (organization_id, block_id)
+        PRIMARY KEY (organization_id, root, block_id)
     );
 
-    CREATE INDEX block_removals_changed
-        ON block_removals (organization_id, root, changed, block_id);
+    CREATE INDEX block_departures_changed
+        ON block_departures (organization_id, root, changed, block_id);
 
     CREATE TABLE block_edges (
         organization_id TEXT NOT NULL,

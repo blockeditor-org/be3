@@ -1679,11 +1679,10 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn changed_page(
         &self,
         root: Uuid,
-        since: u64,
         after: ChangeCursor,
         limit: u32,
     ) -> Result<ChangedPage, ClientError> {
-        Ok(client::blocks::changed_since(&self.connection(), root, since, after, limit).await??)
+        Ok(client::blocks::changed_since(&self.connection(), root, after, limit).await??)
     }
 
     /// Everything that changed after the sequence `since` in `root`'s tree, every page of it:
@@ -1701,7 +1700,7 @@ impl<S: ObjectStore> Peer<S> {
             block: Uuid::max(),
         };
         loop {
-            let page = self.changed_page(root, since, after, PAGE).await?;
+            let page = self.changed_page(root, after, PAGE).await?;
             self.learn(&page.summaries).await?;
             summaries.extend(page.summaries);
             removed.extend(page.removed);

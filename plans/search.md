@@ -56,8 +56,8 @@ that they do not do, or do differently:
 - The watermark is written at the end of a catch-up, once every block it queued
   is indexed, not with each batch: an interrupted catch-up starts again from the
   old watermark.
-- Removals (`block_removals`, kept a day) and moves carry the top-level block they
-  left, so a call for one tree names only what left that tree. A device that was
+- Departures (`block_departures`, kept a day) are kept per tree a block left, so a call
+  for one tree names only what left that tree, however often the block moved on. A device that was
   away longer than a day misses a block collected for good in between, and
   nothing tells it so.
 - The catch-up runs on connecting, not on a head change, and a viewer's device

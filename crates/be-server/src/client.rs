@@ -1822,7 +1822,6 @@ impl Client {
             Call::ChangedSince {
                 reply,
                 root,
-                since,
                 after,
                 limit,
             } => {
@@ -1830,7 +1829,7 @@ impl Client {
                     prelude?;
                     connection
                         .store
-                        .changed_since(connection.identity()?, root, since, after, limit)
+                        .changed_since(connection.identity()?, root, after, limit)
                         .await
                 }
                 .await;

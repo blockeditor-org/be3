@@ -404,18 +404,20 @@ a restart (every graph change runs under the store's one database mutex, so
 writes are ordered). Every write that changes what a block holds, where it lies
 or who may view it sets the block's `changed` to the next sequence in its own
 transaction (`touch`: create, publish, metadata and references, grants;
-`touch_moved`: a new parent, which marks the whole subtree, sets `moved` and
-records `left_root`, the top-level block of the tree it left); a block deleted for
-good leaves a row in `block_removals` for a day, with the tree it was last in.
-`blocks.changed-since(root, since, after, limit)` asks about a top-level block's
-tree (View on `root`) and pages through `blocks_changed` and the removal log in
+`touch_moved`: a new parent, for the block and everything below it). A block
+that leaves a top-level block's tree (moved out, trashed, or deleted for good
+while in it) leaves a row in `block_departures` for that root, kept a day, so
+every tree a block has been in hears of its leaving, however often it moved on.
+`blocks.changed-since(root, after, limit)` asks about a top-level block's tree
+(View on `root`) and pages through `blocks_changed` and that tree's departures in
 one order, oldest first: the summaries of blocks in the tree now that changed, and
-the ids of blocks that left THAT tree (moved out, or deleted from it) since,
-which a reader of the tree needs to keep out of what it indexes. It names no block
-that left another tree. It also answers a cursor and the organization's current
-sequence, which counts the writes the organization has made. A page ends at
-`MAX_CHANGES_PER_PAGE` blocks of either kind or `MAX_SCANNED` rows looked at, so
-other trees' changes cost a page, not the tree.
+the ids of blocks that left THAT tree and are not in it now (ids of blocks a
+reader may not view are named too: a reader of a tree is told that a block left
+it), a cursor, and the organization's current sequence, which counts the writes
+the organization has made. A page ends at `MAX_CHANGES_PER_PAGE` blocks of either
+kind or `MAX_SCANNED` rows looked at; a page that stops on another tree's change
+reads on to the end of that change's sequence and returns a cursor that names no
+block, so a cursor never carries a block id the caller may not know.
 
 ### Limits
 

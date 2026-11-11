@@ -12,11 +12,20 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use uuid::Uuid;
 
+/// The top-level block whose tree `block` is in, if it is in one (and not in the trash).
+fn tree_of(graph: &BlockGraph, block: Uuid) -> Option<Uuid> {
+    let top = graph.ancestors(block).last().unwrap_or(block);
+    graph
+        .get(top)
+        .is_some_and(|node| node.parent == BlockParent::Root)
+        .then_some(top)
+}
+
 /// The most blocks of either kind a page of `changed-since` holds.
 const MAX_CHANGES_PER_PAGE: usize = 500;
 
 /// The most changes one page of `changed-since` looks at, those of other trees included.
-const MAX_SCANNED: usize = 20_000;
+const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 
 use crate::{
     ServerError,
@@ -1252,7 +1261,7 @@ impl ServerStore {
             )?;
             store.follow_payer(graph, &transaction, identity, block, parent)?;
             // The tree it leaves, for `changed-since` to name it to the readers of that tree.
-            let old_top = graph.ancestors(block).last().unwrap_or(block);
+            let old_top = tree_of(graph, block);
             let mut resized = chain(graph, block);
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
@@ -1281,6 +1290,7 @@ impl ServerStore {
                 identity.organization,
                 &graph.subtree(block),
                 old_top,
+                be_block_commit::now_milliseconds(),
             )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
                 graph,
@@ -1432,7 +1442,6 @@ impl ServerStore {
         &self,
         identity: Identity,
         root: Uuid,
-        since: u64,
         after: ChangeCursor,
         limit: u32,
     ) -> Result<ChangedPage, ServerError> {
@@ -1454,13 +1463,13 @@ impl ServerStore {
             )?;
             let mut summaries = Vec::new();
             let mut removed = Vec::new();
-            // What changed in the tree and what left it, in one order: blocks still held, and
-            // the removal log of the blocks deleted for good that were last in this tree.
+            // What changed in the tree and what left it, in one order: blocks held, and the
+            // departures from this tree (moved out, trashed, or deleted for good while in it).
             let mut rows = database.prepare_cached(
-                "SELECT id, changed, moved, COALESCE(left_root = ?4, 0) AS left_here, 0 AS gone FROM blocks
+                "SELECT id, changed, 0 AS departed FROM blocks
                  WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
                  UNION ALL
-                 SELECT block_id, changed, 0, 1, 1 FROM block_removals
+                 SELECT block_id, changed, 1 FROM block_departures
                  WHERE organization_id = ?1 AND root = ?4
                    AND (changed > ?2 OR (changed = ?2 AND block_id > ?3))
                  ORDER BY 2, 1",
@@ -1471,37 +1480,58 @@ impl ServerStore {
                 after.block.to_string(),
                 root.to_string(),
             ])?;
+            // A page that stops on a block of another tree must not name it in its cursor:
+            // it reads on to the end of that sequence (one write's blocks) and ends on a
+            // cursor that names no block.
             let (mut scanned, mut next) = (0, None);
+            let mut finishing: Option<i64> = None;
             while let Some(row) = rows.next()? {
-                let (id, changed, moved, left_here, gone): (String, i64, i64, bool, bool) = (
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                );
+                let (id, changed, departed): (String, i64, bool) =
+                    (row.get(0)?, row.get(1)?, row.get(2)?);
+                if let Some(sequence) = finishing
+                    && changed != sequence
+                {
+                    break;
+                }
                 let Ok(id) = id.parse::<Uuid>() else {
                     continue;
                 };
                 scanned += 1;
-                let inside = !gone
-                    && graph.contains(id)
+                let inside = graph.contains(id)
                     && (id == root || graph.ancestors(id).any(|above| above == root));
-                if inside {
+                let mut ours = false;
+                if !departed && inside {
                     if seen.can_view(graph, id)
                         && let Some(summary) = summary_with(graph, &seen, id)
                     {
                         summaries.push(summary);
+                        ours = true;
                     }
-                } else if gone || (graph.contains(id) && left_here && moved > since as i64) {
+                } else if departed && !inside {
                     removed.push(id);
+                    ours = true;
                 }
-                if summaries.len() >= limit || removed.len() >= limit || scanned >= MAX_SCANNED {
-                    next = Some(ChangeCursor {
-                        changed: changed as u64,
-                        block: id,
-                    });
-                    break;
+                if finishing.is_none()
+                    && (summaries.len() >= limit
+                        || removed.len() >= limit
+                        || scanned >= MAX_SCANNED)
+                {
+                    match ours {
+                        true => {
+                            next = Some(ChangeCursor {
+                                changed: changed as u64,
+                                block: id,
+                            });
+                            break;
+                        }
+                        false => {
+                            finishing = Some(changed);
+                            next = Some(ChangeCursor {
+                                changed: changed as u64,
+                                block: Uuid::max(),
+                            });
+                        }
+                    }
                 }
             }
             Ok(ChangedPage {
@@ -1625,6 +1655,7 @@ impl ServerStore {
                     crate::changes::removed(
                         &transaction,
                         identity.organization,
+                        tree_of(graph, block),
                         block,
                         be_block_commit::now_milliseconds(),
                     )?;
