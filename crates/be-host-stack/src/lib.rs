@@ -752,7 +752,7 @@ pub fn status() -> Status {
         connecting: !shared.connected && !shared.reached,
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
-        unsaved: shared.unsealed + shared.pending + shared.importing,
+        unsaved: shared.undurable + shared.pending + shared.importing,
         kept: shared.waiting,
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),

@@ -73,7 +73,7 @@ impl Host for Quiet {
 
     fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
-    fn counted(_: &Arc<Mutex<Self>>, _: usize, _: usize) {}
+    fn counted(_: &Arc<Mutex<Self>>, _: usize, _: usize, _: usize) {}
 
     fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }
