@@ -299,7 +299,9 @@ pinned_rust_toolchain(
     # --extern noprelude:, which the standard library's crates are named with.
     extra_rustc_flags = select({
         ":linux_x86_64_release": [],
-        ":linux_x86_64": ["-Zunstable-options"],
+        # -L for std, which rustc injects as `extern crate std` and looks for in
+        # the plain search path, with its rlib beside its rmeta.
+        ":linux_x86_64": ["-Zunstable-options", "-L", "$(location :rust_std_libs[pairs])"],
         "DEFAULT": [],
     }),
     rustc_flags = select({

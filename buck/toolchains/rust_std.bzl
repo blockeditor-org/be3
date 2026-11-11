@@ -71,7 +71,13 @@ def _lib_dir(ctx: AnalysisContext) -> Artifact:
 def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
     cxx_toolchain = get_cxx_toolchain_info(ctx)
     linker_type = cxx_toolchain.linker_info.type
-    lib_dir = _lib_dir(ctx)
+    # Each crate's rlib beside its rmeta, which holds the metadata the rlib's own
+    # lacks: rustc finds one from the other.
+    pairs = ctx.actions.symlinked_dir("pairs", {
+        file: _lib_dir(ctx).project(file)
+        for file in ctx.attrs.rlibs + [rlib.replace(".rlib", ".rmeta") for rlib in ctx.attrs.rlibs]
+    })
+    lib_dir = pairs
     rlibs = [lib_dir.project(name) for name in ctx.attrs.rlibs]
 
     archives = LinkInfo(
@@ -136,7 +142,7 @@ def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
     )
     return [
-        DefaultInfo(default_output = linked.output),
+        DefaultInfo(default_output = linked.output, sub_targets = {"pairs": [DefaultInfo(default_output = pairs)]}),
         RustStdInfo(
             metadata = {name: lib_dir.project(file) for name, file in ctx.attrs.crates.items()},
             rlibs = {name: lib_dir.project(file.replace(".rmeta", ".rlib")) for name, file in ctx.attrs.crates.items()},
@@ -184,6 +190,7 @@ def _rust_std_crate_impl(ctx: AnalysisContext) -> list[Provider]:
     # names the rmeta, since an rlib's own metadata is a stub.
     transitive[MetadataKind("full")] = ctx.actions.tset(TransitiveDeps, children = [transitive[MetadataKind("full")], everything(libs[RustStdInfo].rlibs)])
     outputs = {kind: own for kind in MetadataKind}
+
     singleton = {kind: ctx.actions.tset(TransitiveDeps, value = RustArtifact(artifact = outputs[kind], crate = crate)) for kind in MetadataKind}
     strategies = {
         strategy: RustLinkStrategyInfo(
