@@ -101,7 +101,7 @@ def _pinned_rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
         advanced_unstable_linking = ctx.attrs.advanced_unstable_linking,
         explicit_sysroot_deps = RustExplicitSysrootDeps(
             core = std["core"],
-            proc_macro = std["proc_macro"],
+            proc_macro = None,
             # Not as std: the prelude passes that with `force`, which has rustc
             # link the file --extern names, where here that is the rmeta.
             # std is not named with --extern: loaded from -L, where its rlib and

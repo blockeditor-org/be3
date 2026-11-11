@@ -95,6 +95,7 @@ def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
             for rlib in rlibs
         ],
     )
+    shim = ctx.attrs.shim[DefaultInfo].sub_targets["static-pic"][DefaultInfo].default_outputs[0]
     linked = cxx_link_shared_library(
         ctx = ctx,
         output = "shared/" + _SO,
@@ -116,7 +117,12 @@ def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
         LibOutputStyle("pic_archive"): LinkInfos(default = archives),
         LibOutputStyle("shared_lib"): LinkInfos(default = LinkInfo(
             name = "rust_std_shared",
-            linkables = [SharedLibLinkable(lib = linked.output)],
+            # The allocator entry points an executable's shim calls, which the shared
+            # library cannot export (hidden, and a static link has std's own).
+            linkables = [
+                SharedLibLinkable(lib = linked.output),
+                ArchiveLinkable(archive = Archive(artifact = shim), linker_type = linker_type, link_whole = True),
+            ],
         )),
     }
     preferred_linkage = Linkage("any")
@@ -163,6 +169,7 @@ rust_std_libs = rule(
     attrs = {
         "component": attrs.dep(),
         "crates": attrs.dict(attrs.string(), attrs.string()),
+        "shim": attrs.dep(),
         "labels": attrs.list(attrs.string(), default = []),
         "rlibs": attrs.list(attrs.string()),
         "triple": attrs.string(),
