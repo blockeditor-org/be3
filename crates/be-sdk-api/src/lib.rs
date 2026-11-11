@@ -37,6 +37,7 @@ be_wasm_ops_bindgen::generate!({
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
         "dialog-status", "dialog-frame", "window-kind", "insets", "picture", "block-history",
+        "search-hit", "search-results",
     ],
     inline: [
         "artifact-command", "unlink-command",
@@ -55,8 +56,8 @@ pub use accessibility::DescribedAction;
 pub use be_wasm_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
-    ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
-    VersionCommit, VersionOperation, VersionStatus,
+    ConflictSide, SearchHit, SearchResults, StoredHead, VersionBranch, VersionChange,
+    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
@@ -103,6 +104,7 @@ pub use types::{
 
 pub use account::AccountStorage;
 pub use account::HostPreferenceSources;
+pub use account::{BlockNotifyMode, NotifyMode};
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
@@ -125,7 +127,7 @@ pub use desktop::{
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{
-    AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch, StorageUsageWatch,
+    AdministratorWatch, LinkBaseWatch, NotifyModesWatch, PreferenceSourcesWatch, StorageUsageWatch,
 };
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{

@@ -79,6 +79,7 @@ APPS = {
     "presenting_a_deck_again_and_again_adds_no_blocks": ["infinite-canvas", "presentation", "text"],
     "presenting_a_deck_fills_the_screen_until_escape": ["infinite-canvas", "presentation", "text"],
     "pressing_the_files_after_a_text_block_moves_the_focus_to_them": ["text"],
+    "quick_open_finds_a_word_typed_in_a_text_and_opens_it": ["text"],
     "quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_actions": ["text"],
     "removing_a_local_account_asks_first_and_names_what_is_lost": [],
     "reopening_a_block_keeps_the_view_the_person_moved": ["example-pan-zoom"],
@@ -112,12 +113,12 @@ APPS = {
 
 cargo_library()
 
-# To reproduce a flake that shows only under load, run the harness here, all
-# the tests at once and as often as needed: build :test-harness, :host-with-all,
-# //crates/be-host:bin and the sysroot targets run_env names, then run
-# buck-out/v2/art/root/*/crates/be-host-tests/__test-harness__/app_tests with
-# each run_env variable set to its output under buck-out and
-# CARGO_MANIFEST_DIR set to crates/be-host-tests.
+# To reproduce a flake that shows only under load, run
+# `./scripts/buck run //crates/be-tool-local:bin -- stress NAME`
+# (crates/be-tool-local/src/stress.rs, guides/testing_a_gui.md, 6): it builds
+# :test-harness, :host-with-all, //crates/be-host:bin and the sysroot targets
+# run_env names, then runs the harness many times at once with each run_env
+# variable set to its output. Keep its environment in step with run_env below.
 cargo_test(
     apart_env = host_test_apps(APPS),
     paints = True,

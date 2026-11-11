@@ -490,6 +490,29 @@ impl Editor {
         create_memo(move || read.get().unwrap_or(Ok(None)))
     }
 
+    /// The results of the full-text search `search` holds (plans/search.md): none while it
+    /// holds none or until the host answers, which it does again whenever an index changes.
+    pub fn search(
+        &self,
+        search: Memo<Option<be_sdk::Search>>,
+    ) -> Memo<Option<be_sdk::SearchResults>> {
+        let host = self.host();
+        let revision = self.pushed(Pushed::Searches);
+        let watching = host.clone();
+        create_effect(move || {
+            let Some(asked) = search.get() else {
+                return;
+            };
+            let host = watching.clone();
+            host.watch_search(asked.clone());
+            on_cleanup(move || host.unwatch_search(&asked));
+        });
+        create_memo(move || {
+            revision.get();
+            search.with(|asked| asked.as_ref().and_then(|asked| host.search(asked)))
+        })
+    }
+
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
@@ -607,6 +630,16 @@ impl Editor {
 
     pub fn artifacts(&self) -> ReadSignal<u64> {
         self.pushed(Pushed::Artifacts)
+    }
+
+    /// Whether one of this editor's views has the keyboard: the host gave it to that view, not
+    /// another of the app's. False while the editor is not shown in an app's beui program.
+    pub fn has_keyboard(&self) -> Memo<bool> {
+        let host = self.host();
+        match (crate::module::Module::of(&host), host.instance()) {
+            (Some(module), Some(instance)) => module.has_keyboard(instance),
+            _ => create_memo(|| false),
+        }
     }
 
     pub fn focused_block(&self) -> Memo<FocusedBlock> {
@@ -1305,7 +1338,6 @@ struct CreationSignals {
     core: CreationCore,
     children: OwnedEditor,
     pushed: Mirror,
-    seen: Cell<Option<u64>>,
 }
 
 impl Creation {
@@ -1321,7 +1353,6 @@ impl Creation {
             pushed: Mirror::new(&host),
             children: OwnedEditor::new(host.clone(), Uuid::nil()),
             core: CreationCore::new(host, template),
-            seen: Cell::new(None),
         }))
     }
 
@@ -1338,10 +1369,7 @@ impl Creation {
     }
 
     pub fn begin_frame(&self) {
-        let changes = Some(self.0.core.host().changes());
-        if self.0.seen.replace(changes) != changes {
-            self.0.pushed.sync();
-        }
+        self.0.pushed.sync();
         self.0.children.begin_frame();
     }
 

@@ -74,6 +74,7 @@ fn moved(pos: Pos2) -> beui::Forwarded {
             predicted: None,
             time: std::time::Instant::now(),
             source: 0,
+            rested: false,
         },
         over: None,
     }
@@ -406,12 +407,17 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
 }
 
 mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
+mod a_block_gift_becomes_a_gift_to_the_child_that_shows_its_block;
+mod a_block_gift_ends_when_the_instance_goes;
+mod a_block_gift_for_a_block_the_host_refused_to_make_never_starts;
+mod a_block_gift_waits_for_the_child_however_many_commits_it_takes;
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_child_asked_full_screen_or_closed_reaches_the_host;
 mod a_child_placed_in_an_anchored_view_is_shown_in_host_coordinates_inside_it;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
+mod a_focused_screen_hears_it_has_the_keyboard_again_after_its_app_restarts;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_hidden_window_child_takes_no_room_and_is_kept;
 mod a_key_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
@@ -461,6 +467,7 @@ mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
 mod modifiers_let_go_in_one_view_are_held_again_in_another;
 mod revision_history_editors_cannot_mutate_any_block;
 mod the_contacts_reach_only_the_shell;
+mod the_latest_block_gift_replaces_the_one_before;
 mod the_program_windows_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
 

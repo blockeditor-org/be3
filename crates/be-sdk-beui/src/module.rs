@@ -39,6 +39,8 @@ struct Registry {
     shown: RefCell<HashMap<EditorInstanceId, Rc<dyn Shown>>>,
     windows: RefCell<HashMap<ViewRef, WindowId>>,
     revision: OwnedSignal<u64>,
+    /// The views the host gave the keyboard (`Views::keyboard`).
+    keyboard: OwnedSignal<Vec<ViewRef>>,
 }
 
 impl Registry {
@@ -60,6 +62,7 @@ impl Default for Module {
                 shown: RefCell::default(),
                 windows: RefCell::default(),
                 revision: OwnedSignal::new(0),
+                keyboard: OwnedSignal::new(Vec::new()),
             }),
             document: RefCell::new(None),
             launched: std::cell::Cell::new(false),
@@ -113,6 +116,14 @@ impl Module {
         self.registry.shown(instance)
     }
 
+    /// Whether one of `instance`'s views has the keyboard.
+    pub(crate) fn has_keyboard(&self, instance: EditorInstanceId) -> Memo<bool> {
+        let keyboard = self.registry.keyboard.read_only();
+        create_memo(move || {
+            keyboard.with(|views| views.iter().any(|view| view.instance == instance))
+        })
+    }
+
     pub(crate) fn window(&self, region: ViewRef) -> Option<WindowId> {
         self.registry.windows.borrow().get(&region).copied()
     }
@@ -130,9 +141,14 @@ impl beui::native::Program for ModuleProgram {
             return;
         };
         let requested = self.requested.handle();
+        let keyboard = self.module.registry.keyboard.handle();
         let watched = views.clone();
-        views.watch(move || requested.set(watched.views()));
+        views.watch(move || {
+            requested.set(watched.views());
+            keyboard.set(watched.keyboard());
+        });
         self.requested.set(views.views());
+        self.module.registry.keyboard.set(views.keyboard());
         self.views = Some(views);
     }
 
@@ -156,11 +172,14 @@ impl beui::native::Program for ModuleProgram {
             }))
         });
         beui::native::with_reactive_scope(document, || {});
+        let mut fitted = Vec::new();
         for view in shown_views.iter().filter(|view| view.fit) {
             if let (Some(shown), Some(window)) =
                 (module.shown(view.id.instance), module.window(view.id))
             {
-                document.fit_window_to(window, shown.fit());
+                let fit = shown.fit();
+                document.fit_window_to(window, fit);
+                fitted.push((view.id.instance, fit));
             }
         }
         for view in &shown_views {
@@ -171,6 +190,17 @@ impl beui::native::Program for ModuleProgram {
             }
         }
         document.show(context, rect);
+        // What a window is to fit can change while the frame runs (a child's status arrives in
+        // `before`, an effect then sets the intrinsic size): the window takes the new fit only
+        // when `fit_window_to` next runs, so ask for the frame that does, or the window, and
+        // the popup it sizes, keeps its old size until something else draws.
+        if fitted.iter().any(|(instance, fit)| {
+            module
+                .shown(*instance)
+                .is_some_and(|shown| shown.fit() != *fit)
+        }) {
+            context.request_repaint();
+        }
         for view in &shown_views {
             let (Some(shown), Some(window)) =
                 (module.shown(view.id.instance), module.window(view.id))

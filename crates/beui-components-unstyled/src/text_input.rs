@@ -19,6 +19,7 @@ use crate::TextAreaColors;
 use crate::TextAreaGeometry;
 use crate::TextAreaLook;
 use crate::TextAreaState;
+use crate::form::Posted;
 use crate::menu_popup::MenuStyle;
 use crate::text_menu::TextContextMenu;
 use beui_macros::{component, view};
@@ -93,14 +94,17 @@ struct Input {
     menu: NodeRef,
     focused: ReadSignal<bool>,
     browser: bool,
+    /// The `<input>` on the HTML core, whose selection the browser owns.
+    element: Stored<RefCell<Option<beui_view::escape::beui_html::Node>>>,
 }
 
 /// A single-line field (or, with `multiline`, a text area) bound to `value`.
 ///
 /// On the HTML core, when not `multiline`, without `prose` and without
 /// `select_on_focus`, it is a real `<input>` through the platform escape, so the
-/// browser gives it IME, autofill and password managers; `name` and
-/// `autocomplete` only matter there. Otherwise it is a `TextArea` in single-line
+/// browser gives it IME, autofill and password managers; `autocomplete` only matters
+/// there. `name` posts the value to a `Form` on HTML either way (a beui-drawn field
+/// through a hidden input). Otherwise it is a `TextArea` in single-line
 /// mode on both cores, so a fix to text editing lands in both.
 #[component]
 pub fn TextInput(
@@ -145,12 +149,14 @@ pub fn TextInput(
     let browser = CORE == Core::Html
         && !multiline
         && untrack(|| prose.get().is_none() && !select_on_focus.get());
+    let element = store(RefCell::new(None));
     api.fill(TextInputApi(Input {
         state,
         area,
         menu: menu_node,
         focused: is_focused.read_only(),
         browser,
+        element,
     }));
 
     create_effect(move || {
@@ -220,6 +226,8 @@ pub fn TextInput(
                 placeholder
                 disabled={disabled}
                 focused
+                keyboard_on_focus
+                element
                 style
                 accessibility
                 on_submit={move |_: String| on_submit.call(value.get_untracked())}
@@ -340,9 +348,13 @@ pub fn TextInput(
             frame={move |field: Child| surround(field, true)}
         />
     };
-    match multiline {
+    let field = match multiline {
         true => surround(area_node, false),
         false => area_node,
+    };
+    let posted = create_memo(move || Some(value.get()));
+    view! {
+        <Posted name value={posted} disabled content={field} />
     }
 }
 
@@ -355,6 +367,8 @@ fn BrowserField(
     placeholder: Prop<String>,
     disabled: Memo<bool>,
     focused: Prop<bool>,
+    keyboard_on_focus: bool,
+    element: Stored<RefCell<Option<beui_view::escape::beui_html::Node>>>,
     style: TextInputStyle,
     accessibility: Prop<Node>,
     on_submit: Callback<String>,
@@ -430,7 +444,10 @@ fn BrowserField(
                 value.set(text);
             }
         };
-        view! {
+        // Without `keyboard_on_focus` the browser's keyboard opens on a press, not when
+        // focus arrives some other way: the policy is manual until a press lands.
+        let pressed = create_signal(false);
+        let input = view! {
             <html::Input
                 r#type={Prop::dynamic(move || Some(kind.get().html_type().to_owned()))}
                 value={Prop::dynamic(move || Some(value.get()))}
@@ -439,6 +456,12 @@ fn BrowserField(
                 placeholder={Prop::dynamic(move || present(placeholder.get()))}
                 disabled={disabled}
                 @attr={("spellcheck", "false".to_owned())}
+                @attr={(
+                    "virtualkeyboardpolicy",
+                    Prop::dynamic(move || (!keyboard_on_focus && !pressed.get()).then(|| "manual".to_owned())),
+                )}
+                on_pointerdown={move |_: Event| pressed.set(true)}
+                on_blur={move |_: Event| pressed.set(false)}
                 @attr={("aria-label", label)}
                 on_input={move |event: Event| take(&event)}
                 on_change={move |event: Event| take(&event)}
@@ -460,7 +483,9 @@ fn BrowserField(
                     }
                 }}
             />
-        }
+        };
+        element.with(|element| *element.borrow_mut() = Some(input.clone()));
+        input
     });
     view! {
         <Interactive
@@ -551,7 +576,16 @@ impl TextInputApi {
         self.0.focused
     }
 
+    /// The caret's byte index: the selection's focus, which comes first in a selection made
+    /// backwards. On the HTML core the browser owns it, and a kind of `<input>` with no
+    /// selection there (`Email`) reports its end.
     pub fn caret(&self) -> usize {
+        if self.0.browser {
+            return match self.browser_selection() {
+                Some(selection) => selection.caret(),
+                None => self.value().len(),
+            };
+        }
         self.0.state.caret_indices().first().copied().unwrap_or(0)
     }
 
@@ -559,13 +593,71 @@ impl TextInputApi {
         self.0.state
     }
 
+    /// The selected byte ranges, none when only a caret shows. On the HTML core these are
+    /// the `<input>`'s own, and none for a kind with no selection there (`Email`).
     pub fn selection(&self) -> Vec<Range<usize>> {
+        if self.0.browser {
+            return self
+                .browser_selection()
+                .map(|selection| selection.range)
+                .filter(|range| range.start < range.end)
+                .into_iter()
+                .collect();
+        }
         self.0
             .state
             .selection_ranges()
             .into_iter()
             .filter(|range| range.start < range.end)
             .collect()
+    }
+
+    /// Selects the byte range `range` of the value (a caret when it is empty), clamped to
+    /// the value and to character boundaries. On the HTML core it does nothing for a kind
+    /// with no selection there (`Email`).
+    pub fn set_selection(&self, range: Range<usize>) {
+        if self.0.browser {
+            self.0.element.with(|element| {
+                let element = element.borrow();
+                let Some(input) = element.as_ref() else {
+                    return;
+                };
+                let Some(value) = input.string("value") else {
+                    return;
+                };
+                let (start, end) = clamp_range(&value, range);
+                let units = |index: usize| value[..index].encode_utf16().count() as f64;
+                if input.number("selectionStart").is_some() {
+                    input.set_number("selectionEnd", units(end));
+                    input.set_number("selectionStart", units(start));
+                }
+            });
+            return;
+        }
+        let (start, end) = clamp_range(&self.value(), range);
+        let (anchor, focus) = self
+            .0
+            .state
+            .with_core(|core| (core.position(start), core.position(end)));
+        self.0
+            .state
+            .execute(EditorCommand::SetSelection { anchor, focus });
+    }
+
+    /// The `<input>`'s selection on the HTML core, as byte indices into the value the
+    /// browser holds (which it may have trimmed), or `None` for a kind without one.
+    fn browser_selection(&self) -> Option<BrowserSelection> {
+        self.0.element.with(|element| {
+            let element = element.borrow();
+            let input = element.as_ref()?;
+            let value = input.string("value")?;
+            let start = utf16_to_byte(&value, input.number("selectionStart")?);
+            let end = utf16_to_byte(&value, input.number("selectionEnd")?);
+            Some(BrowserSelection {
+                range: start..end,
+                backward: input.string("selectionDirection").as_deref() == Some("backward"),
+            })
+        })
     }
 
     pub fn menu_row(&self, tree: &impl Inspect, index: usize) -> Option<NodeId> {
@@ -590,4 +682,44 @@ impl TextInputApi {
         tree.api::<crate::TextAreaApi>(self.0.area.get())
             .handles(tree)
     }
+}
+
+struct BrowserSelection {
+    range: Range<usize>,
+    backward: bool,
+}
+
+impl BrowserSelection {
+    fn caret(&self) -> usize {
+        match self.backward {
+            true => self.range.start,
+            false => self.range.end,
+        }
+    }
+}
+
+/// `range` ordered, clamped to `value` and moved back onto character boundaries.
+fn clamp_range(value: &str, range: Range<usize>) -> (usize, usize) {
+    let boundary = |index: usize| {
+        let mut index = index.min(value.len());
+        while !value.is_char_boundary(index) {
+            index -= 1;
+        }
+        index
+    };
+    (boundary(range.start), boundary(range.end.max(range.start)))
+}
+
+/// The byte index in `value` of a UTF-16 offset, as the DOM counts; an offset inside a
+/// surrogate pair rounds up to the character's end, and one past the end clamps to it.
+fn utf16_to_byte(value: &str, units: f64) -> usize {
+    let mut counted = 0.0;
+    value
+        .char_indices()
+        .find(|(_, char)| {
+            let before = counted;
+            counted += char.len_utf16() as f64;
+            before >= units
+        })
+        .map_or(value.len(), |(index, _)| index)
 }

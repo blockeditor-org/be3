@@ -30,6 +30,7 @@ mod setting_every_pointer_replaces_what_each_device_overrode;
 mod settings_resolve_from_the_organization_the_nearest_block_and_the_viewer;
 mod settings_split_across_two_blocks_read_as_one;
 mod streamed_content_separates_its_header_from_its_payload;
+mod two_search_indexes_merge_by_parts_into_one_finding_both;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]

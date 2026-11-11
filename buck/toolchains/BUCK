@@ -214,6 +214,24 @@ pinned_rust_toolchain(
         "root//buck/constraints:release": _release,
     })
     + select({
+        # rustc embeds LLVM bitcode in every object of an rlib for a later LTO
+        # link, and only be-host's LTO link (buck/constraints:lto) reads it.
+        # It was 86% of an object's bytes, which every worker that links or
+        # compiles against the rlib downloads, so it is off elsewhere, as cargo
+        # turns it off for a profile without LTO.
+        "DEFAULT": ["-Cembed-bitcode=no"],
+        "root//buck/constraints:lto": [],
+    })
+    + select({
+        "DEFAULT": [],
+        # Line tables were about half of a test binary's sections, and every
+        # binary is fetched by the workers that run it. lld compresses them in
+        # the linked file, and backtraces read them as they are. Compressing
+        # them in each object too (-Zdebuginfo-compression) made rust-lld
+        # crash linking the larger binaries.
+        "prelude//os:linux": ["-Clink-arg=-Wl,--compress-debug-sections=zlib"],
+    })
+    + select({
         "DEFAULT": [],
         "prelude//cpu:wasm32": ["-Cstrip=debuginfo"],
         # Packed, macOS's default, runs dsymutil after the link, which is

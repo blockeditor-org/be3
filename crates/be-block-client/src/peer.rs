@@ -43,10 +43,15 @@ const CONTENTS_BLOCKS: usize = 256;
 
 mod import;
 mod journal;
+mod notifications;
 mod offline;
 mod prefixes;
 mod rotation;
 mod transfers;
+
+pub use notifications::{
+    MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT, Notification, OpenedNotification,
+};
 
 pub use import::Imported;
 pub use prefixes::Registry;
@@ -826,6 +831,16 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn connection(&self) -> Arc<Connection> {
         self.connection.lock().unwrap().clone()
+    }
+
+    /// Whether `descendant` has `ancestor` in its history (a commit is its own ancestor).
+    pub async fn descends(
+        &self,
+        descendant: CommitId,
+        ancestor: CommitId,
+    ) -> Result<bool, ClientError> {
+        self.fetch_history(descendant).await?;
+        Ok(self.commits.is_ancestor(ancestor, descendant)?)
     }
 
     pub fn local_head(&self, block: Uuid) -> Option<CommitId> {

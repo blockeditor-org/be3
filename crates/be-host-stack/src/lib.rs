@@ -21,6 +21,7 @@ mod nudge;
 pub mod offline_choice;
 mod replicas;
 pub mod revisions;
+pub mod search;
 pub mod terminal_host;
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -39,6 +40,7 @@ use native as platform;
 use web as platform;
 
 pub use graph::{Graph, Node, Owner, Query, Scope};
+pub use search::{SearchAsk, SearchHit, Searched};
 pub use worker::{History, PairingRequest, Shared};
 
 use worker::Command;
@@ -978,6 +980,23 @@ pub fn want(owner: Owner, queries: Vec<Query>) {
     }
 }
 
+/// Names the full-text searches an owner shows (plans/search.md); `searched` answers each once
+/// it ran, and again after an index it read changed (`search_revision` counts the answers).
+pub fn want_searches(owner: Owner, searches: Vec<SearchAsk>) {
+    let changed = with_shared_mut(|shared| shared.search.want(owner, searches)).unwrap_or_default();
+    if changed {
+        send(Command::Sync);
+    }
+}
+
+pub fn searched(search: &SearchAsk) -> Option<Searched> {
+    with_shared(|shared| shared.search.answer(search)).flatten()
+}
+
+pub fn search_revision() -> u64 {
+    with_shared(|shared| shared.search.revision).unwrap_or_default()
+}
+
 fn sourced(query: Query) -> Query {
     match query {
         Query::Children(id) => Query::Children(revisions::source(id).unwrap_or(id)),
@@ -1179,6 +1198,45 @@ pub fn set_access(block: Uuid, account: Uuid, access: be_block_graph::Access) {
         block,
         account,
         access,
+    });
+}
+
+/// Notifies `block`'s members who are not connected (`Peer::notify`), naming the block and the
+/// signed-in account; dropped when the server cannot be reached.
+pub fn notify(block: Uuid, text: String, mentions: Vec<Uuid>) {
+    send(Command::Notify {
+        block,
+        text,
+        mentions,
+    });
+}
+
+/// Every block whose notification mode the account set to other than `all`, once the server
+/// has said: read when the host connects and again whenever another device changes one.
+pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
+    with_shared(|shared| {
+        shared
+            .notify_modes
+            .as_ref()
+            .map(|modes| modes.iter().map(|(block, mode)| (*block, *mode)).collect())
+    })
+    .flatten()
+}
+
+pub fn notify_modes_revision() -> u64 {
+    with_shared(|shared| shared.notify_modes_revision).unwrap_or_default()
+}
+
+/// Sets how the signed-in account is notified about `block`.
+pub fn set_notify_mode(
+    block: Uuid,
+    mode: be_block_protocol::NotifyMode,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::SetNotifyMode {
+        block,
+        mode,
+        reply: Box::new(move |set| reply(set.map(|_| ()))),
     });
 }
 

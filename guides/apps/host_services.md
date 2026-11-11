@@ -104,6 +104,20 @@ Notes on particular calls:
   restoring" bookmark first (`Replicas::bookmark`); a follower, which cannot
   seal, stashes it and publishes the restore as a merge with it, whose parents
   history never prunes.
+- `notify(block, text, mentions)` tells the block's members who have no
+  connection open, on their other devices (guides/blocks/server.md,
+  "Notifications"). The host takes it only with Edit on the block, cuts `text`
+  to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the block's
+  key with the block, the sender and the time, so the server reads none of it; the device
+  that shows it names the sender (whom the server vouches for) and the block
+  itself. `mentions` names the accounts the text mentions, which a member whose
+  mode is `mentions` is told for. It is answered at once, and dropped when the
+  host is offline; it goes out unordered with the save carrying what it is
+  about. `NotifyModesWatch` follows the account's mode for every block, and
+  `set_notify_mode` changes one; the workspace's block menu offers them
+  (Notifications: All, Mentions only, Off), showing a change until the host
+  answers and going back if it refuses. `BeuiTest::take_notifications`
+  records what an editor sent.
 - The shell-only calls (share dialog, access lists, show and dialog requests,
   `close_editor`, ...) serve the instance that draws the host's window; no
   other editor has any use for them.
@@ -134,7 +148,9 @@ before the editor removes its references as a delete does. A paste of
 `be3/blocks` goes through `host().paste_blocks(blocks, parent)`, which answers
 with the blocks the editor may view; a block cut from its parent moves to
 `parent` (`moved`), and every paste uses up the record, so later ones add
-references. A drag over an editor carries the same clip with a `DropAction`
+references. The files pane keeps a link it cut where it is until that first
+paste, which moves it (`move_block` with `is_reference`); pasting any other
+block on a folder links it there (`place_block`). A drag over an editor carries the same clip with a `DropAction`
 the host picked from the modifiers (`DropAction::of`): a move, Ctrl or Alt for a
 copy (`copy_blocks`), Ctrl+Shift for a reference.
 

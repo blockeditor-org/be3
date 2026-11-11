@@ -1,13 +1,13 @@
-// NativeLink worker, "direct" variant: objects of 16 KB and up are read straight from Bunny with a
-// READ-ONLY key (Bunny S3 read-only password), so a fresh fleet downloads in parallel through each
-// worker's own link instead of through the server's single one. Small objects and every write
-// still go to the server. Misses in Bunny fall back to the server.
+// NativeLink worker, "direct" variant: objects of 16 KB and up are read straight from Bunny with a READ-ONLY key (the
+// nl-worker environment's worker-ro.env), so a fleet downloads through each worker's own link instead of through the
+// scheduler's. Small objects, every write and the action cache go to the server, and a large object Bunny does not
+// have yet is read from the server.
 {
   stores: [
     { name: "SERVER_CAS", grpc: { instance_name: "", endpoints: [{ address: "grpc://10.99.0.1:50052" }], store_type: "cas" } },
     { name: "SERVER_AC",  grpc: { instance_name: "", endpoints: [{ address: "grpc://10.99.0.1:50052" }], store_type: "ac" } },
     {
-      name: "BUNNY_RO",
+      name: "BUNNY",
       experimental_cloud_object_store: {
         provider: "aws",
         region: "de",
@@ -25,10 +25,13 @@
       },
     },
     {
-      // Bunny first; the read-only direction means nothing is ever written to it from here.
+      // Reads try Bunny first and fall back to the server; writes go to the server alone ("read_only" on Bunny), which
+      // holds an object on its own disk the moment it is written and passes it on to Bunny. Writing to Bunny directly
+      // left a worker that read a just-written 5 MB object a second later with NoSuchKey from both, which failed the
+      // build.
       name: "LARGE_CAS",
       fast_slow: {
-        fast: { ref_store: { name: "BUNNY_RO" } },
+        fast: { ref_store: { name: "BUNNY" } },
         fast_direction: "read_only",
         slow: { ref_store: { name: "SERVER_CAS" } },
       },
@@ -49,7 +52,9 @@
           filesystem: {
             content_path: "/work/cas/content",
             temp_path: "/work/cas/tmp",
-            eviction_policy: { max_bytes: 15000000000 },
+            // A large worker has about 145 GB of disk. One verify after a be-lib-geometry change writes about 11 GB, so at
+            // 15 GB the store evicted the toolchains and libraries the next actions needed and fetched them again.
+            eviction_policy: { max_bytes: 60000000000 },
           },
         },
         fast_direction: "get",

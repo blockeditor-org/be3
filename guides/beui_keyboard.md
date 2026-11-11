@@ -197,12 +197,23 @@ focus of its own (`be_host_runtime::forward_view` for an app,
 focus, interception and the lock apply to both by one set of rules.
 `beui_core::interact::forward::Replay` turns a `ForwardedInput` back into the
 raw `Input` a platform would push (positions relative to the catcher over its
-zoom, `PointersCancelled` for a press that ended unreleased); the app host
+zoom, `PointersCancelled` for a press that ended unreleased, `PointerRested` for a
+pointer the host reports as not having moved, which hovers what is under it but
+points at nothing until it moves); the app host
 fills its `InputBatch` with it, so an app's runner sees what a window's does.
 An app has a `Replay` per view but its runner keeps one set of modifiers, so
 the app's replays share one `Heard`: modifiers go out with a press or key only
 when they differ from what the app last heard through any view, and always
 after a view lost the keyboard, since the runner lets go of them then.
+An app's document starts without the keyboard (`use_keyboard()` false) and
+has it while any of its views does; a focused view that closes takes it away.
+`Editor::has_keyboard` says whether one of that editor's own views has it
+(be-sdk-beui-platform's runner tells `Views::keyboard`), so of two chats shown
+at once only the one typed in counts as focused. A restarted app's runner
+starts over without the keyboard, and the host replays `Focus(true)` to the
+screen that had it once the app announces it again (`Instances::reopen`).
+`BeuiTest` gives the editor's view the keyboard as it opens, and `blur` and
+`focus` move it.
 
 An event goes through, in order:
 

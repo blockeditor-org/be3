@@ -33,6 +33,9 @@ use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
 const FRAME: Duration = Duration::from_micros(16_667);
+
+/// The frames a long pause is divided into, before the last few of a frame interval each.
+const PAUSE_FRAMES: u32 = 64;
 const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 
 pub const USAGE: &str = "Session:
@@ -332,6 +335,14 @@ struct Settled {
     drawing: bool,
 }
 
+/// How far a pause with `remaining` left moves a stopped clock for the next frame: a frame
+/// interval, or more while a long pause has many left, so a pause takes a bounded number of
+/// frames. Each is run once the apps have answered the one before, so a minute of frames
+/// would otherwise take as many round trips as it has frame intervals.
+fn pause_step(remaining: Duration) -> Duration {
+    remaining.min(FRAME.max(remaining / PAUSE_FRAMES))
+}
+
 fn frame_busy(run: &Frame, clock_stopped: bool) -> Vec<String> {
     let mut reasons = Vec::new();
     if run.deferred {
@@ -459,6 +470,11 @@ struct Session {
     gestures: Vec<Gestures>,
     grabbed: Vec<DroppedFile>,
     clock_stopped: bool,
+    /// Whether the program had nothing to wait for as of the last frame. A pause moves a
+    /// stopped clock on only then, so each frame it runs has been answered by the apps (which
+    /// work on threads of their own) before the next, and what a pause runs does not depend on
+    /// how fast they are.
+    quiet: bool,
     unhurried: bool,
     focused: bool,
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
@@ -482,6 +498,7 @@ impl Session {
             flush: None,
             grabbed: Vec::new(),
             clock_stopped: false,
+            quiet: true,
             unhurried: false,
             focused: true,
             picks: Vec::new(),
@@ -549,8 +566,9 @@ impl Session {
             ..
         }) = &self.active
             && self.clock_stopped
+            && self.quiet
         {
-            let step = until.saturating_duration_since(context.now()).min(FRAME);
+            let step = pause_step(until.saturating_duration_since(context.now()));
             context.advance_clock(step);
             return now + step;
         }
@@ -711,7 +729,8 @@ impl Session {
         };
         match &active.phase {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
-            Phase::Pausing { .. } if stopped => Some(Duration::ZERO),
+            Phase::Pausing { .. } if stopped && self.quiet => Some(Duration::ZERO),
+            Phase::Pausing { .. } if stopped => None,
             Phase::Pausing { until } => Some(until.saturating_duration_since(now)),
             Phase::Reading { .. } => Some(FRAME),
             _ => None,
@@ -744,8 +763,17 @@ impl Session {
         }
         let mut busy = frame_busy(run, self.clock_stopped);
         busy.extend(frame.program.busy());
-        self.inbox
-            .note_busy(&busy, frame_held(run, self.clock_stopped));
+        self.inbox.note_busy(
+            &busy,
+            // A pause is what lets the stopped clock move: it is not the held frame that
+            // keeps it from replying.
+            frame_held(run, self.clock_stopped).filter(|_| {
+                !matches!(
+                    self.active.as_ref().map(|a| &a.phase),
+                    Some(Phase::Pausing { .. })
+                )
+            }),
+        );
         let owed = !busy.is_empty();
         let settled = Settled {
             busy,
@@ -794,6 +822,7 @@ impl Session {
         above: &Above<'_>,
     ) {
         let quiet = settled.busy.is_empty();
+        self.quiet = quiet;
         if quiet
             && let Some(Active {
                 request,
@@ -952,7 +981,11 @@ impl Session {
                 } if drive::waited(view.rendered().lines(), text, *over).is_some() == *present => {
                     Some(Reply::Text(String::new()))
                 }
-                Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
+                Phase::Pausing { until }
+                    if view.now >= *until && (quiet || !self.clock_stopped) =>
+                {
+                    Some(Reply::Text(String::new()))
+                }
                 Phase::Components => output
                     .comps
                     .as_deref()
@@ -2051,3 +2084,6 @@ fn shown_at(
     }
     Ok(shown.unwrap_or(rect))
 }
+
+#[cfg(test)]
+mod tests;

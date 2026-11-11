@@ -11,6 +11,12 @@
 //!   false). The keys held go back to the editor's view if it still has the keyboard, and are
 //!   dropped otherwise, as typing into a view without the keyboard would be.
 //!
+//! A press is treated the same way until the editor's app has drawn a frame after it: the
+//! press may be what asks for the gift (a button that makes a block to type into), and the ask
+//! arrives with that frame, so keys typed right after it wait for the answer instead of reaching
+//! the editor first. They go to the editor as soon as the frame shows it asked for nothing. Only
+//! a press the app was sent counts (`sent_press`): the app draws no frame for another.
+//!
 //! Keys are held from the editor's view that heard the first of them; keys typed into another
 //! view of the same editor meanwhile pass, which only a joined dock's several tabs could do.
 
@@ -18,11 +24,16 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use be_sdk_api::EditorInstanceId;
-use beui::{Event, Forwarded, ForwardedInput, Modifiers, NodeId, PointerPhase};
+use be_sdk_api::ViewId;
+use beui::{Event, Forwarded, ForwardedInput, Modifiers, PointerPhase};
+
+/// A view of an app's editor instance. Keys are kept by view, not by the node that catches its
+/// input, which the host builds again when the view moves (a child placed in a new pane).
+pub(super) type View = (String, EditorInstanceId, ViewId);
 
 /// Keys an editor's view heard while its gift was pending.
 struct Held {
-    owner: NodeId,
+    owner: View,
     events: Vec<Forwarded>,
     modifiers: Modifiers,
 }
@@ -38,9 +49,34 @@ struct Due {
 
 thread_local! {
     static HELD: RefCell<HashMap<(String, EditorInstanceId), Held>> = RefCell::new(HashMap::new());
-    static DUE: RefCell<HashMap<NodeId, Due>> = RefCell::new(HashMap::new());
-    static RETURNED: RefCell<HashMap<NodeId, (Vec<Forwarded>, Modifiers)>> =
+    static DUE: RefCell<HashMap<View, Due>> = RefCell::new(HashMap::new());
+    static RETURNED: RefCell<HashMap<View, (Vec<Forwarded>, Modifiers)>> =
         RefCell::new(HashMap::new());
+    /// Views that forwarded a press their app has yet to answer: the frame request whose
+    /// answer took it.
+    static PRESSED: RefCell<HashMap<View, u64>> = RefCell::new(HashMap::new());
+}
+
+/// Whether the view `own` forwarded a press its app has not drawn a frame after yet. The
+/// press may ask to give the keyboard to a child (a button that makes a block to type into), and
+/// the ask arrives with that frame, so keys typed meanwhile wait for it as for a gift: they go
+/// to the child if the frame asked, and to the view if it did not.
+fn answering(own: &View, app: App) -> bool {
+    PRESSED.with_borrow_mut(|pressed| match pressed.get(own) {
+        Some(after) if app.frames.1 >= *after => {
+            pressed.remove(own);
+            false
+        }
+        Some(_) => true,
+        None => false,
+    })
+}
+
+/// The view `own` forwarded a press to its app while `asked` frames had been asked of it: the
+/// next frame it draws answers the press. Called only for a press the app was sent, as the app
+/// draws no frame for one that never reached it and the keys would wait for nothing.
+pub(super) fn sent_press(own: &View, asked: u64) {
+    PRESSED.with_borrow_mut(|pressed| pressed.insert(own.clone(), asked + 1));
 }
 
 fn typed(event: &Forwarded) -> bool {
@@ -48,6 +84,10 @@ fn typed(event: &Forwarded) -> bool {
         event,
         Forwarded::Input(Event::Key { .. } | Event::Text(_) | Event::Ime(_) | Event::Paste(_))
     )
+}
+
+pub(super) fn is_press(event: &Forwarded) -> bool {
+    pressed(event)
 }
 
 fn pressed(event: &Forwarded) -> bool {
@@ -68,10 +108,15 @@ pub(super) struct App {
 impl Due {
     /// A child's view can take the keys owed to it once a text field in it has the keyboard,
     /// or, for a child with none, once its app has drawn two frames after it had its content
-    /// and the focus: the first can still be the one that shows the content arrive.
+    /// and the focus: the first can still be the one that shows the content arrive. Content
+    /// that goes away again restarts the count.
     fn ready(&mut self, app: App) -> bool {
         let (asked, answered) = app.frames;
-        if self.after.is_none() && self.focused && app.content {
+        if !app.content {
+            // The content went away again (the editor takes a new one): its frames count from
+            // when it is back, as the editor has none of it to take keys until then.
+            self.after = None;
+        } else if self.after.is_none() && self.focused {
             self.after = Some(asked + 2);
         }
         (self.focused && app.typing) || self.after.is_some_and(|after| answered >= after)
@@ -87,26 +132,18 @@ pub(super) struct Routed {
 
 /// Holds the typed events of input forwarded to an editor's view while the editor gives the
 /// keyboard to a child (`pending`), and hands the view the keys owed to it once it can take them.
-pub(super) fn route(
-    editor: (&str, EditorInstanceId),
-    own: Option<NodeId>,
-    pending: bool,
-    app: App,
-    input: &mut ForwardedInput,
-) -> Routed {
-    let Some(own) = own else {
-        return Routed::default();
-    };
-    let key = (editor.0.to_owned(), editor.1);
+pub(super) fn route(own: &View, pending: bool, app: App, input: &mut ForwardedInput) -> Routed {
+    let key = (own.0.clone(), own.1);
     let mut routed = Routed::default();
-    let moved_on =
-        input.events.iter().any(pressed) || input.events.contains(&Forwarded::Focus(false));
+    let presses = input.events.iter().any(pressed);
+    let moved_on = presses || input.events.contains(&Forwarded::Focus(false));
+    let holds = pending || answering(own, app);
     let released = HELD.with_borrow_mut(|held| {
-        let holding = held.get(&key).is_some_and(|held| held.owner == own);
+        let holding = held.get(&key).is_some_and(|held| held.owner == *own);
         if pending && moved_on && (holding || input.focused) {
             routed.refuse = true;
         }
-        if !pending || routed.refuse {
+        if !holds || moved_on {
             if !holding {
                 return Vec::new();
             }
@@ -121,11 +158,11 @@ pub(super) fn route(
             return Vec::new();
         }
         let entry = held.entry(key).or_insert_with(|| Held {
-            owner: own,
+            owner: own.clone(),
             events: Vec::new(),
             modifiers: input.modifiers,
         });
-        if entry.owner == own {
+        if entry.owner == *own {
             let (typed, kept): (Vec<_>, Vec<_>) = input.events.drain(..).partition(typed);
             entry.events.extend(typed);
             entry.modifiers = input.modifiers;
@@ -135,18 +172,18 @@ pub(super) fn route(
     });
     deliver(input, released);
     if input.focused {
-        let returned = RETURNED.with_borrow_mut(|returned| returned.remove(&own));
+        let returned = RETURNED.with_borrow_mut(|returned| returned.remove(own));
         deliver(
             input,
             returned.map(|(events, _)| events).unwrap_or_default(),
         );
     }
     let owed = DUE.with_borrow_mut(|due| {
-        let owed = due.get_mut(&own)?;
+        let owed = due.get_mut(own)?;
         owed.focused |= input.focused;
         let leaving = input.events.contains(&Forwarded::Focus(false));
         if leaving || (input.focused && owed.ready(app)) {
-            return due.remove(&own).map(|owed| owed.events);
+            return due.remove(own).map(|owed| owed.events);
         }
         let (typed, kept): (Vec<_>, Vec<_>) = input.events.drain(..).partition(typed);
         owed.events.extend(typed);
@@ -170,11 +207,11 @@ fn deliver(input: &mut ForwardedInput, events: Vec<Forwarded>) {
     input.events = focus.into_iter().chain(events).chain(rest).collect();
 }
 
-/// The editor's gift reached the child's view at `child`, which has the keyboard already
+/// The editor's gift reached the child's `child` view, which has the keyboard already
 /// (`focused`) or is just being given it: the keys held for it are owed to it, and a child just
 /// being given it hears its own keys only once it is ready for them. A child that already had
 /// the keyboard, with nothing held for it, is left as it is.
-pub(super) fn given(editor: (&str, EditorInstanceId), child: NodeId, focused: bool) {
+pub(super) fn given(editor: (&str, EditorInstanceId), child: View, focused: bool) {
     let key = (editor.0.to_owned(), editor.1);
     let held = HELD.with_borrow_mut(|held| held.remove(&key));
     let (events, modifiers) = held.map_or((Vec::new(), Modifiers::NONE), |held| {
@@ -198,47 +235,42 @@ pub(super) fn given(editor: (&str, EditorInstanceId), child: NodeId, focused: bo
 
 /// The editor's gift fell through: the keys held go back to its view if `has_keyboard` says it
 /// still has the keyboard, and are dropped otherwise.
-pub(super) fn refused(editor: (&str, EditorInstanceId), has_keyboard: impl FnOnce(NodeId) -> bool) {
+pub(super) fn refused(editor: (&str, EditorInstanceId), has_keyboard: impl FnOnce(&View) -> bool) {
     let key = (editor.0.to_owned(), editor.1);
     let Some(held) = HELD.with_borrow_mut(|held| held.remove(&key)) else {
         return;
     };
-    if !held.events.is_empty() && has_keyboard(held.owner) {
+    if !held.events.is_empty() && has_keyboard(&held.owner) {
         RETURNED
             .with_borrow_mut(|returned| returned.insert(held.owner, (held.events, held.modifiers)));
     }
 }
 
-/// Settles what the view at `node` of `editor` holds and is owed, after its app moved on: keys
+/// Settles what `view` holds and is owed, after its app moved on: keys
 /// it held for a gift that is no longer `pending` come back to it (if `focused`), and keys owed
 /// to it as a child become due once it is ready. Answers the modifiers to forward it an empty
 /// input with, to carry what it can take now.
-pub(super) fn owed_now(
-    editor: (&str, EditorInstanceId),
-    node: NodeId,
-    pending: bool,
-    app: App,
-    focused: bool,
-) -> Option<Modifiers> {
-    if !pending {
-        refused(editor, |owner| owner == node && focused);
+pub(super) fn owed_now(view: &View, pending: bool, app: App, focused: bool) -> Option<Modifiers> {
+    if !pending && !answering(view, app) {
+        refused((&view.0, view.1), |owner| owner == view && focused);
     }
     if !focused {
-        RETURNED.with_borrow_mut(|returned| returned.remove(&node));
+        RETURNED.with_borrow_mut(|returned| returned.remove(view));
         return None;
     }
-    if let Some(modifiers) = RETURNED.with_borrow(|returned| returned.get(&node).map(|r| r.1)) {
+    if let Some(modifiers) = RETURNED.with_borrow(|returned| returned.get(view).map(|r| r.1)) {
         return Some(modifiers);
     }
     DUE.with_borrow_mut(|due| {
-        let owed = due.get_mut(&node)?;
+        let owed = due.get_mut(view)?;
         owed.ready(app).then_some(owed.modifiers)
     })
 }
 
-/// The view at `node` is gone: what it held and was owed goes with it.
-pub(super) fn forget(node: NodeId) {
-    DUE.with_borrow_mut(|due| due.remove(&node));
-    RETURNED.with_borrow_mut(|returned| returned.remove(&node));
-    HELD.with_borrow_mut(|held| held.retain(|_, held| held.owner != node));
+/// The view is gone: what it held and was owed goes with it.
+pub(super) fn forget(view: &View) {
+    PRESSED.with_borrow_mut(|pressed| pressed.remove(view));
+    DUE.with_borrow_mut(|due| due.remove(view));
+    RETURNED.with_borrow_mut(|returned| returned.remove(view));
+    HELD.with_borrow_mut(|held| held.retain(|_, held| held.owner != *view));
 }

@@ -50,6 +50,22 @@ def _platforms(crate, fixup, script = False):
         platforms[platform] = entry
     return platforms
 
+# Third-party crates at opt-level 1 on the host outside release builds, as
+# cargo's `[profile.dev.package."*"]` would give them: at 0 each of their small
+# generic functions stays a function of its own with a symbol, and a test binary
+# was hundreds of MB that every worker running it fetched. They are rarely
+# compiled again, so the slower compile is paid once. Debug assertions and
+# overflow checks stay on, as rustc turns them off above opt-level 0 and cargo's
+# dev profile keeps them. First-party crates stay at 0: at 1 every compile on a
+# verify's critical path took about twice as long.
+THIRD_PARTY_OPT = select({
+    "DEFAULT": select({
+        "DEFAULT": ["-Copt-level=1", "-Cdebug-assertions=on", "-Coverflow-checks=on"],
+        "prelude//cpu:wasm32": [],
+    }),
+    "root//buck/constraints:release": [],
+})
+
 # A fixup's rustc_flags for one plan's platforms only.
 def _plan_flags(fixup):
     flags = fixup.get("plan_rustc_flags", {})
@@ -98,7 +114,7 @@ def _crate(key, crate, fixup):
         mapped_srcs = overlay,
         platform = _platforms(crate, fixup),
         proc_macro = library["proc_macro"],
-        rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + rustc_flags + _plan_flags(fixup),
+        rustc_flags = dev_only(crate.get("profile_flags", [])) + RELEASE_SYMBOL_FLAGS + THIRD_PARTY_OPT + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
         **(proc_macro_visibility(library["proc_macro"], {}) | RUST_LOCAL),
     )

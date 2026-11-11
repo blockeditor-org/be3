@@ -1,13 +1,15 @@
 #!/bin/bash
 # Makes a scheduler VM in the nl-scheduler environment and sets it up. Usage:
-#   new-scheduler.sh NAME [TYPE]      (TYPE defaults to small)
+#   new-scheduler.sh NAME [TYPE]      (TYPE defaults to large: a smaller one ran out of CPU and memory relaying a fleet's calls)
 # Run it where `boat` is logged in with a key that may create sandboxes in the nl-scheduler environment and reach them.
 # The environments, their secret files and the keys have to exist first: guides/build_server.md, "Starting over".
+# --no-auto-stop: the controller stops the scheduler when it has been idle (SCHEDULER_IDLE_STOP); a boat lifetime
+# would stop it in the middle of builds, since nothing extends the scheduler's own.
 set -euo pipefail
-name=${1:?usage: new-scheduler.sh NAME [TYPE]}; type=${2:-small}
+name=${1:?usage: new-scheduler.sh NAME [TYPE]}; type=${2:-large}
 here=$(dirname "$(readlink -f "$0")")
 export BOAT_NO_UPDATE=1
-id=$(boat new --name "$name" --environment nl-scheduler --type "$type" --ttl 28800 2>&1 \
+id=$(boat new --name "$name" --environment nl-scheduler --type "$type" --no-auto-stop 2>&1 \
      | python3 -c 'import sys,json
 for l in sys.stdin:
     try: d=json.loads(l)

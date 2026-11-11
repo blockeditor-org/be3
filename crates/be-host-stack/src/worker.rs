@@ -73,6 +73,7 @@ pub(super) struct Inbox {
 }
 
 type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
+type NotifyModeReply = Box<dyn FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send>;
 
 type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
 
@@ -199,6 +200,16 @@ pub(super) enum Command {
         block: Uuid,
         reply: AccessReply,
     },
+    Notify {
+        block: Uuid,
+        text: String,
+        mentions: Vec<Uuid>,
+    },
+    SetNotifyMode {
+        block: Uuid,
+        mode: be_block_protocol::NotifyMode,
+        reply: NotifyModeReply,
+    },
     ReadHead {
         block: Uuid,
         commit: CommitId,
@@ -315,6 +326,8 @@ impl Command {
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
+            | Command::Notify { block, .. }
+            | Command::SetNotifyMode { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
             | Command::PlainFile { block, .. }
@@ -442,6 +455,8 @@ pub struct Shared {
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
     pub draining: bool,
+    /// Counts finished drains of the outbox.
+    pub drains: u64,
     pub leaving: bool,
     pub error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
@@ -454,6 +469,10 @@ pub struct Shared {
     pub storage_revision: u64,
     pub storage_watched: bool,
     pub escrow_warning: Option<&'static str>,
+    /// The account's notification mode for each block it set to other than `all`, once read
+    /// (`Tasks::notify_modes`), and how often it changed, for the watch the host publishes.
+    pub notify_modes: Option<HashMap<Uuid, be_block_protocol::NotifyMode>>,
+    pub notify_modes_revision: u64,
     pub locked: std::collections::HashSet<Uuid>,
     pub version_watch: std::collections::HashSet<Uuid>,
     pub versions: HashMap<Uuid, super::version::VersionState>,
@@ -472,6 +491,7 @@ pub struct Shared {
     pub unsent: Vec<be_block_client::UnsentBlock>,
     pub comparison: Option<super::conflicts::Comparison>,
     pub wall: Wall,
+    pub search: super::search::Searching,
 }
 
 #[derive(Clone, Default)]
@@ -517,6 +537,10 @@ impl Shared {
             (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
+            ),
+            (
+                self.search.busy(super::search::wants_index(self)),
+                "the block store indexes edits or answers a search",
             ),
         ]
         .into_iter()
@@ -1004,6 +1028,7 @@ impl Session<'_> {
             self.refresh_versions().await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
+            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
@@ -1140,6 +1165,7 @@ impl Session<'_> {
         relist(shared);
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
+        self.tasks.0.notify_modes(peer, shared);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
         self.settle_outbox().await;
@@ -1207,10 +1233,13 @@ async fn drain_outbox(
 }
 
 fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
-    shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .draining = draining;
+    {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.draining = draining;
+        if !draining {
+            held.drains += 1;
+        }
+    }
     be_host_base::host::wake();
 }
 
@@ -1451,6 +1480,9 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
                 Some(NEEDS_CONNECTION.to_owned());
         }
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        // A notification is about now: one that cannot go now is dropped.
+        Command::Notify { .. } => {}
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
@@ -1527,6 +1559,37 @@ impl Ran<'_> {
                 }
                 reply(created.map_err(|error| error.to_string()));
                 be_host_base::host::wake();
+                false
+            }
+            Command::Notify {
+                block,
+                text,
+                mentions,
+            } => {
+                let peer = Arc::clone(self.peer);
+                platform::spawn_local(async move {
+                    let _ = peer.notify(block, &text, mentions).await;
+                });
+                false
+            }
+            // Not a task of the worker's: its end changes nothing the worker keeps.
+            Command::SetNotifyMode { block, mode, reply } => {
+                let (peer, shared) = (Arc::clone(self.peer), Arc::clone(self.shared));
+                platform::spawn_local(async move {
+                    let set = peer.set_notify_mode(block, mode).await;
+                    if set.is_ok() {
+                        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                        if let Some(modes) = &mut held.notify_modes {
+                            match mode {
+                                be_block_protocol::NotifyMode::All => modes.remove(&block),
+                                mode => modes.insert(block, mode),
+                            };
+                            held.notify_modes_revision += 1;
+                        }
+                    }
+                    reply(set.map(|()| mode).map_err(|error| error.to_string()));
+                    be_host_base::host::wake();
+                });
                 false
             }
             Command::BlockAgent { agent, change } => {
@@ -1979,6 +2042,8 @@ async fn apply(
         | Command::CreateAgent { .. }
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
+        | Command::Notify { .. }
+        | Command::SetNotifyMode { .. }
         | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {
@@ -2633,6 +2698,7 @@ async fn heard(
             asked_to_pair(shared, from, &payload);
         }
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
+        Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
         Some(Event::KeyWorkChanged) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             tasks.spawn(async move { tend(&peer, &shared).await });
@@ -2801,7 +2867,7 @@ impl Tasks {
         )
     }
 
-    fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    pub(super) fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         if !peer.is_attached() {
             return;
         }
@@ -2855,6 +2921,20 @@ impl Tasks {
     fn refresh(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         self.spawn(async move { refresh(&peer, &shared, block).await });
+    }
+
+    /// Reads every notification mode the account set into `Shared::notify_modes`.
+    fn notify_modes(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        self.spawn(async move {
+            if let Ok(read) = peer.notify_modes().await {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.notify_modes = Some(read.iter().map(|row| (row.block, row.mode)).collect());
+                held.notify_modes_revision += 1;
+                drop(held);
+                be_host_base::host::wake();
+            }
+        });
     }
 
     fn contacts(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
@@ -3050,7 +3130,7 @@ async fn settled(
     }
 }
 
-async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+pub(super) async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     match peer.summary(block).await {
         Ok(summary) => {
             if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {

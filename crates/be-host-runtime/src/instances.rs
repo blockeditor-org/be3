@@ -120,10 +120,13 @@ struct Instance {
     child_dismissals: Vec<ChildId>,
     child_closes: Vec<ChildId>,
     child_focus: Vec<ChildId>,
-    /// Blocks the editor asked to give the keyboard to once a child shows them, each with
-    /// whether a layout commit has gone by since: a gift whose block no child shows by the
-    /// commit after that ends.
-    block_focus: Vec<(Uuid, bool)>,
+    /// Blocks the editor asked to give the keyboard to once a child shows them. A gift ends
+    /// when a child shows its block or when it is refused, never after a number of commits: how
+    /// long the editor takes to place the child (its content must change first) is not bounded.
+    block_focus: Vec<Uuid>,
+    /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
+    /// after the failed call) ends at once.
+    block_refused: Vec<Uuid>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
@@ -180,6 +183,9 @@ struct Instance {
     watches: HashMap<be_sdk_api::ops::OpId, blocks::Watch>,
     shows: Vec<be_sdk_api::blocks::ShowRequest>,
     blocks_seen: Option<u64>,
+    /// What each search watch asks (`Subject::Search`).
+    searches: std::collections::BTreeMap<be_sdk_api::ops::OpId, be_host_stack::SearchAsk>,
+    searches_seen: Option<u64>,
     version_sent: Option<u64>,
     stale: bool,
 }
@@ -288,6 +294,7 @@ impl Instance {
             child_closes: Vec::new(),
             child_focus: Vec::new(),
             block_focus: Vec::new(),
+            block_refused: Vec::new(),
             created: None,
             screens: HashMap::default(),
             anchored: Vec::new(),
@@ -338,6 +345,8 @@ impl Instance {
             watches: HashMap::default(),
             shows: Vec::new(),
             blocks_seen: None,
+            searches: std::collections::BTreeMap::new(),
+            searches_seen: None,
             version_sent: None,
             stale: true,
             content: match role {
@@ -387,6 +396,50 @@ impl Instance {
             }
             self.offer(Subject::Blocks(query), &answer);
         }
+    }
+
+    fn offer_searches(&mut self, scope: Option<be_host_stack::Scope>) {
+        let revision = be_host_stack::search_revision();
+        if self.searches_seen == Some(revision) {
+            return;
+        }
+        self.searches_seen = Some(revision);
+        let asked: Vec<_> = self
+            .searches
+            .iter()
+            .map(|(op, asked)| (*op, asked.clone()))
+            .collect();
+        for (op, asked) in asked {
+            let Some(found) = be_host_stack::searched(&asked) else {
+                continue;
+            };
+            let mut results = be_sdk_api::SearchResults {
+                hits: found
+                    .hits
+                    .into_iter()
+                    .map(|hit| be_sdk_api::SearchHit {
+                        block_id: hit.block.into_bytes(),
+                        key: hit.key,
+                        snippet: hit.snippet,
+                        matches: hit
+                            .matches
+                            .into_iter()
+                            .map(|range| (range.start as u32, range.end as u32))
+                            .collect(),
+                    })
+                    .collect(),
+                complete: found.complete,
+            };
+            Instances::translated(scope, false, |visit| results.visit_block_ids(visit));
+            self.offer(Subject::Search(op), &results);
+        }
+    }
+
+    fn search_asks(&self) -> Vec<be_host_stack::SearchAsk> {
+        let mut asks: Vec<_> = self.searches.values().cloned().collect();
+        asks.sort();
+        asks.dedup();
+        asks
     }
 
     fn wants(&self) -> Vec<be_host_stack::Query> {
@@ -882,6 +935,7 @@ impl Instances {
         };
         self.owners.retain(|_, owner| *owner != instance);
         be_host_stack::want(be_host_stack::Owner::Editor(instance.0), Vec::new());
+        be_host_stack::want_searches(be_host_stack::Owner::Editor(instance.0), Vec::new());
         let mut entry = entry;
         let shown: Vec<(Uuid, Uuid)> = entry.shown.iter().copied().collect();
         let shown_on = |block: Uuid| -> Vec<Uuid> {
@@ -1961,6 +2015,15 @@ impl Instances {
             }
             for screen in entry.screens.values_mut() {
                 screen.stopped = None;
+                // The new runner hears everything afresh, its views without the keyboard: a
+                // screen that had it hears so again once the app announces it.
+                if screen.input.focused() {
+                    let mut batch = be_sdk_api::InputBatch::new(screen.request.screen, false);
+                    batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
+                    self.unannounced_input
+                        .push(Outbound::App(AppCall::Input(batch)));
+                }
+                screen.input = InputForwarder::new(self.heard.clone());
             }
             entry.stale = true;
         }
@@ -2001,6 +2064,10 @@ impl Instances {
                 continue;
             };
             be_host_stack::want(be_host_stack::Owner::Editor(instance.0), entry.wants());
+            be_host_stack::want_searches(
+                be_host_stack::Owner::Editor(instance.0),
+                entry.search_asks(),
+            );
             let docked = super::docks::docked(instance);
             let mut regions: Vec<_> = entry
                 .screens
@@ -2140,6 +2207,7 @@ impl Instances {
                 }
             }
             entry.offer_blocks(scope);
+            entry.offer_searches(scope);
             if stale {
                 entry.offer_version();
             }
@@ -2930,11 +2998,16 @@ impl Instances {
     }
 
     /// After a layout commit: a block gift whose block a child now shows becomes a gift to that
-    /// child; one whose block no child showed by the commit after the one it was asked in ends,
-    /// as when the block was never made or the editor stopped showing it.
+    /// child. One whose block no child shows yet stays, as the editor may still be placing it,
+    /// unless the editor has no view left.
     pub(super) fn settle_block_focus(&mut self) {
         for entry in self.entries.values_mut() {
             if entry.block_focus.is_empty() {
+                continue;
+            }
+            if entry.screens.is_empty() && entry.anchored.is_empty() {
+                // No view of the editor is left to give the keyboard from.
+                entry.block_focus.clear();
                 continue;
             }
             let anchored = entry.anchored.iter().map(|held| &held.screen);
@@ -2947,14 +3020,12 @@ impl Instances {
                 .filter_map(|placed| Some((placed.child, shown_block(&placed.content)?)))
                 .collect();
             let mut given = Vec::new();
-            entry.block_focus.retain_mut(|(block, seen)| {
-                if let Some((child, _)) = shown.iter().find(|(_, shows)| shows == block) {
-                    given.push(*child);
-                    return false;
-                }
-                let first = !*seen;
-                *seen = true;
-                first
+            entry.block_focus.retain(|block| {
+                let Some((child, _)) = shown.iter().find(|(_, shows)| shows == block) else {
+                    return true;
+                };
+                given.push(*child);
+                false
             });
             for child in given {
                 if !entry.child_focus.contains(&child) {
@@ -3826,8 +3897,16 @@ impl Instances {
             ShellCall::FocusBlockChild { reply, block, .. } => {
                 ack(reply);
                 let block = Uuid::from_bytes(block);
-                if !entry.block_focus.iter().any(|(asked, _)| *asked == block) {
-                    entry.block_focus.push((block, false));
+                if let Some(at) = entry
+                    .block_refused
+                    .iter()
+                    .position(|refused| *refused == block)
+                {
+                    entry.block_refused.remove(at);
+                } else {
+                    // Only the latest ask stands: the person can type into one place.
+                    entry.block_focus.clear();
+                    entry.block_focus.push(block);
                 }
             }
             ShellCall::ShowCard { reply, card, .. } => {

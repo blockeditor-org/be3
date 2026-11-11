@@ -20,6 +20,7 @@ pub mod plain;
 pub mod presence;
 pub mod profile;
 pub mod resolution;
+pub mod search_index;
 pub mod setting;
 pub mod settings;
 pub mod settling;
@@ -39,7 +40,8 @@ pub use input_settings::{InputSettings, InputSettingsContent};
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
     EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
-    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
+    MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SEARCH_INDEX, SETTINGS, THUMBHASH, Thumbhash,
+    VIEW_EDITOR,
 };
 pub use model::Root;
 pub use organization::{
@@ -247,11 +249,6 @@ pub trait LiveEdit: BlockContent {
     fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
         let _ = change;
         None
-    }
-
-    fn rebase(operation: Self::Op, onto: &[Self::Op]) -> Option<Self::Op> {
-        let _ = onto;
-        Some(operation)
     }
 
     fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {

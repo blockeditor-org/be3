@@ -34,6 +34,7 @@ pub fn TextInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = InputKind::Text)] kind: Prop<InputKind>,
     #[prop(default = String::new())] name: Prop<String>,
     #[prop(default = String::new())] autocomplete: Prop<String>,
@@ -66,6 +67,7 @@ pub fn TextInput(
             placeholder
             disabled
             focused
+            keyboard_on_focus
             kind
             name
             autocomplete

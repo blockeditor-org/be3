@@ -83,3 +83,28 @@ impl<K: Clone + Eq + Hash + 'static, F: ?Sized + 'static> Callbacks<K, F> {
         self.of(&keys)
     }
 }
+
+/// Flags raised by every change the host pushes, each held by one frame loop that
+/// takes it down when it reads the host. Raising one costs no allocation, since
+/// the host changes often.
+#[derive(Default)]
+pub(crate) struct ChangeFlags(RefCell<Vec<std::rc::Weak<std::cell::Cell<bool>>>>);
+
+impl ChangeFlags {
+    /// A new flag, raised, so its first frame reads everything.
+    pub(crate) fn flag(&self) -> Rc<std::cell::Cell<bool>> {
+        let flag = Rc::new(std::cell::Cell::new(true));
+        let mut flags = self.0.borrow_mut();
+        flags.retain(|held| held.strong_count() > 0);
+        flags.push(Rc::downgrade(&flag));
+        flag
+    }
+
+    pub(crate) fn raise(&self) {
+        for held in self.0.borrow().iter() {
+            if let Some(flag) = held.upgrade() {
+                flag.set(true);
+            }
+        }
+    }
+}

@@ -1147,6 +1147,7 @@ dependencies = [
  "be-block-graph",
  "be-block-model",
  "be-block-store",
+ "be-lib-search",
  "be-lib-ui-preferences",
  "memchr",
  "postcard",
@@ -1178,6 +1179,7 @@ dependencies = [
  "futures-util",
  "httparse",
  "js-sys",
+ "postcard",
  "rusqlite",
  "rustls",
  "serde",
@@ -1615,6 +1617,7 @@ dependencies = [
  "be-block-vcs",
  "be-host-base",
  "be-lib-build-id",
+ "be-lib-search",
  "be-lib-stable-hash",
  "be-sdk",
  "be-sdk-api",
@@ -1839,6 +1842,14 @@ dependencies = [
  "postcard",
  "serde",
  "uuid",
+]
+
+[[package]]
+name = "be-lib-web-push"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "ring",
 ]
 
 [[package]]
@@ -2141,6 +2152,7 @@ dependencies = [
  "be-block-sqlite-schema",
  "be-block-store",
  "be-lib-build-id",
+ "be-lib-web-push",
  "be-server-portal",
  "be-wasm-ops",
  "bytes",
@@ -2151,6 +2163,7 @@ dependencies = [
  "hyper-util",
  "jiff",
  "rand 0.9.4",
+ "ring",
  "rusqlite",
  "rusty-s3",
  "s3s",
@@ -3028,18 +3041,6 @@ dependencies = [
  "beui-core",
  "beui-types",
  "wgpu",
-]
-
-[[package]]
-name = "beui-font-browser"
-version = "0.1.0"
-dependencies = [
- "be-lib-stable-hash",
- "beui-core",
- "beui-types",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
