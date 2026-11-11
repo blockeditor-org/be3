@@ -1553,7 +1553,10 @@ impl HostCore {
                 if self.refresh_open_organization() {
                     return;
                 }
-                if let Some(last_organization_id) = self.account.last_organization_id
+                // The organization already open stays as it is: opening it again restarts its
+                // stack under the first start's requests that are still on their way.
+                if self.organization.is_none()
+                    && let Some(last_organization_id) = self.account.last_organization_id
                     && let Some(organization) = self
                         .organizations
                         .iter()
