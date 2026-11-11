@@ -155,9 +155,6 @@ fn instance_lines(lines: &mut Vec<Line>, instance: &InstanceStatus) {
         ),
     );
     let mut details = Vec::new();
-    if let Some(ratio) = instance.aspect_ratio {
-        details.push(format!("aspect {ratio:.3}"));
-    }
     if let Some(intrinsic) = instance.intrinsic {
         details.push(format!("intrinsic {}", size(intrinsic)));
     }

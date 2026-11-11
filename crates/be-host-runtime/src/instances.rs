@@ -154,7 +154,6 @@ struct Instance {
     revision_previews: HashSet<Uuid>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
-    aspect_ratio: Option<f32>,
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
     picked: Option<BlockPick>,
@@ -319,7 +318,6 @@ impl Instance {
             revision_previews: HashSet::default(),
             drag_accepted: false,
             intrinsic: None,
-            aspect_ratio: None,
             audio: None,
             reported_size: None,
             picked: None,
@@ -2894,7 +2892,6 @@ impl Instances {
                     width: size.x,
                     height: size.y,
                 }),
-                aspect_ratio: status.aspect_ratio,
                 active: status.active,
                 interaction: status.interaction,
                 capabilities: status.capabilities,
@@ -3100,7 +3097,6 @@ impl Instances {
                         InstanceRole::Artifact(..) => "artifact",
                     },
                     opened: entry.opened,
-                    aspect_ratio: entry.aspect_ratio,
                     intrinsic: entry.intrinsic,
                     view: entry.view.map(|view| view.rect),
                     artifact: matches!(entry.role, InstanceRole::Artifact(..)).then(|| {
@@ -3154,10 +3150,6 @@ impl Instances {
         instance: EditorInstanceId,
     ) -> Option<Result<Uuid, String>> {
         self.entries.get_mut(&instance)?.created.take()
-    }
-
-    pub(super) fn aspect_ratio(&self, instance: EditorInstanceId) -> Option<f32> {
-        self.entries.get(&instance)?.aspect_ratio
     }
 
     pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
@@ -3723,17 +3715,7 @@ impl Instances {
                 self.services.answers.push(reply.answer(&()));
                 let mut changed = false;
                 for message in messages {
-                    // A preview only shows what it draws.
-                    if preview
-                        && !matches!(
-                            message,
-                            ShellMessage::Menu(_)
-                                | ShellMessage::Focused(_)
-                                | ShellMessage::ChangeView(_)
-                                | ShellMessage::ViewStopped(_)
-                                | ShellMessage::Copy(_)
-                        )
-                    {
+                    if preview && !preview_may_tell(&message) {
                         continue;
                     }
                     changed |= self.shell_message(instance, message);
@@ -3755,9 +3737,6 @@ impl Instances {
 
     /// Takes what one `tell` carried; whether it changed what the host shows.
     fn shell_message(&mut self, instance: EditorInstanceId, message: ShellMessage) -> bool {
-        if let ShellMessage::Present(presenting) = message {
-            return self.set_presenting(instance, presenting);
-        }
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
@@ -3807,11 +3786,6 @@ impl Instances {
                 entry.drag_accepted = accepted;
                 return changed;
             }
-            ShellMessage::AspectRatio(ratio) => {
-                let changed = entry.aspect_ratio != ratio;
-                entry.aspect_ratio = ratio;
-                return changed;
-            }
             ShellMessage::IntrinsicSize(size) => {
                 if entry.screens.values().any(|screen| screen.request.fit) {
                     return false;
@@ -3835,7 +3809,7 @@ impl Instances {
                 };
                 screen.stopped = Some(stopped);
             }
-            ShellMessage::Present(_) => {}
+            ShellMessage::Present(presenting) => return self.set_presenting(instance, presenting),
             ShellMessage::ChangeView(change) => {
                 entry.view_changes.push(change);
             }
@@ -3871,6 +3845,7 @@ impl Instances {
             ShellMessage::FocusChild(child) => {
                 self.ask_child_focus(instance, child);
             }
+            // The runtime opens the palette before it hands the call here.
             ShellMessage::OpenPalette(_) => {}
             ShellMessage::FocusBlockChild(block) => {
                 let block = Uuid::from_bytes(block);
@@ -4249,4 +4224,16 @@ fn shown_block(content: &ChildContent) -> Option<Uuid> {
         ChildContent::Block { block_id, .. } => Some(Uuid::from_bytes(*block_id)),
         _ => None,
     }
+}
+
+/// What a revision preview may tell the shell: only what it draws.
+fn preview_may_tell(message: &ShellMessage) -> bool {
+    matches!(
+        message,
+        ShellMessage::Menu(_)
+            | ShellMessage::Focused(_)
+            | ShellMessage::ChangeView(_)
+            | ShellMessage::ViewStopped(_)
+            | ShellMessage::Copy(_)
+    )
 }

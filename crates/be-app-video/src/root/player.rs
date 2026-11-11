@@ -2,7 +2,7 @@ use be_sdk_beui::beui::Color32;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ChildBlock, ChildMode, ChildState};
+use be_sdk_beui::{ChildBlock, ChildMode};
 use uuid::Uuid;
 
 use super::state::VideoState;
@@ -25,18 +25,6 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
     let empty = create_memo(move || visible.get().is_empty());
     let any = create_memo(move || !empty.get());
 
-    let ratio = create_memo(move || {
-        let ids = visible.get();
-        let Some(video) = state.video() else {
-            return DEFAULT_ASPECT_RATIO;
-        };
-        ids.first()
-            .and_then(|id| video.clip(*id))
-            .and_then(|clip| state.target(clip.block_id))
-            .and_then(|target| state.aspect_ratio(target.id))
-            .unwrap_or(DEFAULT_ASPECT_RATIO)
-    });
-
     view! {
         <Frame fill={ColorRole::Custom(STAGE.into())} padding=Space::Md>
             <List spacing=Space::None>
@@ -44,7 +32,10 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"No clip at the playhead"</Text>
                 </Show>
                 <Show condition={any}>
-                    <Frame aspect_ratio={ratio} fill={ColorRole::Custom(Color32::BLACK.into())}>
+                    <Frame
+                        aspect_ratio=DEFAULT_ASPECT_RATIO
+                        fill={ColorRole::Custom(Color32::BLACK.into())}
+                    >
                         <List spacing=Space::None>
                             <ForEach keys={visible}>|id: Uuid|
                                 <Layer state id />
@@ -65,17 +56,6 @@ fn Layer(state: VideoState, id: Uuid) -> NodeId {
         state.target(clip.block_id)
     });
     view! {
-        <ChildBlock
-            editor={state.editor()}
-            block={block}
-            mode=ChildMode::Preview
-            on_state={move |child: ChildState| {
-                if let (Some(target), Some(ratio)) =
-                    (block.get_untracked(), child.aspect_ratio)
-                {
-                    state.report_aspect_ratio(target.id, ratio);
-                }
-            }}
-        />
+        <ChildBlock editor={state.editor()} block={block} mode=ChildMode::Preview />
     }
 }

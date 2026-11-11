@@ -19,7 +19,10 @@ async fn a_member_who_loses_view_when_a_block_is_trashed_stops_watching_it() {
     assert!(matches!(granted, Ok(())), "{granted:?}");
     guest.watch(note).await;
     assert!(
-        guest.heard.iter().any(|heard| matches!(heard, Heard::Watch(..))),
+        guest
+            .heard
+            .iter()
+            .any(|heard| matches!(heard, Heard::Watch(..))),
         "the guest watches the note it may view"
     );
 
@@ -32,7 +35,10 @@ async fn a_member_who_loses_view_when_a_block_is_trashed_stops_watching_it() {
     guest.round_trip().await;
     guest.round_trip().await;
     assert!(
-        !guest.heard.iter().any(|heard| matches!(heard, Heard::Watch(..))),
+        !guest
+            .heard
+            .iter()
+            .any(|heard| matches!(heard, Heard::Watch(..))),
         "the guest cannot view the trashed note, so its watch ended"
     );
     harness.stop().await;

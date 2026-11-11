@@ -26,7 +26,6 @@ fn on_a_phone_tapping_a_files_name_runs_its_rename() {
         child: placement.child,
         available: true,
         intrinsic: None,
-        aspect_ratio: None,
         active: false,
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),

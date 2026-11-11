@@ -15,9 +15,10 @@ left of this step:
 
 - `EditorHost`'s per-kind `take_*` queues (`be-sdk/src/host.rs`) become one
   ordered `Vec<ShellMessage>`; `outbound` (`be-sdk/src/editor_session.rs`)
-  still reads each queue and orders messages by kind. Rewrite
-  `host_calls_are_taken_by_kind_in_the_order_they_came` to say that order is
-  the order sent.
+  still reads each queue and orders messages by kind, so the order across
+  kinds is that fixed order, not the order the editor made them in. No test
+  covers the order of a pass's messages (the test of that name in
+  `be-host-runtime` is about desktop host calls); add one in `be-sdk-test`.
 - `bar-action` has one variant, `details`; drop the enum and make it a
   `details` message (and step 3's `child-bar` a `details` event).
 
