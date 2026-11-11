@@ -271,6 +271,16 @@ impl WatchHub {
         joined.watching.entry(client).or_default().insert(block);
     }
 
+    /// The blocks a connection watches.
+    pub async fn watched_by(&self, client: u64) -> Vec<Place> {
+        let joined = self.joined.lock().await;
+        joined
+            .watching
+            .get(&client)
+            .map(|blocks| blocks.iter().copied().collect())
+            .unwrap_or_default()
+    }
+
     pub async fn unwatch(&self, block: Place, client: u64) {
         let mut joined = self.joined.lock().await;
         unindex(&mut joined.watchers, block, client);
