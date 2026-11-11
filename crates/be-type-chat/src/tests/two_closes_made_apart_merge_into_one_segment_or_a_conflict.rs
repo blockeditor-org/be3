@@ -24,4 +24,13 @@ fn two_closes_made_apart_merge_into_one_segment_or_a_conflict() {
         let (_, conflicts) = merged(&base, a, b);
         assert_eq!(conflicts, 1, "overlapping segments are a conflict");
     }
+
+    // Closes that open at different messages (one side deleted the oldest first) overlap too.
+    let mut first_gone = base.clone();
+    first_gone.apply(&base.delete(base.messages()[0], ADA, 9).into());
+    let first_gone = closed(&first_gone);
+    for (a, b) in [(&ours, &first_gone), (&first_gone, &ours)] {
+        let (_, conflicts) = merged(&base, a, b);
+        assert_eq!(conflicts, 1, "segments that overlap are a conflict");
+    }
 }

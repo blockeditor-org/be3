@@ -1,6 +1,6 @@
 use be_block_model::Change;
 
-use crate::{ChatHeader, Closing};
+use crate::Closing;
 
 use super::*;
 
@@ -26,7 +26,7 @@ fn a_close_whose_index_entry_does_not_match_its_bytes_is_ignored() {
     assert!(forged.segments().is_empty(), "the hash does not match");
 
     // An edit that adds no index entry, or one that removes more than the segment holds.
-    let mut changes: Vec<Change> = closing
+    let changes: Vec<Change> = closing
         .edit
         .0
         .iter()
@@ -35,10 +35,9 @@ fn a_close_whose_index_entry_does_not_match_its_bytes_is_ignored() {
         .collect();
     let mut bare = chat.clone();
     bare.apply(&crate::ChatOp::Close(Closing {
-        edit: changes.drain(..).collect(),
+        edit: changes.into_iter().collect(),
         bytes: closing.bytes.clone(),
     }));
     assert!(bare.segments().is_empty());
     assert_eq!(bare.messages(), chat.messages());
-    let _ = ChatHeader::SEGMENTS;
 }

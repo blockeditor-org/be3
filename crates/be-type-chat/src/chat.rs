@@ -673,9 +673,15 @@ impl ChatContent {
         }
         let mut taken = 0;
         let mut count = 0;
+        // Whether the next message would pass the largest segment: what was taken closes alone
+        // then, even under the smallest, so a large message never stalls closing.
+        let mut next_too_large = false;
         for (index, size) in sizes.iter().enumerate() {
-            if lacking.contains(&recent[index].0) || (count > 0 && taken + size > segment::LARGEST)
-            {
+            if lacking.contains(&recent[index].0) {
+                break;
+            }
+            if count > 0 && taken + size > segment::LARGEST {
+                next_too_large = true;
                 break;
             }
             taken += size;
@@ -684,7 +690,10 @@ impl ChatContent {
                 break;
             }
         }
-        if taken < segment::SMALLEST || total - taken < segment::KEPT_RECENT {
+        if count == 0
+            || (taken < segment::SMALLEST && !next_too_large)
+            || total - taken < segment::KEPT_RECENT
+        {
             return None;
         }
         let closed = &recent[..count];
@@ -784,11 +793,17 @@ impl BlockContent for ChatContent {
     /// The header, then each closed segment: its bytes while this replica holds them, or the
     /// part it was saved as.
     fn parts(&self) -> Part<'_> {
+        if self.held.contains(&Held::Absent) {
+            // A replica that lacks a segment's bytes (a chat rebuilt from the header alone) saves
+            // the header alone, never a placeholder part: what it loads back still lacks them,
+            // and a merge sees that.
+            return Part::node(vec![self.header.vault_parts()]);
+        }
         let mut parts = vec![self.header.vault_parts()];
         parts.extend(self.held.iter().map(|held| match held {
             Held::Bytes(bytes) => Part::from(bytes),
             Held::Saved(part) => Part::Reused(*part),
-            Held::Absent => Part::from(&[] as &[u8]),
+            Held::Absent => unreachable!("checked above"),
         }));
         Part::node(parts)
     }
@@ -938,24 +953,35 @@ impl Merge for ChatContent {
             header,
             held: Vec::new(),
         };
-        // Two devices that closed the same oldest messages while apart each added an entry that
-        // opens at the same message. Identical entries are one segment: the later copy leaves
-        // the index. Entries that differ overlap, and no side's parts say which is right.
+        // Two devices that closed while apart each added entries. An entry both added is one
+        // segment: the later copy leaves the index. When each side added entries the other did
+        // not, the segments may overlap (their messages are in no part this merge reads), so the
+        // chat is a conflict, kept as this side's.
+        let added = |side: &Self| -> Vec<Segment> {
+            let known = base.segments();
+            side.segments()
+                .into_iter()
+                .filter(|segment| !known.contains(segment))
+                .collect()
+        };
+        let (ours_added, theirs_added) = (added(ours), added(theirs));
+        if ours_added
+            .iter()
+            .any(|segment| !theirs_added.contains(segment))
+            && theirs_added
+                .iter()
+                .any(|segment| !ours_added.contains(segment))
+        {
+            return MergeResult::Conflicted {
+                value: ours.clone(),
+                conflicts: 1,
+            };
+        }
         let segments = value.segments();
         let mut duplicates = Vec::new();
         for (index, segment) in segments.iter().enumerate() {
-            if let Some(earlier) = segments[..index]
-                .iter()
-                .find(|earlier| earlier.first == segment.first)
-            {
-                if earlier == segment {
-                    duplicates.push(index);
-                } else {
-                    return MergeResult::Conflicted {
-                        value: ours.clone(),
-                        conflicts: 1,
-                    };
-                }
+            if segments[..index].contains(segment) {
+                duplicates.push(index);
             }
         }
         for index in duplicates.into_iter().rev() {

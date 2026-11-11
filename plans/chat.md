@@ -110,7 +110,7 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   (the oldest recent messages leave `messages`, the index gains an entry) and the
   segment's bytes, which every replica that applies it keeps, so an owner that
   takes the session over saves the part like any other. The bytes ride in the
-  operation (at most 256 KiB, under what a session relays) rather than being put
+  operation (at most 256 KiB, or one message larger than that, which closes alone; under what a session relays) rather than being put
   as a part named by hash: they are the messages the session already relayed, so
   nothing is uploaded early and no hold is needed. Any attached editor proposes
   it (`ChatContent::closing`) once the recent messages pass 96 KiB, taking the
@@ -125,9 +125,11 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   other reacted to, edited or deleted a message in it merges clean, since those
   are kept by message id.
 - **Not built: rewriting a segment**: plans/deferred/chat_segment_rewrite.md.
-  A deleted message's body stays in its closed segment until then. An index
-  entry saved without its part (a chat rebuilt from the header's bytes) keeps
-  its place as an empty part; reading it is rejected by length and hash.
+  A deleted message's body stays in its closed segment until then. A chat
+  rebuilt from the header's bytes (a view) saves the header alone, never a
+  placeholder part. Known gap: Duplicate and `be` transfer of a chat with
+  segments take that path and lose the closed history in the copy, as does a
+  revision restore (a no-op); they should refuse until a parts-aware copy exists.
 - **Limits.** A message larger than the largest segment closes alone. A
   segment's Bloom filter can name a message it does not hold (unread counts
   may read one segment too many, never too few). A replica holds a closed
@@ -162,10 +164,10 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   device, over the same messages. A replica applies a `Close` only when its
   index entry is the one its bytes give (count, first and last message, length
   and hash) and its edit does no more than remove those messages and add the
-  entry. When two sides closed while apart, entries that are identical merge
-  into one (the later copy leaves the index), and entries that open at the same
-  message but differ (one side deleted a message first) are a conflict: the
-  merge keeps this side's chat and reports one conflict. Edits, deletions and
+  entry. When two sides closed while apart, an entry both added is one segment
+  (the later copy leaves the index); when each side added entries the other did
+  not, they may overlap and no part is read to tell, so the merge keeps this
+  side's chat and reports one conflict. Edits, deletions and
   reactions are kept by message id whether the message is recent or not, so an
   offline edit to a message that moved into a segment merges clean and stays in
   the header's maps. The journal bounds how many closes a session carries
