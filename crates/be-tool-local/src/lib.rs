@@ -10,6 +10,8 @@ mod fuzz;
 mod icons;
 mod previews;
 mod rasterize;
+#[cfg(unix)]
+mod stress;
 mod web_page;
 
 pub fn run() -> ExitCode {
@@ -26,9 +28,11 @@ pub fn run() -> ExitCode {
         "deploy" => deploy::main(rest),
         #[cfg(unix)]
         "fuzz" => fuzz::main(rest),
+        #[cfg(unix)]
+        "stress" => stress::main(rest),
         _ => {
             eprintln!(
-                "usage: be-tool-local ci|changed|deploy|fuzz|rasterize|icons|web-page|apk-sign ..."
+                "usage: be-tool-local ci|changed|deploy|fuzz|stress|rasterize|icons|web-page|apk-sign ..."
             );
             ExitCode::FAILURE
         }
