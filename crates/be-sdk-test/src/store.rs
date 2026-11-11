@@ -885,13 +885,14 @@ impl ContentStore {
         defined: be_sdk_api::MetadataEntries,
         content: Option<Vec<u8>>,
         owner_only: bool,
+        author: Uuid,
     ) {
         let id = Uuid::from_bytes(block_id);
         let block_type = Uuid::from_bytes(content_type);
         let info = BlockInfo::decode(be_sdk_api::BlockInfo {
             block_id,
             block_type: content_type,
-            author: Some(Uuid::nil().into_bytes()),
+            author: Some(author.into_bytes()),
             parent: Some(parent),
             references: Vec::new(),
             access: be_sdk_api::AccessLevel::Manage,

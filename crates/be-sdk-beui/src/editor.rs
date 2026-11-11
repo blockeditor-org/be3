@@ -632,6 +632,16 @@ impl Editor {
         self.pushed(Pushed::Artifacts)
     }
 
+    /// Whether one of this editor's views has the keyboard: the host gave it to that view, not
+    /// another of the app's. False while the editor is not shown in an app's beui program.
+    pub fn has_keyboard(&self) -> Memo<bool> {
+        let host = self.host();
+        match (crate::module::Module::of(&host), host.instance()) {
+            (Some(module), Some(instance)) => module.has_keyboard(instance),
+            _ => create_memo(|| false),
+        }
+    }
+
     pub fn focused_block(&self) -> Memo<FocusedBlock> {
         let host = self.host();
         let revision = self.pushed(Pushed::Focus);

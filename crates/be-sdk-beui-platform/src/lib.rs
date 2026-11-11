@@ -70,7 +70,7 @@ impl Platform for AppPlatform {
             let mut setup = Setup::new(Waker::new(move || waker.wake()));
             setup.provide(views.clone());
             runner.start(loaded, setup)?;
-            let handler = ModuleRunner {
+            let mut handler = ModuleRunner {
                 runner,
                 views,
                 windows: HashMap::default(),
@@ -81,6 +81,8 @@ impl Platform for AppPlatform {
                 actions_version: 0,
                 sent_actions: HashMap::default(),
                 focused: HashSet::default(),
+                unlisted: HashSet::default(),
+                listed: HashSet::default(),
                 toggles: HashMap::default(),
                 toggled: 0,
                 overflows: Vec::new(),
@@ -91,6 +93,10 @@ impl Platform for AppPlatform {
                 placements: HashMap::default(),
                 ratio: 1.0,
             };
+            // An app holds no keyboard until its host gives one of its views the keyboard
+            // (`Input::Focus` below): a view opened beside the focused one, or in a window
+            // behind, does not have it.
+            handler.runner.push(Incoming::logical(Input::Focus(false)));
             self.host
                 .handle_views(Box::new(Driver::new(self.host.clone(), handler)));
             Ok(())
@@ -173,6 +179,10 @@ struct ModuleRunner {
     /// What each view last sent of them, at which change.
     sent_actions: HashMap<ViewRef, (SentActions, Vec<DescribedAction>)>,
     focused: HashSet<ViewRef>,
+    /// The views in `focused` the last frame did not list yet.
+    unlisted: HashSet<ViewRef>,
+    /// The views the last frame listed.
+    listed: HashSet<ViewRef>,
     toggles: HashMap<ViewRef, u32>,
     toggled: u32,
     overflows: Vec<(WindowId, String)>,
@@ -238,7 +248,27 @@ impl ModuleRunner {
         let shown = |id: &ViewRef| regions.iter().any(|region| region.id() == *id);
         self.float(regions);
         self.windows.retain(|id, _| shown(id));
-        self.focused.retain(|id| shown(id));
+        // A focused view that closed takes the keyboard with it. One given the keyboard before
+        // it is first listed keeps it until it is.
+        let had_keyboard = !self.focused.is_empty();
+        let listed = std::mem::replace(
+            &mut self.listed,
+            regions.iter().map(|region| region.id()).collect(),
+        );
+        let stale = std::mem::take(&mut self.unlisted);
+        self.focused
+            .retain(|id| shown(id) || (!listed.contains(id) && !stale.contains(id)));
+        // One still not listed by the next frame closed before it ever showed.
+        self.unlisted = self
+            .focused
+            .iter()
+            .filter(|id| !shown(id))
+            .copied()
+            .collect();
+        if had_keyboard && self.focused.is_empty() {
+            self.runner.push(Incoming::logical(Input::Focus(false)));
+        }
+        self.tell_keyboard();
         self.toggles.retain(|id, _| shown(id));
         let windows: HashSet<WindowId> = self.windows.values().copied().collect();
         self.sized.retain(|window, _| windows.contains(window));
@@ -773,6 +803,14 @@ fn placed(mut tree: TreeUpdate, ratio: f32) -> TreeUpdate {
     tree
 }
 
+impl ModuleRunner {
+    fn tell_keyboard(&self) {
+        let mut keyboard: Vec<ViewRef> = self.focused.iter().copied().collect();
+        keyboard.sort_by_key(|view| (view.instance.0, view.view.0));
+        self.views.set_keyboard(keyboard);
+    }
+}
+
 impl Regions for ModuleRunner {
     type Painter = Painter;
 
@@ -799,6 +837,7 @@ impl Regions for ModuleRunner {
             if was != now {
                 self.runner.push(Incoming::logical(Input::Focus(now)));
             }
+            self.tell_keyboard();
         } else {
             let target = over.unwrap_or(id);
             match anchored_layer(target.view) {
