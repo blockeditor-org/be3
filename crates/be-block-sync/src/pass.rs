@@ -1331,14 +1331,6 @@ impl<S: ObjectStore> Pass<'_, S> {
             })
             .map(|(id, _)| *id)
             .collect();
-        if !gone.is_empty() && !self.peer.is_attached() {
-            self.report.problems.push(format!(
-                "{} blocks could not be deleted in be-host: not connected to the server",
-                gone.len()
-            ));
-            self.failed.extend(gone);
-            return;
-        }
         let peer = self.peer;
         let mut results = futures_util::stream::iter(
             gone.into_iter()
@@ -1347,6 +1339,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         .buffer_unordered(IN_FLIGHT);
         while let Some((id, outcome)) = results.next().await {
             match outcome {
+                Ok(()) if !self.peer.is_attached() => self.report.queued += 1,
                 Ok(()) => self.report.deleted += 1,
                 Err(error) => {
                     self.report.problems.push(format!(

@@ -645,21 +645,19 @@ impl<S: ObjectStore> Tracker<S> {
                 self.relist(BlockParent::Block(parent), ChildChange::Delete(deleted.id))
                     .await?;
             }
-            _ => {
-                if !self.peer.is_attached() {
-                    return Err("not connected to the server, so nothing was deleted".into());
-                }
-                self.peer
-                    .set_parent(deleted.id, BlockParent::Detached)
-                    .await
-                    .map_err(explain)?
-            }
+            _ => self
+                .peer
+                .set_parent(deleted.id, BlockParent::Detached)
+                .await
+                .map_err(explain)?,
         }
+        let queued = !self.peer.is_attached();
         self.invalidate().await;
         Ok(format!(
-            "deleted {} ({}) and everything inside it; the app lists it under Recently Deleted",
+            "deleted {} ({}) and everything inside it{}; the app lists it under Recently Deleted",
             deleted.label(),
-            deleted.short
+            deleted.short,
+            if queued { " (queued until reconnected)" } else { "" }
         ))
     }
 
