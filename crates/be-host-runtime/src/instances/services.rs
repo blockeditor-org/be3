@@ -222,7 +222,10 @@ impl Instances {
         if self.previewing(instance)
             && !matches!(
                 call,
-                Call::ReadData { .. } | Call::ListData { .. } | Call::Verify { .. }
+                Call::ReadData { .. }
+                    | Call::ListData { .. }
+                    | Call::Verify { .. }
+                    | Call::SigningBlock { .. }
             )
         {
             return self.refuse(call, OpError::Denied);
@@ -543,6 +546,13 @@ impl Instances {
             Call::TerminalHostBuild { reply } => {
                 let answering = self.answering(instance, reply);
                 answering.send_or_fail(be_host_stack::terminal_host::build_info());
+            }
+            Call::SigningBlock { reply } => {
+                let found = match self.signed_in(instance) {
+                    Some(block) => Ok(self.local(instance, block.into_bytes())),
+                    None => Err(Failure::Unavailable),
+                };
+                self.answer_now(reply, found);
             }
             Call::Sign { reply, bytes } => {
                 let answering = self.answering(instance, reply);

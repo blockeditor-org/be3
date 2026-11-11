@@ -47,8 +47,25 @@ struct Row {
 #[derive(Clone, Debug, PartialEq)]
 struct Proof {
     author: Uuid,
-    bytes: Vec<u8>,
+    record: Record,
     signature: Vec<u8>,
+}
+
+/// What a signature covers, before the chat it is in is named: the block signatures bind to is
+/// known only once the host says (in a revision preview it is the block the revision is of).
+#[derive(Clone, Debug, PartialEq)]
+enum Record {
+    Message(ObjectId, Message),
+    Edit(ObjectId, MessageEdit, Message),
+}
+
+impl Record {
+    fn signed_bytes(&self, chat: Uuid) -> Vec<u8> {
+        match self {
+            Self::Message(id, message) => message.signed_bytes(chat, *id),
+            Self::Edit(id, edit, sent) => edit.signed_bytes(chat, *id, sent.hash(chat, *id)),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -72,6 +89,14 @@ pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
     let me = editor.blocks().account_id();
     let block = editor.block_id();
+    // The block signatures bind to: this one, or in a revision preview the one it is of.
+    let signing = create_signal(block);
+    let asking = editor.then(editor.host().signing_block(), move |found| {
+        if let Ok(found) = found {
+            signing.set(found);
+        }
+    });
+    on_cleanup(move || asking.cancel());
     let rows = chat.project_keyed(move |content: &ChatContent, rows| {
         let shown = content.shown();
         let by_id: HashMap<ObjectId, &Shown> =
@@ -81,7 +106,7 @@ pub fn Chat(editor: Editor) -> NodeId {
             .iter()
             .map(|message| {
                 let row = Row {
-                    proofs: proofs(content, block, message),
+                    proofs: proofs(content, message),
                     ..row(&by_id, message, me, today)
                 };
                 (message.id, row)
@@ -124,7 +149,7 @@ pub fn Chat(editor: Editor) -> NodeId {
             }
         });
     });
-    let send = move || submit(editor, &chat, block, me, composer);
+    let send = move || submit(editor, &chat, signing.get_untracked(), me, composer);
     let scroll = ComponentRef::<ScrollApi>::new();
     let at_end = create_signal(true);
     let unread = unread_count(editor, chat, block, me, at_end);
@@ -149,7 +174,7 @@ pub fn Chat(editor: Editor) -> NodeId {
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         view! {
-            <MessageRow editor chat={chat} me id row={shown} composer />
+            <MessageRow editor chat={chat} me id row={shown} composer signing />
         }
     };
 
@@ -392,18 +417,18 @@ fn now() -> i64 {
 }
 
 /// The message and its edit as their author signed them, for each row to verify.
-fn proofs(content: &ChatContent, chat: Uuid, message: &Shown) -> Vec<Proof> {
+fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
     let sent = &message.message;
     let mut proofs = vec![Proof {
         author: sent.author,
-        bytes: sent.signed_bytes(chat, message.id),
+        record: Record::Message(message.id, sent.clone()),
         signature: sent.signature.0.clone(),
     }];
     if let Some(edit) = content.edit_of(message.id) {
         proofs.push(Proof {
             author: edit.author,
-            bytes: edit.signed_bytes(chat, message.id, message.message.hash(chat, message.id)),
             signature: edit.signature.0.clone(),
+            record: Record::Edit(message.id, edit, sent.clone()),
         });
     }
     proofs
@@ -499,18 +524,24 @@ fn MessageRow(
     id: ObjectId,
     row: ReadSignal<Row>,
     composer: Composer,
+    signing: Signal<Uuid>,
 ) -> NodeId {
     let proofs = create_memo(move || row.with(|row| row.proofs.clone()));
     // Who signed it, once the host says: nothing is marked until then.
     let signer = create_signal(None::<Signer>);
     create_effect(move || {
         let proofs = proofs.get();
+        let chat = signing.get();
         signer.set(None);
         let host = editor.host();
         let asked = async move {
             let mut found = Vec::new();
             for proof in proofs {
-                let verified = host.verify(proof.author, proof.bytes, proof.signature);
+                let verified = host.verify(
+                    proof.author,
+                    proof.record.signed_bytes(chat),
+                    proof.signature,
+                );
                 found.push(verified.await?.ok()?);
             }
             Some(least(found))

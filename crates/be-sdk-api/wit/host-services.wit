@@ -207,6 +207,11 @@ interface host-services {
         bad,
     }
 
+    /// The block signatures bind to in the block the editor shows: the block
+    /// itself, or in a revision preview the block the revision is of. A record
+    /// that names its block inside what it signs names this one.
+    signing-block: async func() -> result<block-id, failure>;
+
     /// Signs `bytes` as the person, with a key the app never holds. The
     /// signature covers the block the editor shows, so it verifies only
     /// there, and the host also binds the asking app, so another app's `verify`

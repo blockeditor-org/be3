@@ -1939,6 +1939,12 @@ impl EditorHost {
         Asked::of(self.ask(host_services::terminal_host_build))
     }
 
+    /// The block signatures bind to: the one the editor shows, or in a revision preview the one
+    /// it is of. Records that name their block in what they sign name this one.
+    pub fn signing_block(&self) -> Asked<Result<Uuid, Failure>> {
+        Asked::of(self.ask(host_services::signing_block)).map(|block| block.map(Uuid::from_bytes))
+    }
+
     /// Signs `bytes` as the person who runs the editor, with a key the app never holds
     /// (plans/authorship.md). The signature verifies only in the block the editor shows.
     pub fn sign(&self, bytes: Vec<u8>) -> Asked<Result<Vec<u8>, Failure>> {

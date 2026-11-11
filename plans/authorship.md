@@ -32,12 +32,6 @@ or that is forged.
 - **A server or participant can drop or reorder.** A deleted or withheld message
   shows only as a gap in the `seen` hashes of its author's later messages;
   nothing checks them yet.
-- **Revision previews show every message as forged.** Chat signs and checks with
-  its own block's id, which in a preview is the preview block's, while the host
-  maps `verify` to the source block. Give the app the source id, or skip the
-  badges in a preview, with a test.
-- **A draft near 64 KiB** is sent unsigned (so shown as forged), since `sign`
-  refuses more; cap the draft in chat.
 - **`verify` costs a server round trip** for each forged row; cache or throttle.
 - **Timestamps.** A signed time is only what the author claims. The server is
   to stamp each relayed operation with when it received it (plans/chat.md,

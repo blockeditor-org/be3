@@ -12,6 +12,7 @@ mod a_draft_stays_in_the_editor_until_it_is_sent;
 mod a_message_shows_whether_its_author_signed_it;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
+mod a_revision_preview_verifies_what_the_chat_signed;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
 mod reading_on_one_device_clears_the_count_on_another;
@@ -48,6 +49,20 @@ impl Harness {
     /// A chat whose members' keys `verify` trusts as `trusted` says, and any other's as a
     /// contact's.
     fn trusting(messages: &[(Uuid, &str)], trusted: &[(Uuid, Signer)]) -> Self {
+        Self::shown_as(messages, trusted, CHAT)
+    }
+
+    /// A revision preview of the chat: the editor shows block `shown`, while what its
+    /// messages signed names `CHAT`, which the host says signatures bind to.
+    fn previewing(messages: &[(Uuid, &str)]) -> Self {
+        Self::shown_as(
+            messages,
+            &[],
+            Uuid::from_u128(0x9e51_0000_0000_4000_8000_0000_0000_0009),
+        )
+    }
+
+    fn shown_as(messages: &[(Uuid, &str)], trusted: &[(Uuid, Signer)], shown: Uuid) -> Self {
         let mut content = ChatContent::default();
         for (index, (author, body)) in messages.iter().enumerate() {
             let time = MORNING + index as i64 * 3 * MINUTE;
@@ -58,7 +73,10 @@ impl Harness {
         host.set_editable(true);
         host.set_account_id(ME);
         let mut harness = Self {
-            editor: BeuiTest::new(OwnedEditor::new(host, CHAT)),
+            editor: match shown == CHAT {
+                true => BeuiTest::new(OwnedEditor::new(host, shown)),
+                false => BeuiTest::in_revision_of(OwnedEditor::new(host, shown), CHAT),
+            },
         };
         for (account, signer) in trusted {
             harness.editor.set_signer(*account, *signer);

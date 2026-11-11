@@ -24,6 +24,7 @@ pub fn signature(account: Uuid, bytes: &[u8]) -> Vec<u8> {
 pub(crate) struct Signatures {
     me: Uuid,
     trusted: BTreeMap<Uuid, Signer>,
+    signing_block: Option<Uuid>,
 }
 
 impl Signatures {
@@ -31,6 +32,7 @@ impl Signatures {
         Self {
             me,
             trusted: BTreeMap::new(),
+            signing_block: None,
         }
     }
 
@@ -38,9 +40,25 @@ impl Signatures {
         self.trusted.insert(account, signer);
     }
 
-    /// Answers `call` if it is `sign` or `verify`, or gives it back.
-    pub(crate) fn answer(&self, call: Call, connection: &mut Connection) -> Option<Call> {
+    /// What `signing-block` answers instead of the block shown, as for a revision preview.
+    pub(crate) fn set_signing_block(&mut self, block: Uuid) {
+        self.signing_block = Some(block);
+    }
+
+    /// Answers `call` if it is `sign`, `verify` or `signing-block`, or gives it back; `shown`
+    /// is the block the editor shows.
+    pub(crate) fn answer(
+        &self,
+        call: Call,
+        connection: &mut Connection,
+        shown: Option<Uuid>,
+    ) -> Option<Call> {
         match call {
+            Call::SigningBlock { reply } => {
+                let block = self.signing_block.or(shown).unwrap_or_default();
+                reply.send(connection, &Ok(block.into_bytes()));
+                None
+            }
             Call::Sign { reply, bytes } => {
                 reply.send(connection, &Ok(signature(self.me, &bytes)));
                 None

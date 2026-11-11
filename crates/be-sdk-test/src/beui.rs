@@ -270,7 +270,23 @@ impl<A: BeuiRoot> BeuiTest<A> {
         Self::open(Kind::Settings, Adopted::Artifacts(artifacts), data)
     }
 
+    /// A test of the editor shown for a revision of `source`: the editor's own block is the
+    /// preview's, while `signing-block` names `source`, as the host does.
+    pub fn in_revision_of(editor: OwnedEditor, source: Uuid) -> Self {
+        let block = editor.block_id();
+        Self::open_signing(
+            Kind::Frame(block),
+            Adopted::Editor(editor, None),
+            Vec::new(),
+            Some(source),
+        )
+    }
+
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
+        Self::open_signing(kind, adopted, data, None)
+    }
+
+    fn open_signing(kind: Kind, adopted: Adopted, data: Vec<u8>, signing: Option<Uuid>) -> Self {
         beui::native::verify_paint(true);
         beui::native::fail_unsettled_layout(true);
         let host = match &adopted {
@@ -286,7 +302,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
             Adopted::Artifacts(artifacts) => Some((artifacts.block_id(), artifacts.source())),
             _ => None,
         };
-        let signatures = crate::signatures::Signatures::new(host.account_id());
+        let mut signatures = crate::signatures::Signatures::new(host.account_id());
+        if let Some(source) = signing {
+            signatures.set_signing_block(source);
+        }
         let wakes = Arc::new(Wakes::default());
         let woken = Arc::clone(&wakes);
         host.waker().install(move || woken.wake());
@@ -1406,6 +1425,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 }
                 Incoming::Started(started) => {
                     let op = started.op;
+                    let shown = self.block_id();
                     let connection = &mut self.connection;
                     match embed::Call::accept(connection, started) {
                         Some(embed::Call::Shell(call)) => match call {
@@ -1472,7 +1492,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             continue;
                         }
                         Some(embed::Call::HostServices(call)) => {
-                            if let Some(call) = self.signatures.answer(call, connection) {
+                            if let Some(call) = self.signatures.answer(call, connection, shown) {
                                 self.requests.push((Some(op), call));
                             }
                             continue;
