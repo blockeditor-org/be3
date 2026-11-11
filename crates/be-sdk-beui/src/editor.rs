@@ -657,11 +657,13 @@ impl Editor {
 
     /// Copies references to blocks, each `(id, type, title)`: `be3/blocks`,
     /// and as plain text each title and its link, which needs the link base
-    /// watched (`watch::<LinkBaseWatch>`).
+    /// watched (`watch::<LinkBaseWatch>`). The copy replaces the clip, so the
+    /// host forgets any cut: call `cut_blocks` after it, not before.
     pub fn copy_blocks(&self, blocks: &[(Uuid, Uuid, String)]) {
         if blocks.is_empty() {
             return;
         }
+        self.host().cut_blocks(&[], Uuid::nil());
         let organization = self.host().organization_id();
         let base = self.host().watched::<be_sdk::LinkBaseWatch>();
         let clip = beui::clipboard::Blocks {

@@ -52,6 +52,7 @@ fn pasting_blocks_places_those_the_host_allows_as_editors() {
             block_id: Uuid::from_u128(2).into_bytes(),
             block_type: Uuid::from_u128(77).into_bytes(),
             moved: false,
+            cut_from: None,
         }]),
     );
     editor.run();

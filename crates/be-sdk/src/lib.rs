@@ -94,10 +94,10 @@ pub use graph::{
 };
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, ClipRender, EditorHost, FileDrop, FileFilter,
-    FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, PeerMessage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest, Pushed,
-    RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead,
-    Waker,
+    FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, Pasted, PeerMessage,
+    PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickedFile, PickerRequest,
+    Pushed, RenameRequest, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence,
+    StoredHead, Waker,
 };
 pub use layered_settings::{
     KeptEdit, SettingsAnswer, SettingsChangeLog, SettingsLayers, SettingsTarget,

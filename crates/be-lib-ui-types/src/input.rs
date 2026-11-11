@@ -2,7 +2,7 @@ pub use crate::types::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Keyboard, Keystroke, Pen,
     PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase, TouchpadGesture,
 };
-pub use be_lib_ui_keys::{Key, KeyChord, KeyPress, Modifiers};
+pub use be_lib_ui_keys::{Key, KeyChord, KeyPress, Modifiers, name_keys_as_apple};
 
 pub use queue::{Queued, enqueue};
 
