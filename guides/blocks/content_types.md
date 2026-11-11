@@ -58,7 +58,11 @@ A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads only the root's
 first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
 that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
-replica's followers and editors are sent. Its editors read the rest by range
+replica's followers and editors are sent. So `decode(encode())` of such a type is a
+view, not the content: chat's gives the header's index entries with no part behind them, and
+saving it keeps each entry's place as an empty part that a read rejects (length and
+hash). Whole-bytes paths (Replace, import, `be sync`) therefore cannot carry its
+parts; only `from_stored`, `parts` and `MergeParts` do. Its editors read the rest by range
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`

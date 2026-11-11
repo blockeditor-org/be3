@@ -646,7 +646,7 @@ impl ChatContent {
         self.segments()
             .iter()
             .map(|segment| {
-                let range = start..start + segment.length;
+                let range = start..start.saturating_add(segment.length);
                 start = range.end;
                 range
             })
@@ -674,7 +674,7 @@ impl ChatContent {
         let mut taken = 0;
         let mut count = 0;
         for (index, size) in sizes.iter().enumerate() {
-            if lacking.contains(&recent[index].0) || taken + size > segment::LARGEST {
+            if lacking.contains(&recent[index].0) || (count > 0 && taken + size > segment::LARGEST) {
                 break;
             }
             taken += size;
@@ -698,18 +698,32 @@ impl ChatContent {
         }))
     }
 
-    /// Whether closing `closing` applies here: the messages it holds are the oldest recent ones,
-    /// as written, and nobody closed them already.
+    /// Whether closing `closing` applies here: the messages its bytes hold are the oldest recent
+    /// ones, as written, and its edit does exactly this much to the header: it removes them from
+    /// the messages and adds the index entry those bytes give (their count, first and last
+    /// message, length and hash), so an index never describes bytes it was not made from.
     fn closes_here(&self, closing: &Closing) -> bool {
         let Some(closed) = segment::decode(&closing.bytes) else {
             return false;
         };
         let recent = self.messages();
-        !closed.is_empty()
-            && closed.len() <= recent.len()
-            && closed.iter().zip(&recent).all(|((id, message), recent)| {
+        if closed.is_empty()
+            || closed.len() > recent.len()
+            || !closed.iter().zip(&recent).all(|((id, message), recent)| {
                 id == recent && self.message(*id).as_ref() == Some(message)
             })
+        {
+            return false;
+        }
+        let mut after = self.header.clone();
+        LiveEdit::apply(&mut after, &closing.edit);
+        let mut expected = self.segments();
+        expected.push(Segment::of(&closed, &closing.bytes));
+        let now = Self {
+            header: after,
+            held: Vec::new(),
+        };
+        now.segments() == expected && now.messages() == recent[closed.len()..]
     }
 
     fn close(&mut self, closing: &Closing) {
@@ -923,6 +937,37 @@ impl Merge for ChatContent {
             header,
             held: Vec::new(),
         };
+        // Two devices that closed the same oldest messages while apart each added an entry that
+        // opens at the same message. Identical entries are one segment: the later copy leaves
+        // the index. Entries that differ overlap, and no side's parts say which is right.
+        let segments = value.segments();
+        let mut duplicates = Vec::new();
+        for (index, segment) in segments.iter().enumerate() {
+            if let Some(earlier) = segments[..index]
+                .iter()
+                .find(|earlier| earlier.first == segment.first)
+            {
+                if earlier == segment {
+                    duplicates.push(index);
+                } else {
+                    return MergeResult::Conflicted {
+                        value: ours.clone(),
+                        conflicts: 1,
+                    };
+                }
+            }
+        }
+        for index in duplicates.into_iter().rev() {
+            let Some(held) = value.header.series(ObjectId::ROOT, ChatHeader::SEGMENTS) else {
+                continue;
+            };
+            if let Some(op) = held.delete(index..index + 1) {
+                let edit: Edit = [ChatHeader::SEGMENTS.edit(ObjectId::ROOT, op)]
+                    .into_iter()
+                    .collect();
+                LiveEdit::apply(&mut value.header, &edit);
+            }
+        }
         value.held = value
             .segments()
             .iter()
@@ -934,6 +979,15 @@ impl Merge for ChatContent {
                     .unwrap_or(Held::Absent)
             })
             .collect();
+        if value.held.contains(&Held::Absent) && !value.segments().is_empty() {
+            let known = |side: &Self| side.held.iter().all(|held| *held != Held::Absent);
+            if known(ours) || known(theirs) {
+                return MergeResult::Conflicted {
+                    value: ours.clone(),
+                    conflicts: 1,
+                };
+            }
+        }
         match conflicts {
             None => MergeResult::Clean(value),
             Some(conflicts) => MergeResult::Conflicted { value, conflicts },
