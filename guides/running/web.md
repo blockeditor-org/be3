@@ -104,8 +104,10 @@ survives a reload. Traps that shape this code:
   `sw.js` sees it, so the worker holds a `PushMessage`'s bytes, never a key. It asks every open
   window to open it (`web/push.js`, bound in `host.js` to the module's `push_open`, which runs
   `Peer::open_notification` and names the sender and block from the host's contacts and graph,
-  `be-host/src/web_push.rs`), shows the answer for up to 3 s, else "New message", and shows a
-  repeat (a hash of the sealed bytes, kept in IndexedDB) never. `globalThis.bePush.enable()`
+  `be-host/src/web_push.rs`), shows the answer for up to 3 s, else "New message", and opens a
+  repeat (a hash of the sealed bytes, kept in IndexedDB with only the block it was about,
+  never its text) never: what is on screen stays, and a repeat of one dismissed or pressed
+  comes back as "New message" without a sound. `globalThis.bePush.enable()`
   asks permission, subscribes and registers the endpoint (call it from a gesture); `disable()`
   and signing out unregister. The switch is the settings list's "Notifications" row, which asks
   the host through `set_push_device` (`be_host_base::push_device`, installed by `web_push::install`

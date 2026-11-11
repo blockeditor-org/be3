@@ -79,13 +79,26 @@
             expect(shown[0].data.block === BLOCK && shown[0].data.organization === ORGANIZATION, "it names its block");
             expect(calls.length === 1, "the window opened the push once");
 
-            // The same push again is not opened again; what was shown stays, replaced
-            // under its tag without a sound, so the push still shows something.
+            // The same push again is not opened again. What was shown stays on screen, and
+            // none is on screen here (a headless browser shows nothing), so the repeat shows
+            // one naming nothing, under the block's tag and without a sound.
             await deliverPush(message(ascii, "first"));
             await until(() => shown.length === 2);
             expect(calls.length === 1, "the window was asked about a repeat");
-            expect(shown[1].title === "Roadmap" && shown[1].tag === BLOCK, "a repeat shows what was shown");
-            expect(shown[1].renotify === false, "a repeat makes no sound");
+            expect(shown[1].title === "New message" && shown[1].body === "", "a repeat names nothing");
+            expect(shown[1].tag === BLOCK && shown[1].renotify === false, "a repeat replaces it silently");
+
+            // What was said never rests in the worker's store, only that it was shown.
+            const kept = await new Promise((resolve, reject) => {
+                const request = indexedDB.open("be-push");
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    const read = request.result.transaction("shown").objectStore("shown").getAll();
+                    read.onsuccess = () => resolve(JSON.stringify(read.result));
+                };
+            });
+            expect(!kept.includes("Roadmap") && !kept.includes("lunch"), `the store kept the text: ${kept}`);
+            expect(kept.includes(BLOCK), "the store keeps the block it was about");
 
             // A window that cannot open one (no key): a notification naming nothing.
             answer = null;

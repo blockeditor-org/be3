@@ -140,8 +140,10 @@ function database() {
     });
 }
 
-// What was shown for push `id` within KEEP_SHOWN ({ at, notification }), or null. A store
-// that cannot be read answers null: the push shows, and may show twice.
+// What was shown for push `id` within KEEP_SHOWN ({ at, tag, data }), or null. Only the block
+// it was about is kept, never what it said: the text of a sealed message must not rest on this
+// device outside the keys' storage. A store that cannot be read answers null: the push shows,
+// and may show twice.
 async function shownBefore(id) {
     try {
         const open = await database();
@@ -162,9 +164,9 @@ async function shownBefore(id) {
     }
 }
 
-// Keeps what was shown for push `id`, and drops what is older than KEEP_SHOWN, so the store
-// never grows. A failure is the same as not keeping it.
-async function recordShown(id, notification) {
+// Keeps that push `id` was shown (about `tag`, the block, or none), and drops what is older
+// than KEEP_SHOWN, so the store never grows. A failure is the same as not keeping it.
+async function recordShown(id, tag, data) {
     try {
         const open = await database();
         try {
@@ -172,7 +174,7 @@ async function recordShown(id, notification) {
                 const transaction = open.transaction("shown", "readwrite");
                 const store = transaction.objectStore("shown");
                 const now = Date.now();
-                store.put({ at: now, notification }, id);
+                store.put({ at: now, tag, data }, id);
                 store.openCursor().onsuccess = (event) => {
                     const cursor = event.target.result;
                     if (cursor) {
@@ -226,9 +228,18 @@ async function show(data) {
     const id = isPush(bytes) ? await digest(bytes) : null;
     const before = id ? await shownBefore(id) : null;
     if (before) {
-        // The server resent one already shown. A push must show something, and
-        // showing it again under its tag replaces it without a sound.
-        await self.registration.showNotification(before.notification.title, { ...before.notification.options, renotify: false });
+        // The server resent one already shown. What is on screen stays; a push must show
+        // something, so one that was dismissed or pressed comes back naming nothing, under
+        // its tag, without a sound.
+        const tag = before.tag ?? GENERIC.tag;
+        if ((await self.registration.getNotifications({ tag })).length === 0) {
+            await self.registration.showNotification(GENERIC.title, {
+                body: GENERIC.body,
+                tag,
+                renotify: false,
+                data: before.data ?? {},
+            });
+        }
         return;
     }
     const answer = id ? await asked(bytes) : null;
@@ -246,7 +257,7 @@ async function show(data) {
         : { title: GENERIC.title, options: { body: GENERIC.body, tag: GENERIC.tag, data: {} } };
     await self.registration.showNotification(notification.title, notification.options);
     if (id) {
-        await recordShown(id, notification);
+        await recordShown(id, notification.options.tag, notification.options.data);
     }
 }
 

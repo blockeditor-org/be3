@@ -143,6 +143,7 @@ pub(crate) fn forget_this_device(unsubscribe: bool) {
                 "be-host: the browser's push subscription was not dropped: {error}"
             )));
         }
+        refresh().await;
     });
 }
 

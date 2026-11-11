@@ -579,9 +579,9 @@ struct HostCore {
     /// The `be_host_base::push_device::revision` the push device watch last published.
     push_device_published: Option<u64>,
     /// What a pressed notification's block last waited on (the open organization, how many
-    /// there are, the graph's revision), so it is tried again only when that changes.
+    /// there are, the graph's revision, the changes unsaved), so it is tried again only when that changes.
     #[cfg(target_arch = "wasm32")]
-    pressed_waiting_on: Option<(Option<Uuid>, usize, u64)>,
+    pressed_waiting_on: Option<(Option<Uuid>, usize, u64, usize)>,
     /// The organization this browser's push subscription was last registered for.
     #[cfg(target_arch = "wasm32")]
     push_synced: Option<Uuid>,
@@ -2414,33 +2414,35 @@ impl HostCore {
     /// loaded) is held until the organizations or the graph change.
     #[cfg(target_arch = "wasm32")]
     fn open_pressed_notifications(&mut self) {
-        let now = (
-            self.organization
-                .as_ref()
-                .map(|organization| organization.id),
-            self.organizations.len(),
-            be_host_stack::graph_revision(),
-        );
-        if !web_push::has_openings() || self.pressed_waiting_on == Some(now) {
+        let waiting = |host: &Self| {
+            (
+                host.organization.as_ref().map(|organization| organization.id),
+                host.organizations.len(),
+                be_host_stack::graph_revision(),
+                be_host_stack::status().unsaved,
+            )
+        };
+        if !web_push::has_openings() || self.pressed_waiting_on == Some(waiting(self)) {
             return;
         }
         self.pressed_waiting_on = None;
         for opening in web_push::take_openings() {
+            let now = waiting(self);
             if now.0 != Some(opening.organization) {
                 // A block of another organization opens it first, unless that would discard
-                // changes not saved yet, which the organization menu asks about instead.
+                // changes not saved yet, which the organization menu asks about instead: it
+                // waits for them to be saved.
                 let other = self
                     .organizations
                     .iter()
                     .find(|organization| organization.id == opening.organization)
                     .cloned();
                 match other {
-                    Some(other) if be_host_stack::status().unsaved == 0 => {
+                    Some(other) if now.3 == 0 => {
                         self.open_organization(other);
                         web_push::hold(opening);
                     }
-                    Some(_) => {}
-                    None => {
+                    _ => {
                         web_push::hold(opening);
                         self.pressed_waiting_on = Some(now);
                     }
