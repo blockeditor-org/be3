@@ -96,8 +96,7 @@ struct Answer {
     read: u64,
     found: Vec<Found>,
     shown: Option<Searched>,
-    /// The graph's revision when it was shown, if some hit was left out for want of its block
-    /// in the mirror: it is shown again once the graph moves.
+    /// The graph's revision when it was shown: it is shown again once the graph moves.
     missing: Option<u64>,
 }
 
@@ -653,11 +652,19 @@ async fn puts_of(
     }) else {
         return Vec::new();
     };
-    let Some(head) = peer.local_head(block).or(head) else {
+    let caught_head = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .caught
+        .get(&block)
+        .and_then(|caught| caught.head);
+    let Some(head) = peer.local_head(block).or(head).or(caught_head) else {
         return Vec::new();
     };
-    let Ok(commit) = peer.load_commit(head).await else {
-        return Vec::new();
+    let commit = match peer.load_commit(head).await {
+        Ok(commit) => commit,
+        Err(_) => return Vec::new(),
     };
     let at = be_lib_search::Commit {
         time: commit.time,
@@ -877,7 +884,7 @@ fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: 
     if held.search.off {
         return;
     }
-    if !peer.is_attached() {
+    if !peer.is_attached() || !held.connected {
         held.search.caught_up.clear();
         return;
     }
@@ -1383,7 +1390,10 @@ async fn show(
                 hits,
                 complete: false,
             });
-            answer.missing = missing.then_some(graph);
+            // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
+            // out of what the search is within, or the mirror may now hold one it lacked.
+            let _ = missing;
+            answer.missing = Some(graph);
             held.search.revision += 1;
         }
     }

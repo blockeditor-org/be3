@@ -11,7 +11,7 @@ use be_block_commit::{Commit, CommitId, CommitStore, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
-    AccessList, BlockSummary, ClientId, ErrorCode, EscrowKey, HistoryEntry, KeyKind, KeySet,
+    AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey, HistoryEntry, KeyKind, KeySet,
     Listing, ObjectChange, OrganizationKind, OrganizationRole, PublishOutcome, ReferenceChange,
     ServerAccount, SessionState, WrappedBy, client,
 };
@@ -1675,9 +1675,9 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         root: Uuid,
         since: u64,
-        after: client::blocks::ChangeCursor,
+        after: ChangeCursor,
         limit: u32,
-    ) -> Result<client::blocks::ChangedPage, ClientError> {
+    ) -> Result<ChangedPage, ClientError> {
         Ok(client::blocks::changed_since(&self.connection(), root, since, after, limit).await??)
     }
 
@@ -1691,7 +1691,7 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<(Vec<BlockSummary>, Vec<Uuid>, u64), ClientError> {
         const PAGE: u32 = 200;
         let (mut summaries, mut removed) = (Vec::new(), Vec::new());
-        let mut after = client::blocks::ChangeCursor {
+        let mut after = ChangeCursor {
             changed: since,
             block: Uuid::max(),
         };
