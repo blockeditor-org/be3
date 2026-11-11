@@ -16,6 +16,10 @@ Rust on both sides is generated from it into this crate. The world imports:
   the shell around it, its menus, children, audio, web views and creations.
   Everything one way is a `shell-message` in one `tell`, sent once a pass in
   the order it happened;
+- `app` (`app.wit`): what an app offers its host. What happens around an editor
+  one way (`editor-event`: menu picks, child bars, focus, resizes, drags, dialogs)
+  is a list in one `editor.hear`; creating, regenerating, replacing and
+  rendering stay calls that answer;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
   waits for, files, revisions, access and staged data;
 - `network` (`network.wit`): the app's only network, its fetches and the links

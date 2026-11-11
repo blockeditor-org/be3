@@ -1525,8 +1525,9 @@ impl Runtime {
         if !self.session.running() {
             return;
         }
-        for outbound in std::mem::take(&mut self.queued) {
-            self.backend.send(outbound);
+        let queued = std::mem::take(&mut self.queued);
+        if !queued.is_empty() {
+            self.backend.send(queued);
         }
     }
 

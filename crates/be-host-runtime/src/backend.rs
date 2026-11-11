@@ -91,12 +91,17 @@ impl Backend {
         }
     }
 
-    pub(super) fn send(&mut self, outbound: Outbound) {
-        self.wired(|wire| match outbound {
-            Outbound::Open(opening) => wire.open(*opening),
-            Outbound::Close(instance) => wire.close(instance),
-            Outbound::Editor(instance, call) => wire.call(instance, call),
-            Outbound::App(call) => wire.app_call(call),
+    pub(super) fn send(&mut self, outbound: Vec<Outbound>) {
+        self.wired(|wire| {
+            for outbound in outbound {
+                match outbound {
+                    Outbound::Open(opening) => wire.open(*opening),
+                    Outbound::Close(instance) => wire.close(instance),
+                    Outbound::Editor(instance, call) => wire.call(instance, call),
+                    Outbound::App(call) => wire.app_call(call),
+                }
+            }
+            wire.flush_hearing();
         });
     }
 

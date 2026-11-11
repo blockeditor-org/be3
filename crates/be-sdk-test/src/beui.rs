@@ -1,4 +1,5 @@
 use be_sdk_api::Opening;
+use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
@@ -594,7 +595,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
         self.call(|editor, connection| {
-            editor.artifact_settings(connection, data);
+            editor.hear(connection, vec![EditorEvent::ArtifactSettings(data)]);
         });
     }
 
@@ -665,7 +666,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.menu_entry(id);
         let id = id.to_owned();
         self.call(|editor, connection| {
-            editor.menu_pick(connection, ViewId::MAIN, id, anchor);
+            editor.hear(
+                connection,
+                vec![EditorEvent::MenuPick(MenuChoice {
+                    view: ViewId::MAIN,
+                    id,
+                    anchor,
+                })],
+            );
         });
         self.run();
     }
@@ -685,7 +693,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn dismiss(&mut self) {
         self.call(|editor, connection| {
-            editor.dismiss(connection);
+            editor.hear(connection, vec![EditorEvent::Dismiss]);
         });
         self.run();
     }
@@ -742,7 +750,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
         self.call(|editor, connection| {
-            editor.child_bar(connection, ViewId::MAIN, child, action);
+            editor.hear(
+                connection,
+                vec![EditorEvent::ChildBar(ChildBarPress { child, action })],
+            );
         });
     }
 
@@ -753,7 +764,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
             viewport.show(view, scale, band, rect.min);
         }
         self.call(|editor, connection| {
-            editor.view_changed(connection, view, scale);
+            editor.hear(
+                connection,
+                vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
+            );
         });
     }
 
@@ -801,7 +815,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             dropped,
         };
         self.call(|editor, connection| {
-            editor.drag_over(connection, drag);
+            editor.hear(connection, vec![EditorEvent::Drag(Some(drag))]);
         });
     }
 
@@ -950,7 +964,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn presence_visible(&mut self, visible: bool) {
         self.call(|editor, connection| {
-            editor.presence(connection, visible);
+            editor.hear(connection, vec![EditorEvent::Presence(visible)]);
         });
         self.run();
     }
@@ -961,7 +975,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             height: size.y,
         };
         self.call(|editor, connection| {
-            editor.resized(connection, size);
+            editor.hear(connection, vec![EditorEvent::Resized(size)]);
         });
         self.run();
     }
@@ -1217,7 +1231,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .and_then(|viewport| viewport.place(band, rect.min, intrinsic))
         {
             inbox.push(self.framed(|editor, connection| {
-                editor.view_changed(connection, view, scale);
+                editor.hear(
+                    connection,
+                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
+                );
             }));
         }
         self.clock += FRAME_INTERVAL;
@@ -1298,7 +1315,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         });
         if let Some((view, scale)) = placed {
             let framed = self.framed(|editor, connection| {
-                editor.view_changed(connection, view, scale);
+                editor.hear(
+                    connection,
+                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
+                );
             });
             self.inbox.push(framed);
         }
@@ -1782,7 +1802,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.call(|editor, connection| {
-            editor.show_dialog(connection, block.into_bytes(), dialog);
+            editor.hear(
+                connection,
+                vec![EditorEvent::ShowDialog(DialogRequest {
+                    block: block.into_bytes(),
+                    dialog,
+                })],
+            );
         });
     }
 
