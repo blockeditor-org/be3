@@ -52,7 +52,9 @@
           filesystem: {
             content_path: "/work/cas/content",
             temp_path: "/work/cas/tmp",
-            eviction_policy: { max_bytes: 15000000000 },
+            // A large worker has about 145 GB of disk. One verify after a be-lib-geometry change writes about 11 GB, so at
+            // 15 GB the store evicted the toolchains and libraries the next actions needed and fetched them again.
+            eviction_policy: { max_bytes: 60000000000 },
           },
         },
         fast_direction: "get",
