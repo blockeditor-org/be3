@@ -2416,7 +2416,9 @@ impl HostCore {
     fn open_pressed_notifications(&mut self) {
         let waiting = |host: &Self| {
             (
-                host.organization.as_ref().map(|organization| organization.id),
+                host.organization
+                    .as_ref()
+                    .map(|organization| organization.id),
                 host.organizations.len(),
                 be_host_stack::graph_revision(),
                 be_host_stack::status().unsaved,
@@ -2442,6 +2444,9 @@ impl HostCore {
                         self.open_organization(other);
                         web_push::hold(opening);
                     }
+                    // The organizations are listed and it is not among them: the person
+                    // is not a member, so there is nothing to open.
+                    None if !self.organizations.is_empty() => {}
                     _ => {
                         web_push::hold(opening);
                         self.pressed_waiting_on = Some(now);

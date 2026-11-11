@@ -107,7 +107,9 @@ survives a reload. Traps that shape this code:
   `be-host/src/web_push.rs`), shows the answer for up to 3 s, else "New message", and opens a
   repeat (a hash of the sealed bytes, kept in IndexedDB with only the block it was about,
   never its text) never: what is on screen stays, and a repeat of one dismissed or pressed
-  comes back as "New message" without a sound. `globalThis.bePush.enable()`
+  comes back as "New message" without a sound. The worker's store is deleted with the
+  subscription. A worker killed before a loading page says it is ready (30 s) loses a press, and
+  any link with `?open-block=` opens that block, switching organization when nothing is unsaved. `globalThis.bePush.enable()`
   asks permission, subscribes and registers the endpoint (call it from a gesture); `disable()`
   and signing out unregister. The switch is the settings list's "Notifications" row, which asks
   the host through `set_push_device` (`be_host_base::push_device`, installed by `web_push::install`

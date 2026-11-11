@@ -121,5 +121,7 @@ export async function unsubscribePush() {
         return null;
     }
     await subscription.unsubscribe();
+    // What the worker kept of the pushes it showed (sw.js) goes with the subscription.
+    indexedDB.deleteDatabase("be-push");
     return subscription.endpoint;
 }
