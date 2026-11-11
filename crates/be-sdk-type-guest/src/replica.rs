@@ -1294,6 +1294,13 @@ where
         match (self.waiting.take(), event) {
             (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, held, .. }) => {
                 let sealing = matches!(then, AfterPublish::Seal { .. });
+                if let AfterPublish::Kept { keeping, .. } = &then
+                    && keeping.from == self.client
+                    && !held
+                {
+                    // Kept in this device's outbox: the server holds it once that drains.
+                    self.lacking.kept_here(keeping.commit);
+                }
                 self.published(then, Some(head));
                 self.lacking.sealed(self.sealed, held);
                 if !sealing {

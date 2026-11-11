@@ -105,12 +105,12 @@ refused meanwhile; one opened on this device's own journal
 (`opening.journal-kept`) adds the edits it replays. A host or type module that
 restarts loses its list of edits (the host opens the new replica with
 `commits-kept`, so commits kept in the outbox still show, but a journal entry
-the server lacks shows as sent). A replica records edits only while an editor
+the server lacks shows as sent; an edit the server refused stays "Not sent" until the editor dismisses it). A replica records edits only while an editor
 follows: edits made before the first follower, or after the last one left and
 before the replica closed, are not listed, and a replica reopened after a
 rejoin lists only what the module carried. An owner that loses the session with
 an append the server never took shows that edit as failed, since the new owner
-never had it. In chat, Discard deletes the message with a delete edit, like any
+never had it (it is not carried to a replica opened after, whose content lacks it). In chat, Discard deletes the message with a delete edit, like any
 other, and lets the failed edit go; the refused commit the device still holds is
 not shown again. be-sdk-test's `ContentStore::set_online`, `refuse_kept` and
 `close_replica` drive this in an

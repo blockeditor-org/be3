@@ -40,6 +40,7 @@ mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
 mod a_followers_edits_stay_lacking_through_a_takeover_until_its_seal;
 mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
+mod a_followers_stash_kept_offline_by_the_new_owner_keeps_lacking_until_the_outbox_drains;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
@@ -391,6 +392,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     stalled: bool,
     /// Appends are answered as kept on the device alone, and reach no one.
     unheld_appends: bool,
+    /// Commits are published to the device's outbox alone, not to the server.
+    kept_publishes: bool,
     held: Vec<(usize, Call)>,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
@@ -446,6 +449,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             quiet: false,
             stalled: false,
             unheld_appends: false,
+            kept_publishes: false,
             held: Vec::new(),
             deaf: BTreeSet::new(),
             largest_relay: 0,
@@ -927,8 +931,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     && merging.is_none()
                     && self.commits[&head].manifest == manifest
                 {
+                    let kept = self.kept_publishes;
                     return self.to(device, |host| {
-                        reply.send(host, &Ok(PublishOutcome::Published(head)))
+                        let outcome = match kept {
+                            true => PublishOutcome::Kept(head),
+                            false => PublishOutcome::Published(head),
+                        };
+                        reply.send(host, &Ok(outcome))
                     });
                 }
                 let parents = expected
@@ -938,8 +947,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let head = self.commit(manifest, parents);
                 self.head = Some(head);
                 self.publishes += 1;
+                let kept = self.kept_publishes;
                 self.to(device, |host| {
-                    reply.send(host, &Ok(PublishOutcome::Published(head)))
+                    let outcome = match kept {
+                        true => PublishOutcome::Kept(head),
+                        false => PublishOutcome::Published(head),
+                    };
+                    reply.send(host, &Ok(outcome))
                 });
                 if !self.quiet {
                     self.moved(head, Some(device));

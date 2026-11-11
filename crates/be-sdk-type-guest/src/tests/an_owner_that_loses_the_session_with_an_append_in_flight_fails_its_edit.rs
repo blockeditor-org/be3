@@ -35,4 +35,12 @@ fn an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit() {
         "it is lost for good, so it shows as not sent, to send again or discard"
     );
     assert_eq!(count(sim.mirror(1, 1)), 0, "the new owner never had it");
+
+    sim.reopen(0);
+    assert_eq!(
+        sim.lacking(0, 1),
+        0,
+        "what was lost with the session is not carried to a replica whose content lacks it"
+    );
+    assert_eq!(count(sim.mirror(0, 1)), 0, "the editor's own content lacks it too");
 }

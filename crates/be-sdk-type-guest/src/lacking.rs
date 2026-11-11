@@ -200,14 +200,31 @@ impl Lacking {
         });
     }
 
+    /// The kept commits reached the server: those edits are held. One the server refused stays
+    /// until it is dismissed, so a "Not sent" never goes unseen.
+    fn forget_kept(&mut self) {
+        let before = self.entries.len();
+        self.entries
+            .retain(|entry| entry.until != Until::Kept || entry.failed);
+        self.changed |= self.entries.len() != before;
+    }
+
+    /// The stash this replica handed to an owner is kept in a commit of its own that only this
+    /// device's outbox holds, until it drains.
+    pub(crate) fn kept_here(&mut self, commit: CommitId) {
+        self.update(|until| {
+            Some(match until {
+                Until::Handed(handed) if handed == commit => Until::Kept,
+                until => until,
+            })
+        });
+    }
+
     /// The kept commits reached the server, or it refused them: those edits then show as
     /// failed rather than sending for ever.
     pub(crate) fn drained(&mut self, refused: bool) {
         match refused {
-            false => self.update(|until| match until {
-                Until::Kept => None,
-                until => Some(until),
-            }),
+            false => self.forget_kept(),
             true => {
                 // Edits carried from an earlier replica may be among the refused commits, and
                 // nothing else would ever settle them.
@@ -226,10 +243,7 @@ impl Lacking {
     /// earlier replica kept reached the server meanwhile, or was refused.
     pub(crate) fn opened_with(&mut self, kept: KeptCommits) {
         match kept {
-            KeptCommits::None => self.update(|until| match until {
-                Until::Kept => None,
-                until => Some(until),
-            }),
+            KeptCommits::None => self.forget_kept(),
             KeptCommits::Outbox => {}
             KeptCommits::Refused => self.drained(true),
         }
@@ -298,10 +312,12 @@ impl Lacking {
     pub(crate) fn carry(&mut self) -> Carried {
         let entries = std::mem::take(&mut self.entries)
             .into_iter()
+            // What was lost with the session is not in the content the next replica loads, so
+            // nothing could show it: it goes with this replica.
+            .filter(|entry| entry.until != Until::Dropped)
             .map(|entry| Entry {
                 until: match entry.until {
                     Until::Kept => Until::Kept,
-                    Until::Dropped => Until::Dropped,
                     _ => Until::Carried,
                 },
                 ..entry
