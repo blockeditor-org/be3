@@ -2415,7 +2415,9 @@ impl HostCore {
     #[cfg(target_arch = "wasm32")]
     fn open_pressed_notifications(&mut self) {
         let now = (
-            self.organization.as_ref().map(|organization| organization.id),
+            self.organization
+                .as_ref()
+                .map(|organization| organization.id),
             self.organizations.len(),
             be_host_stack::graph_revision(),
         );
@@ -2467,7 +2469,10 @@ impl HostCore {
     /// push service replaced is found here.
     #[cfg(target_arch = "wasm32")]
     fn sync_push_subscription(&mut self) {
-        let Some(organization) = self.organization.as_ref().map(|organization| organization.id)
+        let Some(organization) = self
+            .organization
+            .as_ref()
+            .map(|organization| organization.id)
         else {
             return;
         };

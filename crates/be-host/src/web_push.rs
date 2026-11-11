@@ -131,7 +131,11 @@ pub fn push_open_block(organization: String, block: String) {
 /// then.
 pub(crate) fn forget_this_device(unsubscribe: bool) {
     wasm_bindgen_futures::spawn_local(async move {
-        if let Some(address) = call("address").await.ok().and_then(|address| address.as_string()) {
+        if let Some(address) = call("address")
+            .await
+            .ok()
+            .and_then(|address| address.as_string())
+        {
             let _ = push_unregister(address).await;
         }
         if unsubscribe && let Err(error) = call("unsubscribe").await {
@@ -154,9 +158,7 @@ async fn call(method: &str) -> Result<JsValue, String> {
     let function = js_sys::Reflect::get(&push, &method.into())
         .and_then(|function| function.dyn_into::<js_sys::Function>())
         .map_err(|_| format!("bePush.{method} is missing"))?;
-    let promise = function
-        .call0(&push)
-        .map_err(|error| error_text(&error))?;
+    let promise = function.call0(&push).map_err(|error| error_text(&error))?;
     wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&promise))
         .await
         .map_err(|error| error_text(&error))
