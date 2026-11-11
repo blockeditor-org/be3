@@ -1,0 +1,14 @@
+export_file(name = "exports.map")
+
+load(":defs.bzl", "DYNLIBS", "dynlib", "dynlibs")
+
+[
+    dynlib(name = name, deps = lib["deps"], libs = [":" + under for under in lib["libs"]])
+    for name, lib in DYNLIBS.items()
+]
+
+dynlibs(
+    name = "libs",
+    libs = [":" + name for name in DYNLIBS],
+    visibility = ["PUBLIC"],
+)

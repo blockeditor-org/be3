@@ -1,4 +1,5 @@
 load("@root//buck/dev:test.bzl", "be_test")
+load("@root//buck/dynlink:defs.bzl", "dynlink_deps", "dynlink_flags", "dynlink_library_path")
 load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUSTC_THREADS", "RUST_LOCAL", "dev_only", "opt_flags")
@@ -207,6 +208,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
     rustc_flags = _rustc_flags(crate, kwargs)
     if library["proc_macro"]:
         rustc_flags = rustc_flags + ["--extern", "proc_macro"]
+    rustc_flags = rustc_flags + dynlink_flags()
     compile_env = _env(crate, library["crate"], {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"})
     native.rust_binary(
         name = name + "-harness",
@@ -216,6 +218,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         edition = crate["edition"],
         env = compile_env,
         features = _per_platform(crate, lambda entry: entry["test_features"]),
+        flagged_deps = dynlink_deps(),
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         rustc_flags = rustc_flags + ["--test"],
         srcs = cargo_test_sources(),
@@ -229,6 +232,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
     if paints:
         test.update(manifest = "Cargo.toml", paintings = native.glob(["snapshots/*.paint"]), paints = True)
     run_env = compile_env | env | run_env
+    run_env["LD_LIBRARY_PATH"] = dynlink_library_path(run_env.get("LD_LIBRARY_PATH"))
     parts = {}
     if run_apart:
         tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in native.glob(["src/tests/*.rs"])]
@@ -247,8 +251,10 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
     be_test(name = name, env = run_env, parts = parts, **test)
 
 # One of the crate's [[bin]] targets: :bin, or, in a crate with several, the
-# binary's own name.
-def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
+# binary's own name. dynamic links it against buck/dynlink's libraries outside a
+# release build; only a binary that runs where those libraries are found
+# (LD_LIBRARY_PATH, or beside it) may, so a build tool, which actions run, may not.
+def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, dynamic = False, **kwargs):
     crate = _crate()
     binaries = {binary["name"]: binary for binary in crate["binaries"]}
     if bin == None:
@@ -269,8 +275,9 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
+        flagged_deps = dynlink_deps() if dynamic else [],
         mapped_srcs = cargo_manifest_sources(),
-        rustc_flags = _rustc_flags(crate, kwargs),
+        rustc_flags = _rustc_flags(crate, kwargs) + (dynlink_flags() if dynamic else []),
         srcs = _target_sources(crate, binary["crate_root"]),
         **(kwargs | RUST_LOCAL),
     )
