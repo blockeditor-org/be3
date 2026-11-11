@@ -490,6 +490,29 @@ impl Editor {
         create_memo(move || read.get().unwrap_or(Ok(None)))
     }
 
+    /// The results of the full-text search `search` holds (plans/search.md): none while it
+    /// holds none or until the host answers, which it does again whenever an index changes.
+    pub fn search(
+        &self,
+        search: Memo<Option<be_sdk::Search>>,
+    ) -> Memo<Option<be_sdk::SearchResults>> {
+        let host = self.host();
+        let revision = self.pushed(Pushed::Searches);
+        let watching = host.clone();
+        create_effect(move || {
+            let Some(asked) = search.get() else {
+                return;
+            };
+            let host = watching.clone();
+            host.watch_search(asked.clone());
+            on_cleanup(move || host.unwatch_search(&asked));
+        });
+        create_memo(move || {
+            revision.get();
+            search.with(|asked| asked.as_ref().and_then(|asked| host.search(asked)))
+        })
+    }
+
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,

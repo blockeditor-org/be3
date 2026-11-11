@@ -462,10 +462,11 @@ pub enum Pushed {
     PeerMessages,
     Heads,
     Docks,
+    Searches,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -479,6 +480,7 @@ impl Pushed {
         Self::PeerMessages,
         Self::Heads,
         Self::Docks,
+        Self::Searches,
     ];
 }
 
@@ -526,6 +528,10 @@ pub struct EditorHost {
     heads: Rc<RefCell<HashMap<Uuid, HeadRead>>>,
     watched_heads: Rc<RefCell<Vec<Uuid>>>,
     reported_heads: Rc<RefCell<Option<Vec<Uuid>>>>,
+    searches: Rc<RefCell<HashMap<crate::Search, crate::SearchResults>>>,
+    /// Each search watched, with how many watch it.
+    watched_searches: Rc<RefCell<std::collections::BTreeMap<crate::Search, usize>>>,
+    reported_searches: Rc<RefCell<Option<Vec<crate::Search>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     shell_commands: Rc<RefCell<Vec<(Uuid, ShellCommand)>>>,
@@ -1040,6 +1046,52 @@ impl EditorHost {
     pub fn set_head(&self, block: Uuid, head: HeadRead) {
         self.heads.borrow_mut().insert(block, head);
         self.push(Pushed::Heads);
+    }
+
+    /// Asks for a search's results (`search`), until as many `unwatch_search` calls let go.
+    pub fn watch_search(&self, search: crate::Search) {
+        *self
+            .watched_searches
+            .borrow_mut()
+            .entry(search)
+            .or_default() += 1;
+    }
+
+    pub fn unwatch_search(&self, search: &crate::Search) {
+        let mut watched = self.watched_searches.borrow_mut();
+        if let Some(count) = watched.get_mut(search) {
+            *count -= 1;
+            if *count == 0 {
+                watched.remove(search);
+                self.searches.borrow_mut().remove(search);
+            }
+        }
+    }
+
+    /// A watched search's latest results; none until the host answers.
+    pub fn search(&self, search: &crate::Search) -> Option<crate::SearchResults> {
+        self.searches.borrow().get(search).cloned()
+    }
+
+    pub(crate) fn take_search_watch(&self) -> Option<Vec<crate::Search>> {
+        let searches: Vec<crate::Search> = self.watched_searches.borrow().keys().cloned().collect();
+        let mut reported = self.reported_searches.borrow_mut();
+        if reported
+            .as_ref()
+            .map_or(searches.is_empty(), |reported| *reported == searches)
+        {
+            return None;
+        }
+        *reported = Some(searches.clone());
+        Some(searches)
+    }
+
+    pub fn set_search(&self, search: crate::Search, results: crate::SearchResults) {
+        if !self.watched_searches.borrow().contains_key(&search) {
+            return;
+        }
+        self.searches.borrow_mut().insert(search, results);
+        self.push(Pushed::Searches);
     }
 
     pub fn undo(&self, block_id: Uuid) {

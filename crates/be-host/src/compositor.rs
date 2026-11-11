@@ -30,6 +30,7 @@ thread_local! {
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     static STALE: Cell<u64> = const { Cell::new(0) };
+    static SEARCHED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
     static SHELL: RefCell<Option<Signal<Option<uuid::Uuid>>>> = const { RefCell::new(None) };
@@ -47,6 +48,18 @@ pub(crate) fn install() {
     SHELL.with(|held| *held.borrow_mut() = Some(shell));
     let asks = create_signal((0, Vec::new()));
     PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
+    let searched = create_signal(be_host_stack::search_revision());
+    SEARCHED.with(|held| *held.borrow_mut() = Some(searched));
+}
+
+/// Moves whenever the block store answers a search again (`be_host_stack::search_revision`).
+pub(crate) fn searched() -> ReadSignal<u64> {
+    SEARCHED.with(|held| {
+        held.borrow()
+            .as_ref()
+            .map(|searched| searched.read_only())
+            .expect("the compositor is installed while the document is built")
+    })
 }
 
 /// What apps asked of the host's palette (`shell.open-palette`) since it last heard, with a
@@ -161,6 +174,12 @@ pub(crate) fn owes_frame() -> Option<String> {
 }
 
 fn notify_apps() -> Option<Vec<String>> {
+    let searched = be_host_stack::search_revision();
+    if let Some(signal) = SEARCHED.with(|held| *held.borrow())
+        && signal.get_untracked() != searched
+    {
+        signal.set(searched);
+    }
     let stale = be_host_stack::stale_revision();
     if STALE.with(|seen| seen.replace(stale)) != stale {
         be_host_base::host::changed();

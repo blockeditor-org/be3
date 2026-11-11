@@ -47,6 +47,7 @@ mod join;
 mod merge;
 mod query;
 mod segment;
+mod snippet;
 mod table;
 mod tokens;
 mod varint;
@@ -60,6 +61,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 pub use query::{Clause, Hit, Query};
+pub use snippet::Snippet;
 pub use tokens::{fold, terms};
 
 /// A random id the caller picks for each batch, compaction or merge; the

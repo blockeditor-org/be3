@@ -36,6 +36,7 @@ pub(crate) struct Link {
     blocks: BTreeMap<BlockQuery, Rc<blocks::BlocksWatch>>,
     histories: BTreeMap<Uuid, Rc<blocks::HistoryWatch>>,
     heads: BTreeMap<Uuid, Rc<blocks::HeadWatch>>,
+    searches: BTreeMap<crate::Search, Rc<blocks::SearchWatch>>,
     artifacts: BTreeMap<Uuid, Rc<blocks::ArtifactWatch>>,
     version: Option<Rc<blocks::VersionWatch>>,
     shows: Option<Rc<blocks::ShowRequests>>,
@@ -200,6 +201,31 @@ impl Link {
                 );
                 watch
             });
+        }
+        if let Some(searches) = host.take_search_watch() {
+            let parent = self.instance;
+            self.searches.retain(|search, _| searches.contains(search));
+            for search in searches {
+                if self.searches.contains_key(&search) {
+                    continue;
+                }
+                let watch = Rc::new(under(parent, || {
+                    blocks::SearchWatch::new(
+                        search.text.clone(),
+                        search.within.map(Uuid::into_bytes),
+                    )
+                }));
+                let (host, asked) = (host.clone(), search.clone());
+                follow(
+                    host.waker(),
+                    &watch,
+                    blocks::SearchWatch::next,
+                    move |results| {
+                        host.set_search(asked.clone(), crate::SearchResults::decode(results));
+                    },
+                );
+                self.searches.insert(search, watch);
+            }
         }
         if let Some(watched) = host.take_head_watch() {
             let parent = self.instance;

@@ -24,6 +24,7 @@ be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 be-lib-build-id = { path = "../be-lib-build-id" }
+be-lib-search = { path = "../be-lib-search" }
 futures-util = { version = "0.3", features = ["io"] }
 be-sdk-type-host = { path = "../be-sdk-type-host" }
 serde_json = "1"

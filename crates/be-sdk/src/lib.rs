@@ -88,7 +88,10 @@ pub use editor_state::{
     ArtifactsCore, ChildState, ChildTarget, ContentCache, CreationCore, Drag, EditorCore, Fit,
     PlacedChild, PointScale, ShownEditor, SubregionContent, fit_content, short_id,
 };
-pub use graph::{BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, GraphCommand};
+pub use graph::{
+    BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, GraphCommand, Search, SearchHit,
+    SearchResults,
+};
 pub use host::{
     Artifact, ArtifactState, BlockDrag, BlockHistory, ClipRender, EditorHost, FileDrop, FileFilter,
     FocusedBlock, HeadRead, HistoryRequest, HostContent, OpenRequest, PeerMessage, PeerPresence,

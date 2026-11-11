@@ -455,6 +455,8 @@ pub struct Shared {
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
     pub draining: bool,
+    /// Counts finished drains of the outbox.
+    pub drains: u64,
     pub leaving: bool,
     pub error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
@@ -489,6 +491,7 @@ pub struct Shared {
     pub unsent: Vec<be_block_client::UnsentBlock>,
     pub comparison: Option<super::conflicts::Comparison>,
     pub wall: Wall,
+    pub search: super::search::Searching,
 }
 
 #[derive(Clone, Default)]
@@ -534,6 +537,10 @@ impl Shared {
             (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
+            ),
+            (
+                self.search.busy(super::search::wants_index(self)),
+                "the block store indexes edits or answers a search",
             ),
         ]
         .into_iter()
@@ -1021,6 +1028,7 @@ impl Session<'_> {
             self.refresh_versions().await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
+            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
@@ -1264,10 +1272,13 @@ async fn drain_outbox(
 }
 
 fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
-    shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .draining = draining;
+    {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.draining = draining;
+        if !draining {
+            held.drains += 1;
+        }
+    }
     be_host_base::host::wake();
 }
 
@@ -2898,7 +2909,7 @@ impl Tasks {
         )
     }
 
-    fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+    pub(super) fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         if !peer.is_attached() {
             return;
         }
@@ -3166,7 +3177,7 @@ async fn settled(
     }
 }
 
-async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+pub(super) async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
     match peer.summary(block).await {
         Ok(summary) => {
             if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {

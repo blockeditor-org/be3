@@ -172,11 +172,14 @@ impl beui::native::Program for ModuleProgram {
             }))
         });
         beui::native::with_reactive_scope(document, || {});
+        let mut fitted = Vec::new();
         for view in shown_views.iter().filter(|view| view.fit) {
             if let (Some(shown), Some(window)) =
                 (module.shown(view.id.instance), module.window(view.id))
             {
-                document.fit_window_to(window, shown.fit());
+                let fit = shown.fit();
+                document.fit_window_to(window, fit);
+                fitted.push((view.id.instance, fit));
             }
         }
         for view in &shown_views {
@@ -187,6 +190,17 @@ impl beui::native::Program for ModuleProgram {
             }
         }
         document.show(context, rect);
+        // What a window is to fit can change while the frame runs (a child's status arrives in
+        // `before`, an effect then sets the intrinsic size): the window takes the new fit only
+        // when `fit_window_to` next runs, so ask for the frame that does, or the window, and
+        // the popup it sizes, keeps its old size until something else draws.
+        if fitted.iter().any(|(instance, fit)| {
+            module
+                .shown(*instance)
+                .is_some_and(|shown| shown.fit() != *fit)
+        }) {
+            context.request_repaint();
+        }
         for view in &shown_views {
             let (Some(shown), Some(window)) =
                 (module.shown(view.id.instance), module.window(view.id))
