@@ -9,7 +9,10 @@
       // /tmp/nativelink/small (lost on a snapshot restore) and persist as ONE packed object in
       // Bunny (nl-small-pack.sh); only larger objects go to Bunny one by one. A small object it
       // evicts is lost (it is in no other store) while clients may still take the server to hold
-      // it, so the limit is well above what a day of builds writes: 3 GB filled and evicted.
+      // it, so the limit is well above what a day of builds writes. NativeLink counts each file's
+      // size on disk, a whole 4 KB block for these, not its length: 8 GB held 1.8 million objects
+      // (1.4 GB of content), filled in a day, and its evictions failed builds with "missing from
+      // CAS". 20 GB holds about 4.4 million, within the disk's free inodes.
       name: "CAS_STORE",
       size_partitioning: {
         size: "16kb",
@@ -17,14 +20,14 @@
           filesystem: {
             content_path: "/tmp/nativelink/small/content",
             temp_path: "/tmp/nativelink/small/tmp",
-            eviction_policy: { max_bytes: 8000000000 },
+            eviction_policy: { max_bytes: 20000000000 },
           },
         },
         upper_store: {
           fast_slow: {
             // What a cache hit on a large object serves from. Most of the large scheduler's 147 GB disk: the system
             // takes about 24 GB (17 of them boat's lazily loaded image under /var/lib), the small tier and the action
-            // cache up to 9 GB, so 70 GB here leaves about 44 GB for their temp paths, the small tier's pack (0.5 GB)
+            // cache up to 21 GB, so 70 GB here leaves about 30 GB for their temp paths, the small tier's pack (0.5 GB)
             // and the uploads to Bunny in flight. Empty after a restore, like all of /tmp; it refills from Bunny.
             fast: {
               filesystem: {

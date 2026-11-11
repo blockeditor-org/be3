@@ -95,7 +95,8 @@ port 50052.
   read-only key (the `nl-worker` environment's secret file `worker-ro.env`), and the scheduler for what Bunny lacks;
   they write everything to the scheduler. Writing to Bunny directly took the scheduler out of the path, but a worker
   that read a just-written object a second later got NoSuchKey and failed the build. The scheduler keeps small
-  objects (up to 8 GB; one it evicts is lost) and the action cache in /tmp, persisted as one packed Bunny object every
+  objects (up to 20 GB on disk, which NativeLink counts in whole 4 KB blocks, about 4 million objects; one it
+  evicts is lost, and a full 8 GB failed builds with "missing from CAS") and the action cache in /tmp, persisted as one packed Bunny object every
   15 minutes and restored on boot, and writes everything else to Bunny with the full-access key (the `nl-scheduler`
   environment's `nl-bunny.env`), keeping the last 70 GB of it on its own disk to serve cache hits from; that tier is
   empty after a restore and refills from Bunny as builds read it. Each worker keeps up to 60 GB (`WORKER_FAST_SLOW_STORE`): one verify after a
