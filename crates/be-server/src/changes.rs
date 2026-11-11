@@ -49,9 +49,8 @@ fn mark(
     blocks: &[Uuid],
     sequence: i64,
 ) -> Result<(), ServerError> {
-    let mut update = database.prepare_cached(
-        "UPDATE blocks SET changed = ?3 WHERE organization_id = ?1 AND id = ?2",
-    )?;
+    let mut update = database
+        .prepare_cached("UPDATE blocks SET changed = ?3 WHERE organization_id = ?1 AND id = ?2")?;
     for block in blocks {
         update.execute(params![organization, block.to_string(), sequence])?;
     }

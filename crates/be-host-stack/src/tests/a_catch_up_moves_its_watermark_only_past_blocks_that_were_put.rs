@@ -27,7 +27,10 @@ fn a_catch_up_moves_its_watermark_only_past_blocks_that_were_put() {
     let stale = Uuid::new_v4();
     search.put(stale);
     search.catch_page(index, 40, vec![], &[stale]);
-    assert!(search.settled().is_empty(), "a page's block was not put for it");
+    assert!(
+        search.settled().is_empty(),
+        "a page's block was not put for it"
+    );
 
     // With every block put, the watermark reaches the last page.
     search.catch_page(index, 10, vec![gone], &[first]);

@@ -221,9 +221,15 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         assert!(moved.is_ok(), "{moved:?}");
     }
     let (_, left, _) = changes(&mut owner, work, before_hop, 100).await;
-    assert!(left.contains(&hopper), "work was not told it left: {left:?}");
+    assert!(
+        left.contains(&hopper),
+        "work was not told it left: {left:?}"
+    );
     let (_, left, _) = changes(&mut owner, other, before_hop, 100).await;
-    assert!(left.contains(&hopper), "other was not told it left: {left:?}");
+    assert!(
+        left.contains(&hopper),
+        "other was not told it left: {left:?}"
+    );
 
     // A block collected while still in a tree (nothing refers to it) is named to that tree.
     let unreferenced = owner.create_block(BlockParent::Block(third)).await;
@@ -252,9 +258,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let mut pages = 0;
     loop {
         let page = owner
-            .call(|peer| {
-                client::blocks::changed_since(peer, lone, after.clone(), 100)
-            })
+            .call(|peer| client::blocks::changed_since(peer, lone, after.clone(), 100))
             .await
             .expect("a page of a tree of its own");
         pages += 1;

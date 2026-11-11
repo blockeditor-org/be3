@@ -1448,7 +1448,10 @@ impl ServerStore {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             require(graph, &seen, root, Access::View, "readable")?;
-            if graph.get(root).is_none_or(|node| node.parent != BlockParent::Root) {
+            if graph
+                .get(root)
+                .is_none_or(|node| node.parent != BlockParent::Root)
+            {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
                     "changes are asked of a top-level block's tree".into(),

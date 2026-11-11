@@ -106,18 +106,19 @@ struct Answer {
 
 /// What `wants_index` was worked out at: the graph revision, the sizes of the sets that decide
 /// it, and whether the device is connected.
-type WantKey = (
-    u64,
-    usize,
-    usize,
-    usize,
-    usize,
-    usize,
-    usize,
-    usize,
-    usize,
-    bool,
-);
+#[derive(Clone, Copy, PartialEq)]
+struct WantKey {
+    graph: u64,
+    creating: usize,
+    named: usize,
+    failed: usize,
+    given_up: usize,
+    caught_up: usize,
+    catching: usize,
+    confirming: usize,
+    settle: usize,
+    connected: bool,
+}
 
 /// A define that was sent: where it is on its way to the files pane's size.
 #[derive(Clone, Copy)]
@@ -846,21 +847,21 @@ async fn puts_of(
         documents
             .into_iter()
             .map(|document| Put {
-            doc: DocId {
-                block: block.as_bytes().to_vec(),
-                key: document.key.clone(),
-            },
-            commit: at,
-            source: None,
-            text: Some(Text {
-                name: match document.key.is_empty() {
-                    true => name.clone(),
-                    false => document.name.unwrap_or_default(),
+                doc: DocId {
+                    block: block.as_bytes().to_vec(),
+                    key: document.key.clone(),
                 },
-                body: capped(document.body.unwrap_or_default()),
-            }),
-        })
-        .collect(),
+                commit: at,
+                source: None,
+                text: Some(Text {
+                    name: match document.key.is_empty() {
+                        true => name.clone(),
+                        false => document.name.unwrap_or_default(),
+                    },
+                    body: capped(document.body.unwrap_or_default()),
+                }),
+            })
+            .collect(),
     )
 }
 
