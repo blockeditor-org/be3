@@ -229,7 +229,10 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         "an object uploaded before the quota was published past it"
     );
 
-    admin.delete(image_block).await.unwrap();
+    admin
+        .set_parent(image_block, BlockParent::Detached)
+        .await
+        .unwrap();
     assert!(
         !admin
             .collect_detached()

@@ -43,7 +43,9 @@ async fn a_connection_hears_only_of_the_blocks_it_listed() {
     let inside = author.create_block(BlockParent::Block(listed)).await;
     assert_eq!(heard(&mut other).await, inside);
     let response = author
-        .call(|peer| client::blocks::set_parent(peer, inside, BlockParent::Detached, KeySet::default()))
+        .call(|peer| {
+            client::blocks::set_parent(peer, inside, BlockParent::Detached, KeySet::default())
+        })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(

@@ -645,7 +645,11 @@ impl<S: ObjectStore> Tracker<S> {
                 self.relist(BlockParent::Block(parent), ChildChange::Delete(deleted.id))
                     .await?;
             }
-            _ => self.peer.set_parent(deleted.id, BlockParent::Detached).await.map_err(explain)?,
+            _ => self
+                .peer
+                .set_parent(deleted.id, BlockParent::Detached)
+                .await
+                .map_err(explain)?,
         }
         self.invalidate().await;
         Ok(format!(

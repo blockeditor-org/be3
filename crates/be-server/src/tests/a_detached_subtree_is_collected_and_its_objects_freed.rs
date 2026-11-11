@@ -62,7 +62,9 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
     assert_eq!(blocks[0].id, bystander);
 
     let response = client
-        .call(|peer| client::blocks::set_parent(peer, folder, BlockParent::Detached, KeySet::default()))
+        .call(|peer| {
+            client::blocks::set_parent(peer, folder, BlockParent::Detached, KeySet::default())
+        })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 

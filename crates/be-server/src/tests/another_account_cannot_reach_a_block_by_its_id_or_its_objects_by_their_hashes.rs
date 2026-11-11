@@ -140,7 +140,9 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let relayed = attacker.relay(block, None, b"forged edit".to_vec()).await;
     assert!(matches!(relayed, Ok(())), "{relayed:?}");
     let deleted = attacker
-        .call(|peer| client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default()))
+        .call(|peer| {
+            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
+        })
         .await;
     assert!(matches!(deleted, Ok(())), "{deleted:?}");
     let _ = elsewhere;

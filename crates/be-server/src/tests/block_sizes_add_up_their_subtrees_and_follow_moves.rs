@@ -98,7 +98,9 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     );
 
     let deleted = client
-        .call(|peer| client::blocks::set_parent(peer, child, BlockParent::Detached, KeySet::default()))
+        .call(|peer| {
+            client::blocks::set_parent(peer, child, BlockParent::Detached, KeySet::default())
+        })
         .await;
     assert!(deleted.is_ok(), "{deleted:?}");
     assert_eq!(
