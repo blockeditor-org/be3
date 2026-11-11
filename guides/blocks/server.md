@@ -484,7 +484,7 @@ invitation, or creating an agent, makes the two accounts contacts.
 Push notifications for members who are not connected (`notifications.wit`,
 `notifications.rs`, `push.rs`; plans/notifications.md for what is left). The
 server never reads one: the text is sealed under the block's data key with the
-block and the time it was sent (`Peer::notify`, `be_block_client::Notification`).
+organization, block, sender and the time it was sent (`Peer::notify`, `be_block_client::Notification`).
 What it does learn: the block, the sender, when it was sent, whom it mentions,
 who was not connected, and from each endpoint which push service each device
 uses. Pushes are padded to one length (`push::PADDED_BYTES`), so not even the
