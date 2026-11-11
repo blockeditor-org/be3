@@ -214,6 +214,15 @@ pinned_rust_toolchain(
         "root//buck/constraints:release": _release,
     })
     + select({
+        # rustc embeds LLVM bitcode in every object of an rlib for a later LTO
+        # link, and only be-host's LTO link (buck/constraints:lto) reads it.
+        # It was 86% of an object's bytes, which every worker that links or
+        # compiles against the rlib downloads, so it is off elsewhere, as cargo
+        # turns it off for a profile without LTO.
+        "DEFAULT": ["-Cembed-bitcode=no"],
+        "root//buck/constraints:lto": [],
+    })
+    + select({
         "DEFAULT": [],
         "prelude//cpu:wasm32": ["-Cstrip=debuginfo"],
         # Packed, macOS's default, runs dsymutil after the link, which is
