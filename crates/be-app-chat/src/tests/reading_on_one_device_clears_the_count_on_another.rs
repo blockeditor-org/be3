@@ -16,12 +16,11 @@ fn reading_on_one_device_clears_the_count_on_another() {
     laptop.editor.blur();
     laptop.run();
     for body in ["Two more things", "Who takes the notes next week?"] {
-        laptop.arrive(
-            laptop
-                .content()
-                .send(CHAT, Message::new(ROSA, MORNING + 40 * MINUTE, body))
-                .1,
-        );
+        laptop.arrive(signed_by(
+            &laptop.content(),
+            ROSA,
+            Message::new(ROSA, MORNING + 40 * MINUTE, body),
+        ));
     }
     assert!(
         laptop

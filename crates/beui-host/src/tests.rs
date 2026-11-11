@@ -1011,6 +1011,8 @@ mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_more_button_of_a_selection_toolbar_opens_the_full_menu;
 mod the_on_screen_keyboard_opens_in_the_window_holding_the_focused_field;
 mod the_order_a_pointer_rests_and_a_row_appears_in_does_not_decide_what_is_pointed_at;
+mod the_palettes_close_tab_action_closes_the_tab_the_focused_pane_shows;
+mod the_palettes_split_actions_move_the_shown_tab_beside_its_pane;
 mod the_program_and_the_inspector_paint_displays_a_renderer_can_tell_apart;
 mod the_program_tab_shows_the_document_below_the_stacked_bar;
 mod the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_program_it_returns_to;
@@ -2127,6 +2129,26 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+/// Whether the dock's action `id`, as the palette finds it from the focus, is enabled.
+pub(crate) fn dock_action_enabled(harness: &mut Harness, id: &str) -> bool {
+    with_dock_action(harness, id, |action| action.is_enabled())
+}
+
+/// Runs the dock's action `id` as the palette would, and whether it ran.
+pub(crate) fn run_dock_action(harness: &mut Harness, id: &str) -> bool {
+    with_dock_action(harness, id, |action| action.run())
+}
+
+fn with_dock_action<R>(harness: &mut Harness, id: &str, f: impl FnOnce(Action) -> R) -> R {
+    with_installed(harness.document_mut(), |document| {
+        let action = crate::reactive::active_actions_from(&document.focus_ancestry())
+            .into_iter()
+            .find(|action| action.id() == id)
+            .unwrap_or_else(|| panic!("the palette offers {id} from inside the dock"));
+        f(action)
+    })
 }
 
 #[derive(Clone, Copy)]

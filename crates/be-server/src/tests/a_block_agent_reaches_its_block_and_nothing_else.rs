@@ -35,6 +35,7 @@ const REACHING_PAST: &[&str] = &[
     "set-access",
     "list-access",
     "set-recovery-key",
+    "get-signing-keys",
     "create-escrow",
     "push-key",
     "offers-fcm",

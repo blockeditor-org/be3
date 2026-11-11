@@ -13,6 +13,7 @@ use be_sdk_type_api::{
 };
 use uuid::Uuid;
 
+use crate::lacking::{Carried, Lacking, Until};
 use crate::{
     FromFileFn, Recorder,
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
@@ -93,6 +94,9 @@ pub(crate) struct Opened {
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
     pub(crate) lost_edits: bool,
+    pub(crate) journal_kept: bool,
+    pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
+    pub(crate) refused_commits: Vec<CommitId>,
     pub(crate) from_file: Option<FromFileFn>,
     pub(crate) now: u64,
 }
@@ -107,6 +111,11 @@ pub(crate) trait AnyReplica {
     fn wake_at(&self) -> Option<u64>;
 
     fn released(&self) -> bool;
+
+    /// What the server lacks of the edits made here, for the block's next replica.
+    fn carry(&mut self) -> Carried;
+
+    fn adopt(&mut self, carried: Carried);
 }
 
 pub(crate) enum Input {
@@ -141,6 +150,16 @@ pub(crate) enum Input {
     Resumed {
         token: Token,
         result: Result<Resume, String>,
+    },
+    /// The host's answer to an append of the entries `from..=through`.
+    Appended {
+        from: u64,
+        through: u64,
+        held: bool,
+    },
+    Drained {
+        refused: bool,
+        commits: Vec<CommitId>,
     },
     Close,
     Claim,
@@ -478,6 +497,14 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     resends: u32,
     /// How many times in a row a put failed.
     put_failures: u32,
+    /// What the server lacks of the edits made here (`ToEditor::Lacking`).
+    lacking: Lacking,
+    /// The journal opened on is this device's own (`opening.journal-kept`).
+    journal_kept: bool,
+    /// What commits of the block this device keeps (`opening.commits-kept`).
+    commits_kept: be_sdk_type_api::KeptCommits,
+    /// The refused commits this device holds (`opening.refused-commits`).
+    refused_commits: Vec<CommitId>,
     out: Vec<Effect>,
 }
 
@@ -508,6 +535,12 @@ where
                 from,
                 wire: Wire::decode(&bytes),
             }),
+            Input::Appended {
+                from,
+                through,
+                held,
+            } => self.lacking.appended(from, through, held),
+            Input::Drained { refused, commits } => self.lacking.drained(refused, &commits),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
                 | HeadEvent::Rejected { .. }
@@ -573,6 +606,16 @@ where
 
     fn released(&self) -> bool {
         self.released
+    }
+
+    fn carry(&mut self) -> Carried {
+        self.lacking.carry()
+    }
+
+    fn adopt(&mut self, carried: Carried) {
+        self.lacking.adopt(carried);
+        self.lacking
+            .opened_with(self.commits_kept, &self.refused_commits);
     }
 }
 
@@ -659,6 +702,10 @@ where
             ignored_owners: Vec::new(),
             resends: 0,
             put_failures: 0,
+            lacking: Lacking::default(),
+            journal_kept: opened.journal_kept,
+            commits_kept: opened.commits_kept,
+            refused_commits: opened.refused_commits,
             out: Vec::new(),
         }
     }
@@ -737,6 +784,7 @@ where
             }
             false => self.beaten = None,
         }
+        self.tell_lacking();
         self.report();
         out.append(&mut self.out);
     }
@@ -759,6 +807,7 @@ where
                 let size = C::encode_operation(&operation).len();
                 self.unsent.push_back((operation, size, 1));
             }
+            self.lacking.waiting_to_unsettled();
             return self.flush();
         }
         while !self.held.is_empty() && !self.putting() {
@@ -776,6 +825,7 @@ where
                 counter: sequencer.sequence() + 1,
             };
             if let Some(op) = sequencer.accept(id, payload) {
+                self.lacking.sequenced(op.sequence);
                 self.confirmed.apply(&operation);
                 self.sequenced(op);
             }
@@ -1100,16 +1150,19 @@ where
         if ops.is_empty() {
             return;
         }
+        let from = ops[0].sequence;
         match self.alone() {
             true => {
                 let folded = fold::<C>(ops);
-                self.append(folded, false);
+                self.append(folded, false, from);
             }
-            false => self.append(ops, true),
+            false => self.append(ops, true, from),
         }
     }
 
-    fn append(&mut self, ops: Vec<SessionOp>, relay: bool) {
+    /// Appends `ops`, which hold every operation from `from` on: a folded op holds those it
+    /// absorbed.
+    fn append(&mut self, ops: Vec<SessionOp>, relay: bool, from: u64) {
         if !self.is_owner() || ops.is_empty() {
             return;
         }
@@ -1133,6 +1186,7 @@ where
             generation: self.state.generation,
             entries,
             relay,
+            from,
         });
     }
 
@@ -1250,13 +1304,16 @@ where
             Input::Attach { editor, editable } => self.attach(editor, editable),
             Input::Detach { editor } => {
                 self.editors.remove(&editor);
+                self.lacking.unfollow(editor);
             }
             Input::Head(HeadEvent::Moved { head }) => self.moved(head),
             Input::Head(_)
             | Input::Read { .. }
             | Input::PartRead { .. }
             | Input::PartPut { .. }
-            | Input::Resumed { .. } => {}
+            | Input::Resumed { .. }
+            | Input::Appended { .. }
+            | Input::Drained { .. } => {}
             Input::Lease {
                 session,
                 resynchronize,
@@ -1647,8 +1704,20 @@ where
 
     fn answer_awaited(&mut self, event: HeadEvent) {
         match (self.waiting.take(), event) {
-            (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, .. }) => {
+            (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, held, .. }) => {
+                let sealing = matches!(then, AfterPublish::Seal { .. });
+                if let AfterPublish::Kept { keeping, .. } = &then
+                    && keeping.from == self.client
+                    && !held
+                {
+                    // Kept in this device's outbox: the server holds it once that drains.
+                    self.lacking.kept_here(keeping.commit);
+                }
                 self.published(then, Some(head));
+                self.lacking.sealed(self.sealed, held);
+                if !sealing {
+                    self.lacking.replaced(held);
+                }
             }
             (Some(Wait::Publish { then, .. }), HeadEvent::Rejected { head, .. }) => {
                 self.rejected(then, head);
@@ -1784,6 +1853,7 @@ where
                 self.publish_replacement(content, reply, true, Some(merging), self.base, 0);
             }
             AfterStash::Keep => {
+                self.lacking.handed(commit);
                 self.drop_unconfirmed();
                 self.rebuild_visible();
                 self.hand(Handed {
@@ -1796,7 +1866,10 @@ where
 
     fn acknowledge(&mut self, keeping: &Keeping) {
         match keeping.from == self.client {
-            true => self.handed.retain(|handed| handed.commit != keeping.commit),
+            true => {
+                self.handed.retain(|handed| handed.commit != keeping.commit);
+                self.lacking.saved(keeping.commit);
+            }
             false => self.send(
                 Some(keeping.from),
                 &SessionMessage::Saved {
@@ -1917,6 +1990,17 @@ where
             Some(journal) => self.replay_journal(journal),
             None => Vec::new(),
         };
+        for op in &replayed {
+            // An operation sent by its part is too large to keep: it is followed without bytes.
+            let bytes = match &op.payload {
+                Payload::Inline(bytes) => bytes.clone(),
+                Payload::Part(_) => Vec::new(),
+            };
+            match self.journal_kept {
+                true => self.lacking.add_replayed(bytes, op.sequence),
+                false => self.lacking.journaled(&bytes, Some(op.sequence)),
+            }
+        }
         self.visible = self.confirmed.clone();
         self.projected = Settling::new(self.visible.clone(), Vec::new());
         let last = replayed.last().map_or(self.sealed, |op| op.sequence);
@@ -2092,6 +2176,7 @@ where
         let size = payload.len();
         let oversized = size > LARGEST_RELAYED_OPERATION;
         if self.is_owner() && (oversized || self.sealing_out() || !self.held.is_empty()) {
+            self.lacking.add(payload, Until::Waiting);
             let first = self.held.is_empty();
             self.held.push_back(operation);
             if first && !self.sealing_out() {
@@ -2105,9 +2190,10 @@ where
                     client: self.client,
                     counter: sequencer.sequence() + 1,
                 };
-                let Some(op) = sequencer.accept(id, Payload::Inline(payload)) else {
+                let Some(op) = sequencer.accept(id, Payload::Inline(payload.clone())) else {
                     return true;
                 };
+                self.lacking.add(payload, Until::Sequenced(op.sequence));
                 self.confirmed.apply(&operation);
                 self.sequenced(op);
             }
@@ -2117,6 +2203,7 @@ where
                     || !self.unsent.is_empty()
                     || self.awaiting.is_some() =>
             {
+                self.lacking.add(payload, Until::Unsettled);
                 let leftover = match self.unsent.back_mut() {
                     Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
                         let leftover = C::absorb_operation(last, operation);
@@ -2135,6 +2222,7 @@ where
                 }
             }
             Role::Follower(follower) => {
+                self.lacking.add(payload.clone(), Until::Unsettled);
                 let message = follower.submit(Payload::Inline(payload));
                 self.in_flight = 1;
                 let owner = self.state.owner;
@@ -2163,6 +2251,8 @@ where
                     *self.acknowledged.entry(editor).or_default() += 1;
                 }
             }
+            FromEditor::FollowLacking => self.lacking.follow(editor),
+            FromEditor::DismissLacking(id) => self.lacking.dismiss(id),
             FromEditor::Gesture(phase) if editable => {
                 let operations = match phase {
                     Gesture::Begin => {
@@ -2430,6 +2520,7 @@ where
     }
 
     fn snapshot_to(&mut self, editor: EditorId) {
+        let applied = self.acknowledged.get(&editor).copied().unwrap_or_default();
         let settled = self.projected.settled();
         let bytes = settled.encode();
         let length = match C::LOADS {
@@ -2447,9 +2538,24 @@ where
                 .iter()
                 .map(C::encode_operation)
                 .collect(),
-            applied: self.acknowledged.get(&editor).copied().unwrap_or_default(),
+            applied,
         };
         self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
+    }
+
+    /// Tells the editors following `ToEditor::Lacking` what changed: a follower's edits the
+    /// owner accepted since, one that took the session over keeping its unaccepted edits.
+    fn tell_lacking(&mut self) {
+        match &self.role {
+            Role::Follower(_) => {
+                self.lacking.settled_to(self.unsettled());
+                self.lacking.lost();
+            }
+            Role::Owner(_) => self.lacking.promoted(),
+        }
+        for (editor, message) in self.lacking.messages() {
+            self.tell_editor(editor, &message);
+        }
     }
 
     fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {
@@ -2786,6 +2892,7 @@ where
             }
             SessionMessage::Saved { commit } => {
                 self.handed.retain(|handed| handed.commit != commit);
+                self.lacking.saved(commit);
             }
             SessionMessage::Presence { kind, value } => {
                 if from == self.client {
@@ -2924,7 +3031,7 @@ where
         };
         if inherited == Inherited::Continued {
             self.append_unappended();
-            self.append(vec![op.clone()], false);
+            self.append(vec![op.clone()], false, op.sequence);
         }
         self.confirmed.apply(&operation);
         self.visible.apply(&operation);
@@ -3140,7 +3247,8 @@ where
         self.role = Role::Owner(sequencer);
         self.rebased = false;
         self.appended_bytes = 0;
-        self.append(kept, false);
+        let from = kept.first().map_or(0, |op| op.sequence);
+        self.append(kept, false, from);
         self.rebuild_visible();
         for handed in self.handed.clone() {
             self.jobs.push_back(Job::Keep(Keeping {

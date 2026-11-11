@@ -6,17 +6,14 @@ use beui_host::native::FreetypeFonts;
 use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
-use crate::ui::{HostUi, Root as HostRoot, StatusView, SyncState};
+use crate::ui::{HostUi, Root as HostRoot, StatusView};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use beui_host::native::build;
 
 fn saving(saved: bool, saves: u64) -> HostUi {
     HostUi {
         status: StatusView {
-            sync: match saved {
-                true => SyncState::Saved,
-                false => SyncState::Syncing,
-            },
+            unsaved: !saved,
             saves,
             ..Default::default()
         },

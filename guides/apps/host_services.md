@@ -94,6 +94,15 @@ Notes on particular calls:
   agent the server no longer has (`agent-not-found`) answers success. The
   host denies them unless the manifest sets `"block_agents": true`, and
   refuses to rotate or remove an agent the Agents menu lists.
+- `sign(bytes)` signs as the person and `verify(account, bytes, signature)`
+  answers a `Signer` (verified, unverified, changed or bad), both in the block
+  the editor shows, with a key the app never holds (guides/blocks/keys.md,
+  Signing what a person writes). Sign what a record means, not its encoding: a
+  type defines the bytes (be-type-chat's `signed.rs`). `verify` is
+  `unavailable` while its answer needs the server and it is out of reach.
+  `BeuiTest` answers both itself: everyone signs as `be_sdk_test::signature`
+  gives, and `set_signer(account, signer)` sets how a good signature by
+  `account` verifies (a contact's, `Verified`, unless set).
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block id: the host isolates it
@@ -108,7 +117,7 @@ Notes on particular calls:
   connection open, on their other devices (guides/blocks/server.md,
   "Notifications"). The host takes it only with Edit on the block, cuts `text`
   to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the block's
-  key with the block, the sender and the time, so the server reads none of it; the device
+  key with the organization, the block, the sender and the time, so the server reads none of it; the device
   that shows it names the sender (whom the server vouches for) and the block
   itself. `mentions` names the accounts the text mentions, which a member whose
   mode is `mentions` is told for. It is answered at once, and dropped when the
@@ -118,6 +127,10 @@ Notes on particular calls:
   (Notifications: All, Mentions only, Off), showing a change until the host
   answers and going back if it refuses. `BeuiTest::take_notifications`
   records what an editor sent.
+- `set_push_device(on)` turns pushes to this device on or off and `PushDeviceWatch` follows it
+  (none on a host that cannot receive them, which is every host but the web build); turning
+  them on asks for the person's permission, so call it from their press. The settings list's
+  "Notifications" switch is its one user (guides/running/web.md, push notifications).
 - The shell-only calls (share dialog, access lists, show and dialog requests,
   `close_editor`, ...) serve the instance that draws the host's window; no
   other editor has any use for them.
@@ -143,14 +156,19 @@ as plain text, each title and its link; the host adds the blocks' exported
 files, read through their types only when a paste asks. Ids inside a
 `be3/blocks` item are translated like any other crossing the protocol.
 
-A cut is recorded by the host, not the clip: `host().cut_blocks(blocks, holder)`
-before the editor removes its references as a delete does. A paste of
-`be3/blocks` goes through `host().paste_blocks(blocks, parent)`, which answers
-with the blocks the editor may view; a block cut from its parent moves to
-`parent` (`moved`), and every paste uses up the record, so later ones add
-references. The files pane keeps a link it cut where it is until that first
-paste, which moves it (`move_block` with `is_reference`); pasting any other
-block on a folder links it there (`place_block`). A drag over an editor carries the same clip with a `DropAction`
+A cut is recorded by the host, not the clip, and only the host keeps it:
+`host().cut_blocks(blocks, holder)`, which it ignores unless `holder` may be
+changed; `editor.copy_blocks` forgets every cut, so a cut is a copy followed by
+`cut_blocks`. The canvas then removes its references as a delete does; the files
+pane leaves a cut link where it is. A paste of `be3/blocks` goes through
+`host().paste_blocks(blocks, parent)`, which answers with the blocks the
+editor may view (`Pasted`), and the first paste of each uses up its record, so
+later ones add references. A block cut from its parent moves to `parent`
+(`moved`). For any other cut block the answer names the holder (`cut_from`)
+while it still lists the reference, is not deleted and may be changed; the
+files pane moves the link out of it (`move_block` with `is_reference`), and
+links every block answered without one (`place_block`).
+A drag over an editor carries the same clip with a `DropAction`
 the host picked from the modifiers (`DropAction::of`): a move, Ctrl or Alt for a
 copy (`copy_blocks`), Ctrl+Shift for a reference.
 

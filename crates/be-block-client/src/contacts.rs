@@ -1,5 +1,8 @@
 use be_block_graph::Access;
-use be_block_keys::{CardRole, ContactCard, InviteCode, Party, RecoveryPublic, RecoverySecret};
+use be_block_keys::{
+    CardRole, ContactCard, InviteCode, Party, PublicIdentity, RecoveryPublic, RecoverySecret,
+    SigningPublic,
+};
 use std::collections::HashMap;
 
 use be_block_protocol::{
@@ -17,7 +20,11 @@ pub struct Contact {
     pub account: Uuid,
     pub email: String,
     pub display_name: String,
+    /// The identity key verified through a contact link, or a key change sealed with the one
+    /// before; `None` while the card has not opened.
     pub public: Option<RecoveryPublic>,
+    /// The signing key verified with it.
+    pub signing: Option<SigningPublic>,
 }
 
 #[derive(Clone, Debug)]
@@ -44,6 +51,7 @@ pub fn card(
     ContactCard {
         account: account.into_bytes(),
         public: identity.public(),
+        signing: identity.signing(),
         display_name: display_name.to_owned(),
         email: email.to_owned(),
     }
@@ -84,7 +92,7 @@ pub async fn contacts(
             .ok()
             .filter(|card| card.account == row.account.into_bytes());
         if let Some(verified) = &mut card
-            && let Some(public) = changed_key(account, identity, verified, &row.changes)
+            && let Some(changed) = changed_key(account, identity, verified, &row.changes)
         {
             if held.is_none() {
                 held = Some(sealed_to_me(connection).await?);
@@ -97,12 +105,14 @@ pub async fn contacts(
                 held.as_deref().unwrap_or_default(),
             )
             .await?;
-            verified.public = public;
+            verified.public = changed.public;
+            verified.signing = changed.signing;
             client::contacts::put_contact(connection, row.account, verified.seal_own(identity))
                 .await??;
         }
         listed.push(Contact {
-            public: card.map(|card| card.public),
+            public: card.as_ref().map(|card| card.public),
+            signing: card.map(|card| card.signing),
             account: row.account,
             email: row.email,
             display_name: row.display_name,
@@ -116,18 +126,22 @@ fn changed_key(
     identity: &RecoverySecret,
     card: &ContactCard,
     changes: &[Vec<u8>],
-) -> Option<RecoveryPublic> {
-    let mut current = card.public;
+) -> Option<PublicIdentity> {
+    let held = PublicIdentity {
+        public: card.public,
+        signing: card.signing,
+    };
+    let mut current = held;
     for sealed in changes {
         let from = Party {
             account: card.account,
-            public: current,
+            public: current.public,
         };
         if let Ok(next) = identity.open_key_change(&from, account.into_bytes(), sealed) {
             current = next;
         }
     }
-    (current != card.public).then_some(current)
+    (current != held).then_some(current)
 }
 
 async fn sealed_to_me(connection: &Arc<Connection>) -> Result<Vec<SealedKey>, ClientError> {
@@ -240,7 +254,7 @@ pub fn new_identity(
         .iter()
         .map(|(contact, party)| KeyChange {
             contact: *contact,
-            sealed: old.seal_key_change(account.into_bytes(), party, fresh.public()),
+            sealed: old.seal_key_change(account.into_bytes(), party, fresh.identity()),
         })
         .collect();
     Some(NewIdentity {

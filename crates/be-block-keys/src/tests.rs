@@ -1,6 +1,8 @@
 use super::*;
 
 mod a_contact_card_opens_only_with_its_code_in_its_role;
+mod a_contact_verifies_what_another_signed_with_the_key_on_its_card;
+mod a_key_change_carries_the_new_signing_key;
 mod a_recovery_phrase_round_trips_through_its_words;
 mod a_sealed_key_opens_only_from_the_account_that_sealed_it;
 mod a_typed_code_is_normalized;

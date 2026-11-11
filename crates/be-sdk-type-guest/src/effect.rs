@@ -64,6 +64,8 @@ pub(crate) enum Effect {
         generation: u64,
         entries: Vec<JournalEntry>,
         relay: bool,
+        /// The first sequence number the entries hold, folded ones included.
+        from: u64,
     },
     Rebase {
         replica: ReplicaId,
@@ -114,6 +116,8 @@ pub(crate) enum HeadEvent {
     Published {
         token: Token,
         head: CommitId,
+        /// False for a commit kept on this device, which the server lacks until `drained`.
+        held: bool,
     },
     Rejected {
         token: Token,

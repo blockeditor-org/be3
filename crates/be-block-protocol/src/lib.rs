@@ -57,7 +57,8 @@ pub const MAX_NOTIFICATION_BYTES: usize = 2048;
 /// under the block's data key. Bytes, so a service worker reads it without a decoder: 16 bytes
 /// each of organization, block and sender, then the sealed notification. A device names the
 /// sender and the block itself, from its own contacts and graph: the sealed part holds only
-/// the text, bound to the block and the time it was sent (`be_block_client::Notification`).
+/// the text, bound to the organization, block, sender and time it was sent
+/// (`be_block_client::Notification`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PushMessage {
     pub organization: Uuid,

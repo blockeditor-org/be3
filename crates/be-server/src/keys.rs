@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use be_block_graph::BlockGraph;
 use be_block_protocol::{
     ErrorCode, EscrowKey, KeyChange, KeyKind, KeyRow, KeySet, KeyWork, OrganizationKind, OwnKind,
-    OwnSealed, SealedKey, Unsealed, WrappedBy, WrappedKey,
+    OwnSealed, SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -1101,6 +1101,42 @@ impl ServerStore {
         .await
     }
 
+    /// The signing keys of those of `accounts` the caller may know: itself, its contacts and
+    /// the members of the organization open. A key the server holds is only what the account
+    /// sent; a device trusts it only on first use (plans/authorship.md).
+    pub async fn signing_keys(
+        &self,
+        identity: Identity,
+        accounts: Vec<Uuid>,
+    ) -> Result<Vec<SigningKey>, ServerError> {
+        if accounts.len() > crate::limits::MAX_SIGNING_KEYS_ASKED {
+            return Err(crate::limits::too_many(
+                "accounts asked for at once",
+                crate::limits::MAX_SIGNING_KEYS_ASKED,
+            ));
+        }
+        self.with_database(move |_, database| {
+            let mut found = Vec::new();
+            for account in accounts.into_iter().collect::<BTreeSet<_>>() {
+                let known = account == identity.account
+                    || crate::contacts::is_contact(&database, identity.account, account)?
+                    || is_member_of(&database, account, identity.organization)?;
+                if !known {
+                    continue;
+                }
+                let signing: Option<Vec<u8>> = database
+                    .prepare_cached("SELECT signing FROM recovery_keys WHERE account_id = ?1")?
+                    .query_row([account.to_string()], |row| row.get(0))
+                    .optional()?;
+                if let Some(key) = signing.and_then(|key| <[u8; 32]>::try_from(key).ok()) {
+                    found.push(SigningKey { account, key });
+                }
+            }
+            Ok(found)
+        })
+        .await
+    }
+
     pub async fn recovery_key(
         &self,
         account: Uuid,
@@ -1193,6 +1229,7 @@ impl ServerStore {
         &self,
         account: Uuid,
         public: [u8; 32],
+        signing: [u8; 32],
         sealed: Vec<SealedKey>,
         own: Vec<OwnSealed>,
         changes: Vec<KeyChange>,
@@ -1268,8 +1305,9 @@ impl ServerStore {
                 )?;
             }
             transaction.execute(
-                "INSERT OR REPLACE INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
-                params![account.to_string(), public.to_vec()],
+                "INSERT OR REPLACE INTO recovery_keys (account_id, public, signing)
+                 VALUES (?1, ?2, ?3)",
+                params![account.to_string(), public.to_vec(), signing.to_vec()],
             )?;
             transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
             for held in &held {

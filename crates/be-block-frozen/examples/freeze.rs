@@ -415,6 +415,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         organization,
         scene::AGENT_NAME.into(),
         agent_public.0,
+        agent_phrase.secret().signing().0,
         owner_card.seal_own(&agent_phrase.secret()),
         owner.keys().escrow().map_or_else(Vec::new, |escrow| {
             be_block_client::contacts::seal_pin(&agent_phrase.secret(), organization, &escrow)
@@ -425,6 +426,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     let agent_card = be_block_keys::ContactCard {
         account: agent.account.into_bytes(),
         public: agent_public,
+        signing: agent_phrase.secret().signing(),
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
@@ -770,6 +772,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     ask(client::keys::set_recovery_key(
         &friend.connection(),
         fresh.secret().public().0,
+        fresh.secret().signing().0,
         resealed.sealed,
         resealed.own,
         resealed.changes,

@@ -100,6 +100,37 @@ survives a reload. Traps that shape this code:
   the same time in the page and the worker.
 - `web/sw.js`, the service worker, keeps what the page fetched (network first, except `/api` and
   `/auth`; a network silent for 3 s gets the kept answer), so a page opened once opens offline.
+- Push notifications (plans/notifications.md). The browser decrypts a Web Push payload before
+  `sw.js` sees it, so the worker holds a `PushMessage`'s bytes, never a key.
+  - *Showing.* The worker asks every open window to open the push (`web/push.js`, bound in
+    `host.js` to the module's `push_open`, which runs `Peer::open_notification` and names the
+    sender and block from the host's contacts and graph, `be-host/src/web_push.rs`) and shows the
+    first answer, or "New message" after 3 s, with no window or without the key.
+  - *Repeats.* A hash of the sealed bytes and the block it was about, never its text, is kept
+    in IndexedDB. A repeat is not opened again: what is on screen stays, and one dismissed or
+    pressed comes back as "New message" without a sound. The store is deleted with the
+    subscription.
+  - *The switch.* `globalThis.bePush.enable()` asks permission, subscribes and registers the
+    endpoint (call it from a gesture); `disable()` and signing out unregister. The settings
+    list's "Notifications" row asks the host through `set_push_device`
+    (`be_host_base::push_device`, installed by `web_push::install` and published as
+    `PushDeviceWatch`).
+  - *Registering.* An endpoint is registered per organization, so the host registers the
+    browser's subscription again (`bePush.sync`) each time it connects to an organization with
+    pushes on, which also finds a subscription the push service replaced
+    (`pushsubscriptionchange`, which `sw.js` renews). Signing out unregisters the endpoint and
+    drops the browser's subscription only when no saved account is left; another account
+    removed while one is open keeps its endpoint until a push to it fails.
+  - *Pressing.* A pressed notification focuses a window and posts the block to it
+    (`push_open_block`), or opens `?open-block=ORGANIZATION/BLOCK`, which any link can do. A block
+    of another organization first opens that organization, unless changes are unsaved; the host
+    holds it until the organizations, the graph or the unsaved changes change, and drops it
+    after 30 s. A worker killed before a loading page says it is ready (30 s) loses a press.
+  - *Test.* `//crates/be-host:push-web-test` runs the real `sw.js` and `push.js` in Chromium with
+    pushes delivered through DevTools (`deliverPush` in buck/program/page-test.mjs); headless
+    Chromium never grants the permission to show a notification, so the test's worker
+    (`web-test/sw.js`) reports what `sw.js` would show, moves its clock on, and raises the press
+    and subscription-change events.
 - The host closes its tab when it exits, unless the page is already leaving.
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the

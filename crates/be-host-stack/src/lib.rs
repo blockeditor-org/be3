@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 pub mod accounts;
 pub mod app_graph;
+pub mod authorship;
 pub mod conflicts;
 pub mod discovery;
 #[cfg(not(target_arch = "wasm32"))]
@@ -751,7 +752,7 @@ pub fn status() -> Status {
         connecting: !shared.connected && !shared.reached,
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
-        unsaved: shared.unsealed + shared.pending + shared.importing,
+        unsaved: shared.undurable + shared.pending + shared.importing,
         kept: shared.waiting,
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
@@ -1238,6 +1239,45 @@ pub fn set_notify_mode(
         mode,
         reply: Box::new(move |set| reply(set.map(|_| ()))),
     });
+}
+
+/// The server's VAPID public key, which a browser subscribes with.
+pub fn push_key(reply: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
+    send(Command::Push(worker::PushCommand::Key(Box::new(reply))));
+}
+
+/// Registers this device's push endpoint for the signed-in account.
+pub fn register_push_endpoint(
+    endpoint: be_block_protocol::PushEndpoint,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::Push(worker::PushCommand::Register {
+        endpoint,
+        reply: Box::new(reply),
+    }));
+}
+
+pub fn unregister_push_endpoint(
+    address: String,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::Push(worker::PushCommand::Unregister {
+        address,
+        reply: Box::new(reply),
+    }));
+}
+
+/// Opens a push a device received (`Peer::open_notification`), with no network.
+pub fn open_push(
+    message: be_block_protocol::PushMessage,
+    now: i64,
+    reply: impl FnOnce(Result<be_block_client::OpenedNotification, String>) + Send + 'static,
+) {
+    send(Command::Push(worker::PushCommand::Open {
+        message,
+        now,
+        reply: Box::new(reply),
+    }));
 }
 
 pub fn leave(block: Uuid) {

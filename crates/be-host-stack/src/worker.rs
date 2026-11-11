@@ -242,6 +242,7 @@ pub(super) enum Command {
     Contact(ContactCommand),
     Leave(Uuid),
     Members(MembersCommand),
+    Push(PushCommand),
     Invite {
         email: String,
         role: be_block_protocol::OrganizationRole,
@@ -263,6 +264,8 @@ pub(super) enum Command {
         agent: Uuid,
         change: AgentChange,
     },
+    /// An app's `sign` or `verify`.
+    Authorship(crate::authorship::AuthorshipCommand),
     Sync,
 }
 
@@ -357,6 +360,8 @@ impl Command {
             | Command::Invite { .. }
             | Command::CreateAgent { .. }
             | Command::BlockAgent { .. }
+            | Command::Push(_)
+            | Command::Authorship(_)
             | Command::Sync
             | Command::Storage
             | Command::HoldClock(_) => None,
@@ -379,6 +384,25 @@ impl Command {
 }
 
 type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
+
+/// What a device does with push notifications; a reply is the peer's error as text.
+pub(super) enum PushCommand {
+    Key(Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>),
+    Register {
+        endpoint: be_block_protocol::PushEndpoint,
+        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+    },
+    Unregister {
+        address: String,
+        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+    },
+    /// Opens one a push carried, offline, from the keys the device keeps.
+    Open {
+        message: be_block_protocol::PushMessage,
+        now: i64,
+        reply: Box<dyn FnOnce(Result<be_block_client::OpenedNotification, String>) + Send>,
+    },
+}
 
 pub(super) enum MembersCommand {
     List(MembersReply),
@@ -447,6 +471,8 @@ pub struct Shared {
     pub unsealed: usize,
     pub saves: u64,
     pub owing: usize,
+    /// Open replicas with edits that are not in the device's journal yet.
+    pub undurable: usize,
     pub connected: bool,
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
     #[cfg(test)]
@@ -1098,15 +1124,29 @@ impl Session<'_> {
         if self.replicas.take_kept() {
             self.tasks.0.sync(peer, shared);
         }
+        // A seal kept since the drain answered keeps its edits sending.
+        for (block, refused) in self.tasks.0.take_published() {
+            if refused || peer.pending_commits(block).is_empty() {
+                let commits = match refused {
+                    true => be_block_type_host::replicas::refused_commits(peer, block),
+                    false => Vec::new(),
+                };
+                self.replicas.drained(block, refused, commits);
+            }
+        }
         let diverged = self.tasks.0.take_diverged();
         let merged = !diverged.is_empty();
         for (block, remote) in diverged {
-            if let Err(error) = self
+            match self
                 .replicas
                 .merge_diverged((peer, shared), block, remote)
                 .await
             {
-                record(shared, error);
+                Ok(_) if peer.pending_commits(block).is_empty() => {
+                    self.replicas.drained(block, false, Vec::new());
+                }
+                Ok(_) => {}
+                Err(error) => record(shared, error),
             }
         }
         if !self.rejoin || self.tasks.0.syncing() {
@@ -1195,18 +1235,47 @@ fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     held.connection = None;
 }
 
+/// Publishes the outbox: answers the blocks that diverged, and those whose kept commits all
+/// reached the server (false) or that the server refused (true, `Replicas::drained`).
 async fn drain_outbox(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
-) -> Vec<(Uuid, Option<CommitId>)> {
+) -> (Vec<(Uuid, Option<CommitId>)>, Vec<(Uuid, bool)>) {
     let mut diverged = Vec::new();
+    let mut published = Vec::new();
     if peer.pending().operations == 0 {
-        return diverged;
+        return (diverged, published);
     }
     match peer.drain(|_| false).await {
         Ok(drained) => {
+            // A block any of whose commits was refused or set aside keeps them unsent; one
+            // that failed or diverged tries again.
+            let refused: std::collections::HashSet<Uuid> = drained
+                .iter()
+                .filter_map(|outcome| match outcome {
+                    be_block_client::Drained::Refused { block, .. }
+                    | be_block_client::Drained::Unsent { block } => Some(*block),
+                    _ => None,
+                })
+                .collect();
+            let missed: std::collections::HashSet<Uuid> = drained
+                .iter()
+                .filter_map(|outcome| match outcome {
+                    be_block_client::Drained::Diverged { block, .. }
+                    | be_block_client::Drained::Failed { block } => Some(*block),
+                    _ => None,
+                })
+                .chain(refused.iter().copied())
+                .collect();
+            published.extend(refused.iter().map(|block| (*block, true)));
             for outcome in drained {
                 match outcome {
+                    be_block_client::Drained::Published { block, .. }
+                    | be_block_client::Drained::Created { block }
+                        if !missed.contains(&block) && peer.pending_commits(block).is_empty() =>
+                    {
+                        published.push((block, false));
+                    }
                     be_block_client::Drained::Diverged { block, remote, .. } => {
                         diverged.push((block, remote));
                     }
@@ -1229,7 +1298,7 @@ async fn drain_outbox(
         Err(error) => record(shared, error),
     }
     report(peer, shared);
-    diverged
+    (diverged, published)
 }
 
 fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
@@ -1475,6 +1544,12 @@ const NEEDS_CONNECTION: &str =
 
 fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Command> {
     match command {
+        // Opening a push needs only the keys the device kept.
+        Command::Push(PushCommand::Open { .. }) => return Some(command),
+        Command::Push(PushCommand::Key(reply)) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Push(
+            PushCommand::Register { reply, .. } | PushCommand::Unregister { reply, .. },
+        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetAccess { .. } | Command::Leave(_) | Command::ApprovePairing { .. } => {
             shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                 Some(NEEDS_CONNECTION.to_owned());
@@ -1521,6 +1596,10 @@ impl Ran<'_> {
         let applied = match command {
             Command::Contact(command) => {
                 contact(self.peer, self.shared, self.config, self.tasks, command).await;
+                false
+            }
+            Command::Authorship(command) => {
+                crate::authorship::run(self.peer, self.tasks, command);
                 false
             }
             Command::Storage => {
@@ -1592,6 +1671,36 @@ impl Ran<'_> {
                 });
                 false
             }
+            Command::Push(command) => {
+                let peer = Arc::clone(self.peer);
+                platform::spawn_local(async move {
+                    match command {
+                        PushCommand::Key(reply) => {
+                            reply(peer.push_key().await.map_err(|error| error.to_string()))
+                        }
+                        PushCommand::Register { endpoint, reply } => reply(
+                            peer.register_endpoint(endpoint)
+                                .await
+                                .map_err(|error| error.to_string()),
+                        ),
+                        PushCommand::Unregister { address, reply } => reply(
+                            peer.unregister_endpoint(address)
+                                .await
+                                .map_err(|error| error.to_string()),
+                        ),
+                        PushCommand::Open {
+                            message,
+                            now,
+                            reply,
+                        } => reply(
+                            peer.open_notification(&message, now)
+                                .map_err(|error| error.to_string()),
+                        ),
+                    }
+                    be_host_base::host::wake();
+                });
+                false
+            }
             Command::BlockAgent { agent, change } => {
                 change_block_agent(self.peer, agent, change).await;
                 self.tasks.sync_contacts(self.peer, self.shared).await;
@@ -1620,7 +1729,7 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
-            (held.unsealed, held.owing) = self.replicas.counts();
+            (held.unsealed, held.owing, held.undurable) = self.replicas.counts();
             held.typing = !self.replicas.modules.settled();
         }
         be_host_base::host::wake();
@@ -1813,6 +1922,7 @@ async fn create_agent(
         organization,
         name,
         public.0,
+        secret.signing().0,
         me.seal_own(&secret),
         peer.keys().escrow().map_or_else(Vec::new, |escrow| {
             be_block_client::contacts::seal_pin(&secret, organization, &escrow)
@@ -1823,6 +1933,7 @@ async fn create_agent(
     let card = be_block_keys::ContactCard {
         account: agent.account.into_bytes(),
         public,
+        signing: secret.signing(),
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
@@ -2044,6 +2155,8 @@ async fn apply(
         | Command::BlockAgent { .. }
         | Command::Notify { .. }
         | Command::SetNotifyMode { .. }
+        | Command::Push(_)
+        | Command::Authorship(_)
         | Command::Storage
         | Command::Sync => false,
         Command::Leave(block) => {
@@ -2849,6 +2962,9 @@ struct Outbox {
     draining: bool,
     again: bool,
     diverged: Vec<(Uuid, Option<CommitId>)>,
+    /// Blocks whose kept commits all reached the server, or were refused
+    /// (`Replicas::drained`).
+    published: Vec<(Uuid, bool)>,
 }
 
 impl Tasks {
@@ -2890,9 +3006,10 @@ impl Tasks {
         );
         self.spawn(async move {
             loop {
-                let diverged = drain_outbox(&peer, &shared).await;
+                let (diverged, published) = drain_outbox(&peer, &shared).await;
                 let mut held = outbox.borrow_mut();
                 held.diverged.extend(diverged);
+                held.published.extend(published);
                 if !std::mem::take(&mut held.again) || !peer.is_attached() {
                     held.draining = false;
                     break;
@@ -2904,6 +3021,10 @@ impl Tasks {
 
     fn syncing(&self) -> bool {
         self.outbox.borrow().draining
+    }
+
+    fn take_published(&self) -> Vec<(Uuid, bool)> {
+        std::mem::take(&mut self.outbox.borrow_mut().published)
     }
 
     fn take_diverged(&self) -> Vec<(Uuid, Option<CommitId>)> {

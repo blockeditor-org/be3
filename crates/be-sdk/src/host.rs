@@ -21,8 +21,9 @@ use be_sdk_api::{
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
     FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
-    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Size, TerminalHostBe,
-    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Signer, Size,
+    TerminalHostBe, ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent,
+    WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -239,6 +240,18 @@ pub struct Artifact {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub source: Uuid,
+}
+
+/// A block a paste of `be3/blocks` placed (`EditorHost::paste_blocks`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Pasted {
+    pub block: Uuid,
+    pub block_type: Uuid,
+    /// The paste moved the block here from the parent it was cut from.
+    pub moved: bool,
+    /// The block a reference to it was cut from, still holding it, which
+    /// the editor moves it out of rather than adding another reference.
+    pub cut_from: Option<Uuid>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -1340,7 +1353,8 @@ impl EditorHost {
             content @ (ToEditor::Snapshot(_)
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
-            | ToEditor::PartPut { .. }) => {
+            | ToEditor::PartPut { .. }
+            | ToEditor::Lacking { .. }) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
@@ -1406,7 +1420,10 @@ impl EditorHost {
             @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
             }
-            message @ (FromEditor::Read { .. } | FromEditor::PutPart { .. }) => {
+            message @ (FromEditor::Read { .. }
+            | FromEditor::PutPart { .. }
+            | FromEditor::FollowLacking
+            | FromEditor::DismissLacking(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
                 self.waker.wake();
             }
@@ -1837,33 +1854,30 @@ impl EditorHost {
         })
     }
 
-    /// Records a cut of references to `blocks` held in `holder`, before the
-    /// editor removes them from its content: the first paste of a block
-    /// whose parent `holder` was moves it.
+    /// Records a cut of references to `blocks` held in `holder`, when the
+    /// editor may change `holder`: the first paste of a block whose parent
+    /// `holder` was moves it, and of any other answers `cut_from`. With no
+    /// `blocks` it forgets every cut, whatever `holder` is.
     pub fn cut_blocks(&self, blocks: &[Uuid], holder: Uuid) {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
         self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());
     }
 
     /// Pastes `be3/blocks` into `parent`: the blocks the editor may view,
-    /// each `(id, type, moved)`, `moved` when the paste moved a cut block
-    /// here rather than adding a reference. None when the host refused.
-    pub fn paste_blocks(
-        &self,
-        blocks: &[Uuid],
-        parent: BlockParent,
-    ) -> Asked<Vec<(Uuid, Uuid, bool)>> {
+    /// none when the host refused. The first paste after a cut moves a block
+    /// cut from its parent here (`moved`), or names where a reference to it
+    /// was cut from (`cut_from`); otherwise the editor adds a reference.
+    pub fn paste_blocks(&self, blocks: &[Uuid], parent: BlockParent) -> Asked<Vec<Pasted>> {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
         Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(|pasted| {
             pasted
                 .unwrap_or_default()
                 .into_iter()
-                .map(|pasted| {
-                    (
-                        Uuid::from_bytes(pasted.block_id),
-                        Uuid::from_bytes(pasted.block_type),
-                        pasted.moved,
-                    )
+                .map(|pasted| Pasted {
+                    block: Uuid::from_bytes(pasted.block_id),
+                    block_type: Uuid::from_bytes(pasted.block_type),
+                    moved: pasted.moved,
+                    cut_from: pasted.cut_from.map(Uuid::from_bytes),
                 })
                 .collect()
         })
@@ -1938,6 +1952,29 @@ impl EditorHost {
         Asked::of(self.ask(host_services::terminal_host_build))
     }
 
+    /// The block signatures bind to: the one the editor shows, or in a revision preview the one
+    /// it is of. Records that name their block in what they sign name this one.
+    pub fn signing_block(&self) -> Asked<Result<Uuid, Failure>> {
+        Asked::of(self.ask(host_services::signing_block)).map(|block| block.map(Uuid::from_bytes))
+    }
+
+    /// Signs `bytes` as the person who runs the editor, with a key the app never holds
+    /// (plans/authorship.md). The signature verifies only in the block the editor shows.
+    pub fn sign(&self, bytes: Vec<u8>) -> Asked<Result<Vec<u8>, Failure>> {
+        Asked::of(self.ask(|| host_services::sign(bytes)))
+    }
+
+    /// Whether `account` signed `bytes` in the block the editor shows, and how far its key is
+    /// trusted.
+    pub fn verify(
+        &self,
+        account: Uuid,
+        bytes: Vec<u8>,
+        signature: Vec<u8>,
+    ) -> Asked<Result<Signer, Failure>> {
+        Asked::of(self.ask(|| host_services::verify(account.into_bytes(), bytes, signature)))
+    }
+
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
         self.ask(|| {
             host_services::set_access(block_id.into_bytes(), account.into_bytes(), access).detach()
@@ -1960,6 +1997,12 @@ impl EditorHost {
     /// every block's.
     pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::set_notify_mode(block_id.into_bytes(), mode)))
+    }
+
+    /// Turns pushes to this device on or off; `PushDeviceWatch` follows it. Call it from a
+    /// press, since turning them on asks for the person's permission.
+    pub fn set_push_device(&self, on: bool) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_push_device(on)))
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {

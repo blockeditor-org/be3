@@ -6,6 +6,7 @@ fn what_an_account_seals_for_itself_opens_only_with_its_secret() {
     let card = ContactCard {
         account: [3; 16],
         public: RecoveryPhrase::generate().secret().public(),
+        signing: RecoveryPhrase::generate().secret().signing(),
         display_name: "Grace".into(),
         email: "grace@example.com".into(),
     };

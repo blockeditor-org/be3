@@ -8,11 +8,11 @@ fn a_draft_stays_in_the_editor_until_it_is_sent() {
     chat.write("Sure, at noon");
     assert_eq!(chat.content(), before, "a draft is not in the block");
 
-    chat.arrive(
-        chat.content()
-            .send(CHAT, Message::new(ROSA, MORNING + MINUTE, "Or one?"))
-            .1,
-    );
+    chat.arrive(signed_by(
+        &chat.content(),
+        ROSA,
+        Message::new(ROSA, MORNING + MINUTE, "Or one?"),
+    ));
     assert_eq!(
         chat.editor.label("chat.draft"),
         "Sure, at noon",
