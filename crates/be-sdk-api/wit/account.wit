@@ -4,6 +4,7 @@ package be3:app@0.1.0;
 /// watched by any editor.
 interface account {
     use be3:preferences/types@0.1.0.{preference-layer};
+    use be3:shared/ids@0.1.0.{block-id};
 
     /// Where the preferences an editor is drawn with come from, below the
     /// user's own: the system's and the developer's.
@@ -45,6 +46,29 @@ interface account {
     resource storage-usage-watch {
         constructor();
         next: async func() -> option<account-storage>;
+    }
+
+    /// Which notifications about a block reach the signed-in account.
+    enum notify-mode {
+        all,
+        /// Only those that mention the account.
+        mentions,
+        off,
+    }
+
+    /// A block whose notifications the account set to other than `all`.
+    record block-notify-mode {
+        block: block-id,
+        mode: notify-mode,
+    }
+
+    /// Every block whose mode the account set to other than `all`, which
+    /// every other block is; none until the server has said (or on a host with
+    /// no server). Changes made on other devices arrive as the server tells
+    /// the host.
+    resource notify-modes-watch {
+        constructor();
+        next: async func() -> option<list<block-notify-mode>>;
     }
 }
 

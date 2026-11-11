@@ -63,9 +63,21 @@ fn block(block: Uuid, level: Access) -> Rule {
 /// The one place each call's requirement is stated. Its matches name every call, so a new call
 /// does not compile until it has a rule.
 pub(crate) fn rule(call: &embed::Call) -> Rule {
-    use embed::{Call, account, blocks, contacts, keys, members, objects, organizations};
+    use embed::{
+        Call, account, blocks, contacts, keys, members, notifications, objects, organizations,
+    };
     match call {
         Call::Connection(embed::connection::Call::Ping { .. }) => Rule::Anyone,
+        Call::Notifications(call) => match call {
+            notifications::Call::PushKey { .. }
+            | notifications::Call::OffersFcm { .. }
+            | notifications::Call::NotifyModesChanged { .. } => Rule::SignedIn,
+            notifications::Call::RegisterEndpoint { .. }
+            | notifications::Call::UnregisterEndpoint { .. }
+            | notifications::Call::NotifyModes { .. } => Rule::Organization,
+            notifications::Call::SetNotifyMode { block: of, .. } => block(*of, Access::View),
+            notifications::Call::Notify { block: of, .. } => block(*of, Access::Edit),
+        },
         Call::Account(call) => match call {
             account::Call::BeginBrowserLogin { .. }
             | account::Call::PollBrowserLogin { .. }
@@ -175,9 +187,24 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
 /// Everything that reaches past the block is refused: agents, contact links and contacts,
 /// organizations, members, pairing, access, escrows, a new recovery key, collecting.
 pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
-    use embed::{Call, account, blocks, contacts, keys, members, objects, organizations, sessions};
+    use embed::{
+        Call, account, blocks, contacts, keys, members, notifications, objects, organizations,
+        sessions,
+    };
     match call {
         Call::Connection(embed::connection::Call::Ping { .. }) => true,
+        // An agent posts in its block like anyone, and takes no pushes: it is not a person's
+        // device.
+        Call::Notifications(call) => match call {
+            notifications::Call::Notify { .. } => true,
+            notifications::Call::PushKey { .. }
+            | notifications::Call::OffersFcm { .. }
+            | notifications::Call::RegisterEndpoint { .. }
+            | notifications::Call::UnregisterEndpoint { .. }
+            | notifications::Call::NotifyModes { .. }
+            | notifications::Call::NotifyModesChanged { .. }
+            | notifications::Call::SetNotifyMode { .. } => false,
+        },
         Call::Account(call) => match call {
             account::Call::Authenticate { .. } | account::Call::Logout { .. } => true,
             account::Call::BeginBrowserLogin { .. }
@@ -331,6 +358,7 @@ enum Route {
     Paired,
     Contacts,
     KeyWork,
+    NotifyModes,
     Storage,
     Events { session: OpId, block: Place },
 }
@@ -415,6 +443,12 @@ pub(crate) struct Connection {
     pub(crate) config: ServerConfig,
     /// What presigns the URLs object bytes move with (`Services::transfers`).
     pub(crate) transfers: crate::objects::Bucket,
+    /// Sends pushes (`Services::pusher`).
+    pub(crate) pusher: Arc<crate::push::Pusher>,
+    /// Notifications each account sent this minute (`Services::notifications`).
+    pub(crate) notifications: Arc<crate::address::Rate<Uuid>>,
+    /// Notifications each account sent about each block this minute.
+    pub(crate) block_notifications: Arc<crate::address::Rate<(Uuid, Uuid)>>,
     /// The address the connection comes from; see [`crate::Services::client_address`].
     pub(crate) address: IpAddr,
     /// Since when the connection has had no account.
@@ -472,6 +506,9 @@ impl Client {
                 identity: None,
                 config: services.config.clone(),
                 transfers: services.transfers.clone(),
+                pusher: Arc::clone(&services.pusher),
+                notifications: Arc::clone(&services.notifications),
+                block_notifications: Arc::clone(&services.block_notifications),
                 address,
                 anonymous_since: tokio::time::Instant::now(),
                 anonymous: Some(anonymous),
@@ -688,6 +725,9 @@ impl Client {
                 Push::KeyWorkChanged => {
                     streams.send(&mut lock, (), |route| *route == Route::KeyWork)?;
                 }
+                Push::NotifyModesChanged => {
+                    streams.send(&mut lock, (), |route| *route == Route::NotifyModes)?;
+                }
             }
         }
         if let Some(block) = unwatched {
@@ -795,6 +835,7 @@ impl Client {
             embed::Call::Blocks(call) => self.blocks(call, prelude).await,
             embed::Call::Sessions(call) => self.sessions(call, prelude).await,
             embed::Call::Keys(call) => self.keys(call, prelude).await,
+            embed::Call::Notifications(call) => self.notifications(call, prelude).await,
         }
     }
 
@@ -2147,6 +2188,100 @@ impl Client {
             .ok_or_else(not_joined)
     }
 
+    async fn notifications(
+        &mut self,
+        call: embed::notifications::Call,
+        prelude: Result<(), ServerError>,
+    ) {
+        use embed::notifications::Call;
+        let connection = &self.connection;
+        match call {
+            Call::PushKey { reply } => {
+                let key = prelude.map(|()| connection.pusher.public_key());
+                self.reply(reply, key);
+            }
+            Call::OffersFcm { reply } => {
+                let offers = prelude.map(|()| connection.pusher.offers_fcm());
+                self.reply(reply, offers);
+            }
+            Call::RegisterEndpoint { reply, endpoint } => {
+                let registered = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    connection.pusher.check(&endpoint)?;
+                    connection.store.register_endpoint(identity, endpoint).await
+                }
+                .await;
+                self.reply(reply, registered);
+            }
+            Call::UnregisterEndpoint { reply, address } => {
+                let unregistered = async {
+                    prelude?;
+                    connection
+                        .store
+                        .unregister_endpoint(connection.identity()?, address)
+                        .await
+                }
+                .await;
+                self.reply(reply, unregistered);
+            }
+            Call::NotifyModes { reply } => {
+                let modes = async {
+                    prelude?;
+                    connection.store.notify_modes(connection.identity()?).await
+                }
+                .await;
+                self.reply(reply, modes);
+            }
+            Call::SetNotifyMode { reply, block, mode } => {
+                let set = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    connection
+                        .store
+                        .set_notify_mode(identity, block, mode)
+                        .await?;
+                    connection
+                        .hub
+                        .send_account(
+                            identity.account,
+                            connection.client,
+                            None,
+                            &Push::NotifyModesChanged,
+                        )
+                        .await;
+                    Ok(())
+                }
+                .await;
+                self.reply(reply, set);
+            }
+            Call::NotifyModesChanged { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams.open_with(
+                    &mut self.peer.lock(),
+                    stream,
+                    Route::NotifyModes,
+                    Backlog::Latest,
+                );
+            }
+            Call::Notify {
+                reply,
+                block,
+                sealed,
+                mentions,
+            } => {
+                let queued = async {
+                    prelude?;
+                    connection.notify(block, sealed, mentions).await
+                }
+                .await;
+                self.reply(reply, queued);
+            }
+        }
+    }
+
     async fn keys(&mut self, call: embed::keys::Call, prelude: Result<(), ServerError>) {
         use embed::keys::Call;
         let connection = &self.connection;
@@ -2380,6 +2515,78 @@ impl Connection {
             }
         }
         self.checked = Some(version);
+        Ok(())
+    }
+
+    /// Queues a push of `sealed` to each device of every member `notification_recipients`
+    /// names who has no connection to the organization open, and drops each endpoint its
+    /// service says is gone.
+    async fn notify(
+        &self,
+        block: Uuid,
+        sealed: Vec<u8>,
+        mentions: Vec<Uuid>,
+    ) -> Result<(), ServerError> {
+        let identity = self.identity()?;
+        crate::limits::at_most(
+            "a notification",
+            sealed.len(),
+            be_block_protocol::MAX_NOTIFICATION_BYTES,
+        )?;
+        if mentions.len() > crate::limits::MAX_MENTIONS {
+            return Err(crate::limits::too_many(
+                "accounts one notification mentions",
+                crate::limits::MAX_MENTIONS,
+            ));
+        }
+        if !self.notifications.allow_key(identity.account) {
+            return Err(crate::limits::too_many(
+                "notifications a minute",
+                crate::limits::MAX_NOTIFICATIONS_PER_MINUTE,
+            ));
+        }
+        if !self
+            .block_notifications
+            .allow_key((identity.account, block))
+        {
+            return Err(crate::limits::too_many(
+                "notifications about one block a minute",
+                crate::limits::MAX_NOTIFICATIONS_PER_BLOCK,
+            ));
+        }
+        let recipients = self
+            .store
+            .notification_recipients(identity, block, mentions)
+            .await?;
+        let accounts: Vec<Uuid> = recipients
+            .iter()
+            .map(|recipient| recipient.account)
+            .collect();
+        let connected = self.hub.connected(identity.organization, &accounts).await;
+        let deliveries: Vec<crate::push::Delivery> = recipients
+            .into_iter()
+            .filter(|recipient| !connected.contains(&recipient.account))
+            .map(|recipient| crate::push::Delivery {
+                account: recipient.account,
+                endpoints: recipient.endpoints,
+                urgent: recipient.mentioned,
+            })
+            .collect();
+        let message: Arc<[u8]> = be_block_protocol::PushMessage {
+            organization: identity.organization,
+            block,
+            sender: identity.account,
+            sealed,
+        }
+        .encode()
+        .into();
+        self.pusher.queue(
+            &self.store,
+            identity.organization,
+            block,
+            deliveries,
+            &message,
+        );
         Ok(())
     }
 

@@ -82,6 +82,8 @@ pub enum Event {
     },
     Paired(PairingMessage),
     ContactsChanged,
+    /// The account's notification modes changed on another of its devices.
+    NotifyModesChanged,
     KeyWorkChanged,
 }
 
@@ -236,6 +238,13 @@ impl Connection {
         self.pump(async move {
             while contacts.recv().await.is_some() {
                 let _ = events.send(Event::ContactsChanged);
+            }
+        });
+        let events = self.events.clone();
+        let mut modes = client::notifications::notify_modes_changed(&self.peer);
+        self.pump(async move {
+            while modes.recv().await.is_some() {
+                let _ = events.send(Event::NotifyModesChanged);
             }
         });
         let events = self.events.clone();
