@@ -28,12 +28,15 @@ pub(crate) enum Until {
     Sequenced(u64),
     /// Appended to this device's journal alone, until a seal holds it.
     Lost(u64),
+    /// Journaled on this device alone while it owned the session, which another device took: no
+    /// seal of this replica can hold it, so it only waits to be dismissed.
+    Dropped,
     /// Too large to relay, published as a replacement, until that publish is answered.
     Replacing,
     /// In a commit kept in this device's outbox, until the host says it `drained`.
     Kept,
     /// From an earlier replica of the block, until a seal or replacement reaches the server
-    /// (this replica's content holds it) or the outbox drains.
+    /// (this replica's content holds it).
     Carried,
 }
 
@@ -202,12 +205,15 @@ impl Lacking {
     pub(crate) fn drained(&mut self, refused: bool) {
         match refused {
             false => self.update(|until| match until {
-                Until::Kept | Until::Carried => None,
+                Until::Kept => None,
                 until => Some(until),
             }),
             true => {
+                // Edits carried from an earlier replica may be among the refused commits, and
+                // nothing else would ever settle them.
                 for entry in &mut self.entries {
-                    if entry.until == Until::Kept && !entry.failed {
+                    if matches!(entry.until, Until::Kept | Until::Carried) && !entry.failed {
+                        entry.until = Until::Kept;
                         entry.failed = true;
                         self.changed = true;
                     }
@@ -226,6 +232,18 @@ impl Lacking {
             }),
             KeptCommits::Outbox => {}
             KeptCommits::Refused => self.drained(true),
+        }
+    }
+
+    /// This replica is a follower now: what it journaled alone as the owner never reached the
+    /// session's new owner, and nothing it does can seal it. It fails.
+    pub(crate) fn lost(&mut self) {
+        for entry in &mut self.entries {
+            if matches!(entry.until, Until::Lost(_)) {
+                entry.until = Until::Dropped;
+                entry.failed = true;
+                self.changed = true;
+            }
         }
     }
 
@@ -283,6 +301,7 @@ impl Lacking {
             .map(|entry| Entry {
                 until: match entry.until {
                     Until::Kept => Until::Kept,
+                    Until::Dropped => Until::Dropped,
                     _ => Until::Carried,
                 },
                 ..entry

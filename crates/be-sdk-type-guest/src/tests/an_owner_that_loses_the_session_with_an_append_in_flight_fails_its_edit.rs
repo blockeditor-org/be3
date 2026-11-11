@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn an_owner_that_loses_the_session_with_an_append_in_flight_keeps_its_edit_lacking() {
+fn an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit() {
     let mut sim = Sim::<CounterContent>::new(2, counter_module);
     sim.lease = Lease::lasting(0);
     for device in 0..2 {
@@ -27,9 +27,13 @@ fn an_owner_that_loses_the_session_with_an_append_in_flight_keeps_its_edit_lacki
         "an edit whose append the server never took is not shown as held when its owner \
          becomes a follower"
     );
+    assert!(
+        sim.editors[&(0, 1)].lacking().iter().all(|lacked| lacked.failed),
+        "it is lost for good, so it shows as not sent, to send again or discard"
+    );
     assert_eq!(
         count(sim.mirror(1, 1)),
         0,
-        "the new owner never had it: it is lost, so it keeps showing as sending"
+        "the new owner never had it"
     );
 }

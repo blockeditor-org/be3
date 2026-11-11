@@ -544,7 +544,7 @@ impl<H: Host> Replicas<H> {
             let answers = std::mem::take(&mut self.pending);
             let heard = self.modules.take();
             for module in self.modules.take_restarted() {
-                self.restart(module).await;
+                self.restart(ctx.0, module).await;
                 self.changed = true;
             }
             if answers.is_empty() && heard.is_empty() {
@@ -2111,7 +2111,7 @@ impl<H: Host> Replicas<H> {
         self.close_if_asked(replica);
     }
 
-    pub async fn restart(&mut self, module: usize) {
+    pub async fn restart(&mut self, peer: &Peer<H::Store>, module: usize) {
         let restarted: Vec<ReplicaId> = self
             .open
             .iter()
@@ -2167,7 +2167,7 @@ impl<H: Host> Replicas<H> {
                 journal: None,
                 lost_edits: false,
                 journal_kept: false,
-                commits_kept: be_sdk_type_api::KeptCommits::None,
+                commits_kept: kept_commits(peer, open.block),
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors

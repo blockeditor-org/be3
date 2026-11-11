@@ -1496,7 +1496,10 @@ where
 
     fn acknowledge(&mut self, keeping: &Keeping) {
         match keeping.from == self.client {
-            true => self.handed.retain(|handed| handed.commit != keeping.commit),
+            true => {
+                self.handed.retain(|handed| handed.commit != keeping.commit);
+                self.lacking.saved(keeping.commit);
+            }
             false => self.send(
                 Some(keeping.from),
                 &SessionMessage::Saved {
@@ -2164,7 +2167,10 @@ where
     /// owner accepted since, one that took the session over keeping its unaccepted edits.
     fn tell_lacking(&mut self) {
         match &self.role {
-            Role::Follower(_) => self.lacking.settled_to(self.unsettled()),
+            Role::Follower(_) => {
+                self.lacking.settled_to(self.unsettled());
+                self.lacking.lost();
+            }
             Role::Owner(_) => self.lacking.promoted(),
         }
         for (editor, message) in self.lacking.messages() {

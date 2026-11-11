@@ -35,11 +35,12 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c have landed.
   and replicas, so switching chats and back shows them still sending. For an
   owner alone that is every send for `APPEND_INTERVAL` (250 ms) and a round
   trip, even online. A message the server refused shows "Not sent", with Send
-  again and Discard. A host or type module restart forgets them: what it kept
-  in the outbox then shows as sent, which a content-level answer (what the
-  local head adds over the server's) would close; that is the user's call. The Done check was a be-host-tests test; `drive` has no
-  way to cut the server, so be-host-stack tests and chat's editor tests stand
-  in. A `drive` command that cuts the server would let a host test cover it.
+  again and Discard. A host or type module restart keeps a commit still in the outbox
+  as sending, but loses edits not yet in a commit (a journal entry the server
+  lacks); a content-level answer (what the local head adds over the server's)
+  would close that, which is the user's call. `drive` has no way to cut the
+  server, so there is no be-host-tests test of this: be-host-stack tests and
+  chat's editor tests stand in. A `drive` command that cuts the server would let a host test cover it.
 - **Unread counts (1c).** Where the account read each chat up to is theirs,
   never in the chat, where it would be a read receipt: the owner-only settings
   kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are
