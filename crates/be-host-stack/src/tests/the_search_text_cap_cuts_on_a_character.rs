@@ -16,7 +16,11 @@ fn the_search_text_cap_cuts_on_a_character() {
         format!("xx{}", "𝄞".repeat(MAX_TEXT)),
     ] {
         let cut = capped(text.clone());
-        assert!(cut.len() <= MAX_TEXT && cut.len() >= MAX_TEXT - 3, "{}", cut.len());
+        assert!(
+            cut.len() <= MAX_TEXT && cut.len() >= MAX_TEXT - 3,
+            "{}",
+            cut.len()
+        );
         assert!(text.starts_with(&cut));
     }
 }

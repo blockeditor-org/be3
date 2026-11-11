@@ -25,7 +25,10 @@ fn the_search_index_queue_forgets_what_can_no_longer_be_indexed() {
     assert!(!search.indexed(), "still parked");
     search.release_parked(|_| false, |_| false);
     search.take_queued();
-    assert!(search.indexed(), "no root names the index: they dropped out");
+    assert!(
+        search.indexed(),
+        "no root names the index: they dropped out"
+    );
 
     let mut search = Searching::default();
     search.park(index, vec![block]);
