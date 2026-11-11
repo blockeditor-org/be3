@@ -8,37 +8,18 @@ the same. The steps are independent unless a step says otherwise, and each
 lands on its own. Step numbers stay as written when a step is done and removed. No format is frozen, so wire and WIT changes need no
 migration. Line numbers are from when this plan was written.
 
-## 2. The shell's one-way reports are one batched call
+## 2. The shell's one-way reports are one batched call (left)
 
-`shell.wit` has 25 functions that take `instance` first and return nothing:
-`menu`, `run-bar-action`, `child-menu-pick`, `copy`, `paste`, `drag-block`,
-`drag-accepted`, `aspect-ratio`, `intrinsic-size`, `act`, `leave-frame`,
-`view-stopped`, `present`, `change-view`, `play-audio`, `focused`,
-`handles-dismiss`, `close-dialog`, `dismiss-child`, `focus-child`,
-`close-child`, `commit-child`, `picked`, `show-card`, `artifact-described`,
-`artifact-edited`. Each has one guest caller, `EditorSession::outbound`
-(`be-sdk/src/editor_session.rs`), which already sends them all in one pass.
+`shell.tell` and `shell-message` replaced the 28 one-way functions. What is
+left of this step:
 
-Replace them with:
-
-```wit
-variant shell-message { menu(view-menu), copy(clip-offer), paste, … }
-tell: async func(instance: editor-instance-id, messages: list<shell-message>);
-```
-
-- Guest: `EditorHost`'s per-kind `take_*` queues (`be-sdk/src/host.rs`)
-  become one ordered `Vec<ShellMessage>`; `outbound` sends it.
-- Host: the arm per function in `instance_of` (`be-host-runtime/src/calls.rs`)
-  and the repeated `ack(reply)` in `shell_call`
-  (`be-host-runtime/src/instances.rs`) become one call that loops over the
-  list. The preview allow-list and `present`'s special case match on the
-  variant.
-- Order across kinds becomes the order sent. Rewrite
-  `host_calls_are_taken_by_kind_in_the_order_they_came` to say so.
+- `EditorHost`'s per-kind `take_*` queues (`be-sdk/src/host.rs`) become one
+  ordered `Vec<ShellMessage>`; `outbound` (`be-sdk/src/editor_session.rs`)
+  still reads each queue and orders messages by kind. Rewrite
+  `host_calls_are_taken_by_kind_in_the_order_they_came` to say that order is
+  the order sent.
 - `bar-action` has one variant, `details`; drop the enum and make it a
   `details` message (and step 3's `child-bar` a `details` event).
-
-Do steps 2, 3 and 6 together if convenient: they touch the same files.
 
 ## 3. The editor's one-way methods are one event call
 

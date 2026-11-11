@@ -12,6 +12,14 @@ const REGION: ViewId = ViewId::MAIN;
 const PASS: u64 = 1;
 const SIZE: Vec2 = vec2(100.0, 100.0);
 
+fn tell(instances: &mut Instances, message: ShellMessage) -> bool {
+    instances.shell_call(ShellCall::Tell {
+        reply: reply(next_op()),
+        instance: INSTANCE,
+        messages: vec![message],
+    })
+}
+
 fn placed() -> Instances {
     placed_on(Uuid::nil(), Uuid::nil())
 }

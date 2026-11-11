@@ -5,7 +5,7 @@ use be_sdk_api::{
     Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, ViewId, WebViewEvent,
     WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    shell_types::{DragOver, Focus},
+    shell_types::{BlockAct, ChildCreation, ClipOffer, DragOver, DragStart, Focus, ShellMessage},
 };
 use uuid::Uuid;
 
@@ -162,35 +162,8 @@ pub(super) enum Heard {
 
 pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
     match call {
-        ShellCall::Menu { instance, .. }
-        | ShellCall::RunBarAction { instance, .. }
-        | ShellCall::ChildMenuPick { instance, .. }
-        | ShellCall::Copy { instance, .. }
-        | ShellCall::Paste { instance, .. }
-        | ShellCall::DragBlock { instance, .. }
-        | ShellCall::DragAccepted { instance, .. }
-        | ShellCall::AspectRatio { instance, .. }
-        | ShellCall::IntrinsicSize { instance, .. }
-        | ShellCall::Act { instance, .. }
-        | ShellCall::LeaveFrame { instance, .. }
-        | ShellCall::ViewStopped { instance, .. }
-        | ShellCall::Present { instance, .. }
-        | ShellCall::ChangeView { instance, .. }
-        | ShellCall::Focused { instance, .. }
-        | ShellCall::HandlesDismiss { instance, .. }
-        | ShellCall::CloseDialog { instance, .. }
-        | ShellCall::DismissChild { instance, .. }
-        | ShellCall::FocusChild { instance, .. }
-        | ShellCall::FocusBlockChild { instance, .. }
-        | ShellCall::CloseChild { instance, .. }
-        | ShellCall::CommitChild { instance, .. }
-        | ShellCall::Picked { instance, .. }
-        | ShellCall::ShowCard { instance, .. }
-        | ShellCall::OpenPalette { instance, .. }
-        | ShellCall::ArtifactDescribed { instance, .. }
-        | ShellCall::ArtifactEdited { instance, .. }
+        ShellCall::Tell { instance, .. }
         | ShellCall::ChildStatusesWatchNew { instance, .. }
-        | ShellCall::PlayAudio { instance, .. }
         | ShellCall::AudioStatusWatchNew { instance, .. }
         | ShellCall::WebViewNew { instance, .. } => Some(*instance),
         ShellCall::ChildStatusesWatchNext { .. }
@@ -283,28 +256,32 @@ impl BlockIds for ShellCall {
         let Some(instance) = instance_of(self) else {
             return;
         };
-        match self {
-            Self::DragBlock { block_id, .. }
-            | Self::Act {
-                block: block_id, ..
-            } => visit(instance, BlockIdRole::Existing, block_id),
-            Self::Focused { focus, .. } => focus_ids(instance, focus, visit),
-            Self::CommitChild {
-                parent: BlockLocation::Block(block_id),
-                ..
-            }
-            | Self::Picked {
-                pick: Ok(Some(PickedBlock { block_id, .. })),
-                ..
-            } => visit(instance, BlockIdRole::Existing, block_id),
-            Self::Copy { items, .. } => {
-                for item in items {
-                    if let Some(data) = &mut item.data {
-                        visit_blocks(instance, &item.format, data, visit);
+        let Self::Tell { messages, .. } = self else {
+            return;
+        };
+        for message in messages {
+            match message {
+                ShellMessage::DragBlock(DragStart { block_id, .. })
+                | ShellMessage::Act(BlockAct {
+                    block: block_id, ..
+                }) => visit(instance, BlockIdRole::Existing, block_id),
+                ShellMessage::Focused(focus) => focus_ids(instance, focus, visit),
+                ShellMessage::CommitChild(ChildCreation {
+                    parent: BlockLocation::Block(block_id),
+                    ..
+                })
+                | ShellMessage::Picked(Ok(Some(PickedBlock { block_id, .. }))) => {
+                    visit(instance, BlockIdRole::Existing, block_id)
+                }
+                ShellMessage::Copy(ClipOffer { items, .. }) => {
+                    for item in items {
+                        if let Some(data) = &mut item.data {
+                            visit_blocks(instance, &item.format, data, visit);
+                        }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
     }
 }
