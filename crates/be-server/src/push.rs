@@ -276,7 +276,10 @@ fn push_host(endpoint: &PushEndpoint, added: &[String]) -> String {
     };
     let host = url::Url::parse(&endpoint.address)
         .ok()
-        .and_then(|url| url.host_str().map(|host| host.trim_end_matches('.').to_ascii_lowercase()))
+        .and_then(|url| {
+            url.host_str()
+                .map(|host| host.trim_end_matches('.').to_ascii_lowercase())
+        })
         .unwrap_or_default();
     PUSH_HOSTS
         .iter()
@@ -284,7 +287,12 @@ fn push_host(endpoint: &PushEndpoint, added: &[String]) -> String {
         .chain(PUSH_HOST_SUFFIXES.iter().copied())
         .find(|entry| host == *entry || (entry.starts_with('.') && host.ends_with(entry)))
         .map(str::to_owned)
-        .or_else(|| added.iter().find(|entry| entry.eq_ignore_ascii_case(&host)).cloned())
+        .or_else(|| {
+            added
+                .iter()
+                .find(|entry| entry.eq_ignore_ascii_case(&host))
+                .cloned()
+        })
         .unwrap_or_else(|| "other".to_owned())
 }
 
@@ -546,7 +554,11 @@ impl Pusher {
                     }
                 }
             };
-            let Some(permit) = self.senders.acquire(&push_host(&job.endpoint, &self.hosts)).await else {
+            let Some(permit) = self
+                .senders
+                .acquire(&push_host(&job.endpoint, &self.hosts))
+                .await
+            else {
                 return;
             };
             let address = job.endpoint.address.clone();

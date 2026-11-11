@@ -54,10 +54,6 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
             "a backslash ending the authority early",
         ),
         (
-            web("https://fcm.googleapis.com\\@evil.example/a"),
-            "a backslash after an allowed host",
-        ),
-        (
             device.endpoint(PushService::Fcm, "a-registration-token".into()),
             "FCM on a server without it",
         ),
@@ -91,6 +87,8 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         "https://web.push.apple.com/d",
         "https://wns2-par02p.notify.windows.com/w/?token=e",
         "https://ntfy.example.org/upf",
+        // A backslash ends the authority, so the host, and where the push goes, is FCM's.
+        "https://fcm.googleapis.com\\@evil.example/a",
     ] {
         member.register_endpoint(web(address)).await;
     }

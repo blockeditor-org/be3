@@ -34,9 +34,8 @@ async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_rig
     let store = ServerStore::open(&harness.directory).unwrap();
     let failures = store
         .with_database(move |_, database| {
-            let mut statement = database.prepare(
-                "SELECT address, failures FROM push_endpoints WHERE account_id = ?1",
-            )?;
+            let mut statement = database
+                .prepare("SELECT address, failures FROM push_endpoints WHERE account_id = ?1")?;
             let rows = statement
                 .query_map(rusqlite::params![account.to_string()], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
@@ -54,7 +53,11 @@ async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_rig
     };
     assert_eq!(failed("/redirect"), Some(1), "a redirect is not a delivery");
     assert_eq!(failed("/denied"), Some(0), "a 403 is this server's fault");
-    assert_eq!(failed("/unauthorized"), Some(0), "a 401 is this server's fault");
+    assert_eq!(
+        failed("/unauthorized"),
+        Some(0),
+        "a 401 is this server's fault"
+    );
     assert_eq!(failed("/kept"), Some(0));
     let _ = organization;
 
