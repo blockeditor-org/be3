@@ -153,7 +153,7 @@ Edit can write as someone else.
   `verify`, at most 64 KiB), so an app cannot make a signature that another
   app's `verify` accepts, even in a block both are shown. Apps put their own
   domain first in their bytes (chat's `be3.chat.message`) so their records can't
-  be mistaken for each other. Reactions and deletions are not signed yet
+  be mistaken for each other. Signatures verify only in the app that made them: another app's `verify` answers `Bad`, which is not a forgery verdict. Reactions and deletions are not signed yet
   (plans/authorship.md).
 - **Apps** never hold it: host-services' `sign` and `verify`
   (guides/apps/host_services.md) answer from the worker (`be-host-stack`

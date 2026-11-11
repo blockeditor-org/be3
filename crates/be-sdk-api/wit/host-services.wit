@@ -213,7 +213,9 @@ interface host-services {
     /// never accepts it. At most 64 KiB. Denied in a revision preview.
     sign: async func(bytes: list<u8>) -> result<list<u8>, failure>;
 
-    /// Whether `account` signed `bytes` in the block the editor shows, and
+    /// Whether `account` signed `bytes` in the block the editor shows, through
+    /// the same app (the host binds the asking app, so a signature another app
+    /// made answers `bad`, which is not a verdict that it was forged), and
     /// how far its key is trusted. `unavailable` while the answer needs the
     /// server and it cannot be reached.
     verify: async func(
