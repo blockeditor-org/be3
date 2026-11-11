@@ -78,9 +78,13 @@
     {
       name: "MAIN_SCHEDULER",
       simple: {
-        // Workers run actions at load 50-100 on 4 vCPU and can miss the 10 s default
-        // keepalive; a dropped worker fails its actions and buck2 sees an infra error.
-        worker_timeout_s: 120,
+        // A worker sends a keepalive every 2.5 s, and evicting one requeues what it ran. 120 s was set when 4-CPU
+        // workers at load 50-100 behind a 2-CPU scheduler missed the 10 s default; but a worker boat takes away
+        // (it updates its VMs, or one is lost) then held its actions for the whole 120 s, on a build's critical path.
+        worker_timeout_s: 30,
+        // To the worker running the fewest actions. The default, least recently used, gave a worker that was already
+        // running several 3-4 GB links more work as often as an idle one, and its links then took minutes.
+        allocation_strategy: "least_loaded",
         supported_platform_properties: {
           OSFamily: "exact",
           "container-image": "exact",

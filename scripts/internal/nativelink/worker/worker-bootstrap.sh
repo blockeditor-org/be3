@@ -4,7 +4,7 @@
 #   ~/nl-wg.conf          the WireGuard spoke config (its own key, the scheduler as the hub)
 #   ~/nl-worker.json5     the worker config (hub address filled in)
 #   ~/nl-worker.service   the systemd unit
-#   ~/worker-rw.env       the Bunny key it writes objects of 16 KB and up with (the zone's full-access one)
+# and the nl-worker environment supplies the read-only Bunny key as ~/worker-ro.env. Nothing here needs a credential.
 set -euo pipefail
 exec > >(tee -a /tmp/nl-bootstrap.log) 2>&1
 NL_VERSION=1.8.3
@@ -23,8 +23,7 @@ sudo install -m0755 /tmp/nativelink /usr/local/bin/nativelink
 sudo install -d -m700 /etc/wireguard; sudo install -m600 nl-wg.conf /etc/wireguard/wg-sch.conf; shred -u nl-wg.conf 2>/dev/null || rm -f nl-wg.conf
 sudo install -d /etc/nativelink /var/lib/nativelink-worker
 sudo install -m0644 nl-worker.json5 /etc/nativelink/worker.json5
-grep -q '^BUNNY_S3_SECRET=.' worker-rw.env || { echo "no Bunny key in ~/worker-rw.env" >&2; exit 1; }
-sudo install -m0600 worker-rw.env /etc/nativelink/worker.env; shred -u worker-rw.env 2>/dev/null || rm -f worker-rw.env
+sudo install -m0600 worker-ro.env /etc/nativelink/worker.env
 sudo install -m0644 nl-worker.service /etc/systemd/system/nativelink-worker.service
 sudo ufw allow 51820/udp >/dev/null 2>&1 || true
 sudo docker pull -q "$IMAGE" >/dev/null

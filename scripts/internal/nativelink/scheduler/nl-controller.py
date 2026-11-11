@@ -192,15 +192,6 @@ def free_ips(peers):
     return [f"{NET}{n}" for n in range(WORKER_RANGE[0], WORKER_RANGE[1] + 1) if f"{NET}{n}" not in used]
 
 
-def bunny_write_key():
-    """The Bunny zone's full-access key, from the server's own environment file, as a worker's env file."""
-    with open("/etc/nativelink/server.env") as f:
-        secret = re.search(r"^BUNNY_S3_SECRET=(.+)$", f.read(), re.M)
-    if not secret:
-        raise RuntimeError("no BUNNY_S3_SECRET in /etc/nativelink/server.env")
-    return f"BUNNY_S3_SECRET={secret.group(1).strip()}\n"
-
-
 def create_candidate(name, ip, hub, tmp, ttl):
     """Create one worker VM. Returns its sandbox id, or None."""
     rc, conf, err = run(["/usr/local/bin/add-peer.sh", name, ip, hub])
@@ -215,16 +206,11 @@ def create_candidate(name, ip, hub, tmp, ttl):
         text = f.read().replace("10.99.0.1", "10.100.0.1")
     with open(cfg, "w") as f:
         f.write(text)
-    # The workers write objects of 16 KB and up to Bunny themselves (worker-direct.json5), with the server's own key.
-    key = os.path.join(tmp, f"{name}.env")
-    with open(os.open(key, os.O_WRONLY | os.O_CREAT, 0o600), "w") as f:
-        f.write(bunny_write_key())
     rc, out, err = boat("new", "--name", name, "--environment", "nl-worker", "--type", WORKER_TYPE,
                         "--ttl", str(ttl), "--no-snapshots",
                         "--setup-file", os.path.join(FILES, "worker-bootstrap.sh"),
                         "--file", f"/home/user/nl-wg.conf={wg}",
                         "--file", f"/home/user/nl-worker.json5={cfg}",
-                        "--file", f"/home/user/worker-rw.env={key}",
                         "--file", f"/home/user/nl-worker.service={os.path.join(FILES, 'nativelink-worker-sch.service')}")
     # The CLI exits with an error after the VM is up (it tries an exec this key may not run), so read the id from the
     # events and do not trust the exit code.

@@ -82,22 +82,29 @@ port 50052.
   two names, `on.boat.dev` and the older `on.ascii.dev`; the network secret's host must be the one `BE3_NL_URL` uses.
 - **The controller** notices a build (a connection from Caddy on port 50052), keeps 2 large workers (8 CPUs, 16 actions each, so their CPUs stay busy and the queue makes
   fewer new workers; worker-direct.json5 says what it costs a build's critical path) alive while it runs
-  by extending their 30-minute lifetime (burst workers have the same), creates replacements, and stops the scheduler after 4 idle hours. Boat
+  by extending their 30-minute lifetime (burst workers have the same; every connected worker is kept while a build
+  runs, since one that lapses takes its running actions with it), creates replacements, and stops the scheduler after
+  4 idle hours. Boat
   places a new VM at random and about half cannot reach the scheduler (below), so it creates as many workers as are
   missing, deletes the ones that do not complete a WireGuard handshake within `NL_HANDSHAKE_WAIT` (60 s), and makes
   the shortfall in the next round (up to `NL_SPAWN_ROUNDS`, 4, a tick). It never deletes a VM that reached the
   scheduler, so each start that goes to a reachable VM is kept. Its own boat key is limited to the `nl-worker`
   environment (create, read, update, delete-own).
-- **Storage**: the workers read and write objects of 16 KB and up straight to the Bunny zone `be-nativelink-s3`, so
-  those bytes never pass through the scheduler; a large object Bunny lacks is read from the scheduler. The scheduler
-  keeps small objects (up to 8 GB; one it evicts is lost) and the action cache in /tmp, persisted as one packed Bunny
-  object every 15 minutes and restored on boot, and writes what clients upload of 16 KB and up to Bunny, all with the
-  zone's full-access key (the `nl-scheduler` environment's `nl-bunny.env`).
-- **The workers hold the full-access key.** The controller hands each worker the scheduler's key at creation
-  (`worker-rw.env`, as it hands over the WireGuard config). Actions run as root next to the worker's NativeLink, so
-  any build can read the key and then overwrite or delete the zone from anywhere. Anyone with the tunnel token could
-  already run code on the workers and write the action cache; a zone of its own for the workers' writes would keep a
-  leaked key from reaching the rest.
+- **Storage**: the workers read objects of 16 KB and up straight from the Bunny zone `be-nativelink-s3` with its
+  read-only key (the `nl-worker` environment's secret file `worker-ro.env`), and the scheduler for what Bunny lacks;
+  they write everything to the scheduler. Writing to Bunny directly took the scheduler out of the path, but a worker
+  that read a just-written object a second later got NoSuchKey and failed the build. The scheduler keeps small
+  objects (up to 8 GB; one it evicts is lost) and the action cache in /tmp, persisted as one packed Bunny object every
+  15 minutes and restored on boot, and writes everything else to Bunny with the full-access key (the `nl-scheduler`
+  environment's `nl-bunny.env`). Each worker keeps up to 60 GB (`WORKER_FAST_SLOW_STORE`): one verify after a
+  be-lib-geometry change writes about 10 GB, and at 15 GB workers evicted the libraries the next actions needed.
+- **Scheduling**: actions go to the worker running the fewest (`allocation_strategy: "least_loaded"`); the default,
+  least recently used, gave a worker already running several 3-4 GB links as much new work as an idle one, and its
+  links then took minutes. A worker that sends nothing for 30 s (`worker_timeout_s`; it sends a keepalive every
+  2.5 s) is dropped and its actions go to another.
+- **Rust objects carry no LLVM bitcode** (`-Cembed-bitcode=no` in buck/toolchains/BUCK, except under
+  buck/constraints:lto): it was most of an rlib's bytes, and every worker that compiles or links against one fetches
+  it.
 - **Speed** (4 default-size workers, the same 16 CPUs as 2 large ones, taken before Caddy replaced a WebSocket tunnel, over the scheduler's private address, so
   boat's public edge was not in the path; scripts/internal/nativelink/bench/ repeats them through the edge):
   - A one-file change to be-lib-geometry, one build alone: 250-350 s with a fresh worker fleet, 190-230 s with a warm one.
@@ -108,6 +115,10 @@ port 50052.
   - 8 such builds at once from 3 VMs, each a different one-file change so that nothing is shared: all passed, in 860-888 s
     each, about half the time of running them one after another (8 x 190-230 s). The workers went from 4 to 6 to 9 on
     CPU (average 45-72% busy), and the burst and its client VMs used 10 starts.
+  - A one-file change to be-lib-geometry, one build alone, from a default-size client VM with a warm daemon, on the
+    large scheduler with 6 warm large workers: 115-162 s (critical path: about 40 s fetching inputs, 50-70 s running,
+    25 s in between). A worker that boat takes away mid-build (it puts VMs into `updating`) costs one action the 30 s
+    timeout, and a link on a worker whose caches were just restarted can take minutes.
   - The same 8 builds (`bench/run-timings.sh 3 8`) on a large scheduler, with the workers writing to Bunny directly, 6
     large workers (the cap) at 16 actions each: all passed, in 918-1030 s. The scheduler stayed 85-95% idle with no swap
     (a small one had been out of CPU and swapping); 200-400 actions waited for a worker most of the time, so the
@@ -132,6 +143,12 @@ Things that are not obvious:
   working across stop and resume, but a new scheduler has a new one. `host url 8099` without `--public` makes it
   private again (every client then gets `403 ... requires an access token`), so pass `--public` there too. Never expose it before Caddy checks the token:
   the port then lets anyone build and run code on the workers.
+- **Restarting `nativelink-server` means restarting the workers** (`systemctl restart nativelink-worker` on each):
+  they reconnect to the scheduler, but a worker's reads of small objects from it can hang until the 10-minute download
+  timeout, and the actions waiting on them with it.
+- **NativeLink's `directory_cache`** (with `experimental_subtree_caching`, and with `max_concurrent_input_downloads`)
+  made input setup several times slower on these workers: a geometry verify took 800-1060 s instead of about 230 s.
+  It is off.
 - **After a restore** (boat stopped the VM and started a new machine) enabled services start before the disk has its
   files, so the units retry (`wg-quick-retry.conf`) instead of failing for good. Boat re-enables only services, not
   timers, so `nativelink-server.service` starts `nl-small-pack.timer` itself (`Wants=`); with the timer only enabled,
@@ -156,8 +173,8 @@ packed object on boot. To make a new one, with the Bunny zone `be-nativelink-s3`
 it cannot be turned on later) and a boat login that can create sandboxes:
 
 1. **Environments** (once): `boat env new nl-worker` and `boat env set nl-worker --github false --secrets true
-   --boat-credentials false --agents-credentials false`, then no secret files (the
-   controller hands the workers their key). `boat env new nl-scheduler`,
+   --boat-credentials false --agents-credentials false`, then `boat env set-file nl-worker worker-ro.env --from FILE`
+   where FILE holds `BUNNY_S3_RO_SECRET=` and the zone's read-only key. `boat env new nl-scheduler`,
    `boat env set nl-scheduler --github false --secrets true --boat-credentials true --agents-credentials false`
    (the scheduler stops itself with its own token), then `boat env set-file nl-scheduler nl-bunny.env --from FILE` where
    FILE holds `BUNNY_S3_KEY_ID=be-nativelink-s3` and `BUNNY_S3_SECRET=` with the full-access key, and

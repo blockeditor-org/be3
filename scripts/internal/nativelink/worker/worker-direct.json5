@@ -1,8 +1,7 @@
-// NativeLink worker, "direct" variant: objects of 16 KB and up are read from and written to Bunny directly, so a fleet
-// moves its bytes through each worker's own link instead of through the scheduler's, which only relayed them (on its
-// 2 CPUs that relaying was the bottleneck). Small objects and the action cache still go to the server; a large object
-// Bunny does not have yet is read from the server. The write key (the zone's full-access one) comes from the
-// controller at creation, as worker-rw.env (guides/build_server.md says what that exposes).
+// NativeLink worker, "direct" variant: objects of 16 KB and up are read straight from Bunny with a READ-ONLY key (the
+// nl-worker environment's worker-ro.env), so a fleet downloads through each worker's own link instead of through the
+// scheduler's. Small objects, every write and the action cache go to the server, and a large object Bunny does not
+// have yet is read from the server.
 {
   stores: [
     { name: "SERVER_CAS", grpc: { instance_name: "", endpoints: [{ address: "grpc://10.99.0.1:50052" }], store_type: "cas" } },
@@ -17,7 +16,7 @@
         bucket: "be-nativelink-s3",
         key_prefix: "cas/",
         access_key_id: "be-nativelink-s3",
-        secret_access_key: "${BUNNY_S3_SECRET}",
+        secret_access_key: "${BUNNY_S3_RO_SECRET}",
         retry: { max_retries: 6, delay: 0.3, jitter: 0.5 },
         // Bunny allows 500 requests/s per zone, shared with the server and every other worker.
         max_concurrent_requests: 32,
@@ -26,14 +25,15 @@
       },
     },
     {
-      // Bunny first. Outputs are written to Bunny alone: "update" keeps a read that falls back to the server from
-      // copying the object into Bunny (the server already wrote it there), and "read_only" keeps writes off the server.
+      // Reads try Bunny first and fall back to the server; writes go to the server alone ("read_only" on Bunny), which
+      // holds an object on its own disk the moment it is written and passes it on to Bunny. Writing to Bunny directly
+      // left a worker that read a just-written 5 MB object a second later with NoSuchKey from both, which failed the
+      // build.
       name: "LARGE_CAS",
       fast_slow: {
         fast: { ref_store: { name: "BUNNY" } },
-        fast_direction: "update",
+        fast_direction: "read_only",
         slow: { ref_store: { name: "SERVER_CAS" } },
-        slow_direction: "read_only",
       },
     },
     {
