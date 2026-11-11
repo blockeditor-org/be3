@@ -119,6 +119,11 @@ port 50052.
     large scheduler with 6 warm large workers: 115-162 s (critical path: about 40 s fetching inputs, 50-70 s running,
     25 s in between). A worker that boat takes away mid-build (it puts VMs into `updating`) costs one action the 30 s
     timeout, and a link on a worker whose caches were just restarted can take minutes.
+  - The same 8 builds with the workers writing through the scheduler, debug sections compressed and third-party crates
+    at opt-level 1 (buck/cargo/third_party.bzl): all passed, in 737-894 s, the 6 workers full and 130-300 actions
+    queued. The scheduler averaged 54% idle (12% at its lowest) with the workers' writes coming in at 14 MB/s on
+    average and 65 MB/s at most: it carries what 6 workers write, and its CPU, not its link, is what more workers would
+    run out of first.
   - The same 8 builds (`bench/run-timings.sh 3 8`) on a large scheduler, with the workers writing to Bunny directly, 6
     large workers (the cap) at 16 actions each: all passed, in 918-1030 s. The scheduler stayed 85-95% idle with no swap
     (a small one had been out of CPU and swapping); 200-400 actions waited for a worker most of the time, so the
