@@ -215,6 +215,7 @@ cxx_library(
 rust_std_libs(
     name = "rust_std_libs",
     shim = ":rdl_alloc",
+    ar = tools + ":ar",
     component = tools + ":rust-std-x86_64-unknown-linux-gnu",
     crates = {name: "lib{}-{}.rmeta".format(name, hash) for name, hash in _std_hashes.items()},
     rlibs = ["lib{}-{}.rlib".format(name, hash) for name, hash in _std_hashes.items()],
@@ -262,7 +263,7 @@ _std_sysroot = select({
     ":linux_x86_64_release": {},
     ":linux_x86_64": {
         name: ":rust_std_" + name
-        for name in ["core", "std", "proc_macro", "panic_unwind", "panic_abort", "alloc", "compiler_builtins"]
+        for name in ["core", "std", "proc_macro", "panic_unwind", "panic_abort", "alloc", "compiler_builtins", "test"]
     },
     "DEFAULT": {},
 })
@@ -310,9 +311,7 @@ pinned_rust_toolchain(
     # --extern noprelude:, which the standard library's crates are named with.
     extra_rustc_flags = select({
         ":linux_x86_64_release": [],
-        # -L for std, which rustc injects as `extern crate std` and looks for in
-        # the plain search path, with its rlib beside its rmeta.
-        ":linux_x86_64": ["-Zunstable-options", "-L", "$(location :rust_std_libs[pairs])"],
+        ":linux_x86_64": ["-Zunstable-options"],
         "DEFAULT": [],
     }),
     rustc_flags = select({

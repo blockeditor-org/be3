@@ -71,20 +71,35 @@ def _lib_dir(ctx: AnalysisContext) -> Artifact:
 def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
     cxx_toolchain = get_cxx_toolchain_info(ctx)
     linker_type = cxx_toolchain.linker_info.type
-    # Each crate's rlib beside its rmeta, which holds the metadata the rlib's own
-    # lacks: rustc finds one from the other.
-    pairs = ctx.actions.symlinked_dir("pairs", {
-        file: _lib_dir(ctx).project(file)
-        for file in ctx.attrs.rlibs + [rlib.replace(".rlib", ".rmeta") for rlib in ctx.attrs.rlibs]
-    })
-    lib_dir = pairs
-    rlibs = [lib_dir.project(name) for name in ctx.attrs.rlibs]
+    # The dist's rlibs hold a stub of their metadata (the full one is the .rmeta
+    # beside each), which rustc refuses where an rlib is named by --extern. So each
+    # rlib is made with the full metadata as its lib.rmeta: one file that is both.
+    lib_dir = _lib_dir(ctx)
+    rlibs = []  # for rustc
+    linkable = [lib_dir.project(file) for file in ctx.attrs.rlibs]  # for the linker, which wants the stub: an ELF
+    for file in ctx.attrs.rlibs:
+        out = ctx.actions.declare_output("rlibs/" + file)
+        ctx.actions.run(
+            cmd_args(
+                "sh",
+                "-c",
+                'set -e; p="$PWD"; out="$p/$1"; mkdir -p "$(dirname "$out")"; cp "$2" "$out"; chmod u+w "$out"; t=$(mktemp -d); cp "$3" "$t/lib.rmeta"; cd "$t"; "$p/$4" r "$out" lib.rmeta',
+                "--",
+                out.as_output(),
+                lib_dir.project(file),
+                lib_dir.project(file.replace(".rlib", ".rmeta")),
+                ctx.attrs.ar[RunInfo],
+            ),
+            category = "rust_std_rlib",
+            identifier = file,
+        )
+        rlibs.append(out)
 
     archives = LinkInfo(
         name = "rust_std",
         linkables = [
             ArchiveLinkable(archive = Archive(artifact = rlib), linker_type = linker_type, link_whole = False)
-            for rlib in rlibs
+            for rlib in linkable
         ],
         post_flags = _SYSTEM_LIBS,
     )
@@ -92,7 +107,7 @@ def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
         name = "rust_std_whole",
         linkables = [
             ArchiveLinkable(archive = Archive(artifact = rlib), linker_type = linker_type, link_whole = True)
-            for rlib in rlibs
+            for rlib in linkable
         ],
     )
     shim = ctx.attrs.shim[DefaultInfo].sub_targets["static-pic"][DefaultInfo].default_outputs[0]
@@ -148,10 +163,10 @@ def _rust_std_libs_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
     )
     return [
-        DefaultInfo(default_output = linked.output, sub_targets = {"pairs": [DefaultInfo(default_output = pairs)]}),
+        DefaultInfo(default_output = linked.output),
         RustStdInfo(
             metadata = {name: lib_dir.project(file) for name, file in ctx.attrs.crates.items()},
-            rlibs = {name: lib_dir.project(file.replace(".rmeta", ".rlib")) for name, file in ctx.attrs.crates.items()},
+            rlibs = {name: rlib for name, rlib in zip(ctx.attrs.crates.keys(), rlibs) if True},
         ),
         merged,
         shared_library_info,
@@ -169,6 +184,7 @@ rust_std_libs = rule(
     attrs = {
         "component": attrs.dep(),
         "crates": attrs.dict(attrs.string(), attrs.string()),
+        "ar": attrs.exec_dep(providers = [RunInfo]),
         "shim": attrs.dep(),
         "labels": attrs.list(attrs.string(), default = []),
         "rlibs": attrs.list(attrs.string()),
@@ -197,6 +213,7 @@ def _rust_std_crate_impl(ctx: AnalysisContext) -> list[Provider]:
     # names the rmeta, since an rlib's own metadata is a stub.
     transitive[MetadataKind("full")] = ctx.actions.tset(TransitiveDeps, children = [transitive[MetadataKind("full")], everything(libs[RustStdInfo].rlibs)])
     outputs = {kind: own for kind in MetadataKind}
+    outputs[MetadataKind("full")] = libs[RustStdInfo].rlibs[ctx.attrs.crate]
 
     singleton = {kind: ctx.actions.tset(TransitiveDeps, value = RustArtifact(artifact = outputs[kind], crate = crate)) for kind in MetadataKind}
     strategies = {
