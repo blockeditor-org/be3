@@ -81,6 +81,7 @@ impl Platform for AppPlatform {
                 actions_version: 0,
                 sent_actions: HashMap::default(),
                 focused: HashSet::default(),
+                unlisted: HashSet::default(),
                 listed: HashSet::default(),
                 toggles: HashMap::default(),
                 toggled: 0,
@@ -178,6 +179,8 @@ struct ModuleRunner {
     /// What each view last sent of them, at which change.
     sent_actions: HashMap<ViewRef, (SentActions, Vec<DescribedAction>)>,
     focused: HashSet<ViewRef>,
+    /// The views in `focused` the last frame did not list yet.
+    unlisted: HashSet<ViewRef>,
     /// The views the last frame listed.
     listed: HashSet<ViewRef>,
     toggles: HashMap<ViewRef, u32>,
@@ -252,7 +255,11 @@ impl ModuleRunner {
             &mut self.listed,
             regions.iter().map(|region| region.id()).collect(),
         );
-        self.focused.retain(|id| shown(id) || !listed.contains(id));
+        let stale = std::mem::take(&mut self.unlisted);
+        self.focused
+            .retain(|id| shown(id) || (!listed.contains(id) && !stale.contains(id)));
+        // One still not listed by the next frame closed before it ever showed.
+        self.unlisted = self.focused.iter().filter(|id| !shown(id)).copied().collect();
         if had_keyboard && self.focused.is_empty() {
             self.runner.push(Incoming::logical(Input::Focus(false)));
         }

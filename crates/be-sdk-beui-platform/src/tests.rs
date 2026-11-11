@@ -32,6 +32,7 @@ mod a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on;
 mod a_window_opened_where_the_host_places_windows_is_the_hosts_own;
 mod a_window_the_program_floats_inside_a_view_stays_in_that_view;
 mod a_window_the_program_opens_is_painted_in_the_frame_that_opens_it;
+mod a_view_that_closes_with_the_keyboard_tells_the_program_and_one_without_does_not;
 mod a_zoomed_out_views_menu_paints_all_of_itself;
 mod an_anchored_view_left_empty_keeps_a_finite_place;
 mod each_view_reads_its_own_viewport_size;
@@ -229,4 +230,31 @@ fn launched(host: &EditorHost, program: impl Program + 'static) -> Box<Driver<Mo
     handler
         .downcast()
         .expect("the app platform's handler drives a ModuleRunner")
+}
+
+fn preview() -> ShownView {
+    ShownView {
+        view: be_sdk::View::PREVIEW,
+        ..whole(80.0, 60.0)
+    }
+}
+
+fn focus_events(events: &Rc<std::cell::RefCell<Vec<Event>>>) -> Vec<bool> {
+    events
+        .borrow()
+        .iter()
+        .filter_map(|event| match event {
+            Event::Focus(focused) => Some(*focused),
+            _ => None,
+        })
+        .collect()
+}
+
+fn watched() -> (Windowed, Rc<std::cell::RefCell<Vec<Event>>>) {
+    let events = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen = events.clone();
+    let program = Windowed::empty().hooked(move |context| {
+        context.input(|input| seen.borrow_mut().extend(input.events.iter().cloned()));
+    });
+    (program, events)
 }
