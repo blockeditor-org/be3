@@ -110,7 +110,8 @@ never by a timeout:
 - Granted when the child's view takes the keyboard. The child's app hears the
   held keys, in order and ahead of keys typed into it since, once a text field
   in it has the keyboard (its view asks for an input method), or, for a child
-  with none, two frames after it had its block's content and the focus.
+  with none, two frames after it had its block's content and the focus (the
+  count starts again if the content is replaced).
 - Refused when the person presses in the editor or takes the keyboard
   elsewhere, and when the child or the editor goes or its app stops. A block
   gift waits for a child to show its block however many frames that takes: the
