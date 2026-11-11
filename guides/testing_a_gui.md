@@ -224,7 +224,11 @@ app in it. A test fails unless the host exits cleanly at `close()`.
     ./scripts/test //crates/be-host-tests:test [NAME] [--update]
 
 - Every step settles as `drive` does, and the clock is stopped, so carets and animations paint
-  the same every run; time passes only with `pause`. `HostTest`'s doc comments cover cropping,
+  the same every run; time passes only with `pause`. A pause does not wait for an app's own
+  thread, so what an app reports afterwards (a child's size, a value the host publishes) lands
+  after it under load: wait for a line of the tree (`wait`), or for a node to stop covering a
+  point (`gone ID over ID+X,Y`, which takes the point from another node's place), never a longer
+  pause. `HostTest`'s doc comments cover cropping,
   previews, space and rendering.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
   shown, whatever the crop.
