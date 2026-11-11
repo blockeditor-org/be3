@@ -54,6 +54,19 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let elsewhere = owner.create_block(BlockParent::Block(other)).await;
     let lone = owner.create_block(BlockParent::Root).await;
 
+    // A block no block refers to is not held, and a collection takes it: the live ones are
+    // referred to.
+    for (parent, children) in [
+        (work, vec![first, stays]),
+        (first, vec![inner]),
+        (other, vec![elsewhere]),
+    ] {
+        let referred = owner
+            .call(|peer| client::blocks::set_metadata(peer, parent, Vec::new(), children))
+            .await;
+        assert!(referred.is_ok(), "{referred:?}");
+    }
+
     // From the start, the tree's blocks, however the pages are cut, and none of `other`'s.
     let tree = sorted(vec![work, first, inner, stays]);
     for limit in [1, 2, 100] {
@@ -132,12 +145,71 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     assert_eq!(changed, vec![lone], "only its own tree");
     assert!(left.is_empty(), "{left:?}");
 
+    // More blocks collected than a page holds are all named: the removal log pages on the
+    // same cursor as the blocks, which a page's limit cuts.
+    let (_, _, before_crowd) = changes(&mut owner, work, 0, 100).await;
+    let mut crowd = Vec::new();
+    for _ in 0..520 {
+        let block = owner.create_block(BlockParent::Block(work)).await;
+        let trashed = owner.move_to(block, BlockParent::Detached).await;
+        assert!(trashed.is_ok(), "{trashed:?}");
+        crowd.push(block);
+    }
+    let collected = owner
+        .call(|peer| client::blocks::collect_detached(peer))
+        .await;
+    assert!(collected.is_ok(), "{collected:?}");
+    let (_, left, _) = changes(&mut owner, work, before_crowd, 500).await;
+    for block in &crowd {
+        assert!(left.contains(block), "{block} was left out of {} named", left.len());
+    }
+
+    // A block collected between two pages is named by a later one.
+    let late = owner.create_block(BlockParent::Block(work)).await;
+    let (_, _, before_late) = changes(&mut owner, work, 0, 100).await;
+    let trashed = owner.move_to(late, BlockParent::Detached).await;
+    assert!(trashed.is_ok(), "{trashed:?}");
+    let page = owner
+        .call(|peer| {
+            client::blocks::changed_since(
+                peer,
+                work,
+                before_late,
+                ChangeCursor {
+                    changed: before_late,
+                    block: Uuid::max(),
+                },
+                1,
+            )
+        })
+        .await
+        .expect("the first page");
+    let collected = owner
+        .call(|peer| client::blocks::collect_detached(peer))
+        .await;
+    assert!(collected.is_ok(), "{collected:?}");
+    let mut left = page.removed.clone();
+    let mut after = page.next;
+    while let Some(cursor) = after {
+        let page = owner
+            .call(|peer| client::blocks::changed_since(peer, work, before_late, cursor.clone(), 1))
+            .await
+            .expect("a later page");
+        left.extend(page.removed);
+        after = page.next;
+    }
+    assert!(left.contains(&late), "collected between pages: {left:?}");
+
+    let still = owner.call(|peer| client::blocks::read_block(peer, stays)).await;
+    assert!(still.is_ok(), "a live block was collected: {still:?}");
+
     // Only a top-level block's tree can be asked about.
+    let nested = owner.create_block(BlockParent::Block(work)).await;
     let asked = owner
         .call(|peer| {
             client::blocks::changed_since(
                 peer,
-                stays,
+                nested,
                 0,
                 ChangeCursor {
                     changed: 0,

@@ -1457,7 +1457,7 @@ impl ServerStore {
             // What changed in the tree and what left it, in one order: blocks still held, and
             // the removal log of the blocks deleted for good that were last in this tree.
             let mut rows = database.prepare_cached(
-                "SELECT id, changed, moved, left_root = ?4 AS left_here, 0 AS gone FROM blocks
+                "SELECT id, changed, moved, COALESCE(left_root = ?4, 0) AS left_here, 0 AS gone FROM blocks
                  WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
                  UNION ALL
                  SELECT block_id, changed, 0, 1, 1 FROM block_removals
@@ -1978,11 +1978,13 @@ pub(crate) fn write_grant(
 ) -> Result<(), ServerError> {
     graph.grant(block, account, access)?;
     graph.touch(block)?;
+    crate::changes::touch(database, organization, &[block])?;
     let organization = organization.to_string();
     database.execute(
         "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
         params![organization, block.to_string()],
     )?;
+    // (Who may view the block changed, which a reader of its tree is told of with the rest.)
     match encode_access(access) {
         None => {
             database.execute(
