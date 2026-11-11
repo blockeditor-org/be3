@@ -64,7 +64,10 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
 
     // Nothing changed since: nothing is listed, and the sequence has not moved.
     let (changed, left, again) = changes(&mut owner, work, watermark, 100).await;
-    assert!(changed.is_empty() && left.is_empty(), "{changed:?} {left:?}");
+    assert!(
+        changed.is_empty() && left.is_empty(),
+        "{changed:?} {left:?}"
+    );
     assert_eq!(again, watermark);
 
     // A change to one block lists that block alone.
@@ -75,15 +78,17 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let (changed, left, watermark_after) = changes(&mut owner, work, watermark, 100).await;
     assert_eq!(changed, vec![stays]);
     assert!(left.is_empty());
-    assert!(watermark_after > watermark, "the sequence moves with a write");
+    assert!(
+        watermark_after > watermark,
+        "the sequence moves with a write"
+    );
 
     // A block moved out takes what is below it, and both are named; one moved in is listed.
     let moved = owner.move_to(first, BlockParent::Block(other)).await;
     assert!(moved.is_ok(), "{moved:?}");
     let moved = owner.move_to(elsewhere, BlockParent::Block(work)).await;
     assert!(moved.is_ok(), "{moved:?}");
-    let (changed, left, watermark_moved) =
-        changes(&mut owner, work, watermark_after, 1).await;
+    let (changed, left, watermark_moved) = changes(&mut owner, work, watermark_after, 1).await;
     assert_eq!(changed, vec![elsewhere]);
     assert_eq!(left, sorted(vec![first, inner]));
 

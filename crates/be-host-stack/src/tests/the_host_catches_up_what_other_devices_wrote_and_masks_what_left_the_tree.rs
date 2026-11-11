@@ -80,7 +80,9 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
     // The host may have come back before the note was published; coming back once more, it
     // catches up from where it was.
     harness.stop_server();
-    wait_until("noticed the server was gone again", |shared| !shared.connected);
+    wait_until("noticed the server was gone again", |shared| {
+        !shared.connected
+    });
     harness.start_server(&address);
     retry_now();
     wait_until("reconnected", |shared| shared.connected);
@@ -122,5 +124,8 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
         .await
         .expect("the other device searches the index")
     });
-    assert!(hits.is_empty(), "the index still lists a block that left: {hits:?}");
+    assert!(
+        hits.is_empty(),
+        "the index still lists a block that left: {hits:?}"
+    );
 }
