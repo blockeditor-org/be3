@@ -6,7 +6,10 @@ fn a_push_hosts_cap_is_keyed_by_its_allowlist_entry_and_statuses_are_judged() {
     let device = TestDevice::new();
     let added = vec!["ntfy.example.org".to_owned()];
     let key = |address: &str| {
-        push::push_host(&device.endpoint(PushService::WebPush, address.to_owned()), &added)
+        push::push_host(
+            &device.endpoint(PushService::WebPush, address.to_owned()),
+            &added,
+        )
     };
     // An exact host is its own key.
     assert_eq!(key("https://fcm.googleapis.com/a"), "fcm.googleapis.com");

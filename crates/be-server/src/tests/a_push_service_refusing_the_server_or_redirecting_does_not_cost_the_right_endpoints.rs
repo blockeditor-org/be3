@@ -26,9 +26,10 @@ async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_rig
     let (mut member, account) = viewer_of(&harness, &mut owner, block, "member@example.com").await;
     // A name that never resolves is this server's trouble, not the device's.
     member
-        .register_endpoint(
-            TestDevice::new().endpoint(PushService::WebPush, "http://gone.invalid/unresolved".into()),
-        )
+        .register_endpoint(TestDevice::new().endpoint(
+            PushService::WebPush,
+            "http://gone.invalid/unresolved".into(),
+        ))
         .await;
     for path in ["/redirect", "/denied", "/unauthorized", "/kept"] {
         member
@@ -65,7 +66,11 @@ async fn a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_rig
             .find(|(address, _)| address.ends_with(path))
             .map(|(_, failures)| *failures)
     };
-    assert_eq!(failed("/unresolved"), Some(0), "a name that does not resolve");
+    assert_eq!(
+        failed("/unresolved"),
+        Some(0),
+        "a name that does not resolve"
+    );
     assert_eq!(failed("/redirect"), Some(1), "a redirect is not a delivery");
     assert_eq!(failed("/denied"), Some(0), "a 403 is this server's fault");
     assert_eq!(

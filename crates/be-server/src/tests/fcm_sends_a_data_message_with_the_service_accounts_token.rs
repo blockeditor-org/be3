@@ -148,7 +148,11 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
             "gone",
         ),
         (429, r#"{"error":{"code":429}}"#, "throttled"),
-        (401, r#"{"error":{"code":401,"status":"UNAUTHENTICATED"}}"#, "throttled"),
+        (
+            401,
+            r#"{"error":{"code":401,"status":"UNAUTHENTICATED"}}"#,
+            "throttled",
+        ),
         (403, r#"{"error":{"code":403}}"#, "throttled"),
         (
             403,
