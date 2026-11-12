@@ -161,11 +161,36 @@ fn register_keys(session: Session) {
     key("delete", "Delete the selection".to_owned(), &delete, edits);
     key("rotate-left", "Rotate left".to_owned(), &[Key::Q], edits);
     key("rotate-right", "Rotate right".to_owned(), &[Key::E], edits);
-    key("flip-horizontal", "Flip horizontally".to_owned(), &[Key::H], edits);
-    key("flip-vertical", "Flip vertically".to_owned(), &[Key::V], edits);
-    key("scale-down", "Scale down".to_owned(), &[Key::BracketLeft], always);
-    key("scale-up", "Scale up".to_owned(), &[Key::BracketRight], always);
-    key("folder-up", "Up to the parent folder".to_owned(), &[Key::Backtick], always);
+    key(
+        "flip-horizontal",
+        "Flip horizontally".to_owned(),
+        &[Key::H],
+        edits,
+    );
+    key(
+        "flip-vertical",
+        "Flip vertically".to_owned(),
+        &[Key::V],
+        edits,
+    );
+    key(
+        "scale-down",
+        "Scale down".to_owned(),
+        &[Key::BracketLeft],
+        always,
+    );
+    key(
+        "scale-up",
+        "Scale up".to_owned(),
+        &[Key::BracketRight],
+        always,
+    );
+    key(
+        "folder-up",
+        "Up to the parent folder".to_owned(),
+        &[Key::Backtick],
+        always,
+    );
     for (index, hotkey) in HOTBAR_KEYS.into_iter().enumerate() {
         let number = index + 1;
         key(
