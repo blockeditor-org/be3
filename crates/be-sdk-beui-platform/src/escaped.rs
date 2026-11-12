@@ -54,7 +54,12 @@ pub(crate) fn follow(held: &mut Vec<Shown>, escaped: &[EscapedOutput], window: W
             },
         };
         shown.changed |= escaped.output.changed || shown.escaped.layer != escaped.layer;
-        note(&mut shown.surface, &escaped.output, beui_types::Vec2::ZERO, &[]);
+        note(
+            &mut shown.surface,
+            &escaped.output,
+            beui_types::Vec2::ZERO,
+            &[],
+        );
         shown.escaped = escaped.clone();
         next.push(shown);
     }

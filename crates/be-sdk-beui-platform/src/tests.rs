@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use be_sdk::{EditorInstanceId, FrameSpec, Input, Module};
+use be_sdk_beui_platform_api::Report;
 use beui::Event;
 use beui::NodeId;
 use beui::native::with_reactive_scope;
@@ -9,7 +10,6 @@ use beui::reactive::*;
 use beui::styled;
 use beui::styled::{Window, WindowHandle};
 use beui::{Pos2, pos2};
-use be_sdk_beui_platform_api::Report;
 use beui_core::document::Document;
 
 use std::any::Any;

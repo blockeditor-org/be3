@@ -50,12 +50,11 @@ fn an_overlay_brings_only_what_it_draws_not_the_views_clear_color() {
         "the view clears to an opaque color, which the host backs it with"
     );
     let painting = surface.painting(shown.id()).expect("the view is painted");
-    let pixels = beui_core::painting::rasterize(
-        &painting.frame,
-        painting.frame.background,
-        |key| painting.textures.get(&key),
-    )
-    .expect("the painting rasterizes");
+    let pixels =
+        beui_core::painting::rasterize(&painting.frame, painting.frame.background, |key| {
+            painting.textures.get(&key)
+        })
+        .expect("the painting rasterizes");
     let alpha = |at: Pos2| {
         let [width, _] = pixels.size;
         pixels.rgba[at.y as usize * width as usize + at.x as usize][3]
@@ -65,11 +64,7 @@ fn an_overlay_brings_only_what_it_draws_not_the_views_clear_color() {
         u8::MAX,
         "away from the overlay the view keeps its clear color"
     );
-    assert_eq!(
-        alpha(card.center()),
-        u8::MAX,
-        "the overlay's card is drawn"
-    );
+    assert_eq!(alpha(card.center()), u8::MAX, "the overlay's card is drawn");
     assert_eq!(
         alpha(card.min + vec2(0.5, 0.5)),
         0,
