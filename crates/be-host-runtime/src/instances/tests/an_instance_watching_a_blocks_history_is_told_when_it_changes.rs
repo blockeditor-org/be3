@@ -1,12 +1,18 @@
 use super::*;
 
 use be_block::{BlockContent, LiveEdit};
-use be_sdk_api::blocks::BlockHistory;
+use be_sdk_api::blocks::{BlockHistory, BlockSubject, BlockValue};
 use be_type_checklist::{Checklist, ChecklistContent};
 
 fn histories(instances: &mut Instances, watch: OpId) -> Vec<BlockHistory> {
     next_screens(instances);
-    answered(instances, watch).into_iter().collect()
+    answered::<BlockValue>(instances, watch)
+        .into_iter()
+        .map(|value| match value {
+            BlockValue::History(history) => history,
+            other => panic!("not a history: {other:?}"),
+        })
+        .collect()
 }
 
 #[test]
@@ -16,9 +22,9 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     let block = Uuid::new_v4();
     let mut instances = placed();
     next_screens(&mut instances);
-    let watch = open_watch(&mut instances, |op| Call::HistoryWatchNew {
-        resource: wire::HistoryWatch(op),
-        block: block.into_bytes(),
+    let watch = open_watch(&mut instances, |op| Call::BlockWatchNew {
+        resource: wire::BlockWatch(op),
+        subject: BlockSubject::History(block.into_bytes()),
     });
     let nothing = BlockHistory {
         head: None,

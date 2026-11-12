@@ -7,7 +7,7 @@ use std::{
 
 use be_sdk_api::{
     EditorInstanceId,
-    blocks::{OpenRequest as WireOpen, ShowRequest},
+    blocks::{BlockSubject, BlockValue, OpenRequest as WireOpen, ShowRequest},
     guest::blocks,
     ops::{
         DeserializeOwned, Window,
@@ -33,13 +33,77 @@ pub(crate) struct Link {
     instance: Option<EditorInstanceId>,
     own: Option<(Uuid, Uuid)>,
     replicas: HashMap<Uuid, Held>,
-    blocks: BTreeMap<BlockQuery, Rc<blocks::BlocksWatch>>,
-    histories: BTreeMap<Uuid, Rc<blocks::HistoryWatch>>,
-    heads: BTreeMap<Uuid, Rc<blocks::HeadWatch>>,
+    watches: BTreeMap<Subject, Rc<blocks::BlockWatch>>,
     searches: BTreeMap<crate::Search, Rc<blocks::SearchWatch>>,
-    artifacts: BTreeMap<Uuid, Rc<blocks::ArtifactWatch>>,
-    version: Option<Rc<blocks::VersionWatch>>,
     shows: Option<Rc<blocks::ShowRequests>>,
+}
+
+/// What one `block-watch` follows (`block-subject`).
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) enum Subject {
+    Blocks(BlockQuery),
+    History(Uuid),
+    Head(Uuid),
+    Artifact(Uuid),
+    Version,
+}
+
+impl Subject {
+    fn encode(self) -> BlockSubject {
+        match self {
+            Self::Blocks(query) => BlockSubject::Blocks(query.encode()),
+            Self::History(block) => BlockSubject::History(block.into_bytes()),
+            Self::Head(block) => BlockSubject::Head(block.into_bytes()),
+            Self::Artifact(block) => BlockSubject::Artifact(block.into_bytes()),
+            Self::Version => BlockSubject::Version,
+        }
+    }
+
+    /// Hands `value` to the editor's host, when it is a value of this subject.
+    fn deliver(self, host: &EditorHost, value: BlockValue) {
+        match (self, value) {
+            (Self::Blocks(query), BlockValue::Blocks(Ok(listed))) => host.set_blocks(
+                query,
+                listed.into_iter().map(crate::BlockInfo::decode).collect(),
+            ),
+            (Self::Blocks(query), BlockValue::Blocks(Err(error))) => {
+                host.fail_blocks(query, error.to_string());
+            }
+            (Self::History(block), BlockValue::History(history)) => host.set_history(
+                block,
+                BlockHistory {
+                    head: history.head,
+                    can_undo: history.can_undo,
+                    can_redo: history.can_redo,
+                    restarted_at: history.restarted_at,
+                    lost_edits: history.lost_edits,
+                },
+            ),
+            (Self::Head(block), BlockValue::Head(head)) => host.set_head(
+                block,
+                head.map(|head| {
+                    head.map(|head| StoredHead {
+                        commit: head.commit,
+                        content_type: Uuid::from_bytes(head.content_type),
+                        bytes: head.bytes,
+                    })
+                }),
+            ),
+            (Self::Artifact(block), BlockValue::Artifact(state)) => host.set_artifact(
+                block,
+                state.map(|state| ArtifactState {
+                    block_id: block,
+                    source_type: Uuid::from_bytes(state.source_type),
+                    source: Uuid::from_bytes(state.source),
+                    summary: state.summary,
+                    error: state.error,
+                    regenerating: state.regenerating,
+                }),
+            ),
+            (Self::Version, BlockValue::Version(status)) => host.set_version_status(status),
+            _ => {}
+        }
+    }
 }
 
 fn follow<W: 'static, T: DeserializeOwned + 'static>(
@@ -155,50 +219,14 @@ impl Link {
                 self.hold(host, block, content_type);
             }
         }
-        if let Some(queries) = host.take_block_watch() {
+        if let Some(wanted) = host.take_block_subjects() {
             let parent = self.instance;
-            reconcile(&mut self.blocks, &queries, |query| {
-                let watch = Rc::new(under(parent, || blocks::BlocksWatch::new(query.encode())));
+            reconcile(&mut self.watches, &wanted, |subject| {
+                let watch = Rc::new(under(parent, || blocks::BlockWatch::new(subject.encode())));
                 let host = host.clone();
-                follow(
-                    host.waker(),
-                    &watch,
-                    blocks::BlocksWatch::next,
-                    move |listed| match listed {
-                        Ok(listed) => host.set_blocks(
-                            query,
-                            listed.into_iter().map(crate::BlockInfo::decode).collect(),
-                        ),
-                        Err(error) => host.fail_blocks(query, error.to_string()),
-                    },
-                );
-                watch
-            });
-        }
-        if let Some(watched) = host.take_history_watch() {
-            let parent = self.instance;
-            reconcile(&mut self.histories, &watched, |block| {
-                let watch = Rc::new(under(parent, || {
-                    blocks::HistoryWatch::new(block.into_bytes())
-                }));
-                let host = host.clone();
-                follow(
-                    host.waker(),
-                    &watch,
-                    blocks::HistoryWatch::next,
-                    move |history| {
-                        host.set_history(
-                            block,
-                            BlockHistory {
-                                head: history.head,
-                                can_undo: history.can_undo,
-                                can_redo: history.can_redo,
-                                restarted_at: history.restarted_at,
-                                lost_edits: history.lost_edits,
-                            },
-                        );
-                    },
-                );
+                follow(host.waker(), &watch, blocks::BlockWatch::next, move |value| {
+                    subject.deliver(&host, value);
+                });
                 watch
             });
         }
@@ -226,67 +254,6 @@ impl Link {
                 );
                 self.searches.insert(search, watch);
             }
-        }
-        if let Some(watched) = host.take_head_watch() {
-            let parent = self.instance;
-            reconcile(&mut self.heads, &watched, |block| {
-                let watch = Rc::new(under(parent, || blocks::HeadWatch::new(block.into_bytes())));
-                let host = host.clone();
-                follow(host.waker(), &watch, blocks::HeadWatch::next, move |head| {
-                    host.set_head(
-                        block,
-                        head.map(|head| {
-                            head.map(|head| StoredHead {
-                                commit: head.commit,
-                                content_type: Uuid::from_bytes(head.content_type),
-                                bytes: head.bytes,
-                            })
-                        }),
-                    );
-                });
-                watch
-            });
-        }
-        if let Some(watched) = host.take_artifact_watch() {
-            let parent = self.instance;
-            reconcile(&mut self.artifacts, &watched, |block| {
-                let watch = Rc::new(under(parent, || {
-                    blocks::ArtifactWatch::new(block.into_bytes())
-                }));
-                let host = host.clone();
-                follow(
-                    host.waker(),
-                    &watch,
-                    blocks::ArtifactWatch::next,
-                    move |state| {
-                        host.set_artifact(
-                            block,
-                            state.map(|state| ArtifactState {
-                                block_id: block,
-                                source_type: Uuid::from_bytes(state.source_type),
-                                source: Uuid::from_bytes(state.source),
-                                summary: state.summary,
-                                error: state.error,
-                                regenerating: state.regenerating,
-                            }),
-                        );
-                    },
-                );
-                watch
-            });
-        }
-        if self.version.is_none() && host.wants_version() {
-            let watch = Rc::new(self.under(blocks::VersionWatch::new));
-            let host = host.clone();
-            follow(
-                host.waker(),
-                &watch,
-                blocks::VersionWatch::next,
-                move |status| {
-                    host.set_version_status(status);
-                },
-            );
-            self.version = Some(watch);
         }
         if self.shows.is_none() && host.wants_shows() {
             let watch = Rc::new(self.under(blocks::ShowRequests::new));

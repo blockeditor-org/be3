@@ -385,10 +385,8 @@ impl GraphState {
         }
     }
 
-    pub(crate) fn take_watch(&self) -> Option<Vec<BlockQuery>> {
-        self.watch_changed
-            .replace(false)
-            .then(|| self.watched.borrow().keys().copied().collect())
+    pub(crate) fn take_watch_changed(&self) -> bool {
+        self.watch_changed.replace(false)
     }
 
     pub(crate) fn watched(&self) -> Vec<BlockQuery> {
