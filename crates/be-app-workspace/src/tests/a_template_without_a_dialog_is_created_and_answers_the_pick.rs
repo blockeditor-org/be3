@@ -51,6 +51,7 @@ fn a_template_without_a_dialog_is_created_and_answers_the_pick() {
             block_id: created.into_bytes(),
             block_type: TEMPLATE_TYPE.into_bytes(),
             linked: false,
+            named: false,
             placed: false,
         }))]
     );

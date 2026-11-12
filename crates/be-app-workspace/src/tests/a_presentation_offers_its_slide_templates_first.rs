@@ -65,6 +65,7 @@ fn a_presentation_offers_its_slide_templates_first() {
             block_id: created.into_bytes(),
             block_type: TEMPLATE_TYPE.into_bytes(),
             linked: false,
+            named: false,
             placed: false,
         }))]
     );

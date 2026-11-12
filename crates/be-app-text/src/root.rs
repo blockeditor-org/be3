@@ -5,6 +5,7 @@ mod tests;
 pub(crate) mod embeds;
 mod import_error;
 mod large_embed;
+mod position;
 pub(crate) mod state;
 mod surface;
 mod toolbar;
@@ -43,6 +44,7 @@ impl be_sdk_beui::BeuiRoot for TextRoot {
 #[component]
 pub fn TextEditor(editor: Editor) -> NodeId {
     let state = State::new(editor);
+    position::keep_position(state);
     editor.on_replace_child(move |old, new| state.is_alive() && state.replace_child(old, new));
 
     let content = NodeRef::new();

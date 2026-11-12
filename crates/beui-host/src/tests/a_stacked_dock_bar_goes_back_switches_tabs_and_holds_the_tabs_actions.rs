@@ -77,8 +77,9 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     );
     assert_eq!(
         count(&harness),
-        "1",
-        "the count takes in every tab the switcher offers, those that cannot be closed too"
+        "0",
+        "the count leaves out tabs that cannot be closed, which the switcher lists apart under \
+         \"Nothing else is open.\""
     );
 
     open.update(|open| open.push(2));
@@ -92,9 +93,21 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     );
     assert_eq!(
         count(&harness),
-        "3",
-        "the count takes in every open tab, the one on show too"
+        "2",
+        "the count takes in every tab that can be closed, the one on show too"
     );
+    tap(&mut harness, "dock.switch");
+    let card = harness
+        .accessible()
+        .into_iter()
+        .find(|node| node.author_id() == Some("dock.switcher.tab.3"))
+        .map(|node| node.label().map(str::to_owned));
+    assert_eq!(
+        card,
+        Some(Some("Tab 3".to_owned())),
+        "a switcher card is named after its tab"
+    );
+    tap(&mut harness, "dock.switcher.tab.3");
     let action = harness.rect(harness.find("dock.pin.action.3"));
     let content = harness.rect(harness.find("content.3"));
     assert!(

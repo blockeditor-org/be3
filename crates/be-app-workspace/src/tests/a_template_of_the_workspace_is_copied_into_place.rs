@@ -87,6 +87,7 @@ fn a_template_of_the_workspace_is_copied_into_place() {
             block_id: copy.into_bytes(),
             block_type: SHOWN_TYPE.into_bytes(),
             linked: false,
+            named: false,
             placed: false,
         }))],
         "the copy answers the pick"

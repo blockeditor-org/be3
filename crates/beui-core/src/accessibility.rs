@@ -651,7 +651,7 @@ impl Pass<'_> {
             self.visit_children(id, Frame::within(SpaceId::of(id)), &mut inner);
         }
         self.described += 1;
-        let (mut node, focus) = document.describe(id, key, size, explicit, text, inner);
+        let (mut node, focus) = document.describe(id, key, size, explicit, text.as_deref(), inner);
         if layered {
             node.set_class_name(LAYER_CLASS);
         }

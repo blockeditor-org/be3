@@ -15,6 +15,7 @@ be-type-image = { path = "../be-type-image" }
 serde = { version = "1", features = ["derive"] }
 be-type-text = { path = "../be-type-text" }
 beui-text-editor-core = { path = "../beui-text-editor-core" }
+memchr = "2"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
