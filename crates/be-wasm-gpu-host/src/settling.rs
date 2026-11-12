@@ -9,8 +9,8 @@ pub type Wake = Arc<dyn Fn() + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq)]
 enum State {
-    /// Waiting for the map numbered so: a buffer unmapped and mapped again can still hear its
-    /// earlier map's callback, which must not settle the later one.
+    /// Waiting for the map with this ticket: a buffer unmapped and mapped again can still hear
+    /// its earlier map's callback, which must not settle the later one.
     Pending(u64),
     Mapped {
         range: Range<u64>,
@@ -21,9 +21,11 @@ enum State {
 #[derive(Default)]
 struct Held {
     states: HashMap<u32, State>,
-    work: HashMap<u64, bool>,
+    /// The tickets of maps and of submitted work, counted together.
     tickets: u64,
-    maps: u64,
+    /// What settled since the app last polled.
+    maps: Vec<(u64, bool)>,
+    work_done: Vec<u64>,
     pending: usize,
     lost: Option<String>,
     stopped: bool,
@@ -44,6 +46,21 @@ pub(crate) struct Settling {
     wake: Option<Wake>,
     #[cfg(not(target_arch = "wasm32"))]
     poller: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Held {
+    fn ticket(&mut self) -> u64 {
+        self.tickets += 1;
+        self.tickets
+    }
+
+    /// Forgets the buffer's map: a map still pending settles as failed.
+    fn forget(&mut self, buffer: u32) {
+        if let Some(State::Pending(ticket)) = self.states.remove(&buffer) {
+            self.pending -= 1;
+            self.maps.push((ticket, false));
+        }
+    }
 }
 
 impl Shared {
@@ -101,21 +118,16 @@ impl Settling {
     pub(crate) fn work_done(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> u64 {
         let ticket = {
             let mut held = self.shared.held();
-            held.tickets += 1;
-            let ticket = held.tickets;
-            held.work.insert(ticket, false);
             held.pending += 1;
-            ticket
+            held.ticket()
         };
         let shared = Arc::clone(&self.shared);
         let wake = self.wake.clone();
         queue.on_submitted_work_done(move || {
             {
                 let mut held = shared.held();
-                if let Some(done) = held.work.get_mut(&ticket) {
-                    *done = true;
-                    held.pending -= 1;
-                }
+                held.pending -= 1;
+                held.work_done.push(ticket);
             }
             if let Some(wake) = wake {
                 wake();
@@ -125,29 +137,33 @@ impl Settling {
         ticket
     }
 
-    pub(crate) fn is_work_done(&mut self, ticket: u64) -> Result<bool, String> {
+    /// Takes what settled since the last call: maps with whether they mapped, and done work.
+    pub(crate) fn take_settled(&self) -> (Vec<(u64, bool)>, Vec<u64>) {
         let mut held = self.shared.held();
-        match held.work.get(&ticket) {
-            None => Err(format!(
-                "no submitted work is awaited under ticket {ticket}"
-            )),
-            Some(false) => Ok(false),
-            Some(true) => {
-                held.work.remove(&ticket);
-                Ok(true)
-            }
-        }
+        (
+            std::mem::take(&mut held.maps),
+            std::mem::take(&mut held.work_done),
+        )
+    }
+
+    /// A ticket for a map that fails before it starts, settled at once.
+    pub(crate) fn failed_map(&mut self) -> u64 {
+        let ticket = {
+            let mut held = self.shared.held();
+            let ticket = held.ticket();
+            held.maps.push((ticket, false));
+            ticket
+        };
+        self.wake();
+        ticket
     }
 
     pub(crate) fn forget_every_map(&mut self) {
         let mut held = self.shared.held();
-        let pending = held
-            .states
-            .values()
-            .filter(|state| matches!(state, State::Pending(_)))
-            .count();
-        held.pending -= pending;
-        held.states.clear();
+        let buffers: Vec<u32> = held.states.keys().copied().collect();
+        for buffer in buffers {
+            held.forget(buffer);
+        }
     }
 
     pub(crate) fn mapped_at_creation(&mut self, buffer: u32, size: u64) {
@@ -160,14 +176,6 @@ impl Settling {
         );
     }
 
-    pub(crate) fn state(&self, buffer: u32) -> abi::MapState {
-        match self.shared.held().states.get(&buffer) {
-            None => abi::MapState::Unmapped,
-            Some(State::Pending(_)) => abi::MapState::Pending,
-            Some(State::Mapped { .. }) => abi::MapState::Mapped,
-        }
-    }
-
     pub(crate) fn map(
         &mut self,
         device: &wgpu::Device,
@@ -175,7 +183,7 @@ impl Settling {
         handle: u32,
         mode: abi::MapMode,
         range: Range<u64>,
-    ) -> Result<(), String> {
+    ) -> Result<u64, String> {
         let number = {
             let mut held = self.shared.held();
             if held.states.contains_key(&handle) {
@@ -183,8 +191,7 @@ impl Settling {
                     "buffer {handle} was asked to map while it is mapped or mapping"
                 ));
             }
-            held.maps += 1;
-            let number = held.maps;
+            let number = held.ticket();
             held.states.insert(handle, State::Pending(number));
             held.pending += 1;
             number
@@ -202,6 +209,7 @@ impl Settling {
                 let mut held = shared.held();
                 if held.states.get(&handle) == Some(&State::Pending(number)) {
                     held.pending -= 1;
+                    held.maps.push((number, result.is_ok()));
                     match result {
                         Ok(()) => held.states.insert(
                             handle,
@@ -219,7 +227,7 @@ impl Settling {
             }
         });
         self.poll_in_background(device);
-        Ok(())
+        Ok(number)
     }
 
     pub(crate) fn mapped(
@@ -259,10 +267,7 @@ impl Settling {
     }
 
     pub(crate) fn forget(&mut self, buffer: u32) {
-        let mut held = self.shared.held();
-        if let Some(State::Pending(_)) = held.states.remove(&buffer) {
-            held.pending -= 1;
-        }
+        self.shared.held().forget(buffer);
     }
 
     /// Polls the device, waiting for the work submitted so far when `wait` is set. wgpu runs a
@@ -271,6 +276,9 @@ impl Settling {
     /// background poller saw the work finish also waits for that poller's round to end, after
     /// which every callback the work owed has run.
     pub(crate) fn poll(&self, device: &wgpu::Device, wait: bool) -> Result<(), wgpu::PollError> {
+        if self.shared.held().pending == 0 {
+            return Ok(());
+        }
         if !wait {
             return device.poll(wgpu::PollType::Poll).map(|_| ());
         }

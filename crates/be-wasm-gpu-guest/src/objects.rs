@@ -8,7 +8,7 @@ use core::{
 };
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     sync::Arc,
 };
 
@@ -30,6 +30,7 @@ struct Scope {
 }
 
 struct Map {
+    ticket: u64,
     buffer: abi::Buffer,
     callback: BufferMapCallback,
 }
@@ -117,39 +118,39 @@ pub(crate) fn settle(wait: bool) -> bool {
     let settling = || {
         MAPS.with(|maps| !maps.borrow().is_empty()) || WORK.with(|work| !work.borrow().is_empty())
     };
-    if settling() {
-        gpu::poll(wait);
+    let losing = LOST.with(|lost| lost.borrow().callback.is_some());
+    if settling() || losing {
+        let settled = gpu::poll(wait);
+        settle_maps(settled.maps);
+        settle_work(settled.work_done);
+        if let Some(info) = settled.lost {
+            settle_loss(info);
+        }
     }
-    settle_maps();
-    settle_work();
     for waker in COMPILING.with(|compiling| compiling.take()) {
         waker.wake();
     }
-    settle_loss();
     !settling()
 }
 
-fn settle_work() {
+fn settle_work(done: Vec<u64>) {
+    if done.is_empty() {
+        return;
+    }
     let done: Vec<Work> = WORK.with(|work| {
         let mut work = work.borrow_mut();
-        let (done, waiting) = work
+        let (finished, waiting) = work
             .drain(..)
-            .partition(|work| gpu::submitted_work_done(work.ticket));
+            .partition(|work| done.contains(&work.ticket));
         *work = waiting;
-        done
+        finished
     });
     for work in done {
         (work.callback)();
     }
 }
 
-fn settle_loss() {
-    if LOST.with(|lost| lost.borrow().callback.is_none()) {
-        return;
-    }
-    let Some(info) = gpu::device_lost() else {
-        return;
-    };
+fn settle_loss(info: abi::DeviceLostInfo) {
     let callback = LOST.with(|lost| {
         let mut lost = lost.borrow_mut();
         lost.lost = true;
@@ -164,31 +165,26 @@ fn settle_loss() {
     }
 }
 
-fn settle_maps() {
-    if MAPS.with(|maps| maps.borrow().is_empty()) {
+/// Calls back each map that settled. A ticket no map waits on is one the guest already
+/// aborted, on unmap or destroy.
+fn settle_maps(settled: Vec<(u64, bool)>) {
+    if settled.is_empty() {
         return;
     }
-    let mut states = HashMap::new();
-    let settled: Vec<(Map, abi::MapState)> = MAPS.with(|maps| {
+    let settled: Vec<(Map, bool)> = MAPS.with(|maps| {
         let mut maps = maps.borrow_mut();
-        let mut settled = Vec::new();
-        let mut index = 0;
-        while index < maps.len() {
-            let buffer = maps[index].buffer;
-            let state = *states
-                .entry(buffer.0)
-                .or_insert_with(|| ManuallyDrop::new(gpu::Buffer::from_handle(buffer)).map_state());
-            match state {
-                abi::MapState::Pending => index += 1,
-                _ => settled.push((maps.remove(index), state)),
-            }
-        }
         settled
+            .into_iter()
+            .filter_map(|(ticket, mapped)| {
+                let index = maps.iter().position(|map| map.ticket == ticket)?;
+                Some((maps.remove(index), mapped))
+            })
+            .collect()
     });
-    for (map, state) in settled {
-        (map.callback)(match state {
-            abi::MapState::Mapped => Ok(()),
-            _ => Err(wgpu::BufferAsyncError),
+    for (map, mapped) in settled {
+        (map.callback)(match mapped {
+            true => Ok(()),
+            false => Err(wgpu::BufferAsyncError),
         });
     }
 }
@@ -902,11 +898,13 @@ impl BufferInterface for Buffer {
             wgpu::MapMode::Read => abi::MapMode::Read,
             wgpu::MapMode::Write => abi::MapMode::Write,
         };
-        self.0
+        let ticket = self
+            .0
             .map_async(mode, range.start, range.end.saturating_sub(range.start));
         checked();
         MAPS.with(|maps| {
             maps.borrow_mut().push(Map {
+                ticket,
                 buffer: self.0.handle(),
                 callback,
             })
