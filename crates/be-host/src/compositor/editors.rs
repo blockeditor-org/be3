@@ -2154,11 +2154,7 @@ fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReport
     let on_bar_action = report_to.clone().and_then(|parent| {
         let app_id = parent.app_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
-            be_host_runtime::report_child_bars(
-                &app_id,
-                parent.instance,
-                vec![(key, action)],
-            );
+            be_host_runtime::report_child_bars(&app_id, parent.instance, vec![(key, action)]);
         }))
     });
     let app_id = report_to

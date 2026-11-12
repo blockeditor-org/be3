@@ -5,9 +5,7 @@ use be_sdk_api::WebViewCommand;
 use be_sdk_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use be_sdk_api::guest::{debug::debug, shell};
 use be_sdk_api::ops::guest::{Sender, spawn};
-use be_sdk_api::shell_types::{
-    ChildMenuChoice, MenuSet, ShellMessage, ViewEnd,
-};
+use be_sdk_api::shell_types::{ChildMenuChoice, MenuSet, ShellMessage, ViewEnd};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
     ChildPlacement, ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId,

@@ -648,7 +648,10 @@ impl Runtime {
                 .into_iter()
                 .map(|(owner, view, id, anchor)| {
                     self.instances.note_menu_pick(owner);
-                    Outbound::Event(owner, EditorEvent::MenuPick(MenuChoice { view, id, anchor }))
+                    Outbound::Event(
+                        owner,
+                        EditorEvent::MenuPick(MenuChoice { view, id, anchor }),
+                    )
                 }),
         );
         messages.extend(
@@ -1651,18 +1654,12 @@ pub fn report_child_bars(
         return;
     }
     with(app_id, |runtime| {
-        let messages = runtime
-            .instances
-            .child_bar_actions(instance, actions);
+        let messages = runtime.instances.child_bar_actions(instance, actions);
         runtime.send(messages);
     });
 }
 
-pub fn report_child_focus(
-    app_id: &str,
-    instance: EditorInstanceId,
-    child: be_sdk_api::ChildId,
-) {
+pub fn report_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
     with(app_id, |runtime| {
         runtime.send(vec![Outbound::Event(
             instance,

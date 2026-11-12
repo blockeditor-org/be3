@@ -13,10 +13,10 @@ use crate::network::{Request, Response};
 use crate::state::Subscription;
 use be_lib_geometry::{Pos2, Rect, Vec2};
 use be_sdk_api::OfferedClipItem;
-use be_sdk_api::shell_types::{BlockAct, ChildCreation, ClipOffer, DragStart, ShellMessage};
 use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
+use be_sdk_api::shell_types::{BlockAct, ChildCreation, ClipOffer, DragStart, ShellMessage};
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
@@ -1707,7 +1707,10 @@ impl EditorHost {
     }
 
     pub fn zoom_view(&self, factor: f32, anchor: Option<Pos2>) {
-        self.tell(ShellMessage::ChangeView(ViewChange::Zoom { factor, anchor }));
+        self.tell(ShellMessage::ChangeView(ViewChange::Zoom {
+            factor,
+            anchor,
+        }));
     }
 
     pub fn keep_fitted(&self, area: Option<FitArea>) {
