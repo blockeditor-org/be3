@@ -645,7 +645,10 @@ where
         }
         if self.merge_retry_at.is_some_and(|at| self.now >= at) {
             self.merge_retry_at = None;
-            self.jobs.push_back(Job::Reconcile);
+            // The owner reconciles; a follower leaves that to the owner.
+            if self.is_owner() {
+                self.jobs.push_back(Job::Reconcile);
+            }
         }
         let due = self.commit_at().is_some_and(|at| self.now >= at);
         if due && !self.sealing {
@@ -1703,6 +1706,7 @@ where
         match merge.as_mut().poll(&mut context) {
             std::task::Poll::Ready(Ok(result)) => {
                 self.merge_failures = 0;
+                self.merge_retry_at = None;
                 self.merged(then, result)
             }
             std::task::Poll::Ready(Err(error)) => self.merge_failed(error),
@@ -1913,6 +1917,13 @@ where
             Err(error) => return self.error(error),
         };
         let unsealed = self.has_unsealed_work();
+        // A resume that needs no merge settles any merge that was failing.
+        if !matches!(resume, Resume::Merge { .. })
+            && (!unsealed || !matches!(resume, Resume::FastForward { .. }))
+        {
+            self.merge_failures = 0;
+            self.merge_retry_at = None;
+        }
         match resume {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => {}
             Resume::FastForward { to } if !unsealed => {
@@ -2170,17 +2181,16 @@ where
 
     fn rejected(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
         match then {
-            AfterPublish::Seal { retry: true, reply } => {
+            AfterPublish::Seal { retry: true, reply } if self.merge_failures == 0 => {
                 self.jobs.push_front(Job::Seal {
                     sealing: Sealing::Once,
                     reply,
                 });
                 self.jobs.push_front(Job::Reconcile);
             }
-            AfterPublish::Seal {
-                retry: false,
-                reply,
-            } => {
+            // A rejected seal does not retry the merge at once while one could not read its parts:
+            // that waits for its timer, and the work stays unsealed meanwhile.
+            AfterPublish::Seal { reply, .. } => {
                 self.sealing = false;
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
@@ -3413,6 +3423,9 @@ where
                 self.catch_up_failures = 0;
                 self.resends = 0;
                 self.catch_up_at = None;
+                // A merge that was failing is the new owner's to do.
+                self.merge_failures = 0;
+                self.merge_retry_at = None;
                 // What it held back while a part was put it now submits.
                 return self.sequence_held();
             }

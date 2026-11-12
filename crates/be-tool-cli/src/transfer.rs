@@ -40,8 +40,9 @@ impl<S: ObjectStore> Tracker<S> {
         let mut blocks = Vec::with_capacity(read.len());
         for ((entry, parent), read) in order.into_iter().zip(read) {
             let summary = read.summary.clone();
-            // A type whose bytes are not the whole content (`WHOLE_BYTES`, chat's closed segments); a
-            // transfer carries bytes, so it would drop them: refuse until it carries parts.
+            // Some types keep parts that their bytes cannot carry (`WHOLE_BYTES` is false: chat's
+            // closed segments), and a transfer, which carries bytes, would drop them: refuse until
+            // it carries parts.
             if be_block_type_host::kind_of(entry.block_type).is_some_and(|kind| !kind.whole_bytes)
                 && read
                     .stored

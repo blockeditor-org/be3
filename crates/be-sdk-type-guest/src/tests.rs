@@ -61,6 +61,7 @@ mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_types_where_it_sees_the_caret;
 mod a_merge_by_parts_waits_for_the_parts_it_reads_and_never_resolves_without_them;
 mod a_merge_that_cannot_read_its_parts_is_reported_once_and_tried_again_on_a_timer;
+mod a_merge_that_failed_is_not_retried_by_a_replica_that_stopped_owning_the_session;
 mod a_merge_that_waits_for_something_other_than_a_part_is_reported_not_waited_for;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
@@ -420,6 +421,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     stalled: bool,
     /// Part reads wait (held) until `unstall`, so a merge by parts is pending.
     read_stalled: bool,
+    /// How often each device's replica asked the host to resume its session.
+    resumed: Vec<usize>,
     /// Appends are answered as kept on the device alone, and reach no one.
     unheld_appends: bool,
     /// Commits are published to the device's outbox alone, not to the server.
@@ -481,6 +484,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             quiet: false,
             stalled: false,
             read_stalled: false,
+            resumed: vec![0; devices],
             unheld_appends: false,
             kept_publishes: false,
             held: Vec::new(),
@@ -1052,6 +1056,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::ResumeSession { reply, local } => {
+                self.resumed[device] += 1;
                 let resume = self.resume(local, self.head);
                 self.to(device, |host| reply.send(host, &Ok(resume)));
             }

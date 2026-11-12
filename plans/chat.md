@@ -176,7 +176,9 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   timer, never resolving without it. `merge3`, which only a context
   with no parts runs, is the union: entries that differ stay, each with its own part, and
   can overlap, which loses nothing; the editor shows each message once, in its place
-  (`ChatContent::weave`). Closing is not undone by a later merge. Edits, deletions and
+  (`ChatContent::weave`). Closing is not undone by a later merge. While older messages are only partly read, a gap
+  can show between them and the recent ones when the sides closed at different sizes (each
+  segment holds its own side's newest messages); reading on closes it. Edits, deletions and
   reactions are kept by message id whether the message is recent or not, so an
   offline edit to a message that moved into a segment merges clean and stays in
   the header's maps. The journal bounds how many closes a session carries

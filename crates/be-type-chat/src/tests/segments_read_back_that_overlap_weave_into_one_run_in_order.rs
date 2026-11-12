@@ -27,4 +27,14 @@ fn segments_read_back_that_overlap_weave_into_one_run_in_order() {
     // Read in part, as the view reads the newest first and goes back: nothing shows out of order.
     assert_eq!(ids(&ChatContent::weave(&[&b2])), all[5..11]);
     assert_eq!(ids(&ChatContent::weave(&[&a2, &b2])), all[5..11]);
+    // One side closed once and the other twice: the segments read first are not the oldest, and
+    // the ones read later fit in around them.
+    let all = long(120).messages();
+    let range = |from: usize, to: usize| -> Vec<(ObjectId, Message)> {
+        all[from..to].iter().copied().map(message).collect()
+    };
+    let (one, two, three) = (range(0, 59), range(59, 118), range(0, 60));
+    assert_eq!(ids(&ChatContent::weave(&[&three])), all[0..60]);
+    assert_eq!(ids(&ChatContent::weave(&[&two, &three])), all[0..118]);
+    assert_eq!(ids(&ChatContent::weave(&[&one, &two, &three])), all[0..118]);
 }
