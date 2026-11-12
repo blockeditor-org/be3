@@ -68,15 +68,29 @@ fn a_block_placed_twice_has_an_editor_in_each_place() {
     assert_eq!(opened(in_panel).unwrap().2, panel_instance);
 
     editors.unplace(tab);
-    assert!(
-        opened(in_tab).is_none(),
-        "the second place's editor goes with it"
-    );
+    assert!(opened(in_tab).is_none(), "the second place's editor goes with it");
     assert_eq!(opened(in_panel).unwrap().2, panel_instance);
 
+    let in_tab = editors.place(tab, block, block_type, None, Some(devices));
+    let tab_instance = opened(in_tab).unwrap().2;
     editors.unplace(panel);
     assert_eq!(
+        opened(block).map(|(_, editor, instance)| (editor, instance)),
+        Some((Some(devices), tab_instance)),
+        "when the place holding the block's own id goes, the one left takes it with its editor"
+    );
+    assert!(opened(in_tab).is_none());
+    assert_eq!(editors.parent_of(block), Some(workspace));
+    assert_eq!(
         editors.place(tab, block, block_type, None, Some(devices)),
+        block,
+        "and is placed under it from then on"
+    );
+    assert_eq!(opened(block).unwrap().2, tab_instance);
+
+    editors.unplace(tab);
+    assert_eq!(
+        editors.place(panel, block, block_type, None, None),
         block,
         "a block no place holds is the next place's to hold"
     );

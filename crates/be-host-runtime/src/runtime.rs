@@ -2356,6 +2356,17 @@ pub fn take_created(app_id: &str, instance: EditorInstanceId) -> Option<Result<U
     with(app_id, |runtime| runtime.instances.take_created(instance)).flatten()
 }
 
+/// Whether `instance` places `child` in `view` (or in a view anchored to it) as of what it last
+/// sent.
+pub fn places(
+    app_id: &str,
+    instance: EditorInstanceId,
+    view: ViewId,
+    child: be_sdk_api::ChildId,
+) -> bool {
+    with(app_id, |runtime| runtime.instances.places(instance, view, child)).unwrap_or(false)
+}
+
 /// The child that has taken `instance`'s frame: the view placing it, the child and its block.
 pub fn frame_child(
     app_id: &str,
