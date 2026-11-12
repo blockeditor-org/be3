@@ -587,6 +587,10 @@ impl Shared {
             ),
             (self.owing > 0, "the block store owes edits a seal"),
             (
+                self.undurable > 0,
+                "the block store keeps edits the device's journal does not hold yet",
+            ),
+            (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
             ),
