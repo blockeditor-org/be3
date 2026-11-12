@@ -15,6 +15,7 @@ fn every_block_id_a_message_carries_is_visited() {
         sets_access: false,
         size: 0,
         tree_size: 0,
+        out_of_reach: false,
     };
     let mut listing = crate::AccessListing {
         grants: vec![crate::AccessGrant {

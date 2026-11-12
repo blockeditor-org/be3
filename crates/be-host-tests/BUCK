@@ -13,10 +13,6 @@ cargo_package()
 # keep it so for a test whose paintings show every block type, such as the add
 # menu's.
 APPS = {
-    "a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects": ["text"],
-    "a_device_restarted_offline_still_lists_a_block_it_made": ["text"],
-    "a_device_restarted_offline_still_lists_a_block_another_device_made": ["text"],
-    "an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it": ["text"],
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
     "a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside": ["infinite-canvas"],
@@ -33,6 +29,9 @@ APPS = {
     "a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page": ["example-beui-gallery"],
     "a_desktop_window_moves_by_super_drag_and_keeps_its_bar_on_the_screen": ["desktop"],
     "a_device_restarted_offline_catches_up_once_it_reconnects": ["text"],
+    "a_device_restarted_offline_still_lists_a_block_another_device_made": ["text"],
+    "a_device_restarted_offline_still_lists_a_block_it_made": ["text"],
+    "a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects": ["text"],
     "a_dock_grip_menu_row_loses_its_highlight_when_the_pointer_leaves_the_menu": [],
     "a_drag_across_an_empty_map_pans_it": ["map"],
     "a_files_row_menu_escapes_the_files_where_drive_finds_it": ["example-block-debug", "text"],
@@ -66,6 +65,7 @@ APPS = {
     "adding_an_account_chooses_a_local_or_custom_server": [],
     "an_active_child_pans_in_the_frame_its_canvas_pans": ["infinite-canvas", "example-pan-zoom"],
     "an_invitation_shows_the_link_to_send_the_invited_person": [],
+    "an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it": ["text"],
     "choosing_a_scale_draws_the_host_larger": ["settings"],
     "choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there": [],
     "closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace": ["example-beui-gallery"],
