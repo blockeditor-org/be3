@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_message_waits_for_the_instance_it_names_to_be_opened() {
     let mut instances = placed();
-    let presence = Outbound::Editor(INSTANCE, EditorCall::Presence(true));
+    let presence = Outbound::Event(INSTANCE, EditorEvent::Presence(true));
 
     assert!(instances.gate(vec![presence.clone()]).is_empty());
 

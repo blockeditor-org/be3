@@ -1768,7 +1768,7 @@ fn HostedChild(
                                 Some(anchor.translate(-child.rect.min.to_vec2()))
                             })
                         })));
-                        let reporter = reporter_for(parent, region, key, within);
+                        let reporter = reporter_for(parent, key, within);
                         match kind {
                             Kind::Missing | Kind::Unavailable | Kind::NoPicker | Kind::HiddenWindow(_) => view! {
                                 <Frame />
@@ -2149,17 +2149,12 @@ fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
     status.intrinsic = intrinsic;
 }
 
-fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) -> ChildReporter {
+fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
     let on_bar_action = report_to.clone().and_then(|parent| {
         let app_id = parent.app_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
-            be_host_runtime::report_child_bars(
-                &app_id,
-                parent.instance,
-                region.id,
-                vec![(key, action)],
-            );
+            be_host_runtime::report_child_bars(&app_id, parent.instance, vec![(key, action)]);
         }))
     });
     let app_id = report_to
@@ -2168,7 +2163,7 @@ fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) 
     let instance = report_to.map(|parent| parent.instance);
     let on_focus = Callback::new(move |()| {
         if let (Some(app_id), Some(instance)) = (&app_id, instance) {
-            be_host_runtime::report_child_focus(app_id, instance, region.id, key);
+            be_host_runtime::report_child_focus(app_id, instance, key);
         }
         within.call(());
     });

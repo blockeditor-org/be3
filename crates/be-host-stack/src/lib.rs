@@ -865,20 +865,21 @@ pub fn backgrounded() {
     send(Command::Flush(done));
 }
 
-/// How long a test waits for a stack that says nothing before failing: a wait that never ends
-/// would hang the whole test target until the build server's timeout, with no word of which test
-/// or wait. Every word the stack says (it wakes the wait) starts the limit again, so a machine
-/// too busy to run it quickly is waited for, and one that stopped is not.
+/// How long a test waits for a stack that makes no progress before failing: a wait that never
+/// ends would hang the whole test target until the build server's timeout, with no word of which
+/// test or wait. Progress (`Shared::progressed`) starts the limit again, so a machine too busy
+/// to run the stack quickly is waited for, and a stack that stopped is not, however often its
+/// worker wakes.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// How long a wait may go on in all, however much the stack says: one that keeps talking and
-/// never gets there (a connection retried over and over) still has to end.
+/// How long a wait may go on in all, however much progress the stack makes: one that keeps
+/// changing and never gets there (a connection retried over and over) still has to end.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
-pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(600);
+pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(300);
 
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
-/// `WAIT_LIMIT` of silence from the stack, or `WAIT_CAP` in all.
+/// `WAIT_LIMIT` without progress from the stack, or `WAIT_CAP` in all.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 #[track_caller]
 pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
@@ -891,6 +892,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
     let started = std::time::Instant::now();
     let mut deadline = started + WAIT_LIMIT;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut seen = held.progressed;
     loop {
         if let Some(value) = read(&held) {
             return value;
@@ -912,26 +914,40 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
             let state = format!(
-                "connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}",
+                "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
+                 commands not run: {}, edits owed: {}, not yet durable: {}, draining the outbox: {}\n  \
+                 listings loading: {}, listings failed: {}\n  \
+                 progressed: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
                 held.connected,
                 held.reached,
                 held.error,
-                held.reconnect.is_some()
+                held.reconnect.is_some(),
+                held.pending,
+                held.owing,
+                held.undurable,
+                held.draining,
+                held.graph.fetching(),
+                held.graph.failed_listings(),
+                held.progressed,
+                held.wakes,
+                held.blocks.len(),
+                held.saves,
+                held.graph.revision
             );
             drop(held);
             panic!(
-                "the stack never reached what this waits for: it said nothing for {} s, or the wait took {} s in all ({state})",
+                "the stack never reached what this waits for: it made no progress for {} s, or the wait took {} s in all ({state})",
                 WAIT_LIMIT.as_secs(),
                 WAIT_CAP.as_secs()
             );
         }
-        let (next, waited) = changed
+        held = changed
             .wait_timeout(held, left)
-            .unwrap_or_else(PoisonError::into_inner);
-        held = next;
-        if !waited.timed_out() {
-            let now = std::time::Instant::now();
-            deadline = (now + WAIT_LIMIT).min(started + WAIT_CAP);
+            .unwrap_or_else(PoisonError::into_inner)
+            .0;
+        if held.progressed != seen {
+            seen = held.progressed;
+            deadline = (std::time::Instant::now() + WAIT_LIMIT).min(started + WAIT_CAP);
         }
     }
 }

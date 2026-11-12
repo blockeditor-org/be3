@@ -97,6 +97,7 @@ impl Backend {
                 match outbound {
                     Outbound::Open(opening) => wire.open(*opening),
                     Outbound::Close(instance) => wire.close(instance),
+                    Outbound::Event(instance, event) => wire.event(instance, event),
                     Outbound::Editor(instance, call) => wire.call(instance, call),
                     Outbound::App(call) => wire.app_call(call),
                 }
