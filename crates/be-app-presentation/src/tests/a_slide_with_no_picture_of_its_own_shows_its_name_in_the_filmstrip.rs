@@ -47,7 +47,6 @@ fn a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip() {
         child: placement.child,
         available: true,
         intrinsic: None,
-        aspect_ratio: None,
         active: false,
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),

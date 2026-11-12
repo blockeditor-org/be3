@@ -5,6 +5,9 @@ use be_sdk_api::WebViewCommand;
 use be_sdk_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use be_sdk_api::guest::{debug::debug, shell};
 use be_sdk_api::ops::guest::{Sender, spawn};
+use be_sdk_api::shell_types::{
+    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
+};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
     ChildPlacement, ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId,
@@ -41,7 +44,6 @@ pub struct EditorSession {
     own_block: Option<Uuid>,
     dragged: Option<(ViewId, Dragged)>,
     intrinsic: Option<Vec2>,
-    aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
     sent_menus: std::collections::BTreeMap<ViewId, Vec<MenuEntry>>,
     sent_card: bool,
@@ -159,7 +161,6 @@ impl EditorSession {
             own_block: None,
             dragged: None,
             intrinsic: None,
-            aspect_ratio: None,
             artifact: None,
             sent_menus: std::collections::BTreeMap::new(),
             sent_card: false,
@@ -447,50 +448,45 @@ impl EditorSession {
                 debug::simulate_access(block.into_bytes(), access).detach();
             }
         });
+        let mut tell: Vec<ShellMessage> = Vec::new();
         for (block, command) in self.host.take_shell_commands() {
-            shell::act(instance, block.into_bytes(), command).detach();
+            tell.push(ShellMessage::Act(BlockAct {
+                block: block.into_bytes(),
+                command,
+            }));
         }
-        self.report_stopped();
+        self.report_stopped(&mut tell);
         if let Some(accepted) = self.host.take_drag_accepted() {
-            shell::drag_accepted(instance, accepted).detach();
+            tell.push(ShellMessage::DragAccepted(accepted));
         }
         let intrinsic = self.editor.intrinsic_size();
         if intrinsic != self.intrinsic {
             self.intrinsic = intrinsic;
-            shell::intrinsic_size(
-                instance,
-                intrinsic.map(|size| Size {
-                    width: size.x,
-                    height: size.y,
-                }),
-            )
-            .detach();
-        }
-        let aspect_ratio = self.editor.aspect_ratio();
-        if aspect_ratio != self.aspect_ratio {
-            self.aspect_ratio = aspect_ratio;
-            shell::aspect_ratio(instance, aspect_ratio).detach();
+            tell.push(ShellMessage::IntrinsicSize(intrinsic.map(|size| Size {
+                width: size.x,
+                height: size.y,
+            })));
         }
         if let Some(handles) = self.host.take_handles_dismiss() {
-            shell::handles_dismiss(instance, handles).detach();
+            tell.push(ShellMessage::HandlesDismiss(handles));
         }
         for answer in self.host.take_dialog_closes() {
-            shell::close_dialog(instance, answer).detach();
+            tell.push(ShellMessage::CloseDialog(answer));
         }
         for child in self.host.take_child_dismissals() {
-            shell::dismiss_child(instance, child).detach();
+            tell.push(ShellMessage::DismissChild(child));
         }
         for child in self.host.take_child_closes() {
-            shell::close_child(instance, child).detach();
+            tell.push(ShellMessage::CloseChild(child));
         }
         for child in self.host.take_keyboard_gifts() {
-            shell::focus_child(instance, child).detach();
+            tell.push(ShellMessage::FocusChild(child));
         }
         for mode in self.host.take_palette_opens() {
-            shell::open_palette(instance, mode).detach();
+            tell.push(ShellMessage::OpenPalette(mode));
         }
         for block in self.host.take_block_keyboard_gifts() {
-            shell::focus_block_child(instance, block.into_bytes()).detach();
+            tell.push(ShellMessage::FocusBlockChild(block.into_bytes()));
         }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
@@ -499,11 +495,11 @@ impl EditorSession {
                     Ok(summary) => ArtifactDescription::Described(summary),
                     Err(error) => ArtifactDescription::Unreadable(error),
                 };
-                shell::artifact_described(instance, description).detach();
+                tell.push(ShellMessage::ArtifactDescribed(description));
             }
             if artifact.edited {
                 artifact.edited = false;
-                shell::artifact_edited(instance, artifact.draft.clone()).detach();
+                tell.push(ShellMessage::ArtifactEdited(artifact.draft.clone()));
             }
             if artifact.regenerating.is_some()
                 && let Some(result) = self.editor.poll_artifact()
@@ -513,78 +509,92 @@ impl EditorSession {
             }
         }
         if self.host.take_leave_frame() {
-            shell::leave_frame(instance).detach();
+            tell.push(ShellMessage::LeaveFrame);
         }
         for action in self.host.take_bar_actions() {
-            shell::run_bar_action(instance, action).detach();
+            tell.push(ShellMessage::BarAction(action));
         }
         let menus = self.host.menus();
         if self.sent_menus != menus {
             for (view, menu) in &menus {
                 if self.sent_menus.get(view) != Some(menu) {
-                    shell::menu(instance, *view, MenuEntry::flatten(menu)).detach();
+                    tell.push(ShellMessage::Menu(MenuSet {
+                        view: *view,
+                        items: MenuEntry::flatten(menu),
+                    }));
                 }
             }
             for view in self.sent_menus.keys() {
                 if !menus.contains_key(view) {
-                    shell::menu(instance, *view, Vec::new()).detach();
+                    tell.push(ShellMessage::Menu(MenuSet {
+                        view: *view,
+                        items: Vec::new(),
+                    }));
                 }
             }
             self.sent_menus = menus;
         }
         for (child, id) in self.host.take_child_menu_picks() {
             let anchor = self.child_anchor(child);
-            shell::child_menu_pick(instance, child, id, anchor).detach();
+            tell.push(ShellMessage::ChildMenuPick(ChildMenuChoice {
+                child,
+                id,
+                anchor,
+            }));
         }
         for (serial, items) in self.host.take_copies() {
-            shell::copy(instance, serial, items).detach();
+            tell.push(ShellMessage::Copy(ClipOffer { serial, items }));
         }
         if self.host.take_paste_request() {
-            shell::paste(instance).detach();
+            tell.push(ShellMessage::Paste);
         }
         let card = self.host.card();
         if self.sent_card != card {
-            shell::show_card(instance, card).detach();
+            tell.push(ShellMessage::ShowCard(card));
             self.sent_card = card;
         }
         if let Some(pick) = self.host.take_picked() {
-            shell::picked(instance, pick).detach();
+            tell.push(ShellMessage::Picked(pick));
         }
+        flush(instance, &mut tell);
         for call in self.host.take_acts() {
             crate::asked::asking(Some(instance), call);
         }
         for commit in self.host.take_child_commits() {
-            shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name)
-                .detach();
+            tell.push(ShellMessage::CommitChild(ChildCreation {
+                child: commit.child,
+                parent: commit.parent.encode(),
+                name: commit.name,
+            }));
         }
         for command in self.host.take_audio_commands() {
             self.watch_audio();
-            shell::play_audio(instance, command).detach();
+            tell.push(ShellMessage::PlayAudio(command));
         }
         for (web_view, command) in self.host.take_web_view_commands() {
             self.command_web_view(web_view, command);
         }
         for presenting in self.host.take_present_requests() {
-            shell::present(instance, presenting).detach();
+            tell.push(ShellMessage::Present(presenting));
         }
         for change in self.host.take_view_changes() {
-            shell::change_view(instance, change).detach();
+            tell.push(ShellMessage::ChangeView(change));
         }
         for (block_id, block_type) in self.host.take_block_drags() {
-            shell::drag_block(instance, block_id.into_bytes(), block_type.into_bytes()).detach();
+            tell.push(ShellMessage::DragBlock(DragStart {
+                block_id: block_id.into_bytes(),
+                block_type: block_type.into_bytes(),
+            }));
         }
         if let Some(focused) = self.host.take_focus_report() {
-            shell::focused(
-                instance,
-                be_sdk_api::shell_types::Focus {
-                    block_id: focused.block_id.map(Uuid::into_bytes),
-                    block_type: focused.block_type.into_bytes(),
-                    editor: focused.editor.map(Uuid::into_bytes),
-                    via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
-                },
-            )
-            .detach();
+            tell.push(ShellMessage::Focused(be_sdk_api::shell_types::Focus {
+                block_id: focused.block_id.map(Uuid::into_bytes),
+                block_type: focused.block_type.into_bytes(),
+                editor: focused.editor.map(Uuid::into_bytes),
+                via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
+            }));
         }
+        flush(instance, &mut tell);
         for opening in self.host.take_watch_openings() {
             opening(&self.host, instance);
         }
@@ -680,12 +690,15 @@ impl EditorSession {
         }
     }
 
-    fn report_stopped(&mut self) {
+    fn report_stopped(&mut self, tell: &mut Vec<ShellMessage>) {
         for (view, state) in &mut self.views {
             if let Some(stopped) = &state.stopped
                 && !std::mem::replace(&mut state.reported_stopped, true)
             {
-                shell::view_stopped(self.instance, *view, stopped.clone()).detach();
+                tell.push(ShellMessage::ViewStopped(ViewEnd {
+                    view: *view,
+                    stopped: stopped.clone(),
+                }));
             }
         }
     }
@@ -1162,4 +1175,11 @@ fn merge_tree(held: &mut Option<TreeUpdate>, update: TreeUpdate) {
         held.tree = update.tree;
     }
     held.focus = update.focus;
+}
+
+/// Sends what the editor told the shell, in order.
+fn flush(instance: EditorInstanceId, tell: &mut Vec<ShellMessage>) {
+    if !tell.is_empty() {
+        shell::tell(instance, std::mem::take(tell)).detach();
+    }
 }

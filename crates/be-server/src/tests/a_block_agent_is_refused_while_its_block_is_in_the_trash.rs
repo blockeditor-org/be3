@@ -40,7 +40,9 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
     ] {
         let mut agent = harness.second_connection(&token, organization).await;
         let response = owner
-            .call(|peer| client::blocks::delete_block(peer, trashed))
+            .call(|peer| {
+                client::blocks::set_parent(peer, trashed, BlockParent::Detached, KeySet::default())
+            })
             .await;
         assert!(response.is_ok(), "{response:?}");
         agent.ended().await;

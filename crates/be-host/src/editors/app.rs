@@ -444,11 +444,6 @@ impl AppEditor {
         be_host_stack::change_child(self.id, self.block_type, change)
     }
 
-    pub(crate) fn render_aspect_ratio(&self) -> Option<f32> {
-        let app = self.app()?;
-        be_host_runtime::aspect_ratio(&app.identity.id, self.instance)
-    }
-
     pub(crate) fn direct_editor_capabilities(&self) -> DirectEditorCapabilities {
         let capabilities = self.capabilities();
         DirectEditorCapabilities {

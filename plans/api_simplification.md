@@ -5,66 +5,23 @@ Depends on: none.
 Places where many requests, WIT functions or public functions do one job.
 Each step replaces them with fewer, conceptually simpler ones that behave
 the same. The steps are independent unless a step says otherwise, and each
-lands on its own. No format is frozen, so wire and WIT changes need no
-migration. Line numbers are from when this plan was written.
+lands on its own. Step numbers stay as written when a step is done and
+removed. No format is frozen, so wire and WIT changes need no migration. Line
+numbers are from when this plan was written.
 
-## 1. Deleting a block is one call, and it rotates keys
+## 2. The shell's one-way reports are one batched call (left)
 
-`delete-block` (`be-block-protocol/wit/blocks.wit`) is `set-parent(detached)`:
-the store's `delete_block` calls `set_parent(…, Detached)`
-(`be-server/src/blocks.rs`). The two handlers in `be-server/src/client.rs`
-differ in ways that are both bugs:
+`shell.tell` and `shell-message` replaced the 28 one-way functions. What is
+left of this step:
 
-- Only `DeleteBlock` pushes `Push::BlockDeleted` to watchers. The host trashes
-  blocks with `set-parent(detached)` (`be-host-stack/src/version.rs`), so
-  watchers never hear a trashed block was deleted.
-- Only `SetParent` runs `key_work_changed` and `evict_sessions`, so a
-  `delete-block` call never rotates keys or evicts sessions for accounts that
-  lose access.
-
-Remove `delete-block`, its `Call` arm, rule and store method, and
-`Peer::delete`. `set-parent` to `detached` tells watchers (or, after step 4,
-the `changes` stream does). The two callers (`be-tool-cli/src/tracker.rs`,
-`be-block-sync/src/pass.rs`) call `set_parent` with `Detached`.
-
-In the same handler file, `RemoveAgent` never calls `key_work_changed` while
-`RemoveMember` does; step 9 removes the difference, but fix it here if step 9
-waits.
-
-A server test: a watcher of a block hears it deleted after `set-parent` to
-`detached`, and the key work of an account that loses access changes.
-
-## 2. The shell's one-way reports are one batched call
-
-`shell.wit` has 25 functions that take `instance` first and return nothing:
-`menu`, `run-bar-action`, `child-menu-pick`, `copy`, `paste`, `drag-block`,
-`drag-accepted`, `aspect-ratio`, `intrinsic-size`, `act`, `leave-frame`,
-`view-stopped`, `present`, `change-view`, `play-audio`, `focused`,
-`handles-dismiss`, `close-dialog`, `dismiss-child`, `focus-child`,
-`close-child`, `commit-child`, `picked`, `show-card`, `artifact-described`,
-`artifact-edited`. Each has one guest caller, `EditorSession::outbound`
-(`be-sdk/src/editor_session.rs`), which already sends them all in one pass.
-
-Replace them with:
-
-```wit
-variant shell-message { menu(view-menu), copy(clip-offer), paste, … }
-tell: async func(instance: editor-instance-id, messages: list<shell-message>);
-```
-
-- Guest: `EditorHost`'s per-kind `take_*` queues (`be-sdk/src/host.rs`)
-  become one ordered `Vec<ShellMessage>`; `outbound` sends it.
-- Host: the arm per function in `instance_of` (`be-host-runtime/src/calls.rs`)
-  and the repeated `ack(reply)` in `shell_call`
-  (`be-host-runtime/src/instances.rs`) become one call that loops over the
-  list. The preview allow-list and `present`'s special case match on the
-  variant.
-- Order across kinds becomes the order sent. Rewrite
-  `host_calls_are_taken_by_kind_in_the_order_they_came` to say so.
+- `EditorHost`'s per-kind `take_*` queues (`be-sdk/src/host.rs`) become one
+  ordered `Vec<ShellMessage>`; `outbound` (`be-sdk/src/editor_session.rs`)
+  still reads each queue and orders messages by kind, so the order across
+  kinds is that fixed order, not the order the editor made them in. No test
+  covers the order of a pass's messages (the test of that name in
+  `be-host-runtime` is about desktop host calls); add one in `be-sdk-test`.
 - `bar-action` has one variant, `details`; drop the enum and make it a
   `details` message (and step 3's `child-bar` a `details` event).
-
-Do steps 2, 3 and 6 together if convenient: they touch the same files.
 
 ## 3. The editor's one-way methods are one event call
 
@@ -103,8 +60,8 @@ value matches its subject. `show-requests` stays separate: it is a queue.
 ## 5. Acting on a block is one call
 
 Today a block is changed through `blocks.act(block, block-command)`,
-`blocks.version(block, version-command)`, `shell.act(instance, block,
-shell-command)` and the graph calls `create-block`, `set-parent` and `define`.
+`blocks.version(block, version-command)`, the `act` shell message (`block-act`: a
+block and a `shell-command`) and the graph calls `create-block`, `set-parent` and `define`.
 The guest's `GraphCommand` (`be-sdk/src/graph.rs`) is split back into three
 calls by `be-sdk/src/link.rs`.
 
@@ -157,6 +114,11 @@ changed), and drop the `seen`/`published` bookkeeping in be-host. Settings
 sync compares content per block (`be-host/src/local_settings.rs`), so the
 content part is a set of blocks.
 
+`Versions` (`be-host-stack/src/version.rs`) also takes a watch for every block a
+status reads and never lets go: blocks that leave a root's subtree and closed
+checkouts stay watched for the life of the connection. Release them when the
+change notice reports what left.
+
 ## 9. Block protocol requests that duplicate others
 
 - `read-block` is `list-blocks(listing.block)`: the server implements it as
@@ -174,7 +136,7 @@ content part is a set of blocks.
   `changes` stream already reports every head change for blocks the
   connection read, and no consumer reads `head-moved.author`. `changes` gains
   the originating client so a client skips its own publishes; deletion is a
-  summary with parent `detached` (step 1). The client's watch registry
+  summary with parent `detached`. The client's watch registry
   (`be-block-client/src/connection.rs`) goes.
 - One convention for change streams: a stream carries the latest value and
   starts with it. Remove `storage-usage` (only `be-block-frozen` calls it);
@@ -189,7 +151,8 @@ content part is a set of blocks.
   invitations become listable and revocable. Update guides/blocks/keys.md.
 - Agents are members: `remove-member` lets an agent's creator remove it, and
   `list-members` with a `created-by` field replaces `list-agents`. Remove
-  `list-agents` and `remove-agent`.
+  `list-agents` and `remove-agent`. `remove-agent` never calls
+  `key_work_changed` while `remove-member` does; the merged call must.
 - `Peer`'s `join_session`, `leave_session`, `claim_ownership` and `heartbeat`
   only forward to `Connection` behind an always-`Ok` `Result`; callers use the
   connection, as they already do for `append`.
@@ -268,8 +231,6 @@ host queues settled events per app. The calls stay `local`
   with `on_click`.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses.
-- Remove `BeuiRoot::aspect_ratio()` (`be-sdk-beui/src/lib.rs`): no app
-  overrides it, and `intrinsic_size()` implies it.
 - `SelectableState::select_all()` and the free `select_all(state)` are one;
   keep the method.
 

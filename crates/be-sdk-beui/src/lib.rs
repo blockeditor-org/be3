@@ -94,9 +94,6 @@ pub trait BeuiRoot: 'static {
     fn intrinsic_size() -> Option<beui::Vec2> {
         None
     }
-    fn aspect_ratio() -> Option<f32> {
-        None
-    }
 }
 
 pub fn context() -> beui::native::Context {

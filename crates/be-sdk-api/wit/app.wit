@@ -15,7 +15,7 @@ interface app {
         constructor(opening: opening);
 
         /// The user picked command `id` of the menu of the editor's view
-        /// `view` (`shell.menu`), wherever the menu was shown. `anchor`, in
+        /// `view` (`shell-message.menu`), wherever the menu was shown. `anchor`, in
         /// host coordinates, is what the menu belongs to: the tab that
         /// shows the view, or the rect a parent placed the editor at when it
         /// has no tab; `none` when nothing of it is visible. A dialog the
@@ -70,7 +70,7 @@ interface app {
         replace-child: async func(old: block-id, new: block-id) -> bool;
 
         /// Renders representation `format` of the editor's copy `serial`
-        /// (`shell.copy`), which a paste asked for; none once the editor
+        /// (`shell-message.copy`), which a paste asked for; none once the editor
         /// copied something else or cannot.
         render-clip: async func(serial: u64, format: string) -> option<list<u8>>;
 

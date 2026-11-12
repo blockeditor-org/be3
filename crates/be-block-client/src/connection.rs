@@ -87,15 +87,25 @@ pub enum Event {
     KeyWorkChanged,
 }
 
+/// A block this connection watches, however many holders want it. The server ends the stream
+/// when the connection can no longer view the block; the entry and its count then stay, with no
+/// `stop`, and the stream opens again when the connection views the block again (`resume`),
+/// which it learns from a `Changed` summary of the block: only a block a listing of the
+/// connection covers is told, so a user of the connection who wants a watch back lists it.
 struct Watching {
+    id: u64,
     count: usize,
-    _stop: tokio::sync::oneshot::Sender<()>,
+    /// A `Changed` summary with the view arrived while the stream was still open: if it ends
+    /// now, open it again at once.
+    resume_wanted: bool,
+    stop: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
 #[derive(Default)]
 struct Registry {
     subscribed: bool,
     watching: HashMap<Uuid, Watching>,
+    watches_made: u64,
     sessions: HashMap<Uuid, Arc<client::sessions::Session>>,
 }
 
@@ -209,15 +219,21 @@ impl Connection {
         let _ = self.pumps.send(Box::pin(pump));
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Event> {
+    pub fn subscribe(self: &Arc<Self>) -> broadcast::Receiver<Event> {
         let receiver = self.events.subscribe();
         if std::mem::replace(&mut self.registry().subscribed, true) {
             return receiver;
         }
         let events = self.events.clone();
+        let connection = Arc::clone(self);
         let mut changes = client::blocks::changes(&self.peer);
         self.pump(async move {
             while let Some(change) = changes.recv().await {
+                if let be_block_protocol::BlockChange::Changed(block) = &change
+                    && block.access.can_view()
+                {
+                    connection.resume(block.id);
+                }
                 let _ = events.send(match change {
                     be_block_protocol::BlockChange::Changed(block) => Event::BlockChanged(block),
                     be_block_protocol::BlockChange::Removed { block, revision } => {
@@ -257,22 +273,53 @@ impl Connection {
         receiver
     }
 
-    pub fn watch(&self, block: Uuid) {
+    pub fn watch(self: &Arc<Self>, block: Uuid) {
         let mut registry = self.registry();
-        if let Some(watching) = registry.watching.get_mut(&block) {
-            watching.count += 1;
-            return;
+        match registry.watching.get_mut(&block) {
+            Some(watching) => {
+                watching.count += 1;
+                if watching.stop.is_some() {
+                    return;
+                }
+            }
+            None => {
+                registry.watching.insert(
+                    block,
+                    Watching {
+                        id: 0,
+                        count: 1,
+                        resume_wanted: false,
+                        stop: None,
+                    },
+                );
+            }
         }
+        self.stream(registry, block);
+    }
+
+    /// Opens the stream again of a watch the server ended, now that the connection views the
+    /// block again; its holders still hold it.
+    fn resume(self: &Arc<Self>, block: Uuid) {
+        let mut registry = self.registry();
+        match registry.watching.get_mut(&block) {
+            Some(watching) if watching.stop.is_none() => self.stream(registry, block),
+            Some(watching) => watching.resume_wanted = true,
+            None => {}
+        }
+    }
+
+    /// Opens the stream of the entry for `block`, which has none.
+    fn stream(self: &Arc<Self>, mut registry: std::sync::MutexGuard<'_, Registry>, block: Uuid) {
+        registry.watches_made += 1;
+        let id = registry.watches_made;
         let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-        registry.watching.insert(
-            block,
-            Watching {
-                count: 1,
-                _stop: stop,
-            },
-        );
+        if let Some(watching) = registry.watching.get_mut(&block) {
+            watching.id = id;
+            watching.stop = Some(stop);
+        }
         drop(registry);
         let events = self.events.clone();
+        let connection = Arc::clone(self);
         let mut heard = client::blocks::watch(&self.peer, block);
         self.pump(async move {
             let heard = async move {
@@ -286,9 +333,27 @@ impl Connection {
                         BlockEvent::Deleted => Event::BlockDeleted { block },
                     });
                 }
+                // The server ended it: keep the holders, drop the stream.
+                let mut registry = connection.registry();
+                if let Some(watching) = registry.watching.get_mut(&block)
+                    && watching.id == id
+                {
+                    watching.stop = None;
+                    if std::mem::take(&mut watching.resume_wanted) {
+                        connection.stream(registry, block);
+                    }
+                }
             };
             select(std::pin::pin!(heard), stopped).await;
         });
+    }
+
+    /// One round trip to the server: what was sent before it has been taken in.
+    #[cfg(test)]
+    pub(crate) async fn round_trip(&self) {
+        client::connection::ping(&self.peer)
+            .await
+            .expect("the connection is open");
     }
 
     pub fn unwatch(&self, block: Uuid) {

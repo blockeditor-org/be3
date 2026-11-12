@@ -28,7 +28,9 @@ async fn deletions_reach_the_other_side() {
     assert_ne!(deleted.parent, Some(BlockParent::Block(code)));
 
     let keep = child(&peer, code, "keep.md").await;
-    peer.delete(keep.id).await.unwrap();
+    peer.set_parent(keep.id, BlockParent::Detached)
+        .await
+        .unwrap();
     let report = sync(&peer, &checkout, code).await;
     assert_eq!(report.removed, 1, "{report}");
     assert!(!checkout.join("keep.md").exists());

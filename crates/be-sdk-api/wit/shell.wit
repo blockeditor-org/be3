@@ -4,7 +4,7 @@ package be3:app@0.1.0;
 /// actions of its bar and the children it places.
 interface shell-types {
     use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits};
-    use types.{block-pick, child-id, editor-id, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-ask, menu-item-kind, menu-pin, picture, size, view-id, web-view-id};
+    use types.{block-location, block-pick, child-id, editor-id, palette-mode, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-ask, menu-item-kind, menu-pin, picture, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use be3:ui/types@0.1.0.{clip-item, key-chord, pos2, rect, vec2};
 
@@ -120,7 +120,6 @@ interface shell-types {
         child: child-id,
         available: bool,
         intrinsic: option<size>,
-        aspect-ratio: option<f32>,
         active: bool,
         interaction: interaction-mode,
         capabilities: editor-capabilities,
@@ -230,6 +229,138 @@ interface shell-types {
         close-editor,
     }
 
+    /// The menu of one of the editor's views, replacing the one it sent for
+    /// that view before. The menu of the view that holds the editor's
+    /// content is its frame's (a placer reads it as `child-status.menu`);
+    /// a dock view's is its tab's, which the host gives the root as that
+    /// tab's `dock-tab.menu`. A pick from any of them arrives as the
+    /// editor's `menu-pick` of that view.
+    record menu-set {
+        view: view-id,
+        items: list<menu-item>,
+    }
+
+    /// The editor picked a command of a child's menu. `anchor`, in host
+    /// coordinates, is what the menu belongs to (the child's tab, or the
+    /// child), which the host passes on as the child's `menu-pick` anchor.
+    record child-menu-choice {
+        child: child-id,
+        id: string,
+        anchor: option<rect>,
+    }
+
+    /// The editor copied: representations of the same content, richest
+    /// first. One without data the editor renders only when a paste asks for
+    /// it (`editor.render-clip` with this `serial`); those end with the
+    /// instance, while the host keeps the rest as long as the clip.
+    record clip-offer {
+        serial: u64,
+        items: list<offered-clip-item>,
+    }
+
+    /// The editor starts dragging a block out of itself.
+    record drag-start {
+        block-id: block-id,
+        block-type: block-type-id,
+    }
+
+    /// Asks the host around the editor to act for a block the editor draws.
+    record block-act {
+        block: block-id,
+        command: shell-command,
+    }
+
+    /// The editor stopped drawing a view, closed or failed.
+    record view-end {
+        view: view-id,
+        stopped: stopped,
+    }
+
+    /// The user created the block of a creation dialog the editor placed as a child.
+    record child-creation {
+        child: child-id,
+        parent: block-location,
+        name: option<string>,
+    }
+
+    /// What an editor tells the shell around it. One `tell` carries a pass's
+    /// messages in a fixed order by kind, not the order the editor made them in.
+    variant shell-message {
+        /// The menu of one view, replacing its last.
+        menu(menu-set),
+        /// The editor asks the host to run an action of its bar.
+        bar-action(bar-action),
+        child-menu-pick(child-menu-choice),
+        copy(clip-offer),
+        /// The editor asks for the clipboard; it arrives as input.
+        paste,
+        drag-block(drag-start),
+        /// Whether the editor takes the block dragged over it.
+        drag-accepted(bool),
+        /// The size the editor's content wants, when it has one: a hint to a
+        /// placer that chooses the child's size, such as a canvas card. A child
+        /// placed sized to its content (`child-placement.fit`) reports the size it
+        /// took as its view's `view-size` instead, and the host ignores this.
+        intrinsic-size(option<size>),
+        act(block-act),
+        /// The editor asks to leave the frame it is shown in.
+        leave-frame,
+        view-stopped(view-end),
+        /// The editor asks to be presented full screen, or no longer.
+        present(bool),
+        /// The editor asks the host to move its view.
+        change-view(view-change),
+        /// Loads, plays or pauses, or stops the editor's audio.
+        play-audio(audio-command),
+        /// Where the editor's focus is now.
+        focused(focus),
+        /// Whether the editor, shown as a dialog, answers a dismissal itself
+        /// (the app's `dismiss`) by asking to close with `close-dialog`.
+        handles-dismiss(bool),
+        /// The editor, shown as a dialog, asks to be closed.
+        close-dialog(dialog-answer),
+        /// The user asked to dismiss a child the editor shows as a dialog: pressed
+        /// Escape or back, or outside it. The host passes it to the child, whose
+        /// answer arrives as its `dialog-status`, and answers at once for a child
+        /// that does not handle dismissal.
+        dismiss-child(child-id),
+        /// Gives a child the editor placed the keyboard, as the person opening
+        /// it or bringing it forward would: the view that shows the child takes
+        /// the keyboard once the child shows. It only moves the keyboard within
+        /// the editor: while the keyboard is outside the editor's views and the
+        /// children they show, or a view that takes the keyboard (a dialog, a
+        /// popover) is open, it does nothing.
+        focus-child(child-id),
+        /// As `focus-child`, for the child that shows the block once the editor
+        /// places it: an editor that makes a block to type into asks in the
+        /// frame it makes it, before the child exists, so the keys typed while
+        /// the child loads wait for it. The gift ends when the child's view
+        /// takes the keyboard or the person presses in the editor or takes the
+        /// keyboard elsewhere first.
+        focus-block-child(block-id),
+        /// The person asked to close a child the editor placed, as closing its
+        /// tab. For a program window the host asks its program to close it (or
+        /// force-closes one that does not respond); the window leaves the list
+        /// when it closes. For any other child it does nothing yet.
+        close-child(child-id),
+        commit-child(child-creation),
+        /// The editor, opened as a picker, answers its pick: the block chosen, or
+        /// none when the user cancelled.
+        picked(block-pick),
+        /// Opens the host's command palette (`open-block.host-palette`) on the
+        /// instance's actions and those of the instances around it, or on
+        /// blocks to open.
+        open-palette(palette-mode),
+        /// The editor, opened as a picker, says whether it shows a card, which the
+        /// editor that placed it frames, rather than a menu that draws its own
+        /// surface. It arrives as the child's `child-status.card`.
+        show-card(bool),
+        /// What the artifact settings the editor was opened on say.
+        artifact-described(artifact-description),
+        /// The user changed the artifact settings the editor shows.
+        artifact-edited(list<u8>),
+    }
+
     /// The block an editor's focus is in, and the blocks it is shown through.
     record focus {
         block-id: option<block-id>,
@@ -243,13 +374,9 @@ interface shell-types {
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{block-location, block-pick, child-id, editor-instance-id, palette-mode, size, view-id, web-view-id};
-    use be3:shared/ids@0.1.0.{block-id, block-type-id};
-    use be3:ui/types@0.1.0.{rect};
+    use types.{editor-instance-id, web-view-id};
     use shell-types.{
-        artifact-description, audio-command, audio-status, bar-action, catalog,
-        child-status, dialog-answer, focus, menu-item, offered-clip-item, shell-command, stopped,
-        view-change, web-view-event,
+        audio-status, catalog, child-status, shell-message, web-view-event,
     };
 
     /// The status of the audio the editor plays, watched like preferences once
@@ -285,127 +412,7 @@ interface shell {
         next: async func() -> catalog;
     }
 
-    /// The menu of one of the editor's views, replacing the one it sent for
-    /// that view before. The menu of the view that holds the editor's
-    /// content is its frame's (a placer reads it as `child-status.menu`);
-    /// a dock view's is its tab's, which the host gives the root as that
-    /// tab's `dock-tab.menu`. A pick from any of them arrives as the
-    /// editor's `menu-pick` of that view.
-    menu: async func(instance: editor-instance-id, view: view-id, items: list<menu-item>);
-
-    /// The editor asks the host to run an action of its bar.
-    run-bar-action: async func(instance: editor-instance-id, action: bar-action);
-
-    /// The editor picked a command of a child's menu. `anchor`, in host
-    /// coordinates, is what the menu belongs to (the child's tab, or the
-    /// child), which the host passes on as the child's `menu-pick` anchor.
-    child-menu-pick: async func(instance: editor-instance-id, child: child-id, id: string, anchor: option<rect>);
-
-    /// The editor copied: representations of the same content, richest
-    /// first. One without data the editor renders only when a paste asks for
-    /// it (`editor.render-clip` with this `serial`); those end with the
-    /// instance, while the host keeps the rest as long as the clip.
-    copy: async func(instance: editor-instance-id, serial: u64, items: list<offered-clip-item>);
-
-    /// The editor asks for the clipboard; it arrives as input.
-    paste: async func(instance: editor-instance-id);
-
-    /// The editor starts dragging a block out of itself.
-    drag-block: async func(instance: editor-instance-id, block-id: block-id, block-type: block-type-id);
-
-    /// Whether the editor takes the block dragged over it.
-    drag-accepted: async func(instance: editor-instance-id, accepted: bool);
-
-    /// The width over height the editor keeps, when it keeps one.
-    aspect-ratio: async func(instance: editor-instance-id, ratio: option<f32>);
-
-    /// The size the editor's content wants, when it has one: a hint to a
-    /// placer that chooses the child's size, such as a canvas card. A child
-    /// placed sized to its content (`child-placement.fit`) reports the size it
-    /// took as its view's `view-size` instead, and the host ignores this.
-    intrinsic-size: async func(instance: editor-instance-id, size: option<size>);
-
-    /// Asks the host around the editor to act for a block the editor draws.
-    act: async func(instance: editor-instance-id, block: block-id, command: shell-command);
-
-    /// The editor asks to leave the frame it is shown in.
-    leave-frame: async func(instance: editor-instance-id);
-
-    /// The editor stopped drawing a view, closed or failed.
-    view-stopped: async func(instance: editor-instance-id, view: view-id, stopped: stopped);
-
-    /// The editor asks to be presented full screen, or no longer.
-    present: async func(instance: editor-instance-id, presenting: bool);
-
-    /// The editor asks the host to move its view.
-    change-view: async func(instance: editor-instance-id, change: view-change);
-
-    /// Loads, plays or pauses, or stops the editor's audio.
-    play-audio: async func(instance: editor-instance-id, command: audio-command);
-
-    /// Where the editor's focus is now.
-    focused: async func(instance: editor-instance-id, focus: focus);
-
-    /// Whether the editor, shown as a dialog, answers a dismissal itself
-    /// (the app's `dismiss`) by asking to close with `close-dialog`.
-    handles-dismiss: async func(instance: editor-instance-id, handles: bool);
-
-    /// The editor, shown as a dialog, asks to be closed.
-    close-dialog: async func(instance: editor-instance-id, answer: dialog-answer);
-
-    /// The user asked to dismiss a child the editor shows as a dialog: pressed
-    /// Escape or back, or outside it. The host passes it to the child, whose
-    /// answer arrives as its `dialog-status`, and answers at once for a child
-    /// that does not handle dismissal.
-    dismiss-child: async func(instance: editor-instance-id, child: child-id);
-
-    /// Gives a child the editor placed the keyboard, as the person opening
-    /// it or bringing it forward would: the view that shows the child takes
-    /// the keyboard once the child shows. It only moves the keyboard within
-    /// the editor: while the keyboard is outside the editor's views and the
-    /// children they show, or a view that takes the keyboard (a dialog, a
-    /// popover) is open, it does nothing.
-    focus-child: async func(instance: editor-instance-id, child: child-id);
-
-    /// As `focus-child`, for the child that shows `block` once the editor
-    /// places it: an editor that makes a block to type into asks in the
-    /// frame it makes it, before the child exists, so the keys typed while
-    /// the child loads wait for it. The gift ends when the child's view
-    /// takes the keyboard or the person presses in the editor or takes the
-    /// keyboard elsewhere first.
-    focus-block-child: async func(instance: editor-instance-id, block: block-id);
-
-    /// The person asked to close a child the editor placed, as closing its
-    /// tab. For a program window the host asks its program to close it (or
-    /// force-closes one that does not respond); the window leaves the list
-    /// when it closes. For any other child it does nothing yet.
-    close-child: async func(instance: editor-instance-id, child: child-id);
-
-    /// The user created the block of a creation dialog the editor placed as a child.
-    commit-child: async func(
-        instance: editor-instance-id,
-        child: child-id,
-        parent: block-location,
-        name: option<string>,
-    );
-
-    /// The editor, opened as a picker, answers its pick: the block chosen, or
-    /// none when the user cancelled.
-    picked: async func(instance: editor-instance-id, pick: block-pick);
-
-    /// Opens the host's command palette (`open-block.host-palette`) on the
-    /// instance's actions and those of the instances around it, or on
-    /// blocks to open.
-    open-palette: async func(instance: editor-instance-id, mode: palette-mode);
-
-    /// The editor, opened as a picker, says whether it shows a card, which the
-    /// editor that placed it frames, rather than a menu that draws its own
-    /// surface. It arrives as the child's `child-status.card`.
-    show-card: async func(instance: editor-instance-id, card: bool);
-
-    /// What the artifact settings the editor was opened on say.
-    artifact-described: async func(instance: editor-instance-id, description: artifact-description);
-
-    /// The user changed the artifact settings the editor shows.
-    artifact-edited: async func(instance: editor-instance-id, data: list<u8>);
+    /// What the editor tells the shell: one pass's messages, in the order the
+    /// guest sends them. The host answers once the whole list is taken.
+    tell: async func(instance: editor-instance-id, messages: list<shell-message>);
 }

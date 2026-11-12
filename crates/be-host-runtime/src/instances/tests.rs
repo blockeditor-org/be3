@@ -12,6 +12,14 @@ const REGION: ViewId = ViewId::MAIN;
 const PASS: u64 = 1;
 const SIZE: Vec2 = vec2(100.0, 100.0);
 
+fn tell(instances: &mut Instances, message: ShellMessage) -> bool {
+    instances.shell_call(ShellCall::Tell {
+        reply: reply(next_op()),
+        instance: INSTANCE,
+        messages: vec![message],
+    })
+}
+
 fn placed() -> Instances {
     placed_on(Uuid::nil(), Uuid::nil())
 }
@@ -430,6 +438,7 @@ mod a_paste_names_where_a_cut_reference_was_cut_from_once;
 mod a_press_on_a_blocking_menus_trigger_closes_it_unless_the_press_reaches_the_trigger;
 mod a_press_on_an_anchored_views_trigger_leaves_it_to_the_trigger;
 mod a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it;
+mod a_preview_keeps_the_menu_of_a_tell_and_drops_its_act;
 mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_app_hears_its_childrens_statuses_again;
 mod a_restarted_app_is_sent_its_content_and_blocks_again;
