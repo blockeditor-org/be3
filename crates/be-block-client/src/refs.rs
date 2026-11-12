@@ -651,9 +651,9 @@ impl Refs {
     /// A listing as this device last knew it, for answering offline. What a block references is
     /// read from its summary, since one pushed or revised after the listing was fetched (another
     /// device's seal, or this device's own offline) names what it references then.
-    /// Children and deleted blocks are those whose summary still puts them there, so a block
-    /// moved since shows only where it went, and backrefs are the summaries that reference the
-    /// block.
+    /// Children and deleted blocks are every block whose summary puts it there, so one made or
+    /// moved since the listing was fetched shows where it is now, and backrefs are the summaries
+    /// that reference the block.
     pub fn cached_listing(&self, listing: Listing) -> Option<Vec<BlockSummary>> {
         match listing {
             Listing::References(block) => {
@@ -681,20 +681,26 @@ impl Refs {
                         .collect(),
                 )
             }
-            Listing::Children(parent) => Some(
-                self.listing(&listing)?
-                    .into_iter()
-                    .filter(|summary| summary.parent == Some(parent))
-                    .collect(),
-            ),
-            Listing::Deleted => Some(
-                self.listing(&listing)?
-                    .into_iter()
-                    .filter(|summary| summary.parent == Some(BlockParent::Detached))
-                    .collect(),
-            ),
+            Listing::Children(parent) => self.placed_in(listing, parent),
+            Listing::Deleted => self.placed_in(listing, BlockParent::Detached),
             _ => self.listing(&listing),
         }
+    }
+
+    /// Every summary that puts its block under `parent`, for a listing of them this device has
+    /// fetched before: a block made or moved since (by this device online, or pushed from the
+    /// server) is in no listing it fetched, but its summary says where it is.
+    fn placed_in(&self, listing: Listing, parent: BlockParent) -> Option<Vec<BlockSummary>> {
+        let state = self.state.lock().unwrap();
+        state.listings.get(&listing)?;
+        let mut placed: Vec<BlockSummary> = state
+            .summaries
+            .values()
+            .filter(|summary| summary.parent == Some(parent))
+            .cloned()
+            .collect();
+        placed.sort_by_key(|summary| summary.id);
+        Some(placed)
     }
 
     pub fn newest_revision(&self) -> u64 {

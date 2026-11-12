@@ -13,6 +13,7 @@ cargo_package()
 # keep it so for a test whose paintings show every block type, such as the add
 # menu's.
 APPS = {
+    "a_device_restarted_offline_reopens_the_document_it_had_open": ["text"],
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
     "a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside": ["infinite-canvas"],
