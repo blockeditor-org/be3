@@ -115,6 +115,9 @@ pub struct BlockInfo {
     pub size: u64,
     /// `size` plus each child's `tree_size`, as the server counts them.
     pub tree_size: u64,
+    /// The host is offline and holds none of the block's content, so the block can be neither
+    /// opened nor changed until it reconnects.
+    pub out_of_reach: bool,
 }
 
 impl BlockInfo {
@@ -132,6 +135,7 @@ impl BlockInfo {
             sets_access: false,
             size: 0,
             tree_size: 0,
+            out_of_reach: false,
         }
     }
 
@@ -215,6 +219,7 @@ impl BlockInfo {
             sets_access: self.sets_access,
             size: self.size,
             tree_size: self.tree_size,
+            out_of_reach: self.out_of_reach,
         }
     }
 
@@ -235,6 +240,7 @@ impl BlockInfo {
             sets_access: info.sets_access,
             size: info.size,
             tree_size: info.tree_size,
+            out_of_reach: info.out_of_reach,
         }
     }
 }

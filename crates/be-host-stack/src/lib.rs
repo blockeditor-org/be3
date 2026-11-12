@@ -956,6 +956,16 @@ pub fn stale_revision() -> u64 {
         + be_block_type_host::kinds_revision()
 }
 
+/// The workspace's peer while the host is not connected, for telling apps which blocks this
+/// device cannot read (`BlockInfo::out_of_reach`).
+pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<worker::Store>>> {
+    with_shared(|shared| match shared.connected {
+        true => None,
+        false => shared.peer.clone(),
+    })
+    .flatten()
+}
+
 pub fn graph_revision() -> u64 {
     with_shared(|shared| shared.graph.revision).unwrap_or_default()
 }

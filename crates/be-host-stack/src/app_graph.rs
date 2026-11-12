@@ -1,6 +1,9 @@
 use be_sdk_api::{AccessLevel, BlockInfo, BlockLocation, BlockQuery, MetadataEntries};
 use uuid::Uuid;
 
+use be_block_client::Peer;
+
+use crate::worker::Store;
 use crate::{Node, Query};
 
 pub fn query_of(query: BlockQuery) -> Query {
@@ -108,7 +111,12 @@ pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
     }
 }
 
-pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>) -> BlockInfo {
+pub fn info_of(
+    node: &Node,
+    deleted: bool,
+    unfiled: Option<Uuid>,
+    offline: Option<&Peer<Store>>,
+) -> BlockInfo {
     BlockInfo {
         block_id: node.id.into_bytes(),
         block_type: node.content_type.into_bytes(),
@@ -125,17 +133,23 @@ pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>) -> BlockInfo {
         sets_access: node.sets_access,
         size: node.size,
         tree_size: node.tree_size,
+        out_of_reach: offline
+            .is_some_and(|peer| node.head.is_some() && peer.held_head(node.id).is_none()),
     }
 }
 
 pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
     let nodes = crate::query(query_of(query));
     let unfiled = crate::unfiled();
+    let offline = crate::offline_peer();
     crate::with_graph(|graph| {
         nodes
             .iter()
             .filter(|node| node.access.can_know_exists() && Some(node.id) != unfiled)
-            .map(|node| info_of(node, graph.deleted_root(node.id).is_some(), unfiled))
+            .map(|node| {
+                let deleted = graph.deleted_root(node.id).is_some();
+                info_of(node, deleted, unfiled, offline.as_deref())
+            })
             .collect()
     })
     .unwrap_or_default()

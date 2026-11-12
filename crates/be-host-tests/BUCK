@@ -16,7 +16,7 @@ APPS = {
     "a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects": ["text"],
     "a_device_restarted_offline_still_lists_a_block_it_made": ["text"],
     "a_device_restarted_offline_still_lists_a_block_another_device_made": ["text"],
-    "a_block_made_on_an_offline_device_shows_in_its_files_and_reaches_the_other_once_it_reconnects": ["text"],
+    "an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it": ["text"],
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
     "a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside": ["infinite-canvas"],
