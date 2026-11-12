@@ -198,9 +198,6 @@ host queues settled events per app. The calls stay `local`
   `be-app-logic-grid/src/root/hotbar_ui.rs`) move to item callbacks. Path
   routing can stay inside unstyled if `MenuNodes` needs it. Separators are
   written one way.
-- `ActionRow` becomes `ListRow` with `action` and `danger`; the row's role
-  follows from whether it is selectable. `SettingsLink` becomes `SettingsRow`
-  with `on_click`.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
   non-`Copy` values (a callback, a state struct) or read the cell with
