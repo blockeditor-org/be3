@@ -63,7 +63,11 @@ fn synced_moves_a_stopped_clock_to_the_programs_own_timer() {
         program.saved,
         "the stopped clock was moved to the program's timer, so it saved"
     );
-    assert_eq!(program.busy_at.len(), 3, "the program was busy for 3 frames");
+    assert_eq!(
+        program.busy_at.len(),
+        3,
+        "the program was busy for 3 frames"
+    );
     let due = program.due.expect("the program set its timer");
     assert!(
         program.busy_at.iter().all(|at| *at + QUIET / 2 < due),
