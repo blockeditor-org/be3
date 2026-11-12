@@ -878,10 +878,20 @@ pub fn WindowDialog(
             .with(|heard| heard.title.clone())
             .unwrap_or_else(|| "Window".to_owned())
     });
+    // The listing's size until the window's status is first heard, so a new dialog opens at the
+    // size its program picked rather than at the placeholder's for a frame (and its program is
+    // never configured to that first).
     let size = create_memo(move || {
-        heard
-            .with(|heard| heard.intrinsic)
-            .filter(|size| size.x > 1.0 && size.y > 1.0)
+        let picked = |size: Option<Vec2>| size.filter(|size| size.x > 1.0 && size.y > 1.0);
+        picked(heard.with(|heard| heard.intrinsic))
+            .or_else(|| {
+                picked(listed.with(|windows| {
+                    windows
+                        .iter()
+                        .find(|listed| listed.id == window)
+                        .and_then(|listed| listed.size)
+                }))
+            })
             .unwrap_or(PLACEHOLDER_SIZE)
     });
     view! {
