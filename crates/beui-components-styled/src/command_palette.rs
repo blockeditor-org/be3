@@ -7,7 +7,7 @@ use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::use_theme;
-use crate::tokens::{Padding, Size, Space, use_space};
+use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems, PaletteScore, TextInputHandle,
@@ -54,7 +54,7 @@ pub fn CommandPalette(
             shown_in
             on_choose={move |key: String| on_choose.call(key)}
             list_height=LIST_HEIGHT
-            spacing={use_space(PADDING).get_untracked()}
+            spacing={PADDING.px()}
             scrim={scrim}
             search_placeholder={placeholder}
             search_content={move |handle| view! {
