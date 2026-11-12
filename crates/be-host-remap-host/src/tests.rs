@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_failure_releases_what_the_remaps_held_down;
+mod new_rules_apply_from_the_next_key;
 mod a_module_that_never_answers_runs_out_of_fuel_and_input_passes_through;
 mod remaps_that_do_not_read_stay_off_until_they_change;
 mod remaps_that_keep_failing_stop_until_they_change;

@@ -148,7 +148,8 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   Super+L and Super+Escape never reach the module, and nothing does while the screen is locked, so a
   module can neither trap the session nor read the password.
 - **In the host.** be-host-desktop's `remap/linux.rs` fetches the module (only from an app with an
-  `InputRemapper` editor), reconfigures it when only the config changes, and caches the last module
+  `InputRemapper` editor), reconfigures it when only the config changes (the next input runs
+  the new rules), fetches it again with the next change if it could not be fetched or loaded, and caches the last module
   and config in its database so remapping works from the first input. The DRM platform passes input
   through the `InputFilter` on `InputControl` after the `WakeGate`, delivers its output as if
   libinput had sent it, and `InputControl::inject` carries changes made outside input (releases on
