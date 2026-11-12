@@ -2796,10 +2796,6 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     let close = Callback::new(move |()| dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
     let closable = dock.all_closable(contents);
-    let lone_tab = create_memo(move || {
-        !icons_only.get() && state.with(|state| matches!(state.entries(leaf)[..], [Entry::Tab(_)]))
-    });
-    let bar_closable = create_memo(move || closable.get() && !lone_tab.get());
     let claimed = modifier_claims(dock.drag_modifier);
     let resized = modifier_resize(dock, Resized::Docked);
     view! {
@@ -2844,7 +2840,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         }),
                         title: create_memo(String::new),
                         vacant,
-                        closable: bar_closable,
+                        closable,
                         menu,
                         close,
                         test_prefix: dock.pane_test_id("dock", leaf),
@@ -3133,6 +3129,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         }
                     }}
                     kind=ChoiceKind::Tabs
+                    cursor=CursorIcon::Default
                     direction
                     shrink={create_memo(move || entries.with(Vec::len) == 1)}
                     spacing={dock.tab_spacing}
