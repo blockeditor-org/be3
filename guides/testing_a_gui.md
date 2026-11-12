@@ -69,6 +69,11 @@ else the app sent (the `take_*` methods). Give it host-side state (view, chrome,
 its own calls (`set_view`, `set_chrome`, `drag_block`): setting it on the `EditorHost` directly
 skips the protocol, and the session overwrites it on the next frame.
 
+`BeuiTest` has no hosted or floated window for an editor's main view (`module.window(view.id)` is
+none), so `ModuleProgram::update`'s fit-window path (`fit_window_to`, and the repaint when the fit
+changed during the frame) cannot be unit tested there. Cover it with a host test that opens the
+window, and with `stress`.
+
 ### Gestures
 
 - A gesture only queues events: nothing it causes shows in `shown()`, `label()` or the model
