@@ -642,10 +642,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn pick_menu(&mut self, id: &str) {
-        self.pick_menu_from(id, None);
-    }
-
-    pub fn pick_menu_from(&mut self, id: &str, anchor: Option<Rect>) {
         self.menu_entry(id);
         let id = id.to_owned();
         self.call(|editor, connection| {
@@ -654,7 +650,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 vec![EditorEvent::MenuPick(MenuChoice {
                     view: ViewId::MAIN,
                     id,
-                    anchor,
+                    anchor: None,
                 })],
             );
         });
@@ -1985,10 +1981,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn host_calls<C>(&self, accept: impl Fn(&be_sdk_api::ops::Started) -> Option<C>) -> Vec<C> {
-        self.extension_calls.iter().filter_map(accept).collect()
-    }
-
     pub fn take_host_calls<C>(
         &mut self,
         accept: impl Fn(&be_sdk_api::ops::Started) -> Option<C>,
@@ -2207,14 +2199,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .expect("the editor has not drawn a frame yet")
             .test_id_rect(test_id)
             .unwrap_or_else(|| panic!("no element with test id {test_id:?}\n{}", self.replay()))
-    }
-
-    pub fn rects_of(&self, test_id: &str) -> Vec<Rect> {
-        self.test_ids()
-            .iter()
-            .find(|(named, _)| *named == test_id)
-            .map(|(_, shown)| shown.iter().map(|at| at.rect).collect())
-            .unwrap_or_default()
     }
 
     pub fn point_of(&self, test_id: &str) -> Pos2 {

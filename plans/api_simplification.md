@@ -265,13 +265,14 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
 
 ## 15. Host, CLI and test harness
 
-- `BeuiTest` (`be-sdk-test/src/beui.rs`): make `take_shell_calls(pick)`
-  public beside `take_host_calls`, and remove the one-line `take_*` wrappers
-  that only pick a `ShellCall` variant, keeping those that decode something.
-  `take_copies`, `take_copied`, `take_copied_text` and `take_copied_images`
-  become `take_copied(format)`. Remove `host_calls` and `rects_of` (no
-  callers); fold `pick_menu_from` into `pick_menu`. After step 2 this picks
-  `ShellMessage`s.
+- `BeuiTest` (`be-sdk-test/src/beui.rs`): make `take_calls` public as
+  `take_shell_messages(pick)` beside `take_host_calls`, and remove the
+  one-line `take_*` wrappers that only pick a `ShellMessage` variant (about 15,
+  with 3 to 17 callers each across the app tests), keeping those that decode
+  something. `take_copies`, `take_copied`, `take_copied_text` and
+  `take_copied_images` become `take_copied(format)`, with the serial of a copy
+  in a separate accessor if a test needs it (`take_copies` has two callers in
+  be-sdk-beui-platform).
 - `HostTest` (`be-host-tests/src/lib.rs`): `start`, `start_desktop`,
   `start_in_space`, `start_drawing_previews` and `start_with` become
   `start(Options)`.
