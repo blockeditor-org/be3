@@ -46,7 +46,7 @@ fn a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one() {
     wait_until("heard the new device", |shared| !shared.pairing.is_empty());
     let request = pairing_requests().remove(0);
     assert_eq!(request.device, "test");
-    approve_pairing(request.from, be_block_keys::pairing_code());
+    approve_pairing(request.from, be_block_keys::pairing_code(), |_| {});
     assert!(
         mistyped.join().unwrap().is_err(),
         "a wrong code still handed over the identity secret"
@@ -58,7 +58,7 @@ fn a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one() {
         !shared.pairing.is_empty()
     });
     let request = pairing_requests().remove(0);
-    approve_pairing(request.from, code.to_lowercase());
+    approve_pairing(request.from, code.to_lowercase(), |_| {});
     let secret = paired.join().unwrap().expect("the right code pairs");
     assert_eq!(
         secret,

@@ -728,6 +728,11 @@ fn AboutPanel() -> NodeId {
 fn LeaveDialog(view: HostUiStore) -> NodeId {
     let leaving = view.leaving;
     let open = create_memo(move || leaving.get());
+    let busy = view.leave_busy;
+    let busy = create_memo(move || busy.get());
+    let refused = view.leave_refused;
+    let refused = create_memo(move || refused.get());
+    let was_refused = create_memo(move || !refused.get().is_empty());
     view! {
         <Dialog
             open={open}
@@ -735,7 +740,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             title="Leave?"
             id="host.leave"
             actions={vec![
-                DialogAction::destructive("Leave", || send(UiCommand::ConfirmLeave)),
+                DialogAction::destructive("Leave", || send(UiCommand::ConfirmLeave)).busy(busy),
                 DialogAction::cancel("Stay"),
             ]}
             on_dismiss={|| send(UiCommand::CancelLeave)}
@@ -743,6 +748,9 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             <Text style=TextStyle::PARAGRAPH>
                 "You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
             </Text>
+            <Show condition={was_refused}>
+                <Text style=TextStyle::CAPTION @test_id="host.leave.refused">{refused}</Text>
+            </Show>
         </Dialog>
     }
 }

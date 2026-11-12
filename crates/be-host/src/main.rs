@@ -641,6 +641,14 @@ struct HostCore {
     programs: be_host_desktop::programs::Programs,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
+    /// The answer to leaving `leaving`, while it is on its way, and why it was refused (offline,
+    /// it needs the server), which the leave dialog shows.
+    leave_answers: Option<host::Mailbox>,
+    leave_refused: Option<String>,
+    /// Answers to approving pairing requests, and the refusals the pairing dialog shows, by
+    /// request.
+    pairing_answers: Vec<host::Mailbox>,
+    pairing_refused: HashMap<u64, String>,
     allow_close: bool,
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
@@ -940,6 +948,10 @@ impl HostCore {
             programs: be_host_desktop::programs::Programs::default(),
             pending_destructive_action: None,
             leaving: None,
+            leave_answers: None,
+            leave_refused: None,
+            pairing_answers: Vec::new(),
+            pairing_refused: HashMap::new(),
             allow_close: false,
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
@@ -1766,6 +1778,26 @@ impl HostCore {
                 self.reauth = Some(reauth);
             }
         }
+    }
+
+    /// Leaving answered: done, or refused with why, which the leave dialog shows.
+    fn left(&mut self, left: Result<(), String>) {
+        self.leave_answers = None;
+        match left {
+            Ok(()) => {
+                self.leaving = None;
+                self.leave_refused = None;
+            }
+            Err(refused) => self.leave_refused = Some(refused),
+        }
+    }
+
+    /// Approving a pairing request answered: a refusal stays on the request's dialog.
+    fn pairing_approved(&mut self, from: u64, approved: Result<(), String>) {
+        match approved {
+            Ok(()) => self.pairing_refused.remove(&from),
+            Err(refused) => self.pairing_refused.insert(from, refused),
+        };
     }
 
     fn close_reauth(&mut self) {
@@ -3626,11 +3658,20 @@ impl HostCore {
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
             UiCommand::ConfirmLeave => {
-                if let Some(block) = self.leaving.take() {
-                    be_host_stack::leave(block);
+                if let Some(block) = self.leaving
+                    && self.leave_answers.is_none()
+                {
+                    let (answers, post) = desk().mailbox(HostCore::left);
+                    be_host_stack::leave(block, move |left| post.send(left));
+                    self.leave_answers = Some(answers);
+                    self.leave_refused = None;
                 }
             }
-            UiCommand::CancelLeave => self.leaving = None,
+            UiCommand::CancelLeave => {
+                self.leaving = None;
+                self.leave_answers = None;
+                self.leave_refused = None;
+            }
             UiCommand::Debug(command) => debug::command(command),
             UiCommand::ShowPanel(panel) => self.show_panel(panel),
             UiCommand::ConfirmRecovery(words) => {
@@ -3664,7 +3705,13 @@ impl HostCore {
             UiCommand::CancelPairing => self.keys.cancel_pairing(),
             UiCommand::NewRecoveryPhrase => self.keys.replace_recovery(),
             UiCommand::CancelRecovery => self.keys.cancel_replacing(),
-            UiCommand::ApprovePairing(from, code) => be_host_stack::approve_pairing(from, code),
+            UiCommand::ApprovePairing(from, code) => {
+                self.pairing_refused.remove(&from);
+                let (answers, post) =
+                    desk().mailbox(move |core: &mut HostCore, approved| core.pairing_approved(from, approved));
+                be_host_stack::approve_pairing(from, code, move |approved| post.send(approved));
+                self.pairing_answers.push(answers);
+            }
             UiCommand::DismissPairing(from) => be_host_stack::dismiss_pairing(from),
         }
     }
@@ -3752,6 +3799,11 @@ impl HostCore {
                     .into_iter()
                     .map(|request| ui::PairingRow {
                         from: request.from,
+                        refused: self
+                            .pairing_refused
+                            .get(&request.from)
+                            .cloned()
+                            .unwrap_or_default(),
                         device: request.device,
                     })
                     .collect(),
@@ -3869,6 +3921,8 @@ impl HostCore {
             }),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             leaving: self.leaving.is_some(),
+            leave_busy: self.leave_answers.is_some(),
+            leave_refused: self.leave_refused.clone().unwrap_or_default(),
             presenting: self
                 .editors
                 .with(|open| open.values().any(AppEditor::presenting_now)),

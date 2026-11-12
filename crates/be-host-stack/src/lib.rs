@@ -664,8 +664,18 @@ pub fn pairing_requests() -> Vec<PairingRequest> {
     with_shared(|shared| shared.pairing.clone()).unwrap_or_default()
 }
 
-pub fn approve_pairing(from: u64, code: String) {
-    send(Command::ApprovePairing { from, code });
+/// Approves a device asking to pair; `reply` hears whether it was, or the refusal to show where
+/// the person approved (offline, it needs the server).
+pub fn approve_pairing(
+    from: u64,
+    code: String,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::ApprovePairing {
+        from,
+        code,
+        reply: Box::new(reply),
+    });
 }
 
 pub fn dismiss_pairing(from: u64) {
@@ -1247,11 +1257,19 @@ pub fn describe_implicitly(block: Uuid, derived: be_block::Entries) {
     with_shared_mut(|shared| shared.graph.derive(block, derived));
 }
 
-pub fn set_access(block: Uuid, account: Uuid, access: be_block_graph::Access) {
+/// Gives `account` `access` to `block`; `reply` hears whether the server did, or the refusal
+/// to show where the person shared (offline, it needs the server).
+pub fn set_access(
+    block: Uuid,
+    account: Uuid,
+    access: be_block_graph::Access,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
     send(Command::SetAccess {
         block,
         account,
         access,
+        reply: Box::new(reply),
     });
 }
 
@@ -1323,8 +1341,13 @@ pub fn open_push(
     }));
 }
 
-pub fn leave(block: Uuid) {
-    send(Command::Leave(block));
+/// Leaves a block shared with this account; `reply` hears whether it did, or the refusal to show
+/// where the person left (offline, it needs the server).
+pub fn leave(block: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
+    send(Command::Leave {
+        block,
+        reply: Box::new(reply),
+    });
 }
 
 type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;

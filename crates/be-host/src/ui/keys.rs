@@ -215,9 +215,18 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
             "A {device} device wants this account's key. If it is yours, type the code it shows."
         )
     });
+    let refused = create_memo(move || {
+        request
+            .get()
+            .map(|request| request.refused)
+            .unwrap_or_default()
+    });
+    let was_refused = create_memo(move || !refused.get().is_empty());
     let code = create_signal(String::new());
+    // A new request starts with no code; a refusal of this one keeps what was typed.
+    let from = create_memo(move || request.get().map(|request| request.from));
     create_effect(move || {
-        request.get();
+        from.get();
         untrack(|| code.set(String::new()));
     });
     let cannot = create_memo(move || code.get().trim().is_empty());
@@ -250,6 +259,9 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
+            <Show condition={was_refused}>
+                <Text style=TextStyle::CAPTION @test_id="host.pairing.refused">{refused}</Text>
+            </Show>
         </Dialog>
     }
 }

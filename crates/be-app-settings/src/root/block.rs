@@ -160,6 +160,8 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
 fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo<bool>) -> NodeId {
     let label = create_memo(move || kind_name(editor, kind));
     let open_inside = create_signal(None::<bool>);
+    // Why the last choice did not take, to show on the row (offline, it needs the server).
+    let refused = create_signal(String::new());
     create_effect(move || {
         if let (Some(block), true) = (block.get(), manages.get()) {
             let asked = untrack(|| editor.host().list_access(block));
@@ -185,12 +187,22 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
             return;
         };
         let open = index == 0;
+        let before = open_inside.get_untracked();
         open_inside.set(Some(open));
+        refused.set(String::new());
         let level = match open {
             true => AccessLevel::View,
             false => AccessLevel::None,
         };
-        editor.host().set_access(block, ANYONE_INSIDE, level);
+        editor.then(
+            editor.host().set_access(block, ANYONE_INSIDE, level),
+            move |set| {
+                if let Err(failure) = set {
+                    open_inside.set(before);
+                    refused.set(failure.to_string());
+                }
+            },
+        );
     };
     let unchangeable = create_memo(move || !manages.get() || open_inside.get().is_none());
     let unremovable = create_memo(move || !manages.get());
@@ -201,7 +213,7 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
     };
     let remove = move || editor.clear_block_kind(editor.block_id(), kind);
     view! {
-        <SettingsRow label={label} description={"Set here".to_owned()}>
+        <SettingsRow label={label} description={"Set here".to_owned()} note={refused}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Select
                     label="Who can read it"

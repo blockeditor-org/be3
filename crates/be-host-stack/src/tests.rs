@@ -59,6 +59,7 @@ mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
+mod a_share_made_offline_is_refused_to_the_caller_not_kept_as_an_error;
 mod a_sync_error_clears_once_nothing_waits_to_be_sent;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
@@ -1327,7 +1328,7 @@ impl Member {
     }
 
     fn may_view(&self, block: Uuid) {
-        set_access(block, self.account(), be_block_graph::Access::View);
+        set_access(block, self.account(), be_block_graph::Access::View, |_| {});
         flush_and_send();
         assert_eq!(status().error, None);
     }

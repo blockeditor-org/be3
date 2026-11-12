@@ -86,6 +86,8 @@ pub(crate) enum Screen {
 pub(crate) struct PairingRow {
     pub(crate) from: u64,
     pub(crate) device: String,
+    /// Why approving it was refused (offline, it needs the server).
+    pub(crate) refused: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -335,6 +337,9 @@ pub(crate) struct HostUi {
     pub(crate) unsent: Option<UnsentView>,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) leaving: bool,
+    pub(crate) leave_busy: bool,
+    /// Why leaving was refused (offline, it needs the server).
+    pub(crate) leave_refused: String,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
     pub(crate) toasts: Vec<Toast>,

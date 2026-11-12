@@ -197,6 +197,7 @@ pub(super) enum Command {
         block: Uuid,
         account: Uuid,
         access: Access,
+        reply: DoneReply,
     },
     ListAccess {
         block: Uuid,
@@ -234,10 +235,14 @@ pub(super) enum Command {
     ApprovePairing {
         from: u64,
         code: String,
+        reply: DoneReply,
     },
     DismissPairing(u64),
     Contact(ContactCommand),
-    Leave(Uuid),
+    Leave {
+        block: Uuid,
+        reply: DoneReply,
+    },
     Members(MembersCommand),
     Push(PushCommand),
     Invite {
@@ -325,7 +330,7 @@ impl Command {
             Command::ApprovePairing { .. } => "approve pairing",
             Command::DismissPairing(..) => "dismiss pairing",
             Command::Contact(..) => "contact",
-            Command::Leave(..) => "leave",
+            Command::Leave { .. } => "leave",
             Command::Members(..) => "members",
             Command::Push(..) => "push",
             Command::Invite { .. } => "invite",
@@ -346,7 +351,7 @@ impl Command {
                 | Command::SetAccess { .. }
                 | Command::ListAccess { .. }
                 | Command::ReadHead { .. }
-                | Command::Leave(_)
+                | Command::Leave { .. }
                 | Command::ApprovePairing { .. }
                 | Command::Members(_)
                 | Command::BlockAgent { .. }
@@ -404,7 +409,7 @@ impl Command {
             | Command::PlainFile { block, .. }
             | Command::Version { block, .. }
             | Command::WatchVersion(block)
-            | Command::Leave(block)
+            | Command::Leave { block, .. }
             | Command::Contact(ContactCommand::Link {
                 offer: Some((block, _)),
                 ..
@@ -441,7 +446,7 @@ impl Command {
             Command::SetParent { block, .. }
             | Command::SetAccess { block, .. }
             | Command::CreateBlockAgent { block, .. }
-            | Command::Leave(block)
+            | Command::Leave { block, .. }
             | Command::Contact(ContactCommand::Link {
                 offer: Some((block, _)),
                 ..
@@ -1812,6 +1817,15 @@ struct Ran<'a> {
     served: &'a mut Served,
 }
 
+type DoneReply = Box<dyn FnOnce(Result<(), String>) + Send>;
+
+const OFFLINE_SHARING: &str =
+    "You're offline. Sharing changes need a connection; try again once you're back online.";
+const OFFLINE_LEAVING: &str =
+    "You're offline. Leaving needs a connection; try again once you're back online.";
+const OFFLINE_PAIRING: &str =
+    "You're offline. Adding a device needs a connection; try again once you're back online.";
+
 const NEEDS_CONNECTION: &str =
     "This needs a connection to the server. Try again once be-host is back online.";
 
@@ -1823,10 +1837,11 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::Push(
             PushCommand::Register { reply, .. } | PushCommand::Unregister { reply, .. },
         ) => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::SetAccess { .. } | Command::Leave(_) | Command::ApprovePairing { .. } => {
-            shared.lock().unwrap_or_else(PoisonError::into_inner).error =
-                Some(NEEDS_CONNECTION.to_owned());
-        }
+        // These need the server's say, so they are refused, not kept for later: the caller
+        // shows the refusal where the person acted.
+        Command::SetAccess { reply, .. } => reply(Err(OFFLINE_SHARING.to_owned())),
+        Command::Leave { reply, .. } => reply(Err(OFFLINE_LEAVING.to_owned())),
+        Command::ApprovePairing { reply, .. } => reply(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::Members(
@@ -2417,6 +2432,7 @@ async fn serve_command(
             block,
             account,
             access,
+            reply,
         } => {
             let verified = shared
                 .lock()
@@ -2432,10 +2448,13 @@ async fn serve_command(
                 Some(public) => peer.share(block, account, access, &public).await,
                 None => peer.grant(block, account, access).await,
             };
-            if let Err(error) = granted {
-                record(shared, error);
-            }
+            let failed = granted.as_ref().err().map(|error| match error.is_unreachable() {
+                true => OFFLINE_SHARING.to_owned(),
+                false => error.to_string(),
+            });
             tend(peer, shared).await;
+            reply(failed.map_or(Ok(()), Err));
+            be_host_base::host::wake();
         }
         Command::ListAccess { block, reply } => {
             let listed = peer
@@ -2454,16 +2473,21 @@ async fn serve_command(
             reply(read.map_err(|error| error.to_string()));
             be_host_base::host::wake();
         }
-        Command::Leave(block) => {
-            if let Err(error) = peer.leave(block).await {
-                record(shared, error);
-            }
+        Command::Leave { block, reply } => {
+            let left = peer.leave(block).await;
             tasks.refresh(peer, shared, block);
+            reply(left.map_err(|error| match error.is_unreachable() {
+                true => OFFLINE_LEAVING.to_owned(),
+                false => error.to_string(),
+            }));
+            be_host_base::host::wake();
         }
-        Command::ApprovePairing { from, code } => {
-            if let Err(error) = approve_pairing(peer, shared, from, &code).await {
-                record(shared, error);
-            }
+        Command::ApprovePairing { from, code, reply } => {
+            let approved = approve_pairing(peer, shared, from, &code).await;
+            reply(approved.map_err(|error| match error.is_unreachable() {
+                true => OFFLINE_PAIRING.to_owned(),
+                false => error.to_string(),
+            }));
             be_host_base::host::wake();
         }
         Command::Members(command) => {
@@ -2494,7 +2518,7 @@ async fn apply(
         | Command::SetAccess { .. }
         | Command::ListAccess { .. }
         | Command::ReadHead { .. }
-        | Command::Leave(_)
+        | Command::Leave { .. }
         | Command::ApprovePairing { .. }) => {
             serve_command(peer, shared, tasks, command).await;
             true
