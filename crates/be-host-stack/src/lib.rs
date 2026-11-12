@@ -846,8 +846,9 @@ pub fn backgrounded() {
 
 /// How long a test waits for a stack that makes no progress before failing: a wait that never
 /// ends would hang the whole test target until the build server's timeout, with no word of which
-/// test or wait. Progress (`Shared::progressed`) starts the limit again, so a machine too busy to run the
-/// stack quickly is waited for, and a stack that stopped is not, however often its worker wakes.
+/// test or wait. Progress (`Shared::progressed`) starts the limit again, so a machine too busy
+/// to run the stack quickly is waited for, and a stack that stopped is not, however often its
+/// worker wakes.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 

@@ -463,7 +463,8 @@ pub struct Shared {
     pub peer_message_count: u64,
     pub wakes: u64,
     /// Counts what the stack got done: a loop that moved something, a block touched, a revision
-    /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops waking.
+    /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops
+    /// waking. Bump it beside any state a test may wait on.
     pub progressed: u64,
     pub unsealed: usize,
     pub saves: u64,
@@ -1152,7 +1153,7 @@ impl Session<'_> {
                 &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
                 typing,
             );
-            if moved {
+            if moved || was_typing != typing {
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -1277,6 +1278,7 @@ impl Session<'_> {
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.connected = true;
+            held.progressed += 1;
             held.connection = Some(peer.connection());
             #[cfg(test)]
             {
@@ -1418,6 +1420,7 @@ fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
     {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.draining = draining;
+        held.progressed += 1;
         if !draining {
             held.drains += 1;
         }
@@ -3505,4 +3508,5 @@ fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
     held.connected = false;
     held.reached = true;
     held.error = Some(error);
+    held.progressed += 1;
 }

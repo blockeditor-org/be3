@@ -37,6 +37,7 @@ impl be_block_type_host::Host for Shared {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.module_error = block.map(|block| (block, message.clone()));
         held.error = Some(message);
+        held.progressed += 1;
     }
 
     fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid) {
@@ -168,16 +169,18 @@ impl be_block_type_host::Host for Shared {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         // A seal moved edits into the outbox, which `waiting` counts only at the next `report`.
         held.recounting |= unsealed < held.unsealed;
+        if (held.unsealed, held.owing, held.undurable) != (unsealed, owing, undurable) {
+            held.progressed += 1;
+        }
         held.unsealed = unsealed;
         held.owing = owing;
         held.undurable = undurable;
     }
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool) {
-        shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .leaving = leaving;
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.leaving = leaving;
+        held.progressed += 1;
     }
 }
 
