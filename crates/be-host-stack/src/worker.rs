@@ -284,6 +284,63 @@ impl AgentChange {
 }
 
 impl Command {
+    /// What the command is, for a busy reason that names the work the block store is stuck on.
+    fn name(&self) -> &'static str {
+        match self {
+            Command::Unsent { .. } => "unsent",
+            Command::PreviewChild { .. } => "preview child",
+            Command::Revision { .. } => "revision",
+            Command::Open { .. } => "open",
+            #[cfg(any(test, feature = "testing"))]
+            Command::Close(..) => "close",
+            Command::Storage => "storage",
+            Command::Operate(..) => "operate",
+            Command::ChangeChild { .. } => "change child",
+            Command::FromFile { .. } => "from file",
+            Command::Attach { .. } => "attach",
+            Command::Detach { .. } => "detach",
+            Command::FromEditor { .. } => "from editor",
+            Command::HoldClock(..) => "hold clock",
+            Command::Duplicate { .. } => "duplicate",
+            Command::Seed { .. } => "seed",
+            Command::Replace { .. } => "replace",
+            Command::Flush(..) => "flush",
+            Command::History { .. } => "history",
+            #[cfg(test)]
+            Command::Presence { .. } => "presence",
+            #[cfg(test)]
+            Command::HearHead { .. } => "hear head",
+            #[cfg(test)]
+            Command::SendToPeers { .. } => "send to peers",
+            Command::Create { .. } => "create",
+            Command::SetParent { .. } => "set parent",
+            Command::Define { .. } => "define",
+            Command::SetAccess { .. } => "set access",
+            Command::ListAccess { .. } => "list access",
+            Command::Notify { .. } => "notify",
+            Command::SetNotifyMode { .. } => "set notify mode",
+            Command::ReadHead { .. } => "read head",
+            Command::Export { .. } => "export",
+            Command::PlainFile { .. } => "plain file",
+            Command::Import(..) => "import",
+            Command::ContentOfFile { .. } => "content of file",
+            Command::Version { .. } => "version",
+            Command::WatchVersion(..) => "watch version",
+            Command::ApprovePairing { .. } => "approve pairing",
+            Command::DismissPairing(..) => "dismiss pairing",
+            Command::Contact(..) => "contact",
+            Command::Leave(..) => "leave",
+            Command::Members(..) => "members",
+            Command::Push(..) => "push",
+            Command::Invite { .. } => "invite",
+            Command::CreateAgent { .. } => "create agent",
+            Command::CreateBlockAgent { .. } => "create block agent",
+            Command::BlockAgent { .. } => "block agent",
+            Command::Authorship(..) => "authorship",
+            Command::Sync => "sync",
+        }
+    }
+
     fn is_quick(&self) -> bool {
         matches!(
             self,
@@ -515,6 +572,9 @@ pub struct Shared {
     pub uploading: usize,
     pub listing_revisions: usize,
     pub importing: usize,
+    /// What the worker's loop awaits while it is not waiting for its next wake-up, for the
+    /// busy reason that names what queued commands wait behind.
+    pub step: Option<&'static str>,
     pub previewed: std::collections::HashSet<Uuid>,
     pub staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
     pub owned: std::collections::HashSet<Uuid>,
@@ -579,8 +639,8 @@ impl Shared {
         reasons
     }
 
-    pub fn busy(&self) -> Vec<&'static str> {
-        [
+    pub fn busy(&self) -> Vec<String> {
+        let mut reasons: Vec<String> = [
             (
                 self.pending > 0,
                 "the block store has commands to carry out",
@@ -607,8 +667,14 @@ impl Shared {
             ),
         ]
         .into_iter()
-        .filter_map(|(busy, reason)| busy.then_some(reason))
-        .collect()
+        .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
+        .collect();
+        if self.pending > 0
+            && let Some(step) = self.step
+        {
+            reasons.push(format!("the block store's loop is busy with {step}"));
+        }
+        reasons
     }
 }
 
@@ -917,6 +983,7 @@ impl Session<'_> {
             .into_iter()
             .flatten()
             .min();
+            step(shared, None);
             let woken = {
                 let waited = std::pin::pin!(wait(
                     self.commands,
@@ -942,6 +1009,7 @@ impl Session<'_> {
                 woken.await
             };
             let handled = self.replicas.handled;
+            step(shared, Some(woken.name()));
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
             if !matches!(woken, Woken::Module | Woken::Finished) || self.replicas.handled != handled
             {
@@ -1006,6 +1074,7 @@ impl Session<'_> {
                     let mut applied = false;
                     while let Some(command) = next.take() {
                         let quick = command.is_quick();
+                        step(shared, Some(command.name()));
                         match command {
                             Command::Import(blocks) => {
                                 self.uploads.add(blocks);
@@ -1036,6 +1105,7 @@ impl Session<'_> {
                     };
                     let mut applied = false;
                     for command in self.uploads.runnable() {
+                        step(shared, Some(command.name()));
                         applied |= ran.run(command).await;
                     }
                     be_host_base::host::wake();
@@ -1084,13 +1154,17 @@ impl Session<'_> {
                 moved = true;
             }
             moved |= pumped;
+            step(shared, Some("the open blocks"));
             moved |= self.replicas.pump((peer, shared)).await;
+            step(shared, Some("the outbox"));
             moved |= self.settle_outbox().await;
             rekey_changed(peer, self.replicas, &mut keyed);
             let before = version_revisions(shared);
+            step(shared, Some("version statuses"));
             self.refresh_versions().await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
+            step(shared, Some("the search index"));
             moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
@@ -1098,6 +1172,7 @@ impl Session<'_> {
                 && !flushes.is_empty()
             {
                 if !std::mem::replace(&mut kept_for_flushes, true) {
+                    step(shared, Some("keeping the open blocks for a flush"));
                     self.replicas.keep_all((peer, shared)).await;
                     if self.replicas.take_kept() {
                         self.tasks.0.sync(peer, shared);
@@ -1269,6 +1344,10 @@ impl Session<'_> {
         self.changed.notify_all();
         be_host_base::host::wake();
     }
+}
+
+fn step(shared: &Arc<Mutex<Shared>>, step: Option<&'static str>) {
+    shared.lock().unwrap_or_else(PoisonError::into_inner).step = step;
 }
 
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
@@ -1489,6 +1568,23 @@ enum Woken {
     Reached(Result<crate::link::Link, ClientError>),
     Nudged,
     Stopped,
+}
+
+impl Woken {
+    fn name(&self) -> &'static str {
+        match self {
+            Woken::Command(_) => "a command",
+            Woken::Finished => "a finished task",
+            Woken::Uploaded => "finished uploads",
+            Woken::Event(_) => "an event from the server",
+            Woken::Module => "the open blocks",
+            Woken::Deadline => "a deadline",
+            Woken::Disconnected => "a lost connection",
+            Woken::Reached(_) => "attaching to the server",
+            Woken::Nudged => "a nudge to reconnect",
+            Woken::Stopped => "stopping",
+        }
+    }
 }
 
 #[cfg(test)]

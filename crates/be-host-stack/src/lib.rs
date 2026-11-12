@@ -820,7 +820,7 @@ fn send(command: Command) {
     }
 }
 
-pub fn busy() -> Vec<&'static str> {
+pub fn busy() -> Vec<String> {
     with_shared(Shared::busy).unwrap_or_default()
 }
 

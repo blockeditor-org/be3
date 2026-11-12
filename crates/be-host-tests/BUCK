@@ -13,6 +13,10 @@ cargo_package()
 # keep it so for a test whose paintings show every block type, such as the add
 # menu's.
 APPS = {
+    "typing_as_the_connection_silently_drops_leaves_the_host_settled": ["text"],
+    "an_edit_made_offline_reads_as_kept_on_the_device_and_syncs_without_an_error": ["text"],
+    "on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops": ["text"],
+    "a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once": ["text"],
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
     "a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside": ["infinite-canvas"],
