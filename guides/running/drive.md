@@ -168,8 +168,10 @@ one while its block store is not connected, has edits waiting to be sent, or has
 what changed since it connected (what it asks for arrives by push after); it fails on a program
 with nothing outside its window to keep in step with. With the clock stopped, a program quiet but
 still out of step may be waiting on a timer of its own (be-host's type modules seal after a quiet
-spell and back off before retrying, on the frame clock): `synced` moves the clock to
-`Program::in_step_due`, the soonest such timer, as `pause` would. `drive offline` waits until
+spell and back off before retrying, on the frame clock): once nothing is in flight that could
+still make progress, `synced` moves the clock to `Program::in_step_due`, the soonest such timer,
+as `pause` would. be-host gives one only while its block store waits on nothing but a type
+module's timer for being in step (not a heartbeat). `drive offline` waits until
 `Program::connected` says it is not connected, as after its network went away. A device waiting to
 reconnect tries again only when its wait runs out, so after its network comes back `drive
 network` first, as crates/be-host-tests' `HostTest::online` does.

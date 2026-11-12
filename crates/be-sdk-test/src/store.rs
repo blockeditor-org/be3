@@ -493,6 +493,7 @@ impl Inner {
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
             | Call::ReportStatus { reply, .. }
+            | Call::InStepAt { reply, .. }
             | Call::History { reply, .. }
             | Call::Conflict { reply, .. }
             | Call::Error { reply, .. } => reply.send(&mut self.host, &()),

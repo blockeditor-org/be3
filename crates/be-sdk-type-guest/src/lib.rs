@@ -333,6 +333,8 @@ struct State {
     now: u64,
     wake: Option<u64>,
     sleep: Option<Pending<()>>,
+    /// The soonest of the replicas' timers that keep a block in step, as last told the host.
+    in_step: Option<u64>,
     waiting: BTreeMap<RequestId, (ReplicaId, Sender<Answer>)>,
     closing: BTreeMap<ReplicaId, Sender<()>>,
     requests: RequestId,
@@ -371,6 +373,7 @@ impl Module {
                     now: 0,
                     wake: None,
                     sleep: None,
+                    in_step: None,
                     waiting: BTreeMap::new(),
                     closing: BTreeMap::new(),
                     requests: 0,
@@ -610,6 +613,15 @@ impl Module {
         if wake != state.wake {
             state.wake = wake;
             state.sleep = wake.map(host::sleep_until);
+        }
+        let in_step = state
+            .replicas
+            .values()
+            .filter_map(|replica| replica.in_step_at())
+            .min();
+        if in_step != state.in_step {
+            state.in_step = in_step;
+            host::in_step_at(in_step).detach();
         }
     }
 

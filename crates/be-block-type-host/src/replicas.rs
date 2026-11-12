@@ -2406,7 +2406,7 @@ impl<H: Host> Replicas<H> {
             return false;
         };
         match call {
-            Call::Clock { .. } | Call::SleepUntil { .. } => false,
+            Call::Clock { .. } | Call::SleepUntil { .. } | Call::InStepAt { .. } => false,
             Call::Send { reply, to, bytes } => {
                 self.acknowledge(module, reply);
                 match to {

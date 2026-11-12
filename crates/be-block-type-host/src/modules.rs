@@ -178,6 +178,8 @@ struct Module {
     clock: Outlets<()>,
     ticked: Option<u64>,
     sleeping: Option<(u64, Reply<()>)>,
+    /// When the module's soonest timer that keeps a block in step comes due (`in-step-at`).
+    in_step: Option<u64>,
     started: Option<Ticket<Vec<TypeInfo>>>,
     launched: bool,
     hello: bool,
@@ -377,6 +379,7 @@ impl Modules {
                     clock: Outlets::default(),
                     ticked: None,
                     sleeping: None,
+                    in_step: None,
                     started: None,
                     launched: false,
                     hello: false,
@@ -442,6 +445,7 @@ impl Modules {
         held.ticked = None;
         held.clock = Outlets::default();
         held.sleeping = None;
+        held.in_step = None;
         held.connection = Connection::new(Side::Host);
         match (held.source.start)(wake, Arc::clone(&waiting)) {
             Ok((channel, tag)) => {
@@ -698,15 +702,16 @@ impl Modules {
     }
 
     /// While the clock is held, the instant on the holder's clock at which the soonest module
-    /// timer comes due (a seal after a quiet spell, a retry's backoff): held, it never comes
-    /// unless the holder moves its clock there.
+    /// timer that keeps a block in step comes due (`in-step-at`: a seal after a quiet spell, a
+    /// retry's backoff): held, it never comes unless the holder moves its clock there.
     pub fn held_due(&self) -> Option<Instant> {
         let held = self.held?;
+        // The modules' times are this clock's (`now`), so the held instant reads on it too.
         let now = self.clock.at(held);
         self.modules
             .iter()
-            .filter_map(|module| module.sleeping.as_ref())
-            .map(|(at, _)| Duration::from_millis(*at))
+            .filter_map(|module| module.in_step)
+            .map(Duration::from_millis)
             .min()
             .map(|due| held + due.saturating_sub(now))
     }
@@ -785,6 +790,10 @@ impl Modules {
                                 if let Some((_, before)) = held.sleeping.replace((at, reply)) {
                                     before.fail(&mut held.connection, OpError::Canceled);
                                 }
+                            }
+                            Some(Call::InStepAt { reply, at }) => {
+                                held.in_step = at;
+                                reply.send(&mut held.connection, &());
                             }
                             Some(call) => heard.push((module, Heard::Call { op, parent, call })),
                             None => {}

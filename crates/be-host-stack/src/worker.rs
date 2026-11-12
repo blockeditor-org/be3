@@ -512,8 +512,10 @@ pub struct Shared {
     pub touched: be_lib_stable_hash::HashSet<Uuid>,
     pub pending: usize,
     pub typing: bool,
-    /// While the host holds the modules' clock, when their soonest timer comes due on it
-    /// (`Modules::held_due`): what a stopped clock must reach for that work to happen.
+    /// While the host holds the modules' clock and nothing else is in flight, when their
+    /// soonest timer that keeps a block in step comes due on it (`Modules::held_due`): what a
+    /// stopped clock must reach for that work to happen. `None` while anything else could still
+    /// make progress.
     pub modules_due: Option<std::time::Instant>,
     pub uploading: usize,
     pub listing_revisions: usize,
@@ -1150,12 +1152,21 @@ impl Session<'_> {
             moved |= self.replicas.take_changed();
             moved |= report(peer, shared);
             let typing = !self.replicas.modules.settled();
-            let due = self.replicas.modules.held_due();
-            let (was_typing, was_due) = {
+            // A held clock is moved to a module's timer only when nothing but that timer can
+            // make progress: nothing sent waits for an answer, and no module is still working.
+            let idle = self.line.quiet()
+                && !self.tasks.0.syncing()
+                && self.uploads.is_empty()
+                && !typing;
+            let (was_typing, was_due, due) = {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                let due = (idle && held.waiting == 0 && held.pending == 0 && !held.arriving)
+                    .then(|| self.replicas.modules.held_due())
+                    .flatten();
                 (
                     std::mem::replace(&mut held.typing, typing),
                     std::mem::replace(&mut held.modules_due, due),
+                    due,
                 )
             };
             self.changed.notify_all();

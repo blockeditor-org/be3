@@ -20,6 +20,14 @@ interface host {
     /// The module cancels it when it wants to wake at another time.
     sleep-until: async func(at: u64);
 
+    /// The soonest clock time at which a timer of the module's own keeps a
+    /// block in step with the server (a seal after a quiet spell, a journal
+    /// append, a retry's backoff), none while no such work waits on time; said
+    /// again whenever it changes. A heartbeat or a read's retry is not such
+    /// work. A host that holds its clock still moves it here to let that work
+    /// happen.
+    in-step-at: async func(at: option<u64>);
+
     /// A commit's stored form; with `first-part`, only the bytes of its root's
     /// first part (`be_block::Loads::FirstPart`).
     load: async func(commit: commit-id, first-part: bool) -> result<loaded, string>;
