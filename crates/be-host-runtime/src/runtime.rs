@@ -2364,7 +2364,10 @@ pub fn places(
     view: ViewId,
     child: be_sdk_api::ChildId,
 ) -> bool {
-    with(app_id, |runtime| runtime.instances.places(instance, view, child)).unwrap_or(false)
+    with(app_id, |runtime| {
+        runtime.instances.places(instance, view, child)
+    })
+    .unwrap_or(false)
 }
 
 /// The child that has taken `instance`'s frame: the view placing it, the child and its block.

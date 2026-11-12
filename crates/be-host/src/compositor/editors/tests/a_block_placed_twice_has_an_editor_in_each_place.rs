@@ -68,7 +68,10 @@ fn a_block_placed_twice_has_an_editor_in_each_place() {
     assert_eq!(opened(in_panel).unwrap().2, panel_instance);
 
     editors.unplace(tab);
-    assert!(opened(in_tab).is_none(), "the second place's editor goes with it");
+    assert!(
+        opened(in_tab).is_none(),
+        "the second place's editor goes with it"
+    );
     assert_eq!(opened(in_panel).unwrap().2, panel_instance);
 
     let in_tab = editors.place(tab, block, block_type, None, Some(devices));
