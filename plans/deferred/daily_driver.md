@@ -12,15 +12,11 @@ until before a public release (`plans/deferred/public_release.md`). Text and fol
 and everything under them are frozen (guides/frozen_formats.md); other block
 types may keep breaking.
 
-Start real use once Move to…, search and export below exist; offline open and the
-status indicator already do.
+Start real use once Move to… and export below exist; offline open, the
+status indicator and search over names and content already do.
 
 ## Data safety
 
-- The server changes its in-memory object refcounts (`ObjectRefs`, in
-  `be-server/src/blocks.rs`) before the transaction commits. A failed commit
-  leaves them out of step with the database until a restart. Done: they change
-  only once the commit succeeds.
 - A conflicted merge keeps the unsaved side as a commit (`Peer::stash`), but the
   server does not count that commit's objects as held. Hold them before any
   collection runs (decisions/garbage_collection_waits_for_trash_and_history.md).
@@ -43,10 +39,10 @@ status indicator already do.
 
 The host is offline-first (guides/blocks/host.md, Disconnects, offline and stopping). Left:
 
-- Commands that need the server themselves hold the worker's loop while it is
-  silent, as do `peer.attach` after a reconnect, opening a block never seen
-  before and merging a block a drain found diverged
-  (`be-host-stack/src/worker.rs`). Done: each runs in a task of its own, as
+- `peer.attach` after a reconnect, opening a block never seen before and
+  merging a block a drain found diverged hold the worker's loop while the
+  server is silent (`be-host-stack/src/worker.rs`); commands that need only the
+  server already run in a lane. Done: each runs in a task of its own, as
   listings already do (`worker::Tasks`).
 - `be_host_stack::retry_now` runs on `Lifecycle::NetworkChanged`, but only the
   web and Android send it. Send it from desktop network-change events too.
@@ -90,11 +86,6 @@ llvmpipe.
    unions the moved region into its damage (`be-sdk-beui-platform/src/surface.rs`,
    `output.damaged()`). Carry the native presenter's GPU move copy across the
    app surface.
-6. **Idle.**
-   - Stop the caret blink (`CARET_BLINK`, `beui-core/src/base/text.rs`) after a
-     few seconds without input, as most editors do.
-   - Done when a test confirms a focused, idle editor requests no frames.
-
 Add a frame-time benchmark that types into a generated 10 MB markdown file
 through the app host and prints p50 and p99 frame times, and run it in CI as a
 work-count budget rather than a timing assertion. be-host-bench only pastes a
@@ -107,9 +98,9 @@ Needed before daily use:
 
 - **Move to… on touch and desktop.** The file tree's "Move to" submenu offers
   only top-level workspaces (`be-app-file-tree/src/root/menu.rs`). Add a folder
-  picker sheet, and a Duplicate command (`be_host_stack::duplicate` exists).
-- **Search** over names and content, in the file tree's filter field and a
-  desktop quick-open (Ctrl+P / Ctrl+K): plans/search.md.
+  picker sheet, and a Duplicate command (`be_host_stack::duplicate` exists;
+  only copy and paste use it).
+- **Search**: what is left of it is in plans/search.md.
 - **Trash.** Add "Delete forever" and "Empty trash". Restore already goes back
   to the original parent (`DELETED_FROM`).
 - **Export and import.** Export a folder or the whole workspace to a directory

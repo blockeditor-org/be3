@@ -25,6 +25,7 @@ Guides:
 - guides/beui_keyboard.md: focus and input in beui: the keyboard conventions controls follow, how a key travels, actions and the command palette, forwarding to embedded editors and Wayland programs, the input method, touch
 - guides/buck2.md
 - guides/canvas.md: the infinite canvas app and its block type: the model and raster layers, profiles, line binding, hand-drawn and freehand drawing, gestures, device input, export, and its tests and bench
+- guides/chat.md: the chat block: its header and segments, merging, the editor and sending state, notifications, unread counts
 - guides/common_commands.md: for people too: running things as a person (a window, the VR simulator and an XR headset, the displays and the login session, an Android device) and as an agent (headless `:dev`, `drive`), and every buck2 target
 - guides/build_server.md
 - guides/frozen_formats.md: that no saved format is frozen yet, and how to freeze one later: the rules, and the tests that would hold it
