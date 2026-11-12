@@ -43,6 +43,8 @@ pub(crate) struct State {
     pub typing: Signal<bool>,
     pub hex_insert_mode: Signal<bool>,
     pub import_error: Signal<Option<String>>,
+    /// Set once the text has first been read from its block, with the caret at its start.
+    pub loaded: Signal<bool>,
     pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
     pub remote_cursors: Memo<Vec<(u64, TextCursor)>>,
     inner: Stored<Inner>,
@@ -104,6 +106,7 @@ impl State {
             typing,
             hex_insert_mode,
             import_error,
+            loaded: create_signal(false),
             inner: store(Inner {
                 client,
                 content,
@@ -158,6 +161,7 @@ impl State {
                 anchor: start,
                 focus: start,
             });
+            self.loaded.set(true);
         }
     }
 

@@ -318,9 +318,21 @@ rebase. The rules an agent most needs:
   (30 s) with no edits, at most `COMMIT_INTERVAL` (5 min) after it started
   owing, once it appended `JOURNAL_BYTES` (1 MiB), when it closes, and at once
   when a peer of another build greets it or a takeover leaves it owing. Each
-  commit `rebase-journal`s, which starts the journal over. While a commit's
-  publish is unanswered it keeps taking edits, holding them back from the
-  sequence until the answer.
+  commit `rebase-journal`s, which starts the journal over. While a seal's
+  publish is unanswered the owner keeps sequencing and journaling edits, alone
+  or not: `publish`'s `sealed-through` names the session generation and the last
+  sequence the seal holds, which the host keeps with the commit
+  (`Commit::sealed_through`), and the rebase after it carries what came after in
+  its `entries`, one write on the device. Followers, who applied those already,
+  are sent the seal with a `reload` and hear them again. A seal that restarts
+  the session still holds edits back until its answer.
+- `opening.sealed-head`: the head is a seal this device made on `opening.head`
+  and its own journal is still there (it stopped after the server took the seal
+  and before it heard so). The replica replays the journal on `opening.head`,
+  then takes the seal as its head with the session as of `through`, keeps what
+  came after and rebases onto the seal. The host hands it over only when the
+  journal holds the seal's last entry in the seal's generation (`journal_for`);
+  otherwise it opens the seal plainly.
 - A replica opening on the journal's base (`opening.journal`) loads its session
   state and replays it: as owner it continues the journal's numbering, as a
   follower it greets with that base and is sent no session state. A follower

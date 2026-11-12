@@ -136,16 +136,18 @@ with the block key; the server keeps it beside history, never in it
   session's current generation: one call broadcasts and appends. Entries at or
   below the last sequence number are dropped as already held.
 - `Peer::rebase_journal` starts the journal over from a base, dropping every
-  entry, and keeps the entries it is given past the base in the same write: an
-  owner rebases after each commit, and on taking a session before it appends.
-- **A seal on its way.** The owner keeps sequencing and journaling what is typed
-  while its seal waits on the server. The seal's commit records the sequence it
-  holds through (`Commit::sealed_through`); once it lands the owner rebases onto
-  it carrying what came after, and followers, who applied that already, reload
-  the seal and hear it again (`SessionMessage::Sealed` with `reload`). A device
-  that stopped after the server took the seal and before it heard so opens on
-  the commit the seal was made on, replays its journal there and takes the seal
-  as its head (`opening.sealed-head`, `journal_for`).
+  entry, and keeps the entries it is given past the base in the same write on
+  the device (online, the server gets a rebase and then an append): an owner
+  rebases after each commit, and on taking a session before it appends.
+- **A seal on its way.** The owner keeps journaling what is typed while its
+  seal waits on the server. The seal's commit records the session generation
+  and last sequence it holds (`Commit::sealed_through`); once it lands the owner
+  rebases onto it carrying what came after, and followers, who applied that
+  already, reload the seal and hear it again (`SessionMessage::Sealed` with
+  `reload`). A device that stopped after the server took the seal and before it
+  heard so opens on the commit the seal was made on, replays its own journal
+  there and takes the seal as its head, when that journal holds the seal's last
+  entry in its generation (guides/type_modules.md, Peers).
 - Joining (`Peer::join_session`) answers the journal as of joining, so a
   replica opening on its base needs no state from the owner
   (`be_block_type_host::Replicas` picks the server's or the device's,

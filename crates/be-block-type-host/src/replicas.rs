@@ -2633,7 +2633,12 @@ impl<H: Host> Replicas<H> {
                         expected,
                     )
                     .described(content.references, content.derived)
-                    .sealed_through(sealed_through);
+                    .sealed_through(sealed_through.map(
+                        |(generation, sequence)| be_block_commit::SealedThrough {
+                            generation,
+                            sequence,
+                        },
+                    ));
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
                     }
@@ -3022,30 +3027,69 @@ type Loads = (
 /// a commit its journal is still on (it stopped after the server took the seal and before it
 /// heard so, `Commit::sealed_through`), that journal on that commit, with `head` as the sealed
 /// head the replica takes once it replayed it.
+///
+/// Only this device's own journal is trusted for that, and only when it holds the seal's last
+/// entry, in the seal's generation: what the seal holds then replays exactly. Another device's
+/// seal, or a journal of another session, is loaded plainly at `head`.
 fn journal_for<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     server: Option<be_block_protocol::Journal>,
     head: Option<CommitId>,
 ) -> Loads {
-    let (journal, kept) = journal_on(peer, block, server.clone(), head);
+    let (journal, kept) = journal_on(peer, block, server, head);
     if journal.is_some() {
         return (journal, kept, head, None);
     }
-    let Some((commit, (parent, through))) =
+    let Some((commit, (parent, sealed))) =
         head.and_then(|commit| Some((commit, peer.sealed_on(commit)?)))
     else {
         return (None, false, head, None);
     };
-    match journal_on(peer, block, server, parent) {
-        (Some(journal), kept) if journal.base.sequence <= through => (
-            Some(journal),
-            kept,
-            parent,
-            Some(be_sdk_type_api::SealedHead { commit, through }),
-        ),
-        _ => (None, false, head, None),
+    let own = peer
+        .local_journal(block)
+        .ok()
+        .flatten()
+        .filter(|journal| journal.base.commit == parent)
+        .filter(|journal| reaches(journal, sealed));
+    match own {
+        Some(journal) => {
+            let kept = journal
+                .entries
+                .iter()
+                .any(|entry| entry.sequence > sealed.sequence);
+            (
+                Some(journal),
+                kept,
+                parent,
+                Some(be_sdk_type_api::SealedHead {
+                    commit,
+                    through: sealed.sequence,
+                }),
+            )
+        }
+        None => (None, false, head, None),
     }
+}
+
+/// Whether `journal` holds what a seal at `sealed` holds: its base is at or before the seal
+/// and its entries through the seal's sequence are the seal's session's, ending on that
+/// sequence exactly.
+fn reaches(journal: &be_block_protocol::Journal, sealed: be_block_commit::SealedThrough) -> bool {
+    let through: Vec<_> = journal
+        .entries
+        .iter()
+        .take_while(|entry| entry.sequence <= sealed.sequence)
+        .collect();
+    let ends = match through.last() {
+        Some(last) => last.sequence == sealed.sequence,
+        None => journal.base.sequence == sealed.sequence,
+    };
+    journal.base.sequence <= sealed.sequence
+        && ends
+        && through
+            .iter()
+            .all(|entry| entry.generation == sealed.generation)
 }
 
 /// The journal on `head`: the server's or this device's, whichever holds more, and whether it

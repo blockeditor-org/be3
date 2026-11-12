@@ -80,6 +80,7 @@ mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
+mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
 mod a_viewer_cannot_make_a_follower_read_a_part;
@@ -322,7 +323,7 @@ struct Stored {
     parents: Vec<CommitId>,
     bytes: Vec<u8>,
     manifest: be_block_store::Manifest,
-    sealed_through: Option<u64>,
+    sealed_through: Option<(u64, u64)>,
 }
 
 const SEALING: Uuid = Uuid::from_u128(0x5ea1);
@@ -444,6 +445,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
+    /// The generation each journal entry was appended in, by sequence, as the host's journal
+    /// keeps it.
+    journal_generations: BTreeMap<u64, u64>,
     journal_tag: SessionTag,
     appended: usize,
     make: fn() -> Module,
@@ -504,6 +508,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             largest_written: 0,
             written: 0,
             journal: None,
+            journal_generations: BTreeMap::new(),
             journal_tag: TAG,
             appended: 0,
             make,
@@ -568,14 +573,34 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             };
             Some((commit, parent, stored.sealed_through?))
         });
+        // Only a journal that holds the seal's last entry, in the seal's generation.
+        let reaches = |journal: &Journal, (generation, through): (u64, u64)| {
+            let held: Vec<_> = journal
+                .entries
+                .iter()
+                .take_while(|entry| entry.sequence <= through)
+                .collect();
+            let ends = held
+                .last()
+                .map_or(journal.base.sequence, |entry| entry.sequence)
+                == through;
+            journal.base.sequence <= through
+                && ends
+                && held
+                    .iter()
+                    .all(|entry| self.journal_generations.get(&entry.sequence) == Some(&generation))
+        };
         match (journal, sealed) {
-            (Some(journal), Some((commit, parent, through)))
-                if journal.base.commit == parent && journal.base.sequence <= through =>
+            (Some(journal), Some((commit, parent, sealed)))
+                if journal.base.commit == parent && reaches(&journal, sealed) =>
             {
                 (
                     Some(journal),
                     parent,
-                    Some(be_sdk_type_api::SealedHead { commit, through }),
+                    Some(be_sdk_type_api::SealedHead {
+                        commit,
+                        through: sealed.1,
+                    }),
                 )
             }
             _ => (None, head, None),
@@ -1173,6 +1198,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         .last()
                         .map_or(journal.base.sequence, |entry| entry.sequence);
                     if entry.sequence > last {
+                        self.journal_generations.insert(entry.sequence, generation);
                         journal.entries.push(entry);
                     }
                 }
@@ -1188,9 +1214,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 if !state.is_owner(client) || state.generation != generation {
                     return;
                 }
-                let entries = entries
+                let entries: Vec<_> = entries
                     .into_iter()
                     .filter(|entry| entry.sequence > base.sequence)
+                    .collect();
+                self.journal_generations = entries
+                    .iter()
+                    .map(|entry| (entry.sequence, generation))
                     .collect();
                 self.journal = Some(Journal { base, entries });
                 self.journal_tag = self.devices[device].tag;

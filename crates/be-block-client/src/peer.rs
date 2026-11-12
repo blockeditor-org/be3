@@ -151,7 +151,7 @@ pub struct Write<'a> {
     expected: Option<CommitId>,
     merging: Option<(Option<CommitId>, CommitId)>,
     bookmark: Option<String>,
-    sealed_through: Option<u64>,
+    sealed_through: Option<be_block_commit::SealedThrough>,
 }
 
 impl<'a> Write<'a> {
@@ -202,9 +202,10 @@ impl<'a> Write<'a> {
         self
     }
 
-    /// The commit holds its session through `sequence` (`Commit::sealed_through`).
-    pub fn sealed_through(mut self, sequence: Option<u64>) -> Self {
-        self.sealed_through = sequence;
+    /// The commit holds its session through a sequence of a generation
+    /// (`Commit::sealed_through`).
+    pub fn sealed_through(mut self, sealed: Option<be_block_commit::SealedThrough>) -> Self {
+        self.sealed_through = sealed;
         self
     }
 }
@@ -864,9 +865,12 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.head(block)
     }
 
-    /// For a commit this device holds that sealed a session: the commit it was sealed on and the
-    /// sequence it holds through (`Commit::sealed_through`).
-    pub fn sealed_on(&self, commit: CommitId) -> Option<(Option<CommitId>, u64)> {
+    /// For a commit this device holds that sealed a session: the commit it was sealed on and
+    /// where in its session it stands (`Commit::sealed_through`).
+    pub fn sealed_on(
+        &self,
+        commit: CommitId,
+    ) -> Option<(Option<CommitId>, be_block_commit::SealedThrough)> {
         let commit = self.commits.try_get(commit).ok().flatten()?;
         let through = commit.sealed_through?;
         match commit.parents.as_slice() {

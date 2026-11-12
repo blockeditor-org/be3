@@ -43,14 +43,15 @@ interface host {
     /// unchanged save answers `published` with the same head; one sealed on
     /// this device alone, offline or behind others in its outbox, answers
     /// `kept`, and the replica hears `drained` once it reaches the server.
-    /// `sealed-through`, for a seal of the session's owner, is the last sequence number the
-    /// content holds: kept with the commit, so what was journaled past it while the commit was
-    /// on its way replays on top of it when the journal is still on the commit's parent.
+    /// `sealed-through`, for a seal of the session's owner, is the session's generation and the
+    /// last sequence number the content holds: kept with the commit, so what was journaled past
+    /// it while the commit was on its way replays on top of it when the journal is still on the
+    /// commit's parent.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
-        sealed-through: option<u64>,
+        sealed-through: option<tuple<u64, u64>>,
     ) -> result<publish-outcome, string>;
 
     variant publish-outcome {

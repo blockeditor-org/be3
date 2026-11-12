@@ -35,6 +35,7 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
             block_id: linked.into_bytes(),
             block_type: SHOWN_TYPE.into_bytes(),
             linked: true,
+            named: true,
             placed: false,
         }))]
     );

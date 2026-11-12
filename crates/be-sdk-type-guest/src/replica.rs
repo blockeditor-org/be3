@@ -1922,7 +1922,10 @@ where
         // A seal holds the session through what its owner sequenced when it began.
         let sealed_through = match (&then, &self.role) {
             (AfterPublish::Seal { .. }, Role::Owner(_)) => {
-                self.sealing_through.as_ref().map(|(sequence, _)| *sequence)
+                let generation = self.state.generation;
+                self.sealing_through
+                    .as_ref()
+                    .map(|(sequence, _)| (generation, *sequence))
             }
             _ => None,
         };

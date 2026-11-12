@@ -1,5 +1,6 @@
 use be_lib_stable_hash::HashMap;
 use std::any::Any;
+use std::borrow::Cow;
 use std::cell::{Cell, Ref, RefCell};
 use std::ops::Range;
 use std::rc::Rc;
@@ -316,20 +317,61 @@ enum Flow<'a> {
 }
 
 impl TextNode {
-    pub fn accessible_text(&self) -> Option<&str> {
+    /// What a screen reader reads: the text it shows, without spans drawn in a clear color (a
+    /// slot held open for layout, such as a text area's newline) or the object characters that
+    /// stand in for inline items, which describe themselves as children; an item between two
+    /// runs of text reads as a space.
+    pub fn accessible_text(&self) -> Option<Cow<'_, str>> {
         let seen = |color: Color| !color.is_clear();
-        let shown = (!self.string.content().text.is_empty() && seen(self.color))
-            || self.parts.iter().any(|part| match part {
-                TextPart::Span(span) => {
+        let string = self.string.content();
+        let spoken = |part: &TextPart| match part {
+            TextPart::Span(span) => {
+                let content = span.content();
+                content.icon.is_none()
+                    && !content.text.is_empty()
+                    && seen(content.color.unwrap_or(self.color))
+            }
+            TextPart::Inline(_) | TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {
+                false
+            }
+        };
+        let string_spoken = !string.text.is_empty() && seen(self.color);
+        if !string_spoken && !self.parts.iter().any(spoken) {
+            return None;
+        }
+        let silent = |part: &TextPart| match part {
+            TextPart::Span(span) => span.content().icon.is_none() && !spoken(part),
+            TextPart::Inline(_) => true,
+            TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => false,
+        };
+        if (string_spoken || string.text.is_empty()) && !self.parts.iter().any(silent) {
+            return Some(Cow::Borrowed(&self.content));
+        }
+        let mut text = match string_spoken {
+            true => string.text.clone(),
+            false => String::new(),
+        };
+        // An inline item between two runs of text stands apart from both, as a word does.
+        let mut apart = false;
+        for part in self.parts.iter() {
+            match part {
+                TextPart::Inline(_) => apart = true,
+                TextPart::Span(span) if spoken(part) => {
                     let content = span.content();
-                    content.icon.is_none()
-                        && !content.text.is_empty()
-                        && seen(content.color.unwrap_or(self.color))
+                    if apart
+                        && !text.ends_with(char::is_whitespace)
+                        && !content.text.starts_with(char::is_whitespace)
+                        && !text.is_empty()
+                    {
+                        text.push(' ');
+                    }
+                    apart = false;
+                    text.push_str(&content.text);
                 }
-                TextPart::Inline(_) => true,
-                TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => false,
-            });
-        (shown && !self.content.is_empty()).then_some(&self.content)
+                TextPart::Span(_) | TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {}
+            }
+        }
+        Some(Cow::Owned(text))
     }
 
     fn refresh_content(&mut self) {

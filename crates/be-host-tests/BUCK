@@ -57,6 +57,7 @@ APPS = {
     "a_slides_preview_catches_up_with_quick_changes_after_a_pause": ["infinite-canvas", "presentation", "text"],
     "a_tab_keeps_its_view_through_a_resize": ["example-pan-zoom"],
     "a_tab_popped_out_in_space_is_a_panel_of_its_own": ["settings"],
+    "a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret": ["text"],
     "a_tooltip_from_the_files_reaches_past_them": [],
     "a_window_dragged_over_the_desktops_bars_passes_beneath_them": ["desktop"],
     "a_window_over_a_tab_docked_on_the_desktop_draws_above_it": ["desktop"],

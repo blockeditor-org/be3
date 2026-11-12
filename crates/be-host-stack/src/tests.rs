@@ -30,11 +30,13 @@ mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_child_reordered_in_a_folder_is_listed_in_its_new_place;
 mod a_commit_in_one_checkout_is_brought_into_another;
 mod a_conflicting_edit_keeps_every_side_until_one_is_chosen;
+mod a_connection_the_server_drops_is_retried_without_moving_a_manual_clock_by_hand;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
+mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
@@ -244,6 +246,12 @@ impl Harness {
             .expect("the embedded server listens on an address");
         harness.relay = Some(be_block_fault_relay::Relay::start(server));
         harness
+    }
+
+    /// A clock the waits move on to the stack's next reconnect, which nobody else would.
+    fn on_driven_clock(mut self) -> Self {
+        self.clock = be_block_client::Clock::driven();
+        self
     }
 
     fn on_manual_clock(mut self) -> Self {
