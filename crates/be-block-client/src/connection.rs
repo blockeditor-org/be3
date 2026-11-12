@@ -89,10 +89,15 @@ pub enum Event {
 
 /// A block this connection watches, however many holders want it. The server ends the stream
 /// when the connection can no longer view the block; the entry and its count then stay, with no
-/// `stop`, and the stream opens again when the connection views the block again (`resume`).
+/// `stop`, and the stream opens again when the connection views the block again (`resume`),
+/// which it learns from a `Changed` summary of the block: only a block a listing of the
+/// connection covers is told, so a user of the connection who wants a watch back lists it.
 struct Watching {
     id: u64,
     count: usize,
+    /// A `Changed` summary with the view arrived while the stream was still open: if it ends
+    /// now, open it again at once.
+    resume_wanted: bool,
     stop: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
@@ -283,6 +288,7 @@ impl Connection {
                     Watching {
                         id: 0,
                         count: 1,
+                        resume_wanted: false,
                         stop: None,
                     },
                 );
@@ -294,13 +300,11 @@ impl Connection {
     /// Opens the stream again of a watch the server ended, now that the connection views the
     /// block again; its holders still hold it.
     fn resume(self: &Arc<Self>, block: Uuid) {
-        let registry = self.registry();
-        if registry
-            .watching
-            .get(&block)
-            .is_some_and(|watching| watching.stop.is_none())
-        {
-            self.stream(registry, block);
+        let mut registry = self.registry();
+        match registry.watching.get_mut(&block) {
+            Some(watching) if watching.stop.is_none() => self.stream(registry, block),
+            Some(watching) => watching.resume_wanted = true,
+            None => {}
         }
     }
 
@@ -335,6 +339,9 @@ impl Connection {
                     && watching.id == id
                 {
                     watching.stop = None;
+                    if std::mem::take(&mut watching.resume_wanted) {
+                        connection.stream(registry, block);
+                    }
                 }
             };
             select(std::pin::pin!(heard), stopped).await;
