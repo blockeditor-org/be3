@@ -60,4 +60,16 @@ fn a_picked_file_becomes_a_block_of_the_type_that_claims_it() {
     );
     assert_eq!(file.media_type, "application/epub+zip");
     assert_eq!(file.bytes, b"PK\x03\x04\x14\x00\x00\x00book");
+
+    let (notes, notes_type) = imported("notes.md", b"# Notes\n\nA second line.\n");
+    assert_eq!(
+        notes_type,
+        be_type_text::TextContent::CONTENT_TYPE,
+        "the text type claims a .md"
+    );
+    assert_eq!(
+        read(notes).bytes,
+        b"# Notes\n\nA second line.\n",
+        "the text block holds the file's text"
+    );
 }

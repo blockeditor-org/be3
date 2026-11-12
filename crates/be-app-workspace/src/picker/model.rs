@@ -184,6 +184,7 @@ impl Pick {
                         block_id: id.into_bytes(),
                         block_type: block_type.into_bytes(),
                         linked: true,
+                        named: true,
                         placed: false,
                     })),
                     None,
@@ -219,7 +220,7 @@ impl Pick {
         match progress {
             CreationProgress::Created(block) => {
                 let block_type = creating.template.block_type;
-                self.made(Uuid::from_bytes(*block), block_type)
+                self.made(Uuid::from_bytes(*block), block_type, false)
             }
             CreationProgress::Failed(error) => {
                 self.creating = None;
@@ -239,7 +240,7 @@ impl Pick {
         self.importing = None;
         match imported {
             Ok(Some((block, block_type))) if self.allowed(block_type) => {
-                self.made(block, block_type)
+                self.made(block, block_type, true)
             }
             Ok(Some(_)) => {
                 self.error = Some("The imported block can't be used here.".to_owned());
@@ -253,7 +254,8 @@ impl Pick {
         }
     }
 
-    fn made(&self, block: Uuid, block_type: Uuid) -> PickOutcome {
+    /// Answers the pick with a block made here; `named` when it came with a name (an import).
+    fn made(&self, block: Uuid, block_type: Uuid, named: bool) -> PickOutcome {
         let into = match self.place {
             Some(BlockParent::Block(container)) => Some((block, block_type, container)),
             Some(BlockParent::Root | BlockParent::Detached | BlockParent::Unfiled) | None => None,
@@ -263,6 +265,7 @@ impl Pick {
                 block_id: block.into_bytes(),
                 block_type: block_type.into_bytes(),
                 linked: false,
+                named,
                 placed: self.place.is_some(),
             })),
             into,

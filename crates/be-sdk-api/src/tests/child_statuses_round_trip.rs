@@ -39,6 +39,7 @@ fn child_statuses_round_trip() {
                 block_id: [7; 16],
                 block_type: [8; 16],
                 linked: true,
+                named: true,
                 placed: false,
             }))),
             card: true,

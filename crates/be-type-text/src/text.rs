@@ -230,12 +230,16 @@ impl DocumentFile for TextBlock {
         bytes: Vec<u8>,
         client: u64,
     ) -> Option<Document<Self>> {
-        let mut text = match current {
-            Some(current) => current.clone(),
-            None => Self::new("")
-                .with_language(language_of(&extension(name)))
-                .content(),
+        // A new block starts as loaded text, which needs no client: the host has none to give
+        // a block that does not exist yet.
+        let Some(current) = current else {
+            return Some(
+                Self::new(bytes)
+                    .with_language(language_of(&extension(name)))
+                    .content(),
+            );
         };
+        let mut text = current.clone();
         if let Some(edit) = Self::rewrite(&text, client, &bytes) {
             text.apply(&edit);
         }

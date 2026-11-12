@@ -1180,7 +1180,7 @@ impl Workspace {
                         .place_block(picked.id(), block_type, container, picked.linked);
                 }
                 workspace.open(TabItem::new(picked.id(), block_type), container);
-                if !picked.linked {
+                if !picked.named {
                     workspace.open_rename(picked.id(), None);
                 }
             },

@@ -54,6 +54,7 @@ fn a_workspace_header_adds_into_that_workspace() {
         block_id: picked.into_bytes(),
         block_type: text_type.into_bytes(),
         linked: false,
+        named: false,
         placed: false,
     })));
     fixture.settle();

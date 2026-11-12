@@ -32,6 +32,7 @@ fn enter_right_after_choosing_a_new_block_confirms_its_name() {
         block_id: made.into_bytes(),
         block_type: Uuid::from_u128(7).into_bytes(),
         linked: false,
+        named: false,
         placed: false,
     })));
     fixture.settle();
