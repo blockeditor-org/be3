@@ -17,7 +17,7 @@ use beui::{
 use crate::programs::ProgramSource;
 use crate::window_body::WindowStatus;
 
-use super::DesktopHost;
+use super::{DesktopHost, DesktopSettings};
 use super::win32_map::{
     self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
 };
@@ -329,8 +329,8 @@ impl DesktopHost for Win32 {
         drop(host);
     }
 
-    fn set_owned(owned: bool) {
-        if owned {
+    fn configure(settings: &DesktopSettings) {
+        if settings.owned {
             spawn();
         }
     }
@@ -406,10 +406,6 @@ impl DesktopHost for Win32 {
             be_host_win32::set_maximized(handle, fullscreen);
         }
         changed();
-    }
-
-    fn launch(command: String) -> bool {
-        Self::exec(be_host_win32::command_line::split_arguments(&command), None)
     }
 
     fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {

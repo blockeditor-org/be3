@@ -577,9 +577,12 @@ interface programs {
 
     /// The programs the host found. `listed` is false until it has looked
     /// for them once, so an empty list can mean "not yet" or "none".
+    /// `shell` runs a typed command line through the platform's shell: the
+    /// line goes after it as one more argument of an `exec`.
     record program-catalog {
         listed: bool,
         programs: list<host-program>,
+        shell: list<string>,
     }
 
     record program-list {
@@ -601,8 +604,7 @@ interface programs {
         /// Lists the programs, answered through the watch.
         %list(program-list),
         launch(program-launch),
-        /// Runs a command line through the shell.
-        run(string),
+        /// Runs a command: a program and its arguments.
         exec(program-exec),
     }
 

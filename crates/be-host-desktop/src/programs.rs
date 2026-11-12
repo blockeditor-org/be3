@@ -270,9 +270,6 @@ impl Programs {
                 ProgramAction::Launch { program, launch } if running => {
                     self.programs.launch(&program, launch);
                 }
-                ProgramAction::Run(line) => {
-                    Host::launch(line);
-                }
                 ProgramAction::Exec { command, launch } => {
                     Host::exec(command, launch);
                 }

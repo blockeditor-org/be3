@@ -249,12 +249,6 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
   verbs and `set --body/--append`. Keep `new … --body`. `add-option` merges
   into `option`. `workspaces` becomes `ls`, whose `--json` carries
   `writable`. Update guides/tracker.md.
-- `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
-  become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
-  WIT `launch`) goes; a typed line is wrapped as the platform's shell command
-  by the launcher. `DesktopHost`'s `set_owned`, `set_blank_after`,
-  `set_lock_after` and `set_primary_selection` become
-  `configure(DesktopSettings)`; `set_locked` stays, being state.
 - `drive` (`beui-layer-drive`): `find`, `reveal` and `shown` become
   `find TARGET [reveal|shown]`, and `gone` becomes `wait not TEXT`. Update
   guides/running/drive.md.

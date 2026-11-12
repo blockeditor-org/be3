@@ -147,8 +147,10 @@ pub(crate) fn apply(settings: &DisplaySettings) {
             control.set(config(settings));
         }
     });
-    Host::set_blank_after(settings.screen_off().after());
-    Host::set_lock_after(settings.lock_time());
+    be_host_desktop::desktop_host::configure(|desktop| {
+        desktop.blank_after = settings.screen_off().after();
+        desktop.lock_after = settings.lock_time();
+    });
 }
 
 fn config(settings: &DisplaySettings) -> DisplayConfig {

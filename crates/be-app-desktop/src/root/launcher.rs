@@ -3,7 +3,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Image, NodeId};
 use be_sdk_beui::desktop;
-use be_sdk_beui::{Editor, HostProgram, ProgramAction, ProgramsWatch};
+use be_sdk_beui::{Editor, HostProgram, ProgramAction, ProgramCatalog, ProgramsWatch};
 
 const ICON_POINTS: f32 = 32.0;
 const RUN: &str = "run";
@@ -16,6 +16,7 @@ pub(crate) struct Programs {
     scale: ReadSignal<f32>,
     query: Signal<String>,
     highlighted: Signal<Option<String>>,
+    catalog: Memo<ProgramCatalog>,
     pub(crate) offered: Memo<bool>,
 }
 
@@ -26,6 +27,7 @@ impl Programs {
             scale: pixels_per_point(),
             query: create_signal(String::new()),
             highlighted: create_signal(None),
+            catalog: editor.watch::<ProgramsWatch>(),
             offered: editor.offered::<ProgramsWatch>(),
         }
     }
@@ -44,7 +46,17 @@ impl Programs {
     fn choose(&self, key: String) {
         let query = self.query.get_untracked();
         let action = match key == RUN {
-            true => ProgramAction::Run(query.trim().to_owned()),
+            true => ProgramAction::Exec {
+                command: self.catalog.with_untracked(|catalog| {
+                    catalog
+                        .shell
+                        .iter()
+                        .cloned()
+                        .chain([query.trim().to_owned()])
+                        .collect()
+                }),
+                launch: None,
+            },
             false => ProgramAction::Launch {
                 program: key,
                 launch: None,
@@ -102,7 +114,7 @@ pub(super) fn ProgramSearch(
     focused: Memo<bool>,
     close: Callback<()>,
 ) -> NodeId {
-    let catalog = programs.editor.watch::<ProgramsWatch>();
+    let catalog = programs.catalog;
     let query = programs.query;
     let searching = create_memo(move || !query.with(|query| query.trim().is_empty()));
     let items = create_memo(move || {

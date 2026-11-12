@@ -225,6 +225,9 @@ pub(crate) fn send_data(fd: OwnedFd, data: Arc<[u8]>) {
 
 impl State {
     pub fn set_primary_selection(&mut self, on: bool) {
+        if self.selection.primary_on == on {
+            return;
+        }
         self.selection.primary_on = on;
         if !on {
             let handle = self.display_handle();

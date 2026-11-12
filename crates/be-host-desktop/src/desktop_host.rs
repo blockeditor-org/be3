@@ -28,6 +28,52 @@ pub use win32::Win32 as Host;
 #[cfg(not(any(target_os = "linux", windows)))]
 pub struct Host;
 
+/// How the host runs the desktop, set by different parts of be-host and handed to the
+/// platform whole whenever one changes ([`configure`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DesktopSettings {
+    /// Whether a desktop shell owns the program windows: without one they get no input.
+    pub owned: bool,
+    /// How long the session idles before the screens blank, if ever.
+    pub blank_after: Option<Duration>,
+    /// How long the session idles before it locks, if ever.
+    pub lock_after: Option<Duration>,
+    /// Whether middle-click pastes the primary selection.
+    pub primary_selection: bool,
+}
+
+impl Default for DesktopSettings {
+    fn default() -> Self {
+        let display = be_block::DisplaySettings::default();
+        Self {
+            owned: false,
+            blank_after: display.screen_off().after(),
+            lock_after: display.lock_time(),
+            primary_selection: false,
+        }
+    }
+}
+
+thread_local! {
+    static SETTINGS: std::cell::Cell<DesktopSettings> = std::cell::Cell::new(DesktopSettings::default());
+}
+
+/// The desktop's settings as last configured, for a platform that starts after they were.
+pub fn settings() -> DesktopSettings {
+    SETTINGS.get()
+}
+
+/// Changes the desktop's settings, telling the platform when they changed.
+pub fn configure(change: impl FnOnce(&mut DesktopSettings)) {
+    let before = SETTINGS.get();
+    let mut settings = before;
+    change(&mut settings);
+    if settings != before {
+        SETTINGS.set(settings);
+        Host::configure(&settings);
+    }
+}
+
 #[cfg(not(any(target_os = "linux", windows)))]
 impl DesktopHost for Host {
     type Source = ();
@@ -59,19 +105,13 @@ pub trait DesktopHost {
 
     fn exiting() {}
 
-    fn set_owned(_owned: bool) {}
-
-    fn set_blank_after(_after: Option<Duration>) {}
-
-    fn set_lock_after(_after: Option<Duration>) {}
+    fn configure(_settings: &DesktopSettings) {}
 
     fn take_lock_due() -> bool {
         false
     }
 
     fn set_locked(_locked: bool) {}
-
-    fn set_primary_selection(_on: bool) {}
 
     fn revision() -> u64 {
         0
@@ -92,10 +132,6 @@ pub trait DesktopHost {
     fn close(_window: HostWindowId) {}
 
     fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
-
-    fn launch(_command: String) -> bool {
-        false
-    }
 
     fn exec(_arguments: Vec<String>, _launch: Option<u64>) -> bool {
         false

@@ -40,7 +40,7 @@ In be-host-desktop, `desktop_host/win32.rs` (`Win32`) is the `DesktopHost`, with
 
 ## How entries show
 
-- The watcher starts when the desktop shell is first shown (`set_owned(true)`) and registers
+- The watcher starts when the desktop shell is first shown (`DesktopHost::configure` with `owned` set) and registers
   `Hotkey::DEFAULT` (Ctrl+Alt+Space). The host prints a line to stderr for each rare event and every
   failure, since nothing else shows what a first run on a new machine did.
 - `WindowsWatch` is the snapshot's entries; `win32_map::known_window` makes the rest of each

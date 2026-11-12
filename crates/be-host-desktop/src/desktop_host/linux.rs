@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use super::DesktopHost;
+use super::{DesktopHost, DesktopSettings};
 use crate::known_window::KnownWindow;
 use crate::programs::{Opener, ProgramSource};
 use crate::window_body::WindowStatus;
@@ -107,9 +107,7 @@ impl DesktopHost for Linux {
         server.start_xwayland();
         let mut compositor = Compositor::new(server, windows);
         compositor.on_failure(be_host_base::notices::report);
-        let defaults = be_block::DisplaySettings::default();
-        compositor.set_blank_after(defaults.screen_off().after());
-        compositor.set_lock_after(defaults.lock_time());
+        apply(&mut compositor, &super::settings());
         compositor.start(
             gpu.device.clone(),
             gpu.queue.clone(),
@@ -238,12 +236,8 @@ impl DesktopHost for Linux {
         });
     }
 
-    fn set_blank_after(after: Option<Duration>) {
-        with(|running| running.compositor.set_blank_after(after));
-    }
-
-    fn set_lock_after(after: Option<Duration>) {
-        with(|running| running.compositor.set_lock_after(after));
+    fn configure(settings: &DesktopSettings) {
+        with(|running| apply(&mut running.compositor, settings));
     }
 
     fn take_lock_due() -> bool {
@@ -254,13 +248,6 @@ impl DesktopHost for Linux {
         with(|running| running.compositor.set_locked(locked));
     }
 
-    fn set_owned(owned: bool) {
-        with(|running| running.compositor.set_owned(owned));
-    }
-
-    fn set_primary_selection(on: bool) {
-        with(|running| running.compositor.set_primary_selection(on));
-    }
 
     fn replace_gpu(setup: &Setup) {
         let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
@@ -342,15 +329,6 @@ impl DesktopHost for Linux {
             windows.request_fullscreen(WindowId(window.0), fullscreen);
             be_host_base::host::wake();
         }
-    }
-
-    fn launch(command: String) -> bool {
-        let Some(windows) = windows().filter(|_| Linux::running()) else {
-            return false;
-        };
-        windows.launch(command);
-        be_host_base::host::wake();
-        true
     }
 
     fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
@@ -467,6 +445,13 @@ fn known_window(
 
 fn windows() -> Option<Windows> {
     WINDOWS.get()
+}
+
+fn apply(compositor: &mut Compositor, settings: &DesktopSettings) {
+    compositor.set_owned(settings.owned);
+    compositor.set_blank_after(settings.blank_after);
+    compositor.set_lock_after(settings.lock_after);
+    compositor.set_primary_selection(settings.primary_selection);
 }
 
 fn with<R>(act: impl FnOnce(&mut Running) -> R) -> Option<R> {
