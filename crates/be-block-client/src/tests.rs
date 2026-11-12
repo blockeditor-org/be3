@@ -36,6 +36,11 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
 }
 
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
+mod a_block_placed_in_a_folder_after_it_was_listed_is_listed_there_offline;
+mod a_block_moved_out_of_a_listed_folder_is_listed_where_it_went_offline;
+mod a_block_deleted_after_its_folder_was_listed_is_listed_only_as_deleted_offline;
+mod a_folder_listed_again_answers_offline_as_of_the_newer_listing;
+mod a_listed_block_this_device_may_no_longer_know_of_is_left_out_offline;
 mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
 mod a_block_made_offline_takes_the_access_the_server_will_give_it;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
@@ -418,4 +423,45 @@ impl BlockContent for Link {
     fn references(&self) -> Vec<Uuid> {
         self.targets.clone()
     }
+}
+
+/// Refs for one account in one organization, kept in `db`: scoping `db` again reads them back as a
+/// device does when it starts.
+fn scoped(db: &refs::RefsDb) -> refs::Refs {
+    db.scope(refs::Scope {
+        server: "http://server".to_owned(),
+        account: Uuid::from_u128(1),
+        organization: Uuid::from_u128(2),
+    })
+    .unwrap()
+}
+
+/// A block's summary as the server would tell it, placed under `parent` as of `revision`.
+fn placed(id: u128, parent: BlockParent, revision: u64) -> be_block_protocol::BlockSummary {
+    be_block_protocol::BlockSummary {
+        id: Uuid::from_u128(id),
+        content_type: Uuid::from_u128(0x11_11),
+        access: be_block_graph::Access::Manage,
+        author: None,
+        parent: Some(parent),
+        head: None,
+        references: Vec::new(),
+        metadata: Vec::new(),
+        version: None,
+        key: None,
+        scope: None,
+        revision,
+        held: false,
+        opens_inside: false,
+        sets_access: false,
+        size: 0,
+        tree_size: 0,
+        owner_only: false,
+    }
+}
+
+/// The ids a listing answers offline.
+fn offline_ids(refs: &refs::Refs, listing: be_block_protocol::Listing) -> Option<Vec<Uuid>> {
+    refs.cached_listing(listing)
+        .map(|blocks| blocks.iter().map(|summary| summary.id).collect())
 }

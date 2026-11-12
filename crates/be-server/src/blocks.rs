@@ -4,6 +4,7 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
+    Listed,
     AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
     Hold, KeyKind, KeySet, ObjectChange, OrganizationRole, ReferenceChange,
 };
@@ -1331,18 +1332,18 @@ impl ServerStore {
         .await
     }
 
-    pub async fn list_shared(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
+    pub async fn list_shared(&self, identity: Identity) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             if seen.administrator {
-                return Ok(Vec::new());
+                return Ok(listed(graph, Vec::new()));
             }
-            Ok(graph
+            Ok(listed(graph, graph
                 .shared(identity.account)
                 .into_iter()
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_view())
-                .collect())
+                .collect()))
         })
         .await
     }
@@ -1351,22 +1352,22 @@ impl ServerStore {
         &self,
         identity: Identity,
         parent: BlockParent,
-    ) -> Result<Vec<BlockSummary>, ServerError> {
+    ) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let settings = crate::organization::settings_of(identity.organization);
-            Ok(graph
+            Ok(listed(graph, graph
                 .children(parent)
                 .into_iter()
                 .filter(|block| *block != settings)
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
-                .collect())
+                .collect()))
         })
         .await
     }
 
-    pub async fn list_deleted(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
+    pub async fn list_deleted(&self, identity: Identity) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let deleted = match seen.candidates(graph) {
@@ -1376,11 +1377,11 @@ impl ServerStore {
                     .filter(|block| graph.contains(*block) && !graph.holds(*block))
                     .collect(),
             };
-            Ok(deleted
+            Ok(listed(graph, deleted
                 .into_iter()
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
-                .collect())
+                .collect()))
         })
         .await
     }
@@ -1389,15 +1390,15 @@ impl ServerStore {
         &self,
         identity: Identity,
         block: Uuid,
-    ) -> Result<Vec<BlockSummary>, ServerError> {
+    ) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
-            Ok(graph
+            Ok(listed(graph, graph
                 .backrefs(block)
                 .into_iter()
                 .filter_map(|referrer| summary_with(graph, &seen, referrer))
                 .filter(|block| block.access.can_know_exists())
-                .collect())
+                .collect()))
         })
         .await
     }
@@ -1406,7 +1407,7 @@ impl ServerStore {
         &self,
         identity: Identity,
         block: Uuid,
-    ) -> Result<Vec<BlockSummary>, ServerError> {
+    ) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let mut found: BTreeMap<Uuid, BlockSummary> = BTreeMap::new();
@@ -1428,7 +1429,7 @@ impl ServerStore {
                     }
                 }
             }
-            Ok(found.into_values().collect())
+            Ok(listed(graph, found.into_values().collect()))
         })
         .await
     }
@@ -1437,18 +1438,18 @@ impl ServerStore {
         &self,
         identity: Identity,
         block: Uuid,
-    ) -> Result<Vec<BlockSummary>, ServerError> {
+    ) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
-                return Ok(Vec::new());
+                return Ok(listed(graph, Vec::new()));
             }
-            Ok(graph
+            Ok(listed(graph, graph
                 .references(block)
                 .into_iter()
                 .filter_map(|reference| summary_with(graph, &seen, reference))
                 .filter(|block| block.access.can_know_exists())
-                .collect())
+                .collect()))
         })
         .await
     }
@@ -2454,4 +2455,12 @@ fn commit_objects(
         objects.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
     }
     Ok(objects)
+}
+
+/// A listing's blocks, as of the revision the graph read them at.
+fn listed(graph: &BlockGraph, blocks: Vec<BlockSummary>) -> Listed {
+    Listed {
+        revision: graph.revision(),
+        blocks,
+    }
 }

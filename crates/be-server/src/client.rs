@@ -2796,30 +2796,35 @@ impl Connection {
     async fn list(&self, listing: Listing) -> Result<be_block_protocol::Listed, ServerError> {
         let identity = self.identity()?;
         let new = self.hub.list(self.client, listing).await?;
-        let revision = self.store.revision();
-        let blocks = async {
+        let listed = async {
             Ok::<_, ServerError>(match listing {
                 Listing::Shared => self.store.list_shared(identity).await?,
                 Listing::Children(parent) => self.store.list_children(identity, parent).await?,
                 Listing::Deleted => self.store.list_deleted(identity).await?,
                 Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
                 Listing::References(block) => self.store.list_references(identity, block).await?,
-                Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
+                Listing::Block(block) => {
+                    let summary = self.store.read_block(identity, block).await?;
+                    be_block_protocol::Listed {
+                        revision: summary.revision,
+                        blocks: vec![summary],
+                    }
+                }
                 Listing::OpenSettings(block) => {
                     self.store.list_open_settings(identity, block).await?
                 }
             })
         }
         .await;
-        let blocks = match blocks {
-            Ok(blocks) => blocks,
+        let listed = match listed {
+            Ok(listed) => listed,
             Err(error) => {
                 self.hub.refused(self.client, listing, new).await;
                 return Err(error);
             }
         };
-        self.hub.listed(self.client, listing, &blocks).await;
-        Ok(be_block_protocol::Listed { revision, blocks })
+        self.hub.listed(self.client, listing, &listed.blocks).await;
+        Ok(listed)
     }
 
     async fn announce(&self, block: Place, state: &SessionState) {

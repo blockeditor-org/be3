@@ -1490,11 +1490,6 @@ impl ServerStore {
         blocking(move || job(&store, &database)).await
     }
 
-    /// The newest revision handed out: every change after this call is at a later one.
-    pub fn revision(&self) -> u64 {
-        self.revision.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
     fn in_graph<R>(
         &self,
         organization: Uuid,

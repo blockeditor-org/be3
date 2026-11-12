@@ -13,8 +13,13 @@ fn a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once() {
     phone.synced();
 
     phone.unreachable();
+    // Closing waits for the stalled connection to be given up on, on the real clock.
     phone.restart();
     phone.wait("TreeItem \"Recipes\"");
+    // It found the settings it had, rather than making new ones beside them.
+    phone.click("#file-tree.system.chevron");
+    phone.wait("TreeItem \"Settings\"");
+    assert_eq!(phone.count("TreeItem \"Settings\""), 1, "{}", phone.tree());
     phone.click("#text.surface");
     phone.key("ctrl+End");
     phone.type_text(" for soup");
