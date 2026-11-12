@@ -1,6 +1,7 @@
 use super::*;
 use crate::KeyAt;
-use crate::KeyPress;
+use crate::KeyEvent;
+use crate::KeyPhase;
 use crate::reactive::*;
 
 #[test]
@@ -13,10 +14,17 @@ fn a_global_key_whose_release_was_lost_does_not_swallow_the_next_press() {
             .at(KeyAt::Window)
             .capture()
             .register();
-        on_shortcut(move |press: KeyPress| {
-            seen.update(|seen| seen.push((press.key, press.pressed)));
-            false
-        });
+        on_key(
+            KeyAt::Root,
+            KeyPhase::Capture,
+            KeyReveal::Focus,
+            move |event: KeyEvent| {
+                if let Some(press) = event.press() {
+                    seen.update(|seen| seen.push((press.key, press.pressed)));
+                }
+                false
+            },
+        );
         view! {
             <List spacing=0.0>
                 <unstyled::Button>

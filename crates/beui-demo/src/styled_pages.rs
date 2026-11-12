@@ -390,13 +390,14 @@ fn FullscreenTab() -> NodeId {
         true => "Leave fullscreen".to_owned(),
         false => "Show this tab fullscreen".to_owned(),
     });
-    on_shortcut(move |press: beui::KeyPress| {
-        let leave = press.pressed && press.key == beui::Key::Escape && shown.get_untracked();
-        if let Some(control) = control.as_ref().filter(|_| leave) {
+    Action::new("demo.leave-fullscreen", "Leave fullscreen", move || {
+        if let Some(control) = control.as_ref() {
             control.leave_fullscreen();
         }
-        leave
-    });
+    })
+    .shortcut(Chord::key(beui::Key::Escape))
+    .enabled(shown)
+    .register();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=ROW_SPACING>

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::core::reactive as core;
 use crate::types::{
-    BackGesture, Color, Direction, KeyPhase, KeyPress, Modifiers, Outline, Pos2, PreferenceLayer,
+    BackGesture, Color, Direction, KeyPhase, Modifiers, Outline, Pos2, PreferenceLayer,
     PreferenceLayers, PreferenceSource, Preferences, Vec2, WindowId,
 };
 
@@ -250,22 +250,6 @@ pub fn on_key(
     handler: impl Fn(KeyEvent) -> bool + 'static,
 ) {
     core::on_key(at, phase, reveal, handler);
-}
-
-pub fn on_shortcut(shortcut: impl Fn(KeyPress) -> bool + 'static) {
-    let at = match try_current_component() {
-        Some(_) => KeyAt::Node(component_node()),
-        None => KeyAt::Root,
-    };
-    on_key(
-        at,
-        KeyPhase::Capture,
-        KeyReveal::Focus,
-        move |event| match (event.press(), event.phase) {
-            (Some(press), KeyPhase::Capture) => shortcut(press),
-            _ => false,
-        },
-    );
 }
 
 pub fn on_back(enabled: impl IntoProp<bool>, handler: impl Fn(BackGesture) + 'static) {

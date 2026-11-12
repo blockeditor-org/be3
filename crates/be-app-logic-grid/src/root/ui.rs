@@ -9,7 +9,7 @@ use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH};
 use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
+use beui::{CursorIcon, NodeId, PointerPress, Rect};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::{Panels, StorageDialog};
@@ -31,7 +31,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let session = Session::new(editor);
     let loaded = create_memo(move || session.read(LogicGridEditor::loaded));
     let waiting = create_memo(move || !loaded.get());
-    on_shortcut(move |press: KeyPress| shortcut(session, press));
+    register_keys(session);
     let chrome = editor.chrome_shown();
     view! {
         <List spacing=Space::None>
@@ -132,23 +132,44 @@ fn PanelsPane(session: Session) -> NodeId {
     }
 }
 
-fn shortcut(session: Session, press: KeyPress) -> bool {
-    if !press.pressed || press.modifiers.ctrl || press.modifiers.alt || focus_takes_text() {
-        return false;
-    }
-    if press.key == Key::Escape {
+/// The grid's plain keys as actions: what a key does depends on the tool, so each runs the
+/// model's `key`, and the keys that edit are off while the grid is read-only.
+fn register_keys(session: Session) {
+    let editor = session.editor();
+    let editable = editor.editable();
+    let selecting = create_memo(move || session.read(|model| model.tool.kind == ToolKind::Select));
+    let edits = create_memo(move || !selecting.get() || editable.get());
+    let key = |id: &str, label: &'static str, key: Key, enabled: Memo<bool>| {
+        Action::new(format!("logic-grid.{id}"), label, move || {
+            session.update(|model| model.key(key));
+        })
+        .shortcut(Chord::key(key))
+        .enabled(enabled)
+        .register();
+    };
+    let always = create_memo(|| true);
+    Action::new("logic-grid.escape", "Cancel", move || {
         session.update(LogicGridEditor::escape);
-        return true;
+    })
+    .shortcut(Chord::key(Key::Escape))
+    .register();
+    key("delete", "Delete the selection", Key::Delete, edits);
+    key("backspace", "Delete the selection", Key::Backspace, edits);
+    key("rotate-left", "Rotate left", Key::Q, edits);
+    key("rotate-right", "Rotate right", Key::E, edits);
+    key("flip-horizontal", "Flip horizontally", Key::H, edits);
+    key("flip-vertical", "Flip vertically", Key::V, edits);
+    key("scale-down", "Scale down", Key::BracketLeft, always);
+    key("scale-up", "Scale up", Key::BracketRight, always);
+    key("folder-up", "Up to the parent folder", Key::Backtick, always);
+    for (index, hotkey) in HOTBAR_KEYS.into_iter().enumerate() {
+        key(
+            &format!("hotbar.{}", index + 1),
+            "Choose the hotbar slot",
+            hotkey,
+            always,
+        );
     }
-    let editable = session.editable();
-    let edits = matches!(
-        press.key,
-        Key::Delete | Key::Backspace | Key::Q | Key::E | Key::H | Key::V
-    ) && session.read_untracked(|model| model.tool.kind == ToolKind::Select);
-    if edits && !editable {
-        return false;
-    }
-    session.update(|model| model.key(press.key))
 }
 
 #[component]
