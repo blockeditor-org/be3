@@ -284,9 +284,9 @@ async fn perform(
     if saved.manifest.content_type != summary.content_type {
         return Err("The revision has a different file type.".into());
     }
-    // A type whose bytes are not the whole content (`WHOLE_BYTES`, chat's closed segments); its whole
-    // bytes are not content a replica can take, so a revision of it cannot be shown or restored
-    // by bytes yet.
+    // Some types keep parts that their bytes cannot carry (`WHOLE_BYTES` is false: chat's closed
+    // segments). A revision of such a block that has them cannot be shown or restored by bytes
+    // yet.
     if replicas
         .kind(summary.content_type)
         .await

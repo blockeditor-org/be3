@@ -5,8 +5,7 @@ use be_sdk_beui::be_block::Merge;
 
 use super::*;
 
-/// The messages of `order` that show, each with where: they must run down the page in time order
-/// and none may show twice.
+/// The messages of `order` that show: they run down the page in time order, none twice.
 fn shown_in_order(chat: &Harness, order: &[ObjectId]) -> Vec<ObjectId> {
     let shown: Vec<ObjectId> = order
         .iter()
@@ -28,8 +27,9 @@ fn shown_in_order(chat: &Harness, order: &[ObjectId]) -> Vec<ObjectId> {
 
 #[test]
 fn two_closed_segments_that_overlap_show_each_message_once() {
-    // Two devices each closed the oldest messages twice while apart; one had deleted the third
-    // first, so the closes differ and overlap, and the merged index keeps all four entries.
+    // One device closed the oldest messages twice while apart, another once, and had deleted the
+    // third first: the closes differ and overlap, and the merged index keeps all three entries,
+    // the one of the second device after the first's two unless they are put in time order.
     let line = "a line of chat ".repeat(70);
     let mut base = ChatContent::default();
     for index in 0..260 {
@@ -46,44 +46,75 @@ fn two_closed_segments_that_overlap_show_each_message_once() {
     let deleted = base.messages()[2];
     let mut other = base.clone();
     other.apply(&ChatOp::Edit(base.delete(deleted, ROSA, 9)));
-    let theirs = close(&close(&other));
-    let MergeResult::Clean(merged) = ChatContent::merge3(&base, &ours, &theirs) else {
-        panic!("a chat merge never conflicts");
-    };
-    let segments = merged.segments();
-    assert_eq!(segments.len(), 4, "all four segments stay");
-    let order = base.messages();
+    let theirs = close(&other);
+    for (a, b) in [(&ours, &theirs), (&theirs, &ours)] {
+        let MergeResult::Clean(merged) = ChatContent::merge3(&base, a, b) else {
+            panic!("a chat merge never conflicts");
+        };
+        assert_eq!(merged.segments().len(), 3, "all three segments stay");
+        every_message_shows_once(&base, merged, deleted);
+    }
+}
+
+fn every_message_shows_once(base: &ChatContent, merged: ChatContent, deleted: ObjectId) {
+    let order: Vec<ObjectId> = base
+        .messages()
+        .into_iter()
+        .filter(|id| *id != deleted)
+        .collect();
 
     let mut chat = Harness::holding_parts(merged);
+    // Tall enough that every row that is read is laid out, so nothing is hidden by the viewport.
+    chat.editor.set_size(vec2(480.0, 60_000.0));
     chat.editor.advance(Duration::from_millis(500));
     chat.run();
     let recent = chat.content().messages()[0];
 
-    // Scrolled back to the start, the segments are read one at a time, newest first, and after
-    // each read what shows is in order, none twice, whichever segments are still unread.
-    let mut seen = HashSet::new();
-    for _ in 0..8 {
-        chat.editor
-            .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
-        chat.editor.advance(Duration::from_millis(100));
-        chat.run();
-        seen.extend(shown_in_order(&chat, &order));
-        if !chat.editor.shown("chat.older") {
-            break;
-        }
-        chat.click("chat.older");
-        seen.extend(shown_in_order(&chat, &order));
-    }
-    assert!(!chat.editor.shown("chat.older"), "every segment was read");
-
-    // At the very top, the oldest message shows, and the one only the later closes hold shows
-    // too (above the recent ones), each once.
+    // The segments are read one at a time, newest index entry first, and held back between
+    // reads. After each one what shows is a run of the messages in time order, none missing
+    // between them, on to the newest message.
+    chat.editor.store().hold_reads(true);
     chat.editor
         .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
     chat.editor.advance(Duration::from_millis(100));
-    chat.run();
-    assert!(
-        shown_in_order(&chat, &order).contains(&order[0]),
-        "the oldest message shows"
+    let mut seen: HashSet<ObjectId> = HashSet::new();
+    for _ in 0..8 {
+        // One segment: the reads it asked for go through, then the view settles.
+        let mut released = false;
+        while chat.editor.store().release_read() {
+            released = true;
+        }
+        chat.run();
+        if !released {
+            match chat.editor.shown("chat.older") {
+                true => {
+                    chat.click("chat.older");
+                    continue;
+                }
+                false => break,
+            }
+        }
+        let shown = shown_in_order(&chat, &order);
+        let first = order
+            .iter()
+            .position(|id| *id == shown[0])
+            .expect("a shown message");
+        assert_eq!(
+            shown,
+            order[first..first + shown.len()],
+            "what shows has no gap in it"
+        );
+        assert_eq!(
+            shown.last(),
+            order.last(),
+            "and it runs on to the newest message"
+        );
+        seen.extend(shown);
+    }
+    assert!(!chat.editor.shown("chat.older"), "every segment was read");
+    assert_eq!(
+        seen,
+        order.iter().copied().collect::<HashSet<_>>(),
+        "every message that was not deleted showed"
     );
 }

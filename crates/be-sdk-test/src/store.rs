@@ -104,6 +104,9 @@ struct Inner {
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
+    /// Part reads wait (held) until released one at a time, to see a view between reads.
+    hold_reads: bool,
+    held_reads: Vec<(Option<Uuid>, Call)>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
@@ -150,6 +153,8 @@ impl Default for Inner {
             kept: BTreeSet::new(),
             refused: BTreeMap::new(),
             refusals: 0,
+            hold_reads: false,
+            held_reads: Vec::new(),
             known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
@@ -176,8 +181,8 @@ impl Inner {
         commit
     }
 
-    /// A commit of content with `parts` after its first (`Written`): kept in the vault, so
-    /// `Load` and `ReadPart` answer from it. Content with none is kept whole.
+    /// A commit of content with `parts` (`Written`): kept in the vault, so `Load` and `ReadPart`
+    /// answer from it. Content written whole, with no parts, is kept as its bytes.
     fn write_written(
         &mut self,
         content_type: Uuid,
@@ -306,10 +311,21 @@ impl Inner {
                 if expected != head {
                     return reply.send(&mut self.host, &Ok(PublishOutcome::Rejected(head)));
                 }
+                // Unchanged content keeps the head: its parts' bytes whole are the head's.
                 let unchanged = head.is_some_and(|head| {
-                    content.parts.is_empty()
-                        && !self.manifests.contains_key(&head)
-                        && self.commits[&head] == content.bytes
+                    let whole = match content.parts.is_empty() {
+                        true => Some(content.bytes.clone()),
+                        false => self
+                            .vault
+                            .write(
+                                SEALING,
+                                Uuid::nil(),
+                                be_sdk_type_guest::api::written_parts(&content.bytes, &content.parts),
+                            )
+                            .ok()
+                            .and_then(|manifest| self.vault.read(&manifest).ok()),
+                    };
+                    whole.is_some_and(|whole| whole == self.commits[&head])
                 });
                 let content_type = self
                     .blocks
@@ -365,6 +381,7 @@ impl Inner {
                     .ok_or_else(|| "no such commit".to_owned());
                 reply.send(&mut self.host, &result);
             }
+            call @ Call::ReadPart { .. } if self.hold_reads => self.held_reads.push((block, call)),
             Call::ReadPart { reply, part, range } => {
                 let result = self
                     .vault
@@ -795,6 +812,26 @@ impl ContentStore {
         self.0
             .borrow_mut()
             .put_written(key, C::CONTENT_TYPE, bytes, &parts);
+    }
+
+    /// Holds part reads back until `release_read` lets them through one at a time, so a test can
+    /// look at what an editor shows while only some of the parts it asked for were read.
+    pub fn hold_reads(&self, hold: bool) {
+        self.0.borrow_mut().hold_reads = hold;
+    }
+
+    /// Lets the oldest held part read through; false when none is held.
+    pub fn release_read(&self) -> bool {
+        let mut inner = self.0.borrow_mut();
+        if inner.held_reads.is_empty() {
+            return false;
+        }
+        let (block, call) = inner.held_reads.remove(0);
+        let held = std::mem::replace(&mut inner.hold_reads, false);
+        inner.act(block, call);
+        inner.hold_reads = held;
+        inner.run();
+        true
     }
 
     pub fn keep_history<C: Undo + Merge + Clone + Default + 'static>(&self, block: Option<Uuid>) {
