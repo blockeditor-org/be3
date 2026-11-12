@@ -27,6 +27,10 @@ use beui_types::{
 };
 
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
+/// How long a caret blinks after it last moved before it stays shown and stops
+/// asking for frames, as GTK and Chrome stop after about ten seconds: ten blinks,
+/// so it stops at the start of a shown phase.
+pub const CARET_BLINKS_FOR: Duration = Duration::from_millis(530 * 2 * 10);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
 use beui_types::text::{FontPatch, IconSpan};
@@ -750,13 +754,13 @@ impl TextNode {
             }
         }
         let blinking = doc.motion().animates() && self.carets.iter().any(|caret| caret.blink);
-        let shown = match blinking {
+        let elapsed = painter
+            .ctx()
+            .now()
+            .saturating_duration_since(self.since.get());
+        let shown = match blinking && elapsed < CARET_BLINKS_FOR {
             true => {
-                let elapsed = painter
-                    .ctx()
-                    .now()
-                    .saturating_duration_since(self.since.get())
-                    .as_nanos();
+                let elapsed = elapsed.as_nanos();
                 let interval = CARET_BLINK.as_nanos();
                 let remaining = interval - elapsed % interval;
                 painter

@@ -105,6 +105,12 @@ view's top-left, cropped and never stretched (`presenter.rs`, `unstretched`).
 In the browser the answer always lands in a later frame, since the host
 cannot block on a worker.
 
+Each frame an app draws is two steps of its guest: one lays out and sends
+`laid-out`, the next paints. The calls an app makes without waiting on them
+(`layout`, `laid-out`, `frame-needed`, `missing-characters`) are answered with
+the next thing the host sends it (`Wire::acks`), since an answer alone would
+step it for nothing.
+
 A call that changes nothing drawn costs no frame, and a frame runs only the
 instances something touched, so an idle instance costs nothing. Work off the
 frame (the PDF editor renders pages on its own thread) asks for a frame
