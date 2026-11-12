@@ -6,11 +6,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll, Waker},
 };
-use std::{
-    cell::RefCell,
-    collections::HashSet,
-    sync::Arc,
-};
+use std::{cell::RefCell, collections::HashSet, sync::Arc};
 
 use be_wasm_gpu_abi::{device as abi, guest::device as gpu};
 use wgpu::custom::*;
@@ -139,9 +135,7 @@ fn settle_work(done: Vec<u64>) {
     }
     let done: Vec<Work> = WORK.with(|work| {
         let mut work = work.borrow_mut();
-        let (finished, waiting) = work
-            .drain(..)
-            .partition(|work| done.contains(&work.ticket));
+        let (finished, waiting) = work.drain(..).partition(|work| done.contains(&work.ticket));
         *work = waiting;
         finished
     });
