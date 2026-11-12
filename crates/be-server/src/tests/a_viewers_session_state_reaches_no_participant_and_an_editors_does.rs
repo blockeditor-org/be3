@@ -61,16 +61,32 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
         .await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
 
-    assert_eq!(relayed(&mut owner).await, (viewer, b"presence".to_vec()));
-    assert_eq!(relayed(&mut owner).await, (editor_id, b"submit".to_vec()));
-    assert_eq!(relayed(&mut editor).await, (owner_id, b"accepted".to_vec()));
+    assert_eq!(
+        relayed(&mut owner).await,
+        (viewer, RelayKind::Peer, b"presence".to_vec())
+    );
+    assert_eq!(
+        relayed(&mut owner).await,
+        (editor_id, RelayKind::Edit, b"submit".to_vec())
+    );
+    assert_eq!(
+        relayed(&mut editor).await,
+        (owner_id, RelayKind::Owner, b"accepted".to_vec())
+    );
     harness.stop().await;
 }
 
-async fn relayed(client: &mut TestClient) -> (ClientId, Vec<u8>) {
+/// Who relayed the next message, the kind the server stamped it with, and its payload.
+async fn relayed(client: &mut TestClient) -> (ClientId, RelayKind, Vec<u8>) {
     loop {
-        if let Notice::Relayed { from, payload, .. } = client.notification().await {
-            return (from, payload);
+        if let Notice::Relayed {
+            from,
+            kind,
+            payload,
+            ..
+        } = client.notification().await
+        {
+            return (from, kind, payload);
         }
     }
 }

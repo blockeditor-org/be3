@@ -283,6 +283,10 @@ interface sessions {
 
     record relayed {
         %from: client-id,
+        /// What the server checked its sender may send: a receiver drops a
+        /// message that asks for more. An `append`'s entries are `owner` from
+        /// the owner of their generation and `edit` otherwise.
+        kind: relay-kind,
         payload: list<u8>,
     }
 

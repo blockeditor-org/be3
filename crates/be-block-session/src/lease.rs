@@ -75,15 +75,23 @@ impl Lease {
 
     pub fn leave(&mut self, client: ClientId, now: i64) {
         self.state.participants.retain(|held| *held != client);
+        self.demote(client, now);
+    }
+
+    /// `client` may no longer edit: it stays a participant, and the lease, if it held it, goes
+    /// to the next participant that may. Answers whether it held the lease.
+    pub fn demote(&mut self, client: ClientId, now: i64) -> bool {
         self.editors.retain(|held| *held != client);
-        if self.state.owner == Some(client) {
-            self.state.owner = None;
-            self.state.generation += 1;
-            self.expires = now;
-            if let Some(next) = self.editors.first().copied() {
-                self.grant(next, now);
-            }
+        if self.state.owner != Some(client) {
+            return false;
         }
+        self.state.owner = None;
+        self.state.generation += 1;
+        self.expires = now;
+        if let Some(next) = self.editors.first().copied() {
+            self.grant(next, now);
+        }
+        true
     }
 
     pub fn clean_at(&self) -> Option<be_block_commit::CommitId> {

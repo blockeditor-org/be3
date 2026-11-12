@@ -99,6 +99,7 @@ mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
+mod an_owner_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
@@ -281,6 +282,7 @@ enum Notice {
     Relayed {
         block: Uuid,
         from: ClientId,
+        kind: RelayKind,
         payload: Vec<u8>,
     },
     Paired {
@@ -341,13 +343,16 @@ impl Heard {
                         Poll::Ready(Some(SessionEvent::Changed(state))) => {
                             Poll::Ready(Some(Notice::SessionChanged { block, state }))
                         }
-                        Poll::Ready(Some(SessionEvent::Relayed { from, payload })) => {
-                            Poll::Ready(Some(Notice::Relayed {
-                                block,
-                                from,
-                                payload,
-                            }))
-                        }
+                        Poll::Ready(Some(SessionEvent::Relayed {
+                            from,
+                            kind,
+                            payload,
+                        })) => Poll::Ready(Some(Notice::Relayed {
+                            block,
+                            from,
+                            kind,
+                            payload,
+                        })),
                         Poll::Ready(Some(_)) => continue,
                         other => other.map(|_| None),
                     };

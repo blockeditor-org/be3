@@ -383,15 +383,19 @@ rebase. The rules an agent most needs:
   lands, the snapshot starts at a head that holds it; before that it still
   names the part, so the follower waits. Giving up is never a divergence, only
   bytes that do not decode are. A follower heeds `Accepted`, `Snapshot`,
-  `Sealed`, `Replaced` and `Resend` from the owner alone and ignores `Submit`,
-  `Catchup` and `Kept` (`not_heeded`), before it reads any part they name. One
-  from a sender it did not know as the owner is remembered, and it asks to be
-  caught up should that sender become the owner. The server checks the sender
-  too: `send` names a `relay-kind` (`Wire::kind`), `peer` for presence,
-  channel messages, `Catchup` and the tag handshake, `edit` for `Submit` and
-  `Kept`, `owner` for the rest, and the server relays `edit` only from an
-  editor and `owner` only from the lease's owner, which is always an editor
-  (guides/blocks/server.md). The server holds a
+  `Sealed`, `Replaced`, `Saved` and `Resend` from the owner alone and ignores
+  `Submit`, `Catchup` and `Kept` (`not_heeded`), before it reads any part they
+  name. One from a sender it did not know as the owner is remembered, and it
+  asks to be caught up should that sender become the owner. The server checks
+  the sender too: `send` names a `relay-kind` (`Wire::kind`), `peer` for
+  presence, channel messages, `Catchup` and the tag handshake, `edit` for
+  `Submit` and `Kept`, `owner` for the rest; the server relays `edit` only from
+  an editor and `owner` only from the lease's owner, which is always an editor
+  (guides/blocks/server.md), and hands each message on with the kind it checked
+  (`message`'s `delivery`). Since the kind is the sender's label, every replica,
+  owner included, drops a message that asks for more than its stamped kind
+  (`Wire::sent_as`), before it reads any part it names: a viewer's `Submit`
+  labelled as presence is never applied. The server holds a
   part for the whole upload grace (a day), and longer while the block's journal holds
   entries, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.

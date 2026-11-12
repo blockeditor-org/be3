@@ -309,6 +309,8 @@ enum Replayed {
         from: Endpoint,
         bytes: Vec<u8>,
         at: u64,
+        /// What the server says of a peer's message.
+        delivery: Option<be_sdk_type_api::Delivery>,
     },
     Moved {
         head: CommitId,
@@ -339,8 +341,13 @@ impl Replayed {
             Replayed::Change { change, .. } => {
                 return Some(replica.change(connection, change).op());
             }
-            Replayed::Message { from, bytes, at } => {
-                replica.message(connection, from, bytes, at);
+            Replayed::Message {
+                from,
+                bytes,
+                at,
+                delivery,
+            } => {
+                replica.message(connection, from, bytes, at, delivery);
             }
             Replayed::Moved { head } => {
                 replica.head_moved(connection, head);
@@ -1168,6 +1175,7 @@ impl<H: Host> Replicas<H> {
                 from: Endpoint::Editor(editor),
                 bytes,
                 at,
+                delivery: None,
             },
         );
     }
@@ -1823,6 +1831,7 @@ impl<H: Host> Replicas<H> {
             Event::Relayed {
                 block,
                 from,
+                kind,
                 payload,
             } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
@@ -1847,6 +1856,7 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Peer(*from),
                     bytes,
                     at: self.modules.now(),
+                    delivery: Some(be_sdk_type_api::Delivery { kind: *kind }),
                 };
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining

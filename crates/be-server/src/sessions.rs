@@ -163,6 +163,16 @@ impl SessionRegistry {
             .then(|| lease.state().clone())
     }
 
+    /// `client` may no longer edit `block`: answers the session's state if that took the lease
+    /// from it.
+    pub async fn demote(&self, block: Place, client: ClientId) -> Option<SessionState> {
+        let mut sessions = self.sessions.lock().await;
+        let lease = sessions.leases.get_mut(&block)?;
+        lease
+            .demote(client, now_milliseconds())
+            .then(|| lease.state().clone())
+    }
+
     pub async fn blocks_of(&self, client: ClientId) -> Vec<Place> {
         self.sessions
             .lock()

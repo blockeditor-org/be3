@@ -10,8 +10,8 @@ use be_block_protocol::ClientId;
 use be_block_session::{Lease, Resume};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
-    Recipients, SessionTag, Status, UndoState,
+    Change, Delivery, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
+    Recipients, RelayKind, SessionTag, Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -83,6 +83,7 @@ mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_on
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
+mod a_submit_relayed_as_less_than_it_asks_is_not_applied;
 mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_is_lacking_until_the_server_holds_it;
@@ -395,6 +396,8 @@ fn opening(
 
 struct Device {
     client: ClientId,
+    /// Whether its account may edit the block; a viewer's is not, which the server holds it to.
+    may_edit: bool,
     module: Option<Module>,
     executor: Option<Executor>,
     host: Connection,
@@ -467,6 +470,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             devices: (0..devices)
                 .map(|index| Device {
                     client: index as ClientId + 1,
+                    may_edit: true,
                     module: None,
                     executor: None,
                     host: Connection::new(Side::Host),
@@ -620,7 +624,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         held.clock = None;
         held.sleeping.clear();
         held.released = false;
-        self.lease.join(client, true, self.now as i64);
+        let may_edit = self.devices[device].may_edit;
+        self.lease.join(client, may_edit, self.now as i64);
         self.to(device, |host| {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
@@ -723,7 +728,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
         let now = self.now;
         self.with_replica(device, |replica, host| {
-            replica.message(host, Endpoint::Editor(editor), message.encode(), now)
+            replica.message(host, Endpoint::Editor(editor), message.encode(), now, None)
         });
     }
 
@@ -988,9 +993,22 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.devices[device].sleeping.push((at, reply));
             }
             Call::Send {
-                reply, to, bytes, ..
+                reply,
+                to,
+                kind,
+                bytes,
             } => {
                 self.to(device, |host| reply.send(host, &()));
+                // As the server: what the sender may not send reaches no one.
+                let may_edit = self.devices[device].may_edit;
+                let allowed = match kind {
+                    RelayKind::Peer => true,
+                    RelayKind::Edit => may_edit,
+                    RelayKind::Owner => may_edit && self.lease.state().is_owner(client),
+                };
+                if !allowed && !matches!(to, Recipients::One(Endpoint::Editor(_))) {
+                    return;
+                }
                 match to {
                     Recipients::One(Endpoint::Editor(editor)) => {
                         let message = ToEditor::decode(&bytes).expect("an editor message");
@@ -1007,7 +1025,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     }
                     Recipients::One(Endpoint::Peer(peer)) => {
                         if let Some(to) = self.device_of(peer) {
-                            self.relay(to, client, bytes);
+                            self.relay_as(to, client, kind, bytes);
                         }
                     }
                     Recipients::One(Endpoint::Host) => {}
@@ -1018,7 +1036,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                                 continue;
                             }
                             if let Some(to) = self.device_of(peer) {
-                                self.relay(to, client, bytes.clone());
+                                self.relay_as(to, client, kind, bytes.clone());
                             }
                         }
                     }
@@ -1147,6 +1165,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::ClaimLease { reply, generation } => {
                 self.to(device, |host| reply.send(host, &()));
+                if !self.devices[device].may_edit {
+                    return;
+                }
                 self.lease.claim(client, generation, self.now as i64);
                 self.lease_changed(None);
             }
@@ -1169,7 +1190,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 if self.unheld_appends {
                     return self.to(device, |host| reply.send(host, &false));
                 }
+                if !self.devices[device].may_edit {
+                    return self.to(device, |host| reply.send(host, &false));
+                }
                 self.to(device, |host| reply.send(host, &true));
+                let state = self.lease.state();
+                let kind = match state.is_owner(client) && state.generation == generation {
+                    true => RelayKind::Owner,
+                    false => RelayKind::Edit,
+                };
                 if relay {
                     let participants = self.lease.state().participants.clone();
                     for entry in &entries {
@@ -1178,7 +1207,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                                 continue;
                             }
                             if let Some(to) = self.device_of(*peer) {
-                                self.relay(to, client, entry.payload.clone());
+                                self.relay_as(to, client, kind, entry.payload.clone());
                             }
                         }
                     }
@@ -1274,14 +1303,21 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.settle();
     }
 
+    /// Hands `to` a message as relayed from `from` by a server that checked it as the owner's.
     fn relay(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {
+        self.relay_as(to, from, RelayKind::Owner, bytes);
+    }
+
+    /// Hands `to` a message as relayed from `from` by a server that checked it as `kind`.
+    fn relay_as(&mut self, to: usize, from: ClientId, kind: RelayKind, bytes: Vec<u8>) {
         self.largest_relay = self.largest_relay.max(bytes.len());
         if self.deaf.contains(&to) {
             return;
         }
         let now = self.now;
+        let delivery = Some(Delivery { kind });
         self.with_replica(to, |replica, host| {
-            replica.message(host, Endpoint::Peer(from), bytes, now)
+            replica.message(host, Endpoint::Peer(from), bytes, now, delivery)
         });
     }
 }

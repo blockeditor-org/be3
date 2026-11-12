@@ -43,6 +43,7 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
         block: on,
         from,
         payload,
+        ..
     } = relayed
     else {
         panic!("the relay never arrived: {relayed:?}");

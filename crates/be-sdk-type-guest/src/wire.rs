@@ -33,6 +33,17 @@ impl Wire {
         }
     }
 
+    /// Whether a message the server relayed as `kind` may say this: what the server checked
+    /// covers what it asks for. A viewer could label a `Submit` as presence; it is dropped.
+    pub fn sent_as(&self, kind: RelayKind) -> bool {
+        let rank = |kind: RelayKind| match kind {
+            RelayKind::Peer => 0,
+            RelayKind::Edit => 1,
+            RelayKind::Owner => 2,
+        };
+        rank(self.kind()) <= rank(kind)
+    }
+
     pub fn decode(bytes: &[u8]) -> Option<Self> {
         be_block_protocol::decode(bytes).ok()
     }

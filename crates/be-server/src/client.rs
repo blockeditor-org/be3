@@ -157,8 +157,8 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
                 kind: RelayKind::Peer,
                 ..
             } => Rule::Session(this.op(), Access::View),
-            // Operations and session state change the block: an owner, which
-            // `SessionRelay` checks, claimed with edit access.
+            // `edit` and `owner` relays carry operations or session state, so need edit
+            // access; `SessionRelay` also checks that an `owner` relay's sender holds the lease.
             embed::sessions::Call::SessionRelay { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
             }
@@ -715,12 +715,14 @@ impl Client {
                 Push::Relayed {
                     block,
                     from,
+                    kind,
                     payload,
                 } => {
                     streams.send(
                         &mut lock,
                         SessionEvent::Relayed {
                             from,
+                            kind,
                             payload: payload.to_vec(),
                         },
                         sessions(block),
@@ -2099,6 +2101,24 @@ impl Client {
                 let beat = async {
                     prelude?;
                     let block = block?;
+                    // An owner that lost edit access since it took the lease hands it on, so
+                    // the session is not held by one whose edits are refused.
+                    if connection
+                        .registry
+                        .state(block)
+                        .await
+                        .is_owner(connection.client)
+                        && connection
+                            .store
+                            .require_access(connection.identity()?, vec![block.block], Access::Edit)
+                            .await
+                            .is_err()
+                        && let Some(state) =
+                            connection.registry.demote(block, connection.client).await
+                    {
+                        connection.announce(block, &state).await;
+                        return Ok(state);
+                    }
                     Ok::<SessionState, ServerError>(
                         match connection
                             .registry
@@ -2140,6 +2160,7 @@ impl Client {
                     let message = Push::Relayed {
                         block,
                         from: connection.client,
+                        kind,
                         payload: payload.into(),
                     };
                     match to {
@@ -2186,7 +2207,8 @@ impl Client {
                             MAX_RELAY_BYTES,
                         )?;
                     }
-                    if state.is_owner(connection.client) && state.generation == generation {
+                    let owns = state.is_owner(connection.client) && state.generation == generation;
+                    if owns {
                         connection
                             .store
                             .append_journal(
@@ -2204,6 +2226,10 @@ impl Client {
                             let message = Push::Relayed {
                                 block,
                                 from: connection.client,
+                                kind: match owns {
+                                    true => RelayKind::Owner,
+                                    false => RelayKind::Edit,
+                                },
                                 payload: entry.payload.into(),
                             };
                             connection

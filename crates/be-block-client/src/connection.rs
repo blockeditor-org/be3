@@ -84,6 +84,8 @@ pub enum Event {
     Relayed {
         block: Uuid,
         from: ClientId,
+        /// What the server checked the sender may send (`relayed.kind`).
+        kind: RelayKind,
         payload: Vec<u8>,
     },
     Paired(PairingMessage),
@@ -408,9 +410,14 @@ impl Connection {
                 while let Some(event) = joining.recv().await {
                     let _ = events.send(match event {
                         SessionEvent::Changed(state) => Event::SessionChanged { block, state },
-                        SessionEvent::Relayed { from, payload } => Event::Relayed {
+                        SessionEvent::Relayed {
+                            from,
+                            kind,
+                            payload,
+                        } => Event::Relayed {
                             block,
                             from,
+                            kind,
                             payload,
                         },
                         SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,

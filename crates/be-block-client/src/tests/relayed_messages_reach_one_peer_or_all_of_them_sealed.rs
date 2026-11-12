@@ -17,6 +17,7 @@ async fn heard(
             block: relayed,
             from,
             payload,
+            ..
         } = events.recv().await.unwrap()
             && relayed == block
         {

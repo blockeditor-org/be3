@@ -9,7 +9,7 @@ use be_block_session::{
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
     Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
+    Delivery, Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
 };
 use uuid::Uuid;
 
@@ -130,6 +130,8 @@ pub(crate) enum Input {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
+        /// What the server says of a peer's message.
+        delivery: Option<Delivery>,
     },
     Attach {
         editor: EditorId,
@@ -216,6 +218,8 @@ enum Job<C> {
     Heard {
         from: ClientId,
         wire: Option<Wire>,
+        /// What the server checked the sender may send.
+        kind: RelayKind,
     },
     Seal {
         sealing: Sealing,
@@ -609,9 +613,11 @@ where
             Input::Message {
                 from: Endpoint::Peer(from),
                 bytes,
+                delivery,
             } => self.jobs.push_back(Job::Heard {
                 from,
                 wire: Wire::decode(&bytes),
+                kind: delivery.map_or(RelayKind::Peer, |delivery| delivery.kind),
             }),
             Input::Appended {
                 from,
@@ -835,10 +841,11 @@ where
             if let Job::Heard {
                 from,
                 wire: Some(wire),
+                kind,
             } = job
             {
                 let (from, wire) = (*from, wire.clone());
-                if self.not_heeded(from, &wire) {
+                if !wire.sent_as(*kind) || self.not_heeded(from, &wire) {
                     self.jobs.pop_front();
                     continue;
                 }
@@ -1132,6 +1139,7 @@ where
             | SessionMessage::Snapshot { .. }
             | SessionMessage::Sealed { .. }
             | SessionMessage::Replaced { .. }
+            | SessionMessage::Saved { .. }
             | SessionMessage::Resend => {
                 let ignored = Some(from) != self.state.owner;
                 if ignored && !self.ignored_owners.contains(&from) {
@@ -1360,7 +1368,7 @@ where
         }
         match job {
             Job::Input(input) => self.handle(input),
-            Job::Heard { from, wire } => self.heard(from, wire),
+            Job::Heard { from, wire, .. } => self.heard(from, wire),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
             Job::Replace {
@@ -1423,6 +1431,7 @@ where
             Input::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
+                ..
             } => {
                 if let Some(message) = FromEditor::decode(&bytes) {
                     self.handle_editor(editor, message);
