@@ -8,7 +8,7 @@ fn opened_first(opened: &mut HashSet<EditorInstanceId>, sent: &[Outbound]) {
     for outbound in sent {
         match outbound {
             Outbound::Open(opening) => {
-                assert!(opened.insert(opening.instance()), "an editor opened twice");
+                assert!(opened.insert(opening.instance), "an editor opened twice");
             }
             outbound => {
                 if let Some(instance) = outbound.instance() {

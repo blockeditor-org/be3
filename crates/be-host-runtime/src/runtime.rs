@@ -9,7 +9,7 @@ use std::{
 
 use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId,
-    FrameSpec, HostPanel, HostTransform, LayoutCommit, Opening, PresentCommit, PresentedFrame,
+    FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PresentedFrame,
     PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
     ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
 };
@@ -670,7 +670,7 @@ impl Runtime {
             matches!(
                 message,
                 Outbound::Open(opening)
-                    if matches!(**opening, Opening::Block(_) | Opening::Artifact(_))
+                    if matches!(opening.kind, OpeningKind::Block(_) | OpeningKind::Artifact(_))
             )
         });
         self.pacing.need_if(!messages.is_empty());
@@ -1334,11 +1334,18 @@ impl Runtime {
                 }
                 Answer::Shell(mut call) => {
                     self.instances.translate(&mut call, true);
-                    if let be_sdk_api::embed::shell::Call::OpenPalette { instance, mode, .. } =
-                        &call
-                        && self.instances.may_open_palette(*instance)
+                    if let be_sdk_api::embed::shell::Call::Tell {
+                        instance, messages, ..
+                    } = &call
                     {
-                        crate::palette::ask(self.id(), *instance, *mode);
+                        for message in messages {
+                            if let be_sdk_api::shell_types::ShellMessage::OpenPalette(mode) =
+                                message
+                                && self.instances.may_open_palette(*instance)
+                            {
+                                crate::palette::ask(self.id(), *instance, *mode);
+                            }
+                        }
                     }
                     self.instances.shell_call(call)
                 }
@@ -1518,8 +1525,9 @@ impl Runtime {
         if !self.session.running() {
             return;
         }
-        for outbound in std::mem::take(&mut self.queued) {
-            self.backend.send(outbound);
+        let queued = std::mem::take(&mut self.queued);
+        if !queued.is_empty() {
+            self.backend.send(queued);
         }
     }
 
@@ -2475,10 +2483,6 @@ pub fn take_bar_actions(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_
         runtime.instances.take_bar_actions(instance)
     })
     .unwrap_or_default()
-}
-
-pub fn aspect_ratio(app_id: &str, instance: EditorInstanceId) -> Option<f32> {
-    with(app_id, |runtime| runtime.instances.aspect_ratio(instance)).flatten()
 }
 
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {

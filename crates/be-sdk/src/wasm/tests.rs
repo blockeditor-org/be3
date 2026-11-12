@@ -42,9 +42,9 @@ use std::rc::Rc;
 use be_lib_geometry::{Rect, pos2, vec2};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId,
-    HelloAccepted, HostTransform, LayoutCommit, OpenBlock, Opening, ParentView, ScreenId,
-    ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewAnchor, ViewId,
-    ViewPlacement, ViewRef, ViewportMetrics,
+    HelloAccepted, HostTransform, LayoutCommit, OpenBlock, Opening, OpeningKind, ParentView,
+    ScreenId, ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
+    ViewAnchor, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -270,19 +270,21 @@ impl Rig {
             anchor_space: layers,
             fit: false,
         }];
-        screens.deliver(Delivery::Open(Opening::Block(OpenBlock {
+        screens.deliver(Delivery::Open(Opening {
             instance: INSTANCE,
             editor: [6; 16],
-            block_id: [1; 16],
-            block_type: [2; 16],
-            view_block: None,
             account_id: [3; 16],
             organization_id: [4; 16],
             client_id: [5; 16],
-            editable: true,
-            page_origin: String::new(),
-            host_palette: false,
-        })));
+            kind: OpeningKind::Block(OpenBlock {
+                block_id: [1; 16],
+                block_type: [2; 16],
+                view_block: None,
+                editable: true,
+                page_origin: String::new(),
+                host_palette: false,
+            }),
+        }));
         let surfaces = Surfaces::new(spec).expect("the test runner has a gpu");
         Self {
             screens,

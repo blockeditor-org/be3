@@ -14,11 +14,7 @@ fn a_child_asked_full_screen_or_closed_reaches_the_host() {
         "the host reads that its placer shows it full screen"
     );
 
-    instances.shell_call(ShellCall::CloseChild {
-        reply: reply(next_op()),
-        instance: INSTANCE,
-        child: ChildId(1),
-    });
+    tell(&mut instances, ShellMessage::CloseChild(ChildId(1)));
     assert_eq!(instances.take_child_closes(INSTANCE), vec![ChildId(1)]);
     assert!(
         instances.take_child_closes(INSTANCE).is_empty(),

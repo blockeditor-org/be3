@@ -70,6 +70,10 @@ impl<A: Program> Program for SavedPreferences<A> {
         self.program.out_of_step()
     }
 
+    fn connected(&self) -> Option<bool> {
+        self.program.connected()
+    }
+
     fn environment(&self) -> Vec<(String, String)> {
         self.program.environment()
     }

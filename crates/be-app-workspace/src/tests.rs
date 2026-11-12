@@ -691,7 +691,6 @@ fn report_creation_dialog<A: be_sdk_beui::BeuiRoot>(
             child: placement.child,
             available: true,
             intrinsic: None,
-            aspect_ratio: None,
             active: false,
             interaction: be_sdk_beui::InteractionMode::Live,
             capabilities: be_sdk_beui::EditorCapabilities::default(),

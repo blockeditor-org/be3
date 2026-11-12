@@ -1,5 +1,5 @@
 //! What a host that draws the command palette asks of the runtime: whether it draws one
-//! (`open-block.host-palette`), the palettes apps ask it to open (`shell.open-palette`), each
+//! (`open-block.host-palette`), the palettes apps ask it to open (`shell-message.open-palette`), each
 //! view's actions and running one.
 
 use std::cell::RefCell;

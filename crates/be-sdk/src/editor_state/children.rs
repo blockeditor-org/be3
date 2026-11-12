@@ -15,7 +15,6 @@ pub struct ChildState {
     pub available: bool,
     pub active: bool,
     pub intrinsic_size: Option<Vec2>,
-    pub aspect_ratio: Option<f32>,
     pub interaction: Option<InteractionMode>,
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
@@ -54,7 +53,6 @@ impl ChildState {
             intrinsic_size: status
                 .intrinsic
                 .map(|size| Vec2::new(size.width, size.height)),
-            aspect_ratio: status.aspect_ratio,
             interaction: Some(status.interaction),
             capabilities: status.capabilities,
             resize: status.resize,
