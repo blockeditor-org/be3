@@ -29,6 +29,10 @@ fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_s
         .expect("the counter's owner sent its seal");
     add(block, 4);
     wait_for_count(block, 7);
+    // Alone in its session, the owner appends what it sequenced once `APPEND_INTERVAL` passes.
+    wait_until("counted the edit as not yet journaled", |shared| {
+        shared.undurable > 0
+    });
     harness
         .clock
         .advance(Duration::from_millis(be_sdk_type_guest::APPEND_INTERVAL));
