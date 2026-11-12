@@ -22,7 +22,6 @@ fn a_restarted_app_hears_its_childrens_statuses_again() {
         child: ChildId(7),
         available: true,
         intrinsic: None,
-        aspect_ratio: None,
         active: false,
         interaction: Default::default(),
         capabilities: Default::default(),

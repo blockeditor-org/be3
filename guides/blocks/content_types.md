@@ -58,11 +58,19 @@ A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads only the root's
 first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
 that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
-replica's followers and editors are sent. Its editors read the rest by range
+replica's followers and editors are sent. Most such types (a file, an index) have an `encode` that is the whole
+content anyway, so a copy through bytes loses nothing. A type whose `encode` leaves parts out
+sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`): chat's `decode(encode())`
+is a view, the header's index entries with no part behind them, and saving it writes the
+header alone. Whole-bytes paths (Replace, import) therefore cannot carry its parts (`be sync` has no file form for chat),
+and Duplicate, export, `be` transfer, version control's re-listing and revision preview or
+restore refuse such a block when it has parts after its first; only `from_stored`, `parts` and
+`MergeParts` carry them. Its editors read the rest by range
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`
-(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes.
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's merge by parts reads the segments it
+settles and never conflicts (plans/chat.md).
 
 ## Documents: `be_block_model`
 

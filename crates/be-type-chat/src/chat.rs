@@ -1,6 +1,6 @@
 use be_block::{
-    BlockContent, BlockMetadata, ChildChange, ContentError, LiveEdit, Loads, Merge, Part, Root,
-    Stored, Undo,
+    BlockContent, BlockMetadata, ChildChange, ContentError, LiveEdit, Loads, Merge, MergeParts,
+    Part, PartReader, PartRef, Root, Stored, Undo,
 };
 use be_block_commit::MergeResult;
 use std::collections::BTreeMap;
@@ -12,6 +12,7 @@ use be_block_model::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::segment;
 use crate::signed::{MessageHash, Signed};
 
 /// The chat's header, the first part of its stored form and the only one 1a writes: the
@@ -32,7 +33,8 @@ pub struct ChatHeader {
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
     pub deletions: LatestMap<ObjectId, Deletion>,
     pub reactions: LatestMap<ReactionKey, Reaction>,
-    /// The closed segments, oldest first. None is closed yet.
+    /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
+    /// yet.
     pub segments: Series<Segment>,
 }
 
@@ -97,9 +99,11 @@ pub struct Reaction {
     pub signature: Signature,
 }
 
-/// A closed segment's entry in the index: its first and last message, their times and how
-/// many messages it holds.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+/// A closed segment's entry in the index: its first and last message, their times, how many
+/// messages it holds, and what its part must be (its length and hash), so a read of it is
+/// checked and an editor finds it by range without reading it. `members` lets a reader tell
+/// whether a message may be in it (a Bloom filter, `Segment::may_hold`).
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(default)]
 pub struct Segment {
     pub first: ObjectId,
@@ -107,6 +111,13 @@ pub struct Segment {
     pub from: i64,
     pub to: i64,
     pub count: u64,
+    /// The part's length in bytes.
+    pub length: u64,
+    /// SHA-256 of the part's bytes.
+    #[serde(with = "serde_bytes")]
+    pub hash: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub members: Vec<u8>,
 }
 
 impl Message {
@@ -196,12 +207,54 @@ impl Root for ChatHeader {
 }
 
 /// A chat block's content, written by hand rather than derived, as `Blob` is: it wraps the
-/// header document, the only part a replica loads (`Loads::FirstPart`), and forwards
-/// `LiveEdit`, `Merge` and `Undo` to it. The segments (plans/chat.md, step 1d) will be the
-/// parts after it.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+/// header document, the only part a replica loads (`Loads::FirstPart`), and the segments after
+/// it, which are the other parts. It forwards `LiveEdit`, `Merge` and `Undo` to the header.
+#[derive(Clone, Debug, Default)]
 pub struct ChatContent {
     header: Document<ChatHeader>,
+    /// Each closed segment's part, in the order of the header's index.
+    held: Vec<Held>,
+}
+
+impl PartialEq for ChatContent {
+    fn eq(&self, other: &Self) -> bool {
+        self.header == other.header
+    }
+}
+
+impl Eq for ChatContent {}
+
+/// A closed segment's part: its bytes, when this replica closed it or saw it closed and has not
+/// saved it yet; the part a save reuses; or neither, for an editor that was sent only the header.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Held {
+    Bytes(Vec<u8>),
+    Saved(PartRef),
+    Absent,
+}
+
+/// An operation on a chat.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum ChatOp {
+    /// A change to the header: a message sent, edited or deleted, a reaction.
+    Edit(Edit),
+    /// The oldest recent messages become a segment: the header's change (they leave its
+    /// messages, the index gains an entry) and the segment's bytes. Every replica that applies
+    /// it holds the bytes, so an owner that takes the session over can save the part.
+    Close(Closing),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Closing {
+    pub edit: Edit,
+    #[serde(with = "serde_bytes")]
+    pub bytes: Vec<u8>,
+}
+
+impl From<Edit> for ChatOp {
+    fn from(edit: Edit) -> Self {
+        Self::Edit(edit)
+    }
 }
 
 /// A message as an editor shows it: what it says now and who reacted how.
@@ -269,27 +322,42 @@ impl ChatContent {
 
     /// Every recent message as an editor shows it, reading each map once.
     pub fn shown(&self) -> Vec<Shown> {
-        let edits = self.edits();
-        let mut reactions = grouped_reactions(&self.reaction_map(), &self.deletions());
-        self.messages()
+        let recent: Vec<(ObjectId, Message)> = self
+            .messages()
             .into_iter()
-            .filter_map(|id| {
-                let message = self.message(id)?;
+            .filter_map(|id| Some((id, self.message(id)?)))
+            .collect();
+        self.shown_of(recent)
+    }
+
+    /// `messages` (recent ones, or those a closed segment holds) as an editor shows them: what
+    /// each says now and who reacted how, leaving out those deleted since they were closed.
+    pub fn shown_of(&self, messages: Vec<(ObjectId, Message)>) -> Vec<Shown> {
+        let edits = self.edits();
+        let deletions = self.deletions();
+        let mut reactions = grouped_reactions(&self.reaction_map(), &deletions);
+        messages
+            .into_iter()
+            .filter(|(id, _)| !deletions.contains_key(id))
+            .map(|(id, message)| {
                 let edit = edits.get(&id).filter(|edit| edit.author == message.author);
-                Some(Shown {
+                Shown {
                     id,
                     body: edit.map_or_else(|| message.body.clone(), |edit| edit.body.clone()),
                     edited: edit.is_some(),
                     reactions: reactions.remove(&id).unwrap_or_default(),
                     message,
-                })
+                }
             })
             .collect()
     }
 
     /// The messages `operation` sends: what an editor marks as sending while the server lacks
     /// the edit (`ContentProjection::lacking`).
-    pub fn sent_in(operation: &Edit) -> Vec<ObjectId> {
+    pub fn sent_in(operation: &ChatOp) -> Vec<ObjectId> {
+        let ChatOp::Edit(operation) = operation else {
+            return Vec::new();
+        };
         let messages = Place {
             object: ObjectId::ROOT,
             field: ChatHeader::MESSAGES.index(),
@@ -313,8 +381,9 @@ impl ChatContent {
 
     /// How many of `messages` (the recent ones, in order) someone who read up to `read` has
     /// read: up to it while it is here; once deleted, up to the message before it, by the
-    /// `Deletion` it left. None when this replica knows nothing of it: another device read a
-    /// message not yet here, so everything here is read.
+    /// `Deletion` it left; none of them when it may be in a closed segment. None when this
+    /// replica knows nothing of it: another device read a message not yet here, so everything
+    /// here is read.
     fn read_through(&self, messages: &[ObjectId], read: ObjectId) -> Option<usize> {
         let deletions = self.deletions();
         let mut at = read;
@@ -322,7 +391,12 @@ impl ChatContent {
             if let Some(index) = messages.iter().position(|id| *id == at) {
                 return Some(index + 1);
             }
-            match deletions.get(&at)?.after {
+            // A message in a closed segment is before every recent one: a replica does not read
+            // the segment to count what is unread after it, so only the recent messages count.
+            let Some(deletion) = deletions.get(&at) else {
+                return self.may_be_closed(at).then_some(0);
+            };
+            match deletion.after {
                 Some(before) => at = before,
                 None => return Some(0),
             }
@@ -544,40 +618,282 @@ fn grouped_reactions(
         .collect()
 }
 
+impl ChatContent {
+    fn from_header(header: Document<ChatHeader>, held: Vec<Held>) -> Self {
+        let mut content = Self { header, held };
+        content.align();
+        content
+    }
+
+    /// Keeps one part per index entry: a replica that has no part for an entry holds none.
+    fn align(&mut self) {
+        let count = self.segments().len();
+        self.held.resize(count, Held::Absent);
+    }
+
+    /// The closed segments' index entries, in time order.
+    pub fn segments(&self) -> Vec<Segment> {
+        self.header
+            .field(ObjectId::ROOT, ChatHeader::SEGMENTS)
+            .into_vec()
+    }
+
+    /// Where each segment's part is in the stored form: after the header, in the order of the
+    /// index. What an editor reads by range (`ContentProjection::live().read_range`); it takes
+    /// the header's length from the header it holds, since the length a snapshot gave goes stale
+    /// as soon as a segment closes.
+    pub fn segment_ranges(&self) -> Vec<std::ops::Range<u64>> {
+        let mut start = self.header.to_bytes().len() as u64;
+        self.segments()
+            .iter()
+            .map(|segment| {
+                let range = start..start.saturating_add(segment.length);
+                start = range.end;
+                range
+            })
+            .collect()
+    }
+
+    /// The oldest recent messages as a segment to close, when the recent ones pass a size: the
+    /// operation that closes them (an editor proposes it only while nothing of its device is
+    /// unconfirmed, plans/chat.md). At least `segment::SMALLEST` bytes of messages close at once, and at least
+    /// `segment::KEPT_RECENT` stay recent.
+    pub fn closing(&self) -> Option<ChatOp> {
+        let recent: Vec<(ObjectId, Message)> = self
+            .messages()
+            .into_iter()
+            .map_while(|id| Some((id, self.message(id)?)))
+            .collect();
+        let sizes: Vec<usize> = recent
+            .iter()
+            .map(|(id, message)| segment::size_of(*id, message))
+            .collect();
+        let total: usize = sizes.iter().sum();
+        if total < segment::SMALLEST + segment::KEPT_RECENT {
+            return None;
+        }
+        let mut taken = 0;
+        let mut count = 0;
+        // Whether the next message would pass the largest segment: what was taken closes alone
+        // then, even under the smallest, so a large message never stalls closing.
+        let mut next_too_large = false;
+        for size in &sizes {
+            if count > 0 && taken + size > segment::LARGEST {
+                next_too_large = true;
+                break;
+            }
+            taken += size;
+            count += 1;
+            if taken >= segment::SMALLEST {
+                break;
+            }
+        }
+        if count == 0
+            || (taken < segment::SMALLEST && !next_too_large)
+            || total - taken < segment::KEPT_RECENT
+        {
+            return None;
+        }
+        let closed = &recent[..count];
+        let bytes = segment::encode(closed);
+        let entry = Segment::of(closed, &bytes);
+        let held = self.header.series(ObjectId::ROOT, ChatHeader::SEGMENTS)?;
+        let mut changes: Vec<Change> = closed.iter().map(|(id, _)| Change::remove(*id)).collect();
+        changes.push(ChatHeader::SEGMENTS.append(ObjectId::ROOT, held, &[entry])?);
+        Some(ChatOp::Close(Closing {
+            edit: changes.into_iter().collect(),
+            bytes,
+        }))
+    }
+
+    /// Whether closing `closing` applies here: the messages its bytes hold are the oldest recent
+    /// ones, as written, and its edit does exactly this much to the header: it removes them from
+    /// the messages and adds the index entry those bytes give (their count, first and last
+    /// message, length and hash), so an index never describes bytes it was not made from.
+    fn closes_here(&self, closing: &Closing) -> bool {
+        let Some(closed) = segment::decode(&closing.bytes) else {
+            return false;
+        };
+        let recent = self.messages();
+        if closed.is_empty()
+            || closed.len() > recent.len()
+            || !closed.iter().zip(&recent).all(|((id, message), recent)| {
+                id == recent && self.message(*id).as_ref() == Some(message)
+            })
+        {
+            return false;
+        }
+        let mut after = self.header.clone();
+        LiveEdit::apply(&mut after, &closing.edit);
+        let mut expected = self.segments();
+        expected.push(Segment::of(&closed, &closing.bytes));
+        let now = Self {
+            header: after,
+            held: Vec::new(),
+        };
+        now.segments() == expected && now.messages() == recent[closed.len()..]
+    }
+
+    fn close(&mut self, closing: &Closing) {
+        if !self.closes_here(closing) {
+            return;
+        }
+        LiveEdit::apply(&mut self.header, &closing.edit);
+        self.align();
+        if let Some(held) = self.held.last_mut() {
+            *held = Held::Bytes(closing.bytes.clone());
+        }
+    }
+
+    /// The part of `segment`, as one side of a merge holds it: matched by the whole entry
+    /// (which opens at the same message as another when two closes overlap, but not in count,
+    /// last message, length and hash).
+    fn held_of(&self, segment: &Segment) -> Option<&Held> {
+        let at = self.segments().iter().position(|held| held == segment)?;
+        self.held.get(at)
+    }
+
+    /// The messages of every closed segment this replica holds as bytes (not those it saved
+    /// and holds as parts), in index order, repeating a message that two overlapping segments hold.
+    #[cfg(test)]
+    pub(crate) fn closed_messages_held_as_bytes(&self) -> Vec<ObjectId> {
+        let segments = self.segments();
+        self.held
+            .iter()
+            .zip(&segments)
+            .filter_map(|(held, segment)| match held {
+                Held::Bytes(bytes) => segment.read(bytes),
+                _ => None,
+            })
+            .flatten()
+            .map(|(id, _)| id)
+            .collect()
+    }
+
+    /// The messages of segments read back (each in the order of its part), as one run of messages
+    /// in order, each once, in time linear in the messages: segments closed apart can overlap, and an unseen message goes after
+    /// the message before it in its own segment (or before the first of its segment already
+    /// there), so the run keeps every segment's order.
+    pub fn weave(segments: &[&[(ObjectId, Message)]]) -> Vec<(ObjectId, Message)> {
+        // A doubly linked run: placing a message after another is constant time, so the whole
+        // weave is linear in the messages.
+        type Link = Option<ObjectId>;
+        let mut next: std::collections::HashMap<Link, Link> = std::collections::HashMap::new();
+        let mut prev: std::collections::HashMap<ObjectId, Link> = std::collections::HashMap::new();
+        let mut held: std::collections::HashMap<ObjectId, &Message> =
+            std::collections::HashMap::new();
+        next.insert(None, None);
+        let mut tail: Link = None;
+        for segment in segments {
+            // Its unseen messages go after the one before its first message already there, or at
+            // the end when none is.
+            let mut place: Link = match segment.iter().find(|(id, _)| held.contains_key(id)) {
+                Some((first, _)) => prev[first],
+                None => tail,
+            };
+            for (id, message) in *segment {
+                if held.contains_key(id) {
+                    place = Some(*id);
+                    continue;
+                }
+                let following = next[&place];
+                next.insert(place, Some(*id));
+                next.insert(Some(*id), following);
+                prev.insert(*id, place);
+                match following {
+                    Some(following) => {
+                        prev.insert(following, Some(*id));
+                    }
+                    None => tail = Some(*id),
+                }
+                held.insert(*id, message);
+                place = Some(*id);
+            }
+        }
+        let mut run = Vec::with_capacity(held.len());
+        let mut at = next[&None];
+        while let Some(id) = at {
+            run.push((id, held[&id].clone()));
+            at = next[&Some(id)];
+        }
+        run
+    }
+
+    /// Whether `message` may be in a closed segment, rather than recent or unknown here.
+    pub fn may_be_closed(&self, message: ObjectId) -> bool {
+        self.segments()
+            .iter()
+            .any(|segment| segment.may_hold(message))
+    }
+
+    /// The messages of the segment at `index` as its part's `bytes` hold them, if they are its
+    /// part (length and hash match the index).
+    pub fn read_segment(&self, index: usize, bytes: &[u8]) -> Option<Vec<(ObjectId, Message)>> {
+        self.segments().get(index)?.read(bytes)
+    }
+}
+
 impl BlockContent for ChatContent {
     const CONTENT_TYPE: Uuid = ChatHeader::CONTENT_TYPE;
 
     const LOADS: Loads = Loads::FirstPart;
 
+    /// `encode` is the header: the closed segments are parts after it.
+    const WHOLE_BYTES: bool = false;
+
     fn schema() -> String {
         format!("chat 1\n{}", ChatHeader::kind().describe())
     }
 
+    /// The header, the only part a replica sends its editors.
     fn encode(&self) -> Vec<u8> {
         self.header.to_bytes()
     }
 
     fn decode(bytes: &[u8]) -> Result<Self, ContentError> {
         Document::from_bytes(bytes)
-            .map(|header| Self { header })
+            .map(|header| Self::from_header(header, Vec::new()))
             .map_err(|_| ContentError::Malformed("chat header"))
     }
 
-    /// The header as the first part; the segments will follow it.
+    /// The header, then each closed segment: its bytes while this replica holds them, or the
+    /// part it was saved as.
     fn parts(&self) -> Part<'_> {
-        Part::node(vec![self.header.vault_parts()])
+        if self.held.contains(&Held::Absent) {
+            // A replica that lacks a segment's bytes (a chat rebuilt from the header alone) saves
+            // the header alone, never a placeholder part: what it loads back still lacks them,
+            // and a merge sees that.
+            return Part::node(vec![self.header.vault_parts()]);
+        }
+        let mut parts = vec![self.header.vault_parts()];
+        parts.extend(self.held.iter().map(|held| match held {
+            Held::Bytes(bytes) => Part::from(bytes),
+            Held::Saved(part) => Part::Reused(*part),
+            Held::Absent => unreachable!("checked above"),
+        }));
+        Part::node(parts)
     }
 
     fn from_stored(stored: &Stored) -> Result<Self, ContentError> {
-        let header = match stored.root.as_ref().and_then(|root| root.children.first()) {
+        let root = stored.root.as_ref();
+        let header = match root.and_then(|root| root.children.first()) {
             Some(first) => Document::from_stored(&Stored {
                 bytes: stored.bytes_of(first).to_vec(),
                 root: Some(first.clone()),
             }),
             None => Document::from_bytes(&stored.bytes),
         };
+        let held = root
+            .map(|root| {
+                root.children
+                    .iter()
+                    .skip(1)
+                    .map(|child| Held::Saved(child.reference))
+                    .collect()
+            })
+            .unwrap_or_default();
         header
-            .map(|header| Self { header })
+            .map(|header| Self::from_header(header, held))
             .map_err(|_| ContentError::Malformed("chat header"))
     }
 
@@ -599,42 +915,82 @@ impl BlockContent for ChatContent {
 }
 
 impl LiveEdit for ChatContent {
-    type Op = Edit;
+    type Op = ChatOp;
 
-    fn apply(&mut self, operation: &Edit) {
-        LiveEdit::apply(&mut self.header, operation);
+    fn apply(&mut self, operation: &ChatOp) {
+        match operation {
+            ChatOp::Edit(edit) => LiveEdit::apply(&mut self.header, edit),
+            ChatOp::Close(closing) => self.close(closing),
+        }
     }
 
-    fn apply_touching(&mut self, operation: &Edit, touched: &mut Vec<Touched>) {
-        self.header.apply_touching(operation, touched);
+    fn apply_touching(&mut self, operation: &ChatOp, touched: &mut Vec<Touched>) {
+        match operation {
+            ChatOp::Edit(edit) => self.header.apply_touching(edit, touched),
+            ChatOp::Close(closing) => {
+                self.close(closing);
+                touched.push(Touched::Everything);
+            }
+        }
     }
 
     fn apply_beneath(
         &mut self,
         confirmed: &mut Self,
-        operation: &Edit,
-        local: &[Edit],
+        operation: &ChatOp,
+        local: &[ChatOp],
         touched: &mut Vec<Touched>,
     ) {
+        let edits: Option<Vec<Edit>> = local
+            .iter()
+            .map(|operation| match operation {
+                ChatOp::Edit(edit) => Some(edit.clone()),
+                ChatOp::Close(_) => None,
+            })
+            .collect();
+        match (operation, edits) {
+            (ChatOp::Edit(edit), Some(local)) => {
+                self.header
+                    .apply_beneath(&mut confirmed.header, edit, &local, touched);
+            }
+            _ => {
+                confirmed.apply(operation);
+                *self = confirmed.clone();
+                for pending in local {
+                    self.apply(pending);
+                }
+                touched.push(Touched::Everything);
+            }
+        }
+    }
+
+    fn child_operations(&self, change: ChildChange) -> Option<Vec<ChatOp>> {
         self.header
-            .apply_beneath(&mut confirmed.header, operation, local, touched);
+            .child_operations(change)
+            .map(|edits| edits.into_iter().map(ChatOp::Edit).collect())
     }
 
-    fn child_operations(&self, change: ChildChange) -> Option<Vec<Edit>> {
-        self.header.child_operations(change)
+    fn absorb_operation(operation: &mut ChatOp, next: ChatOp) -> Option<ChatOp> {
+        match (operation, next) {
+            (ChatOp::Edit(operation), ChatOp::Edit(next)) => {
+                <Document<ChatHeader> as LiveEdit>::absorb_operation(operation, next)
+                    .map(ChatOp::Edit)
+            }
+            (_, next) => Some(next),
+        }
     }
 
-    fn absorb_operation(operation: &mut Edit, next: Edit) -> Option<Edit> {
-        <Document<ChatHeader> as LiveEdit>::absorb_operation(operation, next)
-    }
-
-    fn carry_over(operation: &Edit, before: &Self, after: &Self, client: u64) -> Option<Edit> {
-        <Document<ChatHeader> as LiveEdit>::carry_over(
-            operation,
-            &before.header,
-            &after.header,
-            client,
-        )
+    fn carry_over(operation: &ChatOp, before: &Self, after: &Self, client: u64) -> Option<ChatOp> {
+        match operation {
+            ChatOp::Edit(edit) => <Document<ChatHeader> as LiveEdit>::carry_over(
+                edit,
+                &before.header,
+                &after.header,
+                client,
+            )
+            .map(ChatOp::Edit),
+            ChatOp::Close(closing) => after.closes_here(closing).then(|| operation.clone()),
+        }
     }
 
     fn session_state(&self) -> Vec<u8> {
@@ -646,23 +1002,232 @@ impl LiveEdit for ChatContent {
     }
 }
 
-impl Merge for ChatContent {
-    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        match <Document<ChatHeader> as Merge>::merge3(&base.header, &ours.header, &theirs.header) {
-            MergeResult::Clean(header) => MergeResult::Clean(Self { header }),
-            MergeResult::Conflicted { value, conflicts } => MergeResult::Conflicted {
-                value: Self { header: value },
-                conflicts,
-            },
+/// The bytes of closed segments a merge read: whether the side that holds the segment is theirs,
+/// its index entry and its part.
+type SegmentBytes = Vec<(bool, Segment, Vec<u8>)>;
+
+impl ChatContent {
+    /// The segments each side closed since `base`, as what a merge settles: ours that stand and
+    /// theirs that lose. A segment both sides closed is one. When we closed any segment they did
+    /// not, ours stand and theirs that differ lose, since their messages may overlap ours.
+    fn closes_to_settle(base: &Self, ours: &Self, theirs: &Self) -> (Vec<Segment>, Vec<Segment>) {
+        let added = |side: &Self| -> Vec<Segment> {
+            let known = base.segments();
+            side.segments()
+                .into_iter()
+                .filter(|segment| !known.contains(segment))
+                .collect()
+        };
+        let ours_added = added(ours);
+        let demoted = added(theirs)
+            .into_iter()
+            .filter(|segment| !ours_added.is_empty() && !ours_added.contains(segment))
+            .collect();
+        (ours_added, demoted)
+    }
+
+    /// The parts `merged_with` needs: those of the segments `closes_to_settle` names, as the side
+    /// that holds each has them (`true` for theirs).
+    fn settling(base: &Self, ours: &Self, theirs: &Self) -> Vec<(bool, Segment)> {
+        let (ours_added, demoted) = Self::closes_to_settle(base, ours, theirs);
+        ours_added
+            .into_iter()
+            .map(|segment| (false, segment))
+            .chain(demoted.into_iter().map(|segment| (true, segment)))
+            .collect()
+    }
+
+    /// The merge, given the parts `settling` names (none: a plain union, which keeps overlapping
+    /// entries, each with its own part). The header merges as a document, its conflicts resolved
+    /// as it resolves them (a register both sides changed keeps ours; a message object that
+    /// differs keeps ours, and messages are immutable). A segment both sides closed is one. A
+    /// segment only they closed that differs from ours is dropped from the index and its messages
+    /// that are not in ours' segments (and not deleted) go back to the recent ones, so no two
+    /// index entries overlap and no message is lost or repeated. A chat merge never conflicts.
+    fn merged_with(base: &Self, ours: &Self, theirs: &Self, bytes: &SegmentBytes) -> Self {
+        let header = match <Document<ChatHeader> as Merge>::merge3(
+            &base.header,
+            &ours.header,
+            &theirs.header,
+        ) {
+            MergeResult::Clean(header) | MergeResult::Conflicted { value: header, .. } => header,
+        };
+        let mut value = Self {
+            header,
+            held: Vec::new(),
+        };
+        let (ours_added, demoted) = Self::closes_to_settle(base, ours, theirs);
+        let part_of = |is_theirs: bool, segment: &Segment| {
+            bytes
+                .iter()
+                .find(|(theirs, held, _)| *theirs == is_theirs && held == segment)
+                .and_then(|(_, _, bytes)| segment.read(bytes))
+        };
+        let ours_closed: Option<std::collections::HashSet<ObjectId>> = ours_added
+            .iter()
+            .map(|segment| part_of(false, segment))
+            .collect::<Option<Vec<_>>>()
+            .map(|read| read.into_iter().flatten().map(|(id, _)| id).collect());
+        let recent: std::collections::HashSet<ObjectId> = value.messages().into_iter().collect();
+        let mut dropped: Vec<Segment> = Vec::new();
+        let mut restored: Vec<(ObjectId, Message)> = Vec::new();
+        if let Some(ours_closed) = &ours_closed {
+            for segment in &demoted {
+                let Some(messages) = part_of(true, segment) else {
+                    continue;
+                };
+                dropped.push(segment.clone());
+                for (id, message) in messages {
+                    if !recent.contains(&id)
+                        && !ours_closed.contains(&id)
+                        && value.deletion_of(id).is_none()
+                        && !restored.iter().any(|(held, _)| *held == id)
+                    {
+                        restored.push((id, message));
+                    }
+                }
+            }
         }
+        let segments = value.segments();
+        let leaving: Vec<usize> = (0..segments.len())
+            .filter(|index| {
+                segments[..*index].contains(&segments[*index])
+                    || dropped.contains(&segments[*index])
+            })
+            .collect();
+        let mut changes: Vec<Change> = Vec::new();
+        for index in leaving.into_iter().rev() {
+            let Some(held) = value.header.series(ObjectId::ROOT, ChatHeader::SEGMENTS) else {
+                continue;
+            };
+            if let Some(op) = held.delete(index..index + 1) {
+                changes.push(ChatHeader::SEGMENTS.edit(ObjectId::ROOT, op));
+            }
+        }
+        // Their messages go back where they were: before the recent ones, in order.
+        let mut after: Option<ObjectId> = None;
+        for (id, message) in &restored {
+            let anchor = after.map_or(Anchor::Start, Anchor::After);
+            changes.push(ChatHeader::MESSAGES.insert_as(*id, ObjectId::ROOT, anchor, message));
+            after = Some(*id);
+        }
+        if !changes.is_empty() {
+            let edit: Edit = changes.into_iter().collect();
+            LiveEdit::apply(&mut value.header, &edit);
+        }
+        value.order_segments(base);
+        value.held = value
+            .segments()
+            .iter()
+            .map(|segment| {
+                [ours, theirs, base]
+                    .into_iter()
+                    .filter_map(|side| side.held_of(segment))
+                    .find(|held| **held != Held::Absent)
+                    .cloned()
+                    .unwrap_or(Held::Absent)
+            })
+            .collect();
+        value
+    }
+}
+
+impl ChatContent {
+    /// Puts the index in time order. Each side's new entries land in the merged index as one
+    /// block, either first, so the entries new since `base` are sorted by where the message each
+    /// ends at and opens at stood among the recent messages of `base` (unknown ones, sent since,
+    /// last); the entries `base` had stay in front, as they were.
+    fn order_segments(&mut self, base: &Self) {
+        let known: std::collections::HashSet<Segment> = base.segments().into_iter().collect();
+        let position: std::collections::HashMap<ObjectId, usize> = base
+            .messages()
+            .into_iter()
+            .enumerate()
+            .map(|(at, id)| (id, at))
+            .collect();
+        let key = |segment: &Segment| {
+            (
+                position.get(&segment.last).copied().unwrap_or(usize::MAX),
+                position.get(&segment.first).copied().unwrap_or(usize::MAX),
+            )
+        };
+        let segments = self.segments();
+        let (mut wanted, mut added): (Vec<Segment>, Vec<Segment>) = segments
+            .iter()
+            .cloned()
+            .partition(|segment| known.contains(segment));
+        added.sort_by_key(key);
+        wanted.extend(added);
+        if wanted == segments {
+            return;
+        }
+        // Replaces only what differs from the first entry that moves, so the entries `base` had
+        // keep their ids and a merge leaves no tombstone for them.
+        let Some(held) = self.header.series(ObjectId::ROOT, ChatHeader::SEGMENTS) else {
+            return;
+        };
+        if let Some(change) = ChatHeader::SEGMENTS.update(ObjectId::ROOT, held, &wanted) {
+            let edit: Edit = [change].into_iter().collect();
+            LiveEdit::apply(&mut self.header, &edit);
+        }
+    }
+}
+
+impl Merge for ChatContent {
+    /// The merge without reading any part (`merged_with` with none): overlapping entries stay,
+    /// each with its own part, so nothing is lost; `merge_parts` settles them. Never a conflict.
+    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
+        MergeResult::Clean(Self::merged_with(base, ours, theirs, &Vec::new()))
+    }
+}
+
+impl MergeParts for ChatContent {
+    /// The merge reading the parts it settles (`settling`): those a side holds as bytes, or
+    /// saved (read as the host fetches them, and the merge waits for them). A segment whose part
+    /// no side holds at all is not settled: the union keeps its entries.
+    fn merge_parts(
+        base: Self,
+        ours: Self,
+        theirs: Self,
+        parts: PartReader,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>> {
+        Box::pin(async move {
+            let mut bytes = SegmentBytes::new();
+            for (is_theirs, segment) in Self::settling(&base, &ours, &theirs) {
+                // The side that closed it first, then the others: a segment one side holds only
+                // as a view can be held as bytes or saved by another.
+                let sides = match is_theirs {
+                    true => [&theirs, &ours, &base],
+                    false => [&ours, &theirs, &base],
+                };
+                let held = sides
+                    .into_iter()
+                    .filter_map(|side| side.held_of(&segment))
+                    .find(|held| **held != Held::Absent);
+                let read = match held {
+                    Some(Held::Bytes(held)) => held.clone(),
+                    Some(Held::Saved(part)) => parts.read_all(*part).await?,
+                    // A segment whose part no side holds (a chat rebuilt from its header) is not
+                    // settled: its entries stay as they are.
+                    _ => continue,
+                };
+                bytes.push((is_theirs, segment, read));
+            }
+            Ok(MergeResult::Clean(Self::merged_with(
+                &base, &ours, &theirs, &bytes,
+            )))
+        })
     }
 }
 
 impl Undo for ChatContent {
     type Step = Step;
 
-    fn step(&self, operation: &Edit) -> Option<Step> {
-        Undo::step(&self.header, operation)
+    fn step(&self, operation: &ChatOp) -> Option<Step> {
+        match operation {
+            ChatOp::Edit(edit) => Undo::step(&self.header, edit),
+            ChatOp::Close(_) => None,
+        }
     }
 
     fn absorb(previous: &mut Step, next: Step) -> Result<(), Step> {
@@ -673,11 +1238,19 @@ impl Undo for ChatContent {
         <Document<ChatHeader> as Undo>::then(previous, next);
     }
 
-    fn revert(&self, step: &Step) -> Vec<Edit> {
-        self.header.revert(step)
+    fn revert(&self, step: &Step) -> Vec<ChatOp> {
+        self.header
+            .revert(step)
+            .into_iter()
+            .map(ChatOp::Edit)
+            .collect()
     }
 
-    fn reapply(&self, step: &Step) -> Vec<Edit> {
-        self.header.reapply(step)
+    fn reapply(&self, step: &Step) -> Vec<ChatOp> {
+        self.header
+            .reapply(step)
+            .into_iter()
+            .map(ChatOp::Edit)
+            .collect()
     }
 }

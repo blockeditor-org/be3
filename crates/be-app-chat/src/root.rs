@@ -5,7 +5,7 @@ use be_sdk_beui::{Creation, Editor};
 use be_type_chat::ChatContent;
 use uuid::Uuid;
 
-mod ui;
+pub(crate) mod ui;
 
 use ui::Chat;
 

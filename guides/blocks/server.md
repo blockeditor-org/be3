@@ -290,7 +290,15 @@ counts and records nothing: `upload-urls` did before it signed.
   (`watch::Place`): a block id is the client's choice, so another organization
   can hold a block with the same one. Watching or joining needs `View`, and
   taking a session's lease needs `Edit` (a viewer's claim is refused, and the
-  replica host ignores the refusal).
+  replica host ignores the refusal). Losing `View` ends both (a grant removed,
+  the block trashed, or a move out of view): `evict_sessions` takes the
+  account's connections out of the sessions and unwatches the blocks, sending
+  `Push::Unwatched`; the client keeps the watch's holders and reopens its
+  stream when a `Changed` summary of the block with `View` arrives
+  (`Connection::resume`). Watching and joining check `View` a
+  second time once registered, so a view lost in between does not stay. Trashing
+  a block rotates no keys; a block collected for good tells its watchers
+  `deleted`.
 
 ### Where objects live
 
@@ -594,8 +602,11 @@ the web build.
   (`be_host_stack::testing::serve_in_process`).
 - `crates/be-block-fault-relay` sits between a client and a server and can
   `stall`, `stall_at_next_request`, `cut`, `hold_new` or `jam_at_next_request`
-  connections, and `count` the calls the client starts (method ids are
+  connections, go `offline` (cut them and refuse new ones until it is back), and `count` the calls the client starts (method ids are
   `be_block_protocol::__args::<INTERFACE>_<FUNCTION>`), so a test waits for a
   ping or heartbeat to be sent.
+- crates/be-host-tests' `Server` runs one in a host test's process, and be-hosts
+  join it as devices of its accounts, each through a relay of its own
+  (guides/testing_a_gui.md, 6).
 - The graph's tests check access against random graphs
   (`be-block-graph/src/tests.rs`).

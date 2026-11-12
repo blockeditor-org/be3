@@ -12,6 +12,16 @@ fn desktop_runs_everywhere_and_on_the_displays_only_on_linux() {
             }),
             "--desktop runs the desktop shell in a window (linux: {linux})"
         );
+        assert_eq!(
+            parse(&words("--dev-workspace=http://127.0.0.1:9090"), None, linux),
+            Ok(Arguments {
+                dev_workspace: true,
+                dev_server: Some("http://127.0.0.1:9090".to_owned()),
+                ..Arguments::default()
+            }),
+            "--dev-workspace=URL opens the dev workspace on that server"
+        );
+        assert!(parse(&words("--dev-workspace="), None, linux).is_err());
         assert!(parse(&words("--bogus"), None, linux).is_err());
         assert!(parse(&words("--session"), None, linux).is_err());
     }

@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_api::{
-    HelloAccepted, InputBatch, OpenBlock, Opening, ParentView, ScreenRequest, SurfaceFormat,
-    SurfaceSpec, ViewId, ViewPlacement, ViewportMetrics,
+    HelloAccepted, InputBatch, OpenBlock, Opening, OpeningKind, ParentView, ScreenRequest,
+    SurfaceFormat, SurfaceSpec, ViewId, ViewPlacement, ViewportMetrics,
 };
 
 fn accepted(surface: Option<SurfaceSpec>) -> Delivery {
@@ -21,19 +21,21 @@ fn accept(session: &mut ClientSession) {
 }
 
 fn opening(instance: EditorInstanceId) -> Delivery {
-    Delivery::Open(Opening::Block(OpenBlock {
+    Delivery::Open(Opening {
         instance,
         editor: [6; 16],
-        block_id: [1; 16],
-        block_type: [2; 16],
-        view_block: None,
         account_id: [3; 16],
         organization_id: [4; 16],
         client_id: [5; 16],
-        editable: true,
-        page_origin: String::new(),
-        host_palette: false,
-    }))
+        kind: OpeningKind::Block(OpenBlock {
+            block_id: [1; 16],
+            block_type: [2; 16],
+            view_block: None,
+            editable: true,
+            page_origin: String::new(),
+            host_palette: false,
+        }),
+    })
 }
 
 fn input(screen: ScreenId) -> Delivery {

@@ -6,6 +6,9 @@ pub struct Report {
     pub uploaded: usize,
     pub renamed: usize,
     pub deleted: usize,
+    /// Deletions made while not connected, counted apart from `deleted`: queued until
+    /// reconnected.
+    pub queued: usize,
     pub written: usize,
     pub moved: usize,
     pub removed: usize,
@@ -22,6 +25,7 @@ impl Report {
         self.uploaded += pass.uploaded;
         self.renamed += pass.renamed;
         self.deleted += pass.deleted;
+        self.queued += pass.queued;
         self.written += pass.written;
         self.moved += pass.moved;
         self.removed += pass.removed;
@@ -33,7 +37,7 @@ impl Report {
     }
 
     pub fn changed(&self) -> bool {
-        self.created + self.uploaded + self.renamed + self.deleted > 0
+        self.created + self.uploaded + self.renamed + self.deleted + self.queued > 0
             || self.written + self.moved + self.removed > 0
             || !self.conflicts.is_empty()
     }
@@ -48,6 +52,7 @@ impl fmt::Display for Report {
             counted("changed", self.uploaded),
             counted("renamed or moved", self.renamed),
             counted("deleted", self.deleted),
+            counted("deleted, queued until reconnected", self.queued),
         ]
         .into_iter()
         .flatten()

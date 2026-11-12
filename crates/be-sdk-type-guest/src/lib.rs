@@ -73,6 +73,8 @@ pub struct Registration {
     blank: fn() -> Vec<u8>,
     merge: MergeFn,
     merge_parts: Option<MergePartsFn>,
+    /// The replica's merge by parts, a `replica::PartsMerge` of the type's content.
+    replica_merge: Option<std::rc::Rc<dyn std::any::Any>>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
     search_text: SearchTextFn,
     replay: ReplayFn,
@@ -95,12 +97,14 @@ impl Registration {
                 plain: Plain::None,
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
+                whole_bytes: C::WHOLE_BYTES,
             },
             open: open::<C, NoHistory>,
             plain: open::<C, NoHistory>,
             blank: || C::default().encode(),
             merge: merge::<C>,
             merge_parts: None,
+            replica_merge: None,
             describe: describe_bytes::<C>,
             search_text: search_text::<C>,
             replay: replica::replay::<C>,
@@ -133,6 +137,9 @@ impl Registration {
         assert_eq!(C::LOADS, Loads::FirstPart);
         self.info.merges_parts = true;
         self.merge_parts = Some(merge_parts::<C>);
+        self.replica_merge = Some(std::rc::Rc::new(
+            replica_merge::<C> as replica::PartsMerge<C>,
+        ));
         self
     }
 
@@ -209,6 +216,15 @@ fn merge_parts<C: MergeParts + Default>(
         };
         Ok((written(&value, organization), conflicts))
     })
+}
+
+fn replica_merge<C: MergeParts + Default>(
+    base: C,
+    ours: C,
+    theirs: C,
+    parts: PartReader,
+) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<C>, String>>>> {
+    Box::pin(C::merge_parts(base, ours, theirs, parts))
 }
 
 fn search_text<C: BlockContent>(
@@ -423,6 +439,7 @@ impl Module {
                 commits_kept: opening.commits_kept,
                 refused_commits: opening.refused_commits.clone(),
                 from_file: kind.from_file,
+                parts_merge: kind.replica_merge.clone(),
                 now,
             })
         });
