@@ -1,4 +1,3 @@
-
 use be_sdk_api::{EditorInstanceId, ViewId};
 use beui::KeyPhase;
 use beui::reactive::*;
@@ -59,13 +58,11 @@ pub(super) fn intercept_keys(
         if was == Modifiers::NONE {
             return;
         }
-        held.with(|held| {
-            held.set(Modifiers {
-                alt: was.alt && now.alt,
-                ctrl: was.ctrl && now.ctrl,
-                shift: was.shift && now.shift,
-                logo: was.logo && now.logo,
-            })
+        held.set(Modifiers {
+            alt: was.alt && now.alt,
+            ctrl: was.ctrl && now.ctrl,
+            shift: was.shift && now.shift,
+            logo: was.logo && now.logo,
         });
         be_host_runtime::intercept_view(&app_id.value(), instance, region, None, now);
     });

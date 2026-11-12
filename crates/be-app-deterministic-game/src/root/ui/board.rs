@@ -1,5 +1,5 @@
 use be_sdk_beui::beui::CanvasView;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_sdk_beui::Editor;
@@ -163,9 +163,7 @@ pub(crate) fn Stage(
         if let (Some(from), Some(to)) = (from, hit(pos))
             && from != to
         {
-            dropped
-                .value()
-                .set(carried.map(|carried| (carried.id, carried.rect, to)));
+            dropped.set(carried.map(|carried| (carried.id, carried.rect, to)));
             play.dropped(from, to);
         }
     };
