@@ -46,7 +46,8 @@ const SCHEMA: &str = "
         id              TEXT PRIMARY KEY,
         name            TEXT NOT NULL,
         owner_id        TEXT REFERENCES accounts(id),
-        kind            TEXT NOT NULL DEFAULT 'company'
+        kind            TEXT NOT NULL DEFAULT 'company',
+        change_sequence INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE memberships (
@@ -115,8 +116,28 @@ const SCHEMA: &str = "
         key_id          TEXT NOT NULL DEFAULT '',
         payer           TEXT NOT NULL,
         owner_only      INTEGER NOT NULL DEFAULT 0,
+        changed         INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, id)
     );
+
+    CREATE INDEX blocks_changed
+        ON blocks (organization_id, changed, id);
+
+    CREATE TABLE block_departures (
+        organization_id TEXT NOT NULL,
+        root            TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        changed         INTEGER NOT NULL,
+        time            INTEGER NOT NULL,
+        owner           TEXT,
+        PRIMARY KEY (organization_id, root, block_id)
+    );
+
+    CREATE INDEX block_departures_changed
+        ON block_departures (organization_id, root, changed, block_id);
+
+    CREATE INDEX block_departures_time
+        ON block_departures (organization_id, time);
 
     CREATE TABLE block_edges (
         organization_id TEXT NOT NULL,
