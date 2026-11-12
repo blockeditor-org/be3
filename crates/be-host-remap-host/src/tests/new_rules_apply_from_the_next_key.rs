@@ -14,7 +14,10 @@ fn new_rules_apply_from_the_next_key() {
         ..Window::default()
     };
     assert_eq!(remapper.focus(Some(terminal), NOW), vec![]);
-    assert_eq!(remapper.input(press("CapsLock"), NOW), vec![press("CapsLock")]);
+    assert_eq!(
+        remapper.input(press("CapsLock"), NOW),
+        vec![press("CapsLock")]
+    );
     assert_eq!(
         remapper.input(release("CapsLock"), NOW),
         vec![release("CapsLock")]
@@ -36,7 +39,10 @@ fn new_rules_apply_from_the_next_key() {
         rules = [{ on = "CapsLock", send = "Delete" }]
         "#;
     assert_eq!(remapper.configure(Some(written.to_vec())), vec![]);
-    assert_eq!(remapper.input(press("CapsLock"), NOW), vec![press("Delete")]);
+    assert_eq!(
+        remapper.input(press("CapsLock"), NOW),
+        vec![press("Delete")]
+    );
     assert_eq!(
         remapper.input(release("CapsLock"), NOW),
         vec![release("Delete")]
