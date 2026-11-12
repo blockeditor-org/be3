@@ -160,6 +160,7 @@ impl be_block_type_host::Host for Shared {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.conflicts.entry(block).or_default().push(conflict);
         held.stale_revision += 1;
+        held.progressed += 1;
         held.touch(block);
     }
 
@@ -186,6 +187,7 @@ fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: 
         match ToEditor::decode(&bytes) {
             Some(ToEditor::Presence(peers)) => {
                 held.presence_revision += 1;
+                held.progressed += 1;
                 let revision = held.presence_revision;
                 held.presence.insert(
                     block,

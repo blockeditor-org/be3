@@ -846,7 +846,7 @@ pub fn backgrounded() {
 
 /// How long a test waits for a stack that makes no progress before failing: a wait that never
 /// ends would hang the whole test target until the build server's timeout, with no word of which
-/// test or wait. Progress (`progress`) starts the limit again, so a machine too busy to run the
+/// test or wait. Progress (`Shared::progressed`) starts the limit again, so a machine too busy to run the
 /// stack quickly is waited for, and a stack that stopped is not, however often its worker wakes.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
@@ -854,30 +854,10 @@ pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 /// How long a wait may go on in all, however much progress the stack makes: one that keeps
 /// changing and never gets there (a connection retried over and over) still has to end.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
-pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(120);
-
-/// What a stack that is getting somewhere changes: the graph, saved heads, what is connected,
-/// owed and waiting. Not its wakes, which a worker that loops on a timer makes without getting
-/// anywhere.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
-fn progress(shared: &Shared) -> impl PartialEq + use<> {
-    (
-        shared.graph.revision,
-        shared.saves,
-        shared.connected,
-        shared.reached,
-        shared.reconnect.is_some(),
-        shared.pending,
-        shared.owing,
-        shared.undurable,
-        shared.draining,
-        shared.blocks.len(),
-        shared.error.clone(),
-    )
-}
+pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(300);
 
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
-/// `WAIT_LIMIT` of silence from the stack, or `WAIT_CAP` in all.
+/// `WAIT_LIMIT` without progress from the stack, or `WAIT_CAP` in all.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 #[track_caller]
 pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
@@ -890,7 +870,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
     let started = std::time::Instant::now();
     let mut deadline = started + WAIT_LIMIT;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let mut seen = progress(&held);
+    let mut seen = held.progressed;
     loop {
         if let Some(value) = read(&held) {
             return value;
@@ -915,7 +895,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
                  commands not run: {}, edits owed: {}, not yet durable: {}, draining the outbox: {}\n  \
                  listings loading: {}, listings failed: {}\n  \
-                 wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
+                 progressed: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
                 held.connected,
                 held.reached,
                 held.error,
@@ -926,6 +906,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.draining,
                 held.graph.fetching(),
                 held.graph.failed_listings(),
+                held.progressed,
                 held.wakes,
                 held.blocks.len(),
                 held.saves,
@@ -938,16 +919,14 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 WAIT_CAP.as_secs()
             );
         }
-        let (next, waited) = changed
+        held = changed
             .wait_timeout(held, left)
-            .unwrap_or_else(PoisonError::into_inner);
-        held = next;
-        let now = progress(&held);
-        if now != seen {
-            seen = now;
+            .unwrap_or_else(PoisonError::into_inner)
+            .0;
+        if held.progressed != seen {
+            seen = held.progressed;
             deadline = (std::time::Instant::now() + WAIT_LIMIT).min(started + WAIT_CAP);
         }
-        let _ = waited;
     }
 }
 

@@ -1620,6 +1620,7 @@ async fn show(
             // out of what the search is within, or the mirror may now hold one it lacked.
             answer.missing = Some(graph);
             held.search.revision += 1;
+            held.progressed += 1;
         }
     }
     be_host_base::host::wake();

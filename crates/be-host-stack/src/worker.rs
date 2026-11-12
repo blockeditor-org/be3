@@ -462,6 +462,9 @@ pub struct Shared {
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
     pub peer_message_count: u64,
     pub wakes: u64,
+    /// Counts what the stack got done: a loop that moved something, a block touched, a revision
+    /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops waking.
+    pub progressed: u64,
     pub unsealed: usize,
     pub saves: u64,
     pub owing: usize,
@@ -550,6 +553,7 @@ impl Wall {
 
 impl Shared {
     pub fn touch(&mut self, block: Uuid) {
+        self.progressed += 1;
         self.touched.insert(block);
     }
 
@@ -1148,6 +1152,12 @@ impl Session<'_> {
                 &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
                 typing,
             );
+            if moved {
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .progressed += 1;
+            }
             self.changed.notify_all();
             if moved || was_typing != typing {
                 be_host_base::host::wake();
@@ -1755,6 +1765,7 @@ impl Ran<'_> {
                                 mode => modes.insert(block, mode),
                             };
                             held.notify_modes_revision += 1;
+                            held.progressed += 1;
                         }
                     }
                     reply(set.map(|()| mode).map_err(|error| error.to_string()));
@@ -1913,6 +1924,7 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
                 if changed {
                     shared.contacts = contacts;
                     shared.contacts_revision += 1;
+                    shared.progressed += 1;
                 }
                 changed
             };
@@ -2180,6 +2192,7 @@ pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool)
     };
     if changed {
         held.stale_revision += 1;
+        held.progressed += 1;
         held.touch(block);
         drop(held);
         be_host_base::host::wake();
@@ -2194,6 +2207,7 @@ pub(super) fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Op
     };
     if changed {
         held.stale_revision += 1;
+        held.progressed += 1;
         held.touch(block);
         drop(held);
         be_host_base::host::wake();
@@ -2317,6 +2331,7 @@ async fn apply(
             }
             held.unsent = peer.unsent();
             held.stale_revision += 1;
+            held.progressed += 1;
             drop(held);
             be_host_base::host::wake();
             true
@@ -3057,6 +3072,7 @@ fn relist(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.graph.relist_all();
     held.stale_revision += 1;
+    held.progressed += 1;
 }
 
 pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) -> bool {
@@ -3190,6 +3206,7 @@ impl Tasks {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 held.notify_modes = Some(read.iter().map(|row| (row.block, row.mode)).collect());
                 held.notify_modes_revision += 1;
+                held.progressed += 1;
                 drop(held);
                 be_host_base::host::wake();
             }
@@ -3234,6 +3251,7 @@ impl Tasks {
                         if held.storage.as_ref() != Some(&next) {
                             held.storage = Some(next);
                             held.storage_revision += 1;
+                            held.progressed += 1;
                         }
                     }
                     None => {
@@ -3268,6 +3286,9 @@ async fn list(
     unlisted: Vec<Listing>,
     wanted: Vec<Listing>,
 ) {
+    // The connection the requests are made on: one that fails after another replaced it says
+    // nothing of the listing, and one that fails while it is the current one is a failure.
+    let asked_on = peer.connection();
     let unlists =
         futures_util::future::join_all(unlisted.into_iter().map(|listing| peer.unlist(listing)));
     let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
@@ -3287,11 +3308,12 @@ async fn list(
             Ok(summaries) => summaries,
             Err(ClientError::Refused(..)) => Vec::new(),
             Err(error) => {
-                // A request the connection could not carry, while a connection is up (a new one
-                // replaced the one it was asked on), says nothing of the listing: it is asked
-                // for again. Over a closed connection it fails like the others, and the
-                // connection that replaces it asks for every listing again (`relist`).
-                let unreachable = error.is_unreachable() && peer.is_attached();
+                // See `asked_again`.
+                let unreachable = asked_again(
+                    &error,
+                    Arc::ptr_eq(&asked_on, &peer.connection()),
+                    peer.is_attached(),
+                );
                 record(shared, error);
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 match unreachable {
@@ -3322,6 +3344,21 @@ async fn list(
             .graph
             .listed(listing, nodes, revision);
     }
+}
+
+/// Whether a listing whose request failed is asked for again at once, rather than failed. Only
+/// a request that could not be carried (`is_unreachable`) on a connection another has replaced,
+/// which is up, says nothing of the listing: the connection that failed it was already given up on,
+/// and the relisting that came with the new one may have been made before this failure. A request
+/// that fails on the connection that is current is a failure like the server's: a slow server
+/// would otherwise be asked again forever, showing loading rather than the error, and the
+/// connection's close relists every listing.
+pub(crate) fn asked_again(
+    error: &ClientError,
+    on_current_connection: bool,
+    attached: bool,
+) -> bool {
+    error.is_unreachable() && !on_current_connection && attached
 }
 
 fn listing_failure(listing: Listing) -> &'static str {
