@@ -154,7 +154,9 @@ fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     if arguments.dev_workspace {
         core.open_dev_workspace(
             arguments.dev_server.clone(),
-            std::env::var(DEV_TOKEN).ok().filter(|token| !token.is_empty()),
+            std::env::var(DEV_TOKEN)
+                .ok()
+                .filter(|token| !token.is_empty()),
         );
     }
     if arguments.desktop {

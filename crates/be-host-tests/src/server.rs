@@ -40,7 +40,8 @@ impl Server {
             .enable_all()
             .build()
             .expect("the test server's runtime starts");
-        let directory = std::env::temp_dir().join(format!("be3-host-test-server-{}", Uuid::new_v4()));
+        let directory =
+            std::env::temp_dir().join(format!("be3-host-test-server-{}", Uuid::new_v4()));
         let config = be_server::ServerConfig {
             account_quota: None,
             ..be_server::ServerConfig::OPEN
@@ -71,7 +72,9 @@ impl Server {
                     .store
                     .register(&email, name, be_server::Running::PASSWORD),
             )
-            .unwrap_or_else(|error| panic!("the test server could not make the account {name}: {error}"));
+            .unwrap_or_else(|error| {
+                panic!("the test server could not make the account {name}: {error}")
+            });
         Account {
             server: self.clone(),
             id: profile.account,
@@ -106,7 +109,11 @@ impl Server {
     }
 
     fn relays(&self) -> Vec<Arc<Relay>> {
-        let mut relays = self.inner.relays.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut relays = self
+            .inner
+            .relays
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         relays.retain(|relay| relay.strong_count() > 0);
         relays.iter().filter_map(Weak::upgrade).collect()
     }

@@ -211,8 +211,8 @@ impl HostTest {
         stop_clock: bool,
     ) -> Self {
         let started = Instant::now();
-        let host = Driven::start(start)
-            .unwrap_or_else(|error| panic!("be-host did not start: {error}"));
+        let host =
+            Driven::start(start).unwrap_or_else(|error| panic!("be-host did not start: {error}"));
         let mut test = Self {
             host: Some(host),
             steps: Vec::new(),
