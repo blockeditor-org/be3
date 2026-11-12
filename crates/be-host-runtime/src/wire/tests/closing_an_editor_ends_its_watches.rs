@@ -70,9 +70,7 @@ fn closing_an_editor_ends_its_watches() {
     let ended = Rc::new(RefCell::new(None));
     let told = Rc::clone(&ended);
     guest.enter(|| {
-        let watch = with_parent(editor, || {
-            BlockWatch::new(BlockSubject::History([7; 16]))
-        });
+        let watch = with_parent(editor, || BlockWatch::new(BlockSubject::History([7; 16])));
         spawn(async move {
             let answer = watch.next().await;
             *told.borrow_mut() = Some(answer.map(drop));

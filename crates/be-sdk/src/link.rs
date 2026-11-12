@@ -224,9 +224,14 @@ impl Link {
             reconcile(&mut self.watches, &wanted, |subject| {
                 let watch = Rc::new(under(parent, || blocks::BlockWatch::new(subject.encode())));
                 let host = host.clone();
-                follow(host.waker(), &watch, blocks::BlockWatch::next, move |value| {
-                    subject.deliver(&host, value);
-                });
+                follow(
+                    host.waker(),
+                    &watch,
+                    blocks::BlockWatch::next,
+                    move |value| {
+                        subject.deliver(&host, value);
+                    },
+                );
                 watch
             });
         }

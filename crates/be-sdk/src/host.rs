@@ -1246,10 +1246,33 @@ impl EditorHost {
         if !(self.subjects_changed.replace(false) || graph) {
             return None;
         }
-        let mut subjects: Vec<Subject> = self.graph.watched().into_iter().map(Subject::Blocks).collect();
-        subjects.extend(self.watched_history.borrow().iter().copied().map(Subject::History));
-        subjects.extend(self.watched_heads.borrow().iter().copied().map(Subject::Head));
-        subjects.extend(self.watched_artifacts.borrow().iter().copied().map(Subject::Artifact));
+        let mut subjects: Vec<Subject> = self
+            .graph
+            .watched()
+            .into_iter()
+            .map(Subject::Blocks)
+            .collect();
+        subjects.extend(
+            self.watched_history
+                .borrow()
+                .iter()
+                .copied()
+                .map(Subject::History),
+        );
+        subjects.extend(
+            self.watched_heads
+                .borrow()
+                .iter()
+                .copied()
+                .map(Subject::Head),
+        );
+        subjects.extend(
+            self.watched_artifacts
+                .borrow()
+                .iter()
+                .copied()
+                .map(Subject::Artifact),
+        );
         if self.version_watched.get() {
             subjects.push(Subject::Version);
         }

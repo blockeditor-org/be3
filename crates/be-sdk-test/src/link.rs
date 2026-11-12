@@ -265,10 +265,16 @@ impl Link {
                 .is_none_or(|producer| producer.send(connection, frame).is_ok())
         });
         for (block, head) in outgoing.heads {
-            self.offer(Subject::Head(block), encode(&BlockValue::Head(head.map_err(be_sdk_api::Failure::Failed))));
+            self.offer(
+                Subject::Head(block),
+                encode(&BlockValue::Head(head.map_err(be_sdk_api::Failure::Failed))),
+            );
         }
         for (query, listed) in outgoing.listings {
-            self.offer(Subject::Blocks(query), encode(&BlockValue::Blocks(Ok(listed))));
+            self.offer(
+                Subject::Blocks(query),
+                encode(&BlockValue::Blocks(Ok(listed))),
+            );
         }
         for watch in self.watches.values_mut() {
             if let Some(next) = watch.next.take() {
