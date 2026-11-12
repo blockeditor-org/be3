@@ -308,6 +308,8 @@ struct State {
     given: Signal<(u64, Option<TabId>)>,
     forward: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
+    content_keyboard: StoredCell<Option<TabId>>,
+    keyboard: ReadSignal<bool>,
     bar_panels: Stored<BarPanels>,
     bodies: Stored<RefCell<HashMap<LeafId, (NodeRef, NodeRef)>>>,
     bar_windows: Stored<RefCell<HashMap<String, WindowHandle>>>,
@@ -412,6 +414,14 @@ impl DockTabDriver for State {
                 self.release_dialog_focus();
             }
         }
+    }
+
+    fn content_focused(&self, tab: TabId) {
+        if !self.panels.is_alive() {
+            return;
+        }
+        self.content_keyboard.set(Some(tab));
+        DockTabDriver::show(self, tab);
     }
 
     fn show_notice(&self, tab: TabId, notice: Memo<Option<String>>) {
@@ -1858,6 +1868,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         given,
         forward,
         remembered: store(RefCell::default()),
+        content_keyboard: StoredCell::new(None),
+        keyboard: use_keyboard(),
         bar_panels: store(RefCell::default()),
         bodies: store(RefCell::default()),
         bar_windows: store(RefCell::default()),

@@ -50,29 +50,6 @@ here runs Android. Line numbers are from when this was written. Remove an item w
      back-then-reopen. Decide where it lives so that reopening a document from the files list
      finds it.
 
-## Back gesture
-
-2. **The system back gesture stops working after its first use in a session.** The first
-   `drive back` after launch leaves the document for Files. Every later one, in any document,
-   slides and then snaps back to the document. The dock's Back button (`#dock.back`) still
-   works.
-   - `BackSlide` gets `Invoked`, calls `on_back`, and returns because the tab is still open
-     (`crates/beui-components-unstyled/src/back_slide.rs:121-136`).
-   - `on_back` is `dock.go_back()` (`crates/beui-dock-host/src/unstyled.rs:937-947`), which
-     does not close or leave the tab in this state.
-   - Find why: the dock history (`crates/beui-dock-state/src/history.rs`) or
-     `closes_going_back` are the first suspects.
-3. **The failing back gesture draws the wrong pages.** Step it frame by frame (`drive clock
-   stop`, `drive --no-settle back`, then `pause 16` and `shot` per frame):
-   - the page that slides away is a copy of the Files page (back arrow, "Files" title, the
-     list), not the document;
-   - the page behind it is blank;
-   - next comes a frame of Files with an empty body;
-   - then it jumps back to the document.
-
-   Check that the slide shows the document over the Files preview, including once item 2 is
-   fixed. Add a painting of a mid-gesture frame.
-
 ## Offline-first
 
 4. **Starting with no connection shows a blank window.** With the server unreachable from
@@ -114,18 +91,6 @@ What already works, and must keep working:
 
 ## Keyboard
 
-9. **The caret is not revealed when the keyboard opens.** Tap a line near the bottom of a long
-   document, then shrink the window to the keyboard-up height. The caret stays under the
-   keyboard until you type.
-   - The host's `reveal_focus` reveals the focused node, not the caret
-     (`crates/beui-core/src/document.rs:1536-1539`).
-   - TextArea reveals the caret only on edits and keys
-     (`crates/beui-components-unstyled/src/text_area.rs:454-505`).
-
-   Reveal the caret when the viewport shrinks.
-10. **The editor reports the whole text field as the caret to the input method after a
-    resize.** `drive state` says `its caret at 0,-800 size 1170x61905` until the next edit. It
-    should stay the caret's rectangle. Input methods use it to place their UI.
 11. **The keyboard is not shown again on unlock** (from reading the code). If it was up when
     the phone locked, nothing asks for it again: `View` is only sent from `nativeCreate`, and
     `show_window` acts only on a change (`crates/beui-platform-android/src/lib.rs:258-274`).
@@ -151,6 +116,10 @@ What already works, and must keep working:
 16. **The window loses 1 px of scroll when the format bar hides.** On `drive blur` (standing
     in for lock), the format bar goes and every line moves up by 1 px (line 279 from y=136 to
     y=135). Keep the scroll anchored to the content.
+    Not reproduced since: with a 300-line Markdown document at several scroll offsets (from
+    wheel, drag and fling, a heading under the caret, a keyboard-height window), blur moved no
+    line, except within a bar's height of the end, where the view is pinned there. Find the
+    document and offset that show it before fixing.
 
 ## Power and frames
 
