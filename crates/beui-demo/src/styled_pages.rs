@@ -390,13 +390,14 @@ fn FullscreenTab() -> NodeId {
         true => "Leave fullscreen".to_owned(),
         false => "Show this tab fullscreen".to_owned(),
     });
-    on_shortcut(move |press: beui::KeyPress| {
-        let leave = press.pressed && press.key == beui::Key::Escape && shown.get_untracked();
-        if let Some(control) = control.as_ref().filter(|_| leave) {
+    Action::new("demo.leave-fullscreen", "Leave fullscreen", move || {
+        if let Some(control) = control.as_ref() {
             control.leave_fullscreen();
         }
-        leave
-    });
+    })
+    .shortcut(Chord::key(beui::Key::Escape))
+    .enabled(shown)
+    .register();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=ROW_SPACING>
@@ -3452,7 +3453,7 @@ fn ScrollRowFace(
     view! {
         <Frame
             fill={fill_color}
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             radius=Radius::Md
             padding={create_memo(move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
         >
@@ -4449,10 +4450,7 @@ fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomVie
 fn CanvasBoard(view: Memo<Option<CanvasView>>, focused: ReadSignal<bool>) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
     view! {
-        <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
-            radius=Radius::Md
-        >
+        <Frame focus={focused} radius=Radius::Md>
             <Canvas view>
                 <StageCard card=first />
                 <StageCard card=second />

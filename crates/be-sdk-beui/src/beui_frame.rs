@@ -137,15 +137,20 @@ pub(crate) fn FrameChrome(
     });
     provide_context(crate::popover::PopoverWindow(shown_in));
     let escaping = exit_writer.clone();
-    on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
-        let escaped = event
-            .press()
-            .is_some_and(|press| press.pressed && press.key == Key::Escape);
-        if escaped {
-            escaping.set(true);
-        }
-        escaped
-    });
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+            if escaped {
+                escaping.set(true);
+            }
+            escaped
+        },
+    );
     let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
     let rooted = Rc::clone(&root);
     let notices = create_signal(Vec::<Toast>::new());

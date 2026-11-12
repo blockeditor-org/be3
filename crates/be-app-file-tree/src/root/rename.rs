@@ -38,16 +38,21 @@ impl Renaming {
                 untrack(|| renaming.start(key));
             }
         });
-        on_key(KeyAt::Window, KeyPhase::Capture, move |event| {
-            let confirms = event
-                .press()
-                .is_some_and(|press| press.pressed && press.key == Key::Enter)
-                && pending.with_untracked(Option::is_some);
-            if confirms {
-                pending.set(None);
-            }
-            confirms
-        });
+        on_key(
+            KeyAt::Window,
+            KeyPhase::Capture,
+            KeyReveal::Focus,
+            move |event| {
+                let confirms = event
+                    .press()
+                    .is_some_and(|press| press.pressed && press.key == Key::Enter)
+                    && pending.with_untracked(Option::is_some);
+                if confirms {
+                    pending.set(None);
+                }
+                confirms
+            },
+        );
         renaming
     }
 

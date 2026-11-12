@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use crate::types::{BackGesture, Direction, KeyAt, KeyEvent, KeyPhase, NodeId, NodeRef};
+use crate::types::{BackGesture, Direction, KeyAt, KeyEvent, KeyPhase, KeyReveal, NodeId, NodeRef};
 use beui_tree::reactive::*;
 
 use beui_core::document::Document;
@@ -68,8 +68,13 @@ pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     })
 }
 
-pub(crate) fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
-    listen(at, phase, true, handler);
+pub(crate) fn on_key(
+    at: KeyAt,
+    phase: KeyPhase,
+    reveal: KeyReveal,
+    handler: impl Fn(KeyEvent) -> bool + 'static,
+) {
+    listen(at, phase, reveal == KeyReveal::Focus, handler);
 }
 
 pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(BackGesture) + 'static) {
@@ -84,14 +89,6 @@ pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(BackGesture) + 'stat
     on_cleanup(move || {
         try_with_document(|document| document.remove_back_handler(id));
     });
-}
-
-pub(crate) fn on_scroll_key(
-    at: KeyAt,
-    phase: KeyPhase,
-    handler: impl Fn(KeyEvent) -> bool + 'static,
-) {
-    listen(at, phase, false, handler);
 }
 
 fn listen(at: KeyAt, phase: KeyPhase, reveal: bool, handler: impl Fn(KeyEvent) -> bool + 'static) {
@@ -128,44 +125,49 @@ pub(crate) fn to_host(window: crate::types::WindowId) -> Option<crate::types::Ho
 }
 
 pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<Direction>) {
-    on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
-        let Some(press) = event.press() else {
-            return false;
-        };
-        let (back, forth) = match direction.get_untracked() {
-            Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
-            Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
-        };
-        if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
-            return false;
-        }
-        with_document(|document| {
-            let Some(row) = row.try_get() else {
+    on_key(
+        KeyAt::Node(row),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let Some(press) = event.press() else {
                 return false;
             };
-            let stops = document.tab_stops_within(row);
-            let Some(at) = document
-                .focused_node()
-                .and_then(|focused| stops.iter().position(|stop| *stop == focused))
-            else {
+            let (back, forth) = match direction.get_untracked() {
+                Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
+                Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
+            };
+            if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
                 return false;
-            };
-            let to = match press.key {
-                key if key == back => at.checked_sub(1),
-                key if key == forth => Some(at + 1).filter(|to| *to < stops.len()),
-                Key::Home => Some(0),
-                Key::End => Some(stops.len() - 1),
-                _ => None,
-            };
-            let Some(to) = to else {
-                return false;
-            };
-            if press.pressed {
-                document.focus_focusable(stops[to]);
             }
-            true
-        })
-    });
+            with_document(|document| {
+                let Some(row) = row.try_get() else {
+                    return false;
+                };
+                let stops = document.tab_stops_within(row);
+                let Some(at) = document
+                    .focused_node()
+                    .and_then(|focused| stops.iter().position(|stop| *stop == focused))
+                else {
+                    return false;
+                };
+                let to = match press.key {
+                    key if key == back => at.checked_sub(1),
+                    key if key == forth => Some(at + 1).filter(|to| *to < stops.len()),
+                    Key::Home => Some(0),
+                    Key::End => Some(stops.len() - 1),
+                    _ => None,
+                };
+                let Some(to) = to else {
+                    return false;
+                };
+                if press.pressed {
+                    document.focus_focusable(stops[to]);
+                }
+                true
+            })
+        },
+    );
 }
 
 pub(crate) fn held_modifiers() -> ReadSignal<beui_types::Modifiers> {

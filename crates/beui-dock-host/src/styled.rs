@@ -4,7 +4,7 @@ use beui_view::types::icons::Glyph;
 mod stack;
 mod switch;
 
-use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::unstyled as dock;
@@ -341,7 +341,7 @@ fn DockIconTab(
                 width=TAB_HEIGHT
                 height=TAB_HEIGHT
                 align=Align::Center
-                border={focus_border(focused, Border::FOCUS)}
+                focus={focused}
             >
                 <List align=Align::Center spacing=Space::None>
                     <Show condition={pictured}>
@@ -398,7 +398,7 @@ fn DockTabChrome(
             radius=TAB_RADIUS
             height=TAB_HEIGHT
             padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
-            border={focus_border(focused, Border::FOCUS)}
+            focus={focused}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
@@ -921,19 +921,19 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
             Direction::Vertical => Padding::vertical(Space::Custom(side)),
         }
     });
-    let border = focus_border(focused, Border::FOCUS);
+    let ring = focus_ring(focused);
     let line = view! {
         <Frame fill={line} />
     };
     above_embeds(line, Some(AboveEmbeds::Paints));
-    let ring = view! {
-        <Frame padding={padding} border={border}>{line}</Frame>
+    let ring_node = view! {
+        <Frame padding={padding} focus={focused}>{line}</Frame>
     };
     above_embeds(
-        ring,
-        create_memo(move || border.get().map(|_| AboveEmbeds::Paints)),
+        ring_node,
+        create_memo(move || ring.get().then_some(AboveEmbeds::Paints)),
     );
-    ring
+    ring_node
 }
 
 #[component]

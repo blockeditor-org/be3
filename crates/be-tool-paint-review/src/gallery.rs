@@ -149,17 +149,17 @@ fn Tile(review: Review, index: usize) -> NodeId {
                     review.hovered.set(None);
                 }
             });
-            let keyboard = focus_ring(handle.focused);
             let fill = create_memo(move || match hovered.get() {
                 true => ColorRole::Hover,
                 false => ColorRole::None,
             });
-            let border = create_memo(move || match hovered.get() || keyboard.get() {
-                true => Some(Border::new(ColorRole::Accent).width(Stroke::Focus)),
-                false => None,
+            let border = create_memo(move || {
+                hovered
+                    .get()
+                    .then(|| Border::new(ColorRole::Accent).width(Stroke::Focus))
             });
             view! {
-                <Frame padding=TILE_PADDING fill={fill} border={border}>
+                <Frame padding=TILE_PADDING fill={fill} border={border} focus={handle.focused}>
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(THUMBNAIL_WIDTH)}

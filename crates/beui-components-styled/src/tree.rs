@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use std::hash::Hash;
 
 use beui_macros::{component, view};
@@ -232,10 +232,10 @@ where
         let key = key.clone();
         move || outline.call(key.clone())
     });
-    let ring = focus_ring(focused);
     let border = create_memo(move || {
-        let color = highlight.get().unwrap_or(ColorRole::Accent);
-        (highlight.get().is_some() || ring.get()).then(|| Border::new(color).width(OUTLINE_WIDTH))
+        highlight
+            .get()
+            .map(|color| Border::new(color).width(OUTLINE_WIDTH))
     });
     let face = move || TreeRowFace {
         key: key.clone(),
@@ -320,6 +320,7 @@ where
                         height={height}
                         fill={fill}
                         border={border}
+                        focus={focused}
                         radius=Radius::Md
                         padding={Padding::horizontal(PADDING_HORIZONTAL)}
                     >
@@ -384,13 +385,7 @@ fn RowMenuFace(handle: PopupTriggerHandle, sized: Memo<Metrics>) -> NodeId {
     let glyph_size = create_memo(move || sized.get().glyph);
     view! {
         <Tooltip label={tooltip}>
-            <Frame
-                width={extent}
-                height={extent}
-                fill={fill}
-                border={focus_border(focused, Border::new(ColorRole::Accent).width(OUTLINE_WIDTH))}
-                radius=CHEVRON_RADIUS
-            >
+            <Frame width={extent} height={extent} fill={fill} focus={focused} radius=CHEVRON_RADIUS>
                 <Text size={glyph_size} color={color} align=TextAlign::Center>
                     <Icon glyph=ICON_ELLIPSIS />
                 </Text>
@@ -450,8 +445,6 @@ fn ChevronFace(
         (false, false, true) => ColorRole::Hover,
         (false, false, false) => ColorRole::None,
     });
-    let ring = focus_ring(focused);
-    let outlined = create_memo(move || marked.get() || ring.get());
     let color = create_memo(move || match marked.get() || hovered.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
@@ -472,7 +465,8 @@ fn ChevronFace(
                     width={width}
                     height={height}
                     fill={fill}
-                    border={create_memo(move || outlined.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                    border={create_memo(move || marked.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                    focus={focused}
                     radius=CHEVRON_RADIUS
                 >
                     <Text size={glyph_size} color={color} align=TextAlign::Center>

@@ -386,9 +386,12 @@ impl ActionBuilder {
                 false => KeyPhase::Bubble,
             };
             let listening = action.clone();
-            crate::reactive::on_key(KeyAt::Node(*node), phase, move |event| {
-                run_matching(std::iter::once(&listening), event)
-            });
+            crate::reactive::on_key(
+                KeyAt::Node(*node),
+                phase,
+                crate::reactive::KeyReveal::Focus,
+                move |event| run_matching(std::iter::once(&listening), event),
+            );
         }
         registry.touch();
         on_cleanup(move || {
@@ -433,15 +436,20 @@ pub fn action_scope(node: &NodeRef) -> ActionScope {
     provide_context(scope.clone());
     for phase in [KeyPhase::Capture, KeyPhase::Bubble] {
         let listening = Rc::downgrade(&scope.0);
-        crate::reactive::on_key(KeyAt::Node(*node), phase, move |event| {
-            listening.upgrade().is_some_and(|scope| {
-                let actions = scope.actions.borrow().clone();
-                run_matching(
-                    actions.iter().filter(|action| action.rooted(event.phase)),
-                    event,
-                )
-            })
-        });
+        crate::reactive::on_key(
+            KeyAt::Node(*node),
+            phase,
+            crate::reactive::KeyReveal::Focus,
+            move |event| {
+                listening.upgrade().is_some_and(|scope| {
+                    let actions = scope.actions.borrow().clone();
+                    run_matching(
+                        actions.iter().filter(|action| action.rooted(event.phase)),
+                        event,
+                    )
+                })
+            },
+        );
     }
     let held = Rc::clone(&scope.0);
     on_cleanup(move || {

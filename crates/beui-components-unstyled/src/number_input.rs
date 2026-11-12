@@ -191,6 +191,7 @@ pub fn NumberInput(
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
+        KeyReveal::Focus,
         move |event: KeyEvent| {
             let escaped = event
                 .press()
