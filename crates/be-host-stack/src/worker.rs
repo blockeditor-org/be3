@@ -477,9 +477,10 @@ pub struct Shared {
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
-    /// The clock and the moment the stack waits on to try the server again. `None` while it is
-    /// connected and while an attempt to connect is in flight, so a wait that moves a manual
-    /// clock on to it (`wait_until`) never moves it under an attempt.
+    /// The clock and the moment the stack waits on to try the server again. A moment the clock
+    /// has not reached means the stack is waiting for it; `None` while it is connected, and while
+    /// the first connect is in flight. A wait on a driven clock (`wait_until`) moves the clock on
+    /// to it.
     #[cfg(any(test, feature = "testing"))]
     pub reconnect: Option<(be_block_client::Clock, Duration)>,
     #[cfg(test)]

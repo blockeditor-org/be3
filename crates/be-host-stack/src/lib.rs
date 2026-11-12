@@ -866,13 +866,14 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         if let Some(value) = read(&held) {
             return value;
         }
-        // A manual clock never reaches the moment the stack waits on to try the server again, so
-        // the wait moves it there, as a real clock would have got there: all of the stack's time
-        // moves on with it. The lock is let go first, for the stack to run on.
+        // A driven clock (`Clock::driven`) never reaches the moment the stack waits on to try the
+        // server again by itself, so the wait moves it there, as a real clock would have got
+        // there: all of the stack's time moves on with it. The lock is let go first, for the
+        // stack to run on.
         let reconnect = held
             .reconnect
             .clone()
-            .filter(|(clock, at)| clock.is_manual() && *at > clock.now());
+            .filter(|(clock, at)| clock.is_driven() && *at > clock.now());
         if let Some((clock, at)) = reconnect {
             drop(held);
             clock.advance(at - clock.now());

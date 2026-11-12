@@ -226,6 +226,12 @@ impl Harness {
         harness
     }
 
+    /// A clock the waits move on to the stack's next reconnect, which nobody else would.
+    fn on_driven_clock(mut self) -> Self {
+        self.clock = be_block_client::Clock::driven();
+        self
+    }
+
     fn on_manual_clock(mut self) -> Self {
         self.clock = be_block_client::Clock::manual();
         self
