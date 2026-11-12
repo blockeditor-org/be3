@@ -39,6 +39,10 @@ struct Link {
     stalled: watch::Sender<bool>,
     jammed: watch::Sender<bool>,
     cut: watch::Sender<bool>,
+    /// Requests (to the server) and answers (to the client) held back, delivered in order once
+    /// let go (`hold_requests`, `hold_answers`).
+    holding_requests: watch::Sender<bool>,
+    holding_answers: watch::Sender<bool>,
 }
 
 impl Relay {
@@ -107,6 +111,22 @@ impl Relay {
             .jamming
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = true;
+    }
+
+    /// Holds back what the connections open now send the server, unlike `stall`, which drops it:
+    /// delivered in order once let go.
+    pub fn hold_requests(&self, holding: bool) {
+        for link in self.state.links() {
+            link.holding_requests.send_replace(holding);
+        }
+    }
+
+    /// Holds back what the server answers on the connections open now: a request the server
+    /// has answered reaches the client only once let go.
+    pub fn hold_answers(&self, holding: bool) {
+        for link in self.state.links() {
+            link.holding_answers.send_replace(holding);
+        }
     }
 
     pub fn cut(&self) {
@@ -184,6 +204,8 @@ async fn accept(listener: TcpListener, state: Arc<State>) {
             stalled: watch::Sender::new(holding),
             jammed: watch::Sender::new(false),
             cut: watch::Sender::new(false),
+            holding_requests: watch::Sender::new(false),
+            holding_answers: watch::Sender::new(false),
         };
         {
             // Checked under the links' lock, which `offline` takes to cut them after setting
@@ -244,11 +266,34 @@ async fn pump(
 ) {
     let mut buffer = vec![0u8; 64 * 1024];
     let mut frames = Frames::default();
+    let holding = match heard {
+        Some(_) => &link.holding_requests,
+        None => &link.holding_answers,
+    };
+    let mut let_go = holding.subscribe();
+    let mut held: Vec<u8> = Vec::new();
     loop {
         if *link.jammed.borrow() {
             std::future::pending::<()>().await;
         }
-        let read = match from.read(&mut buffer).await {
+        let read = tokio::select! {
+            read = from.read(&mut buffer) => Some(read),
+            let_go = let_go.wait_for(|holding| !*holding), if !held.is_empty() => {
+                drop(let_go);
+                None
+            }
+        };
+        let Some(read) = read else {
+            // Let go: what was held goes now, in order.
+            if let Some(to) = &mut to
+                && to.write_all(&held).await.is_err()
+            {
+                return;
+            }
+            held.clear();
+            continue;
+        };
+        let read = match read {
             Ok(0) | Err(_) => return,
             Ok(read) => read,
         };
@@ -285,6 +330,18 @@ async fn pump(
         }
         if *link.stalled.borrow() {
             continue;
+        }
+        if *holding.borrow() {
+            held.extend_from_slice(&buffer[..read]);
+            continue;
+        }
+        if let Some(to) = &mut to
+            && !held.is_empty()
+        {
+            if to.write_all(&held).await.is_err() {
+                return;
+            }
+            held.clear();
         }
         if let Some(to) = &mut to
             && to.write_all(&buffer[..read]).await.is_err()

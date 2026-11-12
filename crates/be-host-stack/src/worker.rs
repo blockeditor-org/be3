@@ -3843,6 +3843,9 @@ async fn list(
             .map(|summary| summary.revision)
             .max()
             .unwrap_or_default();
+        // As the outbox stands now, not when the request went: a creation or move kept since,
+        // whose block is no longer pending in the graph, is in it (no await from here on).
+        let summaries = peer.with_outbox(listing, summaries);
         let nodes = summaries
             .iter()
             .filter(|summary| summary.access.can_know_exists())
