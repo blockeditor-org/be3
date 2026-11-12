@@ -394,8 +394,13 @@ impl Editor {
             R::VISIBILITY.owner_only(),
         );
         if R::VISIBILITY == KindVisibility::Inside {
-            self.host()
-                .set_access(block, ANYONE_INSIDE, AccessLevel::View);
+            // Made for the person, not asked by them: a refusal leaves it members-only, which
+            // its row shows.
+            self.then(
+                self.host()
+                    .set_access(block, ANYONE_INSIDE, AccessLevel::View),
+                |_| {},
+            );
         }
         self.state()
             .settings
@@ -432,8 +437,13 @@ impl Editor {
             edit_kind_key(kind).definition(Some(&BlockRef(block))),
         );
         if R::VISIBILITY == KindVisibility::Inside {
-            self.host()
-                .set_access(block, ANYONE_INSIDE, AccessLevel::View);
+            // Made for the person, not asked by them: a refusal leaves it members-only, which
+            // its row shows.
+            self.then(
+                self.host()
+                    .set_access(block, ANYONE_INSIDE, AccessLevel::View),
+                |_| {},
+            );
         }
         self.state()
             .settings

@@ -44,21 +44,14 @@ not (its connections stay open and carry nothing), which is what blocking the po
 under a request is noticed once an early ping goes unanswered, about 25 s (`ANSWER_WAIT` plus
 `PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
 
-5. **The files pane, and every command, wait on one that needs the server.** Going back on a phone
-   runs a `SetParent`, which waits on the server in the block store's loop; every command queued
-   behind it waits too (the busy reason names the step: "the block store's loop is busy with set
-   parent"). guides/blocks/host.md lists this as not built: run commands that need the server off
-   the loop, ordered per block (`Command::needs`), as uploads are.
-   `on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops` is ignored until
-   then.
+5. **Version commands and merging still wait in the block store's loop.** Create, define, move
+   and duplicate are kept on the device and sent by the drain, and the commands that need only
+   the server run in a lane (guides/blocks/host.md). Version commands and merges read the server
+   between steps on the open replicas (sealing them, checking content out into them): split each
+   into its loop part and its server part, ordered by what they depend on.
 7. **Why a reconnect hits "the session has a newer owner"** is still not known: a test's drop and
    reconnect did not meet it. The error no longer outlives its cause: it clears once the device is
    connected with nothing waiting (`report` in worker.rs).
-8. **Search indexing waits on the server.** Typing as the connection silently drops keeps the host
-   busy with "the block store indexes edits or answers a search" until the drop is noticed.
-   Sending the outbox and listing revisions are unsynced now, not busy, and a flush keeps on the
-   device without waiting for the server, so closing no longer waits on it.
-   `typing_as_the_connection_silently_drops_leaves_the_host_settled` is ignored until then.
 
 What already works, and must keep working:
 - an edit made during a drop came through a reconnect once, with no duplicate, and synced;

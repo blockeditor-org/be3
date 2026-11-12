@@ -13,9 +13,12 @@ mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
+mod a_block_made_while_a_listing_is_answered_stays_listed;
+mod a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
 mod a_block_opens_from_what_this_device_saved_before_its_session_is_joined;
 mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
+mod a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
@@ -38,6 +41,7 @@ mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
+mod a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
 mod a_heartbeat_the_server_never_answers_holds_up_no_edit;
@@ -46,6 +50,7 @@ mod a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_listing_fails_unless_another_connection_replaced_the_one_it_was_asked_on;
 mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
+mod a_name_the_server_refuses_is_taken_back_in_the_files;
 mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
 mod a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
@@ -61,6 +66,7 @@ mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
+mod a_share_made_offline_is_refused_to_the_caller_not_kept_as_an_error;
 mod a_sync_error_clears_once_nothing_waits_to_be_sent;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
@@ -899,7 +905,7 @@ fn written(block: Uuid, text: &str) {
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
-    flush();
+    flush_and_send();
 }
 
 async fn read_text(
@@ -1334,8 +1340,8 @@ impl Member {
     }
 
     fn may_view(&self, block: Uuid) {
-        set_access(block, self.account(), be_block_graph::Access::View);
-        flush();
+        set_access(block, self.account(), be_block_graph::Access::View, |_| {});
+        flush_and_send();
         assert_eq!(status().error, None);
     }
 

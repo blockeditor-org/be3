@@ -518,7 +518,12 @@ impl Workspace {
         }
         let (grants, mut reload) = share.act(action, self.host().account_id());
         for (account, access) in grants {
-            self.host().set_access(share.block, account, access);
+            let workspace = *self;
+            let asked = self.host().set_access(share.block, account, access);
+            let task = self
+                .editor
+                .then(asked, move |set| workspace.access_set(set));
+            self.state.value().share_asks.borrow_mut().push(task);
             reload = true;
         }
         if reload {
@@ -533,6 +538,21 @@ impl Workspace {
         if self.share.with_untracked(Option::is_some) {
             self.share_action(ShareAction::Refresh);
         }
+    }
+
+    /// A change of access the host could not make (offline, it needs the server): the dialog
+    /// says why, and the listing it asks for again shows what holds.
+    fn access_set(&self, set: Result<(), Failure>) {
+        let Err(failure) = set else {
+            return;
+        };
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        share.error = Some(failure.to_string());
+        share.relisting();
+        share.request = Some(self.list_share(share.block));
+        self.share.set(Some(share));
     }
 
     fn contact_made(&self, ask: u64, made: Result<String, Failure>) {

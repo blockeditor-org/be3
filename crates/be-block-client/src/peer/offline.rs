@@ -22,6 +22,33 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.has_pending(block)
     }
 
+    /// Whether what this device made of the block is set aside (`unsent`).
+    pub fn is_unsent(&self, block: Uuid) -> bool {
+        self.refs.is_unsent(block)
+    }
+
+    /// The code the server refused to make `block` with, while what this device made of it is
+    /// set aside for that (`UnsentBlock::refused`).
+    pub fn refusal(&self, block: Uuid) -> Option<ErrorCode> {
+        self.refs.refused(block)
+    }
+
+    /// Whether the block's creation waits in the outbox: the server does not know the block yet.
+    pub fn creating(&self, block: Uuid) -> bool {
+        self.refs.creating(block)
+    }
+
+    /// Whether a creation, move or definition of the block waits in the outbox, so what comes
+    /// after it waits there too and goes in order.
+    pub fn has_structural(&self, block: Uuid) -> bool {
+        self.refs.has_structural(block)
+    }
+
+    /// Moves a block on this device and keeps the move in the outbox for the drain to send.
+    pub fn keep_move(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
+        self.move_locally(block, parent)
+    }
+
     pub fn pending_commits(&self, block: Uuid) -> Vec<CommitId> {
         self.refs
             .pending_for(block)
@@ -66,7 +93,12 @@ impl<S: ObjectStore> Peer<S> {
                 "block {block} is not saved on this device, so it cannot move offline"
             )));
         };
-        self.refs.push(Op::Move(Moving { block, parent }))?;
+        let from = summary.parent;
+        self.refs.push(Op::Move(Moving {
+            block,
+            parent,
+            from,
+        }))?;
         summary.parent = Some(parent);
         self.refs.revise(summary)?;
         Ok(())
@@ -282,6 +314,12 @@ impl<S: ObjectStore> Peer<S> {
             if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
                 continue;
             }
+            // What was made since of a block the server refused to make joins it among the
+            // unsent: the server would refuse it too, as a block it does not know.
+            if self.refs.refused(block).is_some() {
+                self.move_to_unsent(block, None)?;
+                continue;
+            }
             let publishing = match &op {
                 Op::Publish(pending) => Some(pending.commit),
                 _ => None,
@@ -301,7 +339,11 @@ impl<S: ObjectStore> Peer<S> {
                     if let Some(commit) = publishing {
                         self.refs.commits_refused(block, &HashSet::from([commit]))?;
                     }
-                    Drained::Refused { block, code }
+                    Drained::Refused {
+                        block,
+                        code,
+                        restored: false,
+                    }
                 }
                 Err(_) => {
                     stopped.insert(block);
@@ -324,6 +366,7 @@ impl<S: ObjectStore> Peer<S> {
                 | Drained::Moved { .. }
                 | Drained::Defined { .. }
                 | Drained::Refused { .. }
+                | Drained::SetAside { .. }
                 | Drained::Failed { .. } => {}
             }
             outcomes.push(outcome);
@@ -442,6 +485,14 @@ impl<S: ObjectStore> Peer<S> {
         creation: Creation,
     ) -> Result<Drained, ClientError> {
         let block = creation.block;
+        // Made under a block the server refused to make: it cannot be made either, and waits
+        // set aside with it, restored with it (`restore_unsent`).
+        if let BlockParent::Block(parent) = creation.parent
+            && let Some(code) = self.refs.refused(parent)
+        {
+            self.move_to_unsent(block, Some(code))?;
+            return Ok(Drained::SetAside { block, code });
+        }
         let response = crate::ask(client::blocks::create_block(
             &self.connection(),
             block,
@@ -467,6 +518,13 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
             }
+            // The server will not make the block as it is (over a quota, too large): what this
+            // device made of it is set aside, to be restored or discarded, so nothing waits
+            // behind a creation that never goes.
+            Err(ClientError::Refused(code, _)) => {
+                self.move_to_unsent(block, Some(code))?;
+                Ok(Drained::SetAside { block, code })
+            }
             Err(error) => Err(error),
         }
     }
@@ -476,14 +534,25 @@ impl<S: ObjectStore> Peer<S> {
         match self.send_parent(block, moving.parent).await {
             Ok(()) => {
                 self.refs.remove(&[sequence])?;
-                Ok(Drained::Moved { block })
+                let _ = self
+                    .follow_prefixes(block, moving.from, moving.parent)
+                    .await;
+                Ok(Drained::Moved {
+                    block,
+                    from: moving.from,
+                })
             }
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
             }
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
-                Ok(Drained::Refused { block, code })
+                self.unchanged(block).await;
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: true,
+                })
             }
             Err(error) => Err(error),
         }
@@ -525,7 +594,12 @@ impl<S: ObjectStore> Peer<S> {
             }
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
-                Ok(Drained::Refused { block, code })
+                self.unchanged(block).await;
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: true,
+                })
             }
             Err(error) => Err(error),
         }
@@ -572,7 +646,7 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         code: ErrorCode,
     ) -> Result<Drained, ClientError> {
-        let summary = match self.summary(block).await {
+        let summary = match self.server_summary(block).await {
             Ok(summary) => summary,
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 return self.lose_access(block);
@@ -580,7 +654,7 @@ impl<S: ObjectStore> Peer<S> {
             Err(error) => return Err(error),
         };
         if !summary.access.can_edit() {
-            self.move_to_unsent(block)?;
+            self.move_to_unsent(block, None)?;
             return Ok(Drained::Unsent { block });
         }
         match self
@@ -595,12 +669,28 @@ impl<S: ObjectStore> Peer<S> {
             }
             Some((_, Op::Move(_) | Op::Define(_))) => {
                 self.refs.remove(&[sequence])?;
-                Ok(Drained::Refused { block, code })
+                self.unchanged(block).await;
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: true,
+                })
             }
             Some((_, Op::Publish(_))) | None => Err(ClientError::Refused(
                 code,
                 format!("block {block} refused a change this account may otherwise make"),
             )),
+        }
+    }
+
+    /// After the server refused a move or a definition: this device shows the block as the
+    /// server has it again, not with the change it refused (its name, its place in a listing).
+    async fn unchanged(&self, block: Uuid) {
+        if self.refs.has_structural(block) {
+            return;
+        }
+        if let Ok(summary) = self.server_summary(block).await {
+            let _ = self.refs.revise(summary);
         }
     }
 
@@ -625,15 +715,22 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Sets what this device keeps of `block` aside: what its commits announce is never sent
     /// (a message shown "Not sent" tells nobody, and one sent again tells as a new one).
-    pub fn move_to_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
+    /// With `refused`, the server refused it with that code; otherwise this account lost access.
+    pub fn move_to_unsent(
+        &self,
+        block: Uuid,
+        refused: Option<ErrorCode>,
+    ) -> Result<bool, ClientError> {
         let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
         self.refs.commits_refused(block, &commits)?;
-        Ok(self.refs.move_to_unsent(block, now_milliseconds())?)
+        Ok(self
+            .refs
+            .move_to_unsent(block, now_milliseconds(), refused)?)
     }
 
     fn lose_access(&self, block: Uuid) -> Result<Drained, ClientError> {
         self.refs.lose_access(block)?;
-        self.move_to_unsent(block)?;
+        self.move_to_unsent(block, None)?;
         Ok(Drained::Unsent { block })
     }
 
@@ -657,12 +754,37 @@ impl<S: ObjectStore> Peer<S> {
                     .refs
                     .summary(block)
                     .is_some_and(|summary| summary.access.can_edit()),
+                name: self
+                    .refs
+                    .summary(block)
+                    .and_then(|summary| self.metadata(&summary).ok())
+                    .and_then(|metadata| metadata.name()),
+                refused: unsent.refused,
             })
             .collect()
     }
 
-    pub fn restore_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
-        Ok(self.refs.restore_unsent(block)?)
+    /// Puts what was set aside of `block` back in the outbox, with what was made under it and
+    /// set aside for its refusal: the blocks restored, none when nothing was set aside.
+    pub fn restore_unsent(&self, block: Uuid) -> Result<Vec<Uuid>, ClientError> {
+        if !self.refs.restore_unsent(block)? {
+            return Ok(Vec::new());
+        }
+        let mut restored = vec![block];
+        let mut next = 0;
+        while let Some(parent) = restored.get(next).copied() {
+            next += 1;
+            for (child, unsent) in self.refs.unsent() {
+                let under = self
+                    .refs
+                    .summary(child)
+                    .is_some_and(|summary| summary.parent == Some(BlockParent::Block(parent)));
+                if under && unsent.refused.is_some() && self.refs.restore_unsent(child)? {
+                    restored.push(child);
+                }
+            }
+        }
+        Ok(restored)
     }
 
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {

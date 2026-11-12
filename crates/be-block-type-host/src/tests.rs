@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::{Conflict, Host, Replicas, in_process, started};
 
+mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
 mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_noted_seal;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;

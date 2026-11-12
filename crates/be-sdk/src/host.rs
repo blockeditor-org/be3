@@ -1962,10 +1962,19 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::verify(account.into_bytes(), bytes, signature)))
     }
 
-    pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
-        self.ask(|| {
-            host_services::set_access(block_id.into_bytes(), account.into_bytes(), access).detach()
-        });
+    /// Fails with the message to show where the person shared when the server could not take
+    /// it (offline, it needs the server).
+    pub fn set_access(
+        &self,
+        block_id: Uuid,
+        account: Uuid,
+        access: AccessLevel,
+    ) -> Asked<Result<(), Failure>> {
+        Asked::of(
+            self.ask(|| {
+                host_services::set_access(block_id.into_bytes(), account.into_bytes(), access)
+            }),
+        )
     }
 
     /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows

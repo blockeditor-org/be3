@@ -25,8 +25,8 @@ fn typing_while_a_seal_waits_for_the_server_shows_at_once() {
     assert_eq!(texts(&sim.content(0)), ["first", "second", "third"]);
     assert_eq!(
         texts(sim.mirror(1, 1)),
-        ["first"],
-        "a follower heard of edits sequenced after a seal before the seal itself"
+        ["first", "second", "third"],
+        "the owner sequences and relays what is typed while its seal is out, as at any time"
     );
     assert!(!sim.devices[0].status.clean);
 

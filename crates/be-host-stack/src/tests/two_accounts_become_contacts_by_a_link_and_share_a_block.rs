@@ -54,7 +54,12 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
     assert_eq!(theirs.len(), 1);
     assert_eq!(theirs[0].public, Some(harness.phrase.secret().public()));
 
-    set_access(block, guest.session.account, be_block_graph::Access::View);
+    set_access(
+        block,
+        guest.session.account,
+        be_block_graph::Access::View,
+        |_| {},
+    );
     flush_and_send();
     assert_eq!(status().error, None);
     assert_eq!(runtime.block_on(read_text(&peer, block)), "meet at noon");

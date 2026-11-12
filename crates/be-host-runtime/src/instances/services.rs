@@ -495,11 +495,12 @@ impl Instances {
                 account,
                 access,
             } => {
-                self.services.answers.push(reply.answer(&()));
+                let answering = self.answering(instance, reply);
                 be_host_stack::set_access(
                     Uuid::from_bytes(block),
                     Uuid::from_bytes(account),
                     be_host_stack::app_graph::access_of(access),
+                    move |set| answering.send_or_fail(set),
                 );
             }
             Call::SetNotifyMode { reply, block, mode } => {

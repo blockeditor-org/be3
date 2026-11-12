@@ -141,12 +141,15 @@ with the block key; the server keeps it beside history, never in it
   rebases after each commit, and on taking a session before it appends.
 - **A seal on its way.** The owner keeps journaling what is typed while its
   seal waits on the server. The seal's commit records the session generation
-  and last sequence it holds (`Commit::sealed_through`); a device that stopped
-  after the server took the seal and before it heard so opens on the commit the
-  seal was made on, replays its own journal there and takes the seal as its
-  head, when its journal noted that seal (written with the seal's commit in one
-  refs write, dropped by the next rebase: `Peer::sealing`) and holds the seal's
-  last entry in its generation (`reaches_seal`; guides/type_modules.md, Peers).
+  and last sequence it holds (`Commit::sealed_through`); once it lands the owner
+  rebases onto it carrying what came after, and followers, who applied that
+  already, reload the seal and hear it again (`SessionMessage::Sealed` with
+  `reload`). A device that stopped after the server took the seal and before it
+  heard so opens on the commit the seal was made on, replays its own journal
+  there and takes the seal as its head, when its journal noted that seal
+  (written with the seal's commit in one refs write, dropped by the next rebase:
+  `Peer::sealing`) and holds the seal's last entry in its generation
+  (`reaches_seal`; guides/type_modules.md, Peers).
 - Joining (`Peer::join_session`) answers the journal as of joining, so a
   replica opening on its base needs no state from the owner
   (`be_block_type_host::Replicas` picks the server's or the device's,
@@ -212,7 +215,11 @@ sends it. `Peer::write` does both.
 - **Offline**, a failed publish stays in the outbox, as do creates
   (`refs::Op::Create`), moves (`Op::Move`) and defines on a block with no
   content (`Op::Define`); these rewrite the cached summary so listings show
-  them, and later ones for a block queue behind earlier ones. Sharing, access,
+  them, and later ones for a block queue behind earlier ones. `keep_creation`,
+  `keep_definition` and `keep_move` put them there online too (the host's
+  path); a publish waits behind a creation, move or define of its block, and a
+  server listing is laid over with what the outbox adds or moves. Sending a
+  move carries its databases' prefixes along (`Moving::from`). Sharing, access,
   members, invites, agents, contacts and pairing need the server.
 - **`Peer::drain`** publishes the outbox in order once attached and reports a
   `Drained` per block. A rejected publish whose remote head already contains
@@ -224,6 +231,13 @@ sends it. `Peer::write` does both.
   re-reading the summary) moves its entries to `Peer::unsent`;
   `restore_unsent` brings them back, `discard_unsent` deletes them, and
   `UnsentBlock::offerable` says the summary allows editing again.
+  A create refused for any other reason (over a quota, too large) is set aside
+  the same way, so nothing waits behind it, with the code it was refused with
+  (`UnsentBlock::refused`, `Drained::SetAside`): the host shows it, an
+  organization's lost-access policy never deletes it, and cached listings leave
+  it out. What is made in it is set aside with its refusal, and restoring it
+  restores them. A refused move or define puts back the summary the server has
+  (`unchanged`, `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.
 

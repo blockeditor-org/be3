@@ -58,6 +58,10 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
         })
     });
 
+    // The workspaces and their indexes reach the server before it goes, so the other device
+    // can write under them.
+    flush_and_send();
+
     // While the host is away, another device writes a note: no indexer saw it, so only the
     // catch-up on reconnecting can.
     harness.stop_server();

@@ -4,6 +4,7 @@ use beui_host::native::FreetypeFonts;
 use beui_host::native::testing::{Showing, Stepped};
 
 use super::*;
+use crate::ui::keys::PairingDialog;
 use crate::ui::{HostUi, UnsentRow, UnsentView};
 use beui_host::native::build;
 
@@ -26,6 +27,24 @@ impl Shown {
             let status = create_memo(move || status.clone());
             view! {
                 <HostMenu status pick={Callback::new(send)} report={None} />
+            }
+        })
+    }
+
+    fn dialogs(view: HostUi) -> Self {
+        Self::start(move || {
+            let store = HostUiStore::new(view);
+            view! {
+                <Dialogs view={store} />
+            }
+        })
+    }
+
+    fn pairing(view: HostUi) -> Self {
+        Self::start(move || {
+            let store = HostUiStore::new(view);
+            view! {
+                <PairingDialog view={store} />
             }
         })
     }
@@ -74,11 +93,21 @@ fn unsent_view() -> HostUi {
                     block: uuid::Uuid::from_u128(1),
                     name: "Trip notes".to_owned(),
                     offerable: true,
+                    refused: None,
                 },
                 UnsentRow {
                     block: uuid::Uuid::from_u128(2),
                     name: "Budget".to_owned(),
                     offerable: false,
+                    refused: None,
+                },
+                UnsentRow {
+                    block: uuid::Uuid::from_u128(3),
+                    name: "Photos".to_owned(),
+                    offerable: true,
+                    refused: Some(be_host_stack::refusal(
+                        be_block_protocol::ErrorCode::OverQuota,
+                    )),
                 },
             ],
             discarding: None,
@@ -87,5 +116,7 @@ fn unsent_view() -> HostUi {
     }
 }
 
+mod approving_a_device_offline_says_it_needs_a_connection;
+mod leaving_offline_says_it_needs_a_connection;
 mod the_status_says_whether_changes_are_saved_syncing_offline_or_failed;
 mod unsent_edits_can_be_restored_or_discarded;

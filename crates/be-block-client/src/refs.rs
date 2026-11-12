@@ -6,8 +6,8 @@ use std::{
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    BlockSummary, EscrowKey, Journal, JournalBase, JournalEntry, KeyRow, KeySet, Listing,
-    Organization, OrganizationKind, OrganizationRole, WrappedBy, WrappedKey,
+    BlockSummary, ErrorCode, EscrowKey, Journal, JournalBase, JournalEntry, KeyRow, KeySet,
+    Listing, Organization, OrganizationKind, OrganizationRole, WrappedBy, WrappedKey,
 };
 use be_block_store::{Hash, StoreError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -232,6 +232,8 @@ pub struct Creation {
 pub struct Moving {
     pub block: Uuid,
     pub parent: BlockParent,
+    /// Where it was, so sending it can carry its databases' prefixes along (`follow_prefixes`).
+    pub from: Option<BlockParent>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -266,6 +268,9 @@ pub(crate) struct Unsent {
     pub head: Option<CommitId>,
     pub since: i64,
     pub ops: Vec<Op>,
+    /// Why it was set aside: the server refused it, with the code it gave (a block it would
+    /// not make, over a quota or too large), or else this account lost access to it.
+    pub refused: Option<ErrorCode>,
 }
 
 /// Entries set aside because the block's access was refused. Only `Peer::discard_unsent`
@@ -277,6 +282,11 @@ pub struct UnsentBlock {
     pub commits: Vec<CommitId>,
     pub since: i64,
     pub offerable: bool,
+    /// The code the server refused it with, when it was refused rather than this account
+    /// losing access (`Unsent::refused`): what lost access does to it does not apply.
+    pub refused: Option<ErrorCode>,
+    /// Its name as this device has it.
+    pub name: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -783,7 +793,14 @@ impl Refs {
         let at = state.listed_at.get(&listing).copied().unwrap_or_default();
         let empty = HashSet::new();
         let there = state.placed.get(&parent).unwrap_or(&empty);
-        let shown = |summary: &&BlockSummary| summary.access.can_know_exists();
+        // A block the server refused to make is kept only for its unsent row, not listed.
+        let shown = |summary: &&BlockSummary| {
+            summary.access.can_know_exists()
+                && !state
+                    .unsent
+                    .get(&summary.id)
+                    .is_some_and(|unsent| unsent.refused.is_some())
+        };
         let mut placed: Vec<BlockSummary> = listed
             .iter()
             .filter(|id| there.contains(id))
@@ -1297,7 +1314,12 @@ impl Refs {
         }
     }
 
-    pub fn move_to_unsent(&self, block: Uuid, since: i64) -> Result<bool, StoreError> {
+    pub fn move_to_unsent(
+        &self,
+        block: Uuid,
+        since: i64,
+        refused: Option<ErrorCode>,
+    ) -> Result<bool, StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
@@ -1324,13 +1346,31 @@ impl Refs {
                 head,
                 since,
                 ops: Vec::new(),
+                refused: None,
             });
             unsent.head = head.or(unsent.head);
             unsent.ops.extend(ops);
+            // A later setting aside (what was made of it since) keeps why it was first refused.
+            unsent.refused = refused.or(unsent.refused.take());
             rows.push(row(Table::Unsent, block.as_bytes().to_vec(), &*unsent));
         }
         self.write(rows)?;
         Ok(true)
+    }
+
+    pub fn is_unsent(&self, block: Uuid) -> bool {
+        self.state.lock().unwrap().unsent.contains_key(&block)
+    }
+
+    /// The code the server refused `block` with, when what this device made of it was set aside
+    /// for that (`Unsent::refused`).
+    pub fn refused(&self, block: Uuid) -> Option<ErrorCode> {
+        self.state
+            .lock()
+            .unwrap()
+            .unsent
+            .get(&block)
+            .and_then(|unsent| unsent.refused)
     }
 
     pub fn unsent(&self) -> Vec<(Uuid, Unsent)> {

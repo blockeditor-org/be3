@@ -3,7 +3,6 @@ use super::*;
 /// Going back on a phone closes the document and shows My files again, from what the device
 /// keeps whether or not it is connected.
 #[test]
-#[ignore = "a command that needs the server (set parent) holds the block store's loop until the silent connection is declared lost"]
 fn on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops() {
     let server = Server::start();
     let dev = server.account("Dev");

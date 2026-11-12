@@ -31,15 +31,15 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child)),
         Some(true)
     );
-    let owing = crate::wait_until(|shared| {
+    let unsealed = crate::wait_until(|shared| {
         shared
             .graph
             .get(folder)
             .filter(|node| node.references.contains(&child))
-            .map(|_| shared.owing)
+            .map(|_| shared.unsealed)
     });
     assert!(
-        owing > 0,
+        unsealed > 0,
         "the folder's graph node lists the child while its edit still waits for a seal"
     );
 }

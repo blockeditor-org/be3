@@ -122,8 +122,9 @@ interface host-services {
     /// Everyone who has access to the block or could be given it.
     list-access: async func(block: block-id) -> result<access-listing, failure>;
 
-    /// Grants `account` `access` to the block.
-    set-access: async func(block: block-id, account: account-id, access: access-level);
+    /// Grants `account` `access` to the block. Fails, with the message to show where the person
+    /// shared, when the server could not take it (offline, it needs the server).
+    set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, failure>;
 
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;

@@ -565,7 +565,7 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
         <Frame>
             <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>
-                    "These edits were made on this device but could not be sent, because you can no longer edit these blocks. They stay here until you restore or discard them. Restore sends them again once you can edit the block."
+                    "These edits were made on this device but could not be sent: you can no longer edit these blocks, or the server refused them. They stay here until you restore or discard them. Restore sends them again."
                 </Text>
                 <Show condition={none}>
                     <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
@@ -580,9 +580,13 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                             .unwrap_or_default()
                     });
                     let name = create_memo(move || row.get().name);
-                    let detail = create_memo(move || match row.get().offerable {
-                        true => "You can edit it again".to_owned(),
-                        false => "You cannot edit it now".to_owned(),
+                    let detail = create_memo(move || {
+                        let row = row.get();
+                        match (row.refused, row.offerable) {
+                            (Some(why), _) => format!("The server refused it: {why}"),
+                            (None, true) => "You can edit it again".to_owned(),
+                            (None, false) => "You cannot edit it now".to_owned(),
+                        }
                     });
                     let blocked = create_memo(move || !row.get().offerable);
                     view! {
@@ -728,6 +732,11 @@ fn AboutPanel() -> NodeId {
 fn LeaveDialog(view: HostUiStore) -> NodeId {
     let leaving = view.leaving;
     let open = create_memo(move || leaving.get());
+    let busy = view.leave_busy;
+    let busy = create_memo(move || busy.get());
+    let refused = view.leave_refused;
+    let refused = create_memo(move || refused.get());
+    let was_refused = create_memo(move || !refused.get().is_empty());
     view! {
         <Dialog
             open={open}
@@ -735,7 +744,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             title="Leave?"
             id="host.leave"
             actions={vec![
-                DialogAction::destructive("Leave", || send(UiCommand::ConfirmLeave)),
+                DialogAction::destructive("Leave", || send(UiCommand::ConfirmLeave)).busy(busy),
                 DialogAction::cancel("Stay"),
             ]}
             on_dismiss={|| send(UiCommand::CancelLeave)}
@@ -743,6 +752,9 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             <Text style=TextStyle::PARAGRAPH>
                 "You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
             </Text>
+            <Show condition={was_refused}>
+                <Text style=TextStyle::CAPTION @test_id="host.leave.refused">{refused}</Text>
+            </Show>
         </Dialog>
     }
 }

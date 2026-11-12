@@ -22,7 +22,7 @@ fn a_block_shared_with_a_new_agent_at_once_is_sealed_to_it() {
     .flatten()
     .expect("the new agent is a contact with its key as soon as it is made");
 
-    set_access(block, agent, be_block_graph::Access::Edit);
+    set_access(block, agent, be_block_graph::Access::Edit, |_| {});
     flush_and_send();
     let (reply, listed) = std::sync::mpsc::channel();
     list_access(block, move |entries| {

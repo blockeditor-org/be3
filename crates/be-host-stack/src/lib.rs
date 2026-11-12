@@ -42,7 +42,9 @@ use web as platform;
 
 pub use graph::{Graph, Node, Owner, Query, Scope};
 pub use search::{SearchAsk, SearchHit, Searched};
-pub use worker::{History, PairingRequest, Shared};
+pub use worker::{
+    History, OFFLINE_LEAVING, OFFLINE_PAIRING, OFFLINE_SHARING, PairingRequest, Shared,
+};
 
 use worker::Command;
 
@@ -126,6 +128,21 @@ pub struct UnsentEdit {
     pub name: Option<String>,
     pub since: i64,
     pub offerable: bool,
+    /// Why the server refused it, in words (`refusal`), when it did rather than access being
+    /// lost (`UnsentBlock::refused`).
+    pub refused: Option<&'static str>,
+}
+
+/// Why the server refused to make a block, in words for the person; its code goes to the log.
+pub fn refusal(code: be_block_protocol::ErrorCode) -> &'static str {
+    use be_block_protocol::ErrorCode;
+    match code {
+        ErrorCode::OverQuota => "it would go over a limit",
+        ErrorCode::InvalidRequest => "it could not take it as it is",
+        ErrorCode::PolicyRefused => "your organization does not allow it",
+        ErrorCode::PermissionDenied | ErrorCode::BlockNotFound => "you may not make it there",
+        _ => "it would not say why",
+    }
 }
 
 pub use types::{host_block_types, is_known, kind_of, provided};
@@ -685,8 +702,18 @@ pub fn pairing_requests() -> Vec<PairingRequest> {
     with_shared(|shared| shared.pairing.clone()).unwrap_or_default()
 }
 
-pub fn approve_pairing(from: u64, code: String) {
-    send(Command::ApprovePairing { from, code });
+/// Approves a device asking to pair; `reply` hears whether it was, or the refusal to show where
+/// the person approved (offline, it needs the server).
+pub fn approve_pairing(
+    from: u64,
+    code: String,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::ApprovePairing {
+        from,
+        code,
+        reply: Box::new(reply),
+    });
 }
 
 pub fn dismiss_pairing(from: u64) {
@@ -796,9 +823,11 @@ pub fn unsent() -> Vec<UnsentEdit> {
                 name: shared
                     .graph
                     .get(unsent.block)
-                    .and_then(|node| node.metadata.name()),
+                    .and_then(|node| node.metadata.name())
+                    .or_else(|| unsent.name.clone()),
                 since: unsent.since,
                 offerable: unsent.offerable,
+                refused: unsent.refused.map(refusal),
             })
             .collect()
     })
@@ -1310,11 +1339,19 @@ pub fn describe_implicitly(block: Uuid, derived: be_block::Entries) {
     with_shared_mut(|shared| shared.graph.derive(block, derived));
 }
 
-pub fn set_access(block: Uuid, account: Uuid, access: be_block_graph::Access) {
+/// Gives `account` `access` to `block`; `reply` hears whether the server did, or the refusal
+/// to show where the person shared (offline, it needs the server).
+pub fn set_access(
+    block: Uuid,
+    account: Uuid,
+    access: be_block_graph::Access,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
     send(Command::SetAccess {
         block,
         account,
         access,
+        reply: Box::new(reply),
     });
 }
 
@@ -1386,8 +1423,13 @@ pub fn open_push(
     }));
 }
 
-pub fn leave(block: Uuid) {
-    send(Command::Leave(block));
+/// Leaves a block shared with this account; `reply` hears whether it did, or the refusal to show
+/// where the person left (offline, it needs the server).
+pub fn leave(block: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
+    send(Command::Leave {
+        block,
+        reply: Box::new(reply),
+    });
 }
 
 type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
