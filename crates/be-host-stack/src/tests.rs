@@ -438,6 +438,10 @@ async fn outside_peer(
 impl Drop for Harness {
     fn drop(&mut self) {
         be_block_commit::pin_now(None);
+        // A clock a test held would freeze the module timers of every test after it.
+        *crate::HELD_CLOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         if std::thread::panicking() {
             abandon();
         } else {
