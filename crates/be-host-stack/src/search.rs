@@ -232,11 +232,23 @@ impl Searching {
     pub(crate) fn busy_with(&self, unindexed: bool) -> Option<&'static str> {
         let indexing = !self.off;
         [
-            (indexing && !self.dirty.is_empty(), "edits wait to be indexed"),
-            (indexing && !self.creating.is_empty(), "an index is being made"),
-            (indexing && !self.confirming.is_empty(), "an index waits for its root"),
+            (
+                indexing && !self.dirty.is_empty(),
+                "edits wait to be indexed",
+            ),
+            (
+                indexing && !self.creating.is_empty(),
+                "an index is being made",
+            ),
+            (
+                indexing && !self.confirming.is_empty(),
+                "an index waits for its root",
+            ),
             (indexing && !self.catching.is_empty(), "an index catches up"),
-            (indexing && !self.settle.is_empty(), "an index waits to settle"),
+            (
+                indexing && !self.settle.is_empty(),
+                "an index waits to settle",
+            ),
             (indexing && unindexed, "a workspace waits for its index"),
             (!self.writing.is_empty(), "a batch is written to an index"),
             (!self.running.is_empty(), "a search runs"),
