@@ -16,10 +16,9 @@ by hand (git ignores it, and nothing but a person writes it):
 remote execution and the remote cache turned off. It takes the remote platform's label and
 constraints, so the exec configurations, and with them the output paths, are the same as on a
 build server. `fbcode.disable_re_tests` is the prelude's switch that runs tests here rather than
-on the worker toolchains//:remote_test_execution names. `./scripts/buck` asks buck2 for the
-configuration in effect (`buck2 audit config`) and, when it names the local list or turns
-remote execution off, asks no build server or waker for anything and writes no
-`target/build-server.buckconfig` (guides/build_server.md). The rules tell a local build apart
+on the worker toolchains//:remote_test_execution names. Since the file is a person's, `./scripts/buck`
+asks no build server or waker for anything and writes no `target/build-server.buckconfig`
+(guides/build_server.md). The rules tell a local build apart
 only by `execution_platforms` (`LOCAL_BUILD` in buck/platforms/profile.bzl), in any spelling of
 `root//buck/platforms:execution_platforms` or `:execution_platforms_local`, and fail to load on
 any other value, for the two differences below. Then use `./scripts/buck` as usual, such as
