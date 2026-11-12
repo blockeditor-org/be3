@@ -68,22 +68,27 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         },
     };
     let overlay = NodeRef::new();
-    on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event: KeyEvent| {
-        if event.held() {
-            return true;
-        }
-        let Some(press) = event.press() else {
-            return false;
-        };
-        let Some(overlay) = overlay.try_get() else {
-            return false;
-        };
-        if press.key != Key::Escape || !press.pressed || !open.get_untracked() {
-            return false;
-        }
-        overlay.dismiss_overlay(Dismiss::Escape);
-        true
-    });
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event: KeyEvent| {
+            if event.held() {
+                return true;
+            }
+            let Some(press) = event.press() else {
+                return false;
+            };
+            let Some(overlay) = overlay.try_get() else {
+                return false;
+            };
+            if press.key != Key::Escape || !press.pressed || !open.get_untracked() {
+                return false;
+            }
+            overlay.dismiss_overlay(Dismiss::Escape);
+            true
+        },
+    );
     view! {
         <Overlay
             @node_ref=&overlay

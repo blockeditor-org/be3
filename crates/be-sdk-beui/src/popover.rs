@@ -190,15 +190,20 @@ fn AnchoredPopover(
         PickAnchor::Node(node) => Some(node),
         PickAnchor::Centre | PickAnchor::Rect(_) => None,
     };
-    on_key(KeyAt::Host, KeyPhase::Capture, KeyReveal::Focus, move |event| {
-        let escaped = event
-            .press()
-            .is_some_and(|press| press.pressed && press.key == Key::Escape);
-        if escaped {
-            on_dismiss.call(());
-        }
-        escaped
-    });
+    on_key(
+        KeyAt::Host,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+            if escaped {
+                on_dismiss.call(());
+            }
+            escaped
+        },
+    );
     view! {
         <Overlay
             anchor={at}

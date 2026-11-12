@@ -66,7 +66,8 @@ fn AccordionHeader(
     view! {
         <Frame
             fill={header_color}
-            focus={focused} focus_offset=Stroke::Focus
+            focus={focused}
+            focus_offset=Stroke::Focus
             radius=Radius::Md
             padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >

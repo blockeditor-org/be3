@@ -385,13 +385,7 @@ fn RowMenuFace(handle: PopupTriggerHandle, sized: Memo<Metrics>) -> NodeId {
     let glyph_size = create_memo(move || sized.get().glyph);
     view! {
         <Tooltip label={tooltip}>
-            <Frame
-                width={extent}
-                height={extent}
-                fill={fill}
-                focus={focused}
-                radius=CHEVRON_RADIUS
-            >
+            <Frame width={extent} height={extent} fill={fill} focus={focused} radius=CHEVRON_RADIUS>
                 <Text size={glyph_size} color={color} align=TextAlign::Center>
                     <Icon glyph=ICON_ELLIPSIS />
                 </Text>

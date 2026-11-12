@@ -116,11 +116,7 @@ fn SelectTrigger(
         false => TextColor::Default,
     });
     view! {
-        <Frame
-            width={width}
-            focus={focused} focus_offset=Stroke::Focus
-            radius=Radius::Md
-        >
+        <Frame width={width} focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <Frame
                 height=HEIGHT
                 fill={fill}

@@ -257,12 +257,15 @@ pub fn on_shortcut(shortcut: impl Fn(KeyPress) -> bool + 'static) {
         Some(_) => KeyAt::Node(component_node()),
         None => KeyAt::Root,
     };
-    on_key(at, KeyPhase::Capture, KeyReveal::Focus, move |event| {
-        match (event.press(), event.phase) {
+    on_key(
+        at,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event| match (event.press(), event.phase) {
             (Some(press), KeyPhase::Capture) => shortcut(press),
             _ => false,
-        }
-    });
+        },
+    );
 }
 
 pub fn on_back(enabled: impl IntoProp<bool>, handler: impl Fn(BackGesture) + 'static) {

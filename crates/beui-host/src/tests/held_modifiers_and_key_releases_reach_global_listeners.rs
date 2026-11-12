@@ -10,12 +10,17 @@ fn held_modifiers_and_key_releases_reach_global_listeners() {
     let seen = create_signal(Vec::new());
     let holds = create_signal(Vec::new());
     let document = build_node(move || {
-        on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event: KeyEvent| {
-            if let Some(press) = event.press() {
-                seen.update(|seen| seen.push((press.key, press.pressed)));
-            }
-            false
-        });
+        on_key(
+            KeyAt::Window,
+            KeyPhase::Capture,
+            KeyReveal::Focus,
+            move |event: KeyEvent| {
+                if let Some(press) = event.press() {
+                    seen.update(|seen| seen.push((press.key, press.pressed)));
+                }
+                false
+            },
+        );
         let modifiers = held_modifiers();
         create_effect(move || holds.update(|holds| holds.push(modifiers.get())));
         view! {

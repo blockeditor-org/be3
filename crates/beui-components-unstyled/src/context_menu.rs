@@ -67,26 +67,31 @@ pub fn ContextMenu(
         },
         None => OverlayAnchor::Node(holder),
     });
-    on_key(KeyAt::Control(holder), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
-        let Some(press) = event.press() else {
-            return false;
-        };
-        let held = press.modifiers;
-        let menu_key = match press.key {
-            Key::F10 => held.shift && !held.ctrl && !held.alt,
-            Key::ContextMenu => !held.ctrl && !held.alt,
-            _ => false,
-        };
-        if !menu_key || event.target.node.is_none() || disabled.get_untracked() {
-            return false;
-        }
-        if press.pressed {
-            position.set(None);
-            focusing.set(true);
-            open.set(true);
-        }
-        true
-    });
+    on_key(
+        KeyAt::Control(holder),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let Some(press) = event.press() else {
+                return false;
+            };
+            let held = press.modifiers;
+            let menu_key = match press.key {
+                Key::F10 => held.shift && !held.ctrl && !held.alt,
+                Key::ContextMenu => !held.ctrl && !held.alt,
+                _ => false,
+            };
+            if !menu_key || event.target.node.is_none() || disabled.get_untracked() {
+                return false;
+            }
+            if press.pressed {
+                position.set(None);
+                focusing.set(true);
+                open.set(true);
+            }
+            true
+        },
+    );
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     api.fill(ContextMenuApi(State {

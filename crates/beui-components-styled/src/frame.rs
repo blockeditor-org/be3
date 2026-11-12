@@ -320,8 +320,7 @@ fn focus_outline(
     let ring = focus_ring(focus);
     Prop::dynamic(move || match ring.get() {
         true => Some(
-            Outline::new(ColorRole::Accent.resolve(&theme), Stroke::Focus.px())
-                .offset(offset.px()),
+            Outline::new(ColorRole::Accent.resolve(&theme), Stroke::Focus.px()).offset(offset.px()),
         ),
         false => under.get(),
     })

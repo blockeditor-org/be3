@@ -4449,10 +4449,7 @@ fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomVie
 fn CanvasBoard(view: Memo<Option<CanvasView>>, focused: ReadSignal<bool>) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
     view! {
-        <Frame
-            focus={focused}
-            radius=Radius::Md
-        >
+        <Frame focus={focused} radius=Radius::Md>
             <Canvas view>
                 <StageCard card=first />
                 <StageCard card=second />

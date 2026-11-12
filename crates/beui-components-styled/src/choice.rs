@@ -39,7 +39,8 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     view! {
         <Frame
             fill={fill_color}
-            focus={focused} focus_offset=Stroke::Hairline
+            focus={focused}
+            focus_offset=Stroke::Hairline
             radius=Radius::Md
             padding=OPTION_PADDING
         >
@@ -164,7 +165,8 @@ pub(super) fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
     view! {
         <Frame
             fill={fill_color}
-            focus={focused} focus_offset=Stroke::Hairline
+            focus={focused}
+            focus_offset=Stroke::Hairline
             radius=Radius::Sm
             padding=SEGMENT_PADDING
         >

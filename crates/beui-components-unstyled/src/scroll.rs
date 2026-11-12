@@ -792,11 +792,16 @@ fn Scrolling(
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
     let marker = marker.once();
-    on_key(KeyAt::Node(catcher), KeyPhase::Bubble, KeyReveal::Nothing, move |event| {
-        event
-            .press()
-            .is_some_and(|press| navigates(press.key) && motion.value().key(press))
-    });
+    on_key(
+        KeyAt::Node(catcher),
+        KeyPhase::Bubble,
+        KeyReveal::Nothing,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigates(press.key) && motion.value().key(press))
+        },
+    );
     let autoscroll = gestures::autoscroll(move |gesture: AutoscrollGesture| {
         let marking = (!gesture.ended).then_some(gesture.origin);
         if origin.get_untracked() != marking {

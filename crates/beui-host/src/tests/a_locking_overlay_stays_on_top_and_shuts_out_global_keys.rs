@@ -19,10 +19,15 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let typed = create_signal(String::new());
     let (lock, popup) = (NodeRef::new(), NodeRef::new());
     let document = build_node(move || {
-        on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event: KeyEvent| {
-            globals.update(|globals| *globals += 1);
-            event.press().is_some_and(|press| press.modifiers.ctrl)
-        });
+        on_key(
+            KeyAt::Window,
+            KeyPhase::Capture,
+            KeyReveal::Focus,
+            move |event: KeyEvent| {
+                globals.update(|globals| *globals += 1);
+                event.press().is_some_and(|press| press.modifiers.ctrl)
+            },
+        );
         view! {
             <List spacing=0.0>
                 <TextInput @test_id={"outside"} value="" />

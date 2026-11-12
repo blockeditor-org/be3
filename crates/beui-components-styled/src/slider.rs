@@ -65,11 +65,7 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
     });
 
     view! {
-        <Frame
-            height=HEIGHT
-            focus={focused} focus_offset=Stroke::Focus
-            radius=Radius::Md
-        >
+        <Frame height=HEIGHT focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <Layers>
                 <Show condition={mark.is_some()}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>

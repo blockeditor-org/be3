@@ -165,7 +165,8 @@ fn HalfFace(
 ) -> NodeId {
     view! {
         <Frame
-            focus={focused} focus_offset=Stroke::Focus
+            focus={focused}
+            focus_offset=Stroke::Focus
             radius=Radius::Md
             corners={side.corners()}
         >

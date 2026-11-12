@@ -129,7 +129,8 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
         <Frame
             fill={fill}
             radius=PILL_RADIUS
-            focus={focused} focus_offset=Stroke::Focus
+            focus={focused}
+            focus_offset=Stroke::Focus
             padding={Padding::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text color=TextColor::OnAccent weight=Weight::Bold>{label.to_owned()}</Text>
@@ -163,10 +164,7 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
         false => ColorRole::TextMuted,
     });
     view! {
-        <Frame
-            focus={focused} focus_offset=Stroke::Focus
-            radius=Radius::Md
-        >
+        <Frame focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame
                     width=BOX_SIZE
@@ -256,7 +254,8 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
             height=METER_HEIGHT
             fill=ColorRole::Track
             radius=Radius::Md
-            focus={focused} focus_offset=Stroke::Focus
+            focus={focused}
+            focus_offset=Stroke::Focus
         >
             <List direction=Direction::Horizontal spacing=Space::None>
                 <ListItem grow=fraction>
@@ -492,11 +491,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
         ..
     } = handle;
     view! {
-        <Frame
-            focus={focused}
-            radius=Radius::Md
-            padding=Space::Xs
-        >
+        <Frame focus={focused} radius=Radius::Md padding=Space::Xs>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame
                     width=BOX_SIZE
