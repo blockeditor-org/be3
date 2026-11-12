@@ -1156,7 +1156,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 mentions,
             } => {
                 self.to(device, |host| reply.send(host, &()));
-                self.notified.push((device, text, mentions));
+                self.notified.push((
+                    device,
+                    text,
+                    mentions
+                        .iter()
+                        .filter_map(|mention| Uuid::parse_str(mention).ok())
+                        .collect(),
+                ));
             }
         }
     }

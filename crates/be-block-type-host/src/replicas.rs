@@ -2687,6 +2687,10 @@ impl<H: Host> Replicas<H> {
                 if !peer.is_attached() || made_up {
                     return false;
                 }
+                let mentions: Vec<Uuid> = mentions
+                    .iter()
+                    .filter_map(|mention| Uuid::parse_str(mention).ok())
+                    .collect();
                 let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
                 H::spawn(async move {
                     if let Err(error) = peer.notify(block, &text, mentions).await

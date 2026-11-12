@@ -345,6 +345,10 @@ impl Inner {
                 text,
                 mentions,
             } => {
+                let mentions = mentions
+                    .iter()
+                    .filter_map(|mention| Uuid::parse_str(mention).ok())
+                    .collect();
                 self.notified.push((block, text, mentions));
                 reply.send(&mut self.host, &());
             }

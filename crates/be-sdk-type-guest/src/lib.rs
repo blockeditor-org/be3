@@ -701,7 +701,10 @@ impl Module {
                 replica,
                 text,
                 mentions,
-            } => ops::with_parent(replica, || host::notify(text, mentions)).detach(),
+            } => {
+                let mentions = mentions.iter().map(Uuid::to_string).collect();
+                ops::with_parent(replica, || host::notify(text, mentions)).detach()
+            }
             Effect::ReportClean {
                 replica,
                 generation,
