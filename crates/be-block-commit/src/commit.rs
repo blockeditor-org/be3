@@ -99,11 +99,18 @@ pub struct Commit {
     pub metadata: Vec<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub change: Option<ChangeId>,
-    /// For a seal of a live session's owner: the last sequence number of the session it holds.
-    /// What the owner journaled past it while the commit was on its way replays on top of it
-    /// (guides/blocks/client.md, The journal).
+    /// For a seal of a live session's owner: the session's generation and the last sequence
+    /// number it holds. What the owner journaled past it while the commit was on its way
+    /// replays on top of it (guides/blocks/client.md, The journal).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sealed_through: Option<u64>,
+    pub sealed_through: Option<SealedThrough>,
+}
+
+/// Where in its session a seal stands (`Commit::sealed_through`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SealedThrough {
+    pub generation: u64,
+    pub sequence: u64,
 }
 
 impl Commit {
@@ -121,8 +128,8 @@ impl Commit {
         }
     }
 
-    pub fn with_sealed_through(mut self, sequence: Option<u64>) -> Self {
-        self.sealed_through = sequence;
+    pub fn with_sealed_through(mut self, sealed: Option<SealedThrough>) -> Self {
+        self.sealed_through = sealed;
         self
     }
 

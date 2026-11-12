@@ -54,8 +54,9 @@ impl<S: ObjectStore> Peer<S> {
     /// from it. What the journal's entries announce goes with `base`'s commit when this device
     /// sealed it (`own`), sent once the server holds it; the rest is dropped.
     /// Starts this device's journal, and when `online` the server's, from `base`, keeping
-    /// `entries` (plain payloads) past it: on the device in one write, so no crash between the
-    /// two loses them.
+    /// `entries` (plain payloads) past it. One write holds on the device only, so no crash
+    /// there loses them; the server gets a rebase and then an append, and a drop between the
+    /// two is covered by the device's journal, which a replica opens on when it holds more.
     #[allow(clippy::too_many_arguments)]
     pub async fn rebase_journal(
         &self,
