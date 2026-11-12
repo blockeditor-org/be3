@@ -754,14 +754,13 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
         }
         let delay = reconnect_delay(failures, jitter());
         failures = failures.saturating_add(1);
+        // One moment for the sleep and for the wait that moves a clock to it.
+        let at = config.clock.now() + delay;
         #[cfg(any(test, feature = "testing"))]
-        reconnecting_at(
-            shared,
-            Some((config.clock.clone(), config.clock.now() + delay)),
-        );
+        reconnecting_at(shared, Some((config.clock.clone(), at)));
         changed.notify_all();
         be_host_base::host::wake();
-        let waited = config.clock.sleep(delay);
+        let waited = config.clock.sleep_until(at);
         let nudge = std::pin::pin!(nudged.changed());
         if let Either::Right((Err(_), _)) = select(waited, nudge).await {
             return None;
@@ -813,6 +812,9 @@ enum Line {
     },
     Down {
         failures: u32,
+        /// When it tries again, on the config's clock.
+        #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
+        at: Duration,
         reaching: Reaching,
     },
 }
@@ -827,14 +829,19 @@ impl Line {
         }
     }
 
+    /// Down for `delay` more on the config's clock. The moment it tries again is fixed here, not
+    /// when the future first runs: a clock moved on between the two (a test's wait moving it to
+    /// the moment `Shared::reconnect` says) would put the sleep's end past the moment it moved to.
     fn down(config: &Config, failures: u32, delay: Duration) -> Self {
         let clock = config.clock.clone();
         let url = config.server_url.clone();
         let token = config.token.clone();
+        let at = clock.now() + delay;
         Self::Down {
             failures,
+            at,
             reaching: Box::pin(async move {
-                clock.sleep(delay).await;
+                clock.sleep_until(at).await;
                 crate::link::signed_in(&url, &token, &clock).await
             }),
         }
@@ -1239,11 +1246,12 @@ impl Session<'_> {
         };
         self.line = Line::down(self.config, failures, delay);
         #[cfg(any(test, feature = "testing"))]
-        reconnecting_at(
-            self.shared,
-            (!delay.is_zero())
-                .then(|| (self.config.clock.clone(), self.config.clock.now() + delay)),
-        );
+        if let Line::Down { at, .. } = &self.line {
+            reconnecting_at(
+                self.shared,
+                (!delay.is_zero()).then(|| (self.config.clock.clone(), *at)),
+            );
+        }
         self.rejoin = false;
         if was_up {
             self.replicas.disconnected();
