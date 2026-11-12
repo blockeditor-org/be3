@@ -60,6 +60,11 @@ pub(super) struct Wire {
     block_types: Watch<Catalog>,
     debug_templates: Watch<Vec<DebugTemplate>>,
     held: Held,
+    /// Answers to the calls an app makes without waiting on them (`layout`,
+    /// `laid-out`, `frame-needed`, `missing-characters`). They go with the next
+    /// thing sent to the app rather than alone, since an answer alone would step
+    /// the app for nothing: each frame it draws sends `laid-out`.
+    acks: Vec<Reply<()>>,
 }
 
 type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
@@ -125,6 +130,7 @@ impl Default for Wire {
             block_types: Watch::default(),
             debug_templates: Watch::default(),
             held: Held::default(),
+            acks: Vec::new(),
         }
     }
 }
@@ -691,6 +697,11 @@ impl Wire {
     }
 
     pub(super) fn take_outbound(&mut self) -> Vec<Vec<u8>> {
+        if self.connection.has_outbound() {
+            for ack in self.acks.drain(..) {
+                ack.send(&mut self.connection, &());
+            }
+        }
         self.connection.take_outbound()
     }
 
@@ -869,22 +880,22 @@ impl Wire {
                 heard.push(Heard::Hello(hello));
             }
             Call::Layout { reply, layout } => {
-                reply.send(connection, &());
+                self.acks.push(reply);
                 heard.push(Heard::Layout(layout));
             }
             Call::LaidOut { reply, commit } => {
-                reply.send(connection, &());
+                self.acks.push(reply);
                 commit
                     .validate()
                     .map_err(|error| format!("the app laid out a frame it may not: {error}"))?;
                 heard.push(Heard::LaidOut(Box::new(commit)));
             }
             Call::FrameNeeded { reply } => {
-                reply.send(connection, &());
+                self.acks.push(reply);
                 heard.push(Heard::FrameNeeded);
             }
             Call::MissingCharacters { reply, characters } => {
-                reply.send(connection, &());
+                self.acks.push(reply);
                 heard.push(Heard::MissingCharacters(characters));
             }
             Call::PreferencesWatchNew { resource } => self.preferences.opened(resource.op()),

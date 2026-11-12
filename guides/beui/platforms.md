@@ -212,8 +212,21 @@ a thread of its own, which calls `run_with`. It draws edge to edge: the program
 fills the safe area, and the bars show its clear colour. guides/running/android.md
 builds it.
 
+Android's surface comes and goes with the screen (locking, switching apps). The
+renderer is wrapped in `beui_runner::renderer::Leased`: `surfaceDestroyed`
+revokes the surface's `SurfaceLease`, which waits only for a draw in progress,
+never for a frame, and the renderer touches that surface no more. `BeuiView`
+is a `SurfaceHolder.Callback2`, and runs `surfaceRedrawNeededAsync`'s
+`drawingFinished` once a frame is presented on the new surface, so Android never
+shows it blank or stale. While no surface is attached, frames do not run: the
+runner drops input but keeps what ends something (a lift or cancel, a key
+release, focus, the input method's events, a finished back gesture) for the next
+frame that runs.
+
 **Soft keyboards** take their room out of the window: on Android the inset
-joins the safe area, on the web the viewport asks for
+joins the safe area, following each frame of the keyboard's slide
+(`WindowInsetsAnimation`), and a keyboard up when the window lost focus (the
+phone locked) is shown again when it regains it; on the web the viewport asks for
 `interactive-widget=resizes-content`. When the shown rectangle shrinks while
 the focus takes text, the document scrolls the focused field into what is
 left. beui's own on-screen keyboard is guides/beui/space.md.
