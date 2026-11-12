@@ -979,6 +979,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let _ = self.to(device, |host| clock.send(host, &now, |_| true));
                 self.devices[device].clock = Some(clock);
             }
+            Call::InStepAt { reply, .. } => {
+                self.to(device, |host| reply.send(host, &()));
+            }
             Call::SleepUntil { reply, at } => {
                 self.devices[device].wake = Some(at);
                 self.devices[device].sleeping.push((at, reply));
