@@ -651,7 +651,7 @@ struct HostCore {
     leave_refused: Option<String>,
     /// Answers to approving pairing requests, and the refusals the pairing dialog shows, by
     /// request.
-    pairing_answers: Vec<host::Mailbox>,
+    pairing_answers: HashMap<u64, host::Mailbox>,
     pairing_refused: HashMap<u64, String>,
     allow_close: bool,
     data_dir: PathBuf,
@@ -954,7 +954,7 @@ impl HostCore {
             leaving: None,
             leave_answers: None,
             leave_refused: None,
-            pairing_answers: Vec::new(),
+            pairing_answers: HashMap::new(),
             pairing_refused: HashMap::new(),
             allow_close: false,
             data_dir: PathBuf::new(),
@@ -1798,6 +1798,7 @@ impl HostCore {
 
     /// Approving a pairing request answered: a refusal stays on the request's dialog.
     fn pairing_approved(&mut self, from: u64, approved: Result<(), String>) {
+        self.pairing_answers.remove(&from);
         match approved {
             Ok(()) => self.pairing_refused.remove(&from),
             Err(refused) => self.pairing_refused.insert(from, refused),
@@ -3288,6 +3289,14 @@ impl HostCore {
     }
 
     fn sync_be_stack(&mut self) {
+        // A refusal goes with its request, however the request went (approved elsewhere, gone).
+        if !self.pairing_refused.is_empty() {
+            let open: HashSet<u64> = be_host_stack::pairing_requests()
+                .into_iter()
+                .map(|request| request.from)
+                .collect();
+            self.pairing_refused.retain(|from, _| open.contains(from));
+        }
         let Some(organization) = self
             .organization
             .as_ref()
@@ -3741,9 +3750,13 @@ impl HostCore {
                     core.pairing_approved(from, approved)
                 });
                 be_host_stack::approve_pairing(from, code, move |approved| post.send(approved));
-                self.pairing_answers.push(answers);
+                self.pairing_answers.insert(from, answers);
             }
-            UiCommand::DismissPairing(from) => be_host_stack::dismiss_pairing(from),
+            UiCommand::DismissPairing(from) => {
+                self.pairing_refused.remove(&from);
+                self.pairing_answers.remove(&from);
+                be_host_stack::dismiss_pairing(from);
+            }
         }
     }
 

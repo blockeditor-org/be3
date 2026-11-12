@@ -2080,9 +2080,19 @@ impl<H: Host> Replicas<H> {
     pub fn reconnect(&mut self, (peer, _): Ctx<'_, H>) {
         self.rejoins += 1;
         let rejoin = self.rejoins;
-        self.uncreated.clear();
-        let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
+        // One whose creation the drain has not sent yet joins once it has (`created`).
+        let replicas: Vec<ReplicaId> = self
+            .open
+            .iter()
+            .filter(|(_, open)| {
+                !self.uncreated.contains(&open.block) || !peer.creating(open.block)
+            })
+            .map(|(replica, _)| *replica)
+            .collect();
         for replica in replicas {
+            if let Some(open) = self.open.get(&replica) {
+                self.uncreated.remove(&open.block);
+            }
             self.rejoin(peer, replica, rejoin);
         }
     }

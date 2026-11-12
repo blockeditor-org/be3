@@ -97,6 +97,9 @@ enum Fetch {
 struct Listed {
     members: HashSet<Uuid>,
     fetch: Fetch,
+    /// Asked for again while a fetch was under way, whose answer may be from before the change
+    /// that asked: fetched once more when it lands (`relist`).
+    again: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -163,6 +166,7 @@ impl Graph {
                 Listed {
                     members,
                     fetch: Fetch::Wanted,
+                    again: false,
                 },
             );
             changed = true;
@@ -252,7 +256,10 @@ impl Graph {
         let Some(listed) = self.listings.get_mut(&listing) else {
             return;
         };
-        listed.fetch = Fetch::Loaded;
+        listed.fetch = match std::mem::take(&mut listed.again) {
+            true => Fetch::Wanted,
+            false => Fetch::Loaded,
+        };
         listed.members = nodes.iter().map(|node| node.id).collect();
         let described = match listing {
             Listing::References(block) => self.referenced.contains_key(&block),
@@ -301,10 +308,29 @@ impl Graph {
     }
 
     pub fn relist(&mut self, listing: Listing) {
-        if let Some(listed) = self.listings.get_mut(&listing)
-            && matches!(listed.fetch, Fetch::Loaded | Fetch::Failed(_))
-        {
-            listed.fetch = Fetch::Wanted;
+        let Some(listed) = self.listings.get_mut(&listing) else {
+            return;
+        };
+        match listed.fetch {
+            Fetch::Loaded | Fetch::Failed(_) => listed.fetch = Fetch::Wanted,
+            Fetch::Fetching => listed.again = true,
+            Fetch::Wanted => {}
+        }
+    }
+
+    /// What the server answers of `block`'s place changed (the drain sent its creation or its
+    /// move): the listings it is in or about are asked for again.
+    pub fn relist_around(&mut self, block: Uuid, parent: Option<BlockParent>) {
+        if let Some(parent) = parent {
+            self.relist(Listing::Children(parent));
+        }
+        for listing in [
+            Listing::Block(block),
+            Listing::OpenSettings(block),
+            Listing::References(block),
+            Listing::Backrefs(block),
+        ] {
+            self.relist(listing);
         }
     }
 

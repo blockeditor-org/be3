@@ -109,9 +109,7 @@ impl Served {
             deferred.iter().any(|earlier| {
                 !earlier.order_safe()
                     || !command.order_safe()
-                    || earlier
-                        .subject()
-                        .is_some_and(|subject| needs.contains(&subject))
+                    || earlier.needs().iter().any(|block| needs.contains(block))
             })
         };
         if !behind && !self.waits(&command) {
@@ -132,7 +130,7 @@ impl Served {
                 || command.needs().iter().any(|block| waiting.contains(block));
             match behind || self.waits(&command) {
                 true => {
-                    waiting.extend(command.subject());
+                    waiting.extend(command.needs());
                     barred |= !command.order_safe();
                     self.deferred.borrow_mut().push_back(command);
                 }
@@ -159,3 +157,6 @@ impl Served {
             .any(|block| holding.contains_key(block))
     }
 }
+
+#[cfg(test)]
+mod tests;

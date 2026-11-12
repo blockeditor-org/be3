@@ -488,6 +488,13 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
             }
+            // The server will not make the block as it is (over a quota, too large): what this
+            // device made of it is set aside, to be restored or discarded, so nothing waits
+            // behind a creation that never goes.
+            Err(ClientError::Refused(code, _)) => {
+                self.move_to_unsent(block)?;
+                Ok(Drained::Refused { block, code })
+            }
             Err(error) => Err(error),
         }
     }
@@ -507,6 +514,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
+                self.unchanged(block).await;
                 Ok(Drained::Refused { block, code })
             }
             Err(error) => Err(error),
@@ -549,6 +557,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
+                self.unchanged(block).await;
                 Ok(Drained::Refused { block, code })
             }
             Err(error) => Err(error),
@@ -596,7 +605,7 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         code: ErrorCode,
     ) -> Result<Drained, ClientError> {
-        let summary = match self.summary(block).await {
+        let summary = match self.server_summary(block).await {
             Ok(summary) => summary,
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 return self.lose_access(block);
@@ -619,12 +628,24 @@ impl<S: ObjectStore> Peer<S> {
             }
             Some((_, Op::Move(_) | Op::Define(_))) => {
                 self.refs.remove(&[sequence])?;
+                self.unchanged(block).await;
                 Ok(Drained::Refused { block, code })
             }
             Some((_, Op::Publish(_))) | None => Err(ClientError::Refused(
                 code,
                 format!("block {block} refused a change this account may otherwise make"),
             )),
+        }
+    }
+
+    /// After the server refused a move or a definition: this device shows the block as the
+    /// server has it again, not with the change it refused (its name, its place in a listing).
+    async fn unchanged(&self, block: Uuid) {
+        if self.refs.has_structural(block) {
+            return;
+        }
+        if let Ok(summary) = self.server_summary(block).await {
+            let _ = self.refs.revise(summary);
         }
     }
 

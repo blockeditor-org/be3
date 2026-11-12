@@ -1195,6 +1195,11 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(self.refs.current(vec![summary]).remove(0));
         }
+        self.server_summary(block).await
+    }
+
+    /// What the server says of a block, or offline what this device last heard.
+    pub(super) async fn server_summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         let response = crate::ask(client::blocks::read_block(&self.connection(), block)).await;
         match response {
             Ok(block) => {
@@ -1217,6 +1222,11 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn listed(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
+        if let Some(block) = about(listing)
+            && self.refs.creating(block)
+        {
+            return Ok(self.listed_here(listing, block));
+        }
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
             Ok(blocks) => {
                 let _ = self.refs.observe(&blocks);
@@ -1230,6 +1240,30 @@ impl<S: ObjectStore> Peer<S> {
             },
             Err(error) => Err(error),
         }
+    }
+
+    /// A listing about a block whose creation waits in the outbox, which the server cannot
+    /// answer yet: what this device has. What is in force at the block before it is made is
+    /// what is in force at its parent.
+    fn listed_here(&self, listing: Listing, block: Uuid) -> Vec<BlockSummary> {
+        if let Some(cached) = self.refs.cached_listing(listing) {
+            return self.with_outbox(listing, self.refs.current(cached));
+        }
+        let parent = self
+            .refs
+            .summary(block)
+            .and_then(|summary| summary.parent)
+            .and_then(|parent| parent.block());
+        let blocks = match (listing, parent) {
+            (Listing::Block(_), _) => self.refs.summary(block).into_iter().collect(),
+            (Listing::OpenSettings(_), Some(parent)) => self
+                .refs
+                .cached_listing(Listing::OpenSettings(parent))
+                .map(|cached| self.refs.current(cached))
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        self.with_outbox(listing, blocks)
     }
 
     /// A listing the server answered, as this device has it: what a creation or move waiting in
@@ -2239,4 +2273,16 @@ fn deduplicated(references: Vec<Uuid>) -> Vec<Uuid> {
         .into_iter()
         .filter(|reference| seen.insert(*reference))
         .collect()
+}
+
+/// The block a listing is about, which the server must know to answer it.
+fn about(listing: Listing) -> Option<Uuid> {
+    match listing {
+        Listing::Block(block)
+        | Listing::OpenSettings(block)
+        | Listing::References(block)
+        | Listing::Backrefs(block)
+        | Listing::Children(BlockParent::Block(block)) => Some(block),
+        Listing::Children(_) | Listing::Shared | Listing::Deleted => None,
+    }
 }

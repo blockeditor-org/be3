@@ -174,7 +174,8 @@ outbox adds or moves (`Peer::listed`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
 owns and joins (`Replicas::created`). A command that needs the server to know a
 block waits first for a drain to send what this device made of it
-(`Tasks::sent`; an export waits for the whole outbox).
+(`Tasks::sent`; an export or a version command waits for the whole outbox, since
+it reads a tree).
 
 **Commands that need the server.** Those that need only the server and no open
 block (share, list access, read a head, leave, approve pairing, members, block

@@ -80,8 +80,12 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
     );
     assert_eq!(
         offline.pending().operations,
-        1,
-        "the refused workspace was dropped rather than kept to try again"
+        0,
+        "the refused workspace still waits, and so would all that comes after it"
+    );
+    assert!(
+        offline.unsent().iter().any(|unsent| unsent.block == another),
+        "the refused workspace was dropped rather than set aside to try again"
     );
     assert_eq!(text(&admin, note).await, "written while away");
 

@@ -480,8 +480,7 @@ impl Command {
                 offer: Some((block, _)),
                 ..
             })
-            | Command::CreateBlockAgent { block, .. }
-            | Command::Version { block, .. } => Some(*block),
+            | Command::CreateBlockAgent { block, .. } => Some(*block),
             _ => None,
         }
     }
@@ -1613,13 +1612,27 @@ async fn drain_outbox(
                 .collect();
             published.extend(refused.iter().map(|block| (*block, true)));
             for outcome in drained {
-                // The graph follows what the drain published, as it does a replica's publish.
-                if let be_block_client::Drained::Published { block, head } = &outcome {
-                    shared
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .graph
-                        .set_head(*block, Some(*head));
+                // The graph follows what the drain published, as it does a replica's publish, and
+                // asks again for listings a creation or move it sent changes: one answered while
+                // it was on its way is from before it.
+                match &outcome {
+                    be_block_client::Drained::Published { block, head } => {
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .set_head(*block, Some(*head));
+                    }
+                    be_block_client::Drained::Created { block }
+                    | be_block_client::Drained::Moved { block } => {
+                        let parent = peer.known_summary(*block).and_then(|summary| summary.parent);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .relist_around(*block, parent);
+                    }
+                    _ => {}
                 }
                 match outcome {
                     be_block_client::Drained::Published { block, .. }
@@ -1631,20 +1644,23 @@ async fn drain_outbox(
                     be_block_client::Drained::Diverged { block, remote, .. } => {
                         diverged.push((block, remote));
                     }
-                    be_block_client::Drained::Refused { block, code } => record_sync(
-                        shared,
-                        ClientError::Refused(
-                            code,
-                            format!("a change made offline to block {block} was refused"),
-                        ),
-                    ),
+                    be_block_client::Drained::Refused { block, code } => {
+                        let named = named_block(peer, block);
+                        record_sync(
+                            shared,
+                            ClientError::Refused(
+                                code,
+                                format!("the server refused a change to {named}"),
+                            ),
+                        )
+                    }
                     be_block_client::Drained::Failed { block } => {
+                        let named = named_block(peer, block);
                         shared
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
-                            .sync_error = Some(format!(
-                            "a change made offline to block {block} could not be sent yet"
-                        ));
+                            .sync_error =
+                            Some(format!("a change to {named} could not be sent yet"));
                     }
                     _ => {}
                 }
@@ -1656,6 +1672,18 @@ async fn drain_outbox(
     be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
     report(peer, shared);
     (diverged, published)
+}
+
+/// A block as a message names it: by its name where this device knows one.
+fn named_block(peer: &Peer<Store>, block: Uuid) -> String {
+    match peer
+        .known_summary(block)
+        .and_then(|summary| peer.metadata(&summary).ok())
+        .and_then(|metadata| metadata.name())
+    {
+        Some(name) => format!("“{name}”"),
+        None => format!("block {block}"),
+    }
 }
 
 fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
@@ -2010,11 +2038,14 @@ impl Ran<'_> {
         if let Some(block) = command.asks_server_of() {
             self.tasks.sent(self.peer, self.shared, Some(block)).await;
         }
-        if matches!(command, Command::Export { .. }) {
+        // An export or a version command reads a whole tree from the server.
+        if matches!(command, Command::Export { .. } | Command::Version { .. }) {
             self.tasks.sent(self.peer, self.shared, None).await;
         }
         let applied = match command {
-            command @ (Command::Members(_) | Command::BlockAgent { .. }) => {
+            // In the lane while attached (`carry_out`); offline, only what the device can answer
+            // itself gets here (reading a head it holds).
+            command if command.served() => {
                 serve_command(self.peer, self.shared, self.tasks, command).await;
                 false
             }
@@ -2665,15 +2696,12 @@ async fn apply(
             tasks.sync(peer, shared);
             true
         }
-        command @ (Command::SetAccess { .. }
+        Command::SetAccess { .. }
         | Command::ListAccess { .. }
         | Command::ReadHead { .. }
         | Command::Leave { .. }
-        | Command::ApprovePairing { .. }) => {
-            serve_command(peer, shared, tasks, command).await;
-            true
-        }
-        Command::Contact(_)
+        | Command::ApprovePairing { .. }
+        | Command::Contact(_)
         | Command::Members(_)
         | Command::Invite { .. }
         | Command::CreateAgent { .. }
