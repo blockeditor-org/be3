@@ -11,9 +11,9 @@ use be_block_commit::{Commit, CommitId, CommitStore, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
-    AccessList, BlockSummary, ClientId, ErrorCode, EscrowKey, HistoryEntry, KeyKind, KeySet,
-    Listing, ObjectChange, OrganizationKind, OrganizationRole, PublishOutcome, ReferenceChange,
-    ServerAccount, SessionState, WrappedBy, client,
+    AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
+    HistoryEntry, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
+    PublishOutcome, ReferenceChange, ServerAccount, SessionState, WrappedBy, client,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -1672,6 +1672,43 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn history(&self, block: Uuid) -> Result<Vec<HistoryEntry>, ClientError> {
         Ok(client::blocks::list_history(&self.connection(), block).await??)
+    }
+
+    /// One page of what changed after the sequence `since` in `root`'s tree, from `after`
+    /// (`ChangeCursor { changed: since, block: Uuid::max() }` starts): see `changed_pages`.
+    pub async fn changed_page(
+        &self,
+        root: Uuid,
+        after: ChangeCursor,
+        limit: u32,
+    ) -> Result<ChangedPage, ClientError> {
+        Ok(client::blocks::changed_since(&self.connection(), root, after, limit).await??)
+    }
+
+    /// Everything that changed after the sequence `since` in `root`'s tree, every page of it:
+    /// the summaries of the blocks in the tree that changed, the blocks that left it, and the
+    /// sequence to continue from.
+    pub async fn changed_since(
+        &self,
+        root: Uuid,
+        since: u64,
+    ) -> Result<(Vec<BlockSummary>, Vec<Uuid>, u64), ClientError> {
+        const PAGE: u32 = 200;
+        let (mut summaries, mut removed) = (Vec::new(), Vec::new());
+        let mut after = ChangeCursor {
+            changed: since,
+            block: Uuid::max(),
+        };
+        loop {
+            let page = self.changed_page(root, after, PAGE).await?;
+            self.learn(&page.summaries).await?;
+            summaries.extend(page.summaries);
+            removed.extend(page.removed);
+            match page.next {
+                Some(next) => after = next,
+                None => return Ok((summaries, removed, page.sequence)),
+            }
+        }
     }
 
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
