@@ -34,23 +34,41 @@ use cpu::Faces;
 #[cfg(feature = "gpu")]
 use gpu::Faces;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Model {
+/// The colour model a wheel edits: HSV, whose triangle picks saturation and value, or OKLCH,
+/// whose triangle picks lightness and chroma and whose accessibility says so.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub enum WheelModel {
+    #[default]
     Hsv,
     Oklch,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 struct Face {
-    model: Model,
+    model: WheelModel,
     hue: f32,
     ring_width: f32,
     ring_gap: f32,
     gamut_line: f32,
 }
 
+/// A colour wheel: a hue ring around a triangle, in the colour `model`.
 #[component]
 pub fn ColorWheel(
+    value: Binding<Color32>,
+    #[prop(default = WheelModel::Hsv)] model: WheelModel,
+    #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    on_preview: Callback<Option<Color32>>,
+) -> NodeId {
+    match model {
+        WheelModel::Hsv => view! { <HsvWheel value focused disabled on_preview /> },
+        WheelModel::Oklch => view! { <OklchWheel value focused disabled on_preview /> },
+    }
+}
+
+#[component]
+fn HsvWheel(
     value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -72,14 +90,14 @@ pub fn ColorWheel(
                 disabled={picker.disabled()}
                 on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >|handle: ColorWheelHandle|
-                <WheelFace handle model=Model::Hsv />
+                <WheelFace handle model=WheelModel::Hsv />
             </unstyled::ColorWheel>
         </Frame>
     }
 }
 
 #[component]
-pub fn OklchColorWheel(
+fn OklchWheel(
     value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -124,14 +142,14 @@ pub fn OklchColorWheel(
                 accessibility
                 on_drag_change={move |dragging: bool| picker.drag(dragging)}
             >|handle: ColorWheelHandle|
-                <WheelFace handle model=Model::Oklch />
+                <WheelFace handle model=WheelModel::Oklch />
             </unstyled::ColorWheel>
         </Frame>
     }
 }
 
 #[component]
-fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
+fn WheelFace(handle: ColorWheelHandle, model: WheelModel) -> NodeId {
     let ColorWheelHandle { point, focused, .. } = handle;
     let faces = Faces::default();
     let draw = Prop::dynamic(move || {
@@ -190,9 +208,9 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     }
 }
 
-fn color_at(model: Model, point: WheelPoint) -> Color32 {
+fn color_at(model: WheelModel, point: WheelPoint) -> Color32 {
     match model {
-        Model::Hsv => point.to_hsva(1.0).to_color(),
-        Model::Oklch => point.to_oklch(1.0).to_color(),
+        WheelModel::Hsv => point.to_hsva(1.0).to_color(),
+        WheelModel::Oklch => point.to_oklch(1.0).to_color(),
     }
 }

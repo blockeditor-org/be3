@@ -96,7 +96,7 @@ pub use checkbox::Checkbox;
 pub use chip::Chip;
 pub use color_input::ColorInput;
 pub use color_picker::{ColorPicker, DEFAULT_SWATCHES, PICKER_WIDTH};
-pub use color_wheel::{ColorWheel, OklchColorWheel, WHEEL_SIZE};
+pub use color_wheel::{ColorWheel, WHEEL_SIZE, WheelModel};
 pub use command_palette::CommandPalette;
 pub use context_menu::{ContextMenu, MenuPopup, MenuRows};
 pub use date_time_field::DateTimeField;

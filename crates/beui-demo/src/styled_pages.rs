@@ -1719,7 +1719,7 @@ fn PerceptualWheel() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION>"Turning the hue keeps lightness and chroma"</Text>
-            <OklchColorWheel value={paint} on_preview={preview} />
+            <ColorWheel model=WheelModel::Oklch value={paint} on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>
