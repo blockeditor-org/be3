@@ -2435,7 +2435,7 @@ async fn apply(
                     .settle(to);
                 return false;
             }
-            // A type that loads its first part keeps more after it (chat's closed segments), which
+            // A type whose bytes are not the whole content (`WHOLE_BYTES`, chat's closed segments), which
             // a copy through bytes cannot carry: refuse until a copy of parts exists.
             if replicas
                 .kind(content_type)

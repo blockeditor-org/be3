@@ -32,7 +32,7 @@ pub struct Kind {
     /// Loads only its first part (`be_block::Loads::FirstPart`): `Kind::load`.
     pub first_part: bool,
     pub merges_parts: bool,
-    /// `encode` is the whole content (`BlockContent::WHOLE_BYTES`).
+    /// The stored form read whole decodes to the content (`BlockContent::WHOLE_BYTES`).
     pub whole_bytes: bool,
     pub blank: Vec<u8>,
     pub described: Description,
