@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_api::{
-    HelloAccepted, InputBatch, OpenBlock, Opening, OpeningKind, ParentView, ScreenRequest, SurfaceFormat,
-    SurfaceSpec, ViewId, ViewPlacement, ViewportMetrics,
+    HelloAccepted, InputBatch, OpenBlock, Opening, OpeningKind, ParentView, ScreenRequest,
+    SurfaceFormat, SurfaceSpec, ViewId, ViewPlacement, ViewportMetrics,
 };
 
 fn accepted(surface: Option<SurfaceSpec>) -> Delivery {

@@ -1,6 +1,7 @@
 use be_sdk_api::{
-    EditorInstanceId, HelloAccepted, OpenBlock, Opening, OpeningKind, ParentView, ScreenId, ScreenRequest, Size,
-    SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
+    EditorInstanceId, HelloAccepted, OpenBlock, Opening, OpeningKind, ParentView, ScreenId,
+    ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef,
+    ViewportMetrics,
 };
 use uuid::Uuid;
 

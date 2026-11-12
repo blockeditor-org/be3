@@ -1,6 +1,6 @@
 use be_sdk_api::{
-    EditorInstanceId, HelloAccepted, OpenBlock, Opening, OpeningKind, ParentView, ScreenId, ScreenRequest,
-    ViewId, ViewPlacement, ViewportMetrics,
+    EditorInstanceId, HelloAccepted, OpenBlock, Opening, OpeningKind, ParentView, ScreenId,
+    ScreenRequest, ViewId, ViewPlacement, ViewportMetrics,
     embed::{
         exports::app::{self, Editor},
         host::Call,

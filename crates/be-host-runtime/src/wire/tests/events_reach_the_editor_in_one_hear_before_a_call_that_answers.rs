@@ -17,7 +17,7 @@ fn open(instance: EditorInstanceId) -> Opening {
         account_id: [4; 16],
         organization_id: [5; 16],
         client_id: [6; 16],
-        kind: be_sdk_api::OpeningKind::Block(OpenBlock {
+        kind: be_sdk_api::OpeningKind::Block(be_sdk_api::OpenBlock {
             block_id: [2; 16],
             block_type: [3; 16],
             view_block: None,

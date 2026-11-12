@@ -1,9 +1,9 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, HostTransform,
-    HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, OpeningKind, Pos2, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2, ViewId,
-    ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
+    HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, OpeningKind, Pos2, ScreenId,
+    ScreenLayout, ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2,
+    ViewId, ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
 use be_sdk_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use beui_lucide::Glyph;

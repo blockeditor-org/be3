@@ -1,4 +1,3 @@
-use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
@@ -12,6 +11,7 @@ use be_sdk_api::{
     OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
     ViewId, ViewportMetrics,
 };
+use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::{
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},

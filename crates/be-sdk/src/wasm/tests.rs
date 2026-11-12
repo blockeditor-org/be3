@@ -42,9 +42,9 @@ use std::rc::Rc;
 use be_lib_geometry::{Rect, pos2, vec2};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId,
-    HelloAccepted, HostTransform, LayoutCommit, OpenBlock, Opening, OpeningKind, ParentView, ScreenId,
-    ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewAnchor, ViewId,
-    ViewPlacement, ViewRef, ViewportMetrics,
+    HelloAccepted, HostTransform, LayoutCommit, OpenBlock, Opening, OpeningKind, ParentView,
+    ScreenId, ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
+    ViewAnchor, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
 };
 use uuid::Uuid;
 
