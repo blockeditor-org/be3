@@ -628,8 +628,13 @@ impl Module {
 
     fn effect(&self, effect: Effect) {
         match effect {
-            Effect::Send { replica, to, bytes } => {
-                ops::with_parent(replica, || host::send(to, bytes)).detach();
+            Effect::Send {
+                replica,
+                to,
+                kind,
+                bytes,
+            } => {
+                ops::with_parent(replica, || host::send(to, kind, bytes)).detach();
             }
             Effect::Publish {
                 replica,

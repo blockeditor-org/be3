@@ -384,12 +384,14 @@ rebase. The rules an agent most needs:
   names the part, so the follower waits. Giving up is never a divergence, only
   bytes that do not decode are. A follower heeds `Accepted`, `Snapshot`,
   `Sealed`, `Replaced` and `Resend` from the owner alone and ignores `Submit`,
-  `Catchup` and `Kept` (`not_heeded`), before it reads any part they name,
-  since the server relays what any participant, a viewer included, sends. One
+  `Catchup` and `Kept` (`not_heeded`), before it reads any part they name. One
   from a sender it did not know as the owner is remembered, and it asks to be
-  caught up should that sender become the owner. That the
-  server does not limit `Submit` and the owner's messages to editors and the
-  owner is a known gap (plans/session_message_authority.md). The server holds a
+  caught up should that sender become the owner. The server checks the sender
+  too: `send` names a `relay-kind` (`Wire::kind`), `peer` for presence,
+  channel messages, `Catchup` and the tag handshake, `edit` for `Submit` and
+  `Kept`, `owner` for the rest, and the server relays `edit` only from an
+  editor and `owner` only from the lease's owner, which is always an editor
+  (guides/blocks/server.md). The server holds a
   part for the whole upload grace (a day), and longer while the block's journal holds
   entries, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.

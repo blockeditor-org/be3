@@ -9,7 +9,7 @@ use be_block_session::{
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
     Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Recipients, ReplicaId, SessionTag, Status, UndoState, Written,
+    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
 };
 use uuid::Uuid;
 
@@ -2959,6 +2959,7 @@ where
         self.out.push(Effect::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
+            kind: RelayKind::Peer,
             bytes: message.encode(),
         });
     }
@@ -3129,6 +3130,7 @@ where
                 Some(client) => Recipients::One(Endpoint::Peer(client)),
                 None => Recipients::Peers,
             },
+            kind: wire.kind(),
             bytes: wire.encode(),
         });
     }

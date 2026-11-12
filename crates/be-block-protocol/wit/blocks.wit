@@ -286,6 +286,19 @@ interface sessions {
         payload: list<u8>,
     }
 
+    /// What a relayed message carries, which the server checks against its
+    /// sender, since it cannot read the sealed payload.
+    enum relay-kind {
+        /// Presence, channel messages and asking to catch up: any participant.
+        peer,
+        /// Operations or session state a participant hands the owner: only
+        /// from a participant with edit access.
+        edit,
+        /// What only the session's owner says (accepted operations, snapshots,
+        /// seals): only from the owner.
+        owner,
+    }
+
     /// What a session's `join` stream tells.
     variant session-event {
         /// First, once joined.
@@ -315,8 +328,8 @@ interface sessions {
         heartbeat: async func(generation: u64, clean-at: option<commit-id>) -> result<session-state, error>;
 
         /// Relays a sealed message to one participant, or to every other one
-        /// with no `to`.
-        relay: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
+        /// with no `to`. Refused unless the caller may send `kind`.
+        relay: async func(to: option<client-id>, kind: relay-kind, payload: list<u8>) -> result<_, error>;
 
         /// The owner of `generation` appends operations it sequenced to the
         /// block's journal, written by the build `tag` names, and with `relay`

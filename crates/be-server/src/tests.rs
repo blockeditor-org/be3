@@ -5,7 +5,7 @@ use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
     Hold, KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage,
-    SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
+    RelayKind, SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume, takeover_needs_merge};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -82,6 +82,7 @@ mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_slow_store_call_does_not_delay_another_connections_ping;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
+mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
 mod a_watcher_is_told_when_a_block_is_detached;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_account_creates_a_bounded_number_of_agents;
@@ -525,9 +526,10 @@ impl TestClient {
         &mut self,
         block: Uuid,
         to: Option<ClientId>,
+        kind: RelayKind,
         payload: Vec<u8>,
     ) -> Result<(), Error> {
-        let relayed = self.sessions[&block].relay(to, payload);
+        let relayed = self.sessions[&block].relay(to, kind, payload);
         let answered = relayed.await.expect("the connection stayed open");
         self.collect();
         answered

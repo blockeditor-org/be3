@@ -293,6 +293,7 @@ impl Inner {
                 reply,
                 to: Recipients::One(Endpoint::Editor(editor)),
                 bytes,
+                ..
             } => {
                 reply.send(&mut self.host, &());
                 let Some(block) = block else {

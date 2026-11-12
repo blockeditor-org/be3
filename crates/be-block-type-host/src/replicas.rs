@@ -2466,7 +2466,12 @@ impl<H: Host> Replicas<H> {
         };
         match call {
             Call::Clock { .. } | Call::SleepUntil { .. } | Call::InStepAt { .. } => false,
-            Call::Send { reply, to, bytes } => {
+            Call::Send {
+                reply,
+                to,
+                kind,
+                bytes,
+            } => {
                 self.acknowledge(module, reply);
                 match to {
                     Recipients::One(Endpoint::Editor(editor)) => {
@@ -2475,11 +2480,11 @@ impl<H: Host> Replicas<H> {
                     Recipients::One(Endpoint::Host) => false,
                     _ if made_up => false,
                     Recipients::One(Endpoint::Peer(client)) => {
-                        self.relay(shared, peer.relay(block, Some(client), &bytes).await);
+                        self.relay(shared, peer.relay(block, Some(client), kind, &bytes).await);
                         false
                     }
                     Recipients::Peers => {
-                        self.relay(shared, peer.relay(block, None, &bytes).await);
+                        self.relay(shared, peer.relay(block, None, kind, &bytes).await);
                         false
                     }
                 }

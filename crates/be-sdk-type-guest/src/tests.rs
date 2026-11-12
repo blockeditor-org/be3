@@ -620,7 +620,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         held.clock = None;
         held.sleeping.clear();
         held.released = false;
-        self.lease.join(client, self.now as i64);
+        self.lease.join(client, true, self.now as i64);
         self.to(device, |host| {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
@@ -987,7 +987,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.devices[device].wake = Some(at);
                 self.devices[device].sleeping.push((at, reply));
             }
-            Call::Send { reply, to, bytes } => {
+            Call::Send {
+                reply, to, bytes, ..
+            } => {
                 self.to(device, |host| reply.send(host, &()));
                 match to {
                     Recipients::One(Endpoint::Editor(editor)) => {

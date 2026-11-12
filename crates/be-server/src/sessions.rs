@@ -93,11 +93,12 @@ impl SessionRegistry {
         }
     }
 
-    pub async fn join(&self, block: Place, client: ClientId) -> SessionState {
+    /// `client` joins `block`'s session, taking the lease if no one holds it and it `may_edit`.
+    pub async fn join(&self, block: Place, client: ClientId, may_edit: bool) -> SessionState {
         let mut sessions = self.sessions.lock().await;
         let now = now_milliseconds();
         let lease = sessions.lease(block, self.lease);
-        lease.join(client, now);
+        lease.join(client, may_edit, now);
         let state = lease.state().clone();
         sessions.joined(block, client);
         sessions.settle(block, now);

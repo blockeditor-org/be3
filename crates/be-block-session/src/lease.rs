@@ -13,10 +13,13 @@ pub enum Claim {
 /// only when the lease expired or the owner left, so a stale claim cannot stomp a newer owner.
 /// The owner renews it with `ReportClean` after every seal and every half lease on its
 /// replica's timer. `clean_at` outlives the session going empty, so a peer taking over an
-/// abandoned session can tell whether anything was unpublished.
+/// abandoned session can tell whether anything was unpublished. Only a participant that may
+/// edit the block is granted it: what only the owner says, the server relays only from it.
 #[derive(Clone, Debug)]
 pub struct Lease {
     state: SessionState,
+    /// The participants that may own the lease.
+    editors: Vec<ClientId>,
     expires: i64,
     length: i64,
 }
@@ -35,6 +38,7 @@ impl Lease {
     pub fn lasting(length: i64) -> Self {
         Self {
             state: SessionState::default(),
+            editors: Vec::new(),
             expires: 0,
             length,
         }
@@ -56,22 +60,27 @@ impl Lease {
         self.expires
     }
 
-    pub fn join(&mut self, client: ClientId, now: i64) {
+    /// `client` joins, and is granted the lease if no one holds it and it `may_edit`.
+    pub fn join(&mut self, client: ClientId, may_edit: bool, now: i64) {
         if !self.state.participants.contains(&client) {
             self.state.participants.push(client);
         }
-        if self.state.owner.is_none() {
+        if may_edit && !self.editors.contains(&client) {
+            self.editors.push(client);
+        }
+        if self.state.owner.is_none() && may_edit {
             self.grant(client, now);
         }
     }
 
     pub fn leave(&mut self, client: ClientId, now: i64) {
         self.state.participants.retain(|held| *held != client);
+        self.editors.retain(|held| *held != client);
         if self.state.owner == Some(client) {
             self.state.owner = None;
             self.state.generation += 1;
             self.expires = now;
-            if let Some(next) = self.state.participants.first().copied() {
+            if let Some(next) = self.editors.first().copied() {
                 self.grant(next, now);
             }
         }
@@ -130,6 +139,9 @@ impl Lease {
     fn grant(&mut self, client: ClientId, now: i64) {
         if !self.state.participants.contains(&client) {
             self.state.participants.push(client);
+        }
+        if !self.editors.contains(&client) {
+            self.editors.push(client);
         }
         self.state.owner = Some(client);
         self.state.generation += 1;

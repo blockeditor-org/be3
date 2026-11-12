@@ -445,7 +445,13 @@ every summary), sealed blobs, pairing messages and relayed session messages
 have byte limits (refused as `InvalidRequest`). A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one client that has left the
 session (or never joined) is dropped without an error: it is best-effort, and the
-sender cannot know the other left.
+sender cannot know the other left. The server cannot read a relay, so each names
+its `relay-kind`: `peer` (presence, channel messages, asking to catch up) needs
+view access, `edit` (operations and session state handed to the owner) edit
+access (`rule`), and `owner` (what only the owner says) that the sender holds the
+lease. The lease goes only to a participant with edit access when it joined
+(`Lease::join`), so a session of viewers alone has no owner, and a viewer's claim
+is refused.
 
 The session registry (`sessions.rs`) indexes leases by client, so leaving them
 all on a disconnect costs what that client joined, and remembers an empty
