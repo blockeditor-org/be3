@@ -41,6 +41,7 @@ impl be_block_type_host::Host for Shared {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.module_error = block.map(|block| (block, message.clone()));
         held.error = Some(message);
+        held.progressed += 1;
     }
 
     fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid) {
@@ -100,6 +101,7 @@ impl be_block_type_host::Host for Shared {
         held.blocks.remove(&block);
         held.described.remove(&block);
         held.graph.forget_derived(block);
+        held.graph.forget_reported_head(block);
         held.graph.forget_references(block);
         held.previewed.remove(&block);
         held.histories.remove(&block);
@@ -125,7 +127,7 @@ impl be_block_type_host::Host for Shared {
                     }
                 }
             }
-            held.graph.set_head(block, status.head);
+            held.graph.report_head(block, status.head);
             held.locked.contains(&block)
         };
         if !locked || status.unreadable.is_none() {
@@ -163,6 +165,7 @@ impl be_block_type_host::Host for Shared {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.conflicts.entry(block).or_default().push(conflict);
         held.stale_revision += 1;
+        held.progressed += 1;
         held.touch(block);
     }
 
@@ -170,16 +173,18 @@ impl be_block_type_host::Host for Shared {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         // A seal moved edits into the outbox, which `waiting` counts only at the next `report`.
         held.recounting |= unsealed < held.unsealed;
+        if (held.unsealed, held.owing, held.undurable) != (unsealed, owing, undurable) {
+            held.progressed += 1;
+        }
         held.unsealed = unsealed;
         held.owing = owing;
         held.undurable = undurable;
     }
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool) {
-        shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .leaving = leaving;
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.leaving = leaving;
+        held.progressed += 1;
     }
 }
 
@@ -189,6 +194,7 @@ fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: 
         match ToEditor::decode(&bytes) {
             Some(ToEditor::Presence(peers)) => {
                 held.presence_revision += 1;
+                held.progressed += 1;
                 let revision = held.presence_revision;
                 held.presence.insert(
                     block,
