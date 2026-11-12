@@ -1136,7 +1136,11 @@ impl Refs {
                     });
                 } else if held.len() != before {
                     let at = state.listed_at.get(listing).copied().unwrap_or_default();
-                    rows.push(row(Table::Listing, encode_raw(listing), &(at, &held.clone())));
+                    rows.push(row(
+                        Table::Listing,
+                        encode_raw(listing),
+                        &(at, &held.clone()),
+                    ));
                 }
             }
             for block in &gone {
