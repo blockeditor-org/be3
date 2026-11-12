@@ -1,6 +1,8 @@
 use be_sdk_beui::be_block::be_block_model::BlockRef;
 use be_sdk_beui::be_block::{ANYONE_INSIDE, SETTINGS, WORKSPACE_TYPE};
-use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockTypeDescriptor};
+use be_sdk_beui::beui::NodeId;
+use be_sdk_beui::beui::native::Document;
+use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockTypeDescriptor, Failure};
 use be_sdk_test::HostCall;
 
 use super::*;
@@ -130,8 +132,46 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
     editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
-    assert_eq!(
-        editor.take_access_changes(),
-        [(hotbar, ANYONE_INSIDE, AccessLevel::None)]
-    );
+    let (reply, changed) = editor
+        .take_requests()
+        .into_iter()
+        .find_map(|call| match call {
+            HostCall::SetAccess {
+                reply,
+                block,
+                account,
+                access,
+            } => Some((
+                reply,
+                (Uuid::from_bytes(block), Uuid::from_bytes(account), access),
+            )),
+            _ => None,
+        })
+        .expect("choosing who can read the hotbar asks the host");
+    assert_eq!(changed, (hotbar, ANYONE_INSIDE, AccessLevel::None));
+
+    editor.answer(reply, Err(Failure::Failed(OFFLINE.to_owned())));
+    editor.run();
+    let refused = {
+        let document = editor.document();
+        document
+            .root()
+            .is_some_and(|root| says(&document, root, OFFLINE))
+    };
+    assert!(refused, "a choice the host refused says why on its row");
+    editor.snapshot("a_folders_settings_say_why_a_choice_of_who_reads_it_did_not_take");
+}
+
+const OFFLINE: &str =
+    "You're offline. Sharing changes need a connection; try again once you're back online.";
+
+fn says(document: &Document, node: NodeId, words: &str) -> bool {
+    document
+        .arena
+        .kind_of(node)
+        .is_some_and(|kind| document.text(kind).contains(words))
+        || document
+            .children(node)
+            .into_iter()
+            .any(|child| says(document, child, words))
 }

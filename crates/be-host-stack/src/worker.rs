@@ -590,7 +590,8 @@ pub struct Shared {
     pub reconnect: Option<(be_block_client::Clock, Duration)>,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
-    /// Set by `crash`: the worker ends without keeping what open replicas hold.
+    /// Set by `crash`: the worker ends at its next pass without keeping what open replicas
+    /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
     #[cfg(any(test, feature = "testing"))]
     pub crashed: bool,
     pub reached: bool,
@@ -1077,15 +1078,16 @@ impl Session<'_> {
         let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
         let mut stopping = false;
         loop {
+            // A crash ends the worker before its next pass, so nothing more is written.
+            #[cfg(any(test, feature = "testing"))]
+            if shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .crashed
+            {
+                return;
+            }
             if stopping && (self.uploads.is_empty() || !self.line.is_up()) {
-                #[cfg(any(test, feature = "testing"))]
-                if shared
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .crashed
-                {
-                    return;
-                }
                 self.replicas.keep_all((peer, shared)).await;
                 report(peer, shared);
                 return;
@@ -1870,11 +1872,14 @@ struct Ran<'a> {
 
 type DoneReply = Box<dyn FnOnce(Result<(), String>) + Send>;
 
-const OFFLINE_SHARING: &str =
+/// What a change to who can read a block answers offline: it needs the server.
+pub const OFFLINE_SHARING: &str =
     "You're offline. Sharing changes need a connection; try again once you're back online.";
-const OFFLINE_LEAVING: &str =
+/// What leaving a block answers offline.
+pub const OFFLINE_LEAVING: &str =
     "You're offline. Leaving needs a connection; try again once you're back online.";
-const OFFLINE_PAIRING: &str =
+/// What approving another device answers offline.
+pub const OFFLINE_PAIRING: &str =
     "You're offline. Adding a device needs a connection; try again once you're back online.";
 
 const NEEDS_CONNECTION: &str =

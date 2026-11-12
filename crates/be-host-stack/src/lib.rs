@@ -42,7 +42,9 @@ use web as platform;
 
 pub use graph::{Graph, Node, Owner, Query, Scope};
 pub use search::{SearchAsk, SearchHit, Searched};
-pub use worker::{History, PairingRequest, Shared};
+pub use worker::{
+    History, OFFLINE_LEAVING, OFFLINE_PAIRING, OFFLINE_SHARING, PairingRequest, Shared,
+};
 
 use worker::Command;
 
