@@ -412,9 +412,10 @@ fetched before the restart still orders them.
 
 `changes.rs` keeps a durable, organization-wide change sequence
 (`organizations.change_sequence`), which unlike the graph's `revision` counts
-per organization and in the same transaction as each change (every graph change runs under the store's one database mutex, so
-writes are ordered). Every write that changes what a block holds, where it lies
-or who may view it sets the block's `changed` to the next sequence in its own
+per organization and in the same transaction as each change (every graph
+change runs under the store's one database mutex, so writes are ordered).
+Every write that changes what a block holds, where it lies or who may view it
+sets the block's `changed` to the next sequence in its own
 transaction (`touch`: create, publish, metadata and references, grants;
 `touch_moved`: a new parent, for the block and everything below it). A block
 that leaves a top-level block's tree (moved out, trashed, or deleted for good

@@ -372,9 +372,8 @@ impl State {
             .insert(id, summary)
             .and_then(|old| old.parent)
             && Some(old) != parent
-            && let Some(held) = self.placed.get_mut(&old)
         {
-            held.remove(&id);
+            self.unplace(old, id);
         }
         if let Some(parent) = parent {
             self.placed.entry(parent).or_default().insert(id);
@@ -385,12 +384,21 @@ impl State {
         let Some(old) = self.summaries.remove(&block) else {
             return false;
         };
-        if let Some(parent) = old.parent
-            && let Some(held) = self.placed.get_mut(&parent)
-        {
-            held.remove(&block);
+        if let Some(parent) = old.parent {
+            self.unplace(parent, block);
         }
         true
+    }
+
+    /// Takes `block` out of what `parent` holds, and `parent` out of the index once it holds
+    /// nothing.
+    fn unplace(&mut self, parent: BlockParent, block: Uuid) {
+        if let Some(held) = self.placed.get_mut(&parent) {
+            held.remove(&block);
+            if held.is_empty() {
+                self.placed.remove(&parent);
+            }
+        }
     }
 
     fn add(&mut self, row: &Row, value: &[u8]) -> Result<(), StoreError> {
@@ -608,15 +616,21 @@ impl Refs {
 
     pub fn set_listing(&self, listing: Listing, blocks: &[BlockSummary]) -> Result<(), StoreError> {
         let mut rows = Vec::new();
-        {
-            let mut state = self.state.lock().unwrap();
-            for summary in blocks {
-                Self::put(&mut state, summary, &mut rows);
-            }
-            let ids: Vec<Uuid> = blocks.iter().map(|summary| summary.id).collect();
-            Self::put_listing(&mut state, listing, ids, &mut rows);
-        }
+        Self::set_listing_locked(&mut self.state.lock().unwrap(), listing, blocks, &mut rows);
         self.write(rows)
+    }
+
+    fn set_listing_locked(
+        state: &mut State,
+        listing: Listing,
+        blocks: &[BlockSummary],
+        rows: &mut Vec<Row>,
+    ) {
+        for summary in blocks {
+            Self::put(state, summary, rows);
+        }
+        let ids: Vec<Uuid> = blocks.iter().map(|summary| summary.id).collect();
+        Self::put_listing(state, listing, ids, rows);
     }
 
     /// Keeps a listing as the server answered it at `revision`, which a `Children` or `Deleted`
@@ -627,14 +641,19 @@ impl Refs {
         blocks: &[BlockSummary],
         revision: u64,
     ) -> Result<(), StoreError> {
-        if matches!(listing, Listing::Children(_) | Listing::Deleted) {
+        let mut rows = Vec::new();
+        {
             let mut state = self.state.lock().unwrap();
-            if state.listed_at.insert(listing, revision) != Some(revision) {
-                // Written again with the listing below, whose row holds the revision.
-                state.listings.remove(&listing);
+            if matches!(listing, Listing::Children(_) | Listing::Deleted)
+                && state.listed_at.insert(listing, revision) != Some(revision)
+                && let Some(ids) = state.listings.get(&listing).cloned()
+            {
+                // The listing's row holds the revision, so it is written again even unchanged.
+                rows.push(row(Table::Listing, encode_raw(&listing), &(revision, &ids)));
             }
+            Self::set_listing_locked(&mut state, listing, blocks, &mut rows);
         }
-        self.set_listing(listing, blocks)
+        self.write(rows)
     }
 
     pub fn add_to_listing(
