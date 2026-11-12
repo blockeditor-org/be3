@@ -8,7 +8,8 @@ use beui_host::native::{FreetypeFonts, build};
 
 use super::*;
 mod a_closed_window_takes_the_windows_it_opened_with_it;
-mod a_desktop_window_is_kept_in_the_work_area_in_a_window_and_off_an_unplugged_display;
+mod a_desktop_window_keeps_its_grip_in_the_work_area_in_a_window_and_off_an_unplugged_display;
+mod a_desktop_window_moved_past_the_foot_of_its_display_hangs_off_it_and_springs_back_to_its_grip;
 mod a_moved_window_brings_the_windows_opened_over_it_along;
 mod a_raised_window_brings_the_windows_opened_over_it_along;
 mod a_window_a_program_asks_to_move_from_a_finger_follows_that_finger;
@@ -30,7 +31,17 @@ struct Carrying {
 }
 
 impl Carrying {
+    /// A window carried in be-host's own window (`carried`).
     fn open(at: Pos2, size: Vec2) -> Self {
+        Self::opened(at, size, None)
+    }
+
+    /// A window on a desktop of one display the size of `HOST`, whose work area is `work`.
+    fn on_desktop(at: Pos2, size: Vec2, work: Rect) -> Self {
+        Self::opened(at, size, Some(work))
+    }
+
+    fn opened(at: Pos2, size: Vec2, desktop: Option<Rect>) -> Self {
         let key = FloatedKey {
             app: "test.carry".to_owned(),
             instance: EditorInstanceId(1),
@@ -40,7 +51,15 @@ impl Carrying {
         let document = build(|| {
             install();
             crate::display::create_handle();
-            shown = Some(carried(key.clone(), create_memo(|| HOST)));
+            shown = Some(match desktop {
+                None => carried(key.clone(), create_memo(|| HOST)),
+                Some(work) => {
+                    hold_window_display(create_memo(|| Rect::from_min_size(Pos2::ZERO, HOST)));
+                    note_work_area((key.app.clone(), key.instance, ViewId::MAIN), Some(work));
+                    let shown = rect_of(key.clone());
+                    create_memo(move || shown.get().unwrap_or(Rect::ZERO))
+                }
+            });
             view! {
                 <beui::styled::Root>
                     <beui::styled::Frame />
