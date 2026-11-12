@@ -20,6 +20,7 @@ pub struct Relay {
 
 struct State {
     upstream: SocketAddr,
+    offline: Mutex<bool>,
     links: Mutex<Vec<Link>>,
     holding: Mutex<bool>,
     stalling: Mutex<bool>,
@@ -62,6 +63,7 @@ impl Relay {
         let address = listener.local_addr().expect("the relay has an address");
         let state = Arc::new(State {
             upstream,
+            offline: Mutex::new(false),
             links: Mutex::new(Vec::new()),
             holding: Mutex::new(false),
             stalling: Mutex::new(false),
@@ -121,6 +123,20 @@ impl Relay {
             .unwrap_or_else(PoisonError::into_inner) = holding;
     }
 
+    /// Takes the server away, as a network that went down: cuts every connection and closes
+    /// each new one as soon as it is accepted, so a client learns at once that it cannot
+    /// connect, until `offline(false)`.
+    pub fn offline(&self, offline: bool) {
+        *self
+            .state
+            .offline
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = offline;
+        if offline {
+            self.cut();
+        }
+    }
+
     pub fn heard(&self) -> u64 {
         *self.state.heard.borrow()
     }
@@ -169,11 +185,16 @@ async fn accept(listener: TcpListener, state: Arc<State>) {
             jammed: watch::Sender::new(false),
             cut: watch::Sender::new(false),
         };
-        state
-            .links
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push(link.clone());
+        {
+            // Checked under the links' lock, which `offline` takes to cut them after setting
+            // the flag: a connection is either refused here or listed in time to be cut.
+            let mut links = state.links.lock().unwrap_or_else(PoisonError::into_inner);
+            if *state.offline.lock().unwrap_or_else(PoisonError::into_inner) {
+                drop(client);
+                continue;
+            }
+            links.push(link.clone());
+        }
         tokio::spawn(carry(client, link, Arc::clone(&state), holding));
     }
 }

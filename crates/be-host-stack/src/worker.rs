@@ -480,6 +480,13 @@ pub struct Shared {
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
+    /// Between connecting and having asked for everything the device must catch up on: set as
+    /// `Session::arrive` starts, cleared once the outbox has drained and the open replicas have
+    /// rejoined their sessions (`Session::settle_outbox`).
+    pub arriving: bool,
+    /// Set when a command ran or a seal moved edits into the outbox, until `report` has read
+    /// the outbox into `waiting` again: `waiting` is stale meanwhile.
+    pub recounting: bool,
     pub draining: bool,
     /// Counts finished drains of the outbox.
     pub drains: u64,
@@ -546,6 +553,32 @@ impl Shared {
         self.touched.insert(block);
     }
 
+    /// What keeps the device from being in step with the server, apart from `busy`: drive's
+    /// `synced` waits until there is nothing.
+    pub fn unsynced(&self) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if !self.connected {
+            reasons.push(match &self.error {
+                Some(error) => format!("the block store is not connected to the server: {error}"),
+                None => "the block store is not connected to the server".to_owned(),
+            });
+        }
+        if self.arriving {
+            reasons.push("the block store catches up with the server after connecting".to_owned());
+        }
+        if self.draining {
+            reasons.push("the block store sends the edits it kept".to_owned());
+        }
+        if self.recounting {
+            reasons.push("the block store has yet to count what waits to be sent".to_owned());
+        }
+        let waiting = self.unsealed + self.waiting;
+        if waiting > 0 {
+            reasons.push(format!("{waiting} edit(s) wait to be sent"));
+        }
+        reasons
+    }
+
     pub fn busy(&self) -> Vec<&'static str> {
         [
             (
@@ -560,6 +593,10 @@ impl Shared {
                 "the block store lists a block's revisions",
             ),
             (self.owing > 0, "the block store owes edits a seal"),
+            (
+                self.undurable > 0,
+                "the block store keeps edits the device's journal does not hold yet",
+            ),
             (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
@@ -1156,6 +1193,10 @@ impl Session<'_> {
         if self.line.is_up() {
             self.replicas.reconnect((peer, shared));
         }
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .arriving = false;
         true
     }
 
@@ -1195,6 +1236,7 @@ impl Session<'_> {
                 held.connection_due = Some(peer.connection().due());
             }
             held.reached = true;
+            held.arriving = true;
             held.error = None;
         }
         self.changed.notify_all();
@@ -1232,6 +1274,7 @@ impl Session<'_> {
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.connected = false;
+    held.arriving = false;
     held.connection = None;
 }
 
@@ -1347,8 +1390,9 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     expire_unsent(peer, now);
     let counts = peer.pending();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let mut changed = held.waiting != counts.operations;
+    let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
+    held.recounting = false;
     if held.unsent.len() != counts.unsent {
         held.unsent = peer.unsent();
         changed = true;
@@ -1730,6 +1774,7 @@ impl Ran<'_> {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
             (held.unsealed, held.owing, held.undurable) = self.replicas.counts();
+            held.recounting = true;
             held.typing = !self.replicas.modules.settled();
         }
         be_host_base::host::wake();

@@ -85,6 +85,10 @@ fn run_options() -> beui_host::native::RunOptions {
 
 #[cfg(target_arch = "wasm32")]
 const WEB_DATA_DIR: &str = "/be-host";
+/// The variable holding the token `--dev-workspace=URL` signs in with
+/// (`HostCore::open_dev_workspace`); `main` takes it out of the environment as it starts.
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+pub const DEV_TOKEN: &str = "BE_DEV_TOKEN";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
@@ -93,7 +97,7 @@ fn storage_dir() -> Option<PathBuf> {
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-pub fn run() -> Result<(), Box<dyn Error>> {
+pub fn run(dev_token: Option<String>) -> Result<(), Box<dyn Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let platform = std::env::var(beui_host::native::environment::PLATFORM).ok();
     let arguments = arguments::parse(&arguments, platform.as_deref(), arguments::LINUX)?;
@@ -112,18 +116,21 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "linux")]
     if arguments.drm {
         let console = login_session::start_log();
-        let ran = run_host(arguments);
+        let ran = run_host(arguments, dev_token);
         if let (Err(error), Some(mut console)) = (&ran, console) {
             use std::io::Write;
             let _ = writeln!(console, "be-host: the login session ended: {error}");
         }
         return ran;
     }
-    run_host(arguments)
+    run_host(arguments, dev_token)
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
+fn run_host(
+    arguments: arguments::Arguments,
+    dev_token: Option<String>,
+) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
     std::fs::create_dir_all(&data_dir)
@@ -149,7 +156,7 @@ fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
         ..run_options()
     };
     if arguments.dev_workspace {
-        core.open_dev_workspace(None);
+        core.open_dev_workspace(arguments.dev_server.clone(), dev_token);
     }
     if arguments.desktop {
         core.run_as_desktop();
@@ -198,7 +205,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         .ok_or("no browser window is available")?;
     let page = web_sys::Url::new(&location.href()?)?;
     if page.search_params().has("dev-workspace") {
-        core.open_dev_workspace(Some(location.origin()?));
+        core.open_dev_workspace(Some(location.origin()?), None);
     }
     if location.hash()?.starts_with("#invite/") {
         core.open_invite(&location.href()?);
@@ -489,6 +496,10 @@ impl beui::native::Program for Shell {
         reasons.extend(be_host_runtime::busy());
         reasons.extend(compositor::owes_frame());
         reasons
+    }
+
+    fn out_of_step(&self) -> Option<Vec<String>> {
+        Some(self.core.unsynced())
     }
 
     fn environment(&self) -> Vec<(String, String)> {
@@ -1062,7 +1073,7 @@ impl HostCore {
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn handed_over(&mut self, handoff: instance::Handoff) {
         if handoff.dev_workspace {
-            self.open_dev_workspace(None);
+            self.open_dev_workspace(None, None);
         }
         host::raise_window();
         host::request_repaint();
@@ -1162,6 +1173,20 @@ impl HostCore {
         reasons
     }
 
+    /// Why the open workspace is not in step with its server (drive's `synced`).
+    fn unsynced(&self) -> Vec<String> {
+        if let Some(error) = &self.error {
+            return vec![format!("the host shows an error: {error:?}")];
+        }
+        if self.keys.needs_unlock(self.identity) {
+            return vec!["this device waits to be unlocked with the account's key".to_owned()];
+        }
+        if self.organization.is_none() {
+            return vec!["no workspace is open".to_owned()];
+        }
+        be_host_stack::unsynced()
+    }
+
     /// The host's own reasons to be busy, apart from the block store's, which is shared by
     /// everything in the process and works on its own schedule.
     fn own_busy(&self) -> Vec<String> {
@@ -1182,7 +1207,11 @@ impl HostCore {
             (!self.pending_reorders.is_empty(), "a reorder is pending"),
             (!self.pending_copies.is_empty(), "a copy is pending"),
             (
-                self.dev_workspace && self.organization.is_none(),
+                // A device of the account without its key waits on the unlock screen for a
+                // person (or a test) to pair it, which is not work left to do.
+                self.dev_workspace
+                    && self.organization.is_none()
+                    && !self.keys.needs_unlock(self.identity),
                 "the dev workspace has yet to open",
             ),
         ]
@@ -1192,8 +1221,12 @@ impl HostCore {
         .collect()
     }
 
+    /// Signs in to the dev workspace's account, on the embedded server or at `remote_url`: with
+    /// `token` when given (a test's server issues one per device of an account,
+    /// crates/be-host-tests), and otherwise as a new local profile, or through the browser on a
+    /// remote server.
     #[cfg(not(target_os = "android"))]
-    fn open_dev_workspace(&mut self, remote_url: Option<String>) {
+    fn open_dev_workspace(&mut self, remote_url: Option<String>, token: Option<String>) {
         self.dev_workspace = true;
         if self.signed_in {
             return;
@@ -1211,13 +1244,16 @@ impl HostCore {
             self.switch_account(account);
             return;
         }
-        self.add_account_open = remote_url.is_some();
-        self.begin_account_request(AccountForm {
-            remote: remote_url.is_some(),
-            remote_url: remote_url.unwrap_or_default(),
-            authorization: String::new(),
-            display_name: "Dev".to_owned(),
-        });
+        self.add_account_open = remote_url.is_some() && token.is_none();
+        self.begin_account_request(
+            AccountForm {
+                remote: remote_url.is_some(),
+                remote_url: remote_url.unwrap_or_default(),
+                authorization: String::new(),
+                display_name: "Dev".to_owned(),
+            },
+            token,
+        );
     }
 
     fn open_invite(&mut self, text: &str) {
@@ -1282,7 +1318,9 @@ impl HostCore {
             .cloned()
     }
 
-    fn begin_account_request(&mut self, form: AccountForm) {
+    /// Signs in at the form's server: as a new local profile on the embedded one, with `token`
+    /// on a remote one when given, and through the browser otherwise.
+    fn begin_account_request(&mut self, form: AccountForm, token: Option<String>) {
         let remote = form.remote || !platform::HAS_EMBEDDED_SERVER;
         let requested_url = if remote {
             form.remote_url.clone()
@@ -1316,6 +1354,10 @@ impl HostCore {
             let notify = post.clone();
             let result = if !remote {
                 accounts::create_local_profile(requested, display_name)
+                    .await
+                    .map_err(|error| error.to_string())
+            } else if let Some(token) = token {
+                accounts::token_login(requested, token)
                     .await
                     .map_err(|error| error.to_string())
             } else {
@@ -1662,12 +1704,15 @@ impl HostCore {
             return;
         };
         self.add_account_open = true;
-        self.begin_account_request(AccountForm {
-            remote: true,
-            remote_url: url,
-            authorization: account.authorization.unwrap_or_default(),
-            display_name: String::new(),
-        });
+        self.begin_account_request(
+            AccountForm {
+                remote: true,
+                remote_url: url,
+                authorization: account.authorization.unwrap_or_default(),
+                display_name: String::new(),
+            },
+            None,
+        );
     }
 
     fn finish_reauth_request(&mut self, result: Result<Session, String>) {
@@ -3356,7 +3401,7 @@ impl HostCore {
             }
             UiCommand::SubmitAccount(form) => {
                 if self.pending_account_request.is_none() {
-                    self.begin_account_request(form);
+                    self.begin_account_request(form, None);
                 }
             }
             UiCommand::OpenLoginBrowser => {

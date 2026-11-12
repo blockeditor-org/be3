@@ -66,6 +66,10 @@ impl<A: Program> Program for SavedPreferences<A> {
         self.program.busy()
     }
 
+    fn out_of_step(&self) -> Option<Vec<String>> {
+        self.program.out_of_step()
+    }
+
     fn environment(&self) -> Vec<(String, String)> {
         self.program.environment()
     }

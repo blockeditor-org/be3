@@ -251,6 +251,47 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   failing test loses only its own paintings. Use them for what only the host shows; test an
   editor's own behaviour in its crate.
 
+### Devices of one account
+
+`HostTest::start` has each host embed a private server. A test of what happens between devices
+(sync, going offline, restarting) owns one instead: `Server` (crates/be-host-tests/src/server.rs)
+runs be-server in the test's process on a directory of its own, and hosts join it as devices.
+
+    let server = Server::start();
+    let dev = server.account("Dev");
+    let mut laptop = HostTest::device(&dev);
+    let mut phone = laptop.another_device();
+    phone.offline();
+    add_to_my_files(&mut laptop, "Text");
+    laptop.synced();
+    phone.online();
+    phone.synced();
+    phone.wait("TreeItem \"Text\"");
+
+- `Server::account(name)` registers an account; a second account is a second call.
+- `HostTest::device` starts be-host with `--dev-workspace=URL` and a token the server issued that
+  device (`BE_DEV_TOKEN`), in a data directory of its own; an account's first device sets its
+  key. `another_device` starts one more and pairs it, typing the code its unlock screen shows into
+  the first, as a person adding a device does.
+- Each device reaches the server through a relay of its own (be-block-fault-relay), which is its
+  network: `offline` cuts its connections, refuses new ones and returns once the device says it
+  is not connected (`drive unsynced`); `online` gives it back and sends
+  `drive network`, so the device reconnects at once instead of when its wait for the next try runs
+  out. `Server::offline` does it for every device. Object bytes go to the server's own address,
+  not through the relay, but a device asks for their URLs over its connection, so an offline one
+  moves none.
+- `restart` closes the host, failing unless it exits cleanly, and starts it on the same data. A
+  device that was offline starts offline.
+- `synced` is `drive synced` (guides/running/drive.md, Waiting): connected, nothing waiting to be
+  sent, and everything it missed asked for. What another device changes arrives by push after
+  that, so wait for it to show. Never pause for sync.
+- Each device is a host: keep a test to two unless it needs more.
+- A lead for a flake there: before the block store counted unjournaled edits as busy, a device
+  paired with its clock stopped once kept its Files on `#editor.loading` until a `pause` moved
+  the frame clock (reads that ran frames did not help), which suggests a frame-clock timer in the
+  file tree's loading path racing the listing. It has not come back since; no root cause was
+  found.
+
 Debugging:
 
 - A failure prints the steps so far as `drive` commands, which replay against
@@ -273,7 +314,8 @@ Debugging:
 
 Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says why these):
 
-- Wait for what the test needs, never for time. A `pause` runs frames, and runs each only
+- Wait for what the test needs, never for time. Between devices that is `synced` and then a line
+  of the tree (above). A `pause` runs frames, and runs each only
   once the apps have answered the one before it, so an animation that spans one ends the same
   under load; it is not a way to wait for a thread, a server or the network. For those use
   `wait`/`gone` on a line of the tree, or on a node's place (`gone ID over ID+X,Y`).
