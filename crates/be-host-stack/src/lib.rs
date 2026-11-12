@@ -285,6 +285,24 @@ pub fn stop() {
     drop(stack);
 }
 
+/// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
+/// hold, so only what the device had already written survives.
+#[cfg(any(test, feature = "testing"))]
+pub fn crash() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+    {
+        stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .crashed = true;
+    }
+    stop();
+}
+
 pub fn stop_and_wait() {
     stop();
     platform::wait_for_stopped();
@@ -379,6 +397,9 @@ pub fn change_child(
 ) -> Option<bool> {
     if !is_known(content_type) {
         return None;
+    }
+    if out_of_reach(block) {
+        return Some(false);
     }
     send(Command::ChangeChild {
         block,
@@ -757,7 +778,7 @@ pub fn status() -> Status {
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
         conflicted: shared.conflicts.keys().copied().collect(),
-        error: shared.error.clone(),
+        error: shared.error.clone().or_else(|| shared.sync_error.clone()),
         waiting: shared.unsealed + shared.waiting,
         syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
         unsent: shared.unsent.len(),
@@ -820,7 +841,7 @@ fn send(command: Command) {
     }
 }
 
-pub fn busy() -> Vec<&'static str> {
+pub fn busy() -> Vec<String> {
     with_shared(Shared::busy).unwrap_or_default()
 }
 
@@ -931,6 +952,17 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
     }
 }
 
+/// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
+/// keeps it, and the outbox sends it after. For a test that reads the server next.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
+pub fn flush_and_send() {
+    flush();
+    // A flush that kept anything has already set `draining`, and its command `recounting`, so
+    // `unsynced` is not empty before the outbox has been read again.
+    wait_until(|shared| shared.unsynced().is_empty().then_some(()));
+}
+
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub fn fail_listings(query: Query, error: &str) {
     let query = sourced(query);
@@ -1004,6 +1036,26 @@ pub fn made_by_app_in_unfiled(block: Uuid, app_id: &str) -> bool {
 pub fn stale_revision() -> u64 {
     with_shared(|shared| shared.stale_revision).unwrap_or_default()
         + be_block_type_host::kinds_revision()
+}
+
+/// The workspace's peer while the host is not connected, for telling apps which blocks this
+/// device cannot read (`BlockInfo::out_of_reach`).
+pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<worker::Store>>> {
+    with_shared(|shared| match shared.connected {
+        true => None,
+        false => shared.peer.clone(),
+    })
+    .flatten()
+}
+
+/// Whether the host is offline and holds no version of the block's content whole, so it can
+/// neither open the block nor change it, a child added or moved in included
+/// (`BlockInfo::out_of_reach`).
+pub fn out_of_reach(block: Uuid) -> bool {
+    let Some(peer) = offline_peer() else {
+        return false;
+    };
+    node(block).is_some_and(|node| app_graph::out_of_reach(&peer, &node))
 }
 
 pub fn graph_revision() -> u64 {
@@ -1454,13 +1506,20 @@ pub fn plain_file(
     });
 }
 
-pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) {
+/// Replaces a block's content with a file's, as its type reads one. False, with nothing sent,
+/// when the block is out of reach offline (`out_of_reach`): try again once the host reconnects.
+#[must_use]
+pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) -> bool {
+    if out_of_reach(block) {
+        return false;
+    }
     send(Command::FromFile {
         block,
         content_type,
         name,
         bytes,
     });
+    true
 }
 
 /// Brings in the blocks of a block file under `parent`. `created_by` is the app that asked

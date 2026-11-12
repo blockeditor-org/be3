@@ -9,16 +9,22 @@ fn a_menu_opened_by_the_keyboard_starts_on_its_first_item() {
     let selected = create_signal(Vec::new());
     let document = build_node(move || {
         let items = view! {
-            <unstyled::MenuItem label="Hide" />
-            <unstyled::MenuItem label="Close" />
-            <unstyled::MenuItem label="Quit" />
+            <unstyled::MenuItem
+                label="Hide"
+                on_click={move || selected.update(|selected| selected.push(vec![0]))}
+            />
+            <unstyled::MenuItem
+                label="Close"
+                on_click={move || selected.update(|selected| selected.push(vec![1]))}
+            />
+            <unstyled::MenuItem
+                label="Quit"
+                on_click={move || selected.update(|selected| selected.push(vec![2]))}
+            />
         };
         view! {
             <List spacing=0.0>
-                <ContextMenu
-                    items
-                    on_select={move |path| selected.update(|selected| selected.push(path))}
-                >
+                <ContextMenu items>
                     <Button @test_id={"held"} label="Window" />
                 </ContextMenu>
             </List>

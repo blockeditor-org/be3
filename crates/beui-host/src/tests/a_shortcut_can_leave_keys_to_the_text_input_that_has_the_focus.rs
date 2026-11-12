@@ -1,17 +1,14 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use beui::KeyPress;
 
 #[component]
 fn LetterShortcut(taken: Signal<u32>) -> NodeId {
-    on_shortcut(move |press: KeyPress| {
-        if press.key != Key::A || !press.pressed || focus_takes_text() {
-            return false;
-        }
+    Action::new("test.letter", "Letter", move || {
         taken.update(|taken| *taken += 1);
-        true
-    });
+    })
+    .shortcut(Chord::key(Key::A))
+    .register();
     view! {
         <TextInput value="" />
     }

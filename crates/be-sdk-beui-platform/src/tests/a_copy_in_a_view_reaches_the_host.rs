@@ -13,7 +13,14 @@ fn a_copy_in_a_view_reaches_the_host() {
         }),
     );
     one(&mut surface, &whole(40.0, 30.0));
-    let copies = host.take_copies();
+    let copies: Vec<_> = host
+        .take_told()
+        .into_iter()
+        .filter_map(|message| match message {
+            be_sdk_api::shell_types::ShellMessage::Copy(copy) => Some((copy.serial, copy.items)),
+            _ => None,
+        })
+        .collect();
     let [(_, items)] = &copies[..] else {
         panic!("one copy, not {copies:?}");
     };

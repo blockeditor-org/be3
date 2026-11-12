@@ -72,16 +72,21 @@ fn FilterField(zoom: Zoom, query: Signal<String>) -> NodeId {
         None => "Filter files".to_owned(),
     });
     let field = NodeRef::new();
-    on_key(KeyAt::Node(field), KeyPhase::Capture, move |event| {
-        let escaped = event
-            .press()
-            .is_some_and(|press| press.pressed && press.key == Key::Escape);
-        let clears = escaped && !query.with_untracked(String::is_empty);
-        if clears {
-            query.set(String::new());
-        }
-        clears
-    });
+    on_key(
+        KeyAt::Node(field),
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+            let clears = escaped && !query.with_untracked(String::is_empty);
+            if clears {
+                query.set(String::new());
+            }
+            clears
+        },
+    );
     view! {
         <TextInput
             @node_ref={&field}
@@ -278,7 +283,7 @@ fn Location(zoom: Zoom) -> NodeId {
 }
 
 #[component]
-fn Crumb(label: Memo<String>, named: String, on_click: ClickCallback) -> NodeId {
+fn Crumb(label: Memo<String>, named: String, on_click: Callback<()>) -> NodeId {
     view! {
         <unstyled::Button label={label} on_click={on_click} @test_id={named}>|handle|
             <CrumbFace handle />

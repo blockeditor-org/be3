@@ -279,6 +279,62 @@ impl AgentChange {
 }
 
 impl Command {
+    /// What the command is, for a busy reason that names the work the block store is stuck on.
+    fn name(&self) -> &'static str {
+        match self {
+            Command::Unsent { .. } => "unsent",
+            Command::PreviewChild { .. } => "preview child",
+            Command::Revision { .. } => "revision",
+            Command::Open { .. } => "open",
+            #[cfg(any(test, feature = "testing"))]
+            Command::Close(..) => "close",
+            Command::Storage => "storage",
+            Command::Operate(..) => "operate",
+            Command::ChangeChild { .. } => "change child",
+            Command::FromFile { .. } => "from file",
+            Command::Attach { .. } => "attach",
+            Command::Detach { .. } => "detach",
+            Command::FromEditor { .. } => "from editor",
+            Command::HoldClock(..) => "hold clock",
+            Command::Duplicate { .. } => "duplicate",
+            Command::Seed { .. } => "seed",
+            Command::Replace { .. } => "replace",
+            Command::Flush(..) => "flush",
+            Command::History { .. } => "history",
+            #[cfg(test)]
+            Command::Presence { .. } => "presence",
+            #[cfg(test)]
+            Command::HearHead { .. } => "hear head",
+            #[cfg(test)]
+            Command::SendToPeers { .. } => "send to peers",
+            Command::Create { .. } => "create",
+            Command::SetParent { .. } => "set parent",
+            Command::Define { .. } => "define",
+            Command::SetAccess { .. } => "set access",
+            Command::ListAccess { .. } => "list access",
+            Command::SetNotifyMode { .. } => "set notify mode",
+            Command::ReadHead { .. } => "read head",
+            Command::Export { .. } => "export",
+            Command::PlainFile { .. } => "plain file",
+            Command::Import(..) => "import",
+            Command::ContentOfFile { .. } => "content of file",
+            Command::Version { .. } => "version",
+            Command::WatchVersion(..) => "watch version",
+            Command::ApprovePairing { .. } => "approve pairing",
+            Command::DismissPairing(..) => "dismiss pairing",
+            Command::Contact(..) => "contact",
+            Command::Leave(..) => "leave",
+            Command::Members(..) => "members",
+            Command::Push(..) => "push",
+            Command::Invite { .. } => "invite",
+            Command::CreateAgent { .. } => "create agent",
+            Command::CreateBlockAgent { .. } => "create block agent",
+            Command::BlockAgent { .. } => "block agent",
+            Command::Authorship(..) => "authorship",
+            Command::Sync => "sync",
+        }
+    }
+
     fn is_quick(&self) -> bool {
         matches!(
             self,
@@ -473,6 +529,8 @@ pub struct Shared {
     pub undurable: usize,
     pub connected: bool,
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
+    /// The workspace's peer, which knows what content this device holds.
+    pub peer: Option<Arc<Peer<Store>>>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
     /// The clock and the moment the stack waits on to try the server again. A moment the clock
@@ -483,6 +541,9 @@ pub struct Shared {
     pub reconnect: Option<(be_block_client::Clock, Duration)>,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
+    /// Set by `crash`: the worker ends without keeping what open replicas hold.
+    #[cfg(any(test, feature = "testing"))]
+    pub crashed: bool,
     pub reached: bool,
     /// Between connecting and having asked for everything the device must catch up on: set as
     /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
@@ -496,6 +557,10 @@ pub struct Shared {
     pub drains: u64,
     pub leaving: bool,
     pub error: Option<String>,
+    /// What went wrong sending: a refused or failed drain of the outbox, or a refused append to
+    /// a session's journal. Unlike `error`, it is about being in step with the server, so it
+    /// clears once the device is connected and nothing waits to be sent (`report`).
+    pub sync_error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
     pub conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub pairing: Vec<PairingRequest>,
@@ -519,6 +584,9 @@ pub struct Shared {
     pub uploading: usize,
     pub listing_revisions: usize,
     pub importing: usize,
+    /// What the worker's loop awaits while it is not waiting for its next wake-up, for the
+    /// busy reason that names what queued commands wait behind.
+    pub step: Option<&'static str>,
     pub previewed: std::collections::HashSet<Uuid>,
     pub staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
     pub owned: std::collections::HashSet<Uuid>,
@@ -553,6 +621,17 @@ impl Wall {
 }
 
 impl Shared {
+    /// What apps are told of a block depends on whether the host is connected
+    /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
+    fn set_connected(&mut self, connected: bool) {
+        if self.connected != connected {
+            self.connected = connected;
+            self.graph.revision += 1;
+            self.stale_revision += 1;
+            self.progressed += 1;
+        }
+    }
+
     pub fn touch(&mut self, block: Uuid) {
         self.progressed += 1;
         self.touched.insert(block);
@@ -574,6 +653,9 @@ impl Shared {
         if self.draining {
             reasons.push("the block store sends the edits it kept".to_owned());
         }
+        if self.listing_revisions > 0 {
+            reasons.push("the block store asks the server for a block's revisions".to_owned());
+        }
         if self.recounting {
             reasons.push("the block store has yet to count what waits to be sent".to_owned());
         }
@@ -584,19 +666,14 @@ impl Shared {
         reasons
     }
 
-    pub fn busy(&self) -> Vec<&'static str> {
-        [
+    pub fn busy(&self) -> Vec<String> {
+        let mut reasons: Vec<String> = [
             (
                 self.pending > 0,
                 "the block store has commands to carry out",
             ),
             (self.typing, "a block type module has yet to settle"),
-            (self.draining, "the block store sends sealed edits"),
             (self.uploading > 0, "the block store uploads files"),
-            (
-                self.listing_revisions > 0,
-                "the block store lists a block's revisions",
-            ),
             (self.owing > 0, "the block store owes edits a seal"),
             (
                 self.undurable > 0,
@@ -612,8 +689,14 @@ impl Shared {
             ),
         ]
         .into_iter()
-        .filter_map(|(busy, reason)| busy.then_some(reason))
-        .collect()
+        .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
+        .collect();
+        if self.pending > 0
+            && let Some(step) = self.step
+        {
+            reasons.push(format!("the block store's loop is busy with {step}"));
+        }
+        reasons
     }
 }
 
@@ -662,6 +745,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
     };
     if let Some((peer, open)) = started {
+        shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
         forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
         let mut session = Session {
@@ -686,10 +770,10 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         session.run(open).await;
         forget_what_is_not_kept(&peer);
     }
-    shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .connected = false;
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.peer = None;
+    held.set_connected(false);
+    drop(held);
     changed.notify_all();
 }
 
@@ -938,6 +1022,14 @@ impl Session<'_> {
         let mut stopping = false;
         loop {
             if stopping && (self.uploads.is_empty() || !self.line.is_up()) {
+                #[cfg(any(test, feature = "testing"))]
+                if shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .crashed
+                {
+                    return;
+                }
                 self.replicas.keep_all((peer, shared)).await;
                 report(peer, shared);
                 return;
@@ -950,6 +1042,7 @@ impl Session<'_> {
             .into_iter()
             .flatten()
             .min();
+            step(shared, None);
             let woken = {
                 let waited = std::pin::pin!(wait(
                     self.commands,
@@ -975,6 +1068,7 @@ impl Session<'_> {
                 woken.await
             };
             let handled = self.replicas.handled;
+            step(shared, Some(woken.name()));
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
             if !matches!(woken, Woken::Module | Woken::Finished) || self.replicas.handled != handled
             {
@@ -1043,6 +1137,7 @@ impl Session<'_> {
                     let mut applied = false;
                     while let Some(command) = next.take() {
                         let quick = command.is_quick();
+                        step(shared, Some(command.name()));
                         match command {
                             Command::Import(blocks) => {
                                 self.uploads.add(blocks);
@@ -1073,6 +1168,7 @@ impl Session<'_> {
                     };
                     let mut applied = false;
                     for command in self.uploads.runnable() {
+                        step(shared, Some(command.name()));
                         applied |= ran.run(command).await;
                     }
                     be_host_base::host::wake();
@@ -1121,13 +1217,17 @@ impl Session<'_> {
                 moved = true;
             }
             moved |= pumped;
+            step(shared, Some("the open blocks"));
             moved |= self.replicas.pump((peer, shared)).await;
+            step(shared, Some("the outbox"));
             moved |= self.settle_outbox().await;
             rekey_changed(peer, self.replicas, &mut keyed);
             let before = version_revisions(shared);
+            step(shared, Some("version statuses"));
             self.refresh_versions().await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
+            step(shared, Some("the search index"));
             moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
@@ -1135,12 +1235,13 @@ impl Session<'_> {
                 && !flushes.is_empty()
             {
                 if !std::mem::replace(&mut kept_for_flushes, true) {
+                    step(shared, Some("keeping the open blocks for a flush"));
                     self.replicas.keep_all((peer, shared)).await;
                     if self.replicas.take_kept() {
                         self.tasks.0.sync(peer, shared);
                     }
                 }
-                if (!self.tasks.0.syncing() || !self.line.is_up()) && self.replicas.reported() {
+                if self.replicas.reported() {
                     kept_for_flushes = false;
                     for done in flushes.drain(..) {
                         let _ = done.send(());
@@ -1277,8 +1378,7 @@ impl Session<'_> {
         self.line = Line::up(peer, open);
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            held.connected = true;
-            held.progressed += 1;
+            held.set_connected(true);
             held.connection = Some(peer.connection());
             #[cfg(test)]
             {
@@ -1287,6 +1387,7 @@ impl Session<'_> {
             held.reached = true;
             held.arriving = true;
             held.error = None;
+            held.sync_error = None;
             #[cfg(any(test, feature = "testing"))]
             {
                 held.reconnect = None;
@@ -1331,6 +1432,10 @@ impl Session<'_> {
     }
 }
 
+fn step(shared: &Arc<Mutex<Shared>>, step: Option<&'static str>) {
+    shared.lock().unwrap_or_else(PoisonError::into_inner).step = step;
+}
+
 /// The device has asked for everything it missed while away (`Shared::arriving`).
 fn arrived(shared: &Arc<Mutex<Shared>>) {
     shared
@@ -1341,7 +1446,7 @@ fn arrived(shared: &Arc<Mutex<Shared>>) {
 
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    held.connected = false;
+    held.set_connected(false);
     held.arriving = false;
     held.connection = None;
 }
@@ -1392,7 +1497,7 @@ async fn drain_outbox(
                     be_block_client::Drained::Diverged { block, remote, .. } => {
                         diverged.push((block, remote));
                     }
-                    be_block_client::Drained::Refused { block, code } => record(
+                    be_block_client::Drained::Refused { block, code } => record_sync(
                         shared,
                         ClientError::Refused(
                             code,
@@ -1400,15 +1505,18 @@ async fn drain_outbox(
                         ),
                     ),
                     be_block_client::Drained::Failed { block } => {
-                        shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(
-                            format!("a change made offline to block {block} could not be sent yet"),
-                        );
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .sync_error = Some(format!(
+                            "a change made offline to block {block} could not be sent yet"
+                        ));
                     }
                     _ => {}
                 }
             }
         }
-        Err(error) => record(shared, error),
+        Err(error) => record_sync(shared, error),
     }
     // The drain published commits holding announced edits.
     be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
@@ -1468,6 +1576,16 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
         held.unsent = peer.unsent();
+        changed = true;
+    }
+    // What went wrong sending stops being news once the device is connected and in step: nothing
+    // waits to be sent and nothing was set aside.
+    if held.connected
+        && !held.draining
+        && held.waiting + held.unsealed == 0
+        && held.unsent.is_empty()
+        && held.sync_error.take().is_some()
+    {
         changed = true;
     }
     changed
@@ -1562,6 +1680,23 @@ enum Woken {
     Reached(Result<crate::link::Link, ClientError>),
     Nudged,
     Stopped,
+}
+
+impl Woken {
+    fn name(&self) -> &'static str {
+        match self {
+            Woken::Command(_) => "a command",
+            Woken::Finished => "a finished task",
+            Woken::Uploaded => "finished uploads",
+            Woken::Event(_) => "an event from the server",
+            Woken::Module => "the open blocks",
+            Woken::Deadline => "a deadline",
+            Woken::Disconnected => "a lost connection",
+            Woken::Reached(_) => "attaching to the server",
+            Woken::Nudged => "a nudge to reconnect",
+            Woken::Stopped => "stopping",
+        }
+    }
 }
 
 #[cfg(test)]
@@ -3112,7 +3247,8 @@ pub(super) struct Tasks {
     storage: std::rc::Rc<std::cell::RefCell<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
 
-const STORAGE_FAILED: &str = "The server stopped saying how much storage this account uses.";
+pub(crate) const STORAGE_FAILED: &str =
+    "The server stopped saying how much storage this account uses.";
 
 #[derive(Default)]
 struct Outbox {
@@ -3503,9 +3639,20 @@ pub(super) fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
     shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(error.to_string());
 }
 
+/// Records what went wrong sending (`Shared::sync_error`).
+pub(super) fn record_sync(shared: &Arc<Mutex<Shared>>, error: ClientError) {
+    if error.is_unreachable() {
+        return;
+    }
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .sync_error = Some(error.to_string());
+}
+
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    held.connected = false;
+    held.set_connected(false);
     held.reached = true;
     held.error = Some(error);
     held.progressed += 1;

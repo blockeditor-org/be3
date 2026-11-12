@@ -50,6 +50,9 @@ interface blocks {
         size: u64,
         /// `size` plus each child's `tree-size`, as the server counts them.
         tree-size: u64,
+        /// The host is offline and holds no version of the block's content whole, so the block
+        /// can be neither opened nor changed until it reconnects.
+        out-of-reach: bool,
     }
 
     enum artifact-action {

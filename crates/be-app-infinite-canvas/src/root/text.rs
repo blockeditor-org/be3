@@ -242,17 +242,22 @@ pub(crate) fn EntityText(
             }
         });
     });
-    on_key(KeyAt::Node(field), KeyPhase::Bubble, move |event| {
-        let escaped = event
-            .press()
-            .is_some_and(|press| press.pressed && press.key == Key::Escape);
-        if !escaped || !editing.get_untracked() {
-            return false;
-        }
-        state.finish_text();
-        state.focus_surface();
-        true
-    });
+    on_key(
+        KeyAt::Node(field),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+            if !escaped || !editing.get_untracked() {
+                return false;
+            }
+            state.finish_text();
+            state.focus_surface();
+            true
+        },
+    );
     let left = move |has_focus: bool| {
         if !has_focus && editing.get_untracked() {
             state.finish_text();

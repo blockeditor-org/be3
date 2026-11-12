@@ -1,5 +1,5 @@
 use crate::context_menu::MenuTreeLead;
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{ColorRole, Frame, Radius};
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_components_unstyled::Picture;
 use beui_macros::{component, view};
@@ -110,7 +110,7 @@ pub fn RowFace(
     #[prop(default = RowTrailing::None)] trailing: Prop<RowTrailing>,
     #[prop(default = None)] depth: Prop<Option<usize>>,
     #[prop(default = None)] expanded: Prop<Option<bool>>,
-    toggle: ClickCallback,
+    toggle: Callback<()>,
     children: Option<Child>,
 ) -> NodeId {
     let disabled = create_memo(move || disabled.get());
@@ -153,14 +153,13 @@ pub fn RowFace(
     let has_trailing = create_memo(move || trailing.get() != RowTrailing::None);
     let side = size.leading();
     let fill: Prop<ColorRole> = fill.into_prop();
-    let border = focus_border(focused, Border::FOCUS);
     if let Some(children) = children {
         return view! {
             <Frame
                 height={size.height()}
                 fill={fill.clone()}
                 radius=Radius::Md
-                border={border}
+                focus={focused}
                 padding={size.padding()}
             >
                 {children}
@@ -172,7 +171,7 @@ pub fn RowFace(
             height={size.height()}
             fill
             radius=Radius::Md
-            border={border}
+            focus={focused}
             padding={size.padding()}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing={size.spacing()}>

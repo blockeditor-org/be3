@@ -11,28 +11,27 @@ numbers are from when this plan was written.
 
 ## 2. The shell's one-way reports are one batched call (left)
 
-`shell.tell` and `shell-message` replaced the 28 one-way functions. What is
-left of this step:
+`shell.tell` and `shell-message` replaced the 28 one-way functions, and
+`EditorHost` keeps what an editor tells the shell in one ordered queue
+(`told`, `EditorHost::tell`), so messages go in the order the editor made
+them in; `be-sdk-test` has a test of that order. What is left of this step:
 
-- `EditorHost`'s per-kind `take_*` queues (`be-sdk/src/host.rs`) become one
-  ordered `Vec<ShellMessage>`; `outbound` (`be-sdk/src/editor_session.rs`)
-  still reads each queue and orders messages by kind, so the order across
-  kinds is that fixed order, not the order the editor made them in. No test
-  covers the order of a pass's messages (the test of that name in
-  `be-host-runtime` is about desktop host calls); add one in `be-sdk-test`.
+- The queued messages come first in `outbound`; the ones that need session
+  state stay computed there (`DragAccepted`, `HandlesDismiss`, `LeaveFrame`,
+  `Paste`, `Picked`, `Focused`, `ChildMenuPick`, `PlayAudio`, the menus, the
+  card, the artifact and the intrinsic size), so their order is still fixed.
+  Make each push at the moment the editor asks where it does not need session
+  state, and compute the child menu pick's anchor when it is queued.
 - `bar-action` has one variant, `details`; drop the enum and make it a
-  `details` message (and step 3's `child-bar` a `details` event).
+  `details` message (and `child-bar` a `details` event).
 
 ## 3. The editor's one-way methods are one event call (left)
 
-`editor.hear` and `editor-event` replaced the 14 one-way methods; the host
-queues events and sends them as one list per `Outbound` batch
-(`Wire::flush_hearing`), and the guest turns each into the same closure as
-before (`be-sdk/src/wire.rs`). What is left: the host's internal `EditorCall`
-enum (`be-host-runtime/src/calls.rs`) still has a variant per event and
-`Wire::call` converts it; make `EditorEvent` the one type, so `Instances`
-makes events directly. `child-bar` and `child-focused` still carry the `view`
-the guest ignores in `EditorCall` (the WIT dropped it).
+`editor.hear` and `editor-event` replaced the 14 one-way methods, and the host
+makes `EditorEvent`s directly (`Outbound::Event`); `EditorCall` keeps only
+what is not an event, and `child-bar` and `child-focused` carry the child
+only. What is left: the host's `docks::take_bars` still carries a `ViewId`
+nothing reads.
 
 ## 4. Block watches are one resource
 
@@ -182,29 +181,6 @@ host queues settled events per app. The calls stay `local`
 
 ## 12. beui: one form per concept
 
-- One focus ring: styled `Frame` takes `focus=` (drawn as an outline with an
-  offset). It replaces `focus_border()`, `beui_view::reactive::focus_outline()`
-  and the hand-drawn `focus_ring(..)` + accent border copies (`TileButton`,
-  `SwatchButton`, tree, treemap, colour picker); `FocusRing` becomes a `Frame`
-  with `focus`. Paintings change; accept them after looking.
-- Key listeners: remove `on_global_key` (it is `on_key(KeyAt::Window,
-  KeyPhase::Capture, …)`), make `on_scroll_key`'s "don't reveal focus" an
-  option of `on_key`, and move `on_shortcut` users to actions. Update
-  guides/beui_keyboard.md.
-- `ClickCallback`, `IntoClickCallback` and `into_click_callback` go in favour
-  of `Callback<()>` (`beui-tree/src/callback.rs`). If a blanket impl for
-  zero-argument closures overlaps the one for `FnMut(V)`, the `#[component]`
-  macro wraps zero-argument closures for `Callback<()>` props.
-- Menus: remove the public `on_select: Callback<Vec<usize>>` from styled
-  `ContextMenu`, `MenuPopup`, `MenuRows`, `MenuButton` and `SplitButton`; an
-  item says what it does with `on_click` or `action`. The three product
-  callers (`be-host/src/ui/onboarding.rs`, `be-host-accounts-ui/src/lib.rs`,
-  `be-app-logic-grid/src/root/hotbar_ui.rs`) move to item callbacks. Path
-  routing can stay inside unstyled if `MenuNodes` needs it. Separators are
-  written one way.
-- `ActionRow` becomes `ListRow` with `action` and `danger`; the row's role
-  follows from whether it is selectable. `SettingsLink` becomes `SettingsRow`
-  with `on_click`.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
   non-`Copy` values (a callback, a state struct) or read the cell with

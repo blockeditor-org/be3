@@ -6,14 +6,19 @@ use crate::reactive::*;
 #[component]
 fn Holder(heard: Signal<Vec<bool>>) -> NodeId {
     let owned = store(Key::I);
-    on_global_key(move |event: KeyEvent| {
-        let key = owned.with(|key| *key);
-        let Some(press) = event.press().filter(|press| press.key == key) else {
-            return false;
-        };
-        heard.update(|heard| heard.push(press.pressed));
-        true
-    });
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event: KeyEvent| {
+            let key = owned.with(|key| *key);
+            let Some(press) = event.press().filter(|press| press.key == key) else {
+                return false;
+            };
+            heard.update(|heard| heard.push(press.pressed));
+            true
+        },
+    );
     view! {
         <Frame width=40.0 height=30.0 />
     }

@@ -1,6 +1,5 @@
 use crate::reactive::Callback;
 use crate::reactive::Child;
-use crate::reactive::ClickCallback;
 use crate::reactive::ImeCursor;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
@@ -35,7 +34,7 @@ pub fn Interactive(
     #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
     on_focus_change: Callback<bool>,
     on_activate_change: Callback<bool>,
-    on_activate: ClickCallback,
+    on_activate: Callback<()>,
     on_step: Callback<f32>,
     on_text: Callback<String>,
     #[prop(default = Vec::new())] pastes: Prop<Vec<String>>,
@@ -54,14 +53,14 @@ pub fn Interactive(
     #[prop(default = Area::Nowhere)] drawing: Prop<Area>,
     #[prop(default = false)] every_sample: Prop<bool>,
     #[prop(default = false)] grabs_pointer: Prop<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
     on_hover_move: Callback<PointerPress>,
     on_pointed_change: Callback<bool>,
     on_active_change: Callback<bool>,
-    on_cancel: ClickCallback,
-    on_middle_click: ClickCallback,
+    on_cancel: Callback<()>,
+    on_middle_click: Callback<()>,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
     on_long_press_drag: Callback<PointerPress>,

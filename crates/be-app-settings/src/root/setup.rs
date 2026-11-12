@@ -281,7 +281,7 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
 }
 
 #[component]
-pub(super) fn SetUpDone(on_done: ClickCallback) -> NodeId {
+pub(super) fn SetUpDone(on_done: Callback<()>) -> NodeId {
     view! {
         <Frame padding={Padding::horizontal(HEADER_INSET)}>
             <List direction=Direction::Horizontal justify=Justify::End spacing=ACTION_SPACING>

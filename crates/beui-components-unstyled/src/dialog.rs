@@ -41,14 +41,14 @@ pub struct DialogAction {
     pub busy: Memo<bool>,
     pub shown: Memo<bool>,
     pub name: &'static str,
-    pub on_click: ClickCallback,
+    pub on_click: Callback<()>,
 }
 
 impl DialogAction {
     pub fn new(
         role: ActionRole,
         label: impl IntoProp<String>,
-        on_click: impl IntoClickCallback,
+        on_click: impl IntoUnitCallback,
     ) -> Self {
         let label = label.into_prop();
         Self {
@@ -62,24 +62,24 @@ impl DialogAction {
                 ActionRole::Cancel => "cancel",
                 ActionRole::Secondary => "secondary",
             },
-            on_click: on_click.into_click_callback(),
+            on_click: on_click.into_unit_callback(),
         }
     }
 
-    pub fn primary(label: impl IntoProp<String>, on_click: impl IntoClickCallback) -> Self {
+    pub fn primary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
         Self::new(ActionRole::Primary, label, on_click)
     }
 
-    pub fn destructive(label: impl IntoProp<String>, on_click: impl IntoClickCallback) -> Self {
+    pub fn destructive(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
         Self::new(ActionRole::Destructive, label, on_click)
     }
 
-    pub fn secondary(label: impl IntoProp<String>, on_click: impl IntoClickCallback) -> Self {
+    pub fn secondary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
         Self::new(ActionRole::Secondary, label, on_click)
     }
 
     pub fn cancel(label: impl IntoProp<String>) -> Self {
-        Self::new(ActionRole::Cancel, label, ClickCallback::empty())
+        Self::new(ActionRole::Cancel, label, Callback::empty())
     }
 
     pub fn disabled(mut self, disabled: impl IntoProp<bool>) -> Self {
@@ -177,7 +177,7 @@ pub struct DialogBodyHandle {
     pub actions: Stored<Vec<DialogAction>>,
     pub footer: Memo<FooterOrder>,
     pub focus: Memo<Option<usize>>,
-    pub dismiss: ClickCallback,
+    pub dismiss: Callback<()>,
     pub run: Callback<usize>,
 }
 
@@ -197,7 +197,7 @@ pub fn DialogBody(
     actions: Vec<DialogAction>,
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = true)] focuses: Prop<bool>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     face: Render<DialogBodyHandle>,
 ) -> NodeId {
     let actions = store(actions);
@@ -226,8 +226,8 @@ pub fn DialogBody(
             return;
         };
         match action.role {
-            ActionRole::Cancel => on_dismiss.call(),
-            _ => action.on_click.call(),
+            ActionRole::Cancel => on_dismiss.call(()),
+            _ => action.on_click.call(()),
         }
     });
     let modal = use_modal();
@@ -248,6 +248,7 @@ pub fn DialogBody(
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
+        KeyReveal::Focus,
         move |event| {
             event.press().is_some_and(|press| {
                 press.key == Key::Enter
@@ -298,7 +299,7 @@ pub struct DialogLayout {
 #[derive(Clone, Copy)]
 pub struct DialogDismissal {
     claimed: Signal<Option<u64>>,
-    body: StoredCell<Option<ClickCallback>>,
+    body: StoredCell<Option<Callback<()>>>,
     next: StoredCell<u64>,
 }
 
@@ -318,14 +319,14 @@ impl DialogDismissal {
     pub fn dismiss(&self) -> bool {
         match self.body.get() {
             Some(dismiss) => {
-                dismiss.call();
+                dismiss.call(());
                 true
             }
             None => false,
         }
     }
 
-    fn claim(self, dismiss: ClickCallback) {
+    fn claim(self, dismiss: Callback<()>) {
         let key = self.next.get();
         self.next.set(key + 1);
         self.body.set(Some(dismiss));
@@ -350,7 +351,7 @@ impl Default for DialogDismissal {
 
 pub struct DialogSheetHandle {
     pub open: Memo<bool>,
-    pub close: ClickCallback,
+    pub close: Callback<()>,
     pub tall: bool,
     pub body: Child,
 }
@@ -452,7 +453,7 @@ pub fn Dialog(
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = 0.0)] beak: f32,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     card: Render<DialogCardHandle>,
     sheet: Render<DialogSheetHandle>,
     body: Render<DialogLayout>,
@@ -608,7 +609,7 @@ pub fn Dialog(
                 beak={reach}
                 open={as_layer}
                 keep_alive=true
-                on_dismiss={move |_: Dismiss| on_dismiss.call()}
+                on_dismiss={move |_: Dismiss| on_dismiss.call(())}
             >
                 <Portal node={layer_card} />
             </Overlay>

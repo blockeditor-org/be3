@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use be_sdk_api::{EditorInstanceId, PaletteMode, ViewId};
+use beui::KeyPhase;
 use beui::icons::ICON_FILE;
 use beui::native::try_with_document;
 use beui::reactive::*;
@@ -108,20 +109,25 @@ pub(crate) fn HostPalette(
         }
         open.set(true);
     };
-    on_global_key(move |event: KeyEvent| {
-        let KeyInput::Press(press) = event.input else {
-            return false;
-        };
-        if event.held() || !PALETTE.matches(press) || leaves_to_program(event) {
-            return false;
-        }
-        // Pressed again with the palette open (the focus in its search field), it closes it.
-        match open.get_untracked() {
-            true => open.set(false),
-            false => show(PaletteMode::Actions, focused_catcher()),
-        }
-        true
-    });
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event: KeyEvent| {
+            let KeyInput::Press(press) = event.input else {
+                return false;
+            };
+            if event.held() || !PALETTE.matches(press) || leaves_to_program(event) {
+                return false;
+            }
+            // Pressed again with the palette open (the focus in its search field), it closes it.
+            match open.get_untracked() {
+                true => open.set(false),
+                false => show(PaletteMode::Actions, focused_catcher()),
+            }
+            true
+        },
+    );
     let asks = super::palette_asks();
     create_effect(move || {
         let asked = asks.with(|(_, asked)| asked.last().cloned());

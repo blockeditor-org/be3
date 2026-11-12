@@ -34,6 +34,10 @@ pub trait Host: Sized + 'static {
 
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError);
 
+    /// Records what went wrong sending to the server, such as a refused append to a session's
+    /// journal: unlike `record`, it stops being news once the device is in step again.
+    fn record_sync(shared: &Arc<Mutex<Self>>, error: ClientError);
+
     fn report(shared: &Arc<Mutex<Self>>, block: Option<Uuid>, message: String);
 
     fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid);

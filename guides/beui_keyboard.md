@@ -74,9 +74,9 @@ one that wants Escape over a program calls `Document::escape_layer` and
 for a paste after the trip, only if nothing took the key.
 
 Answering a key scrolls the focus into view. A handler that reveals something
-else (a `SearchList` row it highlights while the field keeps the focus)
-registers with `on_scroll_key`, or the core's reveal of the focus overrides its
-own.
+else (a `SearchList` row it highlights while the field keeps the focus) registers
+with `KeyReveal::Nothing` (the third argument of `on_key`), or the core's reveal of
+the focus overrides its own.
 
 **Holding.** Whatever takes a press holds that key: a capture listener gets its
 repeats, text and release alone (`phase` `Held`), wherever the focus goes; a
@@ -92,13 +92,16 @@ reaches it, so only host and window capture listeners hear its keys; with
 `inhibits_shortcuts` it cuts the window too. The lock screen cuts host and
 window for everything but media keys.
 
-`on_shortcut(handler)` is a tree capture listener at the registering component,
-seeing every press before the focused control; a command the palette should list is an
-action at that node with `.capture()` instead (the dock's Ctrl+Tab, which works from a text
-input in a pane but not past a dialog; guides/beui/docking.md). `on_global_key(handler)` is a
-window capture listener, handed a `KeyEvent` with the target's kind (typing,
-program). `held_modifiers()` is a signal of the modifiers held; hold-and-release
-shortcuts (a switcher) are built from these two.
+A key command is an action registered under an `action_scope`: it runs after the
+focused control declines the key, and `.capture()` makes it run before the focused
+control instead (the dock's Ctrl+Tab, which works from a text input in a pane but not
+past a dialog; guides/beui/docking.md). A plain-letter chord is skipped while text is
+being typed. A listener that must see raw presses, held keys or releases is
+`on_key(KeyAt::Node(component_node()), KeyPhase::Capture, KeyReveal::Focus, handler)`,
+and `on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, handler)` is the
+window capture listener, handed a `KeyEvent` with the target's kind (typing, program).
+`held_modifiers()` is a signal of the modifiers held; hold-and-release shortcuts (a
+switcher) are built from these two.
 
 **Modifiers.** The modifier keys arrive as `Key::Shift`/`Ctrl`/`Alt`/`Logo`
 presses and releases, but reach only host and window capture listeners and
@@ -153,9 +156,9 @@ take a key from a focused program (the desktop's Super+F and media keys); only
 chords with Ctrl, Alt or Super, or media keys, are offered over a program. A
 window capture Ctrl chord is so taken from every program, a Wayland window's
 own shortcuts included; a key the program should keep is a window capture
-`on_global_key` that answers `false` when `KeyEvent::target.program` says so
-(be-host's Ctrl+Shift+P opens its palette over app views but leaves it to a
-focused Wayland window). With
+`on_key(KeyAt::Window, KeyPhase::Capture, ..)` listener that answers `false` when
+`KeyEvent::target.program` says so (be-host's Ctrl+Shift+P opens its palette over app
+views but leaves it to a focused Wayland window). With
 `inhibits_shortcuts` (a remote desktop, a VM) only `.at(KeyAt::Host).capture()`
 actions answer: be-host's Super+L lock and be-host-wayland's Super+Escape
 (guides/desktop/wayland.md, Input).

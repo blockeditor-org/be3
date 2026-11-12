@@ -218,7 +218,7 @@ order.
 A `BlocksAll` layer at `LayerLevel::Lock` (be-host's `LockScreen`) is above
 everything, so anything opened while it is up opens beneath it. It is never
 dismissable, focus can't leave it (not even to nothing), `Document::locked` is
-true, and listeners above the tree (`on_global_key`, window and host actions)
+true, and listeners above the tree (`on_key` at `KeyAt::Window`, window and host actions)
 hear only media keys (`Key::is_media`).
 
 ## Modals and dialogs

@@ -48,6 +48,16 @@ impl KeyEvent {
     }
 }
 
+/// What a key listener that answers `true` does to the view afterwards: `Focus` scrolls
+/// the focus into view, as typing into a field far down a scroll does; `Nothing` leaves
+/// the view where it is, for a listener that reveals something else itself (a `SearchList`
+/// row it highlights while the field keeps the focus).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeyReveal {
+    Focus,
+    Nothing,
+}
+
 #[derive(Clone)]
 pub enum KeyAt {
     Host,

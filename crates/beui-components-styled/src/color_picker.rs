@@ -343,20 +343,15 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
             selected, focused, ..
         },
     } = handle;
-    let keyboard = focus_ring(focused);
     let ring = create_memo(move || {
-        let color = match keyboard.get() {
-            true => ColorRole::Accent,
-            false => ColorRole::Text,
-        };
-        (selected.get() || keyboard.get()).then(|| {
-            Border::new(color)
+        selected.get().then(|| {
+            Border::new(ColorRole::Text)
                 .width(Stroke::Focus)
                 .offset(Stroke::Focus)
         })
     });
     view! {
-        <Frame border={ring} radius=Radius::Md>
+        <Frame border={ring} focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <Frame
                 width=SWATCH_SIZE
                 height=SWATCH_SIZE

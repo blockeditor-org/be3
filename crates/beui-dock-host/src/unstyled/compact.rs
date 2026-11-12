@@ -246,7 +246,7 @@ fn DockGathered(dock: State, tree: Tree, vertical: bool, folded: bool) -> NodeId
         vacant: create_memo(move || tabs.with(Vec::is_empty)),
         closable: create_memo(|| false),
         menu: create_memo(Vec::new),
-        close: ClickCallback::new(|| {}),
+        close: Callback::new(|()| {}),
         test_prefix: "dock.compact".to_owned(),
     };
     let body = match folded {
@@ -308,7 +308,7 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
         test_key: Some(dock.test_key(tab)),
         grouped: false,
         notice: create_memo(move || dock.notice(tab)),
-        close: ClickCallback::new(move || dock.close_tab(tab)),
+        close: Callback::new(move |()| dock.close_tab(tab)),
     });
     let handle = NodeRef::new();
     let handles = dock.handles;
@@ -326,7 +326,7 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
         node.set_selected(selected.get());
         node
     }));
-    let pick = ClickCallback::new(move || {
+    let pick = Callback::new(move |()| {
         dock.edit(|state| state.pick_gathered(tab));
         dock.release_dialog_focus();
     });

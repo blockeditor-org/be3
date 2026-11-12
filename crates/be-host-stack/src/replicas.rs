@@ -33,6 +33,10 @@ impl be_block_type_host::Host for Shared {
         super::worker::record(shared, error);
     }
 
+    fn record_sync(shared: &Arc<Mutex<Self>>, error: ClientError) {
+        super::worker::record_sync(shared, error);
+    }
+
     fn report(shared: &Arc<Mutex<Self>>, block: Option<Uuid>, message: String) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.module_error = block.map(|block| (block, message.clone()));

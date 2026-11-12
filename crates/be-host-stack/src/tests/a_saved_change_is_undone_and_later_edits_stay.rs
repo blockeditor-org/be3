@@ -30,7 +30,7 @@ fn a_saved_change_is_undone_and_later_edits_stay() {
     });
 
     type_text(versioned.note, 5, " there");
-    flush();
+    flush_and_send();
     version(
         versioned.checkout,
         VersionCommand::Finish {
@@ -44,7 +44,7 @@ fn a_saved_change_is_undone_and_later_edits_stay() {
     });
 
     type_text(versioned.note, 0, "Oh, ");
-    flush();
+    flush_and_send();
     wait_until("listed the later edit", |shared| {
         version_status(shared, versioned.checkout).is_some_and(|status| status.changes.len() == 1)
     });

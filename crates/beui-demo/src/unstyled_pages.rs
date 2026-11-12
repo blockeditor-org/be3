@@ -129,7 +129,8 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
         <Frame
             fill={fill}
             radius=PILL_RADIUS
-            border={focus_border(focused, Border::new(ColorRole::Text).width(Stroke::Focus).offset(Stroke::Focus))}
+            focus={focused}
+            focus_offset=Stroke::Focus
             padding={Padding::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text color=TextColor::OnAccent weight=Weight::Bold>{label.to_owned()}</Text>
@@ -163,10 +164,7 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
         false => ColorRole::TextMuted,
     });
     view! {
-        <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus).offset(Stroke::Focus))}
-            radius=Radius::Md
-        >
+        <Frame focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame
                     width=BOX_SIZE
@@ -256,7 +254,8 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
             height=METER_HEIGHT
             fill=ColorRole::Track
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus).offset(Stroke::Focus))}
+            focus={focused}
+            focus_offset=Stroke::Focus
         >
             <List direction=Direction::Horizontal spacing=Space::None>
                 <ListItem grow=fraction>
@@ -446,7 +445,7 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         <Frame
             fill={fill}
             radius=PILL_RADIUS
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             padding={Padding::symmetric(Space::Lg, Space::Sm)}
         >
             <Text color={ink}>{label}</Text>
@@ -492,11 +491,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
         ..
     } = handle;
     view! {
-        <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
-            radius=Radius::Md
-            padding=Space::Xs
-        >
+        <Frame focus={focused} radius=Radius::Md padding=Space::Xs>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame
                     width=BOX_SIZE
@@ -708,9 +703,12 @@ fn ExportMenu() -> NodeId {
             <List direction=Direction::Horizontal spacing=Space::None>
                 <unstyled::MenuButton
                     items={view! {
-                        <unstyled::MenuItem label="PDF" />
-                        <unstyled::MenuItem label="PNG" />
-                        <unstyled::MenuItem label="Markdown" />
+                        <ForEach keys={(0..formats.len()).collect::<Vec<_>>()}>|index: usize|
+                            <unstyled::MenuItem
+                                label={formats[index]}
+                                on_click={move || exported.set(format!("Exported as {}", formats[index]))}
+                            />
+                        </ForEach>
                     }}
                     trigger={move |handle: PopupTriggerHandle| view! {
                         <PillFace handle={handle.button} label="Export" />
@@ -724,11 +722,6 @@ fn ExportMenu() -> NodeId {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
-                    on_select={move |path: Vec<usize>| {
-                        if let [index] = path.as_slice() {
-                            exported.set(format!("Exported as {}", formats[*index]));
-                        }
-                    }}
                 />
             </List>
             <Text color=TextColor::Muted>{exported}</Text>
@@ -747,8 +740,14 @@ fn RunSplit() -> NodeId {
                     label="Run"
                     menu_label="More ways to run"
                     items={view! {
-                        <unstyled::MenuItem label="Run with fresh data" />
-                        <unstyled::MenuItem label="Run in the background" />
+                        <unstyled::MenuItem
+                            label="Run with fresh data"
+                            on_click={move || ran.set("Ran option 1".to_owned())}
+                        />
+                        <unstyled::MenuItem
+                            label="Run in the background"
+                            on_click={move || ran.set("Ran option 2".to_owned())}
+                        />
                     }}
                     menu={MenuStyle::new(
                     2.0,
@@ -766,9 +765,6 @@ fn RunSplit() -> NodeId {
                         <PillFace handle={handle.button} label="More" />
                     }}
                     on_click={move || ran.set("Ran".to_owned())}
-                    on_select={move |path: Vec<usize>| {
-                        ran.set(format!("Ran option {}", path.first().map_or(0, |index| index + 1)));
-                    }}
                 />
             </List>
             <Text color=TextColor::Muted>{ran}</Text>
@@ -1014,7 +1010,7 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
         <Frame
             fill={fill}
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             padding={Padding::symmetric(Space::Md, Space::Sm)}
         >
             <Text>{name.to_owned()}</Text>
@@ -1067,7 +1063,7 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
         <Frame
             fill={fill}
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             padding={Padding::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text align=TextAlign::Center>{text}</Text>
@@ -1321,7 +1317,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                 <Frame
                     fill={fill}
                     radius=Radius::Md
-                    border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+                    focus={focused}
                     padding={Padding::symmetric(Space::Sm, Space::Xs2)}
                 >
                     <unstyled::TreeRowArea target>

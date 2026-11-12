@@ -573,6 +573,7 @@ impl Inner {
                 journal_kept: false,
                 commits_kept,
                 refused_commits,
+                sealed_head: None,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {
@@ -1232,6 +1233,7 @@ impl ContentStore {
             sets_access: false,
             size: 0,
             tree_size: 0,
+            out_of_reach: false,
         });
         {
             let mut inner = self.0.borrow_mut();

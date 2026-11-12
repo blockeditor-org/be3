@@ -565,7 +565,7 @@ fn SettingRow(
     glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let detail = create_memo(move || detail.get());

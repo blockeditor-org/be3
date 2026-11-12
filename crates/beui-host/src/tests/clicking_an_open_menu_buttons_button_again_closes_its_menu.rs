@@ -17,13 +17,7 @@ fn clicking_an_open_menu_buttons_button_again_closes_its_menu() {
         view! {
             <Frame fill={Color32::from_gray(20)} radius=0.0 padding=16.0>
                 <List spacing=0.0>
-                    <MenuButton
-                        @node_ref=&button
-                        label="Actions"
-                        items
-                        open
-                        on_select={|_: Vec<usize>| {}}
-                    />
+                    <MenuButton @node_ref=&button label="Actions" items open />
                 </List>
             </Frame>
         }

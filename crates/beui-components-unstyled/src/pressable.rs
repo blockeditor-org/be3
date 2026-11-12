@@ -11,7 +11,7 @@ use beui_view::reactive::*;
 pub fn Pressable(
     children: Option<Child>,
     #[prop(default = true)] enabled: Prop<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
     on_active_change: Callback<bool>,
@@ -22,7 +22,7 @@ pub fn Pressable(
     component_accessibility(accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button))));
     let click = move || {
         if enabled.get_untracked() {
-            on_click.call();
+            on_click.call(());
         }
     };
 

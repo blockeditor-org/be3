@@ -46,13 +46,16 @@ pub fn SelectableText(
             opens_on_hold=false
             on_toolbar_close={move || toolbar_at.set(None)}
             items={view! {
-                <MenuItem label="Copy" shortcut={copy_label} />
-                <MenuItem label="Select All" shortcut={select_all_label} />
-            }}
-            on_select={move |path: Vec<usize>| match path.first() {
-                Some(0) => copy_selection(state),
-                Some(1) => state.select_all(),
-                _ => {}
+                <MenuItem
+                    label="Copy"
+                    shortcut={copy_label}
+                    on_click={move || copy_selection(state)}
+                />
+                <MenuItem
+                    label="Select All"
+                    shortcut={select_all_label}
+                    on_click={move || state.select_all()}
+                />
             }}
         >
             <Selectable

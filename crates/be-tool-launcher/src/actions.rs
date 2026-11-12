@@ -36,13 +36,6 @@ fn RunButton(
     let runs = model.runs;
     let disabled = create_memo(move || runs.work.with(Option::is_some) || refused.get());
     let run = move || runs.run(slot, commit.get_untracked(), Product::Host, false);
-    let pick = move |path: Vec<usize>| {
-        if let [index] = path.as_slice()
-            && let Some((_, product, fresh)) = MORE.get(*index)
-        {
-            runs.run(slot, commit.get_untracked(), *product, *fresh);
-        }
-    };
     view! {
         <SplitButton
             label
@@ -52,11 +45,16 @@ fn RunButton(
             disabled
             items={view! {
                 <ForEach keys={(0..MORE.len()).collect::<Vec<_>>()}>|index: usize|
-                    <MenuItem label={MORE[index].0} />
+                    <MenuItem
+                        label={MORE[index].0}
+                        on_click={move || {
+                            let (_, product, fresh) = MORE[index];
+                            runs.run(slot, commit.get_untracked(), product, fresh);
+                        }}
+                    />
                 </ForEach>
             }}
             on_click={run}
-            on_select={pick}
         />
     }
 }

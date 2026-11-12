@@ -53,7 +53,7 @@ fn a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit() {
                 .iter()
                 .any(|contact| contact.account == guest.session.account)
     });
-    flush();
+    flush_and_send();
     let saved = runtime.block_on(async {
         outside_peer(harness.outside_config().organization(Some(personal)))
             .await

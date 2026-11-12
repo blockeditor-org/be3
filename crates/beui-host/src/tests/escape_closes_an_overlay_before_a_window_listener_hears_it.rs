@@ -12,15 +12,20 @@ fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
     let heard = create_signal(0);
     let overlay = NodeRef::new();
     let document = build_node(move || {
-        on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
-            let escaped = event
-                .press()
-                .is_some_and(|press| press.pressed && press.key == Key::Escape);
-            if escaped {
-                heard.update(|heard| *heard += 1);
-            }
-            escaped
-        });
+        on_key(
+            KeyAt::Window,
+            KeyPhase::Bubble,
+            KeyReveal::Focus,
+            move |event| {
+                let escaped = event
+                    .press()
+                    .is_some_and(|press| press.pressed && press.key == Key::Escape);
+                if escaped {
+                    heard.update(|heard| *heard += 1);
+                }
+                escaped
+            },
+        );
         view! {
             <Frame>
                 <Overlay

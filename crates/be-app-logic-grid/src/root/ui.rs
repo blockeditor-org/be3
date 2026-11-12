@@ -9,7 +9,7 @@ use be_sdk_beui::{Editor, LoadingPane, SIDE_PANEL_WIDTH};
 use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
+use beui::{CursorIcon, NodeId, PointerPress, Rect};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::{Panels, StorageDialog};
@@ -31,10 +31,12 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let session = Session::new(editor);
     let loaded = create_memo(move || session.read(LogicGridEditor::loaded));
     let waiting = create_memo(move || !loaded.get());
-    on_shortcut(move |press: KeyPress| shortcut(session, press));
+    let scope = NodeRef::new();
+    action_scope(&scope);
+    register_keys(session);
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=Space::None>
+        <List @node_ref=&scope spacing=Space::None>
             <Show condition={waiting}>
                 <ListItem grow=1.0>
                     <LoadingPane label="Loading the grid" />
@@ -132,23 +134,72 @@ fn PanelsPane(session: Session) -> NodeId {
     }
 }
 
-fn shortcut(session: Session, press: KeyPress) -> bool {
-    if !press.pressed || press.modifiers.ctrl || press.modifiers.alt || focus_takes_text() {
-        return false;
-    }
-    if press.key == Key::Escape {
+/// The grid's plain keys as actions: what a key does depends on the tool, so each runs the
+/// model's `key`, and the keys that edit are off while the grid is read-only.
+fn register_keys(session: Session) {
+    let editable = session.editor().editable();
+    let selecting = create_memo(move || session.read(|model| model.tool.kind == ToolKind::Select));
+    let edits = create_memo(move || !selecting.get() || editable.get());
+    let always = create_memo(|| true);
+    let key = |id: &str, label: String, keys: &[Key], enabled: Memo<bool>| {
+        let first = keys[0];
+        let mut action = Action::new(format!("logic-grid.{id}"), label, move || {
+            session.update(|model| model.key(first));
+        })
+        .enabled(enabled);
+        for key in keys {
+            action = action.shortcut(Chord::key(*key));
+        }
+        action.register();
+    };
+    Action::new("logic-grid.escape", "Cancel", move || {
         session.update(LogicGridEditor::escape);
-        return true;
+    })
+    .shortcut(Chord::key(Key::Escape))
+    .register();
+    let delete = [Key::Delete, Key::Backspace];
+    key("delete", "Delete the selection".to_owned(), &delete, edits);
+    key("rotate-left", "Rotate left".to_owned(), &[Key::Q], edits);
+    key("rotate-right", "Rotate right".to_owned(), &[Key::E], edits);
+    key(
+        "flip-horizontal",
+        "Flip horizontally".to_owned(),
+        &[Key::H],
+        edits,
+    );
+    key(
+        "flip-vertical",
+        "Flip vertically".to_owned(),
+        &[Key::V],
+        edits,
+    );
+    key(
+        "scale-down",
+        "Scale down".to_owned(),
+        &[Key::BracketLeft],
+        always,
+    );
+    key(
+        "scale-up",
+        "Scale up".to_owned(),
+        &[Key::BracketRight],
+        always,
+    );
+    key(
+        "folder-up",
+        "Up to the parent folder".to_owned(),
+        &[Key::Backtick],
+        always,
+    );
+    for (index, hotkey) in HOTBAR_KEYS.into_iter().enumerate() {
+        let number = index + 1;
+        key(
+            &format!("hotbar.{number}"),
+            format!("Choose hotbar slot {number}"),
+            &[hotkey],
+            always,
+        );
     }
-    let editable = session.editable();
-    let edits = matches!(
-        press.key,
-        Key::Delete | Key::Backspace | Key::Q | Key::E | Key::H | Key::V
-    ) && session.read_untracked(|model| model.tool.kind == ToolKind::Select);
-    if edits && !editable {
-        return false;
-    }
-    session.update(|model| model.key(press.key))
 }
 
 #[component]

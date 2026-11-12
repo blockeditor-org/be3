@@ -117,6 +117,29 @@ pub enum Inherited {
     Unnumbered,
 }
 
+/// Whether a journal holds exactly what a seal of its session holds: its base is at or before
+/// the seal's sequence, and its last entry at or before that sequence is the seal's last, of the
+/// seal's generation, as are all the entries before it. `entries` are each entry's sequence and
+/// generation, in order. A journal with no entry through the seal holds nothing of it.
+pub fn reaches_seal(
+    base_sequence: u64,
+    entries: impl IntoIterator<Item = (u64, u64)>,
+    generation: u64,
+    through: u64,
+) -> bool {
+    let mut last = None;
+    for (sequence, of) in entries {
+        if sequence > through {
+            break;
+        }
+        if of != generation {
+            return false;
+        }
+        last = Some(sequence);
+    }
+    base_sequence <= through && last == Some(through)
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Sequencer {
     sequence: u64,
@@ -196,8 +219,14 @@ impl Sequencer {
     }
 
     pub fn sealed(&mut self, head: CommitId) {
+        self.sealed_through(head, self.sequence);
+    }
+
+    /// `head` holds every operation through `sequence`: those sequenced after it, while the
+    /// commit was on its way, stay unsealed.
+    pub fn sealed_through(&mut self, head: CommitId, sequence: u64) {
         self.head = Some(head);
-        self.log.clear();
+        self.log.retain(|op| op.sequence > sequence);
         self.inherited = 0;
     }
 

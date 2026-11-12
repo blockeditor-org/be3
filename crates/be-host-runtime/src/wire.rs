@@ -7,7 +7,7 @@ use be_sdk_api::{Encoded, Watch};
 use be_sdk_api::{
     AudioStatus, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId, Failure, Fonts,
     HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
-    app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame},
+    app::EditorEvent,
     embed::{
         self, blocks,
         debug::debug::Call as DebugCall,
@@ -230,25 +230,7 @@ impl Wire {
             return;
         };
         // Whatever is not an event goes after the events queued before it.
-        if !matches!(
-            call,
-            EditorCall::MenuPick { .. }
-                | EditorCall::Dismiss
-                | EditorCall::ChildBar { .. }
-                | EditorCall::ChildFocused { .. }
-                | EditorCall::SetEditable(_)
-                | EditorCall::ViewChanged { .. }
-                | EditorCall::PresentingChanged(_)
-                | EditorCall::Presence(_)
-                | EditorCall::FocusChanged(_)
-                | EditorCall::Resized(_)
-                | EditorCall::DragOver(_)
-                | EditorCall::DragLeft
-                | EditorCall::ArtifactSettings(_)
-                | EditorCall::ShowDialog { .. }
-        ) {
-            self.flush_hearing();
-        }
+        self.flush_hearing();
         let connection = &mut self.connection;
         match call {
             EditorCall::Watched { open, value } => {
@@ -307,44 +289,6 @@ impl Wire {
                         updates
                     });
             }
-            EditorCall::MenuPick { view, id, anchor } => {
-                self.hear(
-                    instance,
-                    EditorEvent::MenuPick(MenuChoice { view, id, anchor }),
-                );
-            }
-            EditorCall::Dismiss => self.hear(instance, EditorEvent::Dismiss),
-            EditorCall::ChildBar { child, action, .. } => {
-                self.hear(
-                    instance,
-                    EditorEvent::ChildBar(ChildBarPress { child, action }),
-                );
-            }
-            EditorCall::ChildFocused { child, .. } => {
-                self.hear(instance, EditorEvent::ChildFocused(child));
-            }
-            EditorCall::SetEditable(editable) => {
-                self.hear(instance, EditorEvent::SetEditable(editable));
-            }
-            EditorCall::ViewChanged { view, scale } => {
-                self.hear(
-                    instance,
-                    EditorEvent::ViewChanged(ViewFrame { view, scale }),
-                );
-            }
-            EditorCall::PresentingChanged(presenting) => {
-                self.hear(instance, EditorEvent::PresentingChanged(presenting));
-            }
-            EditorCall::Presence(visible) => self.hear(instance, EditorEvent::Presence(visible)),
-            EditorCall::FocusChanged(focus) => {
-                self.hear(instance, EditorEvent::FocusChanged(focus));
-            }
-            EditorCall::Resized(size) => self.hear(instance, EditorEvent::Resized(size)),
-            EditorCall::DragOver(drag) => self.hear(instance, EditorEvent::Drag(Some(drag))),
-            EditorCall::DragLeft => self.hear(instance, EditorEvent::Drag(None)),
-            EditorCall::ArtifactSettings(data) => {
-                self.hear(instance, EditorEvent::ArtifactSettings(data));
-            }
             EditorCall::CommitCreation => {
                 let ticket = editor.commit_creation(connection);
                 self.answering
@@ -377,12 +321,13 @@ impl Wire {
                     (instance, Answering::Rendered(request_id, ticket)),
                 );
             }
-            EditorCall::ShowDialog { block, dialog } => {
-                self.hear(
-                    instance,
-                    EditorEvent::ShowDialog(DialogRequest { block, dialog }),
-                );
-            }
+        }
+    }
+
+    /// Queues an event for the editor; it goes out with the others in `flush_hearing`.
+    pub(super) fn event(&mut self, instance: EditorInstanceId, event: EditorEvent) {
+        if self.editors.contains_key(&instance) {
+            self.hear(instance, event);
         }
     }
 

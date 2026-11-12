@@ -1014,7 +1014,7 @@ fn cancel_owner(doc: &mut Document, owner: NodeId) {
     if let Some(node) = interactive(doc, owner)
         && node.armed
     {
-        node.on_cancel.clone().call();
+        node.on_cancel.clone().call(());
     }
     arm(doc, owner, false);
 }
@@ -1076,7 +1076,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                         continue;
                     };
                     let (on_click, on_click_at) = (node.on_click, node.on_click_at);
-                    on_click.call();
+                    on_click.call(());
                     on_click_at.call(session.press(rect, pos));
                 }
             }
@@ -1120,7 +1120,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                         continue;
                     }
                     if let Some(node) = interactive(doc, *owner) {
-                        node.on_middle_click.clone().call();
+                        node.on_middle_click.clone().call(());
                     }
                 }
             }

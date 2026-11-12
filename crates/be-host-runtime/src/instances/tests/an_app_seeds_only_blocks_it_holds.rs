@@ -42,7 +42,7 @@ fn an_app_seeds_only_blocks_it_holds() {
     seed(&mut instances, stranger);
     seed(&mut instances, own);
     instances.next_screens(PASS);
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
 
     assert_eq!(opened_at(own), 5);
     assert_eq!(opened_at(stranger), 0);

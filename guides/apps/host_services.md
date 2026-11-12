@@ -240,11 +240,13 @@ written and travels is in guides/type_modules.md, Operations and WIT). An app's
 request goes in the import that fits (`host`, `blocks`, `shell`,
 `host-services`, `network`); a host request to an app goes in `app.wit`. When it
 concerns one instance and nothing answers it, it is a variant of `editor-event`
-(host: `Wire::call` queues it with `Wire::hear`, and the host sends the queue as
-one `editor.hear` before any call that is not an event; guest: `OpenEditor::hear_one`);
+(host: `Instances` makes an `Outbound::Event`, `Wire::event` queues it, and
+`Wire::call` flushes the queue as one `editor.hear` before any call that is not an
+event; guest: `OpenEditor::hear_one`);
 only a request that answers is a method of the `editor` resource. What the app
 only tells the host is a `shell-message` in one `shell.tell`, not a function of
-its own. Every function is an `async func`; a followed value is a resource whose
+its own (guest: `EditorHost::tell` queues each in the order the editor made it, and
+`EditorSession::outbound` sends the queue). Every function is an `async func`; a followed value is a resource whose
 `next` the host answers with each change.
 
 - App side: exports are served in `crates/be-sdk/src/wire.rs` as `Delivery`s

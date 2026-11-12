@@ -50,7 +50,7 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
     wait_for_count(block, 6);
     add(block, 1);
     wait_for_count(block, 7);
-    flush();
+    flush_and_send();
 
     let saved = runtime().block_on(async {
         harness

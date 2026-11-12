@@ -53,9 +53,8 @@ pub fn ContextMenu(
     /// from, such as a bar.
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
-    on_close: ClickCallback,
-    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
-    on_toolbar_close: ClickCallback,
+    on_close: Callback<()>,
+    on_toolbar_close: Callback<()>,
 ) -> NodeId {
     let open = create_signal(false);
     let focusing = create_signal(true);
@@ -68,26 +67,31 @@ pub fn ContextMenu(
         },
         None => OverlayAnchor::Node(holder),
     });
-    on_key(KeyAt::Control(holder), KeyPhase::Bubble, move |event| {
-        let Some(press) = event.press() else {
-            return false;
-        };
-        let held = press.modifiers;
-        let menu_key = match press.key {
-            Key::F10 => held.shift && !held.ctrl && !held.alt,
-            Key::ContextMenu => !held.ctrl && !held.alt,
-            _ => false,
-        };
-        if !menu_key || event.target.node.is_none() || disabled.get_untracked() {
-            return false;
-        }
-        if press.pressed {
-            position.set(None);
-            focusing.set(true);
-            open.set(true);
-        }
-        true
-    });
+    on_key(
+        KeyAt::Control(holder),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let Some(press) = event.press() else {
+                return false;
+            };
+            let held = press.modifiers;
+            let menu_key = match press.key {
+                Key::F10 => held.shift && !held.ctrl && !held.alt,
+                Key::ContextMenu => !held.ctrl && !held.alt,
+                _ => false,
+            };
+            if !menu_key || event.target.node.is_none() || disabled.get_untracked() {
+                return false;
+            }
+            if press.pressed {
+                position.set(None);
+                focusing.set(true);
+                open.set(true);
+            }
+            true
+        },
+    );
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     api.fill(ContextMenuApi(State {
@@ -127,7 +131,7 @@ pub fn ContextMenu(
         position.set(Some(at));
         focusing.set(false);
         open.set(true);
-        on_toolbar_close.call();
+        on_toolbar_close.call(());
     });
     create_effect(move || {
         if has_toolbar {
@@ -137,10 +141,7 @@ pub fn ContextMenu(
             more.call(pos2(rect.center().x, rect.bottom()));
         }
     });
-    let choose = Callback::new(move |index: usize| {
-        on_toolbar_close.call();
-        on_select.call(vec![index]);
-    });
+    let choose = Callback::new(move |_: usize| on_toolbar_close.call(()));
     let items = items.into_run();
     let toolbar_items = items.clone();
     view! {
@@ -163,7 +164,7 @@ pub fn ContextMenu(
                     .get_untracked()
                     .is_some_and(|rect| rect.contains(pos));
                 if toolbar_open.get_untracked() && !on_bar && !on_selection {
-                    on_toolbar_close.call();
+                    on_toolbar_close.call(());
                 }
             }}
         >
@@ -183,9 +184,8 @@ pub fn ContextMenu(
                         focusing
                         on_dismiss={move || {
                             open.set(false);
-                            on_close.call();
+                            on_close.call(());
                         }}
-                        on_select={on_select}
                     />
                 </Show>
                 <Show condition={toolbar_open}>|| {
@@ -201,7 +201,7 @@ pub fn ContextMenu(
                             more={more_button}
                             on_choose={choose}
                             on_more={more}
-                            on_dismiss={move || on_toolbar_close.call()}
+                            on_dismiss={move || on_toolbar_close.call(())}
                         />
                     }
                 }</Show>
@@ -220,7 +220,7 @@ fn Toolbar(
     more: NodeRef,
     on_choose: Callback<usize>,
     on_more: Callback<Pos2>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
 ) -> NodeId {
     let shown = store(RefCell::new(Vec::<Rc<MenuItem>>::new()));
     let buttons = RenderFn::new(move |()| {
@@ -249,7 +249,7 @@ fn Toolbar(
             open=true
             on_dismiss={move |reason: Dismiss| {
                 if reason != Dismiss::OutsidePress {
-                    on_dismiss.call();
+                    on_dismiss.call(());
                 }
             }}
         >
@@ -302,7 +302,7 @@ fn ToolbarButton(
                 if let Some(action) = &action {
                     action.run();
                 }
-                clicked.call();
+                clicked.call(());
             }}
         >|handle: ButtonHandle| {
             button.call(handle)

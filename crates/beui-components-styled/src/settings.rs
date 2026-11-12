@@ -227,7 +227,7 @@ pub fn SettingsLink(
     #[prop(default = false)] separated: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] modified: Prop<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let separated = create_memo(move || separated.get());
     let description = create_memo(move || description.get());

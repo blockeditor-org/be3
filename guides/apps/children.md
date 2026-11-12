@@ -24,6 +24,10 @@ whose visibility follows that signal, not a branch in the view. `on_state`
 reports the same to the editor around it (how a stage sizes itself to a
 slide's aspect ratio).
 
+The host draws a notice in place of a child it cannot show: no access, a key
+not shared yet, or, offline, a block this device has never read
+(`BlockInfo::out_of_reach`), which opens once the host reconnects.
+
 The host runs a bounded number of children as editors and draws the rest as
 previews, so place only the children that are visible.
 

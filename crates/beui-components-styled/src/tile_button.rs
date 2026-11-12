@@ -22,7 +22,7 @@ pub fn TileButton(
     #[prop(default = false)] toggle: bool,
     #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = Size::Xl)] size: Size,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     children: Child,
 ) -> NodeId {
     let selected = create_memo(move || selected.get());
@@ -45,14 +45,13 @@ pub fn TileButton(
             accessibility={accessibility}
             on_click={on_click}
         >|handle: unstyled::ButtonHandle| {
-            let keyboard = focus_ring(handle.focused);
             let fill = create_memo(move || match (selected.get(), handle.hovered.get()) {
                 (true, _) => ColorRole::AccentSoft,
                 (false, true) => ColorRole::Hover,
                 (false, false) => ColorRole::None,
             });
             let border = create_memo(move || {
-                if selected.get() || keyboard.get() {
+                if selected.get() {
                     Some(Border::new(ColorRole::Accent).width(Stroke::Focus))
                 } else {
                     outlined.get().then_some(Border::DEFAULT)
@@ -66,6 +65,7 @@ pub fn TileButton(
                         radius=Radius::Md
                         fill={fill}
                         border={border}
+                        focus={handle.focused}
                         align={Align2::CENTER}
                     >
                         {children}

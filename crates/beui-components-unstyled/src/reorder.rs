@@ -1118,7 +1118,7 @@ pub fn ReorderItem<K, P>(
     item: Prop<K>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     #[prop(children)] content: Render<ReorderItemHandle>,
 ) -> NodeId
 where
@@ -1229,7 +1229,7 @@ where
     };
     let clicked = move |_: PointerPress| {
         if state.with(|state| state.lifted.with_untracked(Option::is_none)) {
-            on_click.call();
+            on_click.call(());
         }
     };
     let across = create_memo(move || match draggable.get() {
@@ -1289,20 +1289,30 @@ where
                 .retain(|(_, node, _)| *node != glide)
         });
     });
-    on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
-        let Some(press) = event.press() else {
-            return false;
-        };
-        if !press.pressed || !press.modifiers.alt || press.modifiers.ctrl || press.modifiers.shift {
-            return false;
-        }
-        let by = match (direction.get_untracked(), press.key) {
-            (Direction::Vertical, Key::ArrowUp) | (Direction::Horizontal, Key::ArrowLeft) => -1,
-            (Direction::Vertical, Key::ArrowDown) | (Direction::Horizontal, Key::ArrowRight) => 1,
-            _ => return false,
-        };
-        step(state, key.get_untracked(), by)
-    });
+    on_key(
+        KeyAt::Node(row),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let Some(press) = event.press() else {
+                return false;
+            };
+            if !press.pressed
+                || !press.modifiers.alt
+                || press.modifiers.ctrl
+                || press.modifiers.shift
+            {
+                return false;
+            }
+            let by = match (direction.get_untracked(), press.key) {
+                (Direction::Vertical, Key::ArrowUp) | (Direction::Horizontal, Key::ArrowLeft) => -1,
+                (Direction::Vertical, Key::ArrowDown)
+                | (Direction::Horizontal, Key::ArrowRight) => 1,
+                _ => return false,
+            };
+            step(state, key.get_untracked(), by)
+        },
+    );
     create_effect(move || {
         let raised = raised.get();
         set_raised(glide, raised);

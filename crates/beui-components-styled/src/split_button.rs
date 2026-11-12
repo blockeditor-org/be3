@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::Overflow;
 use beui_view::types::icons::Glyph;
@@ -34,8 +34,7 @@ pub fn SplitButton(
     #[prop(default = String::from("More options"))] menu_label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     items: Children<MenuItem>,
-    on_click: ClickCallback,
-    on_select: Callback<Vec<usize>>,
+    on_click: Callback<()>,
 ) -> NodeId {
     let disabled = create_memo(move || disabled.get());
     let fill = create_memo(move || variant.fill(disabled.get(), false, false));
@@ -60,7 +59,6 @@ pub fn SplitButton(
                     <ArrowFace handle variant />
                 }}
                 on_click={on_click}
-                on_select={on_select}
             />
         </Frame>
     }
@@ -167,7 +165,8 @@ fn HalfFace(
 ) -> NodeId {
     view! {
         <Frame
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
+            focus={focused}
+            focus_offset=Stroke::Focus
             radius=Radius::Md
             corners={side.corners()}
         >

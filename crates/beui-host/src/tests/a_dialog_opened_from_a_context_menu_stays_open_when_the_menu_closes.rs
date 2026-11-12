@@ -13,11 +13,11 @@ fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
     let (document, [_]) = toolbar_of(move || {
         let open = create_signal(false);
         let items = view! {
-            <unstyled::MenuItem label="Inspect" />
+            <unstyled::MenuItem label="Inspect" on_click={move || open.set(true)} />
         };
         [view! {
             <List spacing=0.0>
-                <ContextMenu items on_select={move |_path| open.set(true)}>
+                <ContextMenu items>
                     <MenuRegion @node_ref=&region />
                 </ContextMenu>
                 <Dialog

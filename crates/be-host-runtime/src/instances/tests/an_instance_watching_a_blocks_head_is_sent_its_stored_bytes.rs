@@ -16,7 +16,7 @@ fn saved_head(block: Uuid, after: Option<be_block_commit::CommitId>) -> be_block
 
 fn heads(instances: &mut Instances, watch: OpId) -> Vec<Result<Option<StoredHead>, String>> {
     next_screens(instances);
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     instances.pending();
     answered(instances, watch).into_iter().collect()
 }
@@ -30,7 +30,7 @@ fn stored(head: &Result<Option<StoredHead>, String>) -> (i64, [u8; 32]) {
 
 fn add(block: Uuid, by: i64) {
     be_host_stack::operate(block, CounterContent::encode_operation(&Counter::add(by)));
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
 }
 
 #[test]
