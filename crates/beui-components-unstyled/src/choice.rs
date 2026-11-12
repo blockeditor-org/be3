@@ -9,7 +9,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Direction;
-use beui_view::types::{Key, KeyPress};
+use beui_view::types::{CursorIcon, Key, KeyPress};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ChoiceKind {
@@ -89,6 +89,7 @@ pub fn Choice(
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
     #[prop(default = false)] shrink: Prop<bool>,
+    #[prop(default = CursorIcon::PointingHand)] cursor: CursorIcon,
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] item: Option<RenderFn<ChoiceItem>>,
@@ -155,6 +156,7 @@ pub fn Choice(
         let focus_here = focused.memo(Some(id));
         let button = view! {
             <unstyled::Button
+                cursor
                 tab_stop={tab_stop}
                 focused={focus_here}
                 accessibility

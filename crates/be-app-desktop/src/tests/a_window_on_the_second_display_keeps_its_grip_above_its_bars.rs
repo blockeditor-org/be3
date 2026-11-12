@@ -2,8 +2,12 @@ use be_sdk_beui::beui::{pos2, vec2};
 
 use super::*;
 
+/// The height of a window's grip, which the host keeps on a work area
+/// (`be_sdk_window_stack::KEPT`).
+const GRIP: f32 = 48.0;
+
 #[test]
-fn a_window_on_the_second_display_is_kept_above_its_bars() {
+fn a_window_on_the_second_display_keeps_its_grip_above_its_bars() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(960.0, 640.0));
     let right = Rect::from_min_size(pos2(960.0, 240.0), vec2(640.0, 480.0));
     let mut fixture = Fixture::new();
@@ -22,8 +26,9 @@ fn a_window_on_the_second_display_is_kept_above_its_bars() {
     let window = fixture.test.desk_windows()[0];
     let band = fixture.shown_on("dock.bar.band.bottom", right);
     assert!(
-        matches!(band[..], [band] if right.contains_rect(window) && window.bottom() <= band.top()),
-        "the window dragged into the second display's bars stops above them: {window:?} {band:?}"
+        matches!(band[..], [band] if window.bottom() > band.top() && window.top() + GRIP <= band.top()),
+        "the window dragged into the second display's bars hangs over them, its grip above them: \
+         {window:?} {band:?}"
     );
     let first = fixture.shown_on("dock.bar.band.bottom", left);
     assert!(
@@ -32,5 +37,5 @@ fn a_window_on_the_second_display_is_kept_above_its_bars() {
     );
     fixture
         .test
-        .desk_snapshot("a_window_kept_above_the_second_displays_bars", 1);
+        .desk_snapshot("a_window_keeps_its_grip_above_the_second_displays_bars", 1);
 }

@@ -55,7 +55,7 @@ fn display(id: &str, rect: Rect) -> ShownDisplay {
 }
 
 #[test]
-fn a_desktop_window_is_kept_in_the_work_area_in_a_window_and_off_an_unplugged_display() {
+fn a_desktop_window_keeps_its_grip_in_the_work_area_in_a_window_and_off_an_unplugged_display() {
     let _root = beui::reactive::RootScope::new();
     install();
     crate::display::create_handle();
@@ -67,13 +67,19 @@ fn a_desktop_window_is_kept_in_the_work_area_in_a_window_and_off_an_unplugged_di
     open(1, pos2(80.0, 560.0), vec2(400.0, 300.0));
     assert_eq!(
         rect(1),
-        Rect::from_min_size(pos2(80.0, 379.0), vec2(400.0, 300.0)),
-        "in be-host's own window a new window is lifted clear of the band at its foot"
+        Rect::from_min_size(pos2(80.0, 560.0), vec2(400.0, 300.0)),
+        "in be-host's own window a new window may hang over the band at its foot"
+    );
+    open(5, pos2(80.0, 660.0), vec2(400.0, 300.0));
+    assert_eq!(
+        rect(5).min,
+        pos2(80.0, 679.0 - be_sdk_window_stack::KEPT.y),
+        "but its grip is kept above the band"
     );
     open(2, pos2(80.0, 210.0), vec2(800.0, 700.0));
     assert_eq!(
         rect(2),
-        Rect::from_min_size(pos2(80.0, 0.0), vec2(800.0, 679.0)),
+        Rect::from_min_size(pos2(80.0, 210.0), vec2(800.0, 679.0)),
         "one taller than the work area shrinks to it"
     );
     open_at(

@@ -8,14 +8,17 @@ use crate::input_remaps::InputRemapsRoot;
 
 mod a_chord_pressed_while_the_picker_listens_is_what_is_pressed;
 mod a_held_modifier_and_a_tap_held_for_a_preset_write_the_rule;
+mod a_new_remap_is_nothing_to_nothing_until_keys_are_picked;
 mod a_program_group_comes_from_a_window_open_now;
 mod a_sequence_is_built_from_taps_and_waits;
 mod a_typed_key_is_used_only_once_it_reads;
+mod listening_ends_when_its_picker_closes;
 mod picking_what_is_pressed_from_all_keys_writes_its_name;
 mod remaps_show_as_keys_in_a_list;
 mod remaps_that_do_not_read_say_why_and_store_nothing;
 mod remaps_written_as_text_name_this_apps_remapper_once_applied;
 mod the_editor_changes_rules_and_keeps_the_comments;
+mod the_picker_opens_from_the_top_of_a_long_page;
 
 const CAPS_TO_ESCAPE: &str =
     "[[group]]\nname = \"Everywhere\"\nrules = [{ on = \"CapsLock\", send = \"Escape\" }]\n";
