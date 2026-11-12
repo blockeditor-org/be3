@@ -1,10 +1,9 @@
 # Chat
 
 Depends on: none; merging by parts (guides/type_modules.md, "Merging by
-parts"), which step 1d uses, has landed. Step 2's done check (a device that
-shows a push receives one) needs plans/notifications.md step 1, which is built
-except a Chromium test of the whole page; the server's side and the `notify` host
-call it uses have landed.
+parts"), which step 1d uses, has landed. Step 2 has landed up to the push
+leaving the server; a device showing it, naming the chat and author, is
+plans/notifications.md step 1, built except a Chromium test of the whole page.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
@@ -45,28 +44,26 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c and 2 have landed.
   server, so there is no be-host-tests test of this: be-host-stack tests and
   chat's editor tests stand in. A `drive` command that cuts the server would let a host test cover it.
 - **Notifications (2).** Each message sent from this device tells the chat's
-  other members once the server holds it, and it is the replica that sends the
-  notification, not an editor: `LiveEdit::announcements` names what an operation
-  announces (for chat, each message it sends: its body, and the author of the
-  message it replies to as a mention), and the replica calls the host's `notify`
-  (`host.notify` in the type-module protocol, the same call as
-  guides/apps/host_services.md `notify`) when the edit stops being lacking
-  (1b): an append the server answered, a commit published, a drained outbox. So
-  it is sent once however many editors are open, or none (a chat switched away
-  from right after sending, or a message kept offline until the device
-  reconnects with the chat closed), and a message the server refused, or one
-  discarded, tells nobody since its edit is never held. A message edited before
-  the server holds it tells the edited body; an edit later tells nobody. The
-  host cuts the text to `MAX_NOTIFICATION_TEXT`. Mentions are the replied-to
-  author, since apps cannot yet name a member otherwise; a member whose mode for
-  the chat is "mentions only" is told for those. The server tells only members
-  with no connection open, none whose mode is "off", and not the sender's
-  account (plans/notifications.md); the device that shows the push names the
-  sender and the chat. The server allows 10 notifications per minute per account
-  and chat, so messages past that go unannounced (a burst drained from the
-  outbox announces the first ten). Tests: chat's editor tests (an announcement
-  only once the server holds the message, closed chat, refused, sent again,
-  edited, a reply's mention) and be-server's (who is told, muting).
+  other members once the server holds it, exactly once, tied to the edit rather
+  than to an editor or replica (guides/type_modules.md, "Announcements"):
+  `LiveEdit::announcements` names, as the message is sent, its body and the
+  author of the message it replies to as a mention, keyed by the message; the
+  host keeps that beside the journal entry or outbox commit holding the send and
+  sends it once the server holds that. So it goes once however many editors are
+  open, or none (a chat closed while its outbox drains), after a restart with
+  the message unsent, and not again after a restart once told; a message the
+  server refused, or one discarded, tells nobody. A message tells its body as
+  sent; editing it tells nobody. A burst drained from the outbox is one notification,
+  "N new messages". The host cuts the text to `MAX_NOTIFICATION_TEXT`. Mentions
+  are the replied-to author, since apps cannot yet name a member otherwise; a
+  member whose mode for the chat is "mentions only" is told for those. The
+  server tells only members with no connection open, none whose mode is "off",
+  and not the sender's account (plans/notifications.md). Tests: be-host-stack's
+  `a_chat_message_*` (members away, connected, off and mentions only; a closed
+  chat draining; a restart before and after telling; two editors), chat's editor
+  tests and be-server's. Known gap: a follower's message is told by the
+  follower's replica once the owner accepts it, so a follower that closes or
+  restarts before then tells nobody, as its unsent edit is lost too.
 - **Unread counts (1c).** Where the account read each chat up to is theirs,
   never in the chat, where it would be a read receipt: the owner-only settings
   kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are
@@ -188,11 +185,18 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c and 2 have landed.
 ## Order of work
 
 1. **The chat type and editor.**
-
    - **1d.** Segments, closing and rewriting them. Done: a chat of thousands of
      messages opens reading only the header; scrolling back reads segments by
      range; an offline reaction to a message moved into a segment survives the
      merge; a forced hash mismatch reads the part instead.
+2. **Notifications** for chat (landed): sending a message announces its text
+   and the accounts it mentions (`LiveEdit::announcements`), which the host
+   sends once the server holds the message. Done: a member who is not connected
+   gets a notification, one who muted the chat none, one who wants only
+   mentions one for a reply to them, exactly once whatever editors are open and
+   across a restart (be-host-stack's `a_chat_message_*`); the device showing it
+   names the chat and author once plans/notifications.md step 1 has its
+   Chromium test.
 
 ## Not planned here
 

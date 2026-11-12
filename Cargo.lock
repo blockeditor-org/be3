@@ -1628,6 +1628,7 @@ dependencies = [
  "be-server",
  "be-tool-cli",
  "be-type-bundle",
+ "be-type-chat",
  "be-type-checklist",
  "be-type-example-counter",
  "be-type-image",

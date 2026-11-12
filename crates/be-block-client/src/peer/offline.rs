@@ -90,6 +90,7 @@ impl<S: ObjectStore> Peer<S> {
     pub fn abandon(&self, block: Uuid, commit: CommitId) -> Result<(), ClientError> {
         if let Some((sequence, _)) = self.pending_publish(block, commit) {
             self.refs.remove(&[sequence])?;
+            self.refs.commits_refused(block, &HashSet::from([commit]))?;
         }
         Ok(())
     }
@@ -128,6 +129,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         let local = self.local_head(block);
         self.refs.remove(&settled)?;
+        self.refs.commits_held(block, &commits)?;
         self.refs.set_remote(block, head)?;
         if local.is_none_or(|local| commits.contains(&local)) {
             self.refs.set_head(block, head)?;
@@ -271,6 +273,7 @@ impl<S: ObjectStore> Peer<S> {
             if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
                 continue;
             }
+            let publishing = matches!(op, Op::Publish(_));
             let sent = match op {
                 Op::Create(creation) => self.send_creation(sequence, creation).await,
                 Op::Publish(pending) => self.drain_publish(sequence, pending).await,
@@ -283,6 +286,9 @@ impl<S: ObjectStore> Peer<S> {
                 Err(error) if error.is_unreachable() => break,
                 Err(ClientError::Refused(code, _)) => {
                     stopped.insert(block);
+                    if publishing {
+                        self.refuse_announced(block)?;
+                    }
                     Drained::Refused { block, code }
                 }
                 Err(_) => {
@@ -296,8 +302,12 @@ impl<S: ObjectStore> Peer<S> {
                         !matches!(held, Drained::Published { block: other, .. } if *other == block)
                     });
                 }
-                Drained::Diverged { .. } | Drained::Unsent { .. } => {
+                Drained::Diverged { .. } => {
                     stopped.insert(block);
+                }
+                Drained::Unsent { .. } => {
+                    stopped.insert(block);
+                    self.refuse_announced(block)?;
                 }
                 Drained::Created { .. }
                 | Drained::Moved { .. }
@@ -407,6 +417,7 @@ impl<S: ObjectStore> Peer<S> {
             .collect();
         let local = self.local_head(block);
         self.refs.remove(&settled)?;
+        self.refs.commits_held(block, &reached)?;
         self.refs.set_remote(block, head)?;
         if local.is_none_or(|local| local == head || reached.contains(&local)) {
             self.refs.set_head(block, head)?;
@@ -599,6 +610,25 @@ impl<S: ObjectStore> Peer<S> {
         let mut blocks = self.refs.below(block);
         blocks.insert(block);
         Ok(self.refs.forget(&blocks)?)
+    }
+
+    /// The server refused what this device keeps of `block`: what its kept commits announce
+    /// is never sent (a message shown "Not sent" tells nobody, and one sent again tells as a new
+    /// one).
+    fn refuse_announced(&self, block: Uuid) -> Result<(), ClientError> {
+        let commits: HashSet<CommitId> = self
+            .refs
+            .unsent()
+            .into_iter()
+            .filter(|(unsent, _)| *unsent == block)
+            .flat_map(|(_, unsent)| unsent.ops)
+            .filter_map(|op| match op {
+                Op::Publish(pending) => Some(pending.commit),
+                _ => None,
+            })
+            .chain(self.pending_commits(block))
+            .collect();
+        Ok(self.refs.commits_refused(block, &commits)?)
     }
 
     pub fn move_to_unsent(&self, block: Uuid) -> Result<bool, ClientError> {

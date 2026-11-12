@@ -232,6 +232,22 @@ interface types {
         payload: list<u8>,
     }
 
+    /// What an edit made on this device tells the block's other members once
+    /// the server holds it (`be_block::Announcement`): `key` names what it
+    /// announces, unique in the block, and each mention is the text of an
+    /// account's uuid.
+    record announcement {
+        key: string,
+        text: string,
+        mentions: list<string>,
+    }
+
+    /// An announcement of the edit an owner sequenced as `sequence`.
+    record announced {
+        sequence: u64,
+        announcement: announcement,
+    }
+
     /// Where a journal starts: a commit (none for no content), the last
     /// sequence number it holds and the session state as of it.
     record journal-base {

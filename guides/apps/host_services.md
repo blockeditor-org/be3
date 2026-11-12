@@ -113,22 +113,22 @@ Notes on particular calls:
   restoring" bookmark first (`Replicas::bookmark`); a follower, which cannot
   seal, stashes it and publishes the restore as a merge with it, whose parents
   history never prunes.
-- `notify(block, text, mentions)` tells the block's members who have no
-  connection open, on their other devices (guides/blocks/server.md,
-  "Notifications"). The host takes it only with Edit on the block, cuts `text`
-  to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the block's
-  key with the organization, the block, the sender and the time, so the server reads none of it; the device
-  that shows it names the sender (whom the server vouches for) and the block
-  itself. `mentions` names the accounts the text mentions, which a member whose
-  mode is `mentions` is told for. It is answered at once, and dropped when the
-  host is offline; it goes out unordered with the save carrying what it is
-  about. `NotifyModesWatch` follows the account's mode for every block, and
-  `set_notify_mode` changes one; the workspace's block menu offers them
-  (Notifications: All, Mentions only, Off), showing a change until the host
-  answers and going back if it refuses. `BeuiTest::take_notifications`
-  records what an editor sent. An editor rarely calls it: chat's
-  messages are announced by its replica when the server holds them (`LiveEdit::announcements`,
-  guides/type_modules.md), so they are sent once, whether an editor is open or not.
+- Notifications to a block's members who have no connection open
+  (guides/blocks/server.md, "Notifications") are not an editor's to send: an
+  edit announces itself. The block type names what each edit made on this
+  device tells them (`LiveEdit::announcements`: chat's sends tell the message's
+  body, mentioning the author of the message it replies to), and the host
+  sends it once the server holds the edit, whether an editor or replica is open
+  then or not (guides/type_modules.md, "Announcements"). The host cuts the
+  text to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the
+  block's key with the organization, the block, the sender and the time, so
+  the server reads none of it; the device that shows it names the sender (whom
+  the server vouches for) and the block itself. A member whose mode is
+  `mentions` is told only of what mentions them. `NotifyModesWatch` follows
+  the account's mode for every block, and `set_notify_mode` changes one; the
+  workspace's block menu offers them (Notifications: All, Mentions only, Off),
+  showing a change until the host answers and going back if it refuses.
+  `BeuiTest::take_announced` records what the editor's edits announced.
 - `set_push_device(on)` turns pushes to this device on or off and `PushDeviceWatch` follows it
   (none on a host that cannot receive them, which is every host but the web build); turning
   them on asks for the person's permission, so call it from their press. The settings list's

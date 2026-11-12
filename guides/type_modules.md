@@ -356,6 +356,52 @@ rebase. The rules an agent most needs:
   responsible for each stash until the owner answers `Saved`, resending it
   after a takeover.
 
+## Announcements
+
+An edit made on this device can tell the block's members who are not connected
+about itself once the server holds it (chat: each message it sends). The type
+names what it tells with `LiveEdit::announcements`, asked as the edit is made,
+of content that holds it: `be_block::Announcement`'s text, the accounts it
+mentions and a `key` naming what it announces (chat: the message), unique in
+the block and the same when the edit is made again. The notification is tied
+to the edit, never to an editor or a replica:
+
+- The replica keeps the announcements with the edit in its lacking list
+  (guides/blocks/apps.md, "Sending"), whether an editor follows or not. An
+  owner hands them to the host with the `append` holding the edit
+  (`announced`, by sequence; a seal appends what it sequenced first), and from
+  there the host keeps them durably, sealed under the block's key, in the refs
+  database (`be-block-client/src/refs/announcements.rs`): beside the journal
+  entry, then, when `rebase-journal` starts the journal from a commit this
+  device sealed (`Replicas` knows its replica's last publish), beside that
+  commit while the outbox keeps it. A rebase from anyone else's commit drops
+  them: the edit never reached the server.
+- The host sends one once the server holds its edit: the append answered, or
+  the commit published or settled by the drain (`Peer::settle`), so it goes
+  with no replica or type module open, and after a restart. A drain the server
+  refuses drops what the block's kept commits announce, so a message shown
+  "Not sent" tells nobody (sent again, it is a new edit).
+- A follower's edit is the owner's to append, but the notification must come
+  from its author's account, so the follower's replica hands the host its
+  announcements with `announce` once the owner accepts the edit (the server
+  holds it then). They live in the replica until then, as the edit does.
+- `Peer::send_announcements` sends what is held, after an append the server
+  took, a rebase, an `announce` and each outbox drain. It marks each sent
+  before it calls `notify`, putting them back only when the server cannot be
+  reached, so a crash costs a notification rather than repeating one. What
+  waits together on one block (a drained burst) is one notification: the text
+  of one, or "N new messages", mentioning everyone they mention. The server
+  allows `MAX_NOTIFICATIONS_PER_BLOCK` a minute per account and block, and one
+  it refuses is dropped, never reported: it was about then.
+- A key is announced once: the host remembers the last 256 sent per block, so
+  an edit a host replays into a restarted replica (guides/blocks/host.md), which
+  announces it again, is not sent again, and a replayed journal entry announces
+  nothing.
+
+Tests: be-host-stack's `a_chat_message_*` (through `Peer::notify`, the server's
+recipient selection and a Web Push service on loopback) and chat's editor tests
+over be-sdk-test's store, which keeps announcements as the host does.
+
 ## Editors are endpoints
 
 A local editor follows the replica as a peer follows an owner. The host

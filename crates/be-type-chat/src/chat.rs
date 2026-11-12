@@ -606,9 +606,9 @@ impl LiveEdit for ChatContent {
     }
 
     /// Each message the operation sends, as the notification the chat's other members get once
-    /// the server holds it: its body now (a message edited before then tells the edit), naming
-    /// the author of the message it replies to, whom a member who wants only mentions is told
-    /// for. A message deleted since tells nobody.
+    /// the server holds it: its body, naming the author of the message it replies to, whom a
+    /// member who wants only mentions is told for. Keyed by the message, so a send made again
+    /// (a replica restarted with the edit) tells once.
     fn announcements(&self, operation: &Edit) -> Vec<be_block::Announcement> {
         Self::sent_in(operation)
             .into_iter()
@@ -621,6 +621,7 @@ impl LiveEdit for ChatContent {
                     .into_iter()
                     .collect();
                 Some(be_block::Announcement {
+                    key: id.to_string(),
                     text: self.body(id)?,
                     mentions,
                 })

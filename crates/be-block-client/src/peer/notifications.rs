@@ -2,6 +2,7 @@
 //! carried with the keys this device holds, and the server's endpoints and modes.
 //! guides/blocks/server.md, "Notifications".
 
+use be_block::Announcement;
 use be_block_commit::now_milliseconds;
 use be_block_protocol::{
     BlockNotifyMode, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage, client,
@@ -10,8 +11,11 @@ use be_block_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::Peer;
-use crate::ClientError;
+use super::{Peer, locked};
+use crate::{
+    ClientError,
+    refs::{Announcing, Until},
+};
 
 /// What a notification's sender wrote, sealed under the block's data key, with the
 /// organization, the block, the sender's account and the time it was sent sealed in, so a
@@ -97,6 +101,87 @@ impl<S: ObjectStore> Peer<S> {
         let sealed = self.seal_notification(&notification).await?;
         client::notifications::notify(&self.connection(), block, sealed, mentions).await??;
         Ok(())
+    }
+
+    /// Keeps announcements of edits of `block` the server already holds (a follower's, once the
+    /// owner accepted them) for `send_announcements`; one whose key this device knows is not
+    /// kept again.
+    pub async fn announce_held(
+        &self,
+        block: Uuid,
+        announcements: Vec<Announcement>,
+    ) -> Result<(), ClientError> {
+        let key = self.sealing_key(block).await?;
+        let sealed = announcements
+            .into_iter()
+            .map(|announcement| -> Result<_, ClientError> {
+                Ok((
+                    announcement.key,
+                    self.commits
+                        .vault()
+                        .seal(key, announcement.text.as_bytes())?,
+                    announcement.mentions,
+                ))
+            })
+            .collect::<Result<Vec<_>, ClientError>>()?;
+        Ok(self.refs.add_announcements(block, Until::Held, sealed)?)
+    }
+
+    /// Sends what every edit the server now holds announces, once: one notification per block,
+    /// the text of one alone or "N new messages" for several (a drained outbox), mentioning
+    /// everyone they mention. While the server cannot be reached they wait for the next call;
+    /// one it refuses (past its rate) is dropped, since it is about now.
+    pub async fn send_announcements(&self) -> Result<(), ClientError> {
+        if !self.is_attached() || !self.refs.has_held_announcements() {
+            return Ok(());
+        }
+        let taken = self.refs.take_held_announcements()?;
+        let mut blocks: Vec<(Uuid, Vec<Announcing>)> = Vec::new();
+        for announcing in taken {
+            match blocks
+                .iter_mut()
+                .find(|(block, _)| *block == announcing.block)
+            {
+                Some((_, held)) => held.push(announcing),
+                None => blocks.push((announcing.block, vec![announcing])),
+            }
+        }
+        let mut failed = None;
+        let mut blocks = blocks.into_iter();
+        while let Some((block, held)) = blocks.next() {
+            let text = match held.as_slice() {
+                [one] => self
+                    .commits
+                    .vault()
+                    .open(&one.sealed)
+                    .map_err(locked)
+                    .map(|text| String::from_utf8_lossy(&text).into_owned()),
+                several => Ok(format!("{} new messages", several.len())),
+            };
+            let mut mentions: Vec<Uuid> = Vec::new();
+            for mention in held.iter().flat_map(|announcing| &announcing.mentions) {
+                if !mentions.contains(mention) {
+                    mentions.push(*mention);
+                }
+            }
+            let sent = match text {
+                Ok(text) => self.notify(block, &text, mentions).await,
+                Err(error) => Err(error),
+            };
+            match sent {
+                Ok(()) | Err(ClientError::Refused(..)) => {}
+                Err(error) if error.is_unreachable() => {
+                    let unsent: Vec<Announcing> = held
+                        .into_iter()
+                        .chain(blocks.flat_map(|(_, held)| held))
+                        .collect();
+                    self.refs.unsent_announcements(&unsent)?;
+                    return Err(error);
+                }
+                Err(error) => failed = Some(error),
+            }
+        }
+        failed.map_or(Ok(()), Err)
     }
 
     /// `notification` sealed under its block's newest data key, which names that key.

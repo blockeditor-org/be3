@@ -40,6 +40,7 @@ impl Harness {
             "127.0.0.1:0",
             directory.join("server"),
             be_server::ServerConfig::OPEN.lease,
+            be_server::push::PushConfig::DEFAULT,
         )
         .expect("the embedded block server starts");
         let url = server.url.clone();

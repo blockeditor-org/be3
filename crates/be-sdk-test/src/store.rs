@@ -64,6 +64,19 @@ impl Block {
     }
 }
 
+/// What has to happen before the server holds an announced edit, as the host tracks it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Announcing {
+    /// In this device's journal as this sequence.
+    Journal(u64),
+    /// In a commit kept in the outbox.
+    Kept,
+    /// The server holds it.
+    Held(u64),
+    /// Never to be held.
+    Dropped,
+}
+
 struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
@@ -99,6 +112,11 @@ struct Inner {
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
+    /// What edits announce until the server holds them, as the host keeps them beside the
+    /// journal or a kept commit: the block, the key, until, the text and mentions.
+    announcing: Vec<(Option<Uuid>, String, Announcing, String, Vec<String>)>,
+    /// The keys announced, which are not announced again.
+    announced: BTreeSet<(Option<Uuid>, String)>,
     notified: Vec<(Option<Uuid>, String, Vec<Uuid>)>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
@@ -140,6 +158,8 @@ impl Default for Inner {
             kept: BTreeSet::new(),
             refused: BTreeMap::new(),
             refusals: 0,
+            announcing: Vec::new(),
+            announced: BTreeSet::new(),
             notified: Vec::new(),
             known_elsewhere: None,
         };
@@ -336,31 +356,100 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
-            Call::Append { reply, .. } => {
+            Call::Append {
+                reply,
+                announcements,
+                ..
+            } => {
                 let held = !self.offline;
+                let until = match held {
+                    true => Announcing::Held,
+                    false => Announcing::Journal,
+                };
+                for announced in announcements {
+                    let made = announced.announcement;
+                    self.announcing.push((
+                        block,
+                        made.key,
+                        until(announced.sequence),
+                        made.text,
+                        made.mentions,
+                    ));
+                }
+                self.send_announcements(block);
                 reply.send(&mut self.host, &held);
             }
-            Call::Notify {
+            Call::Announce {
                 reply,
-                text,
-                mentions,
+                announcements,
             } => {
-                let mentions = mentions
-                    .iter()
-                    .filter_map(|mention| Uuid::parse_str(mention).ok())
-                    .collect();
-                self.notified.push((block, text, mentions));
+                for made in announcements {
+                    self.announcing.push((
+                        block,
+                        made.key,
+                        Announcing::Held(0),
+                        made.text,
+                        made.mentions,
+                    ));
+                }
+                self.send_announcements(block);
+                reply.send(&mut self.host, &());
+            }
+            Call::RebaseJournal { reply, base, .. } => {
+                // This device seals every commit here, so what the base holds goes with it.
+                let kept = block.is_some_and(|block| self.kept.contains(&block));
+                for (at, _, until, ..) in &mut self.announcing {
+                    if *at == block
+                        && let Announcing::Journal(sequence) = *until
+                    {
+                        *until = match (sequence <= base.sequence, kept) {
+                            (false, _) => Announcing::Dropped,
+                            (true, true) => Announcing::Kept,
+                            (true, false) => Announcing::Held(sequence),
+                        };
+                    }
+                }
+                self.announcing
+                    .retain(|(.., until, _, _)| *until != Announcing::Dropped);
+                self.send_announcements(block);
                 reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
-            | Call::RebaseJournal { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::History { reply, .. }
             | Call::Conflict { reply, .. }
             | Call::Error { reply, .. } => reply.send(&mut self.host, &()),
         }
+    }
+
+    /// Sends what the server holds the edits of in `block`, as the host does: one notification,
+    /// or "N new messages" for several, each key once.
+    fn send_announcements(&mut self, block: Option<Uuid>) {
+        let mut held = Vec::new();
+        self.announcing.retain(|(at, key, until, text, mentions)| {
+            let sending = *at == block && matches!(until, Announcing::Held(_));
+            if sending {
+                held.push((key.clone(), text.clone(), mentions.clone()));
+            }
+            !sending
+        });
+        held.retain(|(key, ..)| self.announced.insert((block, key.clone())));
+        let text = match held.as_slice() {
+            [] => return,
+            [(_, text, _)] => text.clone(),
+            several => format!("{} new messages", several.len()),
+        };
+        let mut mentions = Vec::new();
+        for mention in held.iter().flat_map(|(.., mentions)| mentions) {
+            if let Ok(mention) = Uuid::parse_str(mention)
+                && !mentions.contains(&mention)
+            {
+                mentions.push(mention);
+            }
+        }
+        self.notified.push((block, text, mentions));
     }
 
     fn ask<T, E: wire::Decode<T>>(
@@ -886,6 +975,18 @@ impl ContentStore {
                 inner.refused.entry(block).or_default().push(commit);
                 commits.push(commit);
             }
+            for (at, _, until, ..) in &mut inner.announcing {
+                if *at == Some(block) && *until == Announcing::Kept {
+                    *until = match refused {
+                        true => Announcing::Dropped,
+                        false => Announcing::Held(0),
+                    };
+                }
+            }
+            inner
+                .announcing
+                .retain(|(.., until, _, _)| *until != Announcing::Dropped);
+            inner.send_announcements(Some(block));
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
                 replica.drained(&mut inner.host, refused, commits);
             }

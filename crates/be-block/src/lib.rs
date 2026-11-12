@@ -2,7 +2,7 @@ use std::{collections::HashSet, error::Error, fmt};
 
 use be_block_commit::MergeResult;
 pub use be_block_store::{LoadedPart, Part, PartRef, Stored};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 pub mod blob;
@@ -219,10 +219,14 @@ pub enum ChildChange {
     Reorder { block: Uuid, after: Option<Uuid> },
 }
 
-/// What an operation tells the block's other members, who are not connected, once the server
-/// holds it: the text of a notification and the accounts it mentions.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// What an edit made on this device tells the block's other members who are not connected, once
+/// the server holds it: the text of a notification and the accounts it mentions. `key` names
+/// what is announced (chat: the message), unique in the block and the same each time the edit
+/// is made again (a host replays an editor's edits into a restarted replica), so it is told
+/// once.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Announcement {
+    pub key: String,
     pub text: String,
     pub mentions: Vec<Uuid>,
 }
@@ -232,9 +236,10 @@ pub trait LiveEdit: BlockContent {
 
     fn apply(&mut self, operation: &Self::Op);
 
-    /// What `operation` announces once the server holds it, read from this content (the
-    /// replica's confirmed content, which holds the operation). The replica sends each
-    /// announcement once, when the edit stops being lacking, whichever editors are open then.
+    /// What `operation` announces (`Announcement`), asked when the edit is made on this device
+    /// of content that holds it. The replica hands it to the host with the edit, and the host
+    /// keeps it beside the journal entry or commit holding the edit and sends it once the
+    /// server holds that, whether the replica is open then or not.
     fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
         let _ = operation;
         Vec::new()

@@ -1824,24 +1824,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.take_notified()
     }
 
-    /// The notifications the editor sent (`host-services.notify`): the block, the text and
-    /// the accounts it mentions.
-    pub fn take_notifications(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {
-        self.take_requests_where(|call| match call {
-            Call::Notify {
-                block,
-                text,
-                mentions,
-                ..
-            } => Ok((
-                Uuid::from_bytes(block),
-                text,
-                mentions.into_iter().map(Uuid::from_bytes).collect(),
-            )),
-            call => Err(call),
-        })
-    }
-
     /// What the editor asked of pushes to this device (`host-services.set-push-device`): true
     /// for on.
     pub fn take_push_device_requests(&mut self) -> Vec<bool> {

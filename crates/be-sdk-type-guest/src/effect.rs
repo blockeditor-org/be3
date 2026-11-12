@@ -54,10 +54,10 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         generation: u64,
     },
-    Notify {
+    /// Announcements of edits made here that the server already holds.
+    Announce {
         replica: ReplicaId,
-        text: String,
-        mentions: Vec<uuid::Uuid>,
+        announcements: Vec<be_block::Announcement>,
     },
     ReportClean {
         replica: ReplicaId,
@@ -71,6 +71,8 @@ pub(crate) enum Effect {
         relay: bool,
         /// The first sequence number the entries hold, folded ones included.
         from: u64,
+        /// The announcements of the edits made here among the entries, by sequence.
+        announcements: Vec<(u64, be_block::Announcement)>,
     },
     Rebase {
         replica: ReplicaId,

@@ -407,8 +407,6 @@ struct Sim<C: LiveEdit + Clone + Default> {
     rejections: usize,
     conflicts: Vec<(usize, CommitId, CommitId, usize)>,
     errors: Vec<(usize, String)>,
-    /// What each device's replica asked the host to notify the block's members of.
-    notified: Vec<(usize, String, Vec<Uuid>)>,
     quiet: bool,
     stalled: bool,
     /// Appends are answered as kept on the device alone, and reach no one.
@@ -469,7 +467,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             rejections: 0,
             conflicts: Vec::new(),
             errors: Vec::new(),
-            notified: Vec::new(),
             quiet: false,
             stalled: false,
             unheld_appends: false,
@@ -1064,6 +1061,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 generation,
                 entries,
                 relay,
+                ..
             } => {
                 if self.unheld_appends {
                     return self.to(device, |host| reply.send(host, &false));
@@ -1150,20 +1148,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 self.errors.push((device, message));
             }
-            Call::Notify {
-                reply,
-                text,
-                mentions,
-            } => {
+            Call::Announce { reply, .. } => {
                 self.to(device, |host| reply.send(host, &()));
-                self.notified.push((
-                    device,
-                    text,
-                    mentions
-                        .iter()
-                        .filter_map(|mention| Uuid::parse_str(mention).ok())
-                        .collect(),
-                ));
             }
         }
     }

@@ -697,13 +697,12 @@ impl Module {
                 replica,
                 generation,
             } => ops::with_parent(replica, || host::claim_lease(generation)).detach(),
-            Effect::Notify {
+            Effect::Announce {
                 replica,
-                text,
-                mentions,
+                announcements,
             } => {
-                let mentions = mentions.iter().map(Uuid::to_string).collect();
-                ops::with_parent(replica, || host::notify(text, mentions)).detach()
+                let announcements = announcements.into_iter().map(announcement).collect();
+                ops::with_parent(replica, || host::announce(announcements)).detach()
             }
             Effect::ReportClean {
                 replica,
@@ -716,14 +715,23 @@ impl Module {
                 entries,
                 relay,
                 from,
+                announcements,
             } => {
+                let announcements = announcements
+                    .into_iter()
+                    .map(|(sequence, made)| be_sdk_type_api::Announced {
+                        sequence,
+                        announcement: announcement(made),
+                    })
+                    .collect();
                 let through = entries
                     .iter()
                     .map(|entry| entry.sequence)
                     .max()
                     .unwrap_or_default();
-                let pending =
-                    ops::with_parent(replica, || host::append(generation, entries, relay));
+                let pending = ops::with_parent(replica, || {
+                    host::append(generation, entries, relay, announcements)
+                });
                 self.answer_later(replica, pending, move |held| Input::Appended {
                     from,
                     through,
@@ -1163,6 +1171,15 @@ macro_rules! be_block_types {
             }
         }
     };
+}
+
+/// An announcement as the host interface carries it, each mention as the text of its uuid.
+fn announcement(made: be_block::Announcement) -> be_sdk_type_api::Announcement {
+    be_sdk_type_api::Announcement {
+        key: made.key,
+        text: made.text,
+        mentions: made.mentions.iter().map(Uuid::to_string).collect(),
+    }
 }
 
 #[cfg(test)]
