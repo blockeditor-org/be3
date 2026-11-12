@@ -1105,7 +1105,7 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self.refs.observe(&blocks);
                 Ok(blocks)
             }
-            Err(error) if error.is_unreachable() => match self.refs.listing(&listing) {
+            Err(error) if error.is_unreachable() => match self.refs.cached_listing(listing) {
                 Some(blocks) => Ok(self.refs.current(blocks)),
                 None => Err(error),
             },
@@ -1425,13 +1425,14 @@ impl<S: ObjectStore> Peer<S> {
             chunks,
             time,
             pinned,
-            references: listed,
+            references: listed.clone(),
             metadata: sealed.clone(),
         })?;
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {
             summary.metadata = sealed;
+            summary.references = listed;
             self.refs.revise(summary)?;
         }
         Ok(Sealed::Sealed(id))

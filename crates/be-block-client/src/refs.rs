@@ -580,6 +580,26 @@ impl Refs {
         self.state.lock().unwrap().listings.get(listing).cloned()
     }
 
+    /// A listing as this device last knew it, for answering offline. What a block references is
+    /// read from its newest summary, since a summary pushed or revised after the listing was
+    /// fetched (another device's seal, or this device's own offline) names its references then.
+    pub fn cached_listing(&self, listing: Listing) -> Option<Vec<BlockSummary>> {
+        let Listing::References(block) = listing else {
+            return self.listing(&listing);
+        };
+        let Some(referrer) = self.summary(block) else {
+            return self.listing(&listing);
+        };
+        Some(
+            referrer
+                .references
+                .iter()
+                .filter_map(|reference| self.summary(*reference))
+                .filter(|summary| summary.access.can_know_exists())
+                .collect(),
+        )
+    }
+
     pub fn newest_revision(&self) -> u64 {
         let state = self.state.lock().unwrap();
         state

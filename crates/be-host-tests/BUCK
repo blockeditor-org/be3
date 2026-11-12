@@ -15,6 +15,7 @@ cargo_package()
 APPS = {
     "a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group": ["example-beui-gallery"],
     "a_block_added_from_the_files_is_named_in_its_row": ["text"],
+    "a_block_made_on_an_offline_device_shows_in_its_files_and_reaches_the_other_once_it_reconnects": ["text"],
     "a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside": ["infinite-canvas"],
     "a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones": ["infinite-canvas"],
     "a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl": ["infinite-canvas"],
@@ -29,6 +30,7 @@ APPS = {
     "a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page": ["example-beui-gallery"],
     "a_desktop_window_moves_by_super_drag_and_keeps_its_bar_on_the_screen": ["desktop"],
     "a_device_restarted_offline_catches_up_once_it_reconnects": ["text"],
+    "a_device_restarted_offline_still_lists_a_block_another_device_made": ["text"],
     "a_device_restarted_offline_still_lists_a_block_it_made": ["text"],
     "a_dock_grip_menu_row_loses_its_highlight_when_the_pointer_leaves_the_menu": [],
     "a_drag_across_an_empty_map_pans_it": ["map"],
