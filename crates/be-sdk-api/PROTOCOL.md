@@ -809,7 +809,9 @@ cut-out shows that color rather than what is behind the view before its
 child draws, after the child goes and wherever the child leaves it
 uncovered; a view that shows what is behind it through its cut-outs (an
 editor that took its placer's frame, around its content) reports none, and
-a turned or faded view is given none. A painting is never stretched: the host shows each
+a turned or faded view is given none. Until the app reports a frame of a
+view, the host fills it with the backdrop the instance last reported for
+another view. A painting is never stretched: the host shows each
 frame at the size it was painted, from the view's top-left corner, so while
 a view is resizing ahead of the app the painting is cropped or falls
 short at the right and bottom, and the children, occluders and input method

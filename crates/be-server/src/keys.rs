@@ -1103,7 +1103,7 @@ impl ServerStore {
 
     /// The signing keys of those of `accounts` the caller may know: itself, its contacts and
     /// the members of the organization open. A key the server holds is only what the account
-    /// sent; a device trusts it only on first use (plans/authorship.md).
+    /// sent; a device trusts it only on first use (plans/deferred/authorship.md).
     pub async fn signing_keys(
         &self,
         identity: Identity,
