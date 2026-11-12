@@ -48,7 +48,11 @@ uuid is its 16 bytes and a hash its 32, each under the alias of what it names
 out is an alias named `<thing>-id` (`screen-id`, `child-id`, `web-view-id`).
 
 It exports `app` (`app.wit`): `resource editor`, one open editor instance,
-whose methods are what the host says to that instance and whose drop closes it;
+whose methods are what the host says to that instance and whose drop closes it:
+what happens around the editor, one way (`editor-event`: menu picks, child
+bars, focus, resizes, drags, dialogs), is a list in one `hear`, and the
+methods besides it (creating, regenerating, replacing, rendering) are the
+calls that answer;
 the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
 `block-command` changes the block (undo, redo, its artifact, unlink, delete,

@@ -23,21 +23,16 @@ left of this step:
 - `bar-action` has one variant, `details`; drop the enum and make it a
   `details` message (and step 3's `child-bar` a `details` event).
 
-## 3. The editor's one-way methods are one event call
+## 3. The editor's one-way methods are one event call (left)
 
-`app.wit`'s `editor` interface has 14 methods that return nothing:
-`menu-pick`, `child-bar`, `child-focused`, `set-editable`, `view-changed`,
-`presenting-changed`, `presence`, `focus-changed`, `resized`, `drag-over`,
-`drag-left`, `artifact-settings`, `dismiss`, `show-dialog`. The host already
-holds them as one internal `EditorCall` enum (`be-host-runtime/src/calls.rs`)
-and unpacks it arm by arm (`be-host-runtime/src/wire.rs`); the guest re-wraps
-each (`be-sdk/src/wire.rs`).
-
-Replace them with `hear: async func(instance, events: list<editor-event>)`.
-The WIT variant replaces the internal enum. `drag-over` and `drag-left` become
-one `drag(option<drag-over>)`. `child-bar` and `child-focused` drop the `view`
-argument the guest ignores. The four methods that answer (`commit-creation`,
-`regenerate-artifact`, `replace-child`, `render-clip`) stay.
+`editor.hear` and `editor-event` replaced the 14 one-way methods; the host
+queues events and sends them as one list per `Outbound` batch
+(`Wire::flush_hearing`), and the guest turns each into the same closure as
+before (`be-sdk/src/wire.rs`). What is left: the host's internal `EditorCall`
+enum (`be-host-runtime/src/calls.rs`) still has a variant per event and
+`Wire::call` converts it; make `EditorEvent` the one type, so `Instances`
+makes events directly. `child-bar` and `child-focused` still carry the `view`
+the guest ignores in `EditorCall` (the WIT dropped it).
 
 ## 4. Block watches are one resource
 

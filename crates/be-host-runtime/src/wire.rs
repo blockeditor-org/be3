@@ -7,6 +7,7 @@ use be_sdk_api::{Encoded, Watch};
 use be_sdk_api::{
     AudioStatus, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId, Failure, Fonts,
     HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
+    app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame},
     embed::{
         self, blocks,
         debug::debug::Call as DebugCall,
@@ -60,6 +61,7 @@ pub(super) struct Wire {
     block_types: Watch<Catalog>,
     debug_templates: Watch<Vec<DebugTemplate>>,
     held: Held,
+    hearing: Vec<(EditorInstanceId, EditorEvent)>,
 }
 
 type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
@@ -125,6 +127,7 @@ impl Default for Wire {
             block_types: Watch::default(),
             debug_templates: Watch::default(),
             held: Held::default(),
+            hearing: Vec::new(),
         }
     }
 }
@@ -144,11 +147,13 @@ impl Wire {
     }
 
     pub(super) fn shutdown(&mut self) {
+        self.flush_hearing();
         let done = app::shutdown(&mut self.connection);
         self.draws.insert(done.op(), Awaited::Shutdown);
     }
 
     pub(super) fn open(&mut self, opening: Opening) {
+        self.flush_hearing();
         let instance = opening.instance();
         let editor = Editor::new(&mut self.connection, opening);
         if let Some(earlier) = self.editors.insert(instance, editor) {
@@ -157,6 +162,7 @@ impl Wire {
     }
 
     pub(super) fn close(&mut self, instance: EditorInstanceId) {
+        self.flush_hearing();
         if let Some(editor) = self.editors.remove(&instance) {
             editor.resource_drop(&mut self.connection);
         }
@@ -166,6 +172,7 @@ impl Wire {
     }
 
     pub(super) fn app_call(&mut self, call: AppCall) {
+        self.flush_hearing();
         let connection = &mut self.connection;
         match call {
             AppCall::Preferences(preferences) => {
@@ -216,6 +223,26 @@ impl Wire {
         let Some(editor) = self.editors.get(&instance).copied() else {
             return;
         };
+        // Whatever is not an event goes after the events queued before it.
+        if !matches!(
+            call,
+            EditorCall::MenuPick { .. }
+                | EditorCall::Dismiss
+                | EditorCall::ChildBar { .. }
+                | EditorCall::ChildFocused { .. }
+                | EditorCall::SetEditable(_)
+                | EditorCall::ViewChanged { .. }
+                | EditorCall::PresentingChanged(_)
+                | EditorCall::Presence(_)
+                | EditorCall::FocusChanged(_)
+                | EditorCall::Resized(_)
+                | EditorCall::DragOver(_)
+                | EditorCall::DragLeft
+                | EditorCall::ArtifactSettings(_)
+                | EditorCall::ShowDialog { .. }
+        ) {
+            self.flush_hearing();
+        }
         let connection = &mut self.connection;
         match call {
             EditorCall::Watched { open, value } => {
@@ -275,47 +302,42 @@ impl Wire {
                     });
             }
             EditorCall::MenuPick { view, id, anchor } => {
-                editor.menu_pick(connection, view, id, anchor);
+                self.hear(
+                    instance,
+                    EditorEvent::MenuPick(MenuChoice { view, id, anchor }),
+                );
             }
-            EditorCall::Dismiss => {
-                editor.dismiss(connection);
+            EditorCall::Dismiss => self.hear(instance, EditorEvent::Dismiss),
+            EditorCall::ChildBar { child, action, .. } => {
+                self.hear(
+                    instance,
+                    EditorEvent::ChildBar(ChildBarPress { child, action }),
+                );
             }
-            EditorCall::ChildBar {
-                view,
-                child,
-                action,
-            } => {
-                editor.child_bar(connection, view, child, action);
-            }
-            EditorCall::ChildFocused { view, child } => {
-                editor.child_focused(connection, view, child);
+            EditorCall::ChildFocused { child, .. } => {
+                self.hear(instance, EditorEvent::ChildFocused(child));
             }
             EditorCall::SetEditable(editable) => {
-                editor.set_editable(connection, editable);
+                self.hear(instance, EditorEvent::SetEditable(editable));
             }
             EditorCall::ViewChanged { view, scale } => {
-                editor.view_changed(connection, view, scale);
+                self.hear(
+                    instance,
+                    EditorEvent::ViewChanged(ViewFrame { view, scale }),
+                );
             }
             EditorCall::PresentingChanged(presenting) => {
-                editor.presenting_changed(connection, presenting);
+                self.hear(instance, EditorEvent::PresentingChanged(presenting));
             }
-            EditorCall::Presence(visible) => {
-                editor.presence(connection, visible);
-            }
+            EditorCall::Presence(visible) => self.hear(instance, EditorEvent::Presence(visible)),
             EditorCall::FocusChanged(focus) => {
-                editor.focus_changed(connection, focus);
+                self.hear(instance, EditorEvent::FocusChanged(focus));
             }
-            EditorCall::Resized(size) => {
-                editor.resized(connection, size);
-            }
-            EditorCall::DragOver(drag) => {
-                editor.drag_over(connection, drag);
-            }
-            EditorCall::DragLeft => {
-                editor.drag_left(connection);
-            }
+            EditorCall::Resized(size) => self.hear(instance, EditorEvent::Resized(size)),
+            EditorCall::DragOver(drag) => self.hear(instance, EditorEvent::Drag(Some(drag))),
+            EditorCall::DragLeft => self.hear(instance, EditorEvent::Drag(None)),
             EditorCall::ArtifactSettings(data) => {
-                editor.artifact_settings(connection, data);
+                self.hear(instance, EditorEvent::ArtifactSettings(data));
             }
             EditorCall::CommitCreation => {
                 let ticket = editor.commit_creation(connection);
@@ -350,7 +372,31 @@ impl Wire {
                 );
             }
             EditorCall::ShowDialog { block, dialog } => {
-                editor.show_dialog(connection, block, dialog);
+                self.hear(
+                    instance,
+                    EditorEvent::ShowDialog(DialogRequest { block, dialog }),
+                );
+            }
+        }
+    }
+
+    /// Queues what happened around an editor; `flush_hearing` sends what is
+    /// queued, a call for each run of events of one editor, so the order across
+    /// editors is the order they came.
+    fn hear(&mut self, instance: EditorInstanceId, event: EditorEvent) {
+        self.hearing.push((instance, event));
+    }
+
+    /// Sends the events queued, in the order they came.
+    pub(super) fn flush_hearing(&mut self) {
+        let mut queued = std::mem::take(&mut self.hearing).into_iter().peekable();
+        while let Some((instance, event)) = queued.next() {
+            let mut events = vec![event];
+            while let Some((_, event)) = queued.next_if(|(next, _)| *next == instance) {
+                events.push(event);
+            }
+            if let Some(editor) = self.editors.get(&instance).copied() {
+                editor.hear(&mut self.connection, events);
             }
         }
     }
