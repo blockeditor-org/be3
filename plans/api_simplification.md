@@ -240,9 +240,6 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
   `take_copied_text` and `take_copied_images` in favour of
   `take_copied(format)`, with the serial of a copy in a separate accessor if a
   test needs it (`take_copies` has two callers in be-sdk-beui-platform).
-- `HostTest` (`be-host-tests/src/lib.rs`): `start`, `start_desktop`,
-  `start_in_space`, `start_drawing_previews` and `start_with` become
-  `start(Options)`.
 - `be` CLI (`be-tool-cli/src/cli.rs`): a row's page is a text block target.
   `be ROW page` resolves to it, made on first write, and the text verbs
   (`cat`, `write`, `append`, `edit`) work on it; remove the copied `page`

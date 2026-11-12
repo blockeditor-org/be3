@@ -5,7 +5,7 @@ const CHIP: &str = "#desktop.windows.block.2";
 
 #[test]
 fn a_window_dragged_over_the_desktops_bars_passes_beneath_them() {
-    let mut host = HostTest::start_desktop();
+    let mut host = HostTest::start(Options { desktop: true, ..Options::default() });
     host.click("#desktop.apps");
     host.click("#desktop.apps.sessions.new");
     host.wait("Pane \"Files\"");

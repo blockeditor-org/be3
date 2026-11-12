@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_host_palette_lists_the_desktops_window_keys() {
-    let mut host = HostTest::start_desktop();
+    let mut host = HostTest::start(Options { desktop: true, ..Options::default() });
     host.click("#desktop.apps");
     host.click("#desktop.apps.sessions.new");
     host.wait("Pane \"Files\"");

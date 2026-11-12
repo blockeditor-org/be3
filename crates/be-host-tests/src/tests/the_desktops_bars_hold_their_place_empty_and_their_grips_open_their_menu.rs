@@ -11,7 +11,7 @@ fn chosen(host: &mut HostTest, id: &str) -> bool {
 
 #[test]
 fn the_desktops_bars_hold_their_place_empty_and_their_grips_open_their_menu() {
-    let mut host = HostTest::start_desktop();
+    let mut host = HostTest::start(Options { desktop: true, ..Options::default() });
     host.wait("#desktop.windows.none");
     let hint = host.place("#desktop.windows.none");
     let grip = host.place(WINDOWS_GRIP);

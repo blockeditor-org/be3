@@ -33,7 +33,7 @@ fn resize(host: &mut HostTest, size: &str) -> (Place, Place) {
 
 #[test]
 fn a_tab_keeps_its_view_through_a_resize() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Pan and Zoom");
     host.wait(ARTWORK);
     host.gone("#editor.loading");

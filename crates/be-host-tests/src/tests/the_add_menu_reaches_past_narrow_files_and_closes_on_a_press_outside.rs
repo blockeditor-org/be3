@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_add_menu_reaches_past_narrow_files_and_closes_on_a_press_outside() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.run(&["resize", "720x640"]);
     host.wait(NEW);
     open_add_to_my_files(&mut host);
