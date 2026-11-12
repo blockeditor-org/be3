@@ -133,8 +133,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             },
             blocks::Call::SetMetadata { block: of, .. }
             | blocks::Call::Publish { block: of, .. }
-            | blocks::Call::SetParent { block: of, .. }
-            | blocks::Call::DeleteBlock { block: of, .. } => block(*of, Access::Edit),
+            | blocks::Call::SetParent { block: of, .. } => block(*of, Access::Edit),
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
             blocks::Call::ListHistory { block: of, .. }
@@ -255,6 +254,8 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             blocks::Call::CreateBlock { block, parent, .. } => {
                 *block == root || matches!(parent, BlockParent::Block(_))
             }
+            // A block it trashed would leave what it reaches, and no one else could see it to
+            // restore or collect it.
             blocks::Call::SetParent { block, parent, .. } => {
                 *block != root && matches!(parent, BlockParent::Block(_))
             }
@@ -269,10 +270,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::ChangedSince { .. }
             | blocks::Call::Watch { .. }
             | blocks::Call::Changes { .. } => true,
-            // A block it trashed would leave what it reaches, and no one else could see it to
-            // restore or collect it.
-            blocks::Call::DeleteBlock { .. }
-            | blocks::Call::SetAccess { .. }
+            blocks::Call::SetAccess { .. }
             | blocks::Call::ListAccess { .. }
             | blocks::Call::CollectDetached { .. } => false,
         },
@@ -1781,11 +1779,20 @@ impl Client {
                         .await;
                     if !lost.is_empty() {
                         connection
-                            .key_work_changed(identity.organization, before)
+                            .key_work_changed(identity.organization, before.clone())
                             .await;
                         for account in lost {
                             connection
-                                .evict_sessions(identity.organization, account)
+                                .evict_sessions(identity.organization, account, None)
+                                .await;
+                        }
+                    }
+                    if parent == BlockParent::Detached {
+                        // Trash is reversible, so no keys rotate; but whoever can no longer view
+                        // the block stops watching it and leaves its sessions.
+                        for account in before {
+                            connection
+                                .evict_sessions(identity.organization, account, Some(block))
                                 .await;
                         }
                     }
@@ -1846,31 +1853,6 @@ impl Client {
                 .await;
                 self.reply(reply, listed);
             }
-            Call::DeleteBlock { reply, block } => {
-                let deleted = async {
-                    prelude?;
-                    let identity = connection.identity()?;
-                    let before = connection.store.delete_block(identity, block).await?;
-                    connection
-                        .reannounce(identity, vec![block], true, before)
-                        .await;
-                    let place = Place {
-                        organization: identity.organization,
-                        block,
-                    };
-                    connection
-                        .hub
-                        .broadcast(
-                            place,
-                            connection.client,
-                            Push::BlockDeleted { block: place },
-                        )
-                        .await;
-                    Ok(())
-                }
-                .await;
-                self.reply(reply, deleted);
-            }
             Call::CollectDetached { reply } => {
                 let collected = async {
                     prelude?;
@@ -1881,6 +1863,20 @@ impl Client {
                             .hub
                             .removed(identity.organization, *block, collected.revision)
                             .await;
+                        let place = Place {
+                            organization: identity.organization,
+                            block: *block,
+                        };
+                        connection
+                            .hub
+                            .broadcast(
+                                place,
+                                connection.client,
+                                Push::BlockDeleted { block: place },
+                            )
+                            .await;
+                        // The collector is left out of the broadcast, so it drops its own watch.
+                        connection.hub.unwatch(place, connection.client).await;
                     }
                     Ok(Collected {
                         blocks: collected.blocks,
@@ -1942,6 +1938,19 @@ impl Client {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
                 connection.hub.watch(place, connection.client).await;
+                // The right to view was checked before this call ran; whoever lost it since
+                // had nothing to evict yet.
+                if connection
+                    .store
+                    .require_access(identity, vec![block], Access::View)
+                    .await
+                    .is_err()
+                {
+                    // This drops the connection's watch of the block, not only this stream's: it
+                    // can no longer view the block, so none of its streams on it should hear.
+                    connection.hub.unwatch(place, connection.client).await;
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
                 self.streams
                     .open(&mut self.peer.lock(), stream, Route::Watch(place));
             }
@@ -1980,6 +1989,15 @@ impl Client {
                         block,
                     };
                     let state = connection.registry.join(place, connection.client).await;
+                    // As for a watch: a view lost since the check ran leaves the session again.
+                    if let Err(error) = connection
+                        .store
+                        .require_access(connection.identity()?, vec![block], Access::View)
+                        .await
+                    {
+                        connection.left_session(place, connection.client).await;
+                        return Err(error);
+                    }
                     connection.announce(place, &state).await;
                     let journal = connection
                         .store
@@ -2657,7 +2675,7 @@ impl Connection {
         }
         for organization in organizations {
             for account in accounts {
-                self.evict_sessions(organization, *account).await;
+                self.evict_sessions(organization, *account, None).await;
             }
         }
     }
@@ -2670,9 +2688,30 @@ impl Connection {
         }
     }
 
-    async fn evict_sessions(&self, organization: Uuid, account: Uuid) {
+    /// Ends what `account` holds on blocks it can no longer view: its sessions and its watches.
+    /// With `within`, only what it holds on that block and below it.
+    async fn evict_sessions(&self, organization: Uuid, account: Uuid, within: Option<Uuid>) {
         for (client, identity) in self.hub.clients_of(organization, account).await {
-            for block in self.registry.blocks_of(client).await {
+            let mut held = self.registry.blocks_of(client).await;
+            for block in self.hub.watched_by(client).await {
+                if !held.contains(&block) {
+                    held.push(block);
+                }
+            }
+            if let Some(root) = within {
+                let ids = held
+                    .iter()
+                    .filter(|place| place.organization == organization)
+                    .map(|place| place.block)
+                    .collect();
+                // A store error keeps everything held: each block is checked just below.
+                if let Ok(below) = self.store.within(organization, root, ids).await {
+                    held.retain(|place| {
+                        place.organization == organization && below.contains(&place.block)
+                    });
+                }
+            }
+            for block in held {
                 let kept = block.organization != organization
                     || self
                         .store
@@ -2684,21 +2723,26 @@ impl Connection {
                 }
                 self.hub.unwatch(block, client).await;
                 self.hub.send_to(client, Push::Unwatched { block }).await;
-                if let Some(state) = self.registry.leave(block, client).await {
-                    let mut told = state.participants.clone();
-                    told.push(client);
-                    self.hub
-                        .send_all(
-                            &told,
-                            0,
-                            &Push::SessionChanged {
-                                block,
-                                state: state.clone(),
-                            },
-                        )
-                        .await;
-                }
+                self.left_session(block, client).await;
             }
+        }
+    }
+
+    /// Takes `client` out of the session of `block` and tells the rest.
+    async fn left_session(&self, block: Place, client: u64) {
+        if let Some(state) = self.registry.leave(block, client).await {
+            let mut told = state.participants.clone();
+            told.push(client);
+            self.hub
+                .send_all(
+                    &told,
+                    0,
+                    &Push::SessionChanged {
+                        block,
+                        state: state.clone(),
+                    },
+                )
+                .await;
         }
     }
 

@@ -32,7 +32,9 @@ async fn an_upload_is_used_once_and_keeps_its_object_until_collected() {
     client.upload(&author.store, &objects).await;
     assert_eq!(uploads() as usize, objects.len());
     let deleted = client
-        .call(|peer| client::blocks::delete_block(peer, block))
+        .call(|peer| {
+            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
+        })
         .await;
     assert!(deleted.is_ok(), "{deleted:?}");
     let collected = client

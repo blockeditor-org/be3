@@ -11,7 +11,9 @@ async fn a_block_agent_is_deleted_with_its_block_or_its_grant() {
     let (_, token) = owner.block_agent(organization, collected).await.unwrap();
     let mut agent = harness.second_connection(&token, organization).await;
     let response = owner
-        .call(|peer| client::blocks::delete_block(peer, collected))
+        .call(|peer| {
+            client::blocks::set_parent(peer, collected, BlockParent::Detached, KeySet::default())
+        })
         .await;
     assert!(response.is_ok(), "{response:?}");
     let response = owner
