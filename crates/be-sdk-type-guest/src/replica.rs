@@ -220,6 +220,8 @@ enum Job<C> {
         wire: Option<Wire>,
         /// What the server checked the sender may send.
         kind: RelayKind,
+        /// When the server took it, by its clock.
+        received: Option<i64>,
     },
     Seal {
         sealing: Sealing,
@@ -621,6 +623,7 @@ where
                 from,
                 wire: Wire::decode(&bytes),
                 kind: delivery.map_or(RelayKind::Peer, |delivery| delivery.kind),
+                received: delivery.map(|delivery| delivery.received),
             }),
             Input::Appended {
                 from,
@@ -1373,7 +1376,12 @@ where
         }
         match job {
             Job::Input(input) => self.handle(input),
-            Job::Heard { from, wire, .. } => self.heard(from, wire),
+            Job::Heard {
+                from,
+                wire,
+                received,
+                ..
+            } => self.heard(from, wire, received),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
             Job::Replace {
@@ -1498,11 +1506,11 @@ where
         }
     }
 
-    fn heard(&mut self, from: ClientId, wire: Option<Wire>) {
+    fn heard(&mut self, from: ClientId, wire: Option<Wire>, received: Option<i64>) {
         let Some(wire) = wire else {
             return self.unreadable_message();
         };
-        self.receive(from, wire);
+        self.receive(from, wire, received);
         if self.waiting.is_none() {
             self.flush();
         }
@@ -3159,7 +3167,7 @@ where
         self.send_wire(owner, &Wire::Session(message));
     }
 
-    fn receive(&mut self, from: ClientId, wire: Wire) {
+    fn receive(&mut self, from: ClientId, wire: Wire, received: Option<i64>) {
         let message = match wire {
             Wire::Session(message) => message,
             Wire::Tag(tag) => {
@@ -3191,16 +3199,27 @@ where
             return;
         }
         match message {
-            SessionMessage::Submit { id, base, payload } => {
+            SessionMessage::Submit {
+                id,
+                base,
+                mut payload,
+            } => {
                 if !self.is_owner() || base < self.replaced_at {
                     return;
                 }
-                let operation = match self.operation(&payload) {
+                let mut operation = match self.operation(&payload) {
                     Some(operation) => operation,
                     // Its part could not be read, which was reported.
                     None if payload.part().is_some() => return,
                     None => return self.unreadable_message(),
                 };
+                // An operation large enough to travel as a part keeps no stamp: it would
+                // need a new part.
+                if let (Some(received), Payload::Inline(_)) = (received, &payload)
+                    && C::arrived(&mut operation, received)
+                {
+                    payload = Payload::Inline(C::encode_operation(&operation));
+                }
                 let Role::Owner(sequencer) = &mut self.role else {
                     return;
                 };

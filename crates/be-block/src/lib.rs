@@ -255,6 +255,17 @@ pub trait LiveEdit: BlockContent {
         Vec::new()
     }
 
+    /// Stamps `operation`, which a participant handed this device as the session's owner, with
+    /// when the server took it (`received`, milliseconds since the Unix epoch by the server's
+    /// clock), which its sender cannot claim. Answers whether it changed `operation`, which the
+    /// owner then sequences, relays and saves stamped. Content that shows when an edit arrived
+    /// keeps it here; an operation that travels as a part is not stamped, nor one the owner
+    /// made itself.
+    fn arrived(operation: &mut Self::Op, received: i64) -> bool {
+        let _ = (operation, received);
+        false
+    }
+
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         self.apply(operation);
         touched.push(Touched::Everything);

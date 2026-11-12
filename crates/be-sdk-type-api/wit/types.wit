@@ -187,6 +187,9 @@ interface types {
         /// What the server checked its sender may send: the replica drops a
         /// message that asks for more (`Wire::kind`).
         kind: relay-kind,
+        /// When the server took it, in milliseconds since the Unix epoch by
+        /// its clock, which the sender cannot claim.
+        received: s64,
     }
 
     variant recipients {

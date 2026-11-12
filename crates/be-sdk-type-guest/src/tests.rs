@@ -108,6 +108,7 @@ mod followers_keep_what_the_owner_typed_while_its_seal_was_out;
 mod messages_piled_behind_an_unreadable_part_make_a_follower_catch_up;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod the_owner_stamps_a_followers_operation_with_when_the_server_took_it;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_oversized_edits_in_a_row_land_in_order;
 mod two_quick_edits_folded_into_one_append_are_both_held_by_it;
@@ -1310,7 +1311,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             return;
         }
         let now = self.now;
-        let delivery = Some(Delivery { kind });
+        let delivery = Some(Delivery {
+            kind,
+            received: now as i64,
+        });
         self.with_replica(to, |replica, host| {
             replica.message(host, Endpoint::Peer(from), bytes, now, delivery)
         });

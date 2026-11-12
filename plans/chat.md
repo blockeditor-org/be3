@@ -15,12 +15,14 @@ counts are built (guides/chat.md). What is left:
   add or show them.
 - **Unread counts outside the editor.** No sidebar or block row shows a chat's
   count yet.
-- **Arrival time.** The server stamps each relayed operation with when it
-  received it, in the relay envelope (commits already have
-  `block_commits.received`), and replicas store that time in the message. A
-  message shows its claimed time; once stamped, if it arrived well after that,
-  it says it was sent offline and when it arrived. A dishonest session owner
-  could alter stored content, which plans/authorship.md accepts.
+- **Arrival time.** The server stamps each relay with when it took it
+  (`relayed.received`), and the owner hands that to `LiveEdit::arrived` for a
+  follower's operation; chat keeps it in the message (the owner's own messages
+  and those that travel as a part get none; commits have
+  `block_commits.received`). A message shows its claimed time; once stamped, if
+  it arrived well after that, it says it was sent offline and when it arrived. A
+  dishonest session owner could alter stored content, which plans/authorship.md
+  accepts.
 - **Edits lost on a restart.** A host or type module restart loses edits not
   yet in a commit (a journal entry the server lacks), so they no longer show as
   sending; a content-level answer (what the local head adds over the server's)

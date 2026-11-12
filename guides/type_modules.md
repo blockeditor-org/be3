@@ -311,6 +311,12 @@ it, so two builds of a type never edit one session.
 The session (`crates/be-block-session`) is owner sequencing with follower
 rebase. The rules an agent most needs:
 
+- **Arrival time.** The host hands a peer's message to the replica with when
+  the server took it (`delivery.received`). The owner, sequencing a
+  follower's `Submit`, passes it to `LiveEdit::arrived`, and sequences the
+  operation as that changed it, so every replica holds the stamp; an operation
+  that travels as a part and the owner's own get none.
+
 - Every operation the owner sequences goes to the block's journal
   (guides/blocks/client.md, "The journal") through the host's `append`: with
   others in the session at once, relayed by the same call; alone, folded and

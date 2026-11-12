@@ -646,6 +646,7 @@ impl Inner {
                 now,
                 Some(be_sdk_type_guest::api::Delivery {
                     kind: be_sdk_type_guest::api::RelayKind::Edit,
+                    received: now as i64,
                 }),
             );
         });
