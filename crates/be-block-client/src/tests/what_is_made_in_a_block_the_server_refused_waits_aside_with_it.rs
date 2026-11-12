@@ -31,11 +31,11 @@ async fn what_is_made_in_a_block_the_server_refused_waits_aside_with_it() {
         .unwrap();
 
     let drained = owner.drain(|_| false).await.unwrap();
-    let refused = be_block_protocol::ErrorCode::InvalidRequest.to_string();
+    let refused = be_block_protocol::ErrorCode::InvalidRequest;
     assert!(
         drained.contains(&Drained::SetAside {
             block: child,
-            refused: refused.clone()
+            code: refused
         }),
         "{drained:?}"
     );
@@ -44,7 +44,7 @@ async fn what_is_made_in_a_block_the_server_refused_waits_aside_with_it() {
         .iter()
         .find(|unsent| unsent.block == child)
         .expect("the child is set aside");
-    assert_eq!(row.refused.as_deref(), Some(refused.as_str()));
+    assert_eq!(row.refused, Some(refused));
     assert_eq!(owner.pending().operations, 0);
 
     assert_eq!(owner.restore_unsent(parent).unwrap(), vec![parent, child]);

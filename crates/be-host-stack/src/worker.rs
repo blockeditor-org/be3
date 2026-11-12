@@ -1672,13 +1672,15 @@ async fn drain_outbox(
                     be_block_client::Drained::Diverged { block, remote, .. } => {
                         diverged.push((block, remote));
                     }
-                    be_block_client::Drained::SetAside { block, refused } => {
-                        let named = named_block(peer, block);
+                    be_block_client::Drained::SetAside { block, code } => {
+                        // Named by the block that was refused, not what was made in it.
+                        let named = named_block(peer, refused_above(peer, block));
+                        let why = crate::refusal(code);
                         shared
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .sync_error = Some(format!(
-                            "the server refused to make {named} ({refused}): it waits among the unsent edits"
+                            "The server refused to make {named}: {why}. It waits among the unsent edits."
                         ));
                     }
                     be_block_client::Drained::Refused { block, code, .. } => {
@@ -1727,6 +1729,22 @@ fn shown_as_refused(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid
         held.graph
             .relist(be_block_protocol::Listing::Children(shown));
     }
+}
+
+/// The topmost block set aside for a refusal that `block` was made in, or `block` itself.
+fn refused_above(peer: &Peer<Store>, block: Uuid) -> Uuid {
+    let mut top = block;
+    for _ in 0..256 {
+        let parent = peer
+            .known_summary(top)
+            .and_then(|summary| summary.parent)
+            .and_then(|parent| parent.block());
+        match parent {
+            Some(parent) if peer.refusal(parent).is_some() => top = parent,
+            _ => break,
+        }
+    }
+    top
 }
 
 /// A block as a message names it: by its name where this device knows one.

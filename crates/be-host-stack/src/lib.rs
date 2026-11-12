@@ -128,8 +128,21 @@ pub struct UnsentEdit {
     pub name: Option<String>,
     pub since: i64,
     pub offerable: bool,
-    /// The code the server refused it with, when it did (`UnsentBlock::refused`).
-    pub refused: Option<String>,
+    /// Why the server refused it, in words (`refusal`), when it did rather than access being
+    /// lost (`UnsentBlock::refused`).
+    pub refused: Option<&'static str>,
+}
+
+/// Why the server refused to make a block, in words for the person; its code goes to the log.
+pub fn refusal(code: be_block_protocol::ErrorCode) -> &'static str {
+    use be_block_protocol::ErrorCode;
+    match code {
+        ErrorCode::OverQuota => "it would go over a limit",
+        ErrorCode::InvalidRequest => "it could not take it as it is",
+        ErrorCode::PolicyRefused => "your organization does not allow it",
+        ErrorCode::PermissionDenied | ErrorCode::BlockNotFound => "you may not make it there",
+        _ => "it would not say why",
+    }
 }
 
 pub use types::{host_block_types, is_known, kind_of, provided};
@@ -814,7 +827,7 @@ pub fn unsent() -> Vec<UnsentEdit> {
                     .or_else(|| unsent.name.clone()),
                 since: unsent.since,
                 offerable: unsent.offerable,
-                refused: unsent.refused.clone(),
+                refused: unsent.refused.map(refusal),
             })
             .collect()
     })

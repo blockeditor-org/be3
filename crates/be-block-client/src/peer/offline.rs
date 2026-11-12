@@ -27,6 +27,12 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.is_unsent(block)
     }
 
+    /// The code the server refused to make `block` with, while what this device made of it is
+    /// set aside for that (`UnsentBlock::refused`).
+    pub fn refusal(&self, block: Uuid) -> Option<ErrorCode> {
+        self.refs.refused(block)
+    }
+
     /// Whether the block's creation waits in the outbox: the server does not know the block yet.
     pub fn creating(&self, block: Uuid) -> bool {
         self.refs.creating(block)
@@ -308,6 +314,12 @@ impl<S: ObjectStore> Peer<S> {
             if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
                 continue;
             }
+            // What was made since of a block the server refused to make joins it among the
+            // unsent: the server would refuse it too, as a block it does not know.
+            if self.refs.refused(block).is_some() {
+                self.move_to_unsent(block, None)?;
+                continue;
+            }
             let publishing = match &op {
                 Op::Publish(pending) => Some(pending.commit),
                 _ => None,
@@ -476,10 +488,10 @@ impl<S: ObjectStore> Peer<S> {
         // Made under a block the server refused to make: it cannot be made either, and waits
         // set aside with it, restored with it (`restore_unsent`).
         if let BlockParent::Block(parent) = creation.parent
-            && let Some(refused) = self.refs.refused(parent)
+            && let Some(code) = self.refs.refused(parent)
         {
-            self.move_to_unsent(block, Some(refused.clone()))?;
-            return Ok(Drained::SetAside { block, refused });
+            self.move_to_unsent(block, Some(code))?;
+            return Ok(Drained::SetAside { block, code });
         }
         let response = crate::ask(client::blocks::create_block(
             &self.connection(),
@@ -510,9 +522,8 @@ impl<S: ObjectStore> Peer<S> {
             // device made of it is set aside, to be restored or discarded, so nothing waits
             // behind a creation that never goes.
             Err(ClientError::Refused(code, _)) => {
-                let refused = code.to_string();
-                self.move_to_unsent(block, Some(refused.clone()))?;
-                Ok(Drained::SetAside { block, refused })
+                self.move_to_unsent(block, Some(code))?;
+                Ok(Drained::SetAside { block, code })
             }
             Err(error) => Err(error),
         }
@@ -708,7 +719,7 @@ impl<S: ObjectStore> Peer<S> {
     pub fn move_to_unsent(
         &self,
         block: Uuid,
-        refused: Option<String>,
+        refused: Option<ErrorCode>,
     ) -> Result<bool, ClientError> {
         let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
         self.refs.commits_refused(block, &commits)?;

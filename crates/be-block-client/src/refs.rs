@@ -6,7 +6,7 @@ use std::{
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    BlockSummary, EscrowKey, Journal, JournalBase, JournalEntry, KeyRow, KeySet, Listing,
+    BlockSummary, ErrorCode, EscrowKey, Journal, JournalBase, JournalEntry, KeyRow, KeySet, Listing,
     Organization, OrganizationKind, OrganizationRole, WrappedBy, WrappedKey,
 };
 use be_block_store::{Hash, StoreError};
@@ -270,7 +270,7 @@ pub(crate) struct Unsent {
     pub ops: Vec<Op>,
     /// Why it was set aside: the server refused it, with the code it gave (a block it would
     /// not make, over a quota or too large), or else this account lost access to it.
-    pub refused: Option<String>,
+    pub refused: Option<ErrorCode>,
 }
 
 /// Entries set aside because the block's access was refused. Only `Peer::discard_unsent`
@@ -284,7 +284,7 @@ pub struct UnsentBlock {
     pub offerable: bool,
     /// The code the server refused it with, when it was refused rather than this account
     /// losing access (`Unsent::refused`): what lost access does to it does not apply.
-    pub refused: Option<String>,
+    pub refused: Option<ErrorCode>,
     /// Its name as this device has it.
     pub name: Option<String>,
 }
@@ -1318,7 +1318,7 @@ impl Refs {
         &self,
         block: Uuid,
         since: i64,
-        refused: Option<String>,
+        refused: Option<ErrorCode>,
     ) -> Result<bool, StoreError> {
         let mut rows = Vec::new();
         {
@@ -1350,7 +1350,8 @@ impl Refs {
             });
             unsent.head = head.or(unsent.head);
             unsent.ops.extend(ops);
-            unsent.refused = refused;
+            // A later setting aside (what was made of it since) keeps why it was first refused.
+            unsent.refused = refused.or(unsent.refused.take());
             rows.push(row(Table::Unsent, block.as_bytes().to_vec(), &*unsent));
         }
         self.write(rows)?;
@@ -1363,13 +1364,13 @@ impl Refs {
 
     /// The code the server refused `block` with, when what this device made of it was set aside
     /// for that (`Unsent::refused`).
-    pub fn refused(&self, block: Uuid) -> Option<String> {
+    pub fn refused(&self, block: Uuid) -> Option<ErrorCode> {
         self.state
             .lock()
             .unwrap()
             .unsent
             .get(&block)
-            .and_then(|unsent| unsent.refused.clone())
+            .and_then(|unsent| unsent.refused)
     }
 
     pub fn unsent(&self) -> Vec<(Uuid, Unsent)> {

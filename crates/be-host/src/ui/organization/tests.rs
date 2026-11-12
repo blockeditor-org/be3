@@ -105,7 +105,7 @@ fn unsent_view() -> HostUi {
                     block: uuid::Uuid::from_u128(3),
                     name: "Photos".to_owned(),
                     offerable: true,
-                    refused: Some("OverQuota".to_owned()),
+                    refused: Some(be_host_stack::refusal(be_block_protocol::ErrorCode::OverQuota)),
                 },
             ],
             discarding: None,

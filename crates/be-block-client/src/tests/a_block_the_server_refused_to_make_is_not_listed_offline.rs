@@ -3,7 +3,7 @@ use be_type_text::TextContent;
 use super::*;
 
 /// A block the server refused to make keeps its summary for its unsent row only: listed
-/// offline, its folder does not show it.
+/// offline, its folder does not show it, even after something more was typed into it.
 #[tokio::test]
 async fn a_block_the_server_refused_to_make_is_not_listed_offline() {
     let harness = Harness::start().await;
@@ -26,6 +26,19 @@ async fn a_block_the_server_refused_to_make_is_not_listed_offline() {
         .unwrap();
     laptop.drain(|_| false).await.unwrap();
     assert!(laptop.is_unsent(refused));
+
+    // Typed into the refused block after: it is never sent, and joins it among the unsent, still
+    // refused, not taken for lost access.
+    laptop
+        .save(refused, &be_type_text::TextBlock::of("typed after"), None)
+        .await
+        .unwrap();
+    laptop.drain(|_| false).await.unwrap();
+    assert_eq!(
+        laptop.refusal(refused),
+        Some(be_block_protocol::ErrorCode::InvalidRequest)
+    );
+    assert_eq!(laptop.pending().operations, 0);
     drop(laptop);
 
     let offline = harness.offline(&owner, &refs, &store);

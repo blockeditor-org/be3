@@ -213,7 +213,7 @@ impl<'a> Write<'a> {
 /// `Diverged` stays in the outbox for the replica host to merge. `Refused` drops a move or
 /// define, and keeps a create or publish with the rest of that block waiting for the next
 /// drain; `Failed` is kept likewise.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Drained {
     Created {
         block: Uuid,
@@ -249,7 +249,7 @@ pub enum Drained {
     /// of it is set aside among the unsent (`UnsentBlock::refused`).
     SetAside {
         block: Uuid,
-        refused: String,
+        code: ErrorCode,
     },
     Failed {
         block: Uuid,
@@ -1200,8 +1200,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
-        // The server does not know a block whose creation waits in the outbox.
-        if self.refs.creating(block)
+        // The server does not know a block whose creation waits in the outbox, or was refused.
+        if (self.refs.creating(block) || self.refs.refused(block).is_some())
             && let Some(summary) = self.refs.summary(block)
         {
             return Ok(self.refs.current(vec![summary]).remove(0));
@@ -1222,7 +1222,10 @@ impl<S: ObjectStore> Peer<S> {
                 None => Err(error),
             },
             Err(ClientError::Refused(code, message)) => {
-                if offline::lost_access(code) && !self.refs.creating(block) {
+                if offline::lost_access(code)
+                    && !self.refs.creating(block)
+                    && self.refs.refused(block).is_none()
+                {
                     let _ = self.refs.lose_access(block);
                     let _ = self.move_to_unsent(block, None);
                 }
@@ -1669,7 +1672,9 @@ impl<S: ObjectStore> Peer<S> {
         };
         // A creation, move or definition of the block waits ahead of it in the outbox: the drain
         // sends them in order. Offline, sending fails as any other does.
-        if self.is_attached() && self.refs.has_structural(block) {
+        if self.is_attached()
+            && (self.refs.has_structural(block) || self.refs.refused(block).is_some())
+        {
             return Ok(Saved::Unchanged(commit));
         }
         let saved = self.send_pending(&pending).await?;

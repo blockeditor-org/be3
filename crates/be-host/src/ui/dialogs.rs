@@ -533,18 +533,6 @@ fn UnsentDialog(view: HostUiStore) -> NodeId {
     }
 }
 
-/// Why the server refused a block, in words: its code (`UnsentBlock::refused`) goes to the
-/// host's log with the refusal, not to the person.
-fn refusal(code: &str) -> &'static str {
-    match code {
-        "OverQuota" => "The server refused it: it would go over a limit",
-        "InvalidRequest" => "The server refused it: it could not take it as it is",
-        "PolicyRefused" => "The server refused it: your organization does not allow it",
-        "PermissionDenied" | "BlockNotFound" => "The server refused it: you may not make it there",
-        _ => "The server refused it",
-    }
-}
-
 #[component]
 fn UnsentPanel(view: HostUiStore) -> NodeId {
     let unsent = view.unsent;
@@ -595,7 +583,7 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                     let detail = create_memo(move || {
                         let row = row.get();
                         match (row.refused, row.offerable) {
-                            (Some(code), _) => refusal(&code).to_owned(),
+                            (Some(why), _) => format!("The server refused it: {why}"),
                             (None, true) => "You can edit it again".to_owned(),
                             (None, false) => "You cannot edit it now".to_owned(),
                         }
