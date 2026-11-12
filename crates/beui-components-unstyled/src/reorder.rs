@@ -11,8 +11,8 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
 use beui_view::types::{
-    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement,
-    PointerPress, Pos2, Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
+    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
+    Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
 };
 
 use crate::drag::{DRAG_THRESHOLD, DropHandle, DropTarget};
