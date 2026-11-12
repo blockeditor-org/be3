@@ -22,16 +22,10 @@ or that is forged.
   signed edit by the same author is not the newest, and anyone with Edit can put
   one back. Fixing it needs the edits kept as a chain (each signing the previous
   one's hash, the message noting the newest), or the arrival time below.
-- **First use of a member's key is trusted.** A member who is not a contact has
-  the key the server named the first time, so a dishonest server can name one it
-  holds then. A contact's key is never taken from the server.
 - **A replaced key still verifies what it signed.** After a contact takes a new
   recovery phrase, its old key shows as changed, not forged, since its earlier
   messages are real; someone holding the old phrase can sign with it, and
   arrival times are what would tell them apart.
-- **A server or participant can drop or reorder.** A deleted or withheld message
-  shows only as a gap in the `seen` hashes of its author's later messages;
-  nothing checks them yet.
 - **`verify` costs a server round trip** for each forged row; cache or throttle.
 - **Timestamps.** A signed time is only what the author claims. The server is
   to stamp each relayed operation with when it received it (plans/chat.md,

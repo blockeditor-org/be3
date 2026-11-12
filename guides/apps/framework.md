@@ -76,7 +76,12 @@ placement and `FrameSpec`, and takes its `Report`: content, painted and
 floating rectangles, the overlays' dimming scrims and press claims. The app
 never paints scrims (`Context::hosts_scrims`): the host draws them over the
 view's children, so a command palette dims program windows instead of hiding
-them. be-sdk-beui's `HeadlessApp` paints them itself.
+them. be-sdk-beui's `HeadlessApp` paints them itself. Under the rects its
+overlays paint (`floating_painted`, less the marks) the platform erases the
+view's clear color before painting (`surface.rs`, `erased_under`): the host
+draws those parts above the view's children and the windows it opens, and backs
+the view with its clear color itself, so a toast or the desktop's volume level
+brings only its own rounded card over a program window, and fades to nothing.
 
 A view knows nothing of monitors; an app that lays out per monitor (the
 desktop's bars) reads `DisplaysWatch`. A panic anywhere in the app stops the

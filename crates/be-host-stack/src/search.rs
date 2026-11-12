@@ -1075,7 +1075,7 @@ async fn name_indexes(
 }
 
 /// Starts the catch-up of each root this device may edit whose index is named and has not
-/// been caught up since this device connected (plans/search.md, "Step 1, designed"): commits
+/// been caught up since this device connected (guides/blocks/host.md, "Catching up"): commits
 /// from devices that never index, and blocks that left the tree, are found by what
 /// `changed-since` lists after the index's watermark.
 fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {

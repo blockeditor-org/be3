@@ -85,7 +85,17 @@ every answer, so host state changes at the same point on both. It also waits
 until the app has sent the `PresentCommit` that follows that layout
 (`Laid::presented_by`), so a child leaves or arrives in the frame whose
 painting fills or punches its space: a closed child never shows its hole in
-the placer's old painting. Answers held after it wait with it, in order.
+the placer's old painting. The commit's dock messages wait with its children
+(`Laid::docks`): which tabs a root shows decides which of the tab bodies it
+places are drawn (`docks::resolve`), so the body of a tab switched away from
+and the body of the tab switched to change in the same frame. Answers held
+after it wait with it, in order.
+
+A view its app has not reported a frame of yet (a dock tab's body, mounted
+again each time its tab is shown) is filled with the backdrop its instance
+last reported for another view, else with what its placer's view is filled
+with (`Behind` in `app_view.rs`), so it never shows what is behind its placer
+while its app draws it.
 
 An anchored view the app closes leaves the same way (`Runtime::place`, `Closing`): the app sends
 its screens ahead of the frame's commits, and the host keeps the closed view, showing its last

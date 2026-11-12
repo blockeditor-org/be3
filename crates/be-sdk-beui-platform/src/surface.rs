@@ -3,18 +3,19 @@ use std::rc::Rc;
 use be_sdk::driver::{Damage, Surface};
 use beui_core::context::{Moved, RendererInfo, WindowOutput};
 use beui_core::display::Layer;
+use beui_core::painter::Shape;
 use beui_core::program::Setup;
 use beui_runner::renderer::Renderer;
 use beui_types::Color32;
 use beui_types::geometry::Region;
-use beui_types::{Vec2, vec2};
+use beui_types::{Rect, Rotation, Vec2, vec2};
 
 #[cfg(target_arch = "wasm32")]
 use be_sdk::{PaintTarget, SurfaceGpu, SurfaceRect};
 #[cfg(target_arch = "wasm32")]
 use beui_renderer_wgpu::Repaint;
 #[cfg(target_arch = "wasm32")]
-use beui_types::{Pos2, Rect};
+use beui_types::Pos2;
 
 #[derive(Default)]
 pub(crate) struct Painter {
@@ -30,8 +31,18 @@ impl Painter {
     }
 }
 
-pub(crate) fn note(surface: &mut Surface<Painter>, output: &WindowOutput, by: Vec2) {
-    let output = shifted(output, by);
+/// Takes a view's output for painting. `overlays` are the rects its overlays paint, in the
+/// window's points: the host draws those parts of the view above its children and the windows it
+/// opens, so the view's clear color is erased under them (the host backs the view with that color
+/// itself, `FrameReport::backdrop`) and an overlay brings only what is drawn there, never an opaque
+/// rectangle around its rounded corners or through its fade.
+pub(crate) fn note(
+    surface: &mut Surface<Painter>,
+    output: &WindowOutput,
+    by: Vec2,
+    overlays: &[Rect],
+) {
+    let output = erased_under(shifted(output, by), overlays, by);
     let background = output.window.appearance.clear_color;
     let look = (output.pixels_per_point, by, background);
     let painter = &mut surface.painter;
@@ -144,6 +155,25 @@ fn resources(gpu: &SurfaceGpu) -> beui_renderer_wgpu::Resources {
             }
         }
     })
+}
+
+fn erased_under(output: WindowOutput, overlays: &[Rect], by: Vec2) -> WindowOutput {
+    if overlays.is_empty() {
+        return output;
+    }
+    let punches = overlays.iter().map(|rect| {
+        Layer::Shape(Shape::Punch {
+            rect: rect.translate(-by),
+            corner_radius: 0.0,
+            rotation: Rotation::NONE,
+            clip: Rect::EVERYTHING,
+        })
+    });
+    let layers = punches.chain(output.layers.iter().cloned()).collect();
+    WindowOutput {
+        layers: Rc::new(layers),
+        ..output
+    }
 }
 
 fn shifted(output: &WindowOutput, by: Vec2) -> WindowOutput {
