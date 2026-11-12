@@ -1427,13 +1427,20 @@ pub fn plain_file(
     });
 }
 
-pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) {
+/// Replaces a block's content with a file's, as its type reads one. False, with nothing sent,
+/// when the block is out of reach offline (`out_of_reach`): try again once the host reconnects.
+#[must_use]
+pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) -> bool {
+    if out_of_reach(block) {
+        return false;
+    }
     send(Command::FromFile {
         block,
         content_type,
         name,
         bytes,
     });
+    true
 }
 
 /// Brings in the blocks of a block file under `parent`. `created_by` is the app that asked

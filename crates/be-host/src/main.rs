@@ -2132,7 +2132,7 @@ impl HostCore {
     }
 
     fn queue_reorder(&mut self, child: Uuid, parent: Uuid, after: Option<Uuid>) {
-        if child == parent || after == Some(child) {
+        if child == parent || after == Some(child) || refused_offline(parent) {
             return;
         }
         let reorder = PendingReorder {
@@ -2254,6 +2254,16 @@ impl HostCore {
     fn process_pending_transfers(&mut self) {
         let pending = std::mem::take(&mut self.pending_transfers);
         for mut transfer in pending {
+            // The transfer lives only in memory: leaving the source before the destination can
+            // take the block would lose it from both on a restart.
+            if matches!(transfer.stage, TransferStage::DeleteSource)
+                && transfer.destination.is_some_and(|destination| {
+                    !is_unfiled(destination) && be_host_stack::out_of_reach(destination)
+                })
+            {
+                self.pending_transfers.push(transfer);
+                continue;
+            }
             if matches!(transfer.stage, TransferStage::DeleteSource) {
                 let ready = match transfer.source {
                     None | Some(SidebarDragSource::Orphaned) => Some(true),
@@ -4058,8 +4068,9 @@ fn is_unfiled(block: Uuid) -> bool {
     be_host_stack::node(block).is_some_and(|node| node.unfiled())
 }
 
-/// Offline, a block goes into or out of a container by changing the container's content, which
-/// this device must hold: refuses, saying why, when it holds none (`be_host_stack::out_of_reach`).
+/// Offline, a block goes into, out of or along a container by changing the container's content,
+/// which this device must hold: refuses, saying why, when it holds none
+/// (`be_host_stack::out_of_reach`).
 fn refused_offline(container: Uuid) -> bool {
     if is_unfiled(container) || !be_host_stack::out_of_reach(container) {
         return false;
@@ -4068,8 +4079,8 @@ fn refused_offline(container: Uuid) -> bool {
         .and_then(|node| node.metadata.name())
         .unwrap_or_else(|| "That folder".to_owned());
     notices::refuse(format!(
-        "{name} hasn't been opened on this device, so nothing can be added to or moved out of it \
-         while you're offline. Try again once you're back online."
+        "{name} hasn't been opened on this device, so it can't be changed while you're offline. \
+         Try again once you're back online."
     ));
     true
 }
