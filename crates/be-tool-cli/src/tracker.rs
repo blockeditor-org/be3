@@ -657,7 +657,11 @@ impl<S: ObjectStore> Tracker<S> {
             "deleted {} ({}) and everything inside it{}; the app lists it under Recently Deleted",
             deleted.label(),
             deleted.short,
-            if queued { " (queued until reconnected)" } else { "" }
+            if queued {
+                " (queued until reconnected)"
+            } else {
+                ""
+            }
         ))
     }
 

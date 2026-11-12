@@ -1406,6 +1406,24 @@ impl ServerStore {
         .await
     }
 
+    /// Which of `blocks` are `root` or below it.
+    pub async fn within(
+        &self,
+        organization: Uuid,
+        root: Uuid,
+        blocks: Vec<Uuid>,
+    ) -> Result<BTreeSet<Uuid>, ServerError> {
+        self.with_graph(organization, move |_, graph, _| {
+            Ok(blocks
+                .into_iter()
+                .filter(|block| {
+                    *block == root || graph.ancestors(*block).any(|above| above == root)
+                })
+                .collect())
+        })
+        .await
+    }
+
     pub async fn list_history(
         &self,
         identity: Identity,

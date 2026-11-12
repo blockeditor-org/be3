@@ -290,7 +290,14 @@ counts and records nothing: `upload-urls` did before it signed.
   (`watch::Place`): a block id is the client's choice, so another organization
   can hold a block with the same one. Watching or joining needs `View`, and
   taking a session's lease needs `Edit` (a viewer's claim is refused, and the
-  replica host ignores the refusal).
+  replica host ignores the refusal). Losing `View` ends both (a grant removed,
+  the block trashed, or a move out of view): `evict_sessions` takes the
+  account's connections out of the sessions and unwatches the blocks, sending
+  `Push::Unwatched`, so the client forgets the watch and a later `watch`
+  subscribes again (`Event::WatchEnded`). Watching and joining check `View` a
+  second time once registered, so a view lost in between does not stay. Trashing
+  a block rotates no keys; a block collected for good tells its watchers
+  `deleted`.
 
 ### Where objects live
 
