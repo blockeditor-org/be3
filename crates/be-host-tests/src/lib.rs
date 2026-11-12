@@ -94,6 +94,7 @@ impl HostTest {
     /// kept, as a person quitting it and opening it again. A device keeps its network: one
     /// [`HostTest::offline`] starts offline.
     pub fn restart(&mut self) {
+        self.run(&["settle"]);
         self.steps.push("restart".to_owned());
         let restarted = self
             .host
@@ -416,7 +417,10 @@ impl HostTest {
         }
     }
 
+    /// Closes the host once it has settled, so nothing is left unsaved for it to ask about, and
+    /// fails unless it exits cleanly.
     pub fn close(mut self) {
+        self.run(&["settle"]);
         self.steps.push("close".to_owned());
         let host = self.host.take().expect("the host is still open");
         if let Err(error) = host.close() {

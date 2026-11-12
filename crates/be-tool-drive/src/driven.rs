@@ -7,6 +7,8 @@ use beui_layer_drive::Reply;
 
 use crate::{Unanswered, launch, request};
 
+/// How beui-layer-drive's `close` answers once the window closed.
+const CLOSED: &str = "The window closed.";
 const CLOSING: Duration = Duration::from_secs(60);
 const LOG_TAIL: usize = 40;
 const PANIC_LINES: usize = 12;
@@ -100,6 +102,12 @@ impl Driven {
             return Ok(());
         };
         let closed = match request(&self.socket, &["close".to_owned()], self.timeout) {
+            Ok(Reply::Text(text)) if !text.starts_with(CLOSED) => {
+                launch::kill(child.id());
+                Err(format!(
+                    "the program stayed open when asked to close (to ask about unsaved changes?), and changed:\n{text}"
+                ))
+            }
             Ok(_) | Err(Unanswered::Closed) => launch::wait_for_exit(child, CLOSING),
             Err(Unanswered::Failed(error)) => {
                 launch::kill(child.id());
