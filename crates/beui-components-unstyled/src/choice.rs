@@ -1,11 +1,9 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
 
 use crate as unstyled;
 use crate::ButtonHandle;
-use crate::typeahead::Typeahead;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -17,7 +15,6 @@ use beui_view::types::{Key, KeyPress};
 pub enum ChoiceKind {
     Tabs,
     Radio,
-    Listbox,
 }
 
 pub struct ChoiceOptionHandle {
@@ -76,17 +73,13 @@ struct State {
     selected: Binding<Option<usize>>,
     kind: ChoiceKind,
     direction: Direction,
-    typeahead: Stored<RefCell<Typeahead>>,
 }
 
-/// Tabs, a radio group or a single-select listbox, by `kind`.
+/// Tabs or a radio group, by `kind`.
 ///
 /// One Tab stop, at the selected option or the first. Moving selects. Radio
 /// arrows go either way and wrap. Tabs wrap along their `direction` and ignore
-/// the other arrows. A listbox's Up/Down stop at the ends. Home/End select the
-/// first and last option. Typing selects the next option whose label starts
-/// with what was typed in the last second, ignoring case; repeating one letter
-/// cycles through its matches.
+/// the other arrows. Home/End select the first and last option.
 #[component]
 pub fn Choice(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi>,
@@ -105,7 +98,7 @@ pub fn Choice(
     let options = options.into_run();
     let direction = direction.unwrap_or(match kind {
         ChoiceKind::Tabs => Direction::Horizontal,
-        ChoiceKind::Radio | ChoiceKind::Listbox => Direction::Vertical,
+        ChoiceKind::Radio => Direction::Vertical,
     });
     let selection = create_selector(move || selected.get());
     let counted = options.clone();
@@ -122,7 +115,6 @@ pub fn Choice(
         match kind {
             ChoiceKind::Tabs => Role::TabList,
             ChoiceKind::Radio => Role::RadioGroup,
-            ChoiceKind::Listbox => Role::ListBox,
         },
         None,
         label,
@@ -134,7 +126,6 @@ pub fn Choice(
         selected,
         kind,
         direction,
-        typeahead: store(RefCell::default()),
     };
     api.fill(ChoiceApi(state));
     let option_shrink = create_memo(move || match shrink.get() {
@@ -148,7 +139,6 @@ pub fn Choice(
             let mut node = Node::new(match kind {
                 ChoiceKind::Tabs => Role::Tab,
                 ChoiceKind::Radio => Role::RadioButton,
-                ChoiceKind::Listbox => Role::ListBoxOption,
             });
             if label.is_alive() {
                 node.set_label(label.get());
@@ -171,11 +161,6 @@ pub fn Choice(
                 on_focus_change={move |has_focus: bool| track_focus(state, id, has_focus)}
                 on_click={move || select(state, Some(index.get_untracked()))}
                 on_key={move |press: KeyPress| key(state, index.get_untracked(), press)}
-                on_text={move |typed: String| {
-                    if state.kind == ChoiceKind::Listbox {
-                        typeahead(state, index.get_untracked(), &typed);
-                    }
-                }}
             >|button: ButtonHandle| {
                 option.call(ChoiceOptionHandle {
                     index,
@@ -195,14 +180,6 @@ pub fn Choice(
             <ListItem shrink=option_shrink>{node}</ListItem>
         }
     });
-
-    if kind == ChoiceKind::Listbox {
-        create_effect(move || {
-            if state.focus.get().is_none() {
-                state.typeahead.value().borrow_mut().clear();
-            }
-        });
-    }
 
     view! {
         <List direction wrap spacing children={buttons} />
@@ -255,7 +232,6 @@ fn key(state: State, index: usize, press: KeyPress) -> bool {
     let wraps = match state.kind {
         ChoiceKind::Tabs => state.direction == Direction::Horizontal,
         ChoiceKind::Radio => true,
-        ChoiceKind::Listbox => false,
     };
     let vertical_tabs = state.kind == ChoiceKind::Tabs && state.direction == Direction::Vertical;
     let next = match press.key {
@@ -265,8 +241,6 @@ fn key(state: State, index: usize, press: KeyPress) -> bool {
             (index + count - 1) % count
         }
         Key::ArrowDown if state.kind == ChoiceKind::Radio || vertical_tabs => (index + 1) % count,
-        Key::ArrowUp if state.kind == ChoiceKind::Listbox => index.saturating_sub(1),
-        Key::ArrowDown if state.kind == ChoiceKind::Listbox => (index + 1).min(count - 1),
         Key::Home => 0,
         Key::End => count - 1,
         _ => return false,
@@ -276,26 +250,6 @@ fn key(state: State, index: usize, press: KeyPress) -> bool {
         select(state, Some(next));
     }
     true
-}
-
-fn typeahead(state: State, index: usize, text: &str) {
-    let labels: Vec<String> = state
-        .options
-        .value()
-        .get_untracked()
-        .iter()
-        .map(|option| option.label.get_untracked())
-        .collect();
-    let matched =
-        state
-            .typeahead
-            .value()
-            .borrow_mut()
-            .matched(text, index, labels.len(), |option| labels[option].clone());
-    if let Some(next) = matched {
-        state.focus.set(id_at(state, next));
-        select(state, Some(next));
-    }
 }
 
 #[derive(Clone, Copy)]

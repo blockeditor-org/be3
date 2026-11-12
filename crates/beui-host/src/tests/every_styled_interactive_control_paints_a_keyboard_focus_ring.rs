@@ -54,17 +54,6 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
         },
         || {
             view! {
-                <Listbox
-                    options={view! {
-                        <unstyled::ChoiceOption label="One" />
-                        <unstyled::ChoiceOption label="Two" />
-                    }}
-                    selected=Some(0)
-                />
-            }
-        },
-        || {
-            view! {
                 <ToggleButton label="Toggle" pressed=false />
             }
         },

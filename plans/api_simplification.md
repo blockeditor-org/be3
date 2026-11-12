@@ -182,10 +182,6 @@ host queues settled events per app. The calls stay `local`
 
 ## 12. beui: one form per concept
 
-- Delete styled `Listbox` and unstyled `ChoiceKind::Listbox` with its
-  typeahead and arrow handling (`beui-components-unstyled/src/choice.rs`).
-  Nothing outside tests and the demo uses it; `Select` and `SearchList` cover
-  choosing from a list. Remove its tests, demo entry and paintings.
 - `ColorWheel` and `OklchColorWheel` become one `ColorWheel` with a public
   `model` prop.
 - `Show` and `ShowKeepAlive` become `Show` with `keep_alive`; a kept-alive

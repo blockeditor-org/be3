@@ -158,7 +158,6 @@ pub use tree::{Tree, TreeRowFace};
 pub use treemap::Treemap;
 
 pub mod choice;
-pub mod listbox;
 pub mod radio_group;
 pub mod toggle_button;
 pub use beui_components_unstyled::{
@@ -168,6 +167,5 @@ pub use beui_components_unstyled::{
     TextAreaApi, TextInputApi, TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
 };
 pub use beui_view::components::selectable::SelectableState;
-pub use listbox::Listbox;
 pub use radio_group::RadioGroup;
 pub use toggle_button::ToggleButton;
