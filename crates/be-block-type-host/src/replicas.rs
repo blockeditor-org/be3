@@ -2403,7 +2403,7 @@ impl<H: Host> Replicas<H> {
                                 Ok(()) => true,
                                 Err(error) => {
                                     if !unreachable(&error) {
-                                        H::record(&shared, error);
+                                        H::record_sync(&shared, error);
                                     }
                                     false
                                 }

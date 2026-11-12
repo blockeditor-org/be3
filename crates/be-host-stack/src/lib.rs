@@ -757,7 +757,7 @@ pub fn status() -> Status {
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
         conflicted: shared.conflicts.keys().copied().collect(),
-        error: shared.error.clone(),
+        error: shared.error.clone().or_else(|| shared.sync_error.clone()),
         waiting: shared.unsealed + shared.waiting,
         syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
         unsent: shared.unsent.len(),
@@ -879,6 +879,17 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
             .unwrap_or_else(PoisonError::into_inner)
             .0;
     }
+}
+
+/// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
+/// keeps it, and the outbox sends it after. For a test that reads the server next.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
+pub fn flush_and_send() {
+    flush();
+    // A flush that kept anything has already set `draining`, and its command `recounting`, so
+    // `unsynced` is not empty before the outbox has been read again.
+    wait_until(|shared| shared.unsynced().is_empty().then_some(()));
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]

@@ -56,6 +56,7 @@ mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
 mod a_terminal_hosts_be_is_the_deployments_or_one_built_here;
 mod a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting;
+mod a_sync_error_clears_once_nothing_waits_to_be_sent;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
 mod an_account_unlocks_with_its_recovery_phrase;
@@ -67,7 +68,7 @@ mod an_edit_made_offline_is_lacking_until_the_drain_publishes_it;
 mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
 mod an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publishes;
 mod an_empty_search_request_is_not_a_change;
-mod an_error_from_sending_clears_once_nothing_waits_to_be_sent;
+mod an_error_that_is_not_about_sending_outlasts_a_device_in_step;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
@@ -585,15 +586,6 @@ fn ask_for(queries: Vec<Query>) {
 }
 
 #[track_caller]
-/// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
-/// keeps it, and the outbox sends it after.
-fn flush_and_send() {
-    flush();
-    wait_until("what the flush kept was sent", |shared| {
-        shared.unsynced().is_empty()
-    });
-}
-
 fn wait_until(_what: &str, ready: impl Fn(&Shared) -> bool) {
     crate::wait_until(|shared| ready(shared).then_some(()));
 }

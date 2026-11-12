@@ -549,6 +549,10 @@ pub struct Shared {
     pub drains: u64,
     pub leaving: bool,
     pub error: Option<String>,
+    /// What went wrong sending: a refused or failed drain of the outbox, or a refused append to
+    /// a session's journal. Unlike `error`, it is about being in step with the server, so it
+    /// clears once the device is connected and nothing waits to be sent (`report`).
+    pub sync_error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
     pub conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub pairing: Vec<PairingRequest>,
@@ -1314,6 +1318,7 @@ impl Session<'_> {
             held.reached = true;
             held.arriving = true;
             held.error = None;
+            held.sync_error = None;
         }
         self.changed.notify_all();
         be_host_base::host::wake();
@@ -1417,7 +1422,7 @@ async fn drain_outbox(
                     be_block_client::Drained::Diverged { block, remote, .. } => {
                         diverged.push((block, remote));
                     }
-                    be_block_client::Drained::Refused { block, code } => record(
+                    be_block_client::Drained::Refused { block, code } => record_sync(
                         shared,
                         ClientError::Refused(
                             code,
@@ -1425,7 +1430,7 @@ async fn drain_outbox(
                         ),
                     ),
                     be_block_client::Drained::Failed { block } => {
-                        shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(
+                        shared.lock().unwrap_or_else(PoisonError::into_inner).sync_error = Some(
                             format!("a change made offline to block {block} could not be sent yet"),
                         );
                     }
@@ -1433,7 +1438,7 @@ async fn drain_outbox(
                 }
             }
         }
-        Err(error) => record(shared, error),
+        Err(error) => record_sync(shared, error),
     }
     report(peer, shared);
     (diverged, published)
@@ -1492,15 +1497,13 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
         held.unsent = peer.unsent();
         changed = true;
     }
-    // What went wrong sending or listing stops being news once the device is connected and in
-    // step: nothing waits to be sent and nothing was set aside. A type module's error stays
-    // until its block's head moves (`Replicas::status`).
+    // What went wrong sending stops being news once the device is connected and in step: nothing
+    // waits to be sent and nothing was set aside.
     if held.connected
         && !held.draining
         && held.waiting + held.unsealed == 0
         && held.unsent.is_empty()
-        && held.module_error.is_none()
-        && held.error.take().is_some()
+        && held.sync_error.take().is_some()
     {
         changed = true;
     }
@@ -3124,7 +3127,7 @@ pub(super) struct Tasks {
     storage: std::rc::Rc<std::cell::RefCell<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
 
-const STORAGE_FAILED: &str = "The server stopped saying how much storage this account uses.";
+pub(crate) const STORAGE_FAILED: &str = "The server stopped saying how much storage this account uses.";
 
 #[derive(Default)]
 struct Outbox {
@@ -3485,6 +3488,14 @@ pub(super) fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
         return;
     }
     shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(error.to_string());
+}
+
+/// Records what went wrong sending (`Shared::sync_error`).
+pub(super) fn record_sync(shared: &Arc<Mutex<Shared>>, error: ClientError) {
+    if error.is_unreachable() {
+        return;
+    }
+    shared.lock().unwrap_or_else(PoisonError::into_inner).sync_error = Some(error.to_string());
 }
 
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {

@@ -37,6 +37,10 @@ impl Host for Quiet {
         eprintln!("{error}");
     }
 
+    fn record_sync(shared: &Arc<Mutex<Self>>, error: ClientError) {
+        Self::record(shared, error);
+    }
+
     fn report(_: &Arc<Mutex<Self>>, _: Option<Uuid>, message: String) {
         eprintln!("{message}");
     }

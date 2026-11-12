@@ -78,8 +78,8 @@ here runs Android. Line numbers are from when this was written. Remove an item w
 Host tests reproduce these with a device of a test's server (guides/testing_a_gui.md, 6):
 `HostTest::offline` is a drop the device notices at once, `HostTest::unreachable` one it does
 not (its connections stay open and carry nothing), which is what blocking the port did. A drop
-not noticed lasts until the connection's ping goes unanswered, about 35 s (`PING_INTERVAL` plus
-`PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
+under a request is noticed once an early ping goes unanswered, about 15 s (`ANSWER_WAIT` plus
+`QUICK_PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
 
 4. **Starting with no connection.** A device of a remote server restarted while it cannot reach
    it shows Files at once (`resume_organization`); the blank window seen here was probably the
@@ -93,15 +93,6 @@ not noticed lasts until the connection's ping goes unanswered, about 35 s (`PING
    parent"). guides/blocks/host.md lists this as not built: run commands that need the server off
    the loop, ordered per block (`Command::needs`), as uploads are.
    `on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops` is ignored until
-   then.
-6. **Edits typed while a seal waits on the server are not kept.** With sealing at its real pace
-   (`drive hurry off`), the text module's publish waits on a server that stopped answering; while
-   that seal is out the module holds new operations (`held`, be-sdk-type-guest replica.rs,
-   `sealing_out`) out of the journal. So the block store counts them as not saved on this device
-   (the "Saving changes" toast), and the module stays unsettled, which stops even `drive pause`.
-   Either release a publish unanswered for a moment as kept, a local commit the outbox sends, as
-   `Replicas::keep_all` does at a flush, or journal what is typed during a seal.
-   `an_edit_made_offline_reads_as_kept_on_the_device_and_syncs_without_an_error` is ignored until
    then.
 7. **Why a reconnect hits "the session has a newer owner"** is still not known: a test's drop and
    reconnect did not meet it. The error no longer outlives its cause: it clears once the device is

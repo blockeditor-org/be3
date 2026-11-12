@@ -26,7 +26,10 @@ fn what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once() {
     assert_eq!(sim.publishes, 1);
     assert_eq!(prose(&sim.head_content()), "soup");
     let journal = sim.journal.clone().expect("the owner journals");
-    assert_eq!(journal.base.commit, sim.head, "the journal starts over from the seal");
+    assert_eq!(
+        journal.base.commit, sim.head,
+        "the journal starts over from the seal"
+    );
     assert!(
         !journal.entries.is_empty(),
         "the journal still holds what came after the seal"
