@@ -506,6 +506,10 @@ impl beui::native::Program for Shell {
         Some(be_host_stack::status().connected)
     }
 
+    fn in_step_due(&self) -> Option<std::time::Instant> {
+        be_host_stack::modules_due()
+    }
+
     fn environment(&self) -> Vec<(String, String)> {
         Host::environment()
     }

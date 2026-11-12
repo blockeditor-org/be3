@@ -42,6 +42,7 @@ mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
 mod a_heartbeat_the_server_never_answers_holds_up_no_edit;
 mod a_held_block_stays_open_when_its_editors_close;
+mod a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_listing_fails_unless_another_connection_replaced_the_one_it_was_asked_on;
 mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
@@ -437,6 +438,10 @@ async fn outside_peer(
 impl Drop for Harness {
     fn drop(&mut self) {
         be_block_commit::pin_now(None);
+        // A clock a test held would freeze the module timers of every test after it.
+        *crate::HELD_CLOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         if std::thread::panicking() {
             abandon();
         } else {

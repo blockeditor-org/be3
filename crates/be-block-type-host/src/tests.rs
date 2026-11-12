@@ -20,6 +20,7 @@ mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
 mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
+mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
 
 /// A host that keeps nothing, for tests of stateless requests.
 #[derive(Default)]
