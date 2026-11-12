@@ -5,8 +5,9 @@ Depends on: none.
 Places where many requests, WIT functions or public functions do one job.
 Each step replaces them with fewer, conceptually simpler ones that behave
 the same. The steps are independent unless a step says otherwise, and each
-lands on its own. Step numbers stay as written when a step is done and removed. No format is frozen, so wire and WIT changes need no
-migration. Line numbers are from when this plan was written.
+lands on its own. Step numbers stay as written when a step is done and
+removed. No format is frozen, so wire and WIT changes need no migration. Line
+numbers are from when this plan was written.
 
 ## 2. The shell's one-way reports are one batched call (left)
 
@@ -143,10 +144,10 @@ content part is a set of blocks.
   escrow}`, plus `get-link`, `accept-link`, `list-links`, `delete-link`. The
   rule splits on `kind` (an invitation needs `AdministratorOf`). Outstanding
   invitations become listable and revocable. Update guides/blocks/keys.md.
-- Agents are members: `remove-agent` never calls `key_work_changed` while
-  `remove-member` does; the merged call must. `remove-member` lets an agent's creator remove it, and
+- Agents are members: `remove-member` lets an agent's creator remove it, and
   `list-members` with a `created-by` field replaces `list-agents`. Remove
-  `list-agents` and `remove-agent`.
+  `list-agents` and `remove-agent`. `remove-agent` never calls
+  `key_work_changed` while `remove-member` does; the merged call must.
 - `Peer`'s `join_session`, `leave_session`, `claim_ownership` and `heartbeat`
   only forward to `Connection` behind an always-`Ok` `Result`; callers use the
   connection, as they already do for `append`.
