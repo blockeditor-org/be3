@@ -39,7 +39,8 @@ to set.
 
 `scripts/internal/pins` names everything the scripts download, as
 `name='value'` lines that both the stub and the bootstrap read: buck2's
-version, be's release, nsc's, and the bootstrap's: `bootstrap_sha256_<triple>`
+version, cargo's, nsc's, and the bootstrap's (`be` is not pinned:
+guides/tracker.md): `bootstrap_sha256_<triple>`
 is the SHA-256 of each platform's binary, which is also its name at
 `https://be3-ci.b-cdn.net/bootstrap/<sha256>`.
 `scripts/internal/bootstrap.sh` downloads the one for this machine into
@@ -90,8 +91,8 @@ checkout's own bootstrap, and drops it in a commit of its own once the autofix j
 the release that run published. A value the
 release writes that nothing in verify checks, such as build-info.json's
 `program_id` or default server, changes in one step: until the new pin lands
-that branch's builds carry the old value, and `./scripts/deploy`, the one check
-on it, runs from main after the pin. A directory the
+that branch's builds carry the old value, so deploy (the one check on it) a
+branch only after the pin. A directory the
 release writes into needs a tracked file to keep it in a checkout until a
 release that no longer writes there is pinned.
 

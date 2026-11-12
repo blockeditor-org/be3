@@ -25,4 +25,5 @@ rules:
       - broad.yml
       - ci.yml
       - tracker.yml
+      - deploy.yml
 

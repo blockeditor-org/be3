@@ -145,12 +145,8 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
     println!("buck2 is installed at {}", buck2.display());
 
     steps.step("Installing be");
-    if pins.get("be_release").is_ok() {
-        let be = be::ensure(&pins)?;
-        println!("be is installed at {}", be.display());
-    } else {
-        println!("No be release is pinned yet, so ./scripts/be is not installed.");
-    }
+    let be = be::ensure()?;
+    println!("be is installed at {}", be.display());
 
     steps.end();
     println!();
