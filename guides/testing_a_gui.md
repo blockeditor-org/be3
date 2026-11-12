@@ -369,8 +369,9 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
 - A script both cores run marks a step only the browser can make with `#web COMMAND` (a comment
   natively): the browser-only commands are `attribute`, `history`, `history-state` (the current
   history entry holds the page's own back entry or not), `loads` (how many times the page has
-  loaded), `reload`, `selection`, `role` and
-  `roles`; web-test.mjs's header says what each takes.
+  loaded), `reload`, `selection`, `highlighted` (what the page's CSS highlights cover),
+  `elements` (how many elements match a selector), `role` and `roles`; web-test.mjs's header
+  says what each takes.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`; in a browser,
   serve `:web` with COOP `same-origin` and COEP `require-corp` and open
   `index.html?fixture=NAME`.

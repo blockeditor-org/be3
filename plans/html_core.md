@@ -12,12 +12,6 @@ ignored props are in plans/deferred/html_core.md.
   itself on HTML, as natively. Done: on the HTML core a sheet's stops are scroll
   snap points of its scroll element, and a sheet released between stops
   settles on one by the browser's snapping, with no beui animation.
-- **Tests for `TreeNode`'s selection hooks.** On HTML `set_text_selection`
-  draws through the text's CSS highlights and `set_text_selection_handles` as
-  caret handles in its decoration overlay (`beui-core-html/src/text.rs`), but
-  nothing shows either: drive reads neither core's highlight, and a
-  server-rendered painting runs no layout. Done: a test per hook on the HTML
-  core, such as a drive reading of a text's highlighted ranges on both cores.
 - **The on-screen keyboard.** It shows only where a view places it. Done: on
   touch, a keyboard host opens it for a focused beui-own field, as natively.
   Paste as plain text keeps reading through `navigator.clipboard`; its

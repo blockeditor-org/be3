@@ -9,7 +9,8 @@
 //! itself; a screen checking a layout prints what it `measure`s in a
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
-//! `roles ROLE COUNT`, for scripts that run only there (crates/beui-demo-html's), and
+//! `roles ROLE COUNT`, `highlighted TEXT|none` (what the CSS highlights cover) and
+//! `elements CSS COUNT`, for scripts that run only there (crates/beui-demo-html's), and
 //! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT` and
 //! `reload`, which a script both cores
 //! run gives as `#web COMMAND` lines (comments natively).
@@ -371,6 +372,7 @@ fn FocusFixture() -> NodeId {
 fn TextHooksFixture() -> NodeId {
     let texts = NodeRef::new();
     let rows = NodeRef::new();
+    let chosen = NodeRef::new();
     let read = create_signal(String::from("Hooks unread"));
     let keys: Vec<u32> = (0..100).collect();
     view! {
@@ -407,6 +409,28 @@ fn TextHooksFixture() -> NodeId {
                 }}
             />
             <Text color={INK}>{read}</Text>
+            <Text @node_ref=&chosen @test_id="text_hooks.chosen" color={INK}>"Hello world"</Text>
+            <Button
+                id="text_hooks.select"
+                label="Select world"
+                on_click={move || {
+                    let text = chosen.get();
+                    text.set_text_selection(Some((6..11, BLUE.into())));
+                    text.set_text_selection_handles(vec![
+                        (6, beui::CaretHandle::Start, BLUE.into()),
+                        (11, beui::CaretHandle::End, BLUE.into()),
+                    ]);
+                }}
+            />
+            <Button
+                id="text_hooks.clear"
+                label="Clear selection"
+                on_click={move || {
+                    let text = chosen.get();
+                    text.set_text_selection(None);
+                    text.set_text_selection_handles(Vec::new());
+                }}
+            />
         </List>
     }
 }
