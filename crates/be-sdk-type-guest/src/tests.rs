@@ -21,6 +21,11 @@ use crate::{
     Module, Registration,
     editor::{EditorMirror, FromEditor, Gesture, ToEditor},
 };
+use be_block::{Merge, PartReader};
+use std::cell::Cell;
+use std::future::Future;
+use std::pin::Pin;
+use std::rc::Rc;
 
 mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
@@ -54,6 +59,10 @@ mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_types_where_it_sees_the_caret;
+mod a_merge_by_parts_waits_for_the_parts_it_reads_and_never_resolves_without_them;
+mod a_merge_that_cannot_read_its_parts_is_reported_once_and_tried_again_on_a_timer;
+mod a_merge_that_failed_is_not_retried_by_a_replica_that_stopped_owning_the_session;
+mod a_merge_that_waits_for_something_other_than_a_part_is_reported_not_waited_for;
 mod a_message_no_build_can_read_stops_a_follower_saving;
 mod a_module_answers_stateless_requests;
 mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
@@ -84,12 +93,14 @@ mod an_owner_renews_its_lease_while_it_holds_the_session;
 mod an_owner_that_cannot_read_a_followers_part_has_it_sent_again;
 mod an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
+mod an_owner_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
 mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod an_owners_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
+mod edits_peer_ops_and_a_close_during_a_pending_merge_wait_behind_it_and_land_on_its_result;
 mod messages_piled_behind_an_unreadable_part_make_a_follower_catch_up;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
@@ -409,6 +420,10 @@ struct Sim<C: LiveEdit + Clone + Default> {
     errors: Vec<(usize, String)>,
     quiet: bool,
     stalled: bool,
+    /// Part reads wait (held) until `unstall`, so a merge by parts is pending.
+    read_stalled: bool,
+    /// How often each device's replica asked the host to resume its session.
+    resumed: Vec<usize>,
     /// Appends are answered as kept on the device alone, and reach no one.
     unheld_appends: bool,
     /// Commits are published to the device's outbox alone, not to the server.
@@ -469,6 +484,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             errors: Vec::new(),
             quiet: false,
             stalled: false,
+            read_stalled: false,
+            resumed: vec![0; devices],
             unheld_appends: false,
             kept_publishes: false,
             held: Vec::new(),
@@ -1008,6 +1025,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 };
                 self.to(device, |host| reply.send(host, &result));
             }
+            call @ Call::ReadPart { .. } if self.read_stalled => self.held.push((device, call)),
             Call::ReadPart { reply, part, range } => {
                 self.part_reads += 1;
                 if self.fail_reads > 0 {
@@ -1039,6 +1057,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &result));
             }
             Call::ResumeSession { reply, local } => {
+                self.resumed[device] += 1;
                 let resume = self.resume(local, self.head);
                 self.to(device, |host| reply.send(host, &Ok(resume)));
             }
@@ -1061,6 +1080,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 generation,
                 entries,
                 relay,
+                ..
             } => {
                 if self.unheld_appends {
                     return self.to(device, |host| reply.send(host, &false));
@@ -1147,11 +1167,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 self.errors.push((device, message));
             }
+            Call::Announce { reply, .. } => {
+                self.to(device, |host| reply.send(host, &()));
+            }
         }
     }
 
     fn unstall(&mut self) {
         self.stalled = false;
+        self.read_stalled = false;
         for (device, call) in std::mem::take(&mut self.held) {
             self.act(device, call);
         }
@@ -1193,4 +1217,92 @@ impl Sim<ProseContent> {
     fn typed(&self, device: usize, editor: EditorId) -> String {
         prose(self.mirror(device, editor))
     }
+}
+
+thread_local! {
+    /// The part the merge below reads, and what it read.
+    static PART: Cell<Option<be_block::PartRef>> = const { Cell::new(None) };
+    static READ: std::cell::RefCell<Vec<u8>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+/// A merge by parts that reads a saved part before it merges.
+fn reading_merge(
+    base: ChecklistContent,
+    ours: ChecklistContent,
+    theirs: ChecklistContent,
+    parts: PartReader,
+) -> Pin<Box<dyn Future<Output = Result<be_block_commit::MergeResult<ChecklistContent>, String>>>> {
+    Box::pin(async move {
+        let part = PART.with(Cell::get).ok_or("no part")?;
+        let bytes = parts.read_all(part).await?;
+        READ.with(|read| *read.borrow_mut() = bytes);
+        Ok(ChecklistContent::merge3(&base, &ours, &theirs))
+    })
+}
+fn merging_module() -> Module {
+    let mut registration = Registration::of::<ChecklistContent>().undo::<ChecklistContent>();
+    registration.replica_merge = Some(Rc::new(reading_merge as crate::replica::PartsMerge<_>));
+    Module::new(vec![registration])
+}
+fn diverged() -> (Sim<ChecklistContent>, CommitId, CommitId) {
+    let mut sim = Sim::<ChecklistContent>::new(1, merging_module);
+    let mut base = ChecklistContent::default();
+    let (first, created) = Checklist::add("first");
+    base.apply(&created);
+    let (second, created) = Checklist::add("second");
+    base.apply(&created);
+    let shared = sim.publish_elsewhere(&base);
+    let edit = |item, text: &str| {
+        let mut edited = base.clone();
+        edited.apply(&Checklist::set_text(item, text));
+        edited
+    };
+    let theirs = sim.publish_elsewhere(&edit(second, "second, revised"));
+    let ours = sim.write(edit(first, "first, expanded").encode(), vec![shared]);
+    let part = sim
+        .vault
+        .write(
+            SEALING,
+            Uuid::nil(),
+            be_block::Part::from(&b"a closed segment"[..]),
+        )
+        .unwrap()
+        .root
+        .unwrap();
+    PART.with(|held| held.set(Some(part)));
+    (sim, ours, theirs)
+}
+/// A live pair of replicas whose owner has an unsealed edit, and the part their merge reads.
+fn live() -> Sim<ChecklistContent> {
+    let mut sim = Sim::<ChecklistContent>::new(2, merging_module);
+    sim.open(0);
+    sim.open(1);
+    sim.attach(0, 1, true);
+    sim.attach(1, 1, true);
+    sim.operate(0, 1, add("unsealed"));
+    sim.settle();
+    let part = sim
+        .vault
+        .write(
+            SEALING,
+            Uuid::nil(),
+            be_block::Part::from(&b"a closed segment"[..]),
+        )
+        .unwrap()
+        .root
+        .unwrap();
+    PART.with(|held| held.set(Some(part)));
+    sim
+}
+fn waiting_merge(
+    _: ChecklistContent,
+    _: ChecklistContent,
+    _: ChecklistContent,
+    _: PartReader,
+) -> Pin<Box<dyn Future<Output = Result<be_block_commit::MergeResult<ChecklistContent>, String>>>> {
+    Box::pin(std::future::pending())
+}
+fn waiting_module() -> Module {
+    let mut registration = Registration::of::<ChecklistContent>().undo::<ChecklistContent>();
+    registration.replica_merge = Some(Rc::new(waiting_merge as crate::replica::PartsMerge<_>));
+    Module::new(vec![registration])
 }

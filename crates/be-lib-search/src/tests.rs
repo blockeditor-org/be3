@@ -58,9 +58,13 @@ impl Store {
 }
 
 impl Parts for Store {
-    async fn read(&self, part: &PartName, range: Range<u64>) -> Result<Vec<u8>, Error> {
+    fn read<'a>(
+        &'a self,
+        part: &'a PartName,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, Error>> + 'a>> {
         self.reads.borrow_mut().push(part.kind);
-        self.parts.read(part, range).await
+        self.parts.read(part, range)
     }
 }
 

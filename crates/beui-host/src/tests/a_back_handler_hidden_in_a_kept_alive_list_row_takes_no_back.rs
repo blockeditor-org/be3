@@ -16,13 +16,13 @@ fn a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back() {
                 >
                     <Frame width=40.0 height=30.0 />
                 </BackTo>
-                <ShowKeepAlive condition={shown}>
+                <Show keep_alive=true condition={shown}>
                     <BackTo
                         on_gesture={move |gesture: BackGesture| if gesture == BackGesture::Invoked { inner.update(|backs| *backs += 1) }}
                     >
                         <Frame width=40.0 height=30.0 />
                     </BackTo>
-                </ShowKeepAlive>
+                </Show>
             </List>
         }
     });

@@ -18,7 +18,8 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
                 >
                     <Text>"toggle"</Text>
                 </Button>
-                <ShowKeepAlive
+                <Show
+                    keep_alive=true
                     condition={visible}
                     then={move || {
                         builds.update(|builds| *builds += 1);
@@ -38,12 +39,12 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
     assert_eq!(
         builds.get_untracked(),
         0,
-        "a hidden ShowKeepAlive must not build its child"
+        "a hidden kept-alive Show must not build its child"
     );
     assert_eq!(
         harness.document().children(column).len(),
         1,
-        "a hidden ShowKeepAlive puts no child among the children around it"
+        "a hidden kept-alive Show puts no child among the children around it"
     );
 
     harness.click(harness.center(toggle));

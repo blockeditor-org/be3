@@ -67,7 +67,7 @@ fn edited_reads(
 ) -> ChatReadsContent {
     let mut reads = start.clone();
     for edit in edits {
-        reads.apply(&edit);
+        reads.apply(&edit.into());
     }
     reads
 }

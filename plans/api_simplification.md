@@ -68,16 +68,6 @@ host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
 whether `set-parent` and the existing `move-command`/`reorder-command` are one
 thing, and keep one.
 
-## 6. Openings share one header
-
-`open-block`, `open-creation`, `open-artifact`, `open-picker` and
-`open-rename` (`be-sdk-api/wit/types.wit`) each repeat `instance`, `editor`,
-`account-id`, `organization-id` and `client-id`. Make one
-`record opening { instance, editor, account-id, organization-id, client-id,
-kind: opening-kind }`, where each `opening-kind` case holds only its own
-fields. This removes `Opening::instance` (`be-sdk-api/src/opening.rs`) and the
-five-arm match in `be-sdk/src/screens.rs` that pulls the shared fields out.
-
 ## 7. The host's per-instance queues are one pushed stream
 
 `be-host-runtime/src/runtime.rs` has 19 `take_*` functions that be-host polls
@@ -192,15 +182,6 @@ host queues settled events per app. The calls stay `local`
 
 ## 12. beui: one form per concept
 
-- Delete styled `Listbox` and unstyled `ChoiceKind::Listbox` with its
-  typeahead and arrow handling (`beui-components-unstyled/src/choice.rs`).
-  Nothing outside tests and the demo uses it; `Select` and `SearchList` cover
-  choosing from a list. Remove its tests, demo entry and paintings.
-- `ColorWheel` and `OklchColorWheel` become one `ColorWheel` with a public
-  `model` prop.
-- `Show` and `ShowKeepAlive` become `Show` with `keep_alive`; a kept-alive
-  `Show` builds its `RenderFn` once. Update guides/beui.md and
-  guides/reactive.md.
 - One focus ring: styled `Frame` takes `focus=` (drawn as an outline with an
   offset). It replaces `focus_border()`, `beui_view::reactive::focus_outline()`
   and the hand-drawn `focus_ring(..)` + accent border copies (`TileButton`,
@@ -225,9 +206,10 @@ host queues settled events per app. The calls stay `local`
   follows from whether it is selectable. `SettingsLink` becomes `SettingsRow`
   with `on_click`.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
-  `store(Cell::new(..))` uses.
-- `SelectableState::select_all()` and the free `select_all(state)` are one;
-  keep the method.
+  `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
+  non-`Copy` values (a callback, a state struct) or read the cell with
+  `with`/`try_with`, so each needs its own look (`StoredCell` has `replace`,
+  `take` and `set`; add what a use needs).
 
 Update beui-demo for every component that merges or goes.
 
@@ -275,13 +257,14 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
 
 ## 15. Host, CLI and test harness
 
-- `BeuiTest` (`be-sdk-test/src/beui.rs`): make `take_shell_calls(pick)`
-  public beside `take_host_calls`, and remove the one-line `take_*` wrappers
-  that only pick a `ShellCall` variant, keeping those that decode something.
-  `take_copies`, `take_copied`, `take_copied_text` and `take_copied_images`
-  become `take_copied(format)`. Remove `host_calls` and `rects_of` (no
-  callers); fold `pick_menu_from` into `pick_menu`. After step 2 this picks
-  `ShellMessage`s.
+- `BeuiTest` (`be-sdk-test/src/beui.rs`): make `take_calls` public as
+  `take_shell_messages(pick)` beside `take_host_calls`, and remove the
+  one-line `take_*` wrappers that only pick a `ShellMessage` variant (about 15,
+  with 3 to 17 callers each across the app tests), keeping those that decode
+  something. `take_copies`, `take_copied`, `take_copied_text` and
+  `take_copied_images` become `take_copied(format)`, with the serial of a copy
+  in a separate accessor if a test needs it (`take_copies` has two callers in
+  be-sdk-beui-platform).
 - `HostTest` (`be-host-tests/src/lib.rs`): `start`, `start_desktop`,
   `start_in_space`, `start_drawing_previews` and `start_with` become
   `start(Options)`.

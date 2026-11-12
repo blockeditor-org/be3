@@ -50,19 +50,21 @@ fn a_replica_relay_waits_for_the_editors_credit_and_drops_nothing() {
     }));
     let mut wire = Wire::default();
     let mut heard = Vec::new();
-    wire.open(Opening::Block(be_sdk_api::OpenBlock {
+    wire.open(Opening {
         instance: INSTANCE,
         editor: [1; 16],
-        block_id: [2; 16],
-        block_type: [3; 16],
-        view_block: None,
         account_id: [4; 16],
         organization_id: [5; 16],
         client_id: [6; 16],
-        editable: true,
-        page_origin: String::new(),
-        host_palette: false,
-    }));
+        kind: be_sdk_api::OpeningKind::Block(be_sdk_api::OpenBlock {
+            block_id: [2; 16],
+            block_type: [3; 16],
+            view_block: None,
+            editable: true,
+            page_origin: String::new(),
+            host_palette: false,
+        }),
+    });
     exchange(&mut wire, &guest, &mut heard);
     let editor = editor.borrow().expect("the guest served the editor");
 

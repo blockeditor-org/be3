@@ -928,6 +928,9 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
         if now <= seen_raise.replace(now) {
             return;
         }
+        // A raise asks for the window to be shown, not proof that its keyboard went there, so
+        // `show` rather than `content_focused`: the window's focus reaches the dock through its
+        // child view, whose `ChildBlock` reports it.
         untrack(|| match control {
             Some(control) => control.show(),
             None => {

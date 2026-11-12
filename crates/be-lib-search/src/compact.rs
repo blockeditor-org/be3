@@ -130,18 +130,20 @@ struct Overlay<'a, P> {
 }
 
 impl<P: Parts> Parts for Overlay<'_, P> {
-    async fn read(
-        &self,
-        part: &crate::PartName,
+    fn read<'a>(
+        &'a self,
+        part: &'a crate::PartName,
         range: std::ops::Range<u64>,
-    ) -> Result<Vec<u8>, Error> {
-        if let Some(segment) = self.built.get(&part.origin)
-            && let Some((_, bytes)) = segment.iter().find(|(name, _)| name == part)
-        {
-            let end = range.end.min(bytes.len() as u64) as usize;
-            return Ok(bytes[(range.start as usize).min(end)..end].to_vec());
-        }
-        self.parts.read(part, range).await
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
+        Box::pin(async move {
+            if let Some(segment) = self.built.get(&part.origin)
+                && let Some((_, bytes)) = segment.iter().find(|(name, _)| name == part)
+            {
+                let end = range.end.min(bytes.len() as u64) as usize;
+                return Ok(bytes[(range.start as usize).min(end)..end].to_vec());
+            }
+            self.parts.read(part, range).await
+        })
     }
 }
 

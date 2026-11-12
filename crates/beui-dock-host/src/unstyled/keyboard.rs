@@ -1,7 +1,9 @@
 //! Where the keyboard goes when a pane's chrome is pressed or a tab is picked: back to the node the
 //! tab last had focused, else its first focusable (`Document::focus_into`, which waits a layout for a
 //! panel still being built). When a pane stops showing a tab whose panel has the focus, the focus
-//! is remembered and the tab shown in its place gets the keyboard.
+//! is remembered and the tab shown in its place gets the keyboard. Focus in a view of the tab's
+//! content that this document cannot see (a child editor's) counts too, told by
+//! `DockTabControl::content_focused`.
 
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -49,6 +51,19 @@ impl State {
         });
     }
 
+    /// A tab's content holds the keyboard only until something else takes it: this document, or
+    /// an empty pane's view (`DockPaneControl::focus`, which clears it there). Without this, hiding
+    /// that tab later would hand on a keyboard it no longer has.
+    pub(super) fn forget_content_keyboard_when_taken(&self) {
+        let keyboard = self.keyboard;
+        let held = self.content_keyboard;
+        create_effect(move || {
+            if keyboard.get() {
+                held.set(None);
+            }
+        });
+    }
+
     pub(super) fn give_keyboard(&self, tab: TabId) {
         let given = match self.dialog_focus.get_untracked() {
             Some(dialog) if self.dialog_root(dialog) == Some(tab) => {
@@ -66,13 +81,16 @@ impl State {
         });
     }
 
+    /// Whether the keyboard is in `tab`'s panel, remembering where. That is the focus inside the
+    /// panel, or a view of the tab's content that took it last (`DockTabControl::content_focused`)
+    /// with nothing taking it since (`forget_content_keyboard_when_taken`).
     pub(super) fn remember_focus(&self, tab: TabId) -> bool {
         let Some(panel) = self.panel_node(tab) else {
             return false;
         };
         let focused = focused_node().filter(|_| panel.focus_is_within());
         let Some(focused) = focused else {
-            return false;
+            return self.content_keyboard.get() == Some(tab) && !self.keyboard.get_untracked();
         };
         self.remembered.value().borrow_mut().insert(tab, focused);
         true

@@ -176,7 +176,7 @@ impl BlockContent for Sections {
         keys: Option<&HashSet<String>>,
         indexed: &HashSet<PartRef>,
         parts: PartReader,
-    ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<SearchDocument>, String>>>> {
         let asked: Vec<(String, Option<PartRef>, Option<Section>)> = self
             .sections
             .iter()
@@ -189,7 +189,7 @@ impl BlockContent for Sections {
                 (key, source, unindexed.then(|| section.clone()))
             })
             .collect();
-        async move {
+        Box::pin(async move {
             let mut documents = Vec::with_capacity(asked.len());
             for (key, source, section) in asked {
                 let body = match section {
@@ -205,7 +205,7 @@ impl BlockContent for Sections {
                 });
             }
             Ok(documents)
-        }
+        })
     }
 }
 
@@ -298,8 +298,8 @@ impl MergeParts for Sections {
         ours: Self,
         theirs: Self,
         parts: PartReader,
-    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static {
-        async move {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>> {
+        Box::pin(async move {
             let mut read: HashMap<PartRef, Vec<u8>> = HashMap::new();
             let mut conflicts = 0;
             let mut sections = Vec::with_capacity(SECTIONS);
@@ -326,7 +326,7 @@ impl MergeParts for Sections {
                 sections.push(Section::Held { bytes, saved: None });
             }
             Ok(merged(sections, conflicts))
-        }
+        })
     }
 }
 

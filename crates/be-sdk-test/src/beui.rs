@@ -1,4 +1,3 @@
-use be_sdk_api::Opening;
 use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
@@ -12,6 +11,7 @@ use be_sdk_api::{
     OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
     ViewId, ViewportMetrics,
 };
+use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::{
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
@@ -326,66 +326,49 @@ impl<A: BeuiRoot> BeuiTest<A> {
             host.organization_id().into_bytes(),
             host.client_id().into_bytes(),
         );
-        let open = match kind {
+        let opening_kind = match kind {
             Kind::Frame(block) | Kind::Preview(block) => {
                 store.own(block, block_type);
-                Opening::Block(OpenBlock {
-                    instance: INSTANCE,
-                    editor: ADOPTED_EDITOR,
+                OpeningKind::Block(OpenBlock {
                     block_id: block.into_bytes(),
                     block_type: block_type.into_bytes(),
                     view_block: host.view_block().map(Uuid::into_bytes),
-                    account_id,
-                    organization_id,
-                    client_id,
                     editable: host.editable(),
                     page_origin: host.page_origin(),
                     host_palette: host.host_palette(),
                 })
             }
-            Kind::Creation => Opening::Creation(OpenCreation {
-                instance: INSTANCE,
-                editor: ADOPTED_EDITOR,
+            Kind::Creation => OpeningKind::Creation(OpenCreation {
                 template: template.clone(),
-                account_id,
-                organization_id,
-                client_id,
             }),
             Kind::Picker => {
                 let request = PICKER
                     .with(|picker| picker.borrow_mut().take())
                     .expect("a picker test names what it picks");
-                Opening::Picker(be_sdk_api::OpenPicker {
-                    instance: INSTANCE,
-                    editor: ADOPTED_EDITOR,
+                OpeningKind::Picker(be_sdk_api::OpenPicker {
                     filter: request.filter,
                     parent: request.parent.encode(),
                     sheet: request.sheet,
-                    account_id,
-                    organization_id,
-                    client_id,
                 })
             }
-            Kind::Rename(block) => Opening::Rename(be_sdk_api::OpenRename {
-                instance: INSTANCE,
-                editor: ADOPTED_EDITOR,
+            Kind::Rename(block) => OpeningKind::Rename(be_sdk_api::OpenRename {
                 block_id: block.into_bytes(),
                 sheet: false,
-                account_id,
-                organization_id,
-                client_id,
             }),
-            Kind::Settings => Opening::Artifact(OpenArtifact {
-                instance: INSTANCE,
-                editor: ADOPTED_EDITOR,
+            Kind::Settings => OpeningKind::Artifact(OpenArtifact {
                 block_id: artifact.unwrap_or_default().0.into_bytes(),
                 block_type: block_type.into_bytes(),
                 source: artifact.unwrap_or_default().1.into_bytes(),
-                account_id,
-                organization_id,
-                client_id,
                 data: data.clone(),
             }),
+        };
+        let open = Opening {
+            instance: INSTANCE,
+            editor: ADOPTED_EDITOR,
+            account_id,
+            organization_id,
+            client_id,
+            kind: opening_kind,
         };
         let frame = match &kind {
             Kind::Frame(_) => Some(be_sdk_api::FrameSpec {
@@ -562,6 +545,16 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.hold(block, content);
     }
 
+    /// Like `hold`, with the content's parts after its first kept, for a type that loads only
+    /// its first part and reads the rest by range.
+    pub fn hold_parts<C: LiveEdit + Merge + Clone + Default>(
+        &mut self,
+        block: Option<Uuid>,
+        content: C,
+    ) {
+        self.store.hold_parts(block, content);
+    }
+
     pub fn content<C: LiveEdit + Merge + Clone + Default>(&self, block: Option<Uuid>) -> C {
         self.store.content(block)
     }
@@ -659,10 +652,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn pick_menu(&mut self, id: &str) {
-        self.pick_menu_from(id, None);
-    }
-
-    pub fn pick_menu_from(&mut self, id: &str, anchor: Option<Rect>) {
         self.menu_entry(id);
         let id = id.to_owned();
         self.call(|editor, connection| {
@@ -671,7 +660,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 vec![EditorEvent::MenuPick(MenuChoice {
                     view: ViewId::MAIN,
                     id,
-                    anchor,
+                    anchor: None,
                 })],
             );
         });
@@ -1853,22 +1842,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    /// The notifications the editor sent (`host-services.notify`): the block, the text and
-    /// the accounts it mentions.
-    pub fn take_notifications(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {
-        self.take_requests_where(|call| match call {
-            Call::Notify {
-                block,
-                text,
-                mentions,
-                ..
-            } => Ok((
-                Uuid::from_bytes(block),
-                text,
-                mentions.into_iter().map(Uuid::from_bytes).collect(),
-            )),
-            call => Err(call),
-        })
+    /// What the editor's replica announced to the block's other members once the server held an
+    /// edit (`LiveEdit::announcements`): the block, the text and the accounts it mentions.
+    pub fn take_announced(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {
+        self.store.take_notified()
     }
 
     /// What the editor asked of pushes to this device (`host-services.set-push-device`): true
@@ -2000,10 +1977,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             Sent::Command(block, command) => Some((*block, *command)),
             _ => None,
         })
-    }
-
-    pub fn host_calls<C>(&self, accept: impl Fn(&be_sdk_api::ops::Started) -> Option<C>) -> Vec<C> {
-        self.extension_calls.iter().filter_map(accept).collect()
     }
 
     pub fn take_host_calls<C>(
@@ -2224,14 +2197,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .expect("the editor has not drawn a frame yet")
             .test_id_rect(test_id)
             .unwrap_or_else(|| panic!("no element with test id {test_id:?}\n{}", self.replay()))
-    }
-
-    pub fn rects_of(&self, test_id: &str) -> Vec<Rect> {
-        self.test_ids()
-            .iter()
-            .find(|(named, _)| *named == test_id)
-            .map(|(_, shown)| shown.iter().map(|at| at.rect).collect())
-            .unwrap_or_default()
     }
 
     pub fn point_of(&self, test_id: &str) -> Pos2 {

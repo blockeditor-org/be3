@@ -7,7 +7,7 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
     let (document, [empty, tabs, after]) = toolbar_of(|| {
         [
             view! {
-                <Listbox
+                <RadioGroup
                     options={view! {}}
                     selected=Some(4)
                 />

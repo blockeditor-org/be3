@@ -2,7 +2,7 @@ package be3:block-type@0.1.0;
 
 /// The shapes a host and a type module share.
 interface types {
-    use be3:shared/ids@0.1.0.{uuid, hash, block-id, content-type-id, organization-id, commit-id};
+    use be3:shared/ids@0.1.0.{uuid, hash, account-id, block-id, content-type-id, organization-id, commit-id};
 
     /// The type module's hash: two builds of a type never edit one session.
     type session-tag = hash;
@@ -64,6 +64,9 @@ interface types {
         /// The type merges by parts (`replicas.merge-parts`) rather than whole bytes
         /// (`replicas.merge3`). Only a type with `first-part` does.
         merges-parts: bool,
+        /// The stored form read whole decodes to the content (`be_block::BlockContent::WHOLE_BYTES`),
+        /// so a copy of its bytes loses nothing.
+        whole-bytes: bool,
     }
 
     record description {
@@ -230,6 +233,24 @@ interface types {
     record journal-entry {
         sequence: u64,
         payload: list<u8>,
+    }
+
+    /// What an edit made on this device tells the block's other members once
+    /// the server holds it (`be_block::Announcement`): `key` names what it
+    /// announces, unique in the block, `several` is the text for several sent
+    /// together, with `{count}` for how many, and `mentions` the accounts it
+    /// mentions.
+    record announcement {
+        key: string,
+        text: string,
+        several: string,
+        mentions: list<account-id>,
+    }
+
+    /// An announcement of the edit an owner sequenced as `sequence`.
+    record announced {
+        sequence: u64,
+        announcement: announcement,
     }
 
     /// Where a journal starts: a commit (none for no content), the last

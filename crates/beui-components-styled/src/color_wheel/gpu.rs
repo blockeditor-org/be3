@@ -7,7 +7,7 @@ use beui_view::reactive::Painter;
 use beui_view::types::Rect;
 use bytemuck::{Pod, Zeroable};
 
-use super::{Face, Model};
+use super::{Face, WheelModel};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -104,8 +104,8 @@ impl Draw for WheelDraw {
             screen: [at.screen.x, at.screen.y],
             hue: self.face.hue,
             model: match self.face.model {
-                Model::Hsv => 0.0,
-                Model::Oklch => 1.0,
+                WheelModel::Hsv => 0.0,
+                WheelModel::Oklch => 1.0,
             },
             ring_width: self.face.ring_width * scale,
             ring_gap: self.face.ring_gap * scale,

@@ -16,14 +16,13 @@ fn run(fixture: &str, script: &str, delayed: bool) {
     if delayed {
         arguments.push("--delay-measurement");
     }
-    let program = Driven::start(
-        &program,
-        &arguments,
-        SIZE,
-        std::env::var("HOST_LIBRARIES").ok(),
-        false,
-        false,
-    )
+    let program = Driven::start(be_tool_drive::Start {
+        program,
+        arguments: arguments.into_iter().map(str::to_owned).collect(),
+        size: SIZE.to_owned(),
+        libraries: std::env::var("HOST_LIBRARIES").ok(),
+        ..be_tool_drive::Start::default()
+    })
     .unwrap_or_else(|error| panic!("{fixture}{mode} did not start: {error}"));
     let commands = be_tool_drive::commands(script)
         .unwrap_or_else(|error| panic!("{fixture}'s script does not parse: {error}"));

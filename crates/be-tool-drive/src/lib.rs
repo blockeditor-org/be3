@@ -9,7 +9,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-pub use driven::Driven;
+pub use driven::{Driven, Start};
 use std::time::Duration;
 
 use beui_layer_drive::socket::{read_reply, write_request};

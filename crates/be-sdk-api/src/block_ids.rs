@@ -1,7 +1,7 @@
 use crate::{
     ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockQuery, ChildContent,
-    ChildPlacements, EditorInstanceId, LayoutCommit, Opening, SearchResults, VersionCommand,
-    blocks::OpenRequest,
+    ChildPlacements, EditorInstanceId, LayoutCommit, Opening, OpeningKind, SearchResults,
+    VersionCommand, blocks::OpenRequest,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -59,26 +59,26 @@ impl ChildPlacements {
 
 impl Opening {
     pub fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
-        let instance = self.instance();
+        let instance = self.instance;
         let mut existing = |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
-        match self {
-            Self::Block(open) => {
+        match &mut self.kind {
+            OpeningKind::Block(open) => {
                 existing(&mut open.block_id);
                 open.view_block.iter_mut().for_each(existing);
             }
-            Self::Artifact(open) => {
+            OpeningKind::Artifact(open) => {
                 existing(&mut open.block_id);
                 existing(&mut open.source);
             }
-            Self::Picker(open) => {
+            OpeningKind::Picker(open) => {
                 open.filter.excluded.iter_mut().for_each(&mut existing);
                 if let Some(place) = &mut open.filter.place {
                     location(place, &mut existing);
                 }
                 location(&mut open.parent, &mut existing);
             }
-            Self::Rename(open) => existing(&mut open.block_id),
-            Self::Creation(_) => {}
+            OpeningKind::Rename(open) => existing(&mut open.block_id),
+            OpeningKind::Creation(_) => {}
         }
     }
 }
@@ -101,7 +101,6 @@ impl crate::embed::host_services::Call {
             | Self::SetAccess { block, .. }
             | Self::MakeContactLink { block, .. }
             | Self::CreateBlockAgent { block, .. }
-            | Self::Notify { block, .. }
             | Self::SetNotifyMode { block, .. } => visit(block),
             Self::ReleaseRevision { preview, .. } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
