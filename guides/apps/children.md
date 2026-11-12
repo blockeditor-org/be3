@@ -31,6 +31,13 @@ not shared yet, or, offline, a block this device has never read
 The host runs a bounded number of children as editors and draws the rest as
 previews, so place only the children that are visible.
 
+A block placed in several places at once (the settings list in a side panel and
+one of its pages in a tab) gets an editor instance in each, so each has its own
+frame at its own size and may name its own editor. In be-host's `Editors`
+(`compositor/editors.rs`) the first placement holds the block's own id and any
+other is a twin under a key of its own (`Editors::block` maps it back), closed
+when that placement goes.
+
 ## Drawing order
 
 A child is drawn under the app's own surface with its space cut out, so

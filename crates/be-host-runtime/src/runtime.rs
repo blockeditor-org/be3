@@ -2341,7 +2341,11 @@ pub fn take_created(app_id: &str, instance: EditorInstanceId) -> Option<Result<U
     with(app_id, |runtime| runtime.instances.take_created(instance)).flatten()
 }
 
-pub fn frame_child(app_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
+/// The child that has taken `instance`'s frame: the view placing it, the child and its block.
+pub fn frame_child(
+    app_id: &str,
+    instance: EditorInstanceId,
+) -> Option<(ViewId, be_sdk_api::ChildId, Uuid)> {
     with(app_id, |runtime| runtime.instances.frame_child(instance)).flatten()
 }
 
