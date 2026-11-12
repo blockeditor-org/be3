@@ -167,15 +167,16 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     /// a type need not answer documents outside `keys`, nor read a part in `indexed`, so a
     /// snippet reads one part of a large block and reindexing it reads only its changed
     /// parts. The host drops documents outside `keys` and the bodies of documents whose source
-    /// is in `indexed` whatever the type answers.
+    /// is in `indexed` whatever the type answers. Boxed, as a future returned from a trait
+    /// method in another crate must be (guides/type_modules.md, "The generator").
     fn search_text(
         &self,
         keys: Option<&HashSet<String>>,
         indexed: &HashSet<PartRef>,
         parts: PartReader,
-    ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<SearchDocument>, String>>>> {
         let _ = (keys, indexed, parts);
-        std::future::ready(Ok(Vec::new()))
+        Box::pin(std::future::ready(Ok(Vec::new())))
     }
 }
 
@@ -348,7 +349,7 @@ pub trait MergeParts: Merge {
         ours: Self,
         theirs: Self,
         parts: PartReader,
-    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static;
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>>;
 }
 
 #[cfg(test)]

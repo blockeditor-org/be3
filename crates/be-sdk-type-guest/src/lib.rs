@@ -14,7 +14,7 @@ use be_sdk_type_api::{
     Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome, ReorderChild,
     ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
-    ops::guest::{self as ops, Executor, Pending, Sender},
+    ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
 };
 use uuid::Uuid;
@@ -798,7 +798,7 @@ impl replicas::Guest for Module {
         }
     }
 
-    fn start(&self, entropy: Vec<u8>) -> impl Future<Output = Vec<TypeInfo>> + 'static {
+    fn start(&self, entropy: Vec<u8>) -> LocalFuture<Vec<TypeInfo>> {
         #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
         {
             let mut seed = [0u8; 32];
@@ -818,17 +818,14 @@ impl replicas::Guest for Module {
                 }
             });
         }
-        ready(self.types())
+        Box::pin(ready(self.types()))
     }
 
-    fn blank(
-        &self,
-        content_type: Uuid,
-    ) -> impl Future<Output = Result<Vec<u8>, Failure>> + 'static {
-        ready(
+    fn blank(&self, content_type: Uuid) -> LocalFuture<Result<Vec<u8>, Failure>> {
+        Box::pin(ready(
             self.with_kind(content_type, |kind| (kind.blank)())
                 .ok_or(Failure::UnknownType),
-        )
+        ))
     }
 
     fn merge3(
@@ -837,8 +834,8 @@ impl replicas::Guest for Module {
         base: Option<Vec<u8>>,
         ours: Option<Vec<u8>>,
         theirs: Option<Vec<u8>>,
-    ) -> impl Future<Output = Result<Merged, Failure>> + 'static {
-        ready(
+    ) -> LocalFuture<Result<Merged, Failure>> {
+        Box::pin(ready(
             self.with_kind(content_type, |kind| {
                 (kind.merge)(base.as_deref(), ours.as_deref(), theirs.as_deref())
             })
@@ -851,7 +848,7 @@ impl replicas::Guest for Module {
                     })
                     .map_err(Failure::Malformed)
             }),
-        )
+        ))
     }
 
     fn merge_parts(
@@ -861,9 +858,9 @@ impl replicas::Guest for Module {
         ours: Option<Loaded>,
         theirs: Option<Loaded>,
         organization: Uuid,
-    ) -> impl Future<Output = Result<MergedParts, Failure>> + 'static {
+    ) -> LocalFuture<Result<MergedParts, Failure>> {
         let merge = self.with_kind(content_type, |kind| kind.merge_parts);
-        async move {
+        Box::pin(async move {
             let merge = merge.ok_or(Failure::UnknownType)?.ok_or_else(|| {
                 Failure::Malformed("this type merges whole values, with merge3".to_owned())
             })?;
@@ -874,7 +871,7 @@ impl replicas::Guest for Module {
                 content,
                 conflicts: conflicts.try_into().unwrap_or(u32::MAX),
             })
-        }
+        })
     }
 
     fn replay(
@@ -882,14 +879,14 @@ impl replicas::Guest for Module {
         content_type: Uuid,
         bytes: Option<Vec<u8>>,
         journal: Journal,
-    ) -> impl Future<Output = Result<Vec<u8>, Failure>> + 'static {
-        ready(
+    ) -> LocalFuture<Result<Vec<u8>, Failure>> {
+        Box::pin(ready(
             self.with_kind(content_type, |kind| {
                 (kind.replay)(bytes.as_deref(), &journal)
             })
             .ok_or(Failure::UnknownType)
             .and_then(|replayed| replayed.map_err(Failure::Malformed)),
-        )
+        ))
     }
 
     fn describe(
@@ -897,20 +894,20 @@ impl replicas::Guest for Module {
         content_type: Uuid,
         bytes: Vec<u8>,
         organization: Uuid,
-    ) -> impl Future<Output = Result<Description, Failure>> + 'static {
-        ready(
+    ) -> LocalFuture<Result<Description, Failure>> {
+        Box::pin(ready(
             self.with_kind(content_type, |kind| (kind.describe)(&bytes, organization))
                 .ok_or(Failure::UnknownType)
                 .and_then(|described| described.map_err(Failure::Malformed)),
-        )
+        ))
     }
 
     fn to_file(
         &self,
         content_type: Uuid,
         bytes: Vec<u8>,
-    ) -> impl Future<Output = Result<Option<PlainFile>, Failure>> + 'static {
-        ready(
+    ) -> LocalFuture<Result<Option<PlainFile>, Failure>> {
+        Box::pin(ready(
             match self.with_kind(content_type, |kind| {
                 kind.to_file.map(|to_file| to_file(&bytes))
             }) {
@@ -918,7 +915,7 @@ impl replicas::Guest for Module {
                 Some(None) => Ok(None),
                 Some(Some(file)) => file.map_err(Failure::Malformed),
             },
-        )
+        ))
     }
 
     fn search_text(
@@ -927,10 +924,10 @@ impl replicas::Guest for Module {
         content: Loaded,
         keys: Option<Vec<String>>,
         indexed: Vec<PartRef>,
-    ) -> impl Future<Output = Result<Vec<SearchDocument>, Failure>> + 'static {
+    ) -> LocalFuture<Result<Vec<SearchDocument>, Failure>> {
         let search = self.with_kind(content_type, |kind| kind.search_text);
         let indexed = indexed.into_iter().map(be_block::PartRef::from).collect();
-        async move {
+        Box::pin(async move {
             let search = search.ok_or(Failure::UnknownType)?;
             let documents = search(content, keys, indexed, request_parts())
                 .await
@@ -944,7 +941,7 @@ impl replicas::Guest for Module {
                     body: document.body,
                 })
                 .collect())
-        }
+        })
     }
 
     fn claims(
@@ -953,7 +950,7 @@ impl replicas::Guest for Module {
         first: Vec<u8>,
         directory: bool,
         fallback: bool,
-    ) -> impl Future<Output = Option<Uuid>> + 'static {
+    ) -> LocalFuture<Option<Uuid>> {
         let claimed = self
             .shared
             .types
@@ -967,7 +964,7 @@ impl replicas::Guest for Module {
                 }
             })
             .map(|kind| kind.info.content_type);
-        ready(claimed)
+        Box::pin(ready(claimed))
     }
 
     fn apply(
@@ -976,62 +973,53 @@ impl replicas::Guest for Module {
         bytes: Option<Vec<u8>>,
         client: ClientId,
         change: Change,
-    ) -> impl Future<Output = Result<Option<Vec<u8>>, Failure>> + 'static {
-        ready(
+    ) -> LocalFuture<Result<Option<Vec<u8>>, Failure>> {
+        Box::pin(ready(
             self.with_kind(content_type, |kind| {
                 apply(kind, bytes.as_deref(), client, change)
             })
             .ok_or(Failure::UnknownType)
             .and_then(|applied| applied),
-        )
+        ))
     }
 }
 
 impl replicas::GuestReplica for OpenReplica {
-    fn reopen(&self, opening: Opening) -> impl Future<Output = ()> + 'static {
+    fn reopen(&self, opening: Opening) -> LocalFuture<()> {
         self.module.open(self.id, opening);
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn message(
-        &self,
-        from: Endpoint,
-        bytes: Vec<u8>,
-        at: u64,
-    ) -> impl Future<Output = ()> + 'static {
+    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) -> LocalFuture<()> {
         self.module.tick(at);
         self.module.input(self.id, Input::Message { from, bytes });
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn attach(&self, editor: EditorId, editable: bool) -> impl Future<Output = ()> + 'static {
+    fn attach(&self, editor: EditorId, editable: bool) -> LocalFuture<()> {
         self.module
             .input(self.id, Input::Attach { editor, editable });
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn drained(&self, refused: bool, commits: Vec<CommitId>) -> impl Future<Output = ()> + 'static {
+    fn drained(&self, refused: bool, commits: Vec<CommitId>) -> LocalFuture<()> {
         self.module
             .input(self.id, Input::Drained { refused, commits });
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn detach(&self, editor: EditorId) -> impl Future<Output = ()> + 'static {
+    fn detach(&self, editor: EditorId) -> LocalFuture<()> {
         self.module.input(self.id, Input::Detach { editor });
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn head_moved(&self, head: CommitId) -> impl Future<Output = ()> + 'static {
+    fn head_moved(&self, head: CommitId) -> LocalFuture<()> {
         self.module
             .input(self.id, Input::Head(HeadEvent::Moved { head }));
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn lease(
-        &self,
-        session: SessionState,
-        resynchronize: bool,
-    ) -> impl Future<Output = ()> + 'static {
+    fn lease(&self, session: SessionState, resynchronize: bool) -> LocalFuture<()> {
         self.module.input(
             self.id,
             Input::Lease {
@@ -1039,37 +1027,37 @@ impl replicas::GuestReplica for OpenReplica {
                 resynchronize,
             },
         );
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn claim(&self) -> impl Future<Output = ()> + 'static {
+    fn claim(&self) -> LocalFuture<()> {
         self.module.input(self.id, Input::Claim);
-        ready(())
+        Box::pin(ready(()))
     }
 
-    fn change(&self, change: Change) -> impl Future<Output = bool> + 'static {
+    fn change(&self, change: Change) -> LocalFuture<bool> {
         let answered = self.module.ask(self.id, |id| Input::Change { id, change });
-        async move { changed(answered.await) }
+        Box::pin(async move { changed(answered.await) })
     }
 
-    fn content(&self) -> impl Future<Output = Option<Vec<u8>>> + 'static {
+    fn content(&self) -> LocalFuture<Option<Vec<u8>>> {
         let answered = self.module.ask(self.id, |id| Input::Content { id });
-        async move {
+        Box::pin(async move {
             match answered.await {
                 Some(Answer::Content(bytes)) => Some(bytes),
                 _ => None,
             }
-        }
+        })
     }
 
-    fn seal(&self, force: bool) -> impl Future<Output = ()> + 'static {
+    fn seal(&self, force: bool) -> LocalFuture<()> {
         let answered = self.module.ask(self.id, |id| Input::Seal { id, force });
-        async move {
+        Box::pin(async move {
             answered.await;
-        }
+        })
     }
 
-    fn on_drop(&self) -> impl Future<Output = ()> + 'static {
+    fn on_drop(&self) -> LocalFuture<()> {
         let (closed, closing) = ops::oneshot();
         let open = {
             let mut state = self.module.shared.state.borrow_mut();
@@ -1082,11 +1070,11 @@ impl replicas::GuestReplica for OpenReplica {
         if open {
             self.module.input(self.id, Input::Close);
         }
-        async move {
+        Box::pin(async move {
             if open {
                 closing.await;
             }
-        }
+        })
     }
 }
 

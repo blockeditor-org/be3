@@ -42,10 +42,10 @@ impl BlockContent for Probe {
         _: Option<&HashSet<String>>,
         _: &HashSet<PartRef>,
         parts: PartReader,
-    ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<SearchDocument>, String>>>> {
         let target = self.target;
         let reached = reach(target, parts);
-        async move {
+        Box::pin(async move {
             let reached = reached.await;
             Ok(PROBE_ANSWERS
                 .iter()
@@ -59,7 +59,7 @@ impl BlockContent for Probe {
                     }),
                 })
                 .collect())
-        }
+        })
     }
 }
 
@@ -109,9 +109,9 @@ impl MergeParts for Probe {
         ours: Self,
         _: Self,
         parts: PartReader,
-    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>> {
         let reached = reach(ours.target, parts);
-        async move { Err(reached.await) }
+        Box::pin(async move { Err(reached.await) })
     }
 }
 

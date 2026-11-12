@@ -1190,8 +1190,8 @@ impl MergeParts for ChatContent {
         ours: Self,
         theirs: Self,
         parts: PartReader,
-    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static {
-        async move {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>> {
+        Box::pin(async move {
             let mut bytes = SegmentBytes::new();
             for (is_theirs, segment) in Self::settling(&base, &ours, &theirs) {
                 // The side that closed it first, then the others: a segment one side holds only
@@ -1216,7 +1216,7 @@ impl MergeParts for ChatContent {
             Ok(MergeResult::Clean(Self::merged_with(
                 &base, &ours, &theirs, &bytes,
             )))
-        }
+        })
     }
 }
 

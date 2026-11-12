@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 use be_sdk_api::{
     EditorInstanceId, Fonts, Hello, HelloAccepted, InputBatch, Opening, Preferences, PresentCommit,
@@ -14,7 +14,7 @@ use be_sdk_api::{
     },
     ops::{
         OpId,
-        guest::{Executor, Sender, oneshot, spawn, with_parent},
+        guest::{Executor, LocalFuture, Sender, oneshot, spawn, with_parent},
     },
     shell_types::DragOver,
 };
@@ -171,10 +171,10 @@ pub(crate) struct OpenEditor {
 }
 
 impl paintings::Guest for Exports {
-    fn paintings(&self) -> impl Future<Output = Vec<u8>> + 'static {
+    fn paintings(&self) -> LocalFuture<Vec<u8>> {
         let (sender, painted) = oneshot();
         self.0.push(Delivery::Paintings(sender));
-        async move { painted.await.unwrap_or_default() }
+        Box::pin(async move { painted.await.unwrap_or_default() })
     }
 }
 
@@ -200,43 +200,38 @@ impl Guest for Exports {
         }
     }
 
-    fn screens(&self, screens: Vec<ScreenRequest>) -> impl Future<Output = ()> + 'static {
+    fn screens(&self, screens: Vec<ScreenRequest>) -> LocalFuture<()> {
         self.0.push(Delivery::Screens(screens));
-        std::future::ready(())
+        Box::pin(std::future::ready(()))
     }
 
-    fn describe(&self, on: bool) -> impl Future<Output = ()> + 'static {
+    fn describe(&self, on: bool) -> LocalFuture<()> {
         self.0.screens(move |screens| screens.describe(on));
-        std::future::ready(())
+        Box::pin(std::future::ready(()))
     }
 
-    fn run_action(&self, screen: ScreenId, id: String) -> impl Future<Output = ()> + 'static {
+    fn run_action(&self, screen: ScreenId, id: String) -> LocalFuture<()> {
         self.0
             .screens(move |screens| screens.run_action(screen, &id));
-        std::future::ready(())
+        Box::pin(std::future::ready(()))
     }
 
     fn node_action(
         &self,
         screen: ScreenId,
         request: be_sdk_api::accessibility::ActionRequest,
-    ) -> impl Future<Output = ()> + 'static {
+    ) -> LocalFuture<()> {
         self.0
             .screens(move |screens| screens.node_action(screen, request.into()));
-        std::future::ready(())
+        Box::pin(std::future::ready(()))
     }
 
-    fn configure(&self, serial: u64) -> impl Future<Output = ()> + 'static {
+    fn configure(&self, serial: u64) -> LocalFuture<()> {
         self.0.push(Delivery::Configure(serial));
-        std::future::ready(())
+        Box::pin(std::future::ready(()))
     }
 
-    fn draw(
-        &self,
-        now_micros: u64,
-        wall_micros: u64,
-        seen: bool,
-    ) -> impl Future<Output = PresentCommit> + 'static {
+    fn draw(&self, now_micros: u64, wall_micros: u64, seen: bool) -> LocalFuture<PresentCommit> {
         let (sender, drawn) = oneshot();
         self.0.0.borrow_mut().draws.push_back(sender);
         self.0.push(Delivery::Draw {
@@ -244,21 +239,21 @@ impl Guest for Exports {
             wall_micros,
             seen,
         });
-        async move {
+        Box::pin(async move {
             match drawn.await {
                 Some(commit) => commit,
                 None => std::future::pending().await,
             }
-        }
+        })
     }
 
-    fn shutdown(&self) -> impl Future<Output = ()> + 'static {
+    fn shutdown(&self) -> LocalFuture<()> {
         let (sender, done) = oneshot();
         self.0.0.borrow_mut().shutdowns.push(sender);
         self.0.push(Delivery::Shutdown);
-        async move {
+        Box::pin(async move {
             done.await;
-        }
+        })
     }
 }
 
@@ -356,67 +351,58 @@ fn dragged(drag: &DragOver) -> Option<crate::host::Dragged> {
 }
 
 impl GuestEditor for OpenEditor {
-    fn hear(&self, events: Vec<EditorEvent>) -> impl Future<Output = ()> + 'static {
+    fn hear(&self, events: Vec<EditorEvent>) -> LocalFuture<()> {
         for event in events {
             self.hear_one(event);
         }
-        std::future::ready(())
+        Box::pin(std::future::ready(()))
     }
 
-    fn commit_creation(
-        &self,
-    ) -> impl Future<Output = Result<[u8; 16], be_sdk_api::Failure>> + 'static {
+    fn commit_creation(&self) -> LocalFuture<Result<[u8; 16], be_sdk_api::Failure>> {
         let (sender, created) = oneshot();
         self.wire.call(self.instance, move |session| {
             sender.send(session.commit_creation())
         });
-        async move {
+        Box::pin(async move {
             created
                 .await
                 .unwrap_or(Err(be_sdk_api::Failure::Unavailable))
-        }
+        })
     }
 
-    fn regenerate_artifact(
-        &self,
-        data: Vec<u8>,
-    ) -> impl Future<Output = Result<(), be_sdk_api::Failure>> + 'static {
+    fn regenerate_artifact(&self, data: Vec<u8>) -> LocalFuture<Result<(), be_sdk_api::Failure>> {
         let (sender, regenerated) = oneshot();
         self.wire.call(self.instance, move |session| {
             session.regenerate_artifact(&data, sender)
         });
-        async move {
+        Box::pin(async move {
             regenerated
                 .await
                 .unwrap_or(Err(be_sdk_api::Failure::Unavailable))
-        }
+        })
     }
 
-    fn render_clip(
-        &self,
-        serial: u64,
-        format: String,
-    ) -> impl Future<Output = Option<Vec<u8>>> + 'static {
+    fn render_clip(&self, serial: u64, format: String) -> LocalFuture<Option<Vec<u8>>> {
         let (sender, rendered) = oneshot();
         self.wire.call(self.instance, move |session| {
             session.render_clip(serial, &format, sender)
         });
-        async move { rendered.await.flatten() }
+        Box::pin(async move { rendered.await.flatten() })
     }
 
-    fn replace_child(&self, old: [u8; 16], new: [u8; 16]) -> impl Future<Output = bool> + 'static {
+    fn replace_child(&self, old: [u8; 16], new: [u8; 16]) -> LocalFuture<bool> {
         let (sender, replaced) = oneshot();
         self.wire.call(self.instance, move |session| {
             sender.send(
                 session.replace_child(uuid::Uuid::from_bytes(old), uuid::Uuid::from_bytes(new)),
             )
         });
-        async move { replaced.await.unwrap_or(false) }
+        Box::pin(async move { replaced.await.unwrap_or(false) })
     }
 
-    fn on_drop(&self) -> impl Future<Output = ()> + 'static {
+    fn on_drop(&self) -> LocalFuture<()> {
         crate::asked::closed(self.instance);
         self.wire.push(Delivery::Close(self.instance));
-        async {}
+        Box::pin(async {})
     }
 }
