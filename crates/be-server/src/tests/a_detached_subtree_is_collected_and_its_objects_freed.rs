@@ -55,7 +55,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
     let response = client
         .call(|peer| client::blocks::list_blocks(peer, Listing::Backrefs(child)))
         .await;
-    let Ok(blocks) = response else {
+    let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
         panic!("backrefs failed: {response:?}");
     };
     assert_eq!(blocks.len(), 1);

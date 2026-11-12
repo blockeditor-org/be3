@@ -110,6 +110,33 @@ impl std::ops::Deref for ServerStore {
     }
 }
 
+/// Revisions handed out between two raises of `revision_floor`: the floor is written once per
+/// this many changes, not once per change.
+const REVISIONS_RESERVED: u64 = 1 << 16;
+
+/// Raises the stored floor past every revision this run may hand out before it raises it again,
+/// and answers where this run counts from: `from`, or at the start the floor a previous run left.
+/// A summary's revision then only grows across restarts, which devices rely on to tell newer
+/// from older (be-block-client's refs keep the newest summary of each block).
+fn reserve_revisions(connection: &Connection, from: Option<u64>) -> Result<u64, ServerError> {
+    let start = match from {
+        Some(from) => from,
+        None => connection
+            .query_row("SELECT revision FROM revision_floor WHERE id = 1", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .optional()?
+            .map_or(0, |floor| u64::try_from(floor).unwrap_or_default()),
+    };
+    let floor = i64::try_from(start + REVISIONS_RESERVED).unwrap_or(i64::MAX);
+    connection.execute(
+        "INSERT INTO revision_floor (id, revision) VALUES (1, ?1)
+         ON CONFLICT (id) DO UPDATE SET revision = MAX(revision, excluded.revision)",
+        params![floor],
+    )?;
+    Ok(start)
+}
+
 pub struct Shared {
     database: Arc<Mutex<Connection>>,
     pub(crate) session_changes: tokio::sync::watch::Sender<u64>,
@@ -119,6 +146,8 @@ pub struct Shared {
     /// must not wait behind writes: whether a reader may download an object.
     reader: std::sync::Mutex<Connection>,
     revision: std::sync::atomic::AtomicU64,
+    /// How far `revision` may run before `revision_floor` is raised again (`REVISIONS_RESERVED`).
+    reserved: std::sync::atomic::AtomicU64,
     graph_loads: std::sync::atomic::AtomicU64,
     object_refs: std::sync::Mutex<ObjectRefs>,
     pub(crate) passwords: passwords::Passwords,
@@ -168,13 +197,15 @@ impl ServerStore {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         reader.busy_timeout(Duration::from_secs(5))?;
+        let floor = reserve_revisions(&connection, None)?;
         Ok(Self(Arc::new(Shared {
             database: Arc::new(Mutex::new(connection)),
             session_changes: tokio::sync::watch::channel(0).0,
             objects,
             graphs: std::sync::Mutex::new(HashMap::new()),
             reader: std::sync::Mutex::new(reader),
-            revision: std::sync::atomic::AtomicU64::new(0),
+            revision: std::sync::atomic::AtomicU64::new(floor),
+            reserved: std::sync::atomic::AtomicU64::new(floor + REVISIONS_RESERVED),
             graph_loads: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
             passwords: passwords::Passwords::default(),
@@ -1459,6 +1490,11 @@ impl ServerStore {
         blocking(move || job(&store, &database)).await
     }
 
+    /// The newest revision handed out: every change after this call is at a later one.
+    pub fn revision(&self) -> u64 {
+        self.revision.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     fn in_graph<R>(
         &self,
         organization: Uuid,
@@ -1491,6 +1527,11 @@ impl ServerStore {
             .revision
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             + 1;
+        if revision >= self.reserved.load(std::sync::atomic::Ordering::Relaxed) {
+            let reserved = reserve_revisions(database, Some(revision))? + REVISIONS_RESERVED;
+            self.reserved
+                .fetch_max(reserved, std::sync::atomic::Ordering::Relaxed);
+        }
         graph.advance_to(revision);
         let changes = (graph.changes(), total_changes(database)?);
         let outcome = action(graph);

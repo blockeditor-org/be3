@@ -305,9 +305,11 @@ struct State {
     /// Each block's newest summary: what every listing that holds the block shows of it.
     summaries: HashMap<Uuid, BlockSummary>,
     listings: HashMap<Listing, Vec<Uuid>>,
-    /// The newest revision this device knew when it fetched each listing: a summary newer than
-    /// that is of a block made or moved since (`placed_in`).
+    /// The server's revision when it answered each `Children` and `Deleted` listing: a summary
+    /// newer than that is of a block made or moved since (`placed_in`).
     listed_at: HashMap<Listing, u64>,
+    /// The blocks each parent holds, as their summaries place them.
+    placed: HashMap<BlockParent, HashSet<Uuid>>,
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<(Uuid, WrappedBy), (u64, WrappedKey)>,
     contacts: Vec<(Uuid, [u8; 32])>,
@@ -353,7 +355,39 @@ impl State {
             let Some(value) = &row.value else { continue };
             let _ = state.add(&row, value);
         }
+        for summary in state.summaries.values() {
+            if let Some(parent) = summary.parent {
+                state.placed.entry(parent).or_default().insert(summary.id);
+            }
+        }
         state
+    }
+
+    /// Keeps `summary` as its block's, moving it in `placed` from its old parent to its new one.
+    fn keep(&mut self, summary: BlockSummary) {
+        let id = summary.id;
+        let parent = summary.parent;
+        if let Some(old) = self.summaries.insert(id, summary).and_then(|old| old.parent)
+            && Some(old) != parent
+            && let Some(held) = self.placed.get_mut(&old)
+        {
+            held.remove(&id);
+        }
+        if let Some(parent) = parent {
+            self.placed.entry(parent).or_default().insert(id);
+        }
+    }
+
+    fn drop_summary(&mut self, block: Uuid) -> bool {
+        let Some(old) = self.summaries.remove(&block) else {
+            return false;
+        };
+        if let Some(parent) = old.parent
+            && let Some(held) = self.placed.get_mut(&parent)
+        {
+            held.remove(&block);
+        }
+        true
     }
 
     fn add(&mut self, row: &Row, value: &[u8]) -> Result<(), StoreError> {
@@ -556,7 +590,7 @@ impl Refs {
         if newer || state.summaries.get(&summary.id) == Some(summary) {
             return;
         }
-        state.summaries.insert(summary.id, summary.clone());
+        state.keep(summary.clone());
         rows.push(row(Table::Summary, summary.id.as_bytes().to_vec(), summary));
     }
 
@@ -577,13 +611,27 @@ impl Refs {
                 Self::put(&mut state, summary, &mut rows);
             }
             let ids: Vec<Uuid> = blocks.iter().map(|summary| summary.id).collect();
-            let at = newest(&state);
-            if state.listed_at.insert(listing, at) != Some(at) {
-                state.listings.remove(&listing);
-            }
             Self::put_listing(&mut state, listing, ids, &mut rows);
         }
         self.write(rows)
+    }
+
+    /// Keeps a listing as the server answered it at `revision`, which a `Children` or `Deleted`
+    /// listing keeps too (`placed_in`).
+    pub fn listed(
+        &self,
+        listing: Listing,
+        blocks: &[BlockSummary],
+        revision: u64,
+    ) -> Result<(), StoreError> {
+        if matches!(listing, Listing::Children(_) | Listing::Deleted) {
+            let mut state = self.state.lock().unwrap();
+            if state.listed_at.insert(listing, revision) != Some(revision) {
+                // Written again with the listing below, whose row holds the revision.
+                state.listings.remove(&listing);
+            }
+        }
+        self.set_listing(listing, blocks)
     }
 
     pub fn add_to_listing(
@@ -649,7 +697,7 @@ impl Refs {
                 return self.write(rows);
             };
             summary.access = be_block_graph::Access::None;
-            state.summaries.insert(block, summary.clone());
+            state.keep(summary.clone());
             rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));
         }
         self.write(rows)
@@ -665,12 +713,10 @@ impl Refs {
         )
     }
 
-    /// A listing as this device last knew it, for answering offline. What a block references is
-    /// read from its summary, since one pushed or revised after the listing was fetched (another
-    /// device's seal, or this device's own offline) names what it references then.
-    /// Children and deleted blocks are every block whose summary puts it there, so one made or
-    /// moved since the listing was fetched shows where it is now, and backrefs are the summaries
-    /// that reference the block.
+    /// A listing as this device last knew it, for answering offline, as its summaries say now:
+    /// what a block references is its summary's references (one pushed or revised after the
+    /// listing was fetched names them then), children and deleted blocks are placed by their
+    /// summaries (`placed_in`), and backrefs are the summaries that reference the block.
     pub fn cached_listing(&self, listing: Listing) -> Option<Vec<BlockSummary>> {
         match listing {
             Listing::References(block) => {
@@ -704,26 +750,32 @@ impl Refs {
         }
     }
 
-    /// A listing of what `parent` holds that this device fetched before, as its summaries now
-    /// place them: what it listed and is still there, and every block whose summary is newer
-    /// than the listing and puts it there (made or moved since, by this device online or pushed
-    /// from the server, and so in no listing it fetched).
+    /// A `Children` or `Deleted` listing this device fetched before, as summaries now place its
+    /// blocks: those it listed that are still under `parent`, then those whose summary is newer
+    /// than the listing and puts them there (made or moved since, by this device online or
+    /// pushed from the server, so in no listing it fetched). A block this device may no longer
+    /// know of is left out.
     fn placed_in(&self, listing: Listing, parent: BlockParent) -> Option<Vec<BlockSummary>> {
         let state = self.state.lock().unwrap();
         let listed = state.listings.get(&listing)?;
         let at = state.listed_at.get(&listing).copied().unwrap_or_default();
-        let there = |summary: &&BlockSummary| summary.parent == Some(parent);
+        let empty = HashSet::new();
+        let there = state.placed.get(&parent).unwrap_or(&empty);
+        let shown = |summary: &&BlockSummary| summary.access.can_know_exists();
         let mut placed: Vec<BlockSummary> = listed
             .iter()
+            .filter(|id| there.contains(id))
             .filter_map(|id| state.summaries.get(id))
-            .filter(there)
+            .filter(shown)
             .cloned()
             .collect();
-        let mut since: Vec<BlockSummary> = state
-            .summaries
-            .values()
-            .filter(there)
-            .filter(|summary| summary.revision > at && !listed.contains(&summary.id))
+        let listed: HashSet<&Uuid> = listed.iter().collect();
+        let mut since: Vec<BlockSummary> = there
+            .iter()
+            .filter(|id| !listed.contains(id))
+            .filter_map(|id| state.summaries.get(id))
+            .filter(|summary| summary.revision > at)
+            .filter(shown)
             .cloned()
             .collect();
         since.sort_by_key(|summary| summary.id);
@@ -1144,7 +1196,7 @@ impl Refs {
                 }
             }
             for block in &gone {
-                if state.summaries.remove(block).is_some() {
+                if state.drop_summary(*block) {
                     rows.push(Row {
                         table: Table::Summary,
                         key: block.as_bytes().to_vec(),

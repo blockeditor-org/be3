@@ -6,7 +6,7 @@ use std::{
 
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
-    AccountStorage, Authenticated, BlockChange, BlockEvent, BlockSummary, BrowserLogin,
+    AccountStorage, Authenticated, BlockChange, BlockEvent, BrowserLogin,
     BrowserLoginState, Collected, Contents, CreatedAgent, Error, ErrorCode, Header, Listing,
     OrganizationOpened, PairingMessage, RecoveryKey, SessionEvent, SessionState, UploadUrl, embed,
 };
@@ -1726,6 +1726,7 @@ impl Client {
                     connection
                         .list(Listing::Block(block))
                         .await?
+                        .blocks
                         .pop()
                         .ok_or(ServerError::Corrupt)
                 }
@@ -2792,9 +2793,10 @@ impl Connection {
         }
     }
 
-    async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ServerError> {
+    async fn list(&self, listing: Listing) -> Result<be_block_protocol::Listed, ServerError> {
         let identity = self.identity()?;
         let new = self.hub.list(self.client, listing).await?;
+        let revision = self.store.revision();
         let blocks = async {
             Ok::<_, ServerError>(match listing {
                 Listing::Shared => self.store.list_shared(identity).await?,
@@ -2817,7 +2819,7 @@ impl Connection {
             }
         };
         self.hub.listed(self.client, listing, &blocks).await;
-        Ok(blocks)
+        Ok(be_block_protocol::Listed { revision, blocks })
     }
 
     async fn announce(&self, block: Place, state: &SessionState) {

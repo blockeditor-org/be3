@@ -66,7 +66,7 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     let listed = guest
         .call(|peer| client::blocks::list_blocks(peer, Listing::OpenSettings(note)))
         .await;
-    let Ok(blocks) = listed else {
+    let Ok(be_block_protocol::Listed { blocks, .. }) = listed else {
         panic!("listing the open settings failed: {listed:?}");
     };
     assert_eq!(

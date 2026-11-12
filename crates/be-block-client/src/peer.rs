@@ -1138,8 +1138,8 @@ impl<S: ObjectStore> Peer<S> {
 
     async fn listed(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
-            Ok(blocks) => {
-                let _ = self.refs.set_listing(listing, &blocks);
+            Ok(be_block_protocol::Listed { revision, blocks }) => {
+                let _ = self.refs.listed(listing, &blocks, revision);
                 let _ = self.refs.observe(&blocks);
                 Ok(blocks)
             }

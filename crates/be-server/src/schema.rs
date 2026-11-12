@@ -356,6 +356,11 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, block_id, sequence)
     );
 
+    CREATE TABLE revision_floor (
+        id              INTEGER PRIMARY KEY CHECK (id = 1),
+        revision        INTEGER NOT NULL
+    );
+
     CREATE TABLE push_key (
         id              INTEGER PRIMARY KEY CHECK (id = 1),
         pkcs8           BLOB NOT NULL

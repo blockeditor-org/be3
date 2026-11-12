@@ -718,6 +718,7 @@ impl TestClient {
         self.call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent)))
             .await
             .expect("listing failed")
+            .blocks
     }
 
     async fn publish(
