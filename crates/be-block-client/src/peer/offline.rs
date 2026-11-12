@@ -705,10 +705,16 @@ impl<S: ObjectStore> Peer<S> {
     /// Sets what this device keeps of `block` aside: what its commits announce is never sent
     /// (a message shown "Not sent" tells nobody, and one sent again tells as a new one).
     /// With `refused`, the server refused it with that code; otherwise this account lost access.
-    pub fn move_to_unsent(&self, block: Uuid, refused: Option<String>) -> Result<bool, ClientError> {
+    pub fn move_to_unsent(
+        &self,
+        block: Uuid,
+        refused: Option<String>,
+    ) -> Result<bool, ClientError> {
         let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
         self.refs.commits_refused(block, &commits)?;
-        Ok(self.refs.move_to_unsent(block, now_milliseconds(), refused)?)
+        Ok(self
+            .refs
+            .move_to_unsent(block, now_milliseconds(), refused)?)
     }
 
     fn lose_access(&self, block: Uuid) -> Result<Drained, ClientError> {

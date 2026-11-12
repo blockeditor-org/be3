@@ -540,9 +540,7 @@ fn refusal(code: &str) -> &'static str {
         "OverQuota" => "The server refused it: it would go over a limit",
         "InvalidRequest" => "The server refused it: it could not take it as it is",
         "PolicyRefused" => "The server refused it: your organization does not allow it",
-        "PermissionDenied" | "BlockNotFound" => {
-            "The server refused it: you may not make it there"
-        }
+        "PermissionDenied" | "BlockNotFound" => "The server refused it: you may not make it there",
         _ => "The server refused it",
     }
 }
