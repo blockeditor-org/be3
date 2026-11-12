@@ -836,10 +836,17 @@ pub fn backgrounded() {
     send(Command::Flush(done));
 }
 
-/// How long a test waits for the stack before failing: a wait that never ends would hang the
-/// whole test target until the build server's timeout, with no word of which test or wait.
+/// How long a test waits for a stack that says nothing before failing: a wait that never ends
+/// would hang the whole test target until the build server's timeout, with no word of which test
+/// or wait. Every word the stack says (it wakes the wait) starts the limit again, so a machine
+/// too busy to run it quickly is waited for, and one that stopped is not.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// How long a wait may go on in all, however much the stack says: one that keeps talking and
+/// never gets there (a connection retried over and over) still has to end.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(600);
 
 /// Makes this stack's `wait_until` move its manual clock on to the moment the stack waits on to
 /// reconnect after a connection failed, as a real clock would have: a manual clock never gets
@@ -850,7 +857,7 @@ pub fn drive_reconnects() {
 }
 
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
-/// `WAIT_LIMIT`.
+/// `WAIT_LIMIT` of silence from the stack, or `WAIT_CAP` in all.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 #[track_caller]
 pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
@@ -860,7 +867,8 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         .as_ref()
         .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))
         .expect("the stack is running");
-    let deadline = std::time::Instant::now() + WAIT_LIMIT;
+    let started = std::time::Instant::now();
+    let mut deadline = started + WAIT_LIMIT;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     loop {
         if let Some(value) = read(&held) {
@@ -884,14 +892,19 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
             );
             drop(held);
             panic!(
-                "the stack never reached what this waits for in {} s ({state})",
-                WAIT_LIMIT.as_secs()
+                "the stack never reached what this waits for: it said nothing for {} s, or the wait took {} s in all ({state})",
+                WAIT_LIMIT.as_secs(),
+                WAIT_CAP.as_secs()
             );
         }
-        held = changed
+        let (next, waited) = changed
             .wait_timeout(held, left)
-            .unwrap_or_else(PoisonError::into_inner)
-            .0;
+            .unwrap_or_else(PoisonError::into_inner);
+        held = next;
+        if !waited.timed_out() {
+            let now = std::time::Instant::now();
+            deadline = (now + WAIT_LIMIT).min(started + WAIT_CAP);
+        }
     }
 }
 
