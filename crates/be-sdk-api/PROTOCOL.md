@@ -48,7 +48,11 @@ uuid is its 16 bytes and a hash its 32, each under the alias of what it names
 out is an alias named `<thing>-id` (`screen-id`, `child-id`, `web-view-id`).
 
 It exports `app` (`app.wit`): `resource editor`, one open editor instance,
-whose methods are what the host says to that instance and whose drop closes it;
+whose methods are what the host says to that instance and whose drop closes it:
+what happens around the editor, one way (`editor-event`: menu picks, child
+bars, focus, resizes, drags, dialogs), is a list in one `hear`, and the
+methods besides it (creating, regenerating, replacing, rendering) are the
+calls that answer;
 the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
 `block-command` changes the block (undo, redo, its artifact, unlink, delete,
@@ -707,7 +711,7 @@ lays the view out, draws its card and beak if it has one, and places the child
 in it, whose own pixels appear one frame after the view. That is how an
 instance asks for a block (the picker, below), renames one
 (`child-content.rename`, run in the editor whose manifest accepts `rename`,
-opened as `opening.rename`, which says it is done with `close-dialog`,
+opened as `opening-kind.rename`, which says it is done with `close-dialog`,
 arriving as the child's `child-status.dialog`) and shows the host's menu
 (`host-panel.menu`, which the host draws and reports done the same way,
 its size as the child's intrinsic size). The instance marks the view
@@ -944,7 +948,7 @@ bottom edge of its bounds filling them for touch; it frames the child with its c
 picker says it shows a card (`shell-message.show-card`), and a press outside the view
 answers the pick with none. The host runs the child in
 the editor whose manifest accepts `pick` (the workspace's `picker`), opened as
-`opening::picker`; that editor reads the block graph for itself, so the
+`opening-kind.picker`; that editor reads the block graph for itself, so the
 instance that asked never sees what the picker browses. The picker answers once with
 `shell-message.picked`: the block chosen or created and whether it was an existing
 block linked rather than a new one, none when the user cancelled, or why the

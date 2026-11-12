@@ -32,6 +32,7 @@ use crate::target::{coordinates, hidden, locate, node, place, point, scaled, sho
 use crate::{Inbox, Reply, Request, changes};
 
 const CHANGES: usize = 60;
+const NOTHING_OUTSIDE: &str = "this program has nothing outside its window to keep in step with";
 const FRAME: Duration = Duration::from_micros(16_667);
 
 /// The frames a long pause is divided into, before the last few of a frame interval each.
@@ -48,6 +49,12 @@ pub const USAGE: &str = "Session:
                             the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
                             open, to ask about unsaved changes, answers with what changed
+  synced                    wait until the program has settled and says it waits on nothing outside
+                            its window (Program::out_of_step), such as be-host connected with
+                            nothing left to send and everything it missed asked for; an error for a
+                            program with nothing outside to keep in step with
+  offline                   wait until the program says it is not connected to what it keeps in step
+                            with (Program::connected), as after its network went away
   help                      this
 Reading the program:
   tree                      the accessibility tree, one node per line
@@ -83,6 +90,8 @@ The platform's side:
   resize WIDTHxHEIGHT[@SCALE]   resize the headless window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen headless window fills
   focus / blur              the window gains or loses focus; blur cancels the pointers and lets go of held keys
+  network                   the platform says the network changed, as when it comes back, so a
+                            program waiting to reconnect tries at once
   clipboard [TEXT]          read the clipboard, or put TEXT on it
   upload FILE [TARGET]      answer the file dialog with FILE, clicking TARGET first to open it
   save FILE [TARGET]        answer the save dialog by writing what it saves to FILE, clicking
@@ -159,7 +168,8 @@ enum Kind {
 
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
-        "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
+        "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" | "synced"
+        | "offline" | "network" => Kind::Session,
         "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act"
         | "a11y" | "wait" | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
@@ -333,6 +343,10 @@ impl<'a> View<'a> {
 struct Settled {
     busy: Vec<String>,
     drawing: bool,
+    /// While `synced` waits: what keeps the program from being in step with its server.
+    out_of_step: Vec<String>,
+    /// While `offline` waits: whether the program is connected.
+    connected: Option<bool>,
 }
 
 /// How far a pause with `remaining` left moves a stopped clock for the next frame: a frame
@@ -381,6 +395,8 @@ enum Phase {
     Settling {
         before: Option<Rc<Rendered>>,
     },
+    Syncing,
+    Offline,
     Waiting {
         text: String,
         present: bool,
@@ -763,8 +779,17 @@ impl Session {
         }
         let mut busy = frame_busy(run, self.clock_stopped);
         busy.extend(frame.program.busy());
+        let out_of_step = match &self.active {
+            Some(Active {
+                phase: Phase::Syncing,
+                ..
+            }) => frame.program.out_of_step().unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        // A wait for the server is no frame owed, so it is only named if `synced` times out.
+        let named: Vec<String> = busy.iter().chain(&out_of_step).cloned().collect();
         self.inbox.note_busy(
-            &busy,
+            &named,
             // A pause is what lets the stopped clock move: it is not the held frame that
             // keeps it from replying.
             frame_held(run, self.clock_stopped).filter(|_| {
@@ -778,6 +803,14 @@ impl Session {
         let settled = Settled {
             busy,
             drawing: frame.program.drawing(),
+            out_of_step,
+            connected: match &self.active {
+                Some(Active {
+                    phase: Phase::Offline,
+                    ..
+                }) => frame.program.connected(),
+                _ => None,
+            },
         };
         self.settle(view, settled, output, &frame.above);
         run.unpaced |= self.clock_stopped && owed && self.active.is_some();
@@ -973,6 +1006,12 @@ impl Session {
                             capped(changes(before.text(), view.rendered().text()), limit)
                         }
                     }))
+                }
+                Phase::Syncing if quiet && settled.out_of_step.is_empty() => {
+                    Some(Reply::Text(String::new()))
+                }
+                Phase::Offline if settled.connected == Some(false) => {
+                    Some(Reply::Text(String::new()))
                 }
                 Phase::Waiting {
                     text,
@@ -1254,6 +1293,20 @@ impl Session {
                     before: Some(view.rendered()),
                 })),
             },
+            "synced" => match frame.program.out_of_step() {
+                Some(_) => Ok(Started::Phase(Phase::Syncing)),
+                None => Err(NOTHING_OUTSIDE.to_owned()),
+            },
+            "offline" => match frame.program.connected() {
+                Some(_) => Ok(Started::Phase(Phase::Offline)),
+                None => Err(NOTHING_OUTSIDE.to_owned()),
+            },
+            "network" => {
+                frame
+                    .program
+                    .lifecycle(beui_core::program::Lifecycle::NetworkChanged);
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
             "hurry" => {
                 self.unhurried = match argument(0)? {
                     "on" => false,

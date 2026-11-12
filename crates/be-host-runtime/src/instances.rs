@@ -3,9 +3,10 @@ use be_sdk_api::{
     AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
     DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
-    OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, PerformanceMeasurement, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View, ViewAnchor,
-    ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
+    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View,
+    ViewAnchor, ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent,
+    WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -2110,67 +2111,63 @@ impl Instances {
                 entry.opened = true;
                 let account_id = account.into_bytes();
                 let organization_id = organization.into_bytes();
-                opened.push(Outbound::Open(Box::new(match entry.role {
-                    InstanceRole::Editor(editor, block) => Opening::Block(OpenBlock {
-                        instance,
-                        editor: editor.into_bytes(),
-                        block_id: block.id.into_bytes(),
-                        block_type: block.block_type.into_bytes(),
-                        view_block: block.view_block.map(Uuid::into_bytes),
-                        account_id,
-                        organization_id,
-                        client_id,
-                        editable: {
-                            let editable = be_host_stack::access(block.id).can_edit();
-                            entry.reported_editable = Some(editable);
-                            editable
-                        },
-                        page_origin: page_origin(),
-                        host_palette: crate::host_draws_palette(),
-                    }),
+                let (editor, kind) = match entry.role {
+                    InstanceRole::Editor(editor, block) => (
+                        editor,
+                        OpeningKind::Block(OpenBlock {
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            view_block: block.view_block.map(Uuid::into_bytes),
+                            editable: {
+                                let editable = be_host_stack::access(block.id).can_edit();
+                                entry.reported_editable = Some(editable);
+                                editable
+                            },
+                            page_origin: page_origin(),
+                            host_palette: crate::host_draws_palette(),
+                        }),
+                    ),
                     InstanceRole::Picker(editor) => {
                         let picker = super::picker_request(instance).unwrap_or_default();
-                        Opening::Picker(OpenPicker {
-                            instance,
-                            editor: editor.into_bytes(),
-                            filter: picker.filter,
-                            parent: picker.parent,
-                            sheet: picker.sheet,
-                            account_id,
-                            organization_id,
-                            client_id,
-                        })
+                        (
+                            editor,
+                            OpeningKind::Picker(OpenPicker {
+                                filter: picker.filter,
+                                parent: picker.parent,
+                                sheet: picker.sheet,
+                            }),
+                        )
                     }
-                    InstanceRole::Rename(editor, block, sheet) => Opening::Rename(OpenRename {
-                        instance,
-                        editor: editor.into_bytes(),
-                        block_id: block.into_bytes(),
-                        sheet,
-                        account_id,
-                        organization_id,
-                        client_id,
-                    }),
-                    InstanceRole::Creation(editor, template) => Opening::Creation(OpenCreation {
-                        instance,
-                        editor: editor.into_bytes(),
-                        template: template.to_owned(),
-                        account_id,
-                        organization_id,
-                        client_id,
-                    }),
-                    InstanceRole::Artifact(editor, block, source) => {
-                        Opening::Artifact(OpenArtifact {
-                            instance,
-                            editor: editor.into_bytes(),
+                    InstanceRole::Rename(editor, block, sheet) => (
+                        editor,
+                        OpeningKind::Rename(OpenRename {
+                            block_id: block.into_bytes(),
+                            sheet,
+                        }),
+                    ),
+                    InstanceRole::Creation(editor, template) => (
+                        editor,
+                        OpeningKind::Creation(OpenCreation {
+                            template: template.to_owned(),
+                        }),
+                    ),
+                    InstanceRole::Artifact(editor, block, source) => (
+                        editor,
+                        OpeningKind::Artifact(OpenArtifact {
                             block_id: block.id.into_bytes(),
                             block_type: block.block_type.into_bytes(),
                             source: source.into_bytes(),
-                            account_id,
-                            organization_id,
-                            client_id,
                             data: entry.artifact.data.clone(),
-                        })
-                    }
+                        }),
+                    ),
+                };
+                opened.push(Outbound::Open(Box::new(Opening {
+                    instance,
+                    editor: editor.into_bytes(),
+                    account_id,
+                    organization_id,
+                    client_id,
+                    kind,
                 })));
                 let mut statuses: Vec<_> = entry
                     .screens

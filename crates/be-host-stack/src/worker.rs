@@ -480,6 +480,13 @@ pub struct Shared {
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
+    /// Between connecting and having asked for everything the device must catch up on: set as
+    /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
+    /// outbox has drained and the open replicas have rejoined their sessions.
+    pub arriving: bool,
+    /// Set when a command ran or a seal moved edits into the outbox, until `report` has read
+    /// the outbox into `waiting` again: `waiting` is stale meanwhile.
+    pub recounting: bool,
     pub draining: bool,
     /// Counts finished drains of the outbox.
     pub drains: u64,
@@ -546,6 +553,32 @@ impl Shared {
         self.touched.insert(block);
     }
 
+    /// What keeps the device from being in step with the server, apart from `busy`: drive's
+    /// `synced` waits until there is nothing.
+    pub fn unsynced(&self) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if !self.connected {
+            reasons.push(match &self.error {
+                Some(error) => format!("the block store is not connected to the server: {error}"),
+                None => "the block store is not connected to the server".to_owned(),
+            });
+        }
+        if self.arriving {
+            reasons.push("the block store catches up with the server after connecting".to_owned());
+        }
+        if self.draining {
+            reasons.push("the block store sends the edits it kept".to_owned());
+        }
+        if self.recounting {
+            reasons.push("the block store has yet to count what waits to be sent".to_owned());
+        }
+        let waiting = self.unsealed + self.waiting;
+        if waiting > 0 {
+            reasons.push(format!("{waiting} edit(s) wait to be sent"));
+        }
+        reasons
+    }
+
     pub fn busy(&self) -> Vec<&'static str> {
         [
             (
@@ -560,6 +593,10 @@ impl Shared {
                 "the block store lists a block's revisions",
             ),
             (self.owing > 0, "the block store owes edits a seal"),
+            (
+                self.undurable > 0,
+                "the block store keeps edits the device's journal does not hold yet",
+            ),
             (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
@@ -639,6 +676,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             versions_due: None,
             version_failures: 0,
             rejoin: false,
+            in_arrive: false,
         };
         session.run(open).await;
         forget_what_is_not_kept(&peer);
@@ -834,6 +872,9 @@ struct Session<'a> {
     versions_due: Option<Duration>,
     version_failures: u32,
     rejoin: bool,
+    /// While `arrive` runs, which says the device arrived itself once it has asked for
+    /// everything.
+    in_arrive: bool,
 }
 
 impl Session<'_> {
@@ -1156,6 +1197,9 @@ impl Session<'_> {
         if self.line.is_up() {
             self.replicas.reconnect((peer, shared));
         }
+        if !self.in_arrive {
+            arrived(shared);
+        }
         true
     }
 
@@ -1195,6 +1239,7 @@ impl Session<'_> {
                 held.connection_due = Some(peer.connection().due());
             }
             held.reached = true;
+            held.arriving = true;
             held.error = None;
         }
         self.changed.notify_all();
@@ -1208,6 +1253,7 @@ impl Session<'_> {
         self.tasks.0.notify_modes(peer, shared);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
+        self.in_arrive = true;
         self.settle_outbox().await;
         for (block, content_type) in self.wanted.blocks() {
             open_wanted(
@@ -1223,15 +1269,30 @@ impl Session<'_> {
         self.replicas.pump((peer, shared)).await;
         self.versions.reconnected();
         self.refresh_versions().await;
+        self.in_arrive = false;
+        // Rejoined already when the outbox had nothing to drain; otherwise `settle_outbox` says
+        // so once the drain ends and the replicas rejoin.
+        if !self.rejoin {
+            arrived(shared);
+        }
         report(peer, shared);
         self.changed.notify_all();
         be_host_base::host::wake();
     }
 }
 
+/// The device has asked for everything it missed while away (`Shared::arriving`).
+fn arrived(shared: &Arc<Mutex<Shared>>) {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .arriving = false;
+}
+
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.connected = false;
+    held.arriving = false;
     held.connection = None;
 }
 
@@ -1347,8 +1408,9 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     expire_unsent(peer, now);
     let counts = peer.pending();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let mut changed = held.waiting != counts.operations;
+    let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
+    held.recounting = false;
     if held.unsent.len() != counts.unsent {
         held.unsent = peer.unsent();
         changed = true;
@@ -1730,6 +1792,7 @@ impl Ran<'_> {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
             (held.unsealed, held.owing, held.undurable) = self.replicas.counts();
+            held.recounting = true;
             held.typing = !self.replicas.modules.settled();
         }
         be_host_base::host::wake();

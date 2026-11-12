@@ -23,21 +23,16 @@ left of this step:
 - `bar-action` has one variant, `details`; drop the enum and make it a
   `details` message (and step 3's `child-bar` a `details` event).
 
-## 3. The editor's one-way methods are one event call
+## 3. The editor's one-way methods are one event call (left)
 
-`app.wit`'s `editor` interface has 14 methods that return nothing:
-`menu-pick`, `child-bar`, `child-focused`, `set-editable`, `view-changed`,
-`presenting-changed`, `presence`, `focus-changed`, `resized`, `drag-over`,
-`drag-left`, `artifact-settings`, `dismiss`, `show-dialog`. The host already
-holds them as one internal `EditorCall` enum (`be-host-runtime/src/calls.rs`)
-and unpacks it arm by arm (`be-host-runtime/src/wire.rs`); the guest re-wraps
-each (`be-sdk/src/wire.rs`).
-
-Replace them with `hear: async func(instance, events: list<editor-event>)`.
-The WIT variant replaces the internal enum. `drag-over` and `drag-left` become
-one `drag(option<drag-over>)`. `child-bar` and `child-focused` drop the `view`
-argument the guest ignores. The four methods that answer (`commit-creation`,
-`regenerate-artifact`, `replace-child`, `render-clip`) stay.
+`editor.hear` and `editor-event` replaced the 14 one-way methods; the host
+queues events and sends them as one list per `Outbound` batch
+(`Wire::flush_hearing`), and the guest turns each into the same closure as
+before (`be-sdk/src/wire.rs`). What is left: the host's internal `EditorCall`
+enum (`be-host-runtime/src/calls.rs`) still has a variant per event and
+`Wire::call` converts it; make `EditorEvent` the one type, so `Instances`
+makes events directly. `child-bar` and `child-focused` still carry the `view`
+the guest ignores in `EditorCall` (the WIT dropped it).
 
 ## 4. Block watches are one resource
 
@@ -72,16 +67,6 @@ Add `version(version-command)`, `share`, `leave`, `close-editor`,
 host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
 whether `set-parent` and the existing `move-command`/`reorder-command` are one
 thing, and keep one.
-
-## 6. Openings share one header
-
-`open-block`, `open-creation`, `open-artifact`, `open-picker` and
-`open-rename` (`be-sdk-api/wit/types.wit`) each repeat `instance`, `editor`,
-`account-id`, `organization-id` and `client-id`. Make one
-`record opening { instance, editor, account-id, organization-id, client-id,
-kind: opening-kind }`, where each `opening-kind` case holds only its own
-fields. This removes `Opening::instance` (`be-sdk-api/src/opening.rs`) and the
-five-arm match in `be-sdk/src/screens.rs` that pulls the shared fields out.
 
 ## 7. The host's per-instance queues are one pushed stream
 
@@ -280,13 +265,14 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
 
 ## 15. Host, CLI and test harness
 
-- `BeuiTest` (`be-sdk-test/src/beui.rs`): make `take_shell_calls(pick)`
-  public beside `take_host_calls`, and remove the one-line `take_*` wrappers
-  that only pick a `ShellCall` variant, keeping those that decode something.
-  `take_copies`, `take_copied`, `take_copied_text` and `take_copied_images`
-  become `take_copied(format)`. Remove `host_calls` and `rects_of` (no
-  callers); fold `pick_menu_from` into `pick_menu`. After step 2 this picks
-  `ShellMessage`s.
+- `BeuiTest` (`be-sdk-test/src/beui.rs`): make `take_calls` public as
+  `take_shell_messages(pick)` beside `take_host_calls`, and remove the
+  one-line `take_*` wrappers that only pick a `ShellMessage` variant (about 15,
+  with 3 to 17 callers each across the app tests), keeping those that decode
+  something. `take_copies`, `take_copied`, `take_copied_text` and
+  `take_copied_images` become `take_copied(format)`, with the serial of a copy
+  in a separate accessor if a test needs it (`take_copies` has two callers in
+  be-sdk-beui-platform).
 - `HostTest` (`be-host-tests/src/lib.rs`): `start`, `start_desktop`,
   `start_in_space`, `start_drawing_previews` and `start_with` become
   `start(Options)`.

@@ -1,4 +1,4 @@
-use be_sdk_api::Opening;
+use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
@@ -11,6 +11,7 @@ use be_sdk_api::{
     OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
     ViewId, ViewportMetrics,
 };
+use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::{
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
@@ -325,66 +326,49 @@ impl<A: BeuiRoot> BeuiTest<A> {
             host.organization_id().into_bytes(),
             host.client_id().into_bytes(),
         );
-        let open = match kind {
+        let opening_kind = match kind {
             Kind::Frame(block) | Kind::Preview(block) => {
                 store.own(block, block_type);
-                Opening::Block(OpenBlock {
-                    instance: INSTANCE,
-                    editor: ADOPTED_EDITOR,
+                OpeningKind::Block(OpenBlock {
                     block_id: block.into_bytes(),
                     block_type: block_type.into_bytes(),
                     view_block: host.view_block().map(Uuid::into_bytes),
-                    account_id,
-                    organization_id,
-                    client_id,
                     editable: host.editable(),
                     page_origin: host.page_origin(),
                     host_palette: host.host_palette(),
                 })
             }
-            Kind::Creation => Opening::Creation(OpenCreation {
-                instance: INSTANCE,
-                editor: ADOPTED_EDITOR,
+            Kind::Creation => OpeningKind::Creation(OpenCreation {
                 template: template.clone(),
-                account_id,
-                organization_id,
-                client_id,
             }),
             Kind::Picker => {
                 let request = PICKER
                     .with(|picker| picker.borrow_mut().take())
                     .expect("a picker test names what it picks");
-                Opening::Picker(be_sdk_api::OpenPicker {
-                    instance: INSTANCE,
-                    editor: ADOPTED_EDITOR,
+                OpeningKind::Picker(be_sdk_api::OpenPicker {
                     filter: request.filter,
                     parent: request.parent.encode(),
                     sheet: request.sheet,
-                    account_id,
-                    organization_id,
-                    client_id,
                 })
             }
-            Kind::Rename(block) => Opening::Rename(be_sdk_api::OpenRename {
-                instance: INSTANCE,
-                editor: ADOPTED_EDITOR,
+            Kind::Rename(block) => OpeningKind::Rename(be_sdk_api::OpenRename {
                 block_id: block.into_bytes(),
                 sheet: false,
-                account_id,
-                organization_id,
-                client_id,
             }),
-            Kind::Settings => Opening::Artifact(OpenArtifact {
-                instance: INSTANCE,
-                editor: ADOPTED_EDITOR,
+            Kind::Settings => OpeningKind::Artifact(OpenArtifact {
                 block_id: artifact.unwrap_or_default().0.into_bytes(),
                 block_type: block_type.into_bytes(),
                 source: artifact.unwrap_or_default().1.into_bytes(),
-                account_id,
-                organization_id,
-                client_id,
                 data: data.clone(),
             }),
+        };
+        let open = Opening {
+            instance: INSTANCE,
+            editor: ADOPTED_EDITOR,
+            account_id,
+            organization_id,
+            client_id,
+            kind: opening_kind,
         };
         let frame = match &kind {
             Kind::Frame(_) => Some(be_sdk_api::FrameSpec {
@@ -604,7 +588,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
         self.call(|editor, connection| {
-            editor.artifact_settings(connection, data);
+            editor.hear(connection, vec![EditorEvent::ArtifactSettings(data)]);
         });
     }
 
@@ -668,14 +652,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn pick_menu(&mut self, id: &str) {
-        self.pick_menu_from(id, None);
-    }
-
-    pub fn pick_menu_from(&mut self, id: &str, anchor: Option<Rect>) {
         self.menu_entry(id);
         let id = id.to_owned();
         self.call(|editor, connection| {
-            editor.menu_pick(connection, ViewId::MAIN, id, anchor);
+            editor.hear(
+                connection,
+                vec![EditorEvent::MenuPick(MenuChoice {
+                    view: ViewId::MAIN,
+                    id,
+                    anchor: None,
+                })],
+            );
         });
         self.run();
     }
@@ -695,7 +682,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn dismiss(&mut self) {
         self.call(|editor, connection| {
-            editor.dismiss(connection);
+            editor.hear(connection, vec![EditorEvent::Dismiss]);
         });
         self.run();
     }
@@ -752,7 +739,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
         self.call(|editor, connection| {
-            editor.child_bar(connection, ViewId::MAIN, child, action);
+            editor.hear(
+                connection,
+                vec![EditorEvent::ChildBar(ChildBarPress { child, action })],
+            );
         });
     }
 
@@ -763,7 +753,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
             viewport.show(view, scale, band, rect.min);
         }
         self.call(|editor, connection| {
-            editor.view_changed(connection, view, scale);
+            editor.hear(
+                connection,
+                vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
+            );
         });
     }
 
@@ -811,7 +804,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             dropped,
         };
         self.call(|editor, connection| {
-            editor.drag_over(connection, drag);
+            editor.hear(connection, vec![EditorEvent::Drag(Some(drag))]);
         });
     }
 
@@ -960,7 +953,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn presence_visible(&mut self, visible: bool) {
         self.call(|editor, connection| {
-            editor.presence(connection, visible);
+            editor.hear(connection, vec![EditorEvent::Presence(visible)]);
         });
         self.run();
     }
@@ -971,7 +964,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             height: size.y,
         };
         self.call(|editor, connection| {
-            editor.resized(connection, size);
+            editor.hear(connection, vec![EditorEvent::Resized(size)]);
         });
         self.run();
     }
@@ -1227,7 +1220,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .and_then(|viewport| viewport.place(band, rect.min, intrinsic))
         {
             inbox.push(self.framed(|editor, connection| {
-                editor.view_changed(connection, view, scale);
+                editor.hear(
+                    connection,
+                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
+                );
             }));
         }
         self.clock += FRAME_INTERVAL;
@@ -1308,7 +1304,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         });
         if let Some((view, scale)) = placed {
             let framed = self.framed(|editor, connection| {
-                editor.view_changed(connection, view, scale);
+                editor.hear(
+                    connection,
+                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
+                );
             });
             self.inbox.push(framed);
         }
@@ -1790,7 +1789,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.call(|editor, connection| {
-            editor.show_dialog(connection, block.into_bytes(), dialog);
+            editor.hear(
+                connection,
+                vec![EditorEvent::ShowDialog(DialogRequest {
+                    block: block.into_bytes(),
+                    dialog,
+                })],
+            );
         });
     }
 
@@ -1984,10 +1989,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             Sent::Command(block, command) => Some((*block, *command)),
             _ => None,
         })
-    }
-
-    pub fn host_calls<C>(&self, accept: impl Fn(&be_sdk_api::ops::Started) -> Option<C>) -> Vec<C> {
-        self.extension_calls.iter().filter_map(accept).collect()
     }
 
     pub fn take_host_calls<C>(
@@ -2208,14 +2209,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .expect("the editor has not drawn a frame yet")
             .test_id_rect(test_id)
             .unwrap_or_else(|| panic!("no element with test id {test_id:?}\n{}", self.replay()))
-    }
-
-    pub fn rects_of(&self, test_id: &str) -> Vec<Rect> {
-        self.test_ids()
-            .iter()
-            .find(|(named, _)| *named == test_id)
-            .map(|(_, shown)| shown.iter().map(|at| at.rect).collect())
-            .unwrap_or_default()
     }
 
     pub fn point_of(&self, test_id: &str) -> Pos2 {
