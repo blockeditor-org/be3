@@ -114,8 +114,8 @@ impl<R: Root> BlockContent for Document<R> {
         _: Option<&std::collections::HashSet<String>>,
         _: &std::collections::HashSet<crate::PartRef>,
         _: crate::PartReader,
-    ) -> impl Future<Output = Result<Vec<crate::SearchDocument>, String>> + 'static {
-        std::future::ready(Ok(R::search_text_in(self)))
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<crate::SearchDocument>, String>>>> {
+        Box::pin(std::future::ready(Ok(R::search_text_in(self))))
     }
 }
 

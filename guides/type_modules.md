@@ -66,9 +66,12 @@ It generates, per interface, the types, and:
 - for the guest, `guest::<import>` functions returning `Pending<T>` or
   `Stream<T>`, and a `Guest` trait per export taking `&self` (not statics, so
   tests can run many modules on one thread) whose methods return
-  `be_wasm_ops::guest::LocalFuture<T>`, a boxed future: an `impl Future` in a
-  trait makes rustc project its hidden type out of another crate's metadata,
-  which miscompiled callers in other crates (an ICE, or a wrong type);
+  `be_wasm_ops::guest::LocalFuture<T>`, a boxed future. An `impl Future`
+  returned from a trait method gets synthesized associated types, which
+  rustc's parallel front end (`-Zthreads`) numbers nondeterministically, so
+  callers in other crates failed to compile (an ICE, or a wrong type). The same
+  holds for any hand-written trait used across crates: return a boxed future
+  from its methods, not `impl Future`;
 - for the host, `embed::<import>::Call` (one case per function, accepted with
   a `Reply` or `Producer`) and a world-wide `embed::Call`, so a host that
   serves every import matches once.
