@@ -288,9 +288,17 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
         <SlotDrop session={session} target={target} folder=false>
             <ContextMenu
                 items={view! {
-                    <MenuItem label="Remove from hotbar" disabled={not_component} on_click={remove_slot} />
+                    <MenuItem
+                        label="Remove from hotbar"
+                        disabled={not_component}
+                        on_click={remove_slot}
+                    />
                     <MenuItem label="Open folder" disabled={not_folder} on_click={open_folder} />
-                    <MenuItem label="Remove folder" disabled={not_removable} on_click={remove_folder} />
+                    <MenuItem
+                        label="Remove folder"
+                        disabled={not_removable}
+                        on_click={remove_folder}
+                    />
                 }}
                 disabled={menu_disabled}
             >

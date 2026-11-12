@@ -10,8 +10,14 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
             <unstyled::MenuItem label="Share">
-                <unstyled::MenuItem label="Email" on_click={move || selected.update(|selected| selected.push(vec![0, 0]))} />
-                <unstyled::MenuItem label="Link" on_click={move || selected.update(|selected| selected.push(vec![0, 1]))} />
+                <unstyled::MenuItem
+                    label="Email"
+                    on_click={move || selected.update(|selected| selected.push(vec![0, 0]))}
+                />
+                <unstyled::MenuItem
+                    label="Link"
+                    on_click={move || selected.update(|selected| selected.push(vec![0, 1]))}
+                />
             </unstyled::MenuItem>
         };
         [view! {

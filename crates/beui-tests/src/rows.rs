@@ -31,7 +31,10 @@ pub fn RowsFixture() -> NodeId {
                 <SplitButton
                     label="Export"
                     items={view! {
-                        <MenuItem label="As PDF" on_click={move || chosen.set("As PDF".to_owned())} />
+                        <MenuItem
+                            label="As PDF"
+                            on_click={move || chosen.set("As PDF".to_owned())}
+                        />
                     }}
                     on_click={move || chosen.set("Export".to_owned())}
                 />

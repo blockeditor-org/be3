@@ -9,15 +9,17 @@ fn keys_in_one_frame_reach_the_row_the_first_one_focused() {
     let selected = create_signal(Vec::new());
     let (document, _) = toolbar_of(move || {
         let items = view! {
-            <unstyled::MenuItem label="First" on_click={move || selected.update(|selected| selected.push(vec![0]))} />
-            <unstyled::MenuItem label="Second" on_click={move || selected.update(|selected| selected.push(vec![1]))} />
+            <unstyled::MenuItem
+                label="First"
+                on_click={move || selected.update(|selected| selected.push(vec![0]))}
+            />
+            <unstyled::MenuItem
+                label="Second"
+                on_click={move || selected.update(|selected| selected.push(vec![1]))}
+            />
         };
         [view! {
-            <MenuButton
-                @node_ref=&button
-                label="More"
-                items
-            />
+            <MenuButton @node_ref=&button label="More" items />
         }]
     });
     let button = button.get();

@@ -2041,7 +2041,10 @@ fn TrayIcons() -> NodeId {
                     image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
                     click_opens=false
                     items={view! {
-                        <MenuItem label="Open" on_click={move || outcome.set("Chose Open".to_owned())} />
+                        <MenuItem
+                            label="Open"
+                            on_click={move || outcome.set("Chose Open".to_owned())}
+                        />
                         <MenuItem
                             label="Quit"
                             separated=true
@@ -2097,9 +2100,18 @@ fn SortMenus() -> NodeId {
                 <MenuButton
                     label="Sort"
                     items={view! {
-                        <MenuItem label="By name" on_click={move || sort_text.set("Sorted by name".to_owned())} />
-                        <MenuItem label="By date" on_click={move || sort_text.set("Sorted by date".to_owned())} />
-                        <MenuItem label="By size" on_click={move || sort_text.set("Sorted by size".to_owned())} />
+                        <MenuItem
+                            label="By name"
+                            on_click={move || sort_text.set("Sorted by name".to_owned())}
+                        />
+                        <MenuItem
+                            label="By date"
+                            on_click={move || sort_text.set("Sorted by date".to_owned())}
+                        />
+                        <MenuItem
+                            label="By size"
+                            on_click={move || sort_text.set("Sorted by size".to_owned())}
+                        />
                     }}
                 />
                 <MenuButton
@@ -2140,7 +2152,11 @@ fn SortMenus() -> NodeId {
                     items={view! {
                         <MenuItem label="High" on_click={move || priority.set(Some("High"))} />
                         <MenuItem label="Low" on_click={move || priority.set(Some("Low"))} />
-                        <MenuItem label="Clear" separated=true on_click={move || priority.set(None)} />
+                        <MenuItem
+                            label="Clear"
+                            separated=true
+                            on_click={move || priority.set(None)}
+                        />
                     }}
                 />
             </List>
@@ -2279,9 +2295,21 @@ fn NewBlockMenu() -> NodeId {
                             separated=true
                             on_click={move || add("a text")}
                         />
-                        <MenuItem label="Canvas" glyph=ICON_PEN_TOOL on_click={move || add("a canvas")} />
-                        <MenuItem label="Folder" glyph=ICON_FOLDER on_click={move || add("a folder")} />
-                        <MenuItem label="Database" glyph=ICON_TABLE on_click={move || add("a database")} />
+                        <MenuItem
+                            label="Canvas"
+                            glyph=ICON_PEN_TOOL
+                            on_click={move || add("a canvas")}
+                        />
+                        <MenuItem
+                            label="Folder"
+                            glyph=ICON_FOLDER
+                            on_click={move || add("a folder")}
+                        />
+                        <MenuItem
+                            label="Database"
+                            glyph=ICON_TABLE
+                            on_click={move || add("a database")}
+                        />
                         <MenuItem
                             label="More blocks…"
                             glyph=ICON_BLOCKS
@@ -2290,11 +2318,22 @@ fn NewBlockMenu() -> NodeId {
                             row_test_id="demo.new.more"
                         >
                             <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
-                                <MenuItem label={MORE_BLOCKS[kind]} on_click={move || add(MORE_BLOCKS[kind])} />
+                                <MenuItem
+                                    label={MORE_BLOCKS[kind]}
+                                    on_click={move || add(MORE_BLOCKS[kind])}
+                                />
                             </ForEach>
                         </MenuItem>
-                        <MenuItem label="Link existing…" glyph=ICON_LINK on_click={move || add("a link")} />
-                        <MenuItem label="Import a file…" glyph=ICON_FILE_UP on_click={move || add("an import")} />
+                        <MenuItem
+                            label="Link existing…"
+                            glyph=ICON_LINK
+                            on_click={move || add("a link")}
+                        />
+                        <MenuItem
+                            label="Import a file…"
+                            glyph=ICON_FILE_UP
+                            on_click={move || add("an import")}
+                        />
                     }}
                 />
             </List>
@@ -2332,9 +2371,21 @@ fn HeldMenu() -> NodeId {
                 min_width={Size::Custom(240.0)}
                 on_dismiss={move || open.set(false)}
                 items={view! {
-                    <MenuItem label="Red" lead="Paint it" on_click={move || chosen.set("Chose Red".to_owned())} />
-                    <MenuItem label="Green" lead="Paint it" on_click={move || chosen.set("Chose Green".to_owned())} />
-                    <MenuItem label="Blue" lead="Paint it" on_click={move || chosen.set("Chose Blue".to_owned())} />
+                    <MenuItem
+                        label="Red"
+                        lead="Paint it"
+                        on_click={move || chosen.set("Chose Red".to_owned())}
+                    />
+                    <MenuItem
+                        label="Green"
+                        lead="Paint it"
+                        on_click={move || chosen.set("Chose Green".to_owned())}
+                    />
+                    <MenuItem
+                        label="Blue"
+                        lead="Paint it"
+                        on_click={move || chosen.set("Chose Blue".to_owned())}
+                    />
                 }}
             />
             <Text style=TextStyle::CAPTION>
@@ -2356,8 +2407,14 @@ fn MenuInPlace() -> NodeId {
                     @test_id="demo.menu-rows"
                     min_width={Size::Custom(240.0)}
                     items={view! {
-                        <MenuItem label="Circle" on_click={move || chosen.set("Chose Circle".to_owned())} />
-                        <MenuItem label="Square" on_click={move || chosen.set("Chose Square".to_owned())} />
+                        <MenuItem
+                            label="Circle"
+                            on_click={move || chosen.set("Chose Circle".to_owned())}
+                        />
+                        <MenuItem
+                            label="Square"
+                            on_click={move || chosen.set("Chose Square".to_owned())}
+                        />
                         <MenuItem
                             label="Star"
                             separated=true

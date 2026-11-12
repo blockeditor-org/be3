@@ -11,11 +11,20 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     let selected = create_signal(Vec::new());
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <unstyled::MenuItem label="Copy" on_click={move || selected.update(|selected| selected.push("Copy"))} />
+            <unstyled::MenuItem
+                label="Copy"
+                on_click={move || selected.update(|selected| selected.push("Copy"))}
+            />
             <Show condition={pasteable}>
-                <unstyled::MenuItem label="Paste" on_click={move || selected.update(|selected| selected.push("Paste"))} />
+                <unstyled::MenuItem
+                    label="Paste"
+                    on_click={move || selected.update(|selected| selected.push("Paste"))}
+                />
             </Show>
-            <unstyled::MenuItem label="Delete" on_click={move || selected.update(|selected| selected.push("Delete"))} />
+            <unstyled::MenuItem
+                label="Delete"
+                on_click={move || selected.update(|selected| selected.push("Delete"))}
+            />
         };
         [view! {
             <ContextMenu items>

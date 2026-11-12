@@ -110,7 +110,11 @@ pub fn MenusFixture() -> NodeId {
                             <MenuItem label="Email" on_click={move || choose("Email")} />
                             <MenuItem label="Link" on_click={move || choose("Link")} />
                         </MenuItem>
-                        <MenuItem label="Delete" separated=true on_click={move || choose("Delete")} />
+                        <MenuItem
+                            label="Delete"
+                            separated=true
+                            on_click={move || choose("Delete")}
+                        />
                     }}
                 />
                 <Select

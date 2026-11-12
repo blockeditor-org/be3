@@ -10,16 +10,18 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
     let (document, _) = toolbar_of(move || {
         let items = view! {
             <unstyled::MenuItem label="Profiles">
-                <unstyled::MenuItem label="Profile 1" on_click={move || selected.update(|selected| selected.push(vec![0, 0]))} />
-                <unstyled::MenuItem label="Profile 2" on_click={move || selected.update(|selected| selected.push(vec![0, 1]))} />
+                <unstyled::MenuItem
+                    label="Profile 1"
+                    on_click={move || selected.update(|selected| selected.push(vec![0, 0]))}
+                />
+                <unstyled::MenuItem
+                    label="Profile 2"
+                    on_click={move || selected.update(|selected| selected.push(vec![0, 1]))}
+                />
             </unstyled::MenuItem>
         };
         [view! {
-            <MenuButton
-                @node_ref=&button
-                label="More"
-                items
-            />
+            <MenuButton @node_ref=&button label="More" items />
         }]
     });
     let button = button.get();
