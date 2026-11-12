@@ -18,13 +18,6 @@ ignored props are in plans/deferred/html_core.md.
   nothing shows either: drive reads neither core's highlight, and a
   server-rendered painting runs no layout. Done: a test per hook on the HTML
   core, such as a drive reading of a text's highlighted ranges on both cores.
-- **The on-screen keyboard.** It shows only where a view places it. Done: on
-  touch, a keyboard host opens it for a focused beui-own field, as natively.
-  Paste as plain text keeps reading through `navigator.clipboard`; its
-  permission prompt is accepted. Open question first: on a touch screen the
-  browser already opens its own keyboard for the IME agent, and beui's keyboard
-  lives in `beui::native::keyboard`; decide which one a focused beui-own field
-  gets on the web before porting it.
 - **A held clip.** The HTML core's `copy` (`page.rs`) writes text alone and keeps
   nothing, so a rich clip copied and pasted within the page loses all but its
   text. Done: it keeps a `HeldClip`, as native platforms do
