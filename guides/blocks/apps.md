@@ -87,8 +87,8 @@ sends `ToEditor::Lacking`: the edits made on this device that the server lacks,
 each as its operation's bytes (none past 1 MiB), so the editor maps them to
 what they made (chat's messages), whichever editor made them. The first answer
 has them all (`reset`), later ones what was added or failed and the ids the
-server now holds. The replica records edits only while an editor follows, and
-keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
+server now holds. The replica records every edit made on this device, followed
+or not, and keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
 - as owner, until the host answers the journal append holding it (`append`
   answers whether the server took the entries; a folded entry holds the run it
   absorbed) or a commit holding it is published to the server;
@@ -118,6 +118,10 @@ own journal (`opening.journal-kept`) adds the edits it replays; a carried edit
 is settled by its journal sequence when the journal holds it (by its bytes only
 if it has any), so a journal the owner folded still settles it.
 
+The same list carries what each edit announces (`LiveEdit::announcements`, guides/type_modules.md,
+"Announcements"): an owner's go to the host with the append holding the edit, a follower's once
+the owner accepts it.
+
 What is not kept:
 - A host or type module that restarts loses its list of edits. The host opens
   the new replica with `commits-kept`, which settles nothing it does not list:
@@ -126,10 +130,7 @@ What is not kept:
   "Not sent".
 - A block carried over the module's 64-block limit loses its edits' status: a
   refused message in it shows as sent.
-- A replica records edits only while an editor follows: edits made before the
-  first follower, or after the last one left and before the replica closed, are
-  not listed, and a replica reopened after a rejoin lists only what the module
-  carried.
+- A replica reopened after a rejoin lists only what the module carried.
 - An owner that loses the session with an append the server never took shows that
   edit as failed, since the new owner never had it; it is not carried to a replica
   opened after, whose content lacks it.

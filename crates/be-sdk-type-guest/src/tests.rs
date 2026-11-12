@@ -1080,6 +1080,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 generation,
                 entries,
                 relay,
+                ..
             } => {
                 if self.unheld_appends {
                     return self.to(device, |host| reply.send(host, &false));
@@ -1165,6 +1166,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             Call::Error { reply, message } => {
                 self.to(device, |host| reply.send(host, &()));
                 self.errors.push((device, message));
+            }
+            Call::Announce { reply, .. } => {
+                self.to(device, |host| reply.send(host, &()));
             }
         }
     }

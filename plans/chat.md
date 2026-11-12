@@ -1,14 +1,14 @@
 # Chat
 
-Depends on: none. The one step left needs plans/notifications.md step 1 (a
-device that shows a push); the server's side and the `notify` host call it uses
-have landed.
+Depends on: none. Step 2 has landed up to the push leaving the server; a device
+showing it, naming the chat and author, is plans/notifications.md step 1, built
+except a Chromium test of the whole page.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
 (a type can load only its first part, guides/blocks/content_types.md "Parts"),
 and it is edited by many people at once, so it saves less often than it is
-edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
+edited (the journal, guides/blocks/client.md). Steps 1a to 1d and 2 have landed.
 
 ## What exists
 
@@ -42,6 +42,30 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   would close that, which is the user's call. `drive` has no way to cut the
   server, so there is no be-host-tests test of this: be-host-stack tests and
   chat's editor tests stand in. A `drive` command that cuts the server would let a host test cover it.
+- **Notifications (2).** Each message sent from this device tells the chat's
+  other members once the server holds it, exactly once, tied to the edit rather
+  than to an editor or replica (guides/type_modules.md, "Announcements"):
+  `LiveEdit::announcements` names, as the message is sent, its body and the
+  author of the message it replies to as a mention, keyed by the message; the
+  host keeps that beside the journal entry or outbox commit holding the send and
+  sends it once the server holds that. So it goes once however many editors are
+  open, or none (a chat closed while its outbox drains), after a restart with
+  the message unsent, and not again after a restart once told; a message the
+  server refused, or one discarded, tells nobody. A message tells its body as
+  sent; editing it tells nobody. A burst drained from the outbox is one notification,
+  "N new messages". The host cuts the text to `MAX_NOTIFICATION_TEXT`. Mentions
+  are the replied-to author, since apps cannot yet name a member otherwise; a
+  member whose mode for the chat is "mentions only" is told for those. The
+  server tells only members with no connection open, none whose mode is "off",
+  and not the sender's account (plans/notifications.md). Tests: be-host-stack's
+  `a_chat_message_*` (members away, connected, off and mentions only; a closed
+  chat draining; a restart before and after telling; two editors), chat's editor
+  tests and be-server's. Known gaps (guides/type_modules.md, "Announcements"):
+  a follower's message is told by the follower's replica once the owner accepts
+  it, so a follower that closes or restarts before then tells nobody, as its
+  unsent edit is lost too; and an owner whose append the server took but whose
+  answer a disconnect lost, after which another device took the session over,
+  never tells it.
 - **Unread counts (1c).** Where the account read each chat up to is theirs,
   never in the chat, where it would be a read receipt: the owner-only settings
   kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are
@@ -210,12 +234,14 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
 
 ## Order of work
 
-1. **Notifications** (step 2) for chat: sending a message calls `notify` with its text
-   and the accounts it mentions (guides/apps/host_services.md), once the
-   message is confirmed, since `notify` is not ordered with the save that
-   carries it. Done: a member who is
-   not connected gets a notification naming the chat and author, and none for
-   a muted chat.
+1. **Notifications** (step 2) for chat (landed): sending a message announces its text
+   and the accounts it mentions (`LiveEdit::announcements`), which the host
+   sends once the server holds the message. Done: a member who is not connected
+   gets a notification, one who muted the chat none, one who wants only
+   mentions one for a reply to them, exactly once whatever editors are open and
+   across a restart (be-host-stack's `a_chat_message_*`); the device showing it
+   names the chat and author once plans/notifications.md step 1 has its
+   Chromium test.
 
 ## Not planned here
 

@@ -1268,12 +1268,19 @@ where
             .iter()
             .map(|entry| entry.payload.len())
             .sum::<usize>();
+        let through = entries
+            .iter()
+            .map(|entry| entry.sequence)
+            .max()
+            .unwrap_or(from);
+        let announcements = self.lacking.take_appended(from, through);
         self.out.push(Effect::Append {
             replica: self.id,
             generation: self.state.generation,
             entries,
             relay,
             from,
+            announcements,
         });
     }
 
@@ -2437,6 +2444,8 @@ where
             return false;
         }
         self.visible.apply(&operation);
+        // Asked as the edit is made, so the host keeps it with the edit from here on.
+        let announcements = self.visible.announcements(&operation);
         let unsettled = match self.role {
             Role::Owner(_) => 0,
             Role::Follower(_) => self.unsettled() + 1,
@@ -2452,7 +2461,7 @@ where
         let size = payload.len();
         let oversized = size > LARGEST_RELAYED_OPERATION;
         if self.is_owner() && (oversized || self.sealing_out() || !self.held.is_empty()) {
-            self.lacking.add(payload, Until::Waiting);
+            self.lacking.add(payload, Until::Waiting, announcements);
             let first = self.held.is_empty();
             self.held.push_back(operation);
             if first && !self.sealing_out() {
@@ -2469,7 +2478,8 @@ where
                 let Some(op) = sequencer.accept(id, Payload::Inline(payload.clone())) else {
                     return true;
                 };
-                self.lacking.add(payload, Until::Sequenced(op.sequence));
+                self.lacking
+                    .add(payload, Until::Sequenced(op.sequence), announcements);
                 self.confirmed.apply(&operation);
                 self.sequenced(op);
             }
@@ -2479,7 +2489,7 @@ where
                     || !self.unsent.is_empty()
                     || self.awaiting.is_some() =>
             {
-                self.lacking.add(payload, Until::Unsettled);
+                self.lacking.add(payload, Until::Unsettled, announcements);
                 let leftover = match self.unsent.back_mut() {
                     Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
                         let leftover = C::absorb_operation(last, operation);
@@ -2498,7 +2508,8 @@ where
                 }
             }
             Role::Follower(follower) => {
-                self.lacking.add(payload.clone(), Until::Unsettled);
+                self.lacking
+                    .add(payload.clone(), Until::Unsettled, announcements);
                 let message = follower.submit(Payload::Inline(payload));
                 self.in_flight = 1;
                 let owner = self.state.owner;
@@ -2832,8 +2843,21 @@ where
             }
             Role::Owner(_) => self.lacking.promoted(),
         }
+        self.announce_held();
         for (editor, message) in self.lacking.messages() {
             self.tell_editor(editor, &message);
+        }
+    }
+
+    /// Hands the host what the edits the server came to hold announce, which no append carried
+    /// (a follower's, once the owner accepted them).
+    fn announce_held(&mut self) {
+        let announcements = self.lacking.take_held();
+        if !announcements.is_empty() {
+            self.out.push(Effect::Announce {
+                replica: self.id,
+                announcements,
+            });
         }
     }
 
@@ -3688,6 +3712,9 @@ where
                 self.base,
             );
         }
+        // What it sequenced reaches the journal first, with what it announces, which the host
+        // then keeps with this commit (`rebase-journal`).
+        self.append_unappended();
         self.restarting = self.restart_due();
         let content = self.written(&self.confirmed);
         self.publish(

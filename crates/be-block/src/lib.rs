@@ -2,7 +2,7 @@ use std::{collections::HashSet, error::Error, fmt};
 
 use be_block_commit::MergeResult;
 pub use be_block_store::{LoadedPart, Part, PartRef, Stored};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 pub mod blob;
@@ -227,10 +227,33 @@ pub enum ChildChange {
     Reorder { block: Uuid, after: Option<Uuid> },
 }
 
+/// What an edit made on this device tells the block's other members who are not connected, once
+/// the server holds it: the text of a notification and the accounts it mentions. `key` names
+/// what is announced (chat: the message), unique in the block and the same each time the edit
+/// is made again (a host replays an editor's edits into a restarted replica), so it is told
+/// once. `several` is the text when it goes together with others of the block (an outbox
+/// drained at once), with `{count}` for how many (chat: "{count} new messages").
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Announcement {
+    pub key: String,
+    pub text: String,
+    pub several: String,
+    pub mentions: Vec<Uuid>,
+}
+
 pub trait LiveEdit: BlockContent {
     type Op: Clone + Serialize + DeserializeOwned + Send + Sync + 'static;
 
     fn apply(&mut self, operation: &Self::Op);
+
+    /// What `operation` announces (`Announcement`), asked when the edit is made on this device
+    /// of content that holds it. The replica hands it to the host with the edit, and the host
+    /// keeps it beside the journal entry or commit holding the edit and sends it once the
+    /// server holds that, whether the replica is open then or not.
+    fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
+        let _ = operation;
+        Vec::new()
+    }
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         self.apply(operation);

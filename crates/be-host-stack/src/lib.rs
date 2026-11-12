@@ -1210,16 +1210,6 @@ pub fn set_access(block: Uuid, account: Uuid, access: be_block_graph::Access) {
     });
 }
 
-/// Notifies `block`'s members who are not connected (`Peer::notify`), naming the block and the
-/// signed-in account; dropped when the server cannot be reached.
-pub fn notify(block: Uuid, text: String, mentions: Vec<Uuid>) {
-    send(Command::Notify {
-        block,
-        text,
-        mentions,
-    });
-}
-
 /// Every block whose notification mode the account set to other than `all`, once the server
 /// has said: read when the host connects and again whenever another device changes one.
 pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {

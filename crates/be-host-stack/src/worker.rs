@@ -200,11 +200,6 @@ pub(super) enum Command {
         block: Uuid,
         reply: AccessReply,
     },
-    Notify {
-        block: Uuid,
-        text: String,
-        mentions: Vec<Uuid>,
-    },
     SetNotifyMode {
         block: Uuid,
         mode: be_block_protocol::NotifyMode,
@@ -329,7 +324,6 @@ impl Command {
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
-            | Command::Notify { block, .. }
             | Command::SetNotifyMode { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
@@ -1305,6 +1299,8 @@ async fn drain_outbox(
     let mut diverged = Vec::new();
     let mut published = Vec::new();
     if peer.pending().operations == 0 {
+        // What waited for the server to be reached goes now.
+        be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
         return (diverged, published);
     }
     match peer.drain(|_| false).await {
@@ -1358,6 +1354,8 @@ async fn drain_outbox(
         }
         Err(error) => record(shared, error),
     }
+    // The drain published commits holding announced edits.
+    be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
     report(peer, shared);
     (diverged, published)
 }
@@ -1618,8 +1616,6 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         }
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        // A notification is about now: one that cannot go now is dropped.
-        Command::Notify { .. } => {}
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
@@ -1700,17 +1696,6 @@ impl Ran<'_> {
                 }
                 reply(created.map_err(|error| error.to_string()));
                 be_host_base::host::wake();
-                false
-            }
-            Command::Notify {
-                block,
-                text,
-                mentions,
-            } => {
-                let peer = Arc::clone(self.peer);
-                platform::spawn_local(async move {
-                    let _ = peer.notify(block, &text, mentions).await;
-                });
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
@@ -2216,7 +2201,6 @@ async fn apply(
         | Command::CreateAgent { .. }
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
-        | Command::Notify { .. }
         | Command::SetNotifyMode { .. }
         | Command::Push(_)
         | Command::Authorship(_)

@@ -924,6 +924,31 @@ impl LiveEdit for ChatContent {
         }
     }
 
+    /// Each message the operation sends, as the notification the chat's other members get once
+    /// the server holds it: its body, naming the author of the message it replies to, whom a
+    /// member who wants only mentions is told for. Keyed by the message, so a send made again
+    /// (a replica restarted with the edit) tells once.
+    fn announcements(&self, operation: &ChatOp) -> Vec<be_block::Announcement> {
+        Self::sent_in(operation)
+            .into_iter()
+            .filter_map(|id| {
+                let message = self.message(id)?;
+                let mentions = message
+                    .reply_to
+                    .and_then(|quoted| self.message(quoted))
+                    .map(|quoted| quoted.author)
+                    .into_iter()
+                    .collect();
+                Some(be_block::Announcement {
+                    key: id.to_string(),
+                    text: self.body(id)?,
+                    several: "{count} new messages".to_owned(),
+                    mentions,
+                })
+            })
+            .collect()
+    }
+
     fn apply_touching(&mut self, operation: &ChatOp, touched: &mut Vec<Touched>) {
         match operation {
             ChatOp::Edit(edit) => self.header.apply_touching(edit, touched),

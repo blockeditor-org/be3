@@ -7,8 +7,8 @@ use be_sdk_api::{BlockCommand, EditorInstanceId, StoredHead};
 use be_sdk_beui::be_block::{LiveEdit, Merge, Undo};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use be_sdk_type_guest::api::{
-    Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome, Recipients, Resume,
-    SessionState, SessionTag,
+    Announcement, Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome,
+    Recipients, Resume, SessionState, SessionTag,
     embed::{
         exports::replicas::{self, Replica},
         host::Call,
@@ -65,6 +65,19 @@ impl Block {
     }
 }
 
+/// What has to happen before the server holds an announced edit, as the host tracks it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Announcing {
+    /// In this device's journal as this sequence.
+    Journal(u64),
+    /// In a commit kept in the outbox.
+    Kept,
+    /// The server holds it.
+    Held(u64),
+    /// Never to be held.
+    Dropped,
+}
+
 struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
@@ -104,6 +117,13 @@ struct Inner {
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
+    /// What edits announce until the server holds them, kept beside the journal or a kept
+    /// commit: a simpler host than be-block-client's (one device, so every rebase is on its own
+    /// commit; every key remembered; guides/type_modules.md, "Announcements").
+    announcing: Vec<(Option<Uuid>, Announcing, Announcement)>,
+    /// The keys announced, which are not announced again.
+    announced: BTreeSet<(Option<Uuid>, String)>,
+    notified: Vec<(Option<Uuid>, String, Vec<Uuid>)>,
     /// Part reads wait (held) until released one at a time, to see a view between reads.
     hold_reads: bool,
     held_reads: Vec<(Option<Uuid>, Call)>,
@@ -153,6 +173,9 @@ impl Default for Inner {
             kept: BTreeSet::new(),
             refused: BTreeMap::new(),
             refusals: 0,
+            announcing: Vec::new(),
+            announced: BTreeSet::new(),
+            notified: Vec::new(),
             hold_reads: false,
             held_reads: Vec::new(),
             known_elsewhere: None,
@@ -417,19 +440,91 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
-            Call::Append { reply, .. } => {
+            Call::Append {
+                reply,
+                announcements,
+                ..
+            } => {
                 let held = !self.offline;
+                let until = match held {
+                    true => Announcing::Held,
+                    false => Announcing::Journal,
+                };
+                for announced in announcements {
+                    self.announcing.push((
+                        block,
+                        until(announced.sequence),
+                        announced.announcement,
+                    ));
+                }
+                self.send_announcements(block);
                 reply.send(&mut self.host, &held);
+            }
+            Call::Announce {
+                reply,
+                announcements,
+            } => {
+                for made in announcements {
+                    self.announcing.push((block, Announcing::Held(0), made));
+                }
+                self.send_announcements(block);
+                reply.send(&mut self.host, &());
+            }
+            Call::RebaseJournal { reply, base, .. } => {
+                // This device seals every commit here, so what the base holds goes with it.
+                let kept = block.is_some_and(|block| self.kept.contains(&block));
+                for (at, until, _) in &mut self.announcing {
+                    if *at == block
+                        && let Announcing::Journal(sequence) = *until
+                    {
+                        *until = match (sequence <= base.sequence, kept) {
+                            (false, _) => Announcing::Dropped,
+                            (true, true) => Announcing::Kept,
+                            (true, false) => Announcing::Held(sequence),
+                        };
+                    }
+                }
+                self.announcing
+                    .retain(|(_, until, _)| *until != Announcing::Dropped);
+                self.send_announcements(block);
+                reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
-            | Call::RebaseJournal { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::History { reply, .. }
             | Call::Conflict { reply, .. }
             | Call::Error { reply, .. } => reply.send(&mut self.host, &()),
         }
+    }
+
+    /// Sends what the server holds the edits of in `block`, as the host does: one notification,
+    /// the newest's `several` for several, each key once.
+    fn send_announcements(&mut self, block: Option<Uuid>) {
+        let mut held = Vec::new();
+        self.announcing.retain(|(at, until, made)| {
+            let sending = *at == block && matches!(until, Announcing::Held(_));
+            if sending {
+                held.push(made.clone());
+            }
+            !sending
+        });
+        held.retain(|made| self.announced.insert((block, made.key.clone())));
+        let text = match held.as_slice() {
+            [] => return,
+            [one] => one.text.clone(),
+            several => several[several.len() - 1]
+                .several
+                .replace("{count}", &several.len().to_string()),
+        };
+        let mut mentions = Vec::new();
+        for mention in held.iter().flat_map(|made| &made.mentions) {
+            if !mentions.contains(mention) {
+                mentions.push(*mention);
+            }
+        }
+        self.notified.push((block, text, mentions));
     }
 
     fn ask<T, E: wire::Decode<T>>(
@@ -892,6 +987,17 @@ impl ContentStore {
             .elsewhere(key, C::encode_operation(operation));
     }
 
+    /// What the replica asked the host to notify the block's other members of, since last taken:
+    /// the block, the text and who it mentions.
+    pub fn take_notified(&self) -> Vec<(Uuid, String, Vec<Uuid>)> {
+        let mut inner = self.0.borrow_mut();
+        let own = inner.own.unwrap_or_default();
+        std::mem::take(&mut inner.notified)
+            .into_iter()
+            .map(|(block, text, mentions)| (block.unwrap_or(own), text, mentions))
+            .collect()
+    }
+
     pub fn take_written(&self, block: Option<Uuid>) -> Vec<Vec<u8>> {
         let key = self.key(block);
         self.0
@@ -991,6 +1097,18 @@ impl ContentStore {
                 inner.refused.entry(block).or_default().push(commit);
                 commits.push(commit);
             }
+            for (at, until, _) in &mut inner.announcing {
+                if *at == Some(block) && *until == Announcing::Kept {
+                    *until = match refused {
+                        true => Announcing::Dropped,
+                        false => Announcing::Held(0),
+                    };
+                }
+            }
+            inner
+                .announcing
+                .retain(|(_, until, _)| *until != Announcing::Dropped);
+            inner.send_announcements(Some(block));
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
                 replica.drained(&mut inner.host, refused, commits);
             }
