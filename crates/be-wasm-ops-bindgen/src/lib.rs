@@ -1700,8 +1700,7 @@ impl Generator {
             let constant = &method.constant;
             let args = &method.args;
             let result = self.result_of(method)?;
-            let signature_result =
-                quote!(-> ::be_wasm_ops::guest::LocalFuture<#result>);
+            let signature_result = quote!(-> ::be_wasm_ops::guest::LocalFuture<#result>);
             let encoding = match &method.shape {
                 Shape::Call(result) => self.encoding(result.as_ref()),
                 Shape::Stream(_) => quote!(::be_wasm_ops::wire::Plain),

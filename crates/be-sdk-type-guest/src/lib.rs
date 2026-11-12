@@ -804,10 +804,7 @@ impl replicas::Guest for Module {
         Box::pin(ready(self.types()))
     }
 
-    fn blank(
-        &self,
-        content_type: Uuid,
-    ) -> LocalFuture<Result<Vec<u8>, Failure>> {
+    fn blank(&self, content_type: Uuid) -> LocalFuture<Result<Vec<u8>, Failure>> {
         Box::pin(ready(
             self.with_kind(content_type, |kind| (kind.blank)())
                 .ok_or(Failure::UnknownType),
@@ -976,12 +973,7 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn message(
-        &self,
-        from: Endpoint,
-        bytes: Vec<u8>,
-        at: u64,
-    ) -> LocalFuture<()> {
+    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) -> LocalFuture<()> {
         self.module.tick(at);
         self.module.input(self.id, Input::Message { from, bytes });
         Box::pin(ready(()))
@@ -1010,11 +1002,7 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn lease(
-        &self,
-        session: SessionState,
-        resynchronize: bool,
-    ) -> LocalFuture<()> {
+    fn lease(&self, session: SessionState, resynchronize: bool) -> LocalFuture<()> {
         self.module.input(
             self.id,
             Input::Lease {
