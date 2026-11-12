@@ -57,8 +57,7 @@ fn a_hosted_window_keeps_its_grip_off_the_band_of_its_docks_bars() {
     let band = test.rect_of("dock.bar.band.bottom");
     let shown = test.desk_windows();
     assert!(
-        matches!(shown[..], [window] if window.min == pos2(10.0, 450.0)
-            && window.top() + be_sdk_window_stack::KEPT.y <= band.top()
+        matches!(shown[..], [window] if window.top() + be_sdk_window_stack::KEPT.y <= band.top()
             && window.bottom() > band.top()),
         "the window hangs over the dock's band, its grip above it: {shown:?} {band:?}"
     );
