@@ -111,6 +111,10 @@ pub struct Graph {
     pending: HashMap<Uuid, u32>,
     derived: HashMap<Uuid, Entries>,
     referenced: HashMap<Uuid, Vec<Uuid>>,
+    /// The head an open block's replica last reported, which what the server lists of it does not
+    /// outrun: a listing or an event made before the commit reached the server says the head
+    /// it had, and the replica says nothing more until the head changes again.
+    reported: HashMap<Uuid, CommitId>,
     placing: std::collections::HashSet<Uuid>,
 }
 
@@ -481,6 +485,9 @@ impl Graph {
         if let Some(derived) = self.derived.get(&node.id) {
             node.metadata.derived.clone_from(derived);
         }
+        if let Some(head) = self.reported.get(&node.id) {
+            node.head = Some(*head);
+        }
         if let Some(references) = self.referenced.get(&node.id) {
             node.references = with_described(references.clone(), &node.metadata);
         }
@@ -510,6 +517,19 @@ impl Graph {
             self.nodes.insert(node.id, node);
             self.revision += 1;
         }
+    }
+
+    /// The head of an open block's replica, kept over whatever is listed of it until
+    /// `forget_reported_head`, and set on its node now or when the node arrives.
+    pub fn report_head(&mut self, block: Uuid, head: Option<CommitId>) {
+        if let Some(head) = head {
+            self.reported.insert(block, head);
+        }
+        self.set_head(block, head);
+    }
+
+    pub fn forget_reported_head(&mut self, block: Uuid) {
+        self.reported.remove(&block);
     }
 
     pub fn set_head(&mut self, block: Uuid, head: Option<CommitId>) {

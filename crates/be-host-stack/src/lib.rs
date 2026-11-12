@@ -891,11 +891,22 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
             let state = format!(
-                "connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}",
+                "connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}, \
+                 commands not run: {}, edits owed: {}, not yet durable: {}, draining the outbox: {}, \
+                 listings loading: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}",
                 held.connected,
                 held.reached,
                 held.error,
-                held.reconnect.is_some()
+                held.reconnect.is_some(),
+                held.pending,
+                held.owing,
+                held.undurable,
+                held.draining,
+                held.graph.fetching(),
+                held.wakes,
+                held.blocks.len(),
+                held.saves,
+                held.graph.revision
             );
             drop(held);
             panic!(

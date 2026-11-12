@@ -96,6 +96,7 @@ impl be_block_type_host::Host for Shared {
         held.blocks.remove(&block);
         held.described.remove(&block);
         held.graph.forget_derived(block);
+        held.graph.forget_reported_head(block);
         held.graph.forget_references(block);
         held.previewed.remove(&block);
         held.histories.remove(&block);
@@ -121,7 +122,7 @@ impl be_block_type_host::Host for Shared {
                     }
                 }
             }
-            held.graph.set_head(block, status.head);
+            held.graph.report_head(block, status.head);
             held.locked.contains(&block)
         };
         if !locked || status.unreadable.is_none() {
