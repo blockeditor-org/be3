@@ -229,7 +229,7 @@ impl SurfaceLease {
     /// `surfaceDestroyed`, on the UI thread) waits that long if it comes then.
     pub fn hold(&self, handed: u64) -> Option<SurfaceHeld<'_>> {
         let current = self.lock();
-        (*current == handed).then_some(SurfaceHeld(current))
+        (*current == handed).then_some(SurfaceHeld { _held: current })
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, u64> {
@@ -239,8 +239,10 @@ impl SurfaceLease {
     }
 }
 
-/// A surface kept from being revoked (`SurfaceLease::hold`).
-pub struct SurfaceHeld<'a>(std::sync::MutexGuard<'a, u64>);
+/// A surface kept from being revoked (`SurfaceLease::hold`) while it lives.
+pub struct SurfaceHeld<'a> {
+    _held: std::sync::MutexGuard<'a, u64>,
+}
 
 /// A renderer that draws to its window only while the window's `SurfaceLease`
 /// lasts.

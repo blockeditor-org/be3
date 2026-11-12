@@ -169,7 +169,10 @@ fn shared() -> &'static Shared {
 /// on an answer gives it itself.
 fn send(message: Message) -> bool {
     let shared = shared();
-    let stopped = shared.stopped.lock().unwrap_or_else(PoisonError::into_inner);
+    let stopped = shared
+        .stopped
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
     !*stopped && shared.sender.send(message).is_ok()
 }
 
