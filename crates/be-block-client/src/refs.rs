@@ -46,10 +46,12 @@ pub(crate) enum Table {
     JournalEntry,
     Signers,
     Announcement,
+    Summary,
+    Held,
 }
 
 impl Table {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 16] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -64,6 +66,8 @@ impl Table {
         Self::JournalEntry,
         Self::Signers,
         Self::Announcement,
+        Self::Summary,
+        Self::Held,
     ];
 
     pub fn code(self) -> u8 {
@@ -82,6 +86,8 @@ impl Table {
             Self::JournalEntry => 12,
             Self::Signers => 13,
             Self::Announcement => 14,
+            Self::Summary => 15,
+            Self::Held => 16,
         }
     }
 
@@ -294,7 +300,11 @@ struct State {
     session: Option<Session>,
     heads: HashMap<Uuid, CommitId>,
     remotes: HashMap<Uuid, CommitId>,
-    listings: HashMap<Listing, Vec<BlockSummary>>,
+    /// The newest head of each block whose content this device has read whole.
+    held: HashMap<Uuid, CommitId>,
+    /// Each block's newest summary: what every listing that holds the block shows of it.
+    summaries: HashMap<Uuid, BlockSummary>,
+    listings: HashMap<Listing, Vec<Uuid>>,
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<(Uuid, WrappedBy), (u64, WrappedKey)>,
     contacts: Vec<(Uuid, [u8; 32])>,
@@ -347,8 +357,14 @@ impl State {
             Table::Remote => {
                 self.remotes.insert(uuid_key(&row.key)?, decode(value)?);
             }
+            Table::Held => {
+                self.held.insert(uuid_key(&row.key)?, decode(value)?);
+            }
             Table::Listing => {
                 self.listings.insert(decode_raw(&row.key)?, decode(value)?);
+            }
+            Table::Summary => {
+                self.summaries.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Key => {
                 let key: KeyRow = decode(value)?;
@@ -494,6 +510,17 @@ impl Refs {
         self.state.lock().unwrap().remotes.get(&block).copied()
     }
 
+    pub fn held(&self, block: Uuid) -> Option<CommitId> {
+        self.state.lock().unwrap().held.get(&block).copied()
+    }
+
+    pub fn hold(&self, block: Uuid, head: CommitId) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().held.insert(block, head) == Some(head) {
+            return Ok(());
+        }
+        self.write(vec![row(Table::Held, block.as_bytes().to_vec(), &head)])
+    }
+
     pub fn observe(&self, summaries: &[BlockSummary]) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
@@ -508,19 +535,38 @@ impl Refs {
         self.write(rows)
     }
 
+    /// Keeps a summary unless this device already has a newer one of the block.
+    fn put(state: &mut State, summary: &BlockSummary, rows: &mut Vec<Row>) {
+        let newer = state
+            .summaries
+            .get(&summary.id)
+            .is_some_and(|known| known.revision > summary.revision);
+        if newer || state.summaries.get(&summary.id) == Some(summary) {
+            return;
+        }
+        state.summaries.insert(summary.id, summary.clone());
+        rows.push(row(Table::Summary, summary.id.as_bytes().to_vec(), summary));
+    }
+
+    fn put_listing(state: &mut State, listing: Listing, ids: Vec<Uuid>, rows: &mut Vec<Row>) {
+        if state.listings.get(&listing) == Some(&ids) {
+            return;
+        }
+        rows.push(row(Table::Listing, encode_raw(&listing), &ids));
+        state.listings.insert(listing, ids);
+    }
+
     pub fn set_listing(&self, listing: Listing, blocks: &[BlockSummary]) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            if state.listings.get(&listing).map(Vec::as_slice) == Some(blocks) {
-                return Ok(());
+            for summary in blocks {
+                Self::put(&mut state, summary, &mut rows);
             }
-            state.listings.insert(listing, blocks.to_vec());
+            let ids = blocks.iter().map(|summary| summary.id).collect();
+            Self::put_listing(&mut state, listing, ids, &mut rows);
         }
-        self.write(vec![row(
-            Table::Listing,
-            encode_raw(&listing),
-            &blocks.to_vec(),
-        )])
+        self.write(rows)
     }
 
     pub fn add_to_listing(
@@ -528,91 +574,134 @@ impl Refs {
         listing: Listing,
         summary: &BlockSummary,
     ) -> Result<(), StoreError> {
-        let mut blocks = self.listing(&listing).unwrap_or_default();
-        blocks.retain(|held| held.id != summary.id);
-        blocks.push(summary.clone());
-        self.set_listing(listing, &blocks)
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            Self::put(&mut state, summary, &mut rows);
+            let mut ids = state.listings.get(&listing).cloned().unwrap_or_default();
+            if !ids.contains(&summary.id) {
+                ids.push(summary.id);
+            }
+            Self::put_listing(&mut state, listing, ids, &mut rows);
+        }
+        self.write(rows)
     }
 
+    /// Changes a block's summary on this device, as of the newest revision it knows, and moves it
+    /// between the listings of its old and new parent.
     pub fn revise(&self, mut summary: BlockSummary) -> Result<(), StoreError> {
         let block = summary.id;
         let parent = summary.parent;
-        let listings: Vec<Listing> = {
-            let state = self.state.lock().unwrap();
-            summary.revision = state
-                .listings
-                .values()
-                .flatten()
-                .map(|held| held.revision)
-                .max()
-                .unwrap_or_default()
-                .max(summary.revision);
-            state
-                .listings
-                .iter()
-                .filter(|(_, blocks)| blocks.iter().any(|held| held.id == block))
-                .map(|(listing, _)| *listing)
-                .collect()
-        };
-        for listing in listings {
-            let mut blocks = self.listing(&listing).unwrap_or_default();
-            let leaves = match listing {
-                Listing::Children(under) => Some(under) != parent,
-                Listing::Deleted => parent != Some(BlockParent::Detached),
-                _ => false,
-            };
-            match leaves {
-                true => blocks.retain(|held| held.id != block),
-                false => {
-                    for held in blocks.iter_mut().filter(|held| held.id == block) {
-                        *held = summary.clone();
-                    }
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            summary.revision = newest(&state).max(summary.revision);
+            Self::put(&mut state, &summary, &mut rows);
+            let listings: Vec<Listing> = state.listings.keys().copied().collect();
+            for listing in listings {
+                let mut ids = state.listings[&listing].clone();
+                let leaves = match listing {
+                    Listing::Children(under) => Some(under) != parent,
+                    Listing::Deleted => parent != Some(BlockParent::Detached),
+                    _ => false,
+                };
+                let joins = match listing {
+                    Listing::Children(under) => Some(under) == parent,
+                    Listing::Deleted => parent == Some(BlockParent::Detached),
+                    _ => false,
+                };
+                if leaves {
+                    ids.retain(|held| *held != block);
+                } else if joins && !ids.contains(&block) {
+                    ids.push(block);
                 }
+                Self::put_listing(&mut state, listing, ids, &mut rows);
             }
-            self.set_listing(listing, &blocks)?;
+            Self::put_listing(&mut state, Listing::Block(block), vec![block], &mut rows);
         }
-        self.set_listing(Listing::Block(block), std::slice::from_ref(&summary))?;
-        let mut joins = Vec::new();
-        if let Some(parent) = parent {
-            joins.push(Listing::Children(parent));
-            if parent == BlockParent::Detached {
-                joins.push(Listing::Deleted);
-            }
-        }
-        for listing in joins {
-            if self.listing(&listing).is_some() {
-                self.add_to_listing(listing, &summary)?;
-            }
-        }
-        Ok(())
+        self.write(rows)
     }
 
     pub fn lose_access(&self, block: Uuid) -> Result<(), StoreError> {
         let mut rows = Vec::new();
-        announcements::forget(&mut self.state.lock().unwrap(), block, &mut rows);
-        self.write(rows)?;
-        let Some(mut summary) = self.summary(block) else {
-            return Ok(());
-        };
-        summary.access = be_block_graph::Access::None;
-        self.set_listing(Listing::Block(block), &[summary])
+        {
+            let mut state = self.state.lock().unwrap();
+            announcements::forget(&mut state, block, &mut rows);
+            let Some(mut summary) = state.summaries.get(&block).cloned() else {
+                drop(state);
+                return self.write(rows);
+            };
+            summary.access = be_block_graph::Access::None;
+            state.summaries.insert(block, summary.clone());
+            rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));
+        }
+        self.write(rows)
     }
 
     pub fn listing(&self, listing: &Listing) -> Option<Vec<BlockSummary>> {
-        self.state.lock().unwrap().listings.get(listing).cloned()
+        let state = self.state.lock().unwrap();
+        let ids = state.listings.get(listing)?;
+        Some(
+            ids.iter()
+                .filter_map(|id| state.summaries.get(id).cloned())
+                .collect(),
+        )
+    }
+
+    /// A listing as this device last knew it, for answering offline. What a block references is
+    /// read from its summary, since one pushed or revised after the listing was fetched (another
+    /// device's seal, or this device's own offline) names what it references then.
+    /// Children and deleted blocks are those whose summary still puts them there, so a block
+    /// moved since shows only where it went, and backrefs are the summaries that reference the
+    /// block.
+    pub fn cached_listing(&self, listing: Listing) -> Option<Vec<BlockSummary>> {
+        match listing {
+            Listing::References(block) => {
+                let Some(referrer) = self.summary(block) else {
+                    return self.listing(&listing);
+                };
+                Some(
+                    referrer
+                        .references
+                        .iter()
+                        .filter_map(|reference| self.summary(*reference))
+                        .filter(|summary| summary.access.can_know_exists())
+                        .collect(),
+                )
+            }
+            Listing::Backrefs(block) => {
+                let state = self.state.lock().unwrap();
+                state.listings.get(&listing)?;
+                Some(
+                    state
+                        .summaries
+                        .values()
+                        .filter(|summary| summary.references.contains(&block))
+                        .cloned()
+                        .collect(),
+                )
+            }
+            Listing::Children(parent) => Some(
+                self.listing(&listing)?
+                    .into_iter()
+                    .filter(|summary| summary.parent == Some(parent))
+                    .collect(),
+            ),
+            Listing::Deleted => Some(
+                self.listing(&listing)?
+                    .into_iter()
+                    .filter(|summary| summary.parent == Some(BlockParent::Detached))
+                    .collect(),
+            ),
+            _ => self.listing(&listing),
+        }
     }
 
     pub fn newest_revision(&self) -> u64 {
-        let state = self.state.lock().unwrap();
-        state
-            .listings
-            .values()
-            .flatten()
-            .map(|summary| summary.revision)
-            .max()
-            .unwrap_or_default()
+        newest(&self.state.lock().unwrap())
     }
 
+    /// Offline answers, each as of the newest revision this device knows.
     pub fn current(&self, mut blocks: Vec<BlockSummary>) -> Vec<BlockSummary> {
         let newest = self.newest_revision();
         for summary in &mut blocks {
@@ -622,31 +711,15 @@ impl Refs {
     }
 
     pub fn summary(&self, block: Uuid) -> Option<BlockSummary> {
-        let state = self.state.lock().unwrap();
-        let own = state
-            .listings
-            .get(&Listing::Block(block))
-            .and_then(|blocks| blocks.first());
-        state
-            .listings
-            .values()
-            .flatten()
-            .filter(|summary| summary.id == block)
-            .fold(own, |best, summary| match best {
-                Some(best) if best.revision >= summary.revision => Some(best),
-                _ => Some(summary),
-            })
-            .cloned()
+        self.state.lock().unwrap().summaries.get(&block).cloned()
     }
 
     pub fn summaries(&self) -> Vec<BlockSummary> {
-        let state = self.state.lock().unwrap();
-        let mut seen = HashSet::new();
-        state
-            .listings
+        self.state
+            .lock()
+            .unwrap()
+            .summaries
             .values()
-            .flatten()
-            .filter(|summary| seen.insert(summary.id))
             .cloned()
             .collect()
     }
@@ -983,7 +1056,7 @@ impl Refs {
                 let before = held.len();
                 match about(listing) {
                     true => held.clear(),
-                    false => held.retain(|summary| !gone.contains(&summary.id)),
+                    false => held.retain(|id| !gone.contains(id)),
                 }
                 if about(listing) {
                     rows.push(Row {
@@ -993,6 +1066,15 @@ impl Refs {
                     });
                 } else if held.len() != before {
                     rows.push(row(Table::Listing, encode_raw(listing), &held.clone()));
+                }
+            }
+            for block in &gone {
+                if state.summaries.remove(block).is_some() {
+                    rows.push(Row {
+                        table: Table::Summary,
+                        key: block.as_bytes().to_vec(),
+                        value: None,
+                    });
                 }
             }
             state.listings.retain(|listing, _| !about(listing));
@@ -1008,6 +1090,7 @@ impl Refs {
                 for (table, held) in [
                     (Table::Head, &mut state.heads),
                     (Table::Remote, &mut state.remotes),
+                    (Table::Held, &mut state.held),
                 ] {
                     if held.remove(block).is_some() {
                         rows.push(Row {
@@ -1185,4 +1268,13 @@ fn sequence_key(bytes: &[u8]) -> Result<u64, StoreError> {
     Ok(u64::from_be_bytes(
         bytes.try_into().map_err(|_| StoreError::Corrupt)?,
     ))
+}
+
+fn newest(state: &State) -> u64 {
+    state
+        .summaries
+        .values()
+        .map(|summary| summary.revision)
+        .max()
+        .unwrap_or_default()
 }

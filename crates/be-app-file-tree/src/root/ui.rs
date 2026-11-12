@@ -1053,7 +1053,7 @@ fn picker(
     let picked: Picked = std::rc::Rc::new(move |picked, parent| {
         let block_type = Uuid::from_bytes(picked.block_type);
         tree.remember(picked.id(), block_type);
-        if !picked.linked {
+        if !picked.named {
             renaming.rename_when_shown(picked.id(), Some(parent));
         }
         if !picked.placed {

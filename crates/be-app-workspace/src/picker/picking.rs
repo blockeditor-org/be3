@@ -10,7 +10,7 @@ use be_sdk_beui::{
 };
 use uuid::Uuid;
 
-use super::model::{Graph, Pick, PickAction, PickOutcome, PickTree, Tree, TreeRow};
+use super::model::{Graph, Pick, PickAction, PickError, PickOutcome, PickTree, Tree, TreeRow};
 
 struct State {
     handles: RefCell<HashMap<Uuid, BlockList>>,
@@ -189,6 +189,8 @@ impl Picker {
                 let ask = self.ask_number();
                 let picker = *self;
                 let parent = held.import_parent();
+                // A file brings its name; a copy of a template is new, and asks for one.
+                let named = matches!(action, PickAction::Import);
                 let asked = match action {
                     PickAction::CopyTemplate(template) => self.host().copy_blocks(template, parent),
                     _ => self.host().import_blocks(parent),
@@ -197,13 +199,19 @@ impl Picker {
                     if let Some(held) = picker.held.get_untracked()
                         && held.importing == Some(ask)
                     {
-                        picker.resolve(held.imported(imported));
+                        picker.resolve(held.imported(imported, named));
                     }
                 });
                 held.importing = Some(ask);
                 self.resolve(PickOutcome::Open(Box::new(held)));
             }
             return;
+        }
+        if let PickAction::Make(_) = action
+            && let Some(error) = self.out_of_reach(&held)
+        {
+            held.error = Some(error);
+            return self.resolve(PickOutcome::Open(Box::new(held)));
         }
         match held.act(action) {
             PickOutcome::Open(mut held) => {
@@ -212,6 +220,28 @@ impl Picker {
             }
             answered => self.resolve(answered),
         }
+    }
+
+    /// Why nothing can be made where the pick puts it: offline, a block goes into a container by
+    /// changing the container's content, which this device must hold.
+    fn out_of_reach(&self, held: &Pick) -> Option<PickError> {
+        let container = match (held.place, held.created_parent()) {
+            (Some(BlockParent::Block(container)), _) | (_, BlockParent::Block(container)) => {
+                container
+            }
+            _ => return None,
+        };
+        let info = self.info(container)?;
+        info.out_of_reach.then(|| {
+            let name = info.name().unwrap_or_else(|| "This folder".to_owned());
+            PickError::refused(
+                "Can't add here while offline",
+                format!(
+                    "{name} hasn't been opened on this device, so nothing can be added to it \
+                     while you're offline. Try again once you're back online."
+                ),
+            )
+        })
     }
 
     fn send_commit(&self, held: &mut Pick) {

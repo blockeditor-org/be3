@@ -52,6 +52,7 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
             block_id: created.into_bytes(),
             block_type: TEMPLATE_TYPE.into_bytes(),
             linked: false,
+            named: false,
             placed: true,
         }))]
     );

@@ -20,6 +20,15 @@ use super::colors::TextAreaColors;
 use super::look::TextAreaGeometry;
 use super::rows::{Prose, RowInputs, RowOptions, build_row, line_range, line_starts};
 
+/// Where a text area is scrolled to, as a place in the text: the line at the top of the view,
+/// by the byte it starts at, and how far into that line the view begins. A width or font change
+/// that rewraps lines keeps that line at the top, where a pixel offset would not.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ScrollAnchor {
+    pub line_start: usize,
+    pub within: f32,
+}
+
 pub struct ProseLine<L> {
     pub layout: L,
     pub quote: usize,
@@ -164,6 +173,8 @@ struct Inner {
     reveal_cursor: Cell<bool>,
     tab_released: Cell<bool>,
     reveal: Cell<Option<Rect>>,
+    scroll_to: Cell<Option<ScrollAnchor>>,
+    scrolled: Signal<Option<ScrollAnchor>>,
     reveals: Signal<u64>,
     focus_requests: Signal<u64>,
     focus_handled: Cell<u64>,
@@ -203,6 +214,7 @@ impl TextAreaState {
         let cursors = create_signal(0);
         let layout = create_signal(TextAreaLayout::default());
         let reveals = create_signal(0);
+        let scrolled = create_signal(None);
         let focus_requests = create_signal(0);
         let touch_mode = create_signal(false);
         let caret_handle = create_signal(false);
@@ -222,6 +234,8 @@ impl TextAreaState {
             reveal_cursor: Cell::new(false),
             tab_released: Cell::new(false),
             reveal: Cell::new(None),
+            scroll_to: Cell::new(None),
+            scrolled,
             reveals,
             focus_requests,
             focus_handled: Cell::new(0),
@@ -447,6 +461,37 @@ impl TextAreaState {
         let inner = self.0.value();
         inner.reveal.set(Some(rect));
         self.request_reveal();
+    }
+
+    /// Scrolls so `anchor` is at the top of the view once its text is laid out, in place of
+    /// revealing the caret: how a reopened text goes back to where it was.
+    pub fn scroll_to(&self, anchor: ScrollAnchor) {
+        let inner = self.0.value();
+        inner.scroll_to.set(Some(anchor));
+        inner.reveal_cursor.set(false);
+        self.request_reveal();
+    }
+
+    /// The anchor a `scroll_to` is still on its way to.
+    pub fn pending_scroll(&self) -> Option<ScrollAnchor> {
+        self.0.value().scroll_to.get()
+    }
+
+    pub(crate) fn take_scroll_to(&self) -> Option<ScrollAnchor> {
+        self.0.value().scroll_to.take()
+    }
+
+    /// Where the view is scrolled to, once laid out; it holds still while a `scroll_to` is on its
+    /// way, so it never reports the top of a text about to be scrolled elsewhere.
+    pub fn scrolled(&self) -> ReadSignal<Option<ScrollAnchor>> {
+        self.0.value().scrolled.read_only()
+    }
+
+    pub(crate) fn set_scrolled(&self, anchor: ScrollAnchor) {
+        let inner = self.0.value();
+        if inner.scroll_to.get().is_none() && inner.scrolled.get_untracked() != Some(anchor) {
+            inner.scrolled.set(Some(anchor));
+        }
     }
 
     fn request_reveal(&self) {

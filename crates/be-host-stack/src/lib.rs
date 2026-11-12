@@ -380,6 +380,9 @@ pub fn change_child(
     if !is_known(content_type) {
         return None;
     }
+    if out_of_reach(block) {
+        return Some(false);
+    }
     send(Command::ChangeChild {
         block,
         content_type,
@@ -844,13 +847,20 @@ pub fn backgrounded() {
     send(Command::Flush(done));
 }
 
-/// How long a test waits for the stack before failing: a wait that never ends would hang the
-/// whole test target until the build server's timeout, with no word of which test or wait.
+/// How long a test waits for a stack that says nothing before failing: a wait that never ends
+/// would hang the whole test target until the build server's timeout, with no word of which test
+/// or wait. Every word the stack says (it wakes the wait) starts the limit again, so a machine
+/// too busy to run it quickly is waited for, and one that stopped is not.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// How long a wait may go on in all, however much the stack says: one that keeps talking and
+/// never gets there (a connection retried over and over) still has to end.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(600);
+
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
-/// `WAIT_LIMIT`.
+/// `WAIT_LIMIT` of silence from the stack, or `WAIT_CAP` in all.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 #[track_caller]
 pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
@@ -860,24 +870,51 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         .as_ref()
         .map(|stack| (Arc::clone(&stack.shared), Arc::clone(&stack.changed)))
         .expect("the stack is running");
-    let deadline = std::time::Instant::now() + WAIT_LIMIT;
+    let started = std::time::Instant::now();
+    let mut deadline = started + WAIT_LIMIT;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     loop {
         if let Some(value) = read(&held) {
             return value;
         }
+        // A driven clock (`Clock::driven`) never reaches the moment the stack waits on to try the
+        // server again by itself, so the wait moves it there, as a real clock would have got
+        // there: all of the stack's time moves on with it. The lock is let go first, for the
+        // stack to run on.
+        let reconnect = held
+            .reconnect
+            .clone()
+            .filter(|(clock, at)| clock.is_driven() && *at > clock.now());
+        if let Some((clock, at)) = reconnect {
+            drop(held);
+            clock.advance(at - clock.now());
+            held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            continue;
+        }
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
+            let state = format!(
+                "connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}",
+                held.connected,
+                held.reached,
+                held.error,
+                held.reconnect.is_some()
+            );
             drop(held);
             panic!(
-                "the stack never reached what this waits for in {} s",
-                WAIT_LIMIT.as_secs()
+                "the stack never reached what this waits for: it said nothing for {} s, or the wait took {} s in all ({state})",
+                WAIT_LIMIT.as_secs(),
+                WAIT_CAP.as_secs()
             );
         }
-        held = changed
+        let (next, waited) = changed
             .wait_timeout(held, left)
-            .unwrap_or_else(PoisonError::into_inner)
-            .0;
+            .unwrap_or_else(PoisonError::into_inner);
+        held = next;
+        if !waited.timed_out() {
+            let now = std::time::Instant::now();
+            deadline = (now + WAIT_LIMIT).min(started + WAIT_CAP);
+        }
     }
 }
 
@@ -954,6 +991,26 @@ pub fn made_by_app_in_unfiled(block: Uuid, app_id: &str) -> bool {
 pub fn stale_revision() -> u64 {
     with_shared(|shared| shared.stale_revision).unwrap_or_default()
         + be_block_type_host::kinds_revision()
+}
+
+/// The workspace's peer while the host is not connected, for telling apps which blocks this
+/// device cannot read (`BlockInfo::out_of_reach`).
+pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<worker::Store>>> {
+    with_shared(|shared| match shared.connected {
+        true => None,
+        false => shared.peer.clone(),
+    })
+    .flatten()
+}
+
+/// Whether the host is offline and holds no version of the block's content whole, so it can
+/// neither open the block nor change it, a child added or moved in included
+/// (`BlockInfo::out_of_reach`).
+pub fn out_of_reach(block: Uuid) -> bool {
+    let Some(peer) = offline_peer() else {
+        return false;
+    };
+    node(block).is_some_and(|node| app_graph::out_of_reach(&peer, &node))
 }
 
 pub fn graph_revision() -> u64 {
@@ -1404,13 +1461,20 @@ pub fn plain_file(
     });
 }
 
-pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) {
+/// Replaces a block's content with a file's, as its type reads one. False, with nothing sent,
+/// when the block is out of reach offline (`out_of_reach`): try again once the host reconnects.
+#[must_use]
+pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) -> bool {
+    if out_of_reach(block) {
+        return false;
+    }
     send(Command::FromFile {
         block,
         content_type,
         name,
         bytes,
     });
+    true
 }
 
 /// Brings in the blocks of a block file under `parent`. `created_by` is the app that asked

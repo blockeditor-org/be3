@@ -469,8 +469,16 @@ pub struct Shared {
     pub undurable: usize,
     pub connected: bool,
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
+    /// The workspace's peer, which knows what content this device holds.
+    pub peer: Option<Arc<Peer<Store>>>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
+    /// The clock and the moment the stack waits on to try the server again. A moment the clock
+    /// has not reached means the stack is waiting for it; `None` while it is connected, and while
+    /// the first connect is in flight. A wait on a driven clock (`wait_until`) moves the clock on
+    /// to it.
+    #[cfg(any(test, feature = "testing"))]
+    pub reconnect: Option<(be_block_client::Clock, Duration)>,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
@@ -543,6 +551,16 @@ impl Wall {
 }
 
 impl Shared {
+    /// What apps are told of a block depends on whether the host is connected
+    /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
+    fn set_connected(&mut self, connected: bool) {
+        if self.connected != connected {
+            self.connected = connected;
+            self.graph.revision += 1;
+            self.stale_revision += 1;
+        }
+    }
+
     pub fn touch(&mut self, block: Uuid) {
         self.touched.insert(block);
     }
@@ -651,6 +669,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
     };
     if let Some((peer, open)) = started {
+        shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
         forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
         let mut session = Session {
@@ -675,11 +694,21 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         session.run(open).await;
         forget_what_is_not_kept(&peer);
     }
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.peer = None;
+    held.set_connected(false);
+    drop(held);
+    changed.notify_all();
+}
+
+/// Notes the moment the stack next tries the server, for a test's wait to move a manual clock to
+/// (`Shared::reconnect`); `None` once it tries.
+#[cfg(any(test, feature = "testing"))]
+fn reconnecting_at(shared: &Arc<Mutex<Shared>>, at: Option<(be_block_client::Clock, Duration)>) {
     shared
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .connected = false;
-    changed.notify_all();
+        .reconnect = at;
 }
 
 fn forget_what_is_not_kept(peer: &Peer<Store>) {
@@ -722,6 +751,8 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
 ) -> Option<(Arc<Peer<Store>>, Option<Opened>)> {
     let mut failures = 0;
     loop {
+        #[cfg(any(test, feature = "testing"))]
+        reconnecting_at(shared, None);
         match make_store().and_then(|store| Ok((store, super::refs(config)?))) {
             Ok((store, refs)) => {
                 match unless_stopped(connect(config, store, refs), nudged).await? {
@@ -734,11 +765,15 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
             }
             Err(error) => fail(shared, error),
         }
-        changed.notify_all();
-        be_host_base::host::wake();
         let delay = reconnect_delay(failures, jitter());
         failures = failures.saturating_add(1);
-        let waited = config.clock.sleep(delay);
+        // One moment for the sleep and for the wait that moves a clock to it.
+        let at = config.clock.now() + delay;
+        #[cfg(any(test, feature = "testing"))]
+        reconnecting_at(shared, Some((config.clock.clone(), at)));
+        changed.notify_all();
+        be_host_base::host::wake();
+        let waited = config.clock.sleep_until(at);
         let nudge = std::pin::pin!(nudged.changed());
         if let Either::Right((Err(_), _)) = select(waited, nudge).await {
             return None;
@@ -790,6 +825,9 @@ enum Line {
     },
     Down {
         failures: u32,
+        /// When it tries again, on the config's clock.
+        #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
+        at: Duration,
         reaching: Reaching,
     },
 }
@@ -804,14 +842,19 @@ impl Line {
         }
     }
 
+    /// Down for `delay` more on the config's clock. The moment it tries again is fixed here, not
+    /// when the future first runs: a clock moved on between the two (a test's wait moving it to
+    /// the moment `Shared::reconnect` says) would put the sleep's end past the moment it moved to.
     fn down(config: &Config, failures: u32, delay: Duration) -> Self {
         let clock = config.clock.clone();
         let url = config.server_url.clone();
         let token = config.token.clone();
+        let at = clock.now() + delay;
         Self::Down {
             failures,
+            at,
             reaching: Box::pin(async move {
-                clock.sleep(delay).await;
+                clock.sleep_until(at).await;
                 crate::link::signed_in(&url, &token, &clock).await
             }),
         }
@@ -953,6 +996,8 @@ impl Session<'_> {
                 Woken::Nudged => {
                     if let Line::Down { failures, .. } = self.line {
                         self.line = Line::down(self.config, failures, Duration::ZERO);
+                        #[cfg(any(test, feature = "testing"))]
+                        reconnecting_at(shared, None);
                     }
                     false
                 }
@@ -961,6 +1006,8 @@ impl Session<'_> {
                     true
                 }
                 Woken::Reached(Ok(link)) => {
+                    #[cfg(any(test, feature = "testing"))]
+                    reconnecting_at(shared, None);
                     shared
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)
@@ -1207,11 +1254,17 @@ impl Session<'_> {
     fn depart(&mut self, failures: u32) {
         let was_up = self.line.is_up();
         let delay = match failures {
-            0 if was_up => Duration::ZERO,
             0 => Duration::ZERO,
             failures => reconnect_delay(failures - 1, jitter()),
         };
         self.line = Line::down(self.config, failures, delay);
+        #[cfg(any(test, feature = "testing"))]
+        if let Line::Down { at, .. } = &self.line {
+            reconnecting_at(
+                self.shared,
+                (!delay.is_zero()).then(|| (self.config.clock.clone(), *at)),
+            );
+        }
         self.rejoin = false;
         if was_up {
             self.replicas.disconnected();
@@ -1226,7 +1279,7 @@ impl Session<'_> {
         self.line = Line::up(peer, open);
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            held.connected = true;
+            held.set_connected(true);
             held.connection = Some(peer.connection());
             #[cfg(test)]
             {
@@ -1235,6 +1288,10 @@ impl Session<'_> {
             held.reached = true;
             held.arriving = true;
             held.error = None;
+            #[cfg(any(test, feature = "testing"))]
+            {
+                held.reconnect = None;
+            }
         }
         self.changed.notify_all();
         be_host_base::host::wake();
@@ -1285,7 +1342,7 @@ fn arrived(shared: &Arc<Mutex<Shared>>) {
 
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    held.connected = false;
+    held.set_connected(false);
     held.arriving = false;
     held.connection = None;
 }
@@ -3414,7 +3471,7 @@ pub(super) fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
 
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    held.connected = false;
+    held.set_connected(false);
     held.reached = true;
     held.error = Some(error);
 }

@@ -158,18 +158,33 @@ with the block key; the server keeps it beside history, never in it
 
 A `Peer` keeps what it learns in `RefsDb` (`be_block_client::refs`, SQLite on
 every platform, in the origin private file system on the web), keyed by server,
-account and organization: local and last-known remote heads, raw
-`BlockSummary`s (metadata stays sealed), key rows and wraps, verified contacts
-and escrow chain, the workspace list, the outbox, the unsent area and each
-block's journal. A sealed commit and its local head are written in one
-transaction (`Refs::push_publish`); a record that no longer decodes is skipped
-on load.
+account and organization: local and last-known remote heads, the newest head
+whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
+key rows and wraps, verified contacts and escrow chain, the workspace list, the
+outbox, the unsent area and each block's journal. A sealed commit and its local
+head are written in one transaction (`Refs::push_publish`); a record that no
+longer decodes is skipped on load.
+
+It keeps one summary per block, the newest revision winning, and a listing is
+the ids it held: a copy kept per listing went stale offline (a listing fetched
+before another device's seal, or the copy a parent's listing held). Offline, a
+block's `References` listing is what its summary references, so a seal or an
+offline commit after the listing was fetched shows; a child or deleted block
+shows only where its summary puts it, and backrefs are the summaries that
+reference the block. A summary is dropped only with the blocks `forget` drops,
+so one the server no longer lists stays until then.
 
 `Peer::cached` builds a peer from it with no network, and `Peer::attach` hands
 it a signed-in connection later (after every reconnect), which opens the
 organization and refreshes keys and contacts. While disconnected, `summary`,
 listings and `read_contents` answer from the cache, and `open` reads the local
 head first while it has unpublished commits.
+
+A summary's head is the server's newest, which this device may never have read
+(another device moved it). Offline, content is read at `Peer::held_head`: the
+first whose objects the store holds whole of the local head, the server's, and
+the head last read whole (`Peer::read_whole`, which `read_contents` and a
+replica's whole load record). A block with none has nothing to read offline.
 
 ## Saving and the outbox
 

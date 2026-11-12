@@ -60,7 +60,7 @@ pub use hooks::{
 };
 pub use look::{BlockGeometry, ChipGeometry, TextAreaGeometry, TextAreaLook, WidgetGeometry};
 pub use rows::{Prose, RowTable, TextWidget};
-pub use state::{ProseLine, TextAreaLayout, TextAreaState};
+pub use state::{ProseLine, ScrollAnchor, TextAreaLayout, TextAreaState};
 
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
@@ -466,6 +466,11 @@ impl Surface {
         if position.viewport <= 0.0 {
             return;
         }
+        if let Some(anchor) = self.state.pending_scroll() {
+            self.scroll_to_anchor(anchor);
+            self.state.take_reveal_cursor();
+            return;
+        }
         if let Some(rect) = self.state.take_reveal() {
             self.reveal_rect(rect);
         }
@@ -492,6 +497,54 @@ impl Surface {
         } else {
             self.held.value().reveal_attempts.set(0);
         }
+    }
+
+    /// Puts `anchor`'s line at the top of the view. Until that line's row is built its place is
+    /// estimated: the view moves there and the anchor stays pending, and the next change to the
+    /// scroll or to the rows laid out tries again (rows laid out above it move it). It settles
+    /// once the row is built and the view is already at it, or at once when the text is too
+    /// short to scroll that far.
+    fn scroll_to_anchor(&self, anchor: ScrollAnchor) {
+        let Some(estimated) = self.estimated_y(anchor.line_start) else {
+            return;
+        };
+        let exact = self
+            .entry(self.line_of(anchor.line_start))
+            .and_then(|entry| {
+                let rect = entry.rect(&self.held.value())?;
+                let canvas = self.canvas_rect()?;
+                Some((rect.min.y - canvas.min.y) / self.scale())
+            });
+        let target = (exact.unwrap_or(estimated) + anchor.within).max(0.0);
+        let position = self.scroll.get_untracked();
+        let most = position.max_offset().max(0.0);
+        let offset = target.min(most);
+        let there = (offset - position.clamped()).abs() <= 0.5;
+        if !there {
+            self.offset.set_unconditionally(offset);
+        }
+        if (exact.is_some() && there) || target >= most {
+            self.state.take_scroll_to();
+            if let Some(reached) = self.top_anchor(offset) {
+                self.state.set_scrolled(reached);
+            }
+        }
+    }
+
+    /// The line at the top of the view, and how far into it the view begins.
+    fn top_anchor(&self, offset: f32) -> Option<ScrollAnchor> {
+        let visible = self.visible.get_untracked();
+        let starts = self.starts.get_untracked();
+        let list = self.list.try_get()?;
+        let canvas = self.canvas_rect()?;
+        let top = (self.held.value().rect_of(list)?.min.y - canvas.min.y) / self.scale();
+        let line_y = |line: &usize| list.row_offset(line).map(|row| top + row);
+        let below = visible.partition_point(|line| line_y(line).is_some_and(|y| y <= offset));
+        let line = *visible.get(below.saturating_sub(1))?;
+        Some(ScrollAnchor {
+            line_start: *starts.get(line)?,
+            within: offset - line_y(&line)?,
+        })
     }
 
     /// The first caret in the content's points, from the top of the text, and whether that is where
@@ -1582,6 +1635,24 @@ pub fn TextArea(
     create_effect(move || {
         reveals.get();
         revealing.start(Duration::ZERO);
+    });
+    // `rights` changes as rows are laid out (each reports its right edge), so it stands for
+    // "rows laid out": what moves a pending `scroll_to` on once its line's row is built.
+    let rights = cx.rights;
+    create_effect(move || {
+        let position = scroll.get();
+        rights.with(|_| ());
+        if single_line || position.viewport <= 0.0 {
+            return;
+        }
+        untrack(|| match state.pending_scroll() {
+            Some(_) => revealing.start(Duration::ZERO),
+            None => {
+                if let Some(anchor) = cx.top_anchor(position.clamped()) {
+                    state.set_scrolled(anchor);
+                }
+            }
+        });
     });
     let viewport_was = StoredCell::new(0.0_f32);
     create_effect(move || {

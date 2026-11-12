@@ -56,6 +56,7 @@ fn zoomed_into_a_folder_new_adds_straight_into_it() {
         block_id: made.into_bytes(),
         block_type: Uuid::from_u128(7).into_bytes(),
         linked: false,
+        named: false,
         placed: false,
     })));
     fixture.settle();

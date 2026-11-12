@@ -450,11 +450,14 @@ interface types {
         place: option<block-location>,
     }
 
-    /// A block chosen in a pick, and whether it was linked or placed.
+    /// A block chosen in a pick, and whether it was linked or placed. `named`
+    /// is set when the block has its name already (linked, or imported from a
+    /// file), so the editor that asked does not start renaming it.
     record picked-block {
         block-id: block-id,
         block-type: block-type-id,
         linked: bool,
+        named: bool,
         placed: bool,
     }
 

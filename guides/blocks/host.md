@@ -63,9 +63,15 @@ owed. `status().wakes` counts wakes, and a test asserts an idle peer never
 wakes.
 
 Tests wait on the stack with `be_host_stack::wait_until`, which fails at the
-caller after `WAIT_LIMIT` instead of waiting forever: tests share one stack in
-turn, so one endless wait would hang the whole target. Commit times and an
-embedded server's history follow `be_block_commit::now_milliseconds`, which a
+caller after `WAIT_LIMIT` without the stack saying anything (or `WAIT_CAP` in
+all) instead of waiting forever: tests share one stack in turn, so one endless
+wait would hang the whole target. A busy machine slows the stack without
+silencing it, so the limit counts silence, not time. A stack on a driven
+clock (`Clock::driven`, which be-host-testing's harness uses) also has its
+waits move the clock on to the stack's next reconnect, and all the stack's
+time with it, so a failed connect never strands on a clock nobody moves. A
+test that moves its clock itself uses `Clock::manual`, which no wait moves.
+Commit times and an embedded server's history follow `be_block_commit::now_milliseconds`, which a
 test pins with `pin_now` to step history a minute at a time (be-host pins it to
 its wall clock while that is pinned, so `drive pause` moves it).
 
@@ -120,7 +126,9 @@ its head.
   made-up session (`Open::made_up`): `Publish` becomes `Peer::seal` (a local
   commit in the outbox), `Resume` treats the local head as remote, and
   heartbeats, claims and relays are skipped, and the journal is the device's
-  alone. The same happens while the block
+  alone. It opens on the newest head whose content the device holds
+  (`Peer::held_head`, guides/blocks/client.md), not the server's newest, which
+  it may never have read. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
   flush and stop).
 - **Draining on connect.** The worker drains the outbox in a task

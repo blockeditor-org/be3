@@ -1,4 +1,6 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
+load("@root//buck/program:defs.bzl", "precompiled_module")
 
 cargo_package()
 
@@ -13,12 +15,34 @@ test_environment = {
 }
 
 # The triangle linked against its library and standalone, which the tests
-# load and paint side by side.
+# load and paint side by side. Each is compiled for wasmtime once, here, and
+# the test reads the result.
+precompiled_module(
+    name = "base-library-compiled",
+    module = "//crates/be-sdk-library-base:module",
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/be-sdk-test-runner:precompiler",
+)
+
+precompiled_module(
+    name = "triangle-compiled",
+    module = "//crates/be-app-example-triangle:module",
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/be-sdk-test-runner:precompiler",
+)
+
+precompiled_module(
+    name = "triangle-standalone-compiled",
+    module = "//crates/be-app-example-triangle:standalone",
+    precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
+    precompiler = "//crates/be-sdk-test-runner:precompiler",
+)
+
 cargo_test(
-    env = test_environment
-    | {
-        "BASE_LIBRARY_WASM": "$(location //crates/be-sdk-library-base:module)",
-        "TRIANGLE_STANDALONE_WASM": "$(location //crates/be-app-example-triangle:standalone)",
-        "TRIANGLE_WASM": "$(location //crates/be-app-example-triangle:module)",
+    env = test_environment,
+    run_env = {
+        "BASE_LIBRARY_CWASM": "$(location :base-library-compiled)",
+        "TRIANGLE_CWASM": "$(location :triangle-compiled)",
+        "TRIANGLE_STANDALONE_CWASM": "$(location :triangle-standalone-compiled)",
     },
 )
