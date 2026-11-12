@@ -243,7 +243,7 @@ impl<S: ObjectStore> Peer<S> {
                 .refs
                 .summary(*block)
                 .ok_or_else(|| ClientError::Disconnected(reason.clone()))?;
-            summary.head = self.local_head(*block).or(summary.head);
+            summary.head = self.held_head(*block).or(summary.head);
             let content = match summary.head {
                 Some(head) => Some(self.read_at(head).await?),
                 None => None,

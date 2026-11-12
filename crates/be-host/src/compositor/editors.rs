@@ -1134,6 +1134,7 @@ enum Resolution {
     NoAccess,
     Missing,
     Locked,
+    OutOfReach,
     Unsupported(Uuid),
     Stale(Uuid, be_host_stack::Stale),
     Ready { region: ViewKey, access: Access },
@@ -1240,6 +1241,9 @@ fn BlockFrameBody(
         if be_host_stack::locked(block) {
             return Resolution::Locked;
         }
+        if be_host_stack::out_of_reach(block) {
+            return Resolution::OutOfReach;
+        }
         if let Some(stale) = be_host_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
@@ -1281,6 +1285,17 @@ fn BlockFrameBody(
                                 .to_owned(),
                             busy: false,
                             icon: Some(beui::icons::ICON_LOCK),
+                        };
+                        view! {
+                            <Notice item />
+                        }
+                    }
+                    Resolution::OutOfReach => {
+                        let item = HostItem::Notice {
+                            text: "Not on this device yet: it opens once you're back online"
+                                .to_owned(),
+                            busy: false,
+                            icon: Some(beui::icons::ICON_CLOUD_OFF),
                         };
                         view! {
                             <Notice item />

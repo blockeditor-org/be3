@@ -627,6 +627,20 @@ impl<S: ObjectStore> Vault<S> {
         Ok(missing)
     }
 
+    /// Whether this store holds every object of the manifest, stopping at the first it lacks.
+    pub fn holds_all(&self, manifest: &Manifest) -> Result<bool, StoreError> {
+        let mut whole = true;
+        let mut seen = HashSet::new();
+        self.walk_manifest(manifest, 0..u64::MAX, |part, _| {
+            if !whole || !seen.insert(part.hash()) {
+                return Ok(false);
+            }
+            whole = self.store.has(part.hash())?;
+            Ok(whole)
+        })?;
+        Ok(whole)
+    }
+
     /// The manifest's nodes this store lacks and can name, leaving chunks out.
     pub fn missing_nodes(&self, manifest: &Manifest) -> Result<Vec<Hash>, StoreError> {
         let mut missing = Vec::new();

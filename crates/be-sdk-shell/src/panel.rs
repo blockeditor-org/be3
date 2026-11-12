@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::{TabId, dock_menu};
-use be_sdk_beui::beui::icons::ICON_LOCK;
+use be_sdk_beui::beui::icons::{ICON_CLOUD_OFF, ICON_LOCK};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -64,6 +64,8 @@ pub struct TabInfo {
     pub backrefs: Refs,
     pub artifact: Option<ArtifactState>,
     pub deleted: Option<Deleted>,
+    /// The host is offline and holds no version of the block's content, so it cannot open it.
+    pub out_of_reach: bool,
 }
 
 #[derive(Clone, PartialEq)]
@@ -76,6 +78,7 @@ pub struct Deleted {
 enum Content {
     Block,
     Denied,
+    OutOfReach,
 }
 
 #[derive(Default)]
@@ -137,6 +140,7 @@ fn read_item_info(
     let access = workspace.access(item.id);
     let ceiling = workspace.ceiling(item.id);
     let own = workspace.info(item.id);
+    let out_of_reach = own.as_ref().is_some_and(|info| info.out_of_reach);
     let parent = own.as_ref().and_then(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let mut references = refs(watched.references.as_ref());
@@ -183,6 +187,7 @@ fn read_item_info(
             workspace.host().artifact(item.id)
         },
         deleted,
+        out_of_reach,
     })
 }
 
@@ -201,6 +206,7 @@ pub(crate) fn BlockPanel(
     });
     let content = create_memo(move || match info.get() {
         Some(info) if !info.access.can_view() => Content::Denied,
+        Some(info) if info.out_of_reach => Content::OutOfReach,
         Some(_) | None => Content::Block,
     });
     let editor = workspace.editor();
@@ -259,6 +265,11 @@ pub(crate) fn BlockPanel(
                                     Content::Denied => view! {
                                         <ListItem grow=1.0>
                                             <AccessDenied info={info.read_only()} />
+                                        </ListItem>
+                                    },
+                                    Content::OutOfReach => view! {
+                                        <ListItem grow=1.0>
+                                            <OutOfReach />
                                         </ListItem>
                                     },
                                     Content::Block => view! {
@@ -399,6 +410,26 @@ fn TabBar(bar: RenderFn<(), NodeId>, own: bool) -> NodeId {
         false => view! {
             <List spacing=Space::None />
         },
+    }
+}
+
+/// A tab whose block this device has never read, opened offline: it opens once the host
+/// reconnects, when `out_of_reach` clears.
+#[component]
+fn OutOfReach() -> NodeId {
+    view! {
+        <Frame padding=PANEL_PADDING @test_id={"workspace.out-of-reach"}>
+            <List spacing=PANEL_SPACING align=Align::Center>
+                <Text style=TextStyle::HEADING>
+                    <Icon glyph=ICON_CLOUD_OFF />
+                    "Not on this device yet"
+                </Text>
+                <Text style=TextStyle::CAPTION>
+                    "This block hasn't been opened on this device, so it can't open while you're offline."
+                </Text>
+                <Text style=TextStyle::CAPTION>"It opens once you're back online."</Text>
+            </List>
+        </Frame>
     }
 }
 

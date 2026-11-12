@@ -469,6 +469,8 @@ pub struct Shared {
     pub undurable: usize,
     pub connected: bool,
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
+    /// The workspace's peer, which knows what content this device holds.
+    pub peer: Option<Arc<Peer<Store>>>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
     /// The clock and the moment the stack waits on to try the server again. A moment the clock
@@ -549,6 +551,16 @@ impl Wall {
 }
 
 impl Shared {
+    /// What apps are told of a block depends on whether the host is connected
+    /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
+    fn set_connected(&mut self, connected: bool) {
+        if self.connected != connected {
+            self.connected = connected;
+            self.graph.revision += 1;
+            self.stale_revision += 1;
+        }
+    }
+
     pub fn touch(&mut self, block: Uuid) {
         self.touched.insert(block);
     }
@@ -657,6 +669,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
     };
     if let Some((peer, open)) = started {
+        shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
         forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
         let mut session = Session {
@@ -681,10 +694,10 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         session.run(open).await;
         forget_what_is_not_kept(&peer);
     }
-    shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .connected = false;
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.peer = None;
+    held.set_connected(false);
+    drop(held);
     changed.notify_all();
 }
 
@@ -1266,7 +1279,7 @@ impl Session<'_> {
         self.line = Line::up(peer, open);
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            held.connected = true;
+            held.set_connected(true);
             held.connection = Some(peer.connection());
             #[cfg(test)]
             {
@@ -1329,7 +1342,7 @@ fn arrived(shared: &Arc<Mutex<Shared>>) {
 
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    held.connected = false;
+    held.set_connected(false);
     held.arriving = false;
     held.connection = None;
 }
@@ -3458,7 +3471,7 @@ pub(super) fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
 
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    held.connected = false;
+    held.set_connected(false);
     held.reached = true;
     held.error = Some(error);
 }

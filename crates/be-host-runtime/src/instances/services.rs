@@ -405,8 +405,13 @@ impl Instances {
             } => {
                 let resolved = be_host_stack::app_graph::parent_of(parent);
                 let parent = resolved.unwrap_or(be_block_graph::BlockParent::Detached);
+                // Offline, a folder this device never read cannot take a block (its content
+                // says what it holds): the paste falls back to placing, which the host refuses
+                // with a notice.
                 let editable = resolved.is_some()
-                    && !parent.block().is_some_and(|parent| !self.editable(parent));
+                    && !parent.block().is_some_and(|parent| {
+                        !self.editable(parent) || be_host_stack::out_of_reach(parent)
+                    });
                 let mut pasted = Vec::new();
                 for block in blocks.into_iter().map(Uuid::from_bytes) {
                     let cut = super::cuts::take(block);
