@@ -49,7 +49,7 @@ impl BeuiRoot for BandedRoot {
 }
 
 #[test]
-fn a_hosted_window_is_kept_off_the_band_of_its_docks_bars() {
+fn a_hosted_window_keeps_its_grip_off_the_band_of_its_docks_bars() {
     let mut test = BeuiTest::<BandedRoot>::editing(Uuid::new_v4());
     test.show_on_displays(&[(Rect::from_min_size(Pos2::ZERO, DISPLAY), 1.0)]);
     test.run();
@@ -57,8 +57,10 @@ fn a_hosted_window_is_kept_off_the_band_of_its_docks_bars() {
     let band = test.rect_of("dock.bar.band.bottom");
     let shown = test.desk_windows();
     assert!(
-        matches!(shown[..], [window] if window.bottom() <= band.top()),
-        "the host keeps the window above the dock's band: {shown:?} {band:?}"
+        matches!(shown[..], [window] if window.min == pos2(10.0, 450.0)
+            && window.top() + be_sdk_window_stack::KEPT.y <= band.top()
+            && window.bottom() > band.top()),
+        "the window hangs over the dock's band, its grip above it: {shown:?} {band:?}"
     );
 
     let layout = LAYOUT
@@ -74,6 +76,7 @@ fn a_hosted_window_is_kept_off_the_band_of_its_docks_bars() {
     let moved = test.desk_windows();
     assert!(
         matches!(moved[..], [window] if window.left() >= band.right()),
-        "a band moved down the left pushes the window clear of it: {moved:?} {band:?}"
+        "a band moved down the left pushes the window's grip, and so the window, clear of it: \
+         {moved:?} {band:?}"
     );
 }

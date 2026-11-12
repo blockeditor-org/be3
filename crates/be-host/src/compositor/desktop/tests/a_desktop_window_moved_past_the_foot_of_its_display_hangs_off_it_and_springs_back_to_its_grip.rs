@@ -1,8 +1,7 @@
 use super::*;
 
 #[test]
-fn a_desktop_window_moved_past_the_foot_of_its_display_hangs_off_it_and_springs_back_to_its_grip()
-{
+fn a_desktop_window_moved_past_the_foot_of_its_display_hangs_off_it_and_springs_back_to_its_grip() {
     let work = Rect::from_min_max(Pos2::ZERO, pos2(HOST.x, HOST.y - 40.0));
     let mut window = Carrying::on_desktop(pos2(100.0, 100.0), vec2(300.0, 200.0), work);
     assert_eq!(
