@@ -25,8 +25,10 @@ use super::types::{self, Modules};
 use super::version::{Context, Versions};
 use super::{Config, Content, platform};
 
+mod served;
 mod uploads;
 
+use served::Served;
 use uploads::Uploads;
 
 const RECONNECT_FIRST: Duration = Duration::from_millis(500);
@@ -341,6 +343,22 @@ impl Command {
         }
     }
 
+    /// Whether the command needs only the server, so it runs in the lane beside the loop
+    /// (`Served`) while the device is attached.
+    fn served(&self) -> bool {
+        matches!(
+            self,
+            Command::SetParent { .. }
+                | Command::SetAccess { .. }
+                | Command::ListAccess { .. }
+                | Command::ReadHead { .. }
+                | Command::Leave(_)
+                | Command::ApprovePairing { .. }
+                | Command::Members(_)
+                | Command::BlockAgent { .. }
+        )
+    }
+
     fn is_quick(&self) -> bool {
         matches!(
             self,
@@ -575,6 +593,8 @@ pub struct Shared {
     pub typing: bool,
     pub uploading: usize,
     pub listing_revisions: usize,
+    /// Commands in the lane beside the loop that need only the server (`Served`).
+    pub serving: usize,
     pub importing: usize,
     /// What the worker's loop awaits while it is not waiting for its next wake-up, for the
     /// busy reason that names what queued commands wait behind.
@@ -632,6 +652,12 @@ impl Shared {
         }
         if self.draining {
             reasons.push("the block store sends the edits it kept".to_owned());
+        }
+        if self.serving > 0 {
+            reasons.push(format!(
+                "the block store waits on the server for {} command(s)",
+                self.serving
+            ));
         }
         if self.listing_revisions > 0 {
             reasons.push("the block store asks the server for a block's revisions".to_owned());
@@ -737,6 +763,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             wanted: Wanted::default(),
             replicas: &mut replicas,
             uploads: Uploads::new(&shared),
+            served: Served::default(),
             versions: Versions::default(),
             line: Line::down(&config, 0, Duration::ZERO),
             tasks: Tasks::new(),
@@ -930,6 +957,7 @@ struct Session<'a> {
     wanted: Wanted,
     replicas: &'a mut Replicas,
     uploads: Uploads,
+    served: Served,
     versions: Versions,
     line: Line,
     tasks: (Tasks, UnboundedReceiver<()>),
@@ -1086,11 +1114,18 @@ impl Session<'_> {
                                 self.uploads.add(blocks);
                                 ran.done();
                             }
-                            command => {
-                                if let Some(command) = self.uploads.defer(command) {
-                                    applied |= ran.run(command).await;
+                            command => match self.uploads.defer(command) {
+                                Some(command) if command.served() && peer.is_attached() => {
+                                    self.served.start(peer, shared, &self.tasks.0, command);
+                                    ran.done();
                                 }
-                            }
+                                Some(command) => {
+                                    if let Some(command) = self.served.defer(command) {
+                                        applied |= ran.run(command).await;
+                                    }
+                                }
+                                None => {}
+                            },
                         }
                         if quick {
                             next = self.commands.try_recv().ok();
@@ -1149,7 +1184,23 @@ impl Session<'_> {
                     self.replicas.modules.tick_due();
                     false
                 }
-                Woken::Finished => true,
+                Woken::Finished => {
+                    let mut ran = Ran {
+                        peer,
+                        replicas: &mut *self.replicas,
+                        wanted: &mut self.wanted,
+                        shared,
+                        config: self.config,
+                        versions: &mut self.versions,
+                        flushes: &mut flushes,
+                        tasks: &self.tasks.0,
+                    };
+                    for command in self.served.runnable() {
+                        step(shared, Some(command.name()));
+                        ran.run(command).await;
+                    }
+                    true
+                }
             };
             if self
                 .retry_at()
@@ -1164,7 +1215,7 @@ impl Session<'_> {
             moved |= self.replicas.pump((peer, shared)).await;
             step(shared, Some("the outbox"));
             moved |= self.settle_outbox().await;
-            rekey_changed(peer, self.replicas, &mut keyed);
+            rekey_changed(peer, self.replicas, &mut keyed, &self.served);
             let before = version_revisions(shared);
             step(shared, Some("version statuses"));
             self.refresh_versions().await;
@@ -1575,10 +1626,13 @@ fn rekey_changed(
     peer: &Arc<Peer<Store>>,
     replicas: &mut Replicas,
     keyed: &mut HashMap<Uuid, Uuid>,
+    served: &Served,
 ) {
     let open = replicas.open_blocks();
     keyed.retain(|block, _| open.contains(block));
-    for block in open {
+    // A block a command in the lane works on (sharing it rotates its key) is resealed once that
+    // command ends, not halfway through it.
+    for block in open.into_iter().filter(|block| !served.holds_block(*block)) {
         let Some(key) = peer.current_key(block) else {
             continue;
         };
@@ -1768,6 +1822,10 @@ impl Ran<'_> {
             return false;
         };
         let applied = match command {
+            command @ (Command::Members(_) | Command::BlockAgent { .. }) => {
+                serve_command(self.peer, self.shared, self.tasks, command).await;
+                false
+            }
             Command::Contact(command) => {
                 contact(self.peer, self.shared, self.config, self.tasks, command).await;
                 false
@@ -1778,10 +1836,6 @@ impl Ran<'_> {
             }
             Command::Storage => {
                 self.tasks.storage(self.peer, self.shared);
-                false
-            }
-            Command::Members(command) => {
-                members(self.peer, self.shared, command).await;
                 false
             }
             Command::Invite { email, role, reply } => {
@@ -1873,12 +1927,6 @@ impl Ran<'_> {
                     }
                     be_host_base::host::wake();
                 });
-                false
-            }
-            Command::BlockAgent { agent, change } => {
-                change_block_agent(self.peer, agent, change).await;
-                self.tasks.sync_contacts(self.peer, self.shared).await;
-                be_host_base::host::wake();
                 false
             }
             command => {
@@ -2310,6 +2358,94 @@ fn set_busy(shared: &Arc<Mutex<Shared>>, block: Uuid, busy: bool, error: Option<
     held.touch(block);
 }
 
+/// Carries out a command that needs only the server (`Command::served`): in the lane of commands
+/// beside the loop (`Served`), or in the loop while the device is not attached.
+async fn serve_command(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    command: Command,
+) {
+    match command {
+        Command::SetParent { block, parent } => {
+            let moved = peer.set_parent(block, parent).await;
+            let settled = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .settle(block);
+            if let Err(error) = moved {
+                record(shared, error);
+            }
+            if settled {
+                tasks.refresh(peer, shared, block);
+            }
+        }
+        Command::SetAccess {
+            block,
+            account,
+            access,
+        } => {
+            let verified = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .contacts
+                .iter()
+                .find(|contact| contact.account == account)
+                .and_then(|contact| contact.public);
+            let granted = match verified {
+                _ if account == be_block_graph::ANYONE_INSIDE => {
+                    peer.open_inside(block, access).await
+                }
+                Some(public) => peer.share(block, account, access, &public).await,
+                None => peer.grant(block, account, access).await,
+            };
+            if let Err(error) = granted {
+                record(shared, error);
+            }
+            tend(peer, shared).await;
+        }
+        Command::ListAccess { block, reply } => {
+            let listed = peer
+                .list_access(block)
+                .await
+                .map_err(|error| error.to_string());
+            reply(listed);
+            be_host_base::host::wake();
+        }
+        Command::ReadHead { commit, reply, .. } => {
+            let read = async {
+                let commit = peer.load_commit(commit).await?;
+                peer.read_manifest(&commit.manifest).await
+            }
+            .await;
+            reply(read.map_err(|error| error.to_string()));
+            be_host_base::host::wake();
+        }
+        Command::Leave(block) => {
+            if let Err(error) = peer.leave(block).await {
+                record(shared, error);
+            }
+            tasks.refresh(peer, shared, block);
+        }
+        Command::ApprovePairing { from, code } => {
+            if let Err(error) = approve_pairing(peer, shared, from, &code).await {
+                record(shared, error);
+            }
+            be_host_base::host::wake();
+        }
+        Command::Members(command) => {
+            members(peer, shared, command).await;
+        }
+        Command::BlockAgent { agent, change } => {
+            change_block_agent(peer, agent, change).await;
+            tasks.sync_contacts(peer, shared).await;
+            be_host_base::host::wake();
+        }
+        _ => {}
+    }
+}
+
 async fn apply(
     peer: &Arc<Peer<Store>>,
     replicas: &mut Replicas,
@@ -2322,6 +2458,15 @@ async fn apply(
 ) -> bool {
     let ctx = (peer, shared);
     match command {
+        command @ (Command::SetParent { .. }
+        | Command::SetAccess { .. }
+        | Command::ListAccess { .. }
+        | Command::ReadHead { .. }
+        | Command::Leave(_)
+        | Command::ApprovePairing { .. }) => {
+            serve_command(peer, shared, tasks, command).await;
+            true
+        }
         Command::Contact(_)
         | Command::Members(_)
         | Command::Invite { .. }
@@ -2334,22 +2479,8 @@ async fn apply(
         | Command::Authorship(_)
         | Command::Storage
         | Command::Sync => false,
-        Command::Leave(block) => {
-            if let Err(error) = peer.leave(block).await {
-                record(shared, error);
-            }
-            tasks.refresh(peer, shared, block);
-            true
-        }
         Command::WatchVersion(block) => {
             Versions::watch(shared, block);
-            false
-        }
-        Command::ApprovePairing { from, code } => {
-            if let Err(error) = approve_pairing(peer, shared, from, &code).await {
-                record(shared, error);
-            }
-            be_host_base::host::wake();
             false
         }
         Command::DismissPairing(from) => {
@@ -2725,21 +2856,6 @@ async fn apply(
             remember_head(peer, shared, block);
             true
         }
-        Command::SetParent { block, parent } => {
-            let moved = peer.set_parent(block, parent).await;
-            let settled = shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .settle(block);
-            if let Err(error) = moved {
-                record(shared, error);
-            }
-            if settled {
-                tasks.refresh(peer, shared, block);
-            }
-            true
-        }
         Command::Define { block, changes } => {
             let defined = peer
                 .define(block, |metadata| metadata.define(&changes))
@@ -2753,50 +2869,6 @@ async fn apply(
                 record(shared, error);
             }
             true
-        }
-        Command::SetAccess {
-            block,
-            account,
-            access,
-        } => {
-            let verified = shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .contacts
-                .iter()
-                .find(|contact| contact.account == account)
-                .and_then(|contact| contact.public);
-            let granted = match verified {
-                _ if account == be_block_graph::ANYONE_INSIDE => {
-                    peer.open_inside(block, access).await
-                }
-                Some(public) => peer.share(block, account, access, &public).await,
-                None => peer.grant(block, account, access).await,
-            };
-            if let Err(error) = granted {
-                record(shared, error);
-            }
-            tend(peer, shared).await;
-            true
-        }
-        Command::ListAccess { block, reply } => {
-            let listed = peer
-                .list_access(block)
-                .await
-                .map_err(|error| error.to_string());
-            reply(listed);
-            be_host_base::host::wake();
-            false
-        }
-        Command::ReadHead { commit, reply, .. } => {
-            let read = async {
-                let commit = peer.load_commit(commit).await?;
-                peer.read_manifest(&commit.manifest).await
-            }
-            .await;
-            reply(read.map_err(|error| error.to_string()));
-            be_host_base::host::wake();
-            false
         }
         Command::Export { block, reply } => {
             let exported = export(peer, replicas, shared, block).await;
