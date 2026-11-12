@@ -269,7 +269,7 @@ fn QuickTile(
     glyph: Prop<Glyph>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] toggle: bool,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());

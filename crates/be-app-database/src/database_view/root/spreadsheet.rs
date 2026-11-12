@@ -159,7 +159,7 @@ fn HeaderCell(
     label: Prop<String>,
     width: Prop<Size>,
     sorted: Prop<Option<SortDirection>>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let sorted = create_memo(move || sorted.get());
     let glyph = create_memo(move || match sorted.get() {

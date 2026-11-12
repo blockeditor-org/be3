@@ -16,12 +16,7 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
         view! {
             <Frame fill={Color32::from_gray(20)} radius=0.0 padding=16.0>
                 <List spacing=0.0>
-                    <MenuButton
-                        @node_ref=&button
-                        label="Actions"
-                        items
-                        on_select={|_: Vec<usize>| {}}
-                    />
+                    <MenuButton @node_ref=&button label="Actions" items />
                 </List>
             </Frame>
         }

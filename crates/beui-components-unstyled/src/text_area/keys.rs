@@ -37,7 +37,7 @@ pub(super) fn leaves_on_tab(cx: &Context, press: KeyPress) -> bool {
 
 pub(super) fn submit(cx: &Context) {
     cx.state.end_undo_group();
-    cx.on_submit.call();
+    cx.on_submit.call(());
 }
 
 fn selected(state: TextAreaState) -> bool {

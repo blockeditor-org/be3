@@ -20,7 +20,7 @@ fn a_commit_in_one_checkout_is_brought_into_another() {
         text_of(shared, versioned.note).is_some()
     });
     type_text(versioned.note, 5, " there");
-    flush();
+    flush_and_send();
     wait_until("listed the edit as a change", |shared| {
         version_status(shared, versioned.checkout).is_some_and(|status| {
             status.changes.len() == 1

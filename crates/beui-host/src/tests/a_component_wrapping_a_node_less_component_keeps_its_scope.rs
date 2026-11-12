@@ -73,7 +73,6 @@ fn Rows(region: NodeRef, count: crate::reactive::ReadSignal<usize>) -> NodeId {
                     }
                 }</ForEach>
             }}
-            on_select={move |_: Vec<usize>| {}}
         >
             <Frame @node_ref={&region} width=REGION height=REGION />
         </ContextMenu>

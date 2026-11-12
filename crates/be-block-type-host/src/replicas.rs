@@ -732,6 +732,7 @@ impl<H: Host> Replicas<H> {
                         head,
                         None,
                         false,
+                        None,
                     ) {
                         self.join_later(replica, block, joining);
                     }
@@ -767,6 +768,11 @@ impl<H: Host> Replicas<H> {
         let (client, session, head, offline, journal) = match joined {
             Ok((client, _, _, true, _)) => {
                 let head = known_head_of(peer, block);
+                if head.is_some() && peer.held_head(block).is_none() {
+                    // Nothing to read: the block opens once the host reconnects, and meanwhile
+                    // takes no edits it could never journal or publish.
+                    return;
+                }
                 (client, offline_session(head), head, true, None)
             }
             Ok(joined) => joined,
@@ -784,7 +790,7 @@ impl<H: Host> Replicas<H> {
             true => head,
             false => ahead(peer, block).or(head),
         };
-        let (journal, journal_kept) = journal_for(peer, block, journal, head);
+        let (journal, journal_kept, load_at, sealed_head) = journal_for(peer, block, journal, head);
         let Some(replica) = self.start(
             peer,
             block,
@@ -792,9 +798,10 @@ impl<H: Host> Replicas<H> {
             reader,
             client,
             session,
-            head,
+            load_at,
             journal,
             journal_kept,
+            sealed_head,
         ) else {
             return;
         };
@@ -825,6 +832,7 @@ impl<H: Host> Replicas<H> {
         head: Option<CommitId>,
         journal: Option<be_block_protocol::Journal>,
         journal_kept: bool,
+        sealed_head: Option<be_sdk_type_api::SealedHead>,
     ) -> Option<ReplicaId> {
         if self.blocks.contains_key(&block) {
             return None;
@@ -849,6 +857,7 @@ impl<H: Host> Replicas<H> {
             journal_kept,
             commits_kept: kept.0,
             refused_commits: kept.1,
+            sealed_head,
         };
         let handle = self
             .modules
@@ -1004,6 +1013,7 @@ impl<H: Host> Replicas<H> {
             journal_kept: false,
             commits_kept: commits_kept.0,
             refused_commits: commits_kept.1,
+            sealed_head: None,
         };
         let editors: Vec<(EditorId, bool)> = open
             .editors
@@ -2208,6 +2218,7 @@ impl<H: Host> Replicas<H> {
                 journal_kept: false,
                 commits_kept: kept.0,
                 refused_commits: kept.1,
+                sealed_head: None,
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors
@@ -2481,7 +2492,7 @@ impl<H: Host> Replicas<H> {
                                 }
                                 Err(error) => {
                                     if !unreachable(&error) {
-                                        H::record(&shared, error);
+                                        H::record_sync(&shared, error);
                                     }
                                     false
                                 }
@@ -2502,6 +2513,7 @@ impl<H: Host> Replicas<H> {
                 reply,
                 generation,
                 base,
+                entries,
             } => {
                 self.acknowledge(module, reply);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
@@ -2519,8 +2531,16 @@ impl<H: Host> Replicas<H> {
                         .is_some_and(|sealed| sealed.contains(&commit))
                         || peer.pending_commits(block).contains(&commit)
                 });
+                let entries = entries
+                    .into_iter()
+                    .map(|entry| be_block_protocol::JournalEntry {
+                        generation,
+                        sequence: entry.sequence,
+                        payload: entry.payload,
+                    })
+                    .collect();
                 let rebased = peer
-                    .rebase_journal(block, generation, tag, base, online, own)
+                    .rebase_journal(block, generation, tag, base, entries, online, own)
                     .await;
                 self.journaled(shared, rebased);
                 let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
@@ -2536,11 +2556,15 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
                     let read = async {
-                        let commit = peer.load_commit(commit).await?;
-                        match first_part {
-                            true => peer.load_first_part(&commit.manifest).await,
-                            false => peer.load_manifest(&commit.manifest).await,
+                        let loaded = peer.load_commit(commit).await?;
+                        let read = match first_part {
+                            true => peer.load_first_part(&loaded.manifest).await,
+                            false => peer.load_manifest(&loaded.manifest).await,
+                        };
+                        if read.is_ok() && !first_part {
+                            peer.read_whole(block, commit);
                         }
+                        read
                     }
                     .await;
                     if let Err(ClientError::Locked(_)) = &read {
@@ -2593,6 +2617,7 @@ impl<H: Host> Replicas<H> {
                 expected,
                 merging,
                 content,
+                sealed_through,
             } => {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
@@ -2624,7 +2649,13 @@ impl<H: Host> Replicas<H> {
                         be_sdk_type_api::written_parts(&content.bytes, &content.parts),
                         expected,
                     )
-                    .described(content.references, content.derived);
+                    .described(content.references, content.derived)
+                    .sealed_through(sealed_through.map(
+                        |(generation, sequence)| be_block_commit::SealedThrough {
+                            generation,
+                            sequence,
+                        },
+                    ));
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
                     }
@@ -2898,7 +2929,8 @@ impl<H: Host> Replicas<H> {
 }
 
 fn known_head_of<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Option<CommitId> {
-    peer.local_head(block)
+    peer.held_head(block)
+        .or_else(|| peer.local_head(block))
         .or_else(|| peer.known_remote_head(block))
         .or_else(|| peer.known_summary(block).and_then(|summary| summary.head))
 }
@@ -3000,9 +3032,78 @@ fn kept_commits<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> 
     (kept, refused)
 }
 
-/// The journal to open `head` on, and whether it is this device's, holding entries the server
-/// lacks.
-fn journal_for<S: be_block_store::ObjectStore>(
+/// What a replica opening at `head` loads: the journal, whether it is this device's (holding
+/// entries the server lacks), the commit to load it on, and the sealed head to take after.
+pub type Loads = (
+    Option<be_block_protocol::Journal>,
+    bool,
+    Option<CommitId>,
+    Option<be_sdk_type_api::SealedHead>,
+);
+
+/// The journal to open `head` on (`journal_on`), or, when `head` is a seal this device made on
+/// a commit its journal is still on (it stopped after the server took the seal and before it
+/// heard so, `Commit::sealed_through`), that journal on that commit, with `head` as the sealed
+/// head the replica takes once it replayed it.
+///
+/// Only this device's own journal is trusted for that, and only when it noted that very seal
+/// (`Peer::sealing`, written with the seal's commit and dropped by the next rebase) and holds
+/// the seal's last entry in the seal's generation (`reaches_seal`). Anything else is loaded
+/// plainly at `head`.
+pub fn journal_for<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    server: Option<be_block_protocol::Journal>,
+    head: Option<CommitId>,
+) -> Loads {
+    let (journal, kept) = journal_on(peer, block, server, head);
+    if journal.is_some() {
+        return (journal, kept, head, None);
+    }
+    let Some(commit) = head else {
+        return (None, false, head, None);
+    };
+    let own = peer
+        .sealing(block)
+        .filter(|(sealing, _)| *sealing == commit)
+        .and_then(|_| peer.sealed_on(commit))
+        .and_then(|(parent, sealed)| {
+            let journal = peer.local_journal(block).ok().flatten()?;
+            let reaches = journal.base.commit == parent
+                && be_block_session::reaches_seal(
+                    journal.base.sequence,
+                    journal
+                        .entries
+                        .iter()
+                        .map(|entry| (entry.sequence, entry.generation)),
+                    sealed.generation,
+                    sealed.sequence,
+                );
+            reaches.then_some((journal, parent, sealed))
+        });
+    match own {
+        Some((journal, parent, sealed)) => {
+            let kept = journal
+                .entries
+                .iter()
+                .any(|entry| entry.sequence > sealed.sequence);
+            (
+                Some(journal),
+                kept,
+                parent,
+                Some(be_sdk_type_api::SealedHead {
+                    commit,
+                    through: sealed.sequence,
+                }),
+            )
+        }
+        None => (None, false, head, None),
+    }
+}
+
+/// The journal on `head`: the server's or this device's, whichever holds more, and whether it
+/// is this device's.
+fn journal_on<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     server: Option<be_block_protocol::Journal>,

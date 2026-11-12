@@ -4,7 +4,7 @@ use beui_view::types::icons::Glyph;
 mod stack;
 mod switch;
 
-use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::unstyled as dock;
@@ -199,7 +199,7 @@ fn DockAwayFace(handle: DockAwayHandle) -> NodeId {
                     glyph=ICON_MINIMIZE
                     variant=ButtonVariant::Secondary
                     @test_id="dock.away.leave"
-                    on_click={move || leave.call()}
+                    on_click={move || leave.call(())}
                 />
             </List>
         </Frame>
@@ -341,7 +341,7 @@ fn DockIconTab(
                 width=TAB_HEIGHT
                 height=TAB_HEIGHT
                 align=Align::Center
-                border={focus_border(focused, Border::FOCUS)}
+                focus={focused}
             >
                 <List align=Align::Center spacing=Space::None>
                     <Show condition={pictured}>
@@ -378,7 +378,7 @@ fn DockTabChrome(
     noticed: Memo<bool>,
     waiting_test_id: String,
     close_test_id: String,
-    close: ClickCallback,
+    close: Callback<()>,
 ) -> NodeId {
     let fill = tab_fill(selected, hovered, active, dragged, noticed);
     let label = create_memo(move || match (noticed.get(), selected.get()) {
@@ -398,7 +398,7 @@ fn DockTabChrome(
             radius=TAB_RADIUS
             height=TAB_HEIGHT
             padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
-            border={focus_border(focused, Border::FOCUS)}
+            focus={focused}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
@@ -608,7 +608,7 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
         test_prefix,
         ..
     } = handle;
-    let close = move || close.call();
+    let close = move || close.call(());
     match vertical {
         true => view! {
             <DockSideBar grip tabs title vacant menu closable icons_only close test_prefix />
@@ -627,7 +627,7 @@ fn DockTitleBar(
     vacant: Memo<bool>,
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
-    close: ClickCallback,
+    close: Callback<()>,
     test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
@@ -715,7 +715,7 @@ fn DockSideBar(
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     icons_only: Memo<bool>,
-    close: ClickCallback,
+    close: Callback<()>,
     test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
@@ -856,7 +856,7 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom, test_prefix: St
 #[component]
 fn DockClose(
     closable: Memo<bool>,
-    close: ClickCallback,
+    close: Callback<()>,
     test_prefix: String,
 ) -> DynamicSegment<ListItem> {
     view! {
@@ -921,19 +921,19 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
             Direction::Vertical => Padding::vertical(Space::Custom(side)),
         }
     });
-    let border = focus_border(focused, Border::FOCUS);
+    let ring = focus_ring(focused);
     let line = view! {
         <Frame fill={line} />
     };
     above_embeds(line, Some(AboveEmbeds::Paints));
-    let ring = view! {
-        <Frame padding={padding} border={border}>{line}</Frame>
+    let ring_node = view! {
+        <Frame padding={padding} focus={focused}>{line}</Frame>
     };
     above_embeds(
-        ring,
-        create_memo(move || border.get().map(|_| AboveEmbeds::Paints)),
+        ring_node,
+        create_memo(move || ring.get().then_some(AboveEmbeds::Paints)),
     );
-    ring
+    ring_node
 }
 
 #[component]

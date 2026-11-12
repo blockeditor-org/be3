@@ -709,7 +709,7 @@ fn Scrolling(
     if let Some(offset) = motion.with(|motion| motion.node) {
         offset.on_steer(move |()| motion.value().steer());
     }
-    api.fill(ScrollApi(motion, ClickCallback::empty()));
+    api.fill(ScrollApi(motion, Callback::empty()));
 
     let position = create_memo(move || reported.get().unwrap_or_default());
     let overflows = create_memo(move || position.get().max_offset() > 0.0);
@@ -792,11 +792,16 @@ fn Scrolling(
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
     let marker = marker.once();
-    on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
-        event
-            .press()
-            .is_some_and(|press| navigates(press.key) && motion.value().key(press))
-    });
+    on_key(
+        KeyAt::Node(catcher),
+        KeyPhase::Bubble,
+        KeyReveal::Nothing,
+        move |event| {
+            event
+                .press()
+                .is_some_and(|press| navigates(press.key) && motion.value().key(press))
+        },
+    );
     let autoscroll = gestures::autoscroll(move |gesture: AutoscrollGesture| {
         let marking = (!gesture.ended).then_some(gesture.origin);
         if origin.get_untracked() != marking {
@@ -1214,7 +1219,7 @@ fn BrowserScroll(
     });
     api.fill(ScrollApi(
         motion,
-        ClickCallback::new(move || {
+        Callback::new(move |()| {
             pinned.with(|pinned| pinned.set(true));
             scroll_to(f32::MAX);
             refresh();
@@ -1345,7 +1350,7 @@ fn navigates(key: Key) -> bool {
 }
 
 #[derive(Clone, Copy)]
-pub struct ScrollApi(Stored<Motion>, ClickCallback);
+pub struct ScrollApi(Stored<Motion>, Callback<()>);
 
 impl ScrollApi {
     pub fn animating(&self) -> bool {
@@ -1354,7 +1359,7 @@ impl ScrollApi {
 
     pub fn scroll_to_end(&self) {
         if !self.1.is_empty() {
-            self.1.call();
+            self.1.call(());
             return;
         }
         self.0.with(|motion| motion.to_end());

@@ -204,9 +204,12 @@ where
 
     let highlight = create_selector(move || highlighted.get());
     let tracks = create_memo(move || vec![Track::Fraction(1.0); columns.get()]);
-    on_scroll_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
-        event.press().is_some_and(|press| state.navigate(press))
-    });
+    on_key(
+        KeyAt::Node(state.search),
+        KeyPhase::Capture,
+        KeyReveal::Nothing,
+        move |event| event.press().is_some_and(|press| state.navigate(press)),
+    );
     let search_accessibility = crate::labelled_node(
         Role::TextInput,
         search_accessibility,

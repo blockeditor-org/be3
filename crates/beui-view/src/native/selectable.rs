@@ -930,16 +930,21 @@ pub(crate) fn selectable(
             state.paint();
         });
     });
-    on_key(KeyAt::Node(focusable), KeyPhase::Bubble, move |event| {
-        event.press().is_some_and(|press| {
-            key(
-                state,
-                copy_key.get_untracked(),
-                select_all_key.get_untracked(),
-                press,
-            )
-        })
-    });
+    on_key(
+        KeyAt::Node(focusable),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            event.press().is_some_and(|press| {
+                key(
+                    state,
+                    copy_key.get_untracked(),
+                    select_all_key.get_untracked(),
+                    press,
+                )
+            })
+        },
+    );
     view! {
         <Interactive
             focusable=true

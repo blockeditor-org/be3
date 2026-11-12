@@ -339,8 +339,14 @@ impl Programs {
         };
         let stage = match read.and_then(|file| files::place(files, block, &file)) {
             Ok(placed) => {
-                if let Some((name, bytes)) = placed.taken_back {
-                    be_host_stack::from_file(block, block_type, name, bytes);
+                if let Some((name, bytes)) = placed.taken_back
+                    && !be_host_stack::from_file(block, block_type, name, bytes)
+                {
+                    be_host_base::notices::refuse(
+                        "What the program saved was not taken back: the block is not on this \
+                         device yet, and it can be once you're back online."
+                            .to_owned(),
+                    );
                 }
                 #[cfg(target_os = "linux")]
                 {
@@ -490,7 +496,10 @@ impl Programs {
         let Some((name, bytes, stamp)) = files::changed(&disk) else {
             return;
         };
-        be_host_stack::from_file(block, block_type, name, bytes);
+        // Unrecorded, the change is taken back on a later look, once the block is in reach.
+        if !be_host_stack::from_file(block, block_type, name, bytes) {
+            return;
+        }
         if let Err(error) = files::record(&disk.path, stamp) {
             eprintln!(
                 "be-host: what was taken back from {} was not recorded: {error}",

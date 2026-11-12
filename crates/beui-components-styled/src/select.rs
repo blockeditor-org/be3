@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::Overflow;
 
@@ -116,11 +116,7 @@ fn SelectTrigger(
         false => TextColor::Default,
     });
     view! {
-        <Frame
-            width={width}
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
-            radius=Radius::Md
-        >
+        <Frame width={width} focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <Frame
                 height=HEIGHT
                 fill={fill}

@@ -96,7 +96,7 @@ pub fn too_small(least: Vec2, shown: Vec2) -> bool {
 #[component]
 pub fn WindowBody(
     status: Memo<Option<WindowStatus>>,
-    on_force_close: ClickCallback,
+    on_force_close: Callback<()>,
     children: Child,
 ) -> NodeId {
     let shown = create_signal(Vec2::ZERO);
@@ -195,8 +195,8 @@ pub fn WindowBody(
 #[component]
 fn NotResponding(
     name: Memo<String>,
-    on_wait: ClickCallback,
-    on_force_close: ClickCallback,
+    on_wait: Callback<()>,
+    on_force_close: Callback<()>,
 ) -> NodeId {
     let message = create_memo(move || format!("{} is not responding", name.get()));
     view! {

@@ -67,15 +67,20 @@ pub(crate) fn AppDialog(
         modal,
         dismiss,
     }));
-    on_key(KeyAt::Root, KeyPhase::Bubble, move |event| {
-        let escape = event
-            .press()
-            .is_some_and(|press| press.key == Key::Escape && press.pressed && !press.repeat);
-        if escape {
-            dismiss.call(());
-        }
-        escape
-    });
+    on_key(
+        KeyAt::Root,
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let escape = event
+                .press()
+                .is_some_and(|press| press.key == Key::Escape && press.pressed && !press.repeat);
+            if escape {
+                dismiss.call(());
+            }
+            escape
+        },
+    );
     let body = content.call(());
     on_back(true, move |gesture| {
         if gesture == BackGesture::Invoked {

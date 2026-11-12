@@ -263,6 +263,7 @@ fn HostMenu(
         on_key(
             beui::KeyAt::Node(held),
             beui::KeyPhase::Bubble,
+            beui::KeyReveal::Focus,
             move |event| {
                 let escaped = event
                     .press()

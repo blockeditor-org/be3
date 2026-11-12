@@ -28,7 +28,7 @@ pub(crate) struct DialogParts {
     pub(crate) size: Memo<Vec2>,
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
-    pub(crate) on_close: Option<ClickCallback>,
+    pub(crate) on_close: Option<Callback<()>>,
     pub(crate) content: RenderFn<()>,
 }
 
@@ -43,7 +43,7 @@ pub struct DockDialogHandle {
     pub attention: ReadSignal<bool>,
     pub detached: Memo<bool>,
     pub closable: bool,
-    pub close: ClickCallback,
+    pub close: Callback<()>,
     pub grab: Callback<Pos2>,
     pub drag: Callback<Pos2>,
     pub card: NodeRef,
@@ -325,9 +325,9 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             {body}
         </Frame>
     };
-    let close = ClickCallback::new(move || {
+    let close = Callback::new(move |()| {
         if let Some(close) = &on_close {
-            close.call();
+            close.call(());
         }
     });
     let closable = on_close.is_some();
@@ -438,9 +438,9 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             open={shown}
             keep_alive=true
             on_dismiss={move |reason: Dismiss| match reason {
-                Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(),
+                Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
                 Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
-                Dismiss::Escape | Dismiss::Back => close.call(),
+                Dismiss::Escape | Dismiss::Back => close.call(()),
                 Dismiss::OutsidePress | Dismiss::WithParent => {}
             }}
         >

@@ -761,7 +761,7 @@ fn RowButton(
     glyph: Glyph,
     label: Memo<String>,
     named: String,
-    on_click: be_sdk_beui::beui::reactive::ClickCallback,
+    on_click: be_sdk_beui::beui::reactive::Callback<()>,
 ) -> NodeId {
     let focused = create_signal(false);
     let reachable = create_memo(move || row_focused.get() || focused.get());

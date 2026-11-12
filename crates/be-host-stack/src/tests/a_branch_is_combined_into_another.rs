@@ -29,7 +29,7 @@ fn a_branch_is_combined_into_another() {
                 .is_some_and(|state| state.branch == "draft")
     });
     type_text(versioned.note, 5, " there");
-    flush();
+    flush_and_send();
     version(
         versioned.checkout,
         VersionCommand::Finish {

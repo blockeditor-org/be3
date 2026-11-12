@@ -8,7 +8,7 @@ use beui_view::reactive::*;
 #[component]
 pub fn Fullscreen(
     open: Prop<bool>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     #[prop(children)] content: Render,
 ) -> NodeId {
     view! {

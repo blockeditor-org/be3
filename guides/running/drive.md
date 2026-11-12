@@ -161,7 +161,11 @@ see the program part way through something. A command gives up after 30 s
 A program has settled once a frame asks for no other and `Program::busy` gives no reason.
 be-host is busy while an app starts, owes a frame or has unanswered input, while an editor on
 screen waits for content, while an account request is pending, and while the block store has
-work queued or edits to journal, seal or send. It is never busy on its error screen.
+work queued or edits to journal or seal. Sending the outbox and asking the server for a block's
+revisions count as unsynced instead (below). A command that needs the server still runs in the
+block store's loop, so the commands queued behind it keep the host busy until it is answered or
+the connection is declared lost; the busy reason names the step the loop is in. It is never
+busy on its error screen.
 
 `drive synced` waits for more: settled, and `Program::out_of_step` gives no reason. be-host gives
 one while its block store is not connected, has edits waiting to be sent, or has yet to ask for

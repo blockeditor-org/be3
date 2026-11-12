@@ -29,7 +29,7 @@ fn a_seal_the_connection_loses_is_kept_and_published_after_reconnect() {
         shared.connected && shared.waiting == 0 && !shared.draining
     });
     assert_eq!(count_of(block), Some(7));
-    flush();
+    flush_and_send();
 
     let saved = runtime().block_on(async {
         harness

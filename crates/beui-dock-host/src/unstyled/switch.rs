@@ -6,6 +6,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Key;
+use beui_view::types::KeyPhase;
 use beui_view::types::Placement;
 use beui_view::types::Pos2;
 use beui_view::types::icons::Glyph;
@@ -25,7 +26,7 @@ pub struct DockSwitchRowHandle {
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
     pub chosen: Memo<bool>,
-    pub pick: ClickCallback,
+    pub pick: Callback<()>,
 }
 
 impl State {
@@ -58,7 +59,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         title: create_memo(move || dock.title(tab)),
         icon: create_memo(move || dock.icon(tab)),
         chosen: create_memo(move || chosen.get() == Some(tab)),
-        pick: ClickCallback::new(move || dock.pick_switch(tab)),
+        pick: Callback::new(move |()| dock.pick_switch(tab)),
     });
     let body = move || match &dock.switch {
         Some(render) => render.call(DockSwitchHandle { tabs, chosen, row }),
@@ -67,22 +68,27 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         },
     };
     let overlay = NodeRef::new();
-    on_global_key(move |event: KeyEvent| {
-        if event.held() {
-            return true;
-        }
-        let Some(press) = event.press() else {
-            return false;
-        };
-        let Some(overlay) = overlay.try_get() else {
-            return false;
-        };
-        if press.key != Key::Escape || !press.pressed || !open.get_untracked() {
-            return false;
-        }
-        overlay.dismiss_overlay(Dismiss::Escape);
-        true
-    });
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event: KeyEvent| {
+            if event.held() {
+                return true;
+            }
+            let Some(press) = event.press() else {
+                return false;
+            };
+            let Some(overlay) = overlay.try_get() else {
+                return false;
+            };
+            if press.key != Key::Escape || !press.pressed || !open.get_untracked() {
+                return false;
+            }
+            overlay.dismiss_overlay(Dismiss::Escape);
+            true
+        },
+    );
     view! {
         <Overlay
             @node_ref=&overlay

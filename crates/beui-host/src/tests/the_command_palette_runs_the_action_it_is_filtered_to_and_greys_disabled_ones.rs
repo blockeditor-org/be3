@@ -1,9 +1,9 @@
 use super::*;
-use crate::KeyPress;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::CommandPaletteApi;
+use crate::{KeyEvent, KeyPhase};
 
 #[test]
 fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones() {
@@ -25,16 +25,23 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
         })
         .register();
         let open = create_signal(false);
-        on_shortcut(move |press: KeyPress| {
-            let wanted = press.pressed
-                && press.key == Key::P
-                && press.modifiers.ctrl
-                && press.modifiers.shift;
-            if wanted {
-                open.set(true);
-            }
-            wanted
-        });
+        on_key(
+            KeyAt::Root,
+            KeyPhase::Capture,
+            KeyReveal::Focus,
+            move |event: KeyEvent| {
+                let wanted = event.press().is_some_and(|press| {
+                    press.pressed
+                        && press.key == Key::P
+                        && press.modifiers.ctrl
+                        && press.modifiers.shift
+                });
+                if wanted {
+                    open.set(true);
+                }
+                wanted
+            },
+        );
         view! {
             <List spacing=0.0>
                 <unstyled::Button @test_id={"button"}>

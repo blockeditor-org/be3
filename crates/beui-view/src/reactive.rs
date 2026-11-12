@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::core::reactive as core;
 use crate::types::{
-    BackGesture, Color, Direction, KeyPhase, KeyPress, Modifiers, Outline, Pos2, PreferenceLayer,
+    BackGesture, Color, Direction, KeyPhase, Modifiers, Outline, Pos2, PreferenceLayer,
     PreferenceLayers, PreferenceSource, Preferences, Vec2, WindowId,
 };
 
@@ -29,7 +29,7 @@ pub use crate::measure::{
 pub use crate::nodes::{Inspect, TreeNode};
 pub use crate::painter::{Draw, Painter, TextBlock};
 pub use crate::types::clipboard::formats;
-pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput};
+pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput, KeyReveal};
 pub use crate::types::layer::OverlayAnchor;
 pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
 pub use crate::types::tree::{BareChild, FromPlaced, ParentKind, Placed};
@@ -243,29 +243,13 @@ pub fn held_modifiers() -> ReadSignal<Modifiers> {
     core::held_modifiers()
 }
 
-pub fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
-    core::on_key(at, phase, handler);
-}
-
-pub fn on_scroll_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
-    core::on_scroll_key(at, phase, handler);
-}
-
-pub fn on_shortcut(shortcut: impl Fn(KeyPress) -> bool + 'static) {
-    let at = match try_current_component() {
-        Some(_) => KeyAt::Node(component_node()),
-        None => KeyAt::Root,
-    };
-    on_key(at, KeyPhase::Capture, move |event| {
-        match (event.press(), event.phase) {
-            (Some(press), KeyPhase::Capture) => shortcut(press),
-            _ => false,
-        }
-    });
-}
-
-pub fn on_global_key(handler: impl Fn(KeyEvent) -> bool + 'static) {
-    on_key(KeyAt::Window, KeyPhase::Capture, handler);
+pub fn on_key(
+    at: KeyAt,
+    phase: KeyPhase,
+    reveal: KeyReveal,
+    handler: impl Fn(KeyEvent) -> bool + 'static,
+) {
+    core::on_key(at, phase, reveal, handler);
 }
 
 pub fn on_back(enabled: impl IntoProp<bool>, handler: impl Fn(BackGesture) + 'static) {

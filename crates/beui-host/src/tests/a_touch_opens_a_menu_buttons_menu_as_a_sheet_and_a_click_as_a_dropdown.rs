@@ -27,10 +27,15 @@ fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
             <MenuButton
                 label="Sort"
                 items={view! {
-                    <MenuItem label="By name" />
-                    <MenuItem label="By date" />
+                    <MenuItem
+                        label="By name"
+                        on_click={move || picked.update(|picked| picked.push(vec![0]))}
+                    />
+                    <MenuItem
+                        label="By date"
+                        on_click={move || picked.update(|picked| picked.push(vec![1]))}
+                    />
                 }}
-                on_select={move |path: Vec<usize>| picked.update(|picked| picked.push(path))}
             />
         }]
     });

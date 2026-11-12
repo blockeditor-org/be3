@@ -50,7 +50,7 @@ pub struct MenuRowHandle {
     pub has_submenu: Prop<bool>,
     pub depth: Prop<Option<usize>>,
     pub expanded: Prop<Option<bool>>,
-    pub toggle: ClickCallback,
+    pub toggle: Callback<()>,
     pub pointed: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -82,7 +82,7 @@ pub struct MenuItem {
     then: MenuThen,
     test_id: Option<String>,
     pub(crate) action: Option<Action>,
-    pub(crate) on_click: ClickCallback,
+    pub(crate) on_click: Callback<()>,
     pub(crate) children: Run<MenuItem>,
 }
 
@@ -134,7 +134,7 @@ pub fn MenuItem(
     #[prop(default = MenuThen::Close)] then: MenuThen,
     row_test_id: Option<String>,
     action: Option<Action>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     children: Children<MenuItem>,
 ) -> MenuItem {
     let label = action_label(action.as_ref(), label);
@@ -217,7 +217,7 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
         then: MenuThen::Close,
         test_id: None,
         action: None,
-        on_click: ClickCallback::default(),
+        on_click: Callback::default(),
         children,
     }
 }
@@ -293,7 +293,7 @@ struct State {
     glyphs: Memo<bool>,
     spacing: f32,
     bounds: Memo<Option<Rect>>,
-    on_select: Callback<(Vec<usize>, MenuThen)>,
+    on_select: Callback<MenuThen>,
 }
 
 /// The keyboard of every menu, popup and submenu: one Tab stop, which Tab stays
@@ -317,7 +317,7 @@ pub(crate) fn MenuList(
     #[prop(default = false)] focus_first: bool,
     #[prop(default = false)] pages: bool,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    on_select: Callback<(Vec<usize>, MenuThen)>,
+    on_select: Callback<MenuThen>,
 ) -> NodeId {
     let row = row.expect("menu_list requires a `row` builder");
     let panel = panel.expect("menu_list requires a `panel` builder");
@@ -468,10 +468,7 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
             focus_first=true
             pages={state.pages}
             bounds={state.bounds}
-            on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
-                path.insert(0, index);
-                state.on_select.call((path, then));
-            }}
+            on_select={state.on_select}
         />
     }
 }
@@ -535,7 +532,7 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         has_submenu: Prop::Static(false),
         depth: Prop::Static(None),
         expanded: Prop::Static(None),
-        toggle: ClickCallback::default(),
+        toggle: Callback::default(),
         pointed: quiet(),
         active: quiet(),
         focused: quiet(),
@@ -561,7 +558,7 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
         has_submenu: Prop::Static(false),
         depth: item.depth.into_prop(),
         expanded: item.expanded.into_prop(),
-        toggle: ClickCallback::new(move || toggled.toggle()),
+        toggle: Callback::new(move |()| toggled.toggle()),
         pointed: handle.pointed,
         active: handle.active,
         focused: handle.focused,
@@ -681,7 +678,7 @@ fn MenuTile(
             focused={focused.memo(at)}
             on_focus_change={move |has_focus: bool| lose_focus(state, at, has_focus)}
             content
-            on_click={move || choose(state, vec![index, tile], &chosen)}
+            on_click={move || choose(state, &chosen)}
             on_key={move |press: KeyPress| key(state, at, press)}
         />
     };
@@ -748,7 +745,7 @@ fn MenuRow(
                         return;
                     }
                     if !open_submenu(state, index) {
-                        choose(state, vec![index], &chosen);
+                        choose(state, &chosen);
                     }
                 }}
                 on_key={move |press: KeyPress| key(state, at, press)}
@@ -779,10 +776,7 @@ fn MenuRow(
                                     active={open}
                                     focus_first=true
                                     bounds={state.bounds}
-                                    on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
-                                        path.insert(0, index);
-                                        state.on_select.call((path, then));
-                                    }}
+                                    on_select={state.on_select}
                                 />
                             })
                         }}
@@ -797,15 +791,15 @@ fn MenuRow(
     built
 }
 
-fn choose(state: State, path: Vec<usize>, item: &MenuItem) {
+fn choose(state: State, item: &MenuItem) {
     if item.disabled.get_untracked() {
         return;
     }
-    state.on_select.call((path, item.then));
+    state.on_select.call(item.then);
     if let Some(action) = &item.action {
         action.run();
     }
-    item.on_click.call();
+    item.on_click.call(());
     if item.then == MenuThen::Back {
         state.parent.leave();
     }

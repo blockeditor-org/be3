@@ -481,10 +481,10 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     glyph=ICON_ELLIPSIS
                     icon_only=true
                     arrow=false
-                    on_select={|_path: Vec<usize>| send(UiCommand::LogOutCurrent)}
                     items={view! {
                         <MenuItem
                             label={create_memo(move || be_host_accounts_ui::leave_label(account.get().local).to_owned())}
+                            on_click={|| send(UiCommand::LogOutCurrent)}
                         />
                     }}
                 />
@@ -752,15 +752,13 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
                 disabled={loading}
                 items={view! {
                     <ForEach keys={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>|index: usize|
-                        <MenuItem label={format!("New {} session", SESSION_TYPES[index].1)} />
+                        <MenuItem
+                            label={format!("New {} session", SESSION_TYPES[index].1)}
+                            on_click={move || send(UiCommand::OpenNewSession(SESSION_TYPES[index].0))}
+                        />
                     </ForEach>
                 }}
                 on_click={move || send(UiCommand::OpenNewSession(session_type.get_untracked()))}
-                on_select={|path: Vec<usize>| {
-                    if let Some((editor, _)) = path.first().and_then(|index| SESSION_TYPES.get(*index)) {
-                        send(UiCommand::OpenNewSession(*editor));
-                    }
-                }}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button

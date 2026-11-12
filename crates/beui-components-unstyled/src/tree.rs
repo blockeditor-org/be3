@@ -86,8 +86,8 @@ pub struct TreeRowHandle<K> {
     pub focused: ReadSignal<bool>,
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
-    pub select: ClickCallback,
-    pub toggle: ClickCallback,
+    pub select: Callback<()>,
+    pub toggle: Callback<()>,
     pub target: TreeRowTarget,
     pub editing: Memo<bool>,
     pub edit: TreeRowEdit,
@@ -108,9 +108,9 @@ enum Finish {
 
 #[derive(Clone, Copy)]
 pub struct TreeRowTarget {
-    select: ClickCallback,
-    open: ClickCallback,
-    drag_start: ClickCallback,
+    select: Callback<()>,
+    open: Callback<()>,
+    drag_start: Callback<()>,
     drag_move: Callback<Pos2>,
     drop: Callback<Pos2>,
     hover: Callback<bool>,
@@ -121,7 +121,7 @@ pub struct TreeRowTarget {
 pub struct TreeRevealHandle {
     pub edge: Memo<Edge>,
     pub label: Memo<String>,
-    pub reveal: ClickCallback,
+    pub reveal: Callback<()>,
 }
 
 struct State<K: 'static> {
@@ -382,15 +382,15 @@ where
     );
     let (nodes_key, cleanup_key) = (row_key.clone(), row_key.clone());
     let (select_key, toggle_key, open_key) = (row_key.clone(), row_key.clone(), row_key.clone());
-    let chosen = ClickCallback::new(move || select(state, &select_key));
-    let opened = ClickCallback::new(move || state.on_open.call(open_key.clone()));
-    let expand = ClickCallback::new(move || toggle(state, &toggle_key));
+    let chosen = Callback::new(move |()| select(state, &select_key));
+    let opened = Callback::new(move |()| state.on_open.call(open_key.clone()));
+    let expand = Callback::new(move |()| toggle(state, &toggle_key));
     let hover_key = row_key.clone();
     let hover = Callback::new(move |over: bool| {
         on_hover_change.call((hover_key.clone(), over));
     });
     let drag_key = row_key.clone();
-    let drag_start = ClickCallback::new(move || on_drag_start.call(drag_key.clone()));
+    let drag_start = Callback::new(move |()| on_drag_start.call(drag_key.clone()));
     let move_key = row_key.clone();
     let drag_move = Callback::new(move |at: Pos2| on_drag_move.call((move_key.clone(), at)));
     let drop_key = row_key.clone();
@@ -505,7 +505,7 @@ pub struct TreeToggleHandle {
 #[component]
 pub fn TreeToggle(
     item: Memo<TreeItem>,
-    toggle: ClickCallback,
+    toggle: Callback<()>,
     #[prop(default = String::new())] button_test_id: String,
     #[prop(children)] content: RenderFn<TreeToggleHandle>,
 ) -> DynamicSegment<ListItem> {
@@ -564,7 +564,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
             }))
         });
         if press.clicks >= 2 {
-            open.call();
+            open.call(());
         }
     };
     let dragged = move |at: PointerPress| {
@@ -576,7 +576,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         held.started |= starts;
         gesture.with(|gesture| gesture.set(Some(held)));
         if starts {
-            drag_start.call();
+            drag_start.call(());
         }
         if held.started {
             drag_move.call(at.pos);
@@ -593,7 +593,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
     };
     let chose = move || {
         if gesture.with(Cell::get).is_none_or(|held| !held.started) {
-            select.call();
+            select.call(());
         }
     };
     view! {
@@ -644,15 +644,20 @@ pub fn TreeRowEditor(
     };
     let field = NodeRef::new();
     let escape = once.clone();
-    on_key(KeyAt::Node(field), KeyPhase::Capture, move |event| {
-        let escaped = event
-            .press()
-            .is_some_and(|press| press.pressed && press.key == Key::Escape);
-        if escaped {
-            escape(Finish::Cancel);
-        }
-        escaped
-    });
+    on_key(
+        KeyAt::Node(field),
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+            if escaped {
+                escape(Finish::Cancel);
+            }
+            escaped
+        },
+    );
     let keyboard = use_keyboard();
     let held = Cell::new(keyboard.get_untracked());
     let (away, left) = (once.clone(), typed.clone());
@@ -755,7 +760,7 @@ where
             false => label,
         }
     });
-    let reveal = ClickCallback::new(move || {
+    let reveal = Callback::new(move |()| {
         let Some(key) = selected.get_untracked() else {
             return;
         };

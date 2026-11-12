@@ -8,7 +8,7 @@ fn an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner() {
     open(block, CounterContent::CONTENT_TYPE);
     add(block, 4);
     wait_for_count(block, 4);
-    flush();
+    flush_and_send();
 
     let mut appends = harness
         .relay()

@@ -53,12 +53,18 @@ impl<S: ObjectStore> Peer<S> {
     /// Seals `base`'s state and starts this device's journal, and when `online` the server's,
     /// from it. What the journal's entries announce goes with `base`'s commit when this device
     /// sealed it (`own`), sent once the server holds it; the rest is dropped.
+    /// Starts this device's journal, and when `online` the server's, from `base`, keeping
+    /// `entries` (plain payloads) past it. One write holds on the device only, so no crash
+    /// there loses them; the server gets a rebase and then an append, and a drop between the
+    /// two is covered by the device's journal, which a replica opens on when it holds more.
+    #[allow(clippy::too_many_arguments)]
     pub async fn rebase_journal(
         &self,
         block: Uuid,
         generation: u64,
         tag: Hash,
         base: JournalBase,
+        entries: Vec<JournalEntry>,
         online: bool,
         own: bool,
     ) -> Result<Option<Answer<()>>, ClientError> {
@@ -67,15 +73,34 @@ impl<S: ObjectStore> Peer<S> {
             state: self.commits.vault().seal(key, &base.state)?,
             ..base
         };
+        let entries = entries
+            .into_iter()
+            .map(|entry| -> Result<JournalEntry, ClientError> {
+                Ok(JournalEntry {
+                    payload: self.commits.vault().seal(key, &entry.payload)?,
+                    ..entry
+                })
+            })
+            .collect::<Result<Vec<_>, ClientError>>()?;
         let (commit, sequence) = (sealed.commit, sealed.sequence);
+        let carried = entries.iter().map(|entry| entry.sequence).max();
         self.refs
-            .rebase_journal(block, tag, generation, sealed.clone())?;
+            .rebase_journal(block, tag, generation, sealed.clone(), entries.clone())?;
         let kept = commit.is_some_and(|commit| self.pending_commits(block).contains(&commit));
         self.refs
-            .journal_rebased(block, commit, sequence, own, kept)?;
+            .journal_rebased(block, commit, sequence, carried, own, kept)?;
         Ok(online.then(|| {
-            self.connection()
-                .rebase_journal(block, generation, tag, sealed)
+            let connection = self.connection();
+            let rebased = connection.rebase_journal(block, generation, tag, sealed);
+            let appended = (!entries.is_empty())
+                .then(|| connection.append(block, generation, tag, entries, false));
+            Box::pin(async move {
+                rebased.await?;
+                match appended {
+                    Some(appended) => appended.await,
+                    None => Ok(()),
+                }
+            }) as Answer<()>
         }))
     }
 

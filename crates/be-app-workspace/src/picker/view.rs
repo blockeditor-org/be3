@@ -15,8 +15,8 @@ use be_sdk_beui::{BlockParent, ChildMode, ChildState, Subregion, SubregionConten
 use uuid::Uuid;
 
 use super::model::{
-    Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
-    link_rows, place_rows, slides, tile_key,
+    Creating, Pick, PickAction, PickError, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common,
+    groups, link_rows, place_rows, slides, tile_key,
 };
 use super::picking::Picker;
 use beui::{Align, Direction};
@@ -965,20 +965,27 @@ fn creation_height(held: Option<&Pick>) -> f32 {
 }
 
 #[component]
-fn PickerError(picker: Picker, error: Memo<Option<String>>, act: Act, node: NodeRef) -> NodeId {
+fn PickerError(picker: Picker, error: Memo<Option<PickError>>, act: Act, node: NodeRef) -> NodeId {
     let open = create_memo(move || error.get().is_some());
-    let text = create_memo(move || error.get().unwrap_or_default());
+    let title = create_memo(move || error.get().map(|error| error.title).unwrap_or_default());
+    let text = create_memo(move || error.get().map(|error| error.message).unwrap_or_default());
+    let color = create_memo(
+        move || match error.get().is_some_and(|error| error.failed) {
+            true => TextColor::Danger,
+            false => TextColor::Default,
+        },
+    );
     if picker.sheet {
         return view! {
             <Dialog
                 open={open}
-                title="Block picker error"
+                title={title}
                 width=Size::Popover
                 kind=DialogKind::Alert
                 actions={vec![DialogAction::cancel("Dismiss")]}
                 on_dismiss={move || act.call(PickAction::DismissError)}
             >
-                <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>
+                <Text style=TextStyle::CAPTION color={color}>{text}</Text>
             </Dialog>
         };
     }
@@ -1003,11 +1010,11 @@ fn PickerError(picker: Picker, error: Memo<Option<String>>, act: Act, node: Node
             >
                 <DialogBody
                     kind=DialogKind::Alert
-                    title="Block picker error"
+                    title={title}
                     actions={vec![DialogAction::cancel("Dismiss")]}
                     on_dismiss={move || act.call(PickAction::DismissError)}
                 >
-                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>
+                    <Text style=TextStyle::CAPTION color={color}>{text}</Text>
                 </DialogBody>
             </Frame>
         </Overlay>

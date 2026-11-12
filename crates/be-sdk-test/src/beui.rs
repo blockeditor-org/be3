@@ -703,35 +703,35 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn take_dialog_closes(&mut self) -> Vec<be_sdk_api::DialogAnswer> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::CloseDialog(answer) => Some(*answer),
             _ => None,
         })
     }
 
     pub fn take_child_focus(&mut self) -> Vec<ChildId> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::FocusChild(child) => Some(*child),
             _ => None,
         })
     }
 
     pub fn take_block_child_focus(&mut self) -> Vec<Uuid> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::FocusBlockChild(block) => Some(Uuid::from_bytes(*block)),
             _ => None,
         })
     }
 
     pub fn take_child_closes(&mut self) -> Vec<ChildId> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::CloseChild(child) => Some(*child),
             _ => None,
         })
     }
 
     pub fn take_child_dismissals(&mut self) -> Vec<ChildId> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::DismissChild(child) => Some(*child),
             _ => None,
         })
@@ -1594,7 +1594,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    fn take_calls<T>(&mut self, pick: impl Fn(&ShellMessage) -> Option<T>) -> Vec<T> {
+    /// Takes the shell messages `pick` accepts, in the order the editor told them; the rest wait.
+    pub fn take_shell_messages<T>(&mut self, pick: impl Fn(&ShellMessage) -> Option<T>) -> Vec<T> {
         let mut taken = Vec::new();
         self.calls.retain(|call| match pick(call) {
             Some(value) => {
@@ -1612,7 +1613,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn take_shell_commands(&mut self) -> Vec<(Uuid, be_sdk_api::ShellCommand)> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::Act(BlockAct { block, command }) => {
                 Some((Uuid::from_bytes(*block), *command))
             }
@@ -1622,7 +1623,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// Every copy the editor made: its serial and the items it offered.
     pub fn take_copies(&mut self) -> Vec<(u64, Vec<be_sdk_api::OfferedClipItem>)> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::Copy(ClipOffer { serial, items }) => Some((*serial, items.clone())),
             _ => None,
         })
@@ -1630,7 +1631,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// The `format` data of each copy that offered it ready.
     pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::Copy(ClipOffer { items, .. }) => items
                 .iter()
                 .find(|item| item.format == format)
@@ -1767,21 +1768,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// The palettes the editor asked the host to open (`shell-message.open-palette`).
     pub fn take_palette_opens(&mut self) -> Vec<be_sdk_api::PaletteMode> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::OpenPalette(mode) => Some(*mode),
             _ => None,
         })
     }
 
     pub fn take_cards(&mut self) -> Vec<bool> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::ShowCard(card) => Some(*card),
             _ => None,
         })
     }
 
     pub fn take_picked(&mut self) -> Vec<be_sdk_beui::BlockPick> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::Picked(pick) => Some(pick.clone()),
             _ => None,
         })
@@ -1860,7 +1861,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_child_commits(
         &mut self,
     ) -> Vec<(ChildId, be_sdk_api::BlockLocation, Option<String>)> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::CommitChild(ChildCreation {
                 child,
                 parent,
@@ -1871,21 +1872,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn take_audio_commands(&mut self) -> Vec<be_sdk_api::AudioCommand> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::PlayAudio(command) => Some(command.clone()),
             _ => None,
         })
     }
 
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::ChangeView(change) => Some(*change),
             _ => None,
         })
     }
 
     pub fn take_child_menu_picks(&mut self) -> Vec<(ChildId, String)> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, .. }) => {
                 Some((*child, id.clone()))
             }
@@ -1894,7 +1895,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn take_bar_actions(&mut self) -> Vec<BarAction> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::BarAction(action) => Some(*action),
             _ => None,
         })
@@ -2037,7 +2038,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn take_drag_accepted(&mut self) -> Option<bool> {
-        self.take_calls(|call| match call {
+        self.take_shell_messages(|call| match call {
             ShellMessage::DragAccepted(accepted) => Some(*accepted),
             _ => None,
         })

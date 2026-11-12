@@ -10,6 +10,7 @@ use be_sdk_api::{
     EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
     View, ViewId,
 };
+use beui::KeyPhase;
 use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
@@ -582,7 +583,7 @@ struct TabContext {
     stack: Memo<Vec<Uuid>>,
     top_bar: Prop<TopBar>,
     portals: Signal<Vec<(Uuid, NodeId)>>,
-    exit: ClickCallback,
+    exit: Callback<()>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -848,27 +849,32 @@ fn ConflictPreview(preview: Uuid) -> NodeId {
 }
 
 fn stop_on_escape(overlay: NodeRef) {
-    on_global_key(move |event: KeyEvent| {
-        if event.held() {
-            return true;
-        }
-        let Some(press) = event.press() else {
-            return false;
-        };
-        if press.key != Key::Escape || !press.pressed || !event.target.program {
-            return false;
-        }
-        let Some(overlay) = overlay.try_get() else {
-            return false;
-        };
-        with_document(|document| {
-            let reaches = document.escape_layer() == Some(overlay);
-            if reaches {
-                document.dismiss_overlay(overlay, Dismiss::Escape);
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event: KeyEvent| {
+            if event.held() {
+                return true;
             }
-            reaches
-        })
-    });
+            let Some(press) = event.press() else {
+                return false;
+            };
+            if press.key != Key::Escape || !press.pressed || !event.target.program {
+                return false;
+            }
+            let Some(overlay) = overlay.try_get() else {
+                return false;
+            };
+            with_document(|document| {
+                let reaches = document.escape_layer() == Some(overlay);
+                if reaches {
+                    document.dismiss_overlay(overlay, Dismiss::Escape);
+                }
+                reaches
+            })
+        },
+    );
 }
 
 #[component]
@@ -958,7 +964,7 @@ fn FrameStack(
         stack
     });
     let portals = create_signal(Vec::<(Uuid, NodeId)>::new());
-    let exit = ClickCallback::new(move || {
+    let exit = Callback::new(move |()| {
         let stack = stack.get_untracked();
         let parent = match stack.len() {
             0 | 1 => block,
@@ -1134,6 +1140,7 @@ enum Resolution {
     NoAccess,
     Missing,
     Locked,
+    OutOfReach,
     Unsupported(Uuid),
     Stale(Uuid, be_host_stack::Stale),
     Ready { region: ViewKey, access: Access },
@@ -1240,6 +1247,9 @@ fn BlockFrameBody(
         if be_host_stack::locked(block) {
             return Resolution::Locked;
         }
+        if be_host_stack::out_of_reach(block) {
+            return Resolution::OutOfReach;
+        }
         if let Some(stale) = be_host_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
@@ -1281,6 +1291,17 @@ fn BlockFrameBody(
                                 .to_owned(),
                             busy: false,
                             icon: Some(beui::icons::ICON_LOCK),
+                        };
+                        view! {
+                            <Notice item />
+                        }
+                    }
+                    Resolution::OutOfReach => {
+                        let item = HostItem::Notice {
+                            text: "Not on this device yet: it opens once you're back online"
+                                .to_owned(),
+                            busy: false,
+                            icon: Some(beui::icons::ICON_CLOUD_OFF),
                         };
                         view! {
                             <Notice item />
@@ -1384,7 +1405,7 @@ fn BlockFrameView(
         create_effect(move || {
             revision.get();
             if be_host_runtime::take_leaving(&app_id.value(), instance) {
-                tab.exit.call();
+                tab.exit.call(());
             }
         });
     }
@@ -1747,7 +1768,7 @@ fn HostedChild(
                                 Some(anchor.translate(-child.rect.min.to_vec2()))
                             })
                         })));
-                        let reporter = reporter_for(parent, region, key, within);
+                        let reporter = reporter_for(parent, key, within);
                         match kind {
                             Kind::Missing | Kind::Unavailable | Kind::NoPicker | Kind::HiddenWindow(_) => view! {
                                 <Frame />
@@ -2128,17 +2149,12 @@ fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
     status.intrinsic = intrinsic;
 }
 
-fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) -> ChildReporter {
+fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
     let on_bar_action = report_to.clone().and_then(|parent| {
         let app_id = parent.app_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
-            be_host_runtime::report_child_bars(
-                &app_id,
-                parent.instance,
-                region.id,
-                vec![(key, action)],
-            );
+            be_host_runtime::report_child_bars(&app_id, parent.instance, vec![(key, action)]);
         }))
     });
     let app_id = report_to
@@ -2147,7 +2163,7 @@ fn reporter_for(parent: Uuid, region: View, key: ChildId, within: Callback<()>) 
     let instance = report_to.map(|parent| parent.instance);
     let on_focus = Callback::new(move |()| {
         if let (Some(app_id), Some(instance)) = (&app_id, instance) {
-            be_host_runtime::report_child_focus(app_id, instance, region.id, key);
+            be_host_runtime::report_child_focus(app_id, instance, key);
         }
         within.call(());
     });

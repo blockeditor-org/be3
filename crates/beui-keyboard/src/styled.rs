@@ -322,7 +322,7 @@ fn EmojiTab(
     emoji: &'static str,
     label: &'static str,
     selected: Memo<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     view! {
         <unstyled::Button

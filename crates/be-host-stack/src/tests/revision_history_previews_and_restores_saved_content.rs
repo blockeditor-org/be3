@@ -24,12 +24,12 @@ fn revision_history_previews_and_restores_saved_content() {
     wait_for_count(block, 0);
     add(block, 5);
     wait_for_count(block, 5);
-    flush();
+    flush_and_send();
     let first = node(block).unwrap().head.unwrap();
     minutes(1);
     add(block, 2);
     wait_for_count(block, 7);
-    flush();
+    flush_and_send();
     let second = node(block).unwrap().head.unwrap();
     assert_ne!(first, second);
     let Answered::Listed(Ok(entries)) = request(block, Asked::List) else {
