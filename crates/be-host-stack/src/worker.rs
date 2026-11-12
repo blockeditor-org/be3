@@ -629,6 +629,9 @@ impl Shared {
         if self.draining {
             reasons.push("the block store sends the edits it kept".to_owned());
         }
+        if self.listing_revisions > 0 {
+            reasons.push("the block store asks the server for a block's revisions".to_owned());
+        }
         if self.recounting {
             reasons.push("the block store has yet to count what waits to be sent".to_owned());
         }
@@ -646,12 +649,7 @@ impl Shared {
                 "the block store has commands to carry out",
             ),
             (self.typing, "a block type module has yet to settle"),
-            (self.draining, "the block store sends sealed edits"),
             (self.uploading > 0, "the block store uploads files"),
-            (
-                self.listing_revisions > 0,
-                "the block store lists a block's revisions",
-            ),
             (self.owing > 0, "the block store owes edits a seal"),
             (
                 self.undurable > 0,
@@ -1178,7 +1176,7 @@ impl Session<'_> {
                         self.tasks.0.sync(peer, shared);
                     }
                 }
-                if (!self.tasks.0.syncing() || !self.line.is_up()) && self.replicas.reported() {
+                if self.replicas.reported() {
                     kept_for_flushes = false;
                     for done in flushes.drain(..) {
                         let _ = done.send(());
@@ -1474,6 +1472,18 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
         held.unsent = peer.unsent();
+        changed = true;
+    }
+    // What went wrong sending or listing stops being news once the device is connected and in
+    // step: nothing waits to be sent and nothing was set aside. A type module's error stays
+    // until its block's head moves (`Replicas::status`).
+    if held.connected
+        && !held.draining
+        && held.waiting + held.unsealed == 0
+        && held.unsent.is_empty()
+        && held.module_error.is_none()
+        && held.error.take().is_some()
+    {
         changed = true;
     }
     changed

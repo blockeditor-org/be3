@@ -64,6 +64,7 @@ mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
 mod an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_edit_made_offline_is_lacking_until_the_drain_publishes_it;
+mod an_error_from_sending_clears_once_nothing_waits_to_be_sent;
 mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
 mod an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publishes;
 mod an_empty_search_request_is_not_a_change;
@@ -584,6 +585,15 @@ fn ask_for(queries: Vec<Query>) {
 }
 
 #[track_caller]
+/// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
+/// keeps it, and the outbox sends it after.
+fn flush_and_send() {
+    flush();
+    wait_until("what the flush kept was sent", |shared| {
+        shared.unsynced().is_empty()
+    });
+}
+
 fn wait_until(_what: &str, ready: impl Fn(&Shared) -> bool) {
     crate::wait_until(|shared| ready(shared).then_some(()));
 }

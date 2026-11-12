@@ -9,7 +9,7 @@ fn two_peers_of_one_organization_share_a_counter() {
     open(block, CounterContent::CONTENT_TYPE);
     add(block, 7);
     wait_for_count(block, 7);
-    flush();
+    flush_and_send();
     stop();
 
     let elsewhere = std::env::temp_dir().join(format!("be-host-be-peer-{}", Uuid::new_v4()));

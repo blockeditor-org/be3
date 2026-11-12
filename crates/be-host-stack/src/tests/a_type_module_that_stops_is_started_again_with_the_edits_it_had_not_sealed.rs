@@ -16,7 +16,7 @@ fn a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed() 
     super::types::CRASH.store(true, std::sync::atomic::Ordering::SeqCst);
     add(block, 4);
     wait_for_count(block, 9);
-    flush();
+    flush_and_send();
     let head = crate::wait_until(|shared| {
         let head = shared.graph.get(block)?.head?;
         (head != sealed && shared.owing == 0).then_some(head)

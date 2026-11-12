@@ -98,8 +98,11 @@ no network), and hands every later connection to it with `attach`.
 
 ## Disconnects, offline and stopping
 
-`flush()` seals and waits; `stop()` and organization changes go through it,
-because a session merely dropped loses everything since the last autosave.
+`flush()` seals and waits until every open block is kept on the device (in its
+journal or as a local commit), not for the server, so closing a host whose
+server stopped answering does not wait for it; `stop()` and organization
+changes go through it, because a session merely dropped loses everything since
+the last autosave. What a flush kept is sent as the outbox drains.
 
 A dropped connection (`Connection::closed`, not the broadcast, which outlives
 the socket) leaves content on screen; the worker backs off (`reconnect_delay`,

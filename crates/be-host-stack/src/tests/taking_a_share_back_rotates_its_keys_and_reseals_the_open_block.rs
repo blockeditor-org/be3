@@ -31,7 +31,7 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
             .any(|contact| contact.account == guest.session.account && contact.public.is_some())
     });
     set_access(block, guest.session.account, be_block_graph::Access::Edit);
-    flush();
+    flush_and_send();
     assert_eq!(runtime.block_on(read_text(&peer, block)), "meet at noon");
 
     open(block, be_type_text::TextContent::CONTENT_TYPE);
@@ -40,7 +40,7 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
     });
     let before = node(block).and_then(|node| node.head);
     set_access(block, guest.session.account, be_block_graph::Access::None);
-    flush();
+    flush_and_send();
     assert_eq!(status().error, None);
     wait_until("resealed the open block under its new key", |shared| {
         shared.graph.get(block).and_then(|node| node.head) != before
