@@ -65,7 +65,10 @@ options (`with`, `uses`, `copy`, `default`, `inline`, `lenient`, `ordered`,
 It generates, per interface, the types, and:
 - for the guest, `guest::<import>` functions returning `Pending<T>` or
   `Stream<T>`, and a `Guest` trait per export taking `&self` (not statics, so
-  tests can run many modules on one thread);
+  tests can run many modules on one thread) whose methods return
+  `be_wasm_ops::guest::LocalFuture<T>`, a boxed future: an `impl Future` in a
+  trait makes rustc project its hidden type out of another crate's metadata,
+  which miscompiled callers in other crates (an ICE, or a wrong type);
 - for the host, `embed::<import>::Call` (one case per function, accepted with
   a `Reply` or `Producer`) and a world-wide `embed::Call`, so a host that
   serves every import matches once.
