@@ -10,7 +10,11 @@ use be_sdk_api::{
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    ops::{OpError, Outcome, Reply},
+    ops::{OpError, Outcome},
+    shell_types::{
+        BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage,
+        ViewEnd,
+    },
 };
 use be_sdk_type_guest::editor::{FromEditor, Gesture};
 use beui::native::accessibility::Embedded;
@@ -150,7 +154,6 @@ struct Instance {
     revision_previews: HashSet<Uuid>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
-    aspect_ratio: Option<f32>,
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
     picked: Option<BlockPick>,
@@ -315,7 +318,6 @@ impl Instance {
             revision_previews: HashSet::default(),
             drag_accepted: false,
             intrinsic: None,
-            aspect_ratio: None,
             audio: None,
             reported_size: None,
             picked: None,
@@ -2890,7 +2892,6 @@ impl Instances {
                     width: size.x,
                     height: size.y,
                 }),
-                aspect_ratio: status.aspect_ratio,
                 active: status.active,
                 interaction: status.interaction,
                 capabilities: status.capabilities,
@@ -3096,7 +3097,6 @@ impl Instances {
                         InstanceRole::Artifact(..) => "artifact",
                     },
                     opened: entry.opened,
-                    aspect_ratio: entry.aspect_ratio,
                     intrinsic: entry.intrinsic,
                     view: entry.view.map(|view| view.rect),
                     artifact: matches!(entry.role, InstanceRole::Artifact(..)).then(|| {
@@ -3150,10 +3150,6 @@ impl Instances {
         instance: EditorInstanceId,
     ) -> Option<Result<Uuid, String>> {
         self.entries.get_mut(&instance)?.created.take()
-    }
-
-    pub(super) fn aspect_ratio(&self, instance: EditorInstanceId) -> Option<f32> {
-        self.entries.get(&instance)?.aspect_ratio
     }
 
     pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
@@ -3317,7 +3313,7 @@ impl Instances {
             .collect()
     }
 
-    /// Whether the instance may open the host's palette (`shell.open-palette`): it is no
+    /// Whether the instance may open the host's palette (`shell-message.open-palette`): it is no
     /// revision preview, shows a view, and either one of its views has the keyboard or the
     /// person picked from its frame menu within its last `MENU_PICK_COMMITS` layout commits
     /// (whose "Command palette" asks for it while a menu the host draws has the focus), so an
@@ -3704,77 +3700,66 @@ impl Instances {
                 .push(call.refuse(OpError::Unsupported));
             return false;
         };
-        let preview = self
-            .entries
-            .get(&instance)
-            .and_then(|entry| entry.role.block())
-            .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
-        if preview
-            && !matches!(
-                &call,
-                ShellCall::Menu { .. }
-                    | ShellCall::WebViewNew { .. }
-                    | ShellCall::Focused { .. }
-                    | ShellCall::ChangeView { .. }
-                    | ShellCall::ViewStopped { .. }
-                    | ShellCall::Copy { .. }
-            )
-        {
-            self.services.answers.push(call.refuse(OpError::Denied));
-            return false;
-        }
-        if let ShellCall::Present {
-            reply, presenting, ..
-        } = call
-        {
-            self.services.answers.push(reply.answer(&()));
-            return self.set_presenting(instance, presenting);
-        }
         let Some(entry) = self.entries.get_mut(&instance) else {
             self.services.answers.push(call.refuse(OpError::Canceled));
             return false;
         };
-        let answers = &mut self.services.answers;
-        let mut ack = |reply: Reply<()>| answers.push(reply.answer(&()));
         match call {
-            ShellCall::RunBarAction { reply, action, .. } => {
-                ack(reply);
+            ShellCall::Tell {
+                reply, messages, ..
+            } => {
+                let preview = entry
+                    .role
+                    .block()
+                    .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
+                self.services.answers.push(reply.answer(&()));
+                let mut changed = false;
+                for message in messages {
+                    if preview && !preview_may_tell(&message) {
+                        continue;
+                    }
+                    changed |= self.shell_message(instance, message);
+                }
+                changed
+            }
+            ShellCall::WebViewNew { id, .. } => {
+                entry.unshown_web_views.push(id);
+                true
+            }
+            call => {
+                self.services
+                    .answers
+                    .push(call.refuse(OpError::Unsupported));
+                false
+            }
+        }
+    }
+
+    /// Takes what one `tell` carried; whether it changed what the host shows.
+    fn shell_message(&mut self, instance: EditorInstanceId, message: ShellMessage) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        match message {
+            ShellMessage::BarAction(action) => {
                 if !super::docks::bar(instance, action) {
                     entry.bar_actions.push(action);
                 }
             }
-            ShellCall::Menu {
-                reply, view, items, ..
-            } => {
-                ack(reply);
-                match MenuEntry::nest(items.clone()) {
-                    Ok(menu) => {
-                        match menu.is_empty() {
-                            true => entry.menus.remove(&view),
-                            false => entry.menus.insert(view, menu),
-                        };
-                        super::docks::set_menu(instance, view, items);
-                    }
-                    Err(_) => return false,
+            ShellMessage::Menu(MenuSet { view, items }) => match MenuEntry::nest(items.clone()) {
+                Ok(menu) => {
+                    match menu.is_empty() {
+                        true => entry.menus.remove(&view),
+                        false => entry.menus.insert(view, menu),
+                    };
+                    super::docks::set_menu(instance, view, items);
                 }
-            }
-            ShellCall::ChildMenuPick {
-                reply,
-                child,
-                id,
-                anchor,
-                ..
-            } => {
-                ack(reply);
+                Err(_) => return false,
+            },
+            ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, anchor }) => {
                 entry.child_menu_picks.push((child, id, anchor));
             }
-            ShellCall::Copy {
-                reply,
-                serial,
-                items,
-                ..
-            } => {
-                ack(reply);
+            ShellMessage::Copy(ClipOffer { serial, items }) => {
                 host::copy(host::CopiedClip {
                     app_id: self.app_id.clone(),
                     instance,
@@ -3783,39 +3768,25 @@ impl Instances {
                 });
                 return false;
             }
-            ShellCall::Paste { reply, .. } => {
-                ack(reply);
+            ShellMessage::Paste => {
                 host::request_paste();
                 return false;
             }
-            ShellCall::DragBlock {
-                reply,
+            ShellMessage::DragBlock(DragStart {
                 block_id,
                 block_type,
-                ..
-            } => {
-                ack(reply);
+            }) => {
                 entry.block_drags.push(BlockDrag {
                     block_id: Uuid::from_bytes(block_id),
                     block_type: Uuid::from_bytes(block_type),
                 });
             }
-            ShellCall::DragAccepted {
-                reply, accepted, ..
-            } => {
-                ack(reply);
+            ShellMessage::DragAccepted(accepted) => {
                 let changed = entry.drag_accepted != accepted;
                 entry.drag_accepted = accepted;
                 return changed;
             }
-            ShellCall::AspectRatio { reply, ratio, .. } => {
-                ack(reply);
-                let changed = entry.aspect_ratio != ratio;
-                entry.aspect_ratio = ratio;
-                return changed;
-            }
-            ShellCall::IntrinsicSize { reply, size, .. } => {
-                ack(reply);
+            ShellMessage::IntrinsicSize(size) => {
                 if entry.screens.values().any(|screen| screen.request.fit) {
                     return false;
                 }
@@ -3824,39 +3795,25 @@ impl Instances {
                 entry.intrinsic = intrinsic;
                 return changed;
             }
-            ShellCall::Act {
-                reply,
-                block,
-                command,
-                ..
-            } => {
-                ack(reply);
+            ShellMessage::Act(BlockAct { block, command }) => {
                 entry
                     .shell_commands
                     .push((Uuid::from_bytes(block), command));
             }
-            ShellCall::LeaveFrame { reply, .. } => {
-                ack(reply);
+            ShellMessage::LeaveFrame => {
                 entry.leaving = true;
             }
-            ShellCall::ViewStopped {
-                reply,
-                view,
-                stopped,
-                ..
-            } => {
-                ack(reply);
+            ShellMessage::ViewStopped(ViewEnd { view, stopped }) => {
                 let Some(screen) = entry.screens.get_mut(&view) else {
                     return false;
                 };
                 screen.stopped = Some(stopped);
             }
-            ShellCall::ChangeView { reply, change, .. } => {
-                ack(reply);
+            ShellMessage::Present(presenting) => return self.set_presenting(instance, presenting),
+            ShellMessage::ChangeView(change) => {
                 entry.view_changes.push(change);
             }
-            ShellCall::Focused { reply, focus, .. } => {
-                ack(reply);
+            ShellMessage::Focused(focus) => {
                 entry.focus_reports.push(Focus {
                     block: focus.block_id.map(|block_id| {
                         (
@@ -3868,34 +3825,29 @@ impl Instances {
                     via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
                 });
             }
-            ShellCall::HandlesDismiss { reply, handles, .. } => {
-                ack(reply);
+            ShellMessage::HandlesDismiss(handles) => {
                 let changed = entry.dialog.handles_dismiss != handles;
                 entry.dialog.handles_dismiss = handles;
                 return changed;
             }
-            ShellCall::CloseDialog { reply, answer, .. } => {
-                ack(reply);
+            ShellMessage::CloseDialog(answer) => {
                 if entry.dialog.answer.is_some() {
                     return false;
                 }
                 entry.dialog.answer = Some(answer);
             }
-            ShellCall::DismissChild { reply, child, .. } => {
-                ack(reply);
+            ShellMessage::DismissChild(child) => {
                 entry.child_dismissals.push(child);
             }
-            ShellCall::CloseChild { reply, child, .. } => {
-                ack(reply);
+            ShellMessage::CloseChild(child) => {
                 entry.child_closes.push(child);
             }
-            ShellCall::FocusChild { reply, child, .. } => {
-                ack(reply);
+            ShellMessage::FocusChild(child) => {
                 self.ask_child_focus(instance, child);
             }
-            ShellCall::OpenPalette { reply, .. } => ack(reply),
-            ShellCall::FocusBlockChild { reply, block, .. } => {
-                ack(reply);
+            // The runtime opens the palette before it hands the call here.
+            ShellMessage::OpenPalette(_) => {}
+            ShellMessage::FocusBlockChild(block) => {
                 let block = Uuid::from_bytes(block);
                 if let Some(at) = entry
                     .block_refused
@@ -3909,48 +3861,38 @@ impl Instances {
                     entry.block_focus.push(block);
                 }
             }
-            ShellCall::ShowCard { reply, card, .. } => {
-                ack(reply);
+            ShellMessage::ShowCard(card) => {
                 if entry.card == card {
                     return false;
                 }
                 entry.card = card;
             }
-            ShellCall::Picked { reply, pick, .. } => {
-                ack(reply);
+            ShellMessage::Picked(pick) => {
                 if entry.picked.is_some() {
                     return false;
                 }
                 entry.picked = Some(pick);
             }
-            ShellCall::CommitChild {
-                reply,
+            ShellMessage::CommitChild(ChildCreation {
                 child,
                 parent,
                 name,
-                ..
-            } => {
-                ack(reply);
+            }) => {
                 entry.child_commits.push(ChildCommit {
                     child,
                     parent,
                     name,
                 });
             }
-            ShellCall::ArtifactDescribed {
-                reply, description, ..
-            } => {
-                ack(reply);
+            ShellMessage::ArtifactDescribed(description) => {
                 entry.artifact.description = Some(description);
             }
-            ShellCall::ArtifactEdited { reply, data, .. } => {
-                ack(reply);
+            ShellMessage::ArtifactEdited(data) => {
                 let changed = entry.artifact.draft.as_ref() != Some(&data);
                 entry.artifact.draft = Some(data);
                 return changed;
             }
-            ShellCall::PlayAudio { reply, command, .. } => {
-                ack(reply);
+            ShellMessage::PlayAudio(command) => {
                 let changes = self.mail.audio_changes.1.clone();
                 let player = entry
                     .audio
@@ -3960,24 +3902,6 @@ impl Instances {
                     AudioCommand::Toggle => player.toggle(),
                     AudioCommand::Reset => player.reset(),
                 }
-            }
-            ShellCall::WebViewNew { id, .. } => entry.unshown_web_views.push(id),
-            ShellCall::WebViewLoad { reply, .. }
-            | ShellCall::WebViewReload { reply, .. }
-            | ShellCall::WebViewFocusHost { reply, .. } => {
-                ack(reply);
-                return false;
-            }
-            call @ (ShellCall::Present { .. }
-            | ShellCall::AudioStatusWatchNew { .. }
-            | ShellCall::AudioStatusWatchNext { .. }
-            | ShellCall::WebViewNextEvents { .. }
-            | ShellCall::ChildStatusesWatchNew { .. }
-            | ShellCall::ChildStatusesWatchNext { .. }
-            | ShellCall::BlockTypesWatchNew { .. }
-            | ShellCall::BlockTypesWatchNext { .. }) => {
-                answers.push(call.refuse(OpError::Unsupported));
-                return false;
             }
         }
         true
@@ -4300,4 +4224,16 @@ fn shown_block(content: &ChildContent) -> Option<Uuid> {
         ChildContent::Block { block_id, .. } => Some(Uuid::from_bytes(*block_id)),
         _ => None,
     }
+}
+
+/// What a revision preview may tell the shell: only what it draws.
+fn preview_may_tell(message: &ShellMessage) -> bool {
+    matches!(
+        message,
+        ShellMessage::Menu(_)
+            | ShellMessage::Focused(_)
+            | ShellMessage::ChangeView(_)
+            | ShellMessage::ViewStopped(_)
+            | ShellMessage::Copy(_)
+    )
 }

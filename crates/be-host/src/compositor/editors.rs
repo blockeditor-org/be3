@@ -2036,7 +2036,7 @@ fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> Nod
 
 fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChildStatus {
     let block = child.block_id().unwrap_or_default();
-    let (interaction, capabilities, resize, intrinsic, aspect_ratio) =
+    let (interaction, capabilities, resize, intrinsic) =
         editors.with(|open| match open.get_mut(&block) {
             Some(editor) if available => (
                 match editor.direct_editor_interaction() {
@@ -2071,13 +2071,11 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
                     crate::editors::DirectEditorResize::None => be_sdk_api::ResizeMode::None,
                 },
                 editor.direct_editor_intrinsic_size(),
-                editor.render_aspect_ratio(),
             ),
             _ => (
                 be_sdk_api::InteractionMode::Preview,
                 be_sdk_api::EditorCapabilities::default(),
                 be_sdk_api::ResizeMode::None,
-                None,
                 None,
             ),
         });
@@ -2085,7 +2083,6 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         child: child.child,
         available,
         intrinsic,
-        aspect_ratio,
         active: available
             && match child.mode {
                 ChildMode::Active => child.frame_owner,

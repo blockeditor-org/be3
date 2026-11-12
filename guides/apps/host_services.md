@@ -196,7 +196,7 @@ by be-host). The frame menu's Rename anchors at `Editor::frame_anchor`.
 When `open-block.host-palette` is set the host draws the command palette from
 the actions every instance describes (guides/apps/editor.md, Actions and the
 palette). An editor asks for it with `EditorHost::open_palette(PaletteMode)`
-(`shell.open-palette`): `actions` for the instance's actions and its
+(`shell-message.open-palette`): `actions` for the instance's actions and its
 ancestors', `blocks` for blocks to open.
 
 ## Watches and host calls

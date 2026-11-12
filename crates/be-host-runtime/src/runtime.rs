@@ -1334,11 +1334,18 @@ impl Runtime {
                 }
                 Answer::Shell(mut call) => {
                     self.instances.translate(&mut call, true);
-                    if let be_sdk_api::embed::shell::Call::OpenPalette { instance, mode, .. } =
-                        &call
-                        && self.instances.may_open_palette(*instance)
+                    if let be_sdk_api::embed::shell::Call::Tell {
+                        instance, messages, ..
+                    } = &call
                     {
-                        crate::palette::ask(self.id(), *instance, *mode);
+                        for message in messages {
+                            if let be_sdk_api::shell_types::ShellMessage::OpenPalette(mode) =
+                                message
+                                && self.instances.may_open_palette(*instance)
+                            {
+                                crate::palette::ask(self.id(), *instance, *mode);
+                            }
+                        }
                     }
                     self.instances.shell_call(call)
                 }
@@ -2475,10 +2482,6 @@ pub fn take_bar_actions(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_
         runtime.instances.take_bar_actions(instance)
     })
     .unwrap_or_default()
-}
-
-pub fn aspect_ratio(app_id: &str, instance: EditorInstanceId) -> Option<f32> {
-    with(app_id, |runtime| runtime.instances.aspect_ratio(instance)).flatten()
 }
 
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {

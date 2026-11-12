@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -43,7 +43,6 @@ pub(crate) struct VideoState {
 struct Inner {
     block: ContentProjection<VideoContent>,
     play_origin: Cell<Option<(Instant, u64)>>,
-    aspect_ratios: RefCell<HashMap<Uuid, f32>>,
 }
 
 impl VideoState {
@@ -84,7 +83,6 @@ impl VideoState {
             inner: store(Inner {
                 block,
                 play_origin: Cell::new(None),
-                aspect_ratios: RefCell::new(HashMap::new()),
             }),
         };
         create_effect(move || state.synchronize());
@@ -148,16 +146,6 @@ impl VideoState {
             Err(Pending::Loading) => "Loading…".to_owned(),
             Err(Pending::Failed(error)) => error,
         }
-    }
-
-    pub(crate) fn report_aspect_ratio(&self, id: Uuid, ratio: f32) {
-        let inner = self.inner.value();
-        inner.aspect_ratios.borrow_mut().insert(id, ratio);
-    }
-
-    pub(crate) fn aspect_ratio(&self, id: Uuid) -> Option<f32> {
-        let inner = self.inner.value();
-        inner.aspect_ratios.borrow().get(&id).copied()
     }
 
     pub(crate) fn seek(&self, frame: u64) {

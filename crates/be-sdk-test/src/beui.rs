@@ -2,6 +2,9 @@ use be_sdk_api::Opening;
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
+use be_sdk_api::shell_types::{
+    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
+};
 use be_sdk_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
     HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
@@ -100,7 +103,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     connection: Connection,
     link: crate::link::Link,
     editor: Option<Editor>,
-    calls: Vec<ShellCall>,
+    calls: Vec<ShellMessage>,
     extension_calls: Vec<be_sdk_api::ops::Started>,
     web_views: std::collections::HashMap<
         be_sdk_api::ops::OpId,
@@ -707,42 +710,42 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn handles_dismiss(&self) -> Option<bool> {
         self.calls.iter().rev().find_map(|call| match call {
-            ShellCall::HandlesDismiss { handles, .. } => Some(*handles),
+            ShellMessage::HandlesDismiss(handles) => Some(*handles),
             _ => None,
         })
     }
 
     pub fn take_dialog_closes(&mut self) -> Vec<be_sdk_api::DialogAnswer> {
         self.take_calls(|call| match call {
-            ShellCall::CloseDialog { answer, .. } => Some(*answer),
+            ShellMessage::CloseDialog(answer) => Some(*answer),
             _ => None,
         })
     }
 
     pub fn take_child_focus(&mut self) -> Vec<ChildId> {
         self.take_calls(|call| match call {
-            ShellCall::FocusChild { child, .. } => Some(*child),
+            ShellMessage::FocusChild(child) => Some(*child),
             _ => None,
         })
     }
 
     pub fn take_block_child_focus(&mut self) -> Vec<Uuid> {
         self.take_calls(|call| match call {
-            ShellCall::FocusBlockChild { block, .. } => Some(Uuid::from_bytes(*block)),
+            ShellMessage::FocusBlockChild(block) => Some(Uuid::from_bytes(*block)),
             _ => None,
         })
     }
 
     pub fn take_child_closes(&mut self) -> Vec<ChildId> {
         self.take_calls(|call| match call {
-            ShellCall::CloseChild { child, .. } => Some(*child),
+            ShellMessage::CloseChild(child) => Some(*child),
             _ => None,
         })
     }
 
     pub fn take_child_dismissals(&mut self) -> Vec<ChildId> {
         self.take_calls(|call| match call {
-            ShellCall::DismissChild { child, .. } => Some(*child),
+            ShellMessage::DismissChild(child) => Some(*child),
             _ => None,
         })
     }
@@ -1558,19 +1561,25 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 self.web_view_commands.push(commanded);
                 continue;
             }
-            match &call {
-                ShellCall::Menu { view, items, .. } if view.is_main() => {
-                    self.menu = MenuEntry::nest(items.clone())
-                        .unwrap_or_else(|error| panic!("the app sent a menu it may not: {error}"));
+            let ShellCall::Tell { messages, .. } = call else {
+                continue;
+            };
+            for message in messages {
+                match &message {
+                    ShellMessage::Menu(MenuSet { view, items }) if view.is_main() => {
+                        self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
+                            panic!("the app sent a menu it may not: {error}")
+                        });
+                    }
+                    ShellMessage::LeaveFrame => self.exited = true,
+                    ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
+                    ShellMessage::IntrinsicSize(size) => {
+                        self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
+                    }
+                    _ => {}
                 }
-                ShellCall::LeaveFrame { .. } => self.exited = true,
-                ShellCall::ArtifactEdited { data, .. } => self.draft.clone_from(data),
-                ShellCall::IntrinsicSize { size, .. } => {
-                    self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
-                }
-                _ => {}
+                self.calls.push(message);
             }
-            self.calls.push(call);
         }
         self.link.answer(&self.store, &mut self.connection);
         self.fetches.answer(&mut self.connection);
@@ -1586,7 +1595,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    fn take_calls<T>(&mut self, pick: impl Fn(&ShellCall) -> Option<T>) -> Vec<T> {
+    fn take_calls<T>(&mut self, pick: impl Fn(&ShellMessage) -> Option<T>) -> Vec<T> {
         let mut taken = Vec::new();
         self.calls.retain(|call| match pick(call) {
             Some(value) => {
@@ -1605,7 +1614,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_shell_commands(&mut self) -> Vec<(Uuid, be_sdk_api::ShellCommand)> {
         self.take_calls(|call| match call {
-            ShellCall::Act { block, command, .. } => Some((Uuid::from_bytes(*block), *command)),
+            ShellMessage::Act(BlockAct { block, command }) => {
+                Some((Uuid::from_bytes(*block), *command))
+            }
             _ => None,
         })
     }
@@ -1613,7 +1624,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     /// Every copy the editor made: its serial and the items it offered.
     pub fn take_copies(&mut self) -> Vec<(u64, Vec<be_sdk_api::OfferedClipItem>)> {
         self.take_calls(|call| match call {
-            ShellCall::Copy { serial, items, .. } => Some((*serial, items.clone())),
+            ShellMessage::Copy(ClipOffer { serial, items }) => Some((*serial, items.clone())),
             _ => None,
         })
     }
@@ -1621,7 +1632,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     /// The `format` data of each copy that offered it ready.
     pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
         self.take_calls(|call| match call {
-            ShellCall::Copy { items, .. } => items
+            ShellMessage::Copy(ClipOffer { items, .. }) => items
                 .iter()
                 .find(|item| item.format == format)
                 .and_then(|item| item.data.clone()),
@@ -1667,7 +1678,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             child: placement.child,
             available: true,
             intrinsic: None,
-            aspect_ratio: None,
             active: false,
             interaction: be_sdk_beui::InteractionMode::Live,
             capabilities: be_sdk_beui::EditorCapabilities::default(),
@@ -1709,7 +1719,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     width: intrinsic.x,
                     height: intrinsic.y,
                 }),
-                aspect_ratio: None,
                 active: false,
                 interaction: be_sdk_beui::InteractionMode::Live,
                 capabilities: be_sdk_beui::EditorCapabilities::default(),
@@ -1757,24 +1766,24 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
-    /// The palettes the editor asked the host to open (`shell.open-palette`).
+    /// The palettes the editor asked the host to open (`shell-message.open-palette`).
     pub fn take_palette_opens(&mut self) -> Vec<be_sdk_api::PaletteMode> {
         self.take_calls(|call| match call {
-            ShellCall::OpenPalette { mode, .. } => Some(*mode),
+            ShellMessage::OpenPalette(mode) => Some(*mode),
             _ => None,
         })
     }
 
     pub fn take_cards(&mut self) -> Vec<bool> {
         self.take_calls(|call| match call {
-            ShellCall::ShowCard { card, .. } => Some(*card),
+            ShellMessage::ShowCard(card) => Some(*card),
             _ => None,
         })
     }
 
     pub fn take_picked(&mut self) -> Vec<be_sdk_beui::BlockPick> {
         self.take_calls(|call| match call {
-            ShellCall::Picked { pick, .. } => Some(pick.clone()),
+            ShellMessage::Picked(pick) => Some(pick.clone()),
             _ => None,
         })
     }
@@ -1859,40 +1868,41 @@ impl<A: BeuiRoot> BeuiTest<A> {
         &mut self,
     ) -> Vec<(ChildId, be_sdk_api::BlockLocation, Option<String>)> {
         self.take_calls(|call| match call {
-            ShellCall::CommitChild {
+            ShellMessage::CommitChild(ChildCreation {
                 child,
                 parent,
                 name,
-                ..
-            } => Some((*child, *parent, name.clone())),
+            }) => Some((*child, *parent, name.clone())),
             _ => None,
         })
     }
 
     pub fn take_audio_commands(&mut self) -> Vec<be_sdk_api::AudioCommand> {
         self.take_calls(|call| match call {
-            ShellCall::PlayAudio { command, .. } => Some(command.clone()),
+            ShellMessage::PlayAudio(command) => Some(command.clone()),
             _ => None,
         })
     }
 
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
         self.take_calls(|call| match call {
-            ShellCall::ChangeView { change, .. } => Some(*change),
+            ShellMessage::ChangeView(change) => Some(*change),
             _ => None,
         })
     }
 
     pub fn take_child_menu_picks(&mut self) -> Vec<(ChildId, String)> {
         self.take_calls(|call| match call {
-            ShellCall::ChildMenuPick { child, id, .. } => Some((*child, id.clone())),
+            ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, .. }) => {
+                Some((*child, id.clone()))
+            }
             _ => None,
         })
     }
 
     pub fn take_bar_actions(&mut self) -> Vec<BarAction> {
         self.take_calls(|call| match call {
-            ShellCall::RunBarAction { action, .. } => Some(*action),
+            ShellMessage::BarAction(action) => Some(*action),
             _ => None,
         })
     }
@@ -2039,7 +2049,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_drag_accepted(&mut self) -> Option<bool> {
         self.take_calls(|call| match call {
-            ShellCall::DragAccepted { accepted, .. } => Some(*accepted),
+            ShellMessage::DragAccepted(accepted) => Some(*accepted),
             _ => None,
         })
         .pop()
@@ -2275,14 +2285,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
             Target::point(pos).word(1.0)
         ));
         let anchor = Pos2::ZERO + (pos - self.rect().min);
-        self.calls.push(ShellCall::ChangeView {
-            reply: be_sdk_api::ops::Reply::new(&self.connection, 0),
-            instance: INSTANCE,
-            change: ViewChange::Zoom {
-                factor,
-                anchor: Some(anchor),
-            },
-        });
+        self.calls.push(ShellMessage::ChangeView(ViewChange::Zoom {
+            factor,
+            anchor: Some(anchor),
+        }));
         self.run();
     }
 
@@ -2615,7 +2621,7 @@ impl Viewport {
 
     fn settle(
         &mut self,
-        sent: &mut Vec<ShellCall>,
+        sent: &mut Vec<ShellMessage>,
         region: Rect,
         origin: Pos2,
         intrinsic: Option<Vec2>,
@@ -2623,7 +2629,7 @@ impl Viewport {
     ) {
         let mut changes = Vec::new();
         sent.retain(|call| match call {
-            ShellCall::ChangeView { change, .. } => {
+            ShellMessage::ChangeView(change) => {
                 changes.push(*change);
                 false
             }
@@ -2703,7 +2709,6 @@ fn available_status(view: ViewId, placement: &ChildPlacement) -> ChildStatus {
         child: placement.child,
         available: true,
         intrinsic: None,
-        aspect_ratio: None,
         active: false,
         interaction: be_sdk_beui::InteractionMode::Preview,
         capabilities: be_sdk_beui::EditorCapabilities::default(),
