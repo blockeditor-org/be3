@@ -15,14 +15,17 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.WindowInsetsAnimation;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
-public final class BeuiView extends SurfaceView implements SurfaceHolder.Callback {
+public final class BeuiView extends SurfaceView implements SurfaceHolder.Callback2 {
     private static final int TOUCH_START = 0;
     private static final int TOUCH_MOVE = 1;
     private static final int TOUCH_END = 2;
@@ -37,6 +40,14 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     private final InputMethodManager input;
     private boolean keyboard;
+    // Whether the soft keyboard is on screen, and whether it was when the window
+    // last lost focus, as it does when the phone locks.
+    private boolean keyboardVisible;
+    private boolean keyboardWhenUnfocused;
+    // While the keyboard slides, the insets follow the animation's frames rather
+    // than jumping to where it ends (ImeAnimation).
+    private boolean keyboardSliding;
+    private WindowInsets latestInsets;
     private BeuiInputConnection connection;
     private ImeText ime = new ImeText(0, "", 0, 0, -1, -1, 0);
     private long imeSerial;
@@ -47,6 +58,7 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         getHolder().addCallback(this);
         setFocusable(true);
         setFocusableInTouchMode(true);
+        if (Build.VERSION.SDK_INT >= 30) setWindowInsetsAnimationCallback(new ImeAnimation(this));
     }
 
     @Override
@@ -59,6 +71,26 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
                 getResources().getDisplayMetrics().density);
     }
 
+    // Android shows the window once drawingFinished runs, which beui does after it
+    // presents a frame to the surface, so unlocking never shows a blank or stale one.
+    @Override
+    public void surfaceRedrawNeededAsync(SurfaceHolder holder, Runnable drawingFinished) {
+        if (!nativeRedrawNeeded(drawingFinished)) drawingFinished.run();
+    }
+
+    // Before API 26 Android asks only this, and shows the window when it returns.
+    @Override
+    public void surfaceRedrawNeeded(SurfaceHolder holder) {
+        if (Build.VERSION.SDK_INT >= 26) return;
+        CountDownLatch drawn = new CountDownLatch(1);
+        if (!nativeRedrawNeeded(drawn::countDown)) return;
+        try {
+            drawn.await();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     @Override
     protected void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);
@@ -68,9 +100,17 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     @Override
     public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
-        if (focused) {
-            reportPreferences(getResources().getConfiguration());
+        if (!focused) {
+            keyboardWhenUnfocused = keyboard && (Build.VERSION.SDK_INT < 30 || keyboardVisible);
+            return;
         }
+        reportPreferences(getResources().getConfiguration());
+        // Locking the phone hides the keyboard, and nothing else asks for it again.
+        if (keyboard && keyboardWhenUnfocused) {
+            requestFocus();
+            input.showSoftInput(this, 0);
+        }
+        keyboardWhenUnfocused = false;
     }
 
     private void reportPreferences(Configuration configuration) {
@@ -89,10 +129,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     @Override
     public WindowInsets onApplyWindowInsets(WindowInsets insets) {
         if (Build.VERSION.SDK_INT >= 30) {
-            Insets safe = insets.getInsets(
-                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-            Insets ime = insets.getInsets(WindowInsets.Type.ime());
-            nativeInsets(safe.left, safe.top, safe.right, Math.max(safe.bottom, ime.bottom));
+            latestInsets = insets;
+            keyboardVisible = insets.isVisible(WindowInsets.Type.ime());
+            // These are where the keyboard's slide ends; ImeAnimation reports the way there.
+            if (!keyboardSliding) reportInsets(insets);
             return insets;
         }
         int left = insets.getSystemWindowInsetLeft();
@@ -110,6 +150,47 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         }
         nativeInsets(left, top, right, bottom);
         return insets;
+    }
+
+    private static void reportInsets(WindowInsets insets) {
+        Insets safe = insets.getInsets(
+                WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+        Insets ime = insets.getInsets(WindowInsets.Type.ime());
+        nativeInsets(safe.left, safe.top, safe.right, Math.max(safe.bottom, ime.bottom));
+    }
+
+    // Reports the insets of each frame of the keyboard's slide, so the layout moves
+    // with the keyboard instead of jumping before or after it.
+    private static final class ImeAnimation extends WindowInsetsAnimation.Callback {
+        private final BeuiView view;
+
+        ImeAnimation(BeuiView view) {
+            super(DISPATCH_MODE_STOP);
+            this.view = view;
+        }
+
+        private static boolean slidesKeyboard(WindowInsetsAnimation animation) {
+            return (animation.getTypeMask() & WindowInsets.Type.ime()) != 0;
+        }
+
+        @Override
+        public void onPrepare(WindowInsetsAnimation animation) {
+            if (slidesKeyboard(animation)) view.keyboardSliding = true;
+        }
+
+        @Override
+        public WindowInsets onProgress(WindowInsets insets,
+                List<WindowInsetsAnimation> running) {
+            if (view.keyboardSliding) reportInsets(insets);
+            return insets;
+        }
+
+        @Override
+        public void onEnd(WindowInsetsAnimation animation) {
+            if (!slidesKeyboard(animation)) return;
+            view.keyboardSliding = false;
+            if (view.latestInsets != null) reportInsets(view.latestInsets);
+        }
     }
 
     @Override
@@ -385,6 +466,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
             float density);
 
     private static native void nativeSurfaceDestroyed();
+
+    private static native boolean nativeRedrawNeeded(Runnable drawingFinished);
 
     private static native void nativeInsets(int left, int top, int right, int bottom);
 

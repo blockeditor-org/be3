@@ -201,6 +201,11 @@ pub struct Runner {
     rendering: Option<Rendering>,
     waker: Option<Waker>,
     events: Vec<Event>,
+    /// Input that ends something, kept from frames that could not run for want
+    /// of a surface, for the next frame that can. Not counted by `has_events`, so
+    /// a platform does not spin while it waits for the surface.
+    held: Vec<Incoming>,
+    held_events: Vec<Event>,
     intake: Intake,
     picks: (Sender<Answered>, Receiver<Answered>),
     saves: (Sender<Saved>, Receiver<Saved>),
@@ -260,6 +265,8 @@ impl Runner {
             rendering: None,
             waker: None,
             events: Vec::new(),
+            held: Vec::new(),
+            held_events: Vec::new(),
             intake: Intake::default(),
             picks: mpsc::channel(),
             saves: mpsc::channel(),
@@ -540,11 +547,19 @@ impl Runner {
             (None, None) => None,
         };
         let Some(physical) = visible.or(self.last_physical.filter(|_| paced.is_some())) else {
-            self.events.clear();
-            self.intake.incoming.clear();
+            self.events.retain(intake::event_ends_something);
+            self.held_events.append(&mut self.events);
+            self.intake.incoming.retain(intake::ends_something);
+            self.held.append(&mut self.intake.incoming);
             return None;
         };
         self.last_physical = Some(physical);
+        if !self.held.is_empty() {
+            self.intake.incoming.splice(0..0, std::mem::take(&mut self.held));
+        }
+        if !self.held_events.is_empty() {
+            self.events.splice(0..0, std::mem::take(&mut self.held_events));
+        }
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
         rendering.set_vsync(paced.is_none());

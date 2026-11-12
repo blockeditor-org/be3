@@ -186,3 +186,154 @@ impl Rendering {
         }
     }
 }
+
+/// Lets another thread take the window's surface away from a renderer running on
+/// the platform's thread, as Android's `surfaceDestroyed` does: the surface must
+/// be out of use when it returns. `revoke` waits only for a draw in progress,
+/// never for a whole frame, so a long step of the program cannot hold it up.
+///
+/// Each surface the platform is handed is a lease, numbered by `current` on the
+/// thread that hands it over and given to `Leased::attaching` before the renderer
+/// is attached to it. Once `revoke` ends that lease, the renderer does not touch
+/// the surface again: what would draw to it does nothing until the platform
+/// detaches the renderer and attaches the next surface.
+#[derive(Default)]
+pub struct SurfaceLease {
+    current: std::sync::Mutex<u64>,
+}
+
+impl SurfaceLease {
+    pub fn new() -> Arc<Self> {
+        Arc::default()
+    }
+
+    /// The lease of the surface the platform is being handed now.
+    pub fn current(&self) -> u64 {
+        *self.lock()
+    }
+
+    /// Ends the current surface's lease. Returns once nothing draws to it.
+    pub fn revoke(&self) {
+        *self.lock() += 1;
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, u64> {
+        self.current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// A renderer that draws to its window only while the window's `SurfaceLease`
+/// lasts.
+pub struct Leased {
+    inner: Box<dyn Renderer>,
+    lease: Arc<SurfaceLease>,
+    attaching: Arc<std::sync::atomic::AtomicU64>,
+    held: Option<u64>,
+}
+
+/// Names the lease of the surface the platform attaches next (`Leased`).
+#[derive(Clone)]
+pub struct Attaching(Arc<std::sync::atomic::AtomicU64>);
+
+impl Attaching {
+    pub fn set(&self, lease: u64) {
+        self.0.store(lease, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+impl Leased {
+    pub fn new(inner: Box<dyn Renderer>, lease: Arc<SurfaceLease>) -> (Self, Attaching) {
+        let attaching = Arc::new(std::sync::atomic::AtomicU64::new(lease.current()));
+        let leased = Self {
+            inner,
+            lease,
+            attaching: attaching.clone(),
+            held: None,
+        };
+        (leased, Attaching(attaching))
+    }
+
+    /// Runs `draw` with the surface while its lease lasts.
+    fn with_surface<R>(&mut self, gone: R, draw: impl FnOnce(&mut dyn Renderer) -> R) -> R {
+        let current = self.lease.lock();
+        match self.held {
+            Some(held) if held == *current => draw(&mut *self.inner),
+            _ => gone,
+        }
+    }
+
+    /// Runs `change` with the surface while its lease lasts, or straight away
+    /// while there is no surface to touch.
+    fn configure(&mut self, change: impl FnOnce(&mut dyn Renderer)) {
+        match self.held {
+            Some(_) => self.with_surface((), change),
+            None => change(&mut *self.inner),
+        }
+    }
+}
+
+impl Renderer for Leased {
+    fn info(&self) -> RendererInfo {
+        self.inner.info()
+    }
+
+    fn provide(&self, setup: &mut Setup) {
+        self.inner.provide(setup);
+    }
+
+    fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
+        match self.held {
+            Some(_) => self.with_surface(Ok(false), |inner| inner.recover()),
+            None => self.inner.recover(),
+        }
+    }
+
+    fn attach(
+        &mut self,
+        window: Arc<dyn WindowHandle>,
+        width: u32,
+        height: u32,
+    ) -> Result<(), Box<dyn Error>> {
+        let lease = self.attaching.load(std::sync::atomic::Ordering::Relaxed);
+        self.held = Some(lease);
+        self.with_surface(Ok(()), |inner| inner.attach(window, width, height))
+    }
+
+    fn detach(&mut self) {
+        self.held = None;
+        self.inner.detach();
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.configure(|inner| inner.resize(width, height));
+    }
+
+    fn physical(&self) -> Option<Vec2> {
+        self.inner.physical()
+    }
+
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
+        self.with_surface(false, |inner| inner.prepare(output, scale, background))
+    }
+
+    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
+        self.inner.note(output, scale, background);
+    }
+
+    fn present(&mut self, background: Color32) -> bool {
+        self.with_surface(false, |inner| inner.present(background))
+    }
+
+    fn set_vsync(&mut self, vsync: bool) {
+        self.configure(|inner| inner.set_vsync(vsync));
+    }
+
+    fn capture(&mut self) -> Option<Capture> {
+        self.with_surface(None, |inner| inner.capture())
+    }
+}
+
+#[cfg(test)]
+mod tests;

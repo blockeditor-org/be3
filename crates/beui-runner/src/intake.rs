@@ -3,7 +3,7 @@ use std::time::Instant;
 use beui_types::HostTransform;
 use beui_types::ScrollDelta;
 use beui_types::input::enqueue;
-use beui_types::{Event, FileDrag};
+use beui_types::{BackGesture, Event, FileDrag, PenPhase};
 use beui_types::{Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, TouchId, TouchPhase};
 use beui_types::{Pos2, Vec2};
 use beui_types::{WindowId, WindowReport};
@@ -509,6 +509,64 @@ impl beui_types::input::Queued for Queued {
             (Entry::Layer { layer, .. }, Entry::Layer { layer: later, .. }) => layer == later,
             _ => false,
         }
+    }
+}
+
+/// Whether an input ends something the program may be in the middle of: a
+/// press, a drag, a gesture, focus or a composition. While the window has no
+/// surface its frames do not run; these wait for the next frame that does, and
+/// everything else is dropped (`Runner::frame`).
+pub(crate) fn ends_something(incoming: &Incoming) -> bool {
+    match incoming {
+        Incoming::Input { input, .. } | Incoming::Layer { input, .. } => input_ends(input),
+        Incoming::FileDrag(drag) => !matches!(drag, FileDrag::Hovered),
+        Incoming::Window(_) => true,
+        Incoming::Time(_) | Incoming::Controller(_) => false,
+    }
+}
+
+fn input_ends(input: &Input) -> bool {
+    match input {
+        Input::Focus(_)
+        | Input::Modifiers(_)
+        | Input::Text(_)
+        | Input::Paste(_)
+        | Input::PastePiece(_)
+        | Input::Ime(_)
+        | Input::PointerLeft
+        | Input::PointersCancelled
+        | Input::PointerUnlocked
+        | Input::ScrollEnded => true,
+        Input::Key(keystroke) => !keystroke.pressed,
+        Input::PointerButton { pressed, .. } => !pressed,
+        Input::Touch { phase, .. } => matches!(phase, TouchPhase::End | TouchPhase::Cancel),
+        Input::Pen { phase, .. } => matches!(phase, PenPhase::Up(_) | PenPhase::Gone),
+        Input::Back(gesture) => matches!(gesture, BackGesture::Cancelled | BackGesture::Invoked),
+        _ => false,
+    }
+}
+
+/// `ends_something` for input already read into events.
+pub(crate) fn event_ends_something(event: &Event) -> bool {
+    match event {
+        Event::Focus(_)
+        | Event::Modifiers(_)
+        | Event::Text(_)
+        | Event::Paste(_)
+        | Event::Ime(_)
+        | Event::PointerGone
+        | Event::PointersCancelled
+        | Event::PointerUnlocked
+        | Event::PointerOutside
+        | Event::ScrollEnded
+        | Event::FileHoverCancelled
+        | Event::FileDropped(_) => true,
+        Event::Key { press, .. } => !press.pressed,
+        Event::PointerButton { pressed, .. } => !pressed,
+        Event::Touch { phase, .. } => matches!(phase, TouchPhase::End | TouchPhase::Cancel),
+        Event::Pen { phase, .. } => matches!(phase, PenPhase::Up(_) | PenPhase::Gone),
+        Event::Back(gesture) => matches!(gesture, BackGesture::Cancelled | BackGesture::Invoked),
+        _ => false,
     }
 }
 
