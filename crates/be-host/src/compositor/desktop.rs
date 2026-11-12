@@ -5,7 +5,7 @@ use be_sdk_api::{
     EditorInstanceId, HostView, ParentView, View, ViewId, ViewPlacement, ViewRef, WindowEdge,
     WindowLevel, WindowOpen, WindowPlacement,
 };
-use beui::animation::{create_animation, motion};
+use beui::animation::{Animation, create_animation, motion};
 use beui::reactive::*;
 use beui::unstyled::rubber_band::{Band, WINDOW_SPRING};
 use beui::{
@@ -148,7 +148,9 @@ thread_local! {
     static GESTURE: Cell<Option<Signal<Option<Gesture>>>> = const { Cell::new(None) };
     static WORK_AREAS: Cell<Option<Signal<Vec<(StatusKey, Rect)>>>> = const { Cell::new(None) };
     static WINDOW_DISPLAY: Cell<Option<Signal<Option<Rect>>>> = const { Cell::new(None) };
+    static SPRING: Cell<Option<Spring>> = const { Cell::new(None) };
     static PRESSED: RefCell<Option<Pressed>> = const { RefCell::new(None) };
+    static CARRIED: RefCell<Vec<FloatedKey>> = const { RefCell::new(Vec::new()) };
     static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
     static ORIGINS: RefCell<HashMap<(String, EditorInstanceId, ViewId), Pos2>> =
         RefCell::new(HashMap::new());
@@ -167,9 +169,12 @@ pub(crate) fn install() {
     GESTURE.set(Some(gesture));
     WORK_AREAS.set(Some(areas));
     WINDOW_DISPLAY.set(Some(create_signal(None)));
+    let spring = Spring::new();
+    SPRING.set(Some(spring));
     create_effect(move || {
         areas.with(|_| ());
         let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
+        let moving = moving.or_else(|| spring.settling.get());
         let displays = desktop_displays();
         untrack(|| {
             let mut windows = floated.get();
@@ -178,6 +183,151 @@ pub(crate) fn install() {
             }
         });
     });
+}
+
+/// Pulls a desktop window moved where its grip can't be reached (`be_sdk_window_stack::reachable`)
+/// back on a rubber band, and once it is let go, springs it back from where it was let go at the
+/// speed it was moving. While it is pulled or springs back, the window shows at its banded place
+/// and is left out of keeping windows in the work areas. One window at a time: grabbing another
+/// puts the springing one where it comes to rest.
+#[derive(Clone, Copy)]
+struct Spring {
+    band: Stored<RefCell<Band>>,
+    /// The window being pulled or springing back.
+    settling: Signal<Option<FloatedKey>>,
+    animation: Animation,
+}
+
+impl Spring {
+    fn new() -> Self {
+        let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+        let settling = create_signal(None::<FloatedKey>);
+        let animation = create_animation(
+            move |frame| {
+                let Some(key) = settling.get_untracked() else {
+                    return false;
+                };
+                let band = band.value();
+                let mut band = band.borrow_mut();
+                let mut moving = true;
+                floated_signal().update(|windows| {
+                    let Some(index) = windows.iter().position(|window| window.key == key) else {
+                        moving = false;
+                        return;
+                    };
+                    let size = windows[index].rect.size();
+                    let areas = areas_of(&windows[index]);
+                    let limit = |origin: Pos2| {
+                        be_sdk_window_stack::reachable(Rect::from_min_size(origin, size), &areas)
+                    };
+                    let mut origin = windows[index].rect.min - band.offset;
+                    if !band.step(frame.now, &mut origin, limit, motion().animates()) {
+                        moving = false;
+                        return;
+                    }
+                    be_sdk_window_stack::move_in(windows, index, origin + band.offset);
+                    moving = band.moving();
+                });
+                moving
+            },
+            move || {
+                band.value().borrow_mut().settle();
+                if let Some(key) = settling.get_untracked() {
+                    rest(&key);
+                }
+                settling.set(None);
+            },
+        );
+        Self {
+            band,
+            settling,
+            animation,
+        }
+    }
+
+    /// A move begins on `key`: a window still springing back comes to rest, unless it is the one
+    /// grabbed, which carries on from where it is drawn. Returns how far the press is from where
+    /// the window is drawn along the band, to add to where the move starts.
+    fn grab(self, key: &FloatedKey) -> Vec2 {
+        self.animation.stop();
+        if self
+            .settling
+            .with_untracked(|settling| settling.as_ref().is_some_and(|held| held != key))
+        {
+            self.band.value().borrow_mut().settle();
+            if let Some(held) = self.settling.get_untracked() {
+                rest(&held);
+            }
+        }
+        self.settling.set(Some(key.clone()));
+        let band = self.band.value();
+        let mut band = band.borrow_mut();
+        let drawn = band.offset;
+        let rect = floated_signal().with_untracked(|held| {
+            held.iter()
+                .find(|window| window.key == *key)
+                .map(|window| window.rect)
+        });
+        band.grab(rect.map_or(Vec2::splat(1.0), dimensions_of)) - drawn
+    }
+
+    /// Where the move of `windows[index]` to `to` shows it: on a band past where its grip can
+    /// be reached.
+    fn pull(self, windows: &[Floated], index: usize, to: Pos2) -> Pos2 {
+        let window = &windows[index];
+        let areas = areas_of(window);
+        let limit =
+            be_sdk_window_stack::reachable(Rect::from_min_size(to, window.rect.size()), &areas);
+        let band = self.band.value();
+        let mut band = band.borrow_mut();
+        band.stretch(
+            limit,
+            to - limit,
+            dimensions_of(window.rect),
+            motion().animates(),
+            now(),
+        );
+        limit + band.offset
+    }
+
+    fn release(self) {
+        self.band.value().borrow_mut().release(now());
+        self.animation.start();
+    }
+}
+
+/// Every display with the work area `window`'s app reported on it.
+fn areas_of(window: &Floated) -> Vec<(Rect, Rect)> {
+    desktop_displays()
+        .into_iter()
+        .map(|display| {
+            let work = work_area_on(&window.key.app, window.key.instance, display);
+            (display, work.unwrap_or(display))
+        })
+        .collect()
+}
+
+/// The size of the display holding most of `rect`, how far a band stretches.
+fn dimensions_of(rect: Rect) -> Vec2 {
+    let displays = desktop_displays();
+    be_sdk_window_stack::home(&displays, rect).map_or(Vec2::splat(1.0), |home| displays[home].size())
+}
+
+/// Puts the window where its grip can be reached, and wants it there.
+fn rest(key: &FloatedKey) {
+    floated_signal().update(|windows| {
+        if let Some(index) = windows.iter().position(|window| window.key == *key) {
+            let areas = areas_of(&windows[index]);
+            let to = be_sdk_window_stack::reachable(windows[index].rect, &areas);
+            if to != windows[index].rect.min {
+                be_sdk_window_stack::move_in(windows, index, to);
+            }
+        }
+    });
+}
+
+fn spring() -> Option<Spring> {
+    SPRING.get()
 }
 
 pub(crate) fn hold_window_display(display: Memo<Rect>) {
@@ -464,10 +614,28 @@ pub(crate) fn apply() {
     if floated.with_untracked(|held| *held != windows) {
         floated.set(windows);
     }
-    if let Some(mut gesture) = gesture {
-        gesture.began_on = owner_index(&gesture.key);
-        gesture_signal().set(Some(gesture));
+    if let Some(gesture) = gesture {
+        began(gesture);
     }
+}
+
+fn began(mut gesture: Gesture) {
+    gesture.began_on = owner_index(&gesture.key);
+    if gesture.kind == Kind::Move
+        && let Some(spring) = sprung(&gesture.key)
+    {
+        let along = spring.grab(&gesture.key);
+        if let Some((_, rect)) = gesture.start.as_mut() {
+            *rect = rect.translate(along);
+        }
+    }
+    gesture_signal().set(Some(gesture));
+}
+
+/// The spring for a window be-host's own window does not carry (`carried`), as the desktop's do.
+fn sprung(key: &FloatedKey) -> Option<Spring> {
+    let carried = CARRIED.with(|carried| carried.borrow().contains(key));
+    spring().filter(|_| !carried)
 }
 
 fn begin_on(window: &mut Floated, kind: Kind) -> Option<Gesture> {
@@ -501,9 +669,8 @@ pub(crate) fn begin(key: &FloatedKey, kind: Kind) -> bool {
     if floated.with_untracked(|held| *held != windows) {
         floated.set(windows);
     }
-    if let Some(mut gesture) = gesture {
-        gesture.began_on = owner_index(&gesture.key);
-        gesture_signal().set(Some(gesture));
+    if let Some(gesture) = gesture {
+        began(gesture);
     }
     true
 }
@@ -624,6 +791,18 @@ pub(crate) fn reachable(rect: Rect, grab: Vec2, viewport: Vec2) -> Pos2 {
 }
 
 pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
+    CARRIED.with(|carried| carried.borrow_mut().push(key.clone()));
+    {
+        let key = key.clone();
+        on_cleanup(move || {
+            CARRIED.with(|carried| {
+                let mut carried = carried.borrow_mut();
+                if let Some(at) = carried.iter().position(|held| *held == key) {
+                    carried.remove(at);
+                }
+            });
+        });
+    }
     let floated = floated();
     let gesture = gesture_signal();
     let held = {
@@ -971,9 +1150,18 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
             continue;
         };
         let (start, start_rect) = *held.start.get_or_insert((at, rect));
+        let spring = sprung(key).filter(|_| held.kind == Kind::Move);
         floated.update(|windows| {
             if let Some(index) = windows.iter().position(|window| window.key == *key) {
-                be_sdk_window_stack::drag(windows, index, held.kind, start_rect, at - start);
+                match spring {
+                    Some(spring) => {
+                        let to = spring.pull(windows, index, start_rect.min + (at - start));
+                        be_sdk_window_stack::move_in(windows, index, to);
+                    }
+                    None => {
+                        be_sdk_window_stack::drag(windows, index, held.kind, start_rect, at - start)
+                    }
+                }
                 if held.kind == Kind::Move {
                     windows[index].grab = Some(start - start_rect.min);
                 }
@@ -981,6 +1169,9 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
         });
         match event.phase {
             PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone => {
+                if let Some(spring) = spring {
+                    spring.release();
+                }
                 gesture.set(None);
                 events.push(forwarded);
             }
