@@ -31,7 +31,10 @@ directly, not through the relay. The servers share nothing, so each has its own 
 `target/build-server.buckconfig`, which `.buckconfig` includes if it exists (`<?file:...>`), and
 restarts buck2's daemon when that file changes, since buck2 reads its remote execution settings
 only when the daemon starts. `.buckconfig.local` is read after it and is only ever a person's:
-`./scripts/buck` never writes it, so a value there overrides the generated one. Every
+`./scripts/buck` never writes it, so a value there overrides the generated one. When the
+configuration in effect names an `engine_address` other than the generated one, a person chose
+the server: `./scripts/buck` asks no server, waker or key for anything and removes
+`target/build-server.buckconfig`, so its addresses and header are not mixed into theirs. Every
 server runs actions in the one image `worker_properties` (buck/tools/defs.bzl) names; nothing in
 the rules depends on which server it is. With no server at all, buck2 builds on this machine,
 `./scripts/verify` included (guides/running/local_buck2.md): when the configuration in effect

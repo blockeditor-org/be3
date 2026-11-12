@@ -32,10 +32,19 @@ pub fn configure(buck2: &Path) -> Result<()> {
     if std::fs::read_to_string(&local).is_ok_and(|text| text.starts_with(MARKER)) {
         let _ = std::fs::remove_file(&local);
     }
-    if builds_here(buck2) {
-        return Ok(());
-    }
     let path = repository().join(GENERATED);
+    match chosen_by_hand(buck2) {
+        Chosen::Generated => {}
+        Chosen::Here => return Ok(()),
+        Chosen::ServerByHand => {
+            // The person's own server: the generated addresses and header
+            // would only be mixed into theirs.
+            if std::fs::remove_file(&path).is_ok() {
+                kill_daemon(buck2);
+            }
+            return Ok(());
+        }
+    }
     let mut proxy = std::env::var("HTTPS_PROXY")
         .ok()
         .filter(|value| !value.is_empty())
@@ -130,19 +139,37 @@ pub fn configure(buck2: &Path) -> Result<()> {
         return Ok(());
     }
     write_private(&path, &config)?;
+    kill_daemon(buck2);
+    Ok(())
+}
+
+/// buck2 reads its remote execution settings only when its daemon starts.
+fn kill_daemon(buck2: &Path) {
     let _ = Command::new(buck2)
         .arg("kill")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
-    Ok(())
 }
 
-/// Whether buck2's configuration, whoever wrote it, runs every action on this
-/// machine: the local execution platforms (`LOCAL_BUILD` in
-/// buck/platforms/profile.bzl reads the same value) or remote execution turned
-/// off. Then nothing is asked of a build server or its waker.
-fn builds_here(buck2: &Path) -> bool {
+/// What buck2's configuration in effect, whoever wrote it, leaves to
+/// `./scripts/buck`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Chosen {
+    /// Nothing: `./scripts/buck` picks a build server and writes [GENERATED].
+    Generated,
+    /// Every action runs on this machine: the local execution platforms
+    /// (`LOCAL_BUILD` in buck/platforms/profile.bzl reads the same value) or
+    /// remote execution turned off.
+    Here,
+    /// A person's configuration, such as .buckconfig.local, names the build
+    /// server itself (`buck2_re_client.engine_address`).
+    ServerByHand,
+}
+
+/// In the last two cases nothing is asked of a build server, its waker or a
+/// key.
+fn chosen_by_hand(buck2: &Path) -> Chosen {
     let output = Command::new(buck2)
         .args([
             "audit",
@@ -151,19 +178,52 @@ fn builds_here(buck2: &Path) -> bool {
             "json",
             "build.execution_platforms",
             "buck2_re_client.enabled",
+            "buck2_re_client.engine_address",
         ])
         .current_dir(repository())
         .stderr(Stdio::null())
         .output();
     let Ok(output) = output else {
-        return false;
+        return Chosen::Generated;
     };
     let values: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_default();
     let value = |name: &str| values[name].as_str().unwrap_or_default().trim().to_owned();
-    is_local(
+    let generated = std::fs::read_to_string(repository().join(GENERATED)).ok();
+    chosen(
         &value("build.execution_platforms"),
         &value("buck2_re_client.enabled"),
+        &value("buck2_re_client.engine_address"),
+        generated.as_deref(),
     )
+}
+
+/// [Chosen] from the configuration in effect and [GENERATED]'s text, if it
+/// exists: an engine address that is not the generated one was written by a
+/// person, since a person's files are read after it.
+pub fn chosen(
+    execution_platforms: &str,
+    remote_enabled: &str,
+    engine_address: &str,
+    generated: Option<&str>,
+) -> Chosen {
+    if is_local(execution_platforms, remote_enabled) {
+        return Chosen::Here;
+    }
+    let engine_address = engine_address.trim();
+    if engine_address.is_empty() {
+        return Chosen::Generated;
+    }
+    let generated_address = generated.and_then(|text| {
+        text.lines().find_map(|line| {
+            let (key, value) = line.split_once('=')?;
+            (key.trim() == "engine_address").then(|| value.trim())
+        })
+    });
+    if generated_address == Some(engine_address) {
+        Chosen::Generated
+    } else {
+        Chosen::ServerByHand
+    }
 }
 
 pub fn is_local(execution_platforms: &str, remote_enabled: &str) -> bool {

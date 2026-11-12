@@ -78,6 +78,7 @@ find_missing_blobs_batch_size = 1500
 ignore = .git, .claude, target, dist, buck-out
 
 # What ./scripts/buck generates: the build server's hosts and key, above. It is
-# not written when buck2 builds on this machine (guides/running/local_buck2.md),
-# and .buckconfig.local, a person's own, is read after it.
+# not written when buck2 builds on this machine (guides/running/local_buck2.md)
+# or when a person's .buckconfig.local names the build server's engine_address
+# itself, and .buckconfig.local, a person's own, is read after it.
 <?file:target/build-server.buckconfig>
