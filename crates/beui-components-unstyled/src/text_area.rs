@@ -60,12 +60,13 @@ pub use hooks::{
 };
 pub use look::{BlockGeometry, ChipGeometry, TextAreaGeometry, TextAreaLook, WidgetGeometry};
 pub use rows::{Prose, RowTable, TextWidget};
-pub use state::{ProseLine, TextAreaLayout, TextAreaState};
+pub use state::{ProseLine, ScrollAnchor, TextAreaLayout, TextAreaState};
 
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
+const SCROLL_ATTEMPTS: u8 = 8;
 const SELECT_ALL_CLICKS: u32 = 4;
 const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
@@ -463,6 +464,11 @@ impl Surface {
         if position.viewport <= 0.0 {
             return;
         }
+        if let Some(anchor) = self.state.pending_scroll() {
+            self.scroll_to_anchor(anchor);
+            self.state.take_reveal_cursor();
+            return;
+        }
         if let Some(rect) = self.state.take_reveal() {
             self.reveal_rect(rect);
         }
@@ -504,6 +510,48 @@ impl Surface {
         } else {
             self.held.value().reveal_attempts.set(0);
         }
+    }
+
+    /// Puts `anchor`'s line at the top of the view. Lines not laid out yet are estimated, and
+    /// the content may not be tall enough to scroll there until they are, so the anchor stays
+    /// pending, and is tried again each frame, until the view reaches it or `SCROLL_ATTEMPTS`
+    /// run out (a text that has since grown shorter).
+    fn scroll_to_anchor(&self, anchor: ScrollAnchor) {
+        let held = self.held.value();
+        let Some(y) = self.estimated_y(anchor.line_start) else {
+            return;
+        };
+        let target = (y + anchor.within).max(0.0);
+        let position = self.scroll.get_untracked();
+        let attempts = held.reveal_attempts.get();
+        if (target - position.clamped()).abs() <= 0.5 || attempts >= SCROLL_ATTEMPTS {
+            held.reveal_attempts.set(0);
+            self.state.take_scroll_to();
+            if let Some(reached) = self.top_anchor(position.clamped()) {
+                self.state.set_scrolled(reached);
+            }
+            return;
+        }
+        held.reveal_attempts.set(attempts + 1);
+        self.offset
+            .set_unconditionally(target.min(position.max_offset().max(0.0)));
+        self.state.scroll_to(anchor);
+    }
+
+    /// The line at the top of the view, and how far into it the view begins.
+    fn top_anchor(&self, offset: f32) -> Option<ScrollAnchor> {
+        let visible = self.visible.get_untracked();
+        let starts = self.starts.get_untracked();
+        let list = self.list.try_get()?;
+        let canvas = self.canvas_rect()?;
+        let top = (self.held.value().rect_of(list)?.min.y - canvas.min.y) / self.scale();
+        let line_y = |line: &usize| list.row_offset(line).map(|row| top + row);
+        let below = visible.partition_point(|line| line_y(line).is_some_and(|y| y <= offset));
+        let line = *visible.get(below.saturating_sub(1))?;
+        Some(ScrollAnchor {
+            line_start: *starts.get(line)?,
+            within: offset - line_y(&line)?,
+        })
     }
 
     fn reveal_rect(&self, rect: Rect) {
@@ -1555,6 +1603,20 @@ pub fn TextArea(
     create_effect(move || {
         reveals.get();
         revealing.start(Duration::ZERO);
+    });
+    create_effect(move || {
+        let position = scroll.get();
+        if single_line || position.viewport <= 0.0 {
+            return;
+        }
+        untrack(|| match state.pending_scroll() {
+            Some(_) => revealing.start(Duration::ZERO),
+            None => {
+                if let Some(anchor) = cx.top_anchor(position.clamped()) {
+                    state.set_scrolled(anchor);
+                }
+            }
+        });
     });
     let hover_cursor = create_signal(CursorIcon::Text);
     let cursor = create_memo(move || match disabled.get() {

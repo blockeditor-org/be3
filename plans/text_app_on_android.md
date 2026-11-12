@@ -36,20 +36,6 @@ here runs Android. Line numbers are from when this was written. Remove an item w
 - `drive frames` counts frames headless with no vsync, so a fling runs about 220 window frames
   a second. Compare ratios, not rates.
 
-## Scroll position
-
-1. **The text app never saves its scroll position.** Reopening a document after going back,
-   or after relaunching the app, shows line 1. be-app-text never calls `set_view_state`, and
-   `State::pump` puts the selection at byte 0 on first load
-   (`crates/be-app-text/src/root/state.rs:152-159`).
-   - Save the scroll position, and probably the caret, so they survive a process kill. Write
-     them debounced or when the app goes to the background, not only on a clean exit.
-   - Restore them when the document opens.
-   - Going back closes the document's tab, and closing a tab detaches its view
-     (guides/blocks/workspaces.md). A position kept per tab is therefore lost on every
-     back-then-reopen. Decide where it lives so that reopening a document from the files list
-     finds it.
-
 ## Back gesture
 
 2. **The system back gesture stops working after its first use in a session.** The first
@@ -170,28 +156,3 @@ What already works, and must keep working:
 
 What already works: a fling decelerates smoothly frame by frame and ends within about 1 s. An
 unfocused editor draws nothing while idle.
-
-## Opening documents
-
-19. **Importing a text file gives an empty document.** "New → New in My files… → Import a
-    file…" (`drive upload FILE '#picker.import'`) with a `.md` file, even a two-line one,
-    opens a Text block with no content.
-    - `TextBlock::from_file` looks right (`crates/be-type-text/src/text.rs:227-243`).
-    - Start from `be_host_stack::import_file` (`crates/be-host-stack/src/lib.rs:1475`) and
-      `Replicas::from_file` (`crates/be-host-stack/src/worker.rs:2639`).
-    - `a_picked_file_becomes_a_block_of_the_type_that_claims_it` checks an image and an
-      epub, never a text file's content. Add one.
-20. **After an import, going back leaves the new file's row renaming, with focus.** The
-    files-list row of the imported file was a focused `TextInput "Name"`. On a phone that
-    raises the keyboard over the files list.
-
-## Accessibility and small things
-
-21. **The text app's line labels end in a stray "mm"**: `Label value="## Section 32mm"`, every
-    paragraph `…keyboard.mm`. List items start with U+FFFC: `Label value="￼item a1mm"`. A
-    screen reader reads both. Find where the line's label is built.
-22. **The tab switcher's document tab has no accessible name**
-    (`Button #dock.switcher.tab.11` with no label, beside its "Close tab" button).
-23. **The open-tabs badge disagrees with the switcher.** The badge says "3 open tabs" with only
-    Files, Settings and History listed, under "Nothing else is open.". It says "4" with one
-    document open.

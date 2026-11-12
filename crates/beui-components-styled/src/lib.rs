@@ -73,7 +73,8 @@ pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, DragSource, Draggable, DropHandle,
     DropTarget, Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom,
     PanZoomHandle, PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, PopoverPlacement,
-    Pressable, Prose, ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors,
+    Pressable, Prose, ProseLine, RemoteTextCursor, ScrollAnchor, SliderScale, SyntaxColors,
+    TextAreaColors,
     TextAreaState, TextWidget, TreeDragOver, TreeDrop, TreeItem, container_size, narrower_than,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};

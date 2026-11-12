@@ -29,7 +29,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
 use super::program::{Heard, Program, Programs, listed_windows};
-use super::saved::{self, LAYOUT, TITLES};
+use super::saved::{self, CLOSED_VIEWS, ClosedView, LAYOUT, MAX_CLOSED_VIEWS, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 
@@ -608,6 +608,50 @@ impl Workspace {
         ))
     }
 
+    /// Keeps a closed tab's `view` among the session's closed views, so opening `block` in
+    /// `editor` again finds it; the oldest past `MAX_CLOSED_VIEWS` is detached.
+    fn keep_closed_view(&self, block: Uuid, editor: Uuid, view: Uuid) {
+        let mut closed = saved::closed_views(self.editor.view_state(CLOSED_VIEWS).as_ref());
+        let mut dropped = Vec::new();
+        closed.retain(|(held, held_view)| {
+            let same = held.block == block && held.editor == editor;
+            if same && *held_view != view {
+                dropped.push(*held_view);
+            }
+            !same && *held_view != view
+        });
+        closed.insert(0, (ClosedView { block, editor }, view));
+        while closed.len() > MAX_CLOSED_VIEWS {
+            if let Some((_, view)) = closed.pop() {
+                dropped.push(view);
+            }
+        }
+        self.editor
+            .set_view_state(CLOSED_VIEWS, Some(&saved::save_closed_views(closed)));
+        for view in dropped {
+            self.blocks().set_parent(view, BlockParent::Detached);
+        }
+    }
+
+    /// The view `block` had when last closed in `editor`, taken back out of the closed views.
+    fn reopen_view(&self, block: Uuid, editor: Uuid) -> Option<Uuid> {
+        let mut closed = saved::closed_views(self.editor.view_state(CLOSED_VIEWS).as_ref());
+        let at = closed
+            .iter()
+            .position(|(held, _)| held.block == block && held.editor == editor)?;
+        let (_, view) = closed.remove(at);
+        self.editor
+            .set_view_state(CLOSED_VIEWS, Some(&saved::save_closed_views(closed)));
+        Some(view)
+    }
+
+    /// A view for `item`: the one it was last closed with, else a new one.
+    fn view_for(&self, item: &TabItem) -> Option<Uuid> {
+        let editor = self.editor_of(item).unwrap_or_default();
+        self.reopen_view(item.id, editor)
+            .or_else(|| self.create_view(editor, Some(item.id)))
+    }
+
     fn restore(&self) {
         let inner = self.state.value();
         if inner.restored.get() {
@@ -909,7 +953,7 @@ impl Workspace {
         inner.next_tab.set(inner.next_tab.get() + 1);
         let view = match item.block_type == EditorViewContent::CONTENT_TYPE {
             true => Some(item.id),
-            false => self.create_view(self.editor_of(&item).unwrap_or_default(), Some(item.id)),
+            false => self.view_for(&item),
         };
         if let Some(view) = view {
             self.views.update(|views| {
@@ -930,17 +974,16 @@ impl Workspace {
         if held.editor == item.editor {
             return;
         }
+        let before = self.editor_of(held).unwrap_or_default();
         held.editor = item.editor;
         if item.block_type != EditorViewContent::CONTENT_TYPE {
             let mut views = self.views.get_untracked();
             if let Some(view) = views.remove(&tab)
                 && view != item.id
             {
-                self.blocks().set_parent(view, BlockParent::Detached);
+                self.keep_closed_view(item.id, before, view);
             }
-            if let Some(view) =
-                self.create_view(self.editor_of(&item).unwrap_or_default(), Some(item.id))
-            {
+            if let Some(view) = self.view_for(&item) {
                 views.insert(tab, view);
             }
             self.views.set(views);
@@ -1001,7 +1044,8 @@ impl Workspace {
         if let Some(view) = views.remove(&tab) {
             self.views.set(views);
             if view != closed.id {
-                self.blocks().set_parent(view, BlockParent::Detached);
+                let editor = self.editor_of(&closed).unwrap_or_default();
+                self.keep_closed_view(closed.id, editor, view);
             }
         }
         self.tabs.set(tabs);

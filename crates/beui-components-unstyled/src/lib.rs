@@ -149,7 +149,7 @@ pub use table::{Table, TableCell, TableColumnHeader, TableRow, TableRowHeader};
 pub use text_area::{
     BlockGeometry, ChipGeometry, Completer, Completion, CompletionMenu, CompletionRowHandle,
     LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, Prose, ProseLine, QuoteBar,
-    RemoteTextCursor, RowTable, SyntaxColors, TableFill, TableLines, TextArea, TextAreaApi,
+    RemoteTextCursor, RowTable, ScrollAnchor, SyntaxColors, TableFill, TableLines, TextArea, TextAreaApi,
     TextAreaColors, TextAreaGeometry, TextAreaLayout, TextAreaLook, TextAreaState, TextLeaf,
     TextLine, TextMarker, TextWidget, WidgetGeometry, emoji_completer, search_emoji,
 };
