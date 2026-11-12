@@ -33,6 +33,19 @@ fn a_head_an_open_block_reported_outlasts_what_is_listed_of_it() {
     );
     assert_eq!(graph.get(block).and_then(|node| node.head), Some(reported));
 
+    // A head another writer sets is the one a later listing leaves alone, not the one before it.
+    let (merged, listed_before) = (commit(b"merged"), commit(b"listed before"));
+    graph.set_head(block, Some(merged));
+    graph.listed(
+        Listing::Block(block),
+        vec![Node {
+            head: Some(listed_before),
+            ..node(block)
+        }],
+        3,
+    );
+    assert_eq!(graph.get(block).and_then(|node| node.head), Some(merged));
+
     // Once the block is closed, what is listed of it is its head again.
     graph.forget_reported_head(block);
     graph.listed(
@@ -41,7 +54,7 @@ fn a_head_an_open_block_reported_outlasts_what_is_listed_of_it() {
             head: Some(old),
             ..node(block)
         }],
-        3,
+        4,
     );
     assert_eq!(graph.get(block).and_then(|node| node.head), Some(old));
 }

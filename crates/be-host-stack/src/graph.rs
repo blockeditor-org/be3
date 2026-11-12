@@ -291,6 +291,15 @@ impl Graph {
         self.revision += 1;
     }
 
+    /// A listing whose request never got an answer is asked for again.
+    pub fn unfetch(&mut self, listing: Listing) {
+        if let Some(listed) = self.listings.get_mut(&listing)
+            && listed.fetch == Fetch::Fetching
+        {
+            listed.fetch = Fetch::Wanted;
+        }
+    }
+
     pub fn relist(&mut self, listing: Listing) {
         if let Some(listed) = self.listings.get_mut(&listing)
             && matches!(listed.fetch, Fetch::Loaded | Fetch::Failed(_))
@@ -355,6 +364,15 @@ impl Graph {
                 _ => None,
             }
         })
+    }
+
+    /// How many listings failed to load and are not asked for again until something relists them.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn failed_listings(&self) -> usize {
+        self.listings
+            .values()
+            .filter(|listed| matches!(listed.fetch, Fetch::Failed(_)))
+            .count()
     }
 
     pub fn fetching(&self) -> bool {
@@ -520,7 +538,8 @@ impl Graph {
     }
 
     /// The head of an open block's replica, kept over whatever is listed of it until
-    /// `forget_reported_head`, and set on its node now or when the node arrives.
+    /// `forget_reported_head`, and set on its node now or when the node arrives. `None` is no
+    /// news: it keeps the head reported before.
     pub fn report_head(&mut self, block: Uuid, head: Option<CommitId>) {
         if let Some(head) = head {
             self.reported.insert(block, head);
@@ -532,7 +551,14 @@ impl Graph {
         self.reported.remove(&block);
     }
 
+    /// A head some other writer sets (a settled merge, the head a block remembers) is what the
+    /// replica's is now: the overlay follows it, or the next listing would put the old one back.
     pub fn set_head(&mut self, block: Uuid, head: Option<CommitId>) {
+        if let Some(head) = head
+            && let Some(reported) = self.reported.get_mut(&block)
+        {
+            *reported = head;
+        }
         if let Some(node) = self.nodes.get_mut(&block)
             && node.head != head
             && head.is_some()

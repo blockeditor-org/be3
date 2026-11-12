@@ -3062,6 +3062,9 @@ fn relist(shared: &Arc<Mutex<Shared>>) {
 pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let mut fetched = false;
     loop {
+        if !peer.is_attached() {
+            return fetched;
+        }
         let (unlisted, wanted) = take_listings(shared);
         if wanted.is_empty() {
             futures_util::future::join_all(
@@ -3075,7 +3078,12 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
     }
 }
 
+/// Starts fetching what is asked for and not yet listed, while the connection is up: a listing
+/// asked for over a closed one stays asked for, and the connection that replaces it fetches it.
 pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
+    if !peer.is_attached() {
+        return;
+    }
     let (unlisted, wanted) = take_listings(shared);
     if unlisted.is_empty() && wanted.is_empty() {
         return;
@@ -3287,12 +3295,16 @@ async fn list(
             Ok(summaries) => summaries,
             Err(ClientError::Refused(..)) => Vec::new(),
             Err(error) => {
+                // A request the connection could not carry says nothing of the listing: it is
+                // asked for again, by the connection that is up next. Failed is for the ones the
+                // server answered, and only a relisting asks for those again.
+                let unreachable = error.is_unreachable();
                 record(shared, error);
-                shared
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .graph
-                    .failed(listing, listing_failure(listing).to_owned());
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                match unreachable {
+                    true => held.graph.unfetch(listing),
+                    false => held.graph.failed(listing, listing_failure(listing).to_owned()),
+                }
                 continue;
             }
         };

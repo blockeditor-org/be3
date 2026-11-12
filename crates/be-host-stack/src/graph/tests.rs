@@ -7,6 +7,7 @@ mod a_blocks_references_are_listed_in_one_request;
 mod a_blocks_references_listed_before_the_block_itself_are_kept;
 mod a_folders_blocks_leave_once_nothing_lists_it;
 mod a_head_an_open_block_reported_outlasts_what_is_listed_of_it;
+mod a_listing_whose_request_got_no_answer_is_asked_for_again;
 mod an_older_announcement_never_undoes_a_newer_one;
 
 fn node(id: Uuid) -> Node {
