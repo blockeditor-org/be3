@@ -1286,9 +1286,6 @@ pub(crate) fn ChoicesPage() -> NodeId {
             <Sample title="Radio group" code={vec![UpdateModes::SOURCE]}>
                 <UpdateModes />
             </Sample>
-            <Sample title="Listbox" code={vec![ColorListbox::SOURCE]}>
-                <ColorListbox />
-            </Sample>
             <Sample title="Select" code={vec![FruitSelect::SOURCE]}>
                 <FruitSelect />
             </Sample>
@@ -1337,33 +1334,6 @@ fn UpdateModes() -> NodeId {
                 selected={mode}
             />
             <Text style=TextStyle::CAPTION>{mode_text}</Text>
-        </List>
-    }
-}
-
-#[sample]
-#[component]
-fn ColorListbox() -> NodeId {
-    let colors = ["Amber", "Blue", "Green", "Purple"];
-    let color = create_signal(Some(1));
-    let color_text = create_memo(move || {
-        color
-            .get()
-            .map_or_else(String::new, |index| format!("{} selected", colors[index]))
-    });
-    view! {
-        <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION>"Type to search"</Text>
-            <Listbox
-                options={view! {
-                    <ChoiceOption label="Amber" />
-                    <ChoiceOption label="Blue" />
-                    <ChoiceOption label="Green" />
-                    <ChoiceOption label="Purple" />
-                }}
-                selected={color}
-            />
-            <Text style=TextStyle::CAPTION>{color_text}</Text>
         </List>
     }
 }
@@ -1749,7 +1719,7 @@ fn PerceptualWheel() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION>"Turning the hue keeps lightness and chroma"</Text>
-            <OklchColorWheel value={paint} on_preview={preview} />
+            <ColorWheel model=WheelModel::Oklch value={paint} on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>

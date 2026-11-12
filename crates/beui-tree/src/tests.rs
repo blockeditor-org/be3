@@ -2,9 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use crate::reactive::{
-    ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show,
-    ShowKeepAlive, Signal, SlotChild, SlotHost, SlotId, component, create_effect, create_memo,
-    create_signal, flush, on_cleanup, store, view,
+    ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show, Signal,
+    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal, flush,
+    on_cleanup, store, view,
 };
 
 mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;

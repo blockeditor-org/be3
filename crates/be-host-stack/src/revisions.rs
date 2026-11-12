@@ -284,6 +284,22 @@ async fn perform(
     if saved.manifest.content_type != summary.content_type {
         return Err("The revision has a different file type.".into());
     }
+    // Some types keep parts that their bytes cannot carry (`WHOLE_BYTES` is false: chat's closed
+    // segments). A revision of such a block that has them cannot be shown or restored by bytes
+    // yet.
+    if replicas
+        .kind(summary.content_type)
+        .await
+        .is_some_and(|kind| !kind.whole_bytes)
+    {
+        let first = peer
+            .load_first_part(&saved.manifest)
+            .await
+            .map_err(|error| error.to_string())?;
+        if (first.bytes.len() as u64) < saved.manifest.length() {
+            return Err("This revision keeps parts that cannot be shown or restored yet.".into());
+        }
+    }
     let bytes = peer
         .read_manifest(&saved.manifest)
         .await

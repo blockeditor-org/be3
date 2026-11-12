@@ -49,7 +49,7 @@ pub(crate) fn ModeBar(open: Memo<bool>) -> NodeId {
     .once();
     view! {
         <List spacing=Space::None>
-            <ShowKeepAlive condition={shown}>{content.call(())}</ShowKeepAlive>
+            <Show keep_alive=true condition={shown}>{content.call(())}</Show>
         </List>
     }
 }

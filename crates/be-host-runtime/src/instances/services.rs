@@ -497,22 +497,6 @@ impl Instances {
                     be_host_stack::app_graph::access_of(access),
                 );
             }
-            Call::Notify {
-                reply,
-                block,
-                text,
-                mentions,
-            } => {
-                self.services.answers.push(reply.answer(&()));
-                let block = Uuid::from_bytes(block);
-                if self.editable(block) {
-                    be_host_stack::notify(
-                        block,
-                        text,
-                        mentions.into_iter().map(Uuid::from_bytes).collect(),
-                    );
-                }
-            }
             Call::SetNotifyMode { reply, block, mode } => {
                 let answering = self.answering(instance, reply);
                 be_host_stack::set_notify_mode(

@@ -2,17 +2,21 @@
 //! sequenced since the last commit, sealed with the block's key, kept on the server and in this
 //! device's refs database.
 
+use be_block::Announcement;
 use be_block_protocol::{Journal, JournalBase, JournalEntry};
 use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
 use super::{Peer, locked};
-use crate::{ClientError, connection::Answer};
+use crate::{ClientError, connection::Answer, refs::Until};
 
 impl<S: ObjectStore> Peer<S> {
     /// Seals `entries` (plain payloads), keeps them in this device's journal and, when
     /// `online`, appends them to the server's, which with `relay` also relays each to the
-    /// session's other participants: one call both broadcasts and appends.
+    /// session's other participants: one call both broadcasts and appends. `announcements`
+    /// (by the sequence of the edit) are kept beside the entries until the server holds them
+    /// (`journal_held`, or the commit `rebase_journal` hands them to).
+    #[allow(clippy::too_many_arguments)]
     pub async fn append(
         &self,
         block: Uuid,
@@ -21,6 +25,7 @@ impl<S: ObjectStore> Peer<S> {
         entries: Vec<JournalEntry>,
         relay: bool,
         online: bool,
+        announcements: Vec<(u64, Announcement)>,
     ) -> Result<Option<Answer<()>>, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = entries
@@ -34,6 +39,11 @@ impl<S: ObjectStore> Peer<S> {
             .collect::<Result<Vec<_>, ClientError>>()?;
         self.refs
             .append_journal(block, tag, generation, sealed.clone())?;
+        for (sequence, announcement) in announcements {
+            let made = self.made(key, announcement)?;
+            self.refs
+                .add_announcements(block, Until::Journal(sequence), vec![made])?;
+        }
         Ok(online.then(|| {
             self.connection()
                 .append(block, generation, tag, sealed, relay)
@@ -41,7 +51,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Seals `base`'s state and starts this device's journal, and when `online` the server's,
-    /// from it.
+    /// from it. What the journal's entries announce goes with `base`'s commit when this device
+    /// sealed it (`own`), sent once the server holds it; the rest is dropped.
     pub async fn rebase_journal(
         &self,
         block: Uuid,
@@ -49,18 +60,32 @@ impl<S: ObjectStore> Peer<S> {
         tag: Hash,
         base: JournalBase,
         online: bool,
+        own: bool,
     ) -> Result<Option<Answer<()>>, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = JournalBase {
             state: self.commits.vault().seal(key, &base.state)?,
             ..base
         };
+        let (commit, sequence) = (sealed.commit, sealed.sequence);
         self.refs
             .rebase_journal(block, tag, generation, sealed.clone())?;
+        let kept = commit.is_some_and(|commit| self.pending_commits(block).contains(&commit));
+        self.refs
+            .journal_rebased(block, commit, sequence, own, kept)?;
         Ok(online.then(|| {
             self.connection()
                 .rebase_journal(block, generation, tag, sealed)
         }))
+    }
+
+    /// The server took the journal entries holding the announcements `keys` name.
+    pub fn journal_held(
+        &self,
+        block: Uuid,
+        keys: &std::collections::HashSet<String>,
+    ) -> Result<(), ClientError> {
+        Ok(self.refs.journal_held(block, keys)?)
     }
 
     /// This device's journal of `block`, opened.

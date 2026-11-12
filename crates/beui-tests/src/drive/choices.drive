@@ -1,32 +1,17 @@
-# Radio groups, segments, tabs and a listbox choose by pointer and move their
-# choice with the arrow keys; a listbox also jumps to the option whose label
-# starts with what's typed, starting afresh after a pause.
+# Radio groups, segments and tabs choose by pointer and move their choice with
+# the arrow keys.
 clock stop
-wait 'value="Mode Some(0) period 1 tab 0 color Some(1)"'
+wait 'value="Mode Some(0) period 1 tab 0"'
 click 'RadioButton "Manual"'
-wait 'value="Mode Some(1) period 1 tab 0 color Some(1)"'
+wait 'value="Mode Some(1) period 1 tab 0"'
 key down
-wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
+wait 'value="Mode Some(2) period 1 tab 0"'
 click 'RadioButton "Month"'
-wait 'value="Mode Some(2) period 2 tab 0 color Some(1)"'
+wait 'value="Mode Some(2) period 2 tab 0"'
 key left
-wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
+wait 'value="Mode Some(2) period 1 tab 0"'
 click 'Tab "Details"'
-wait 'value="Mode Some(2) period 1 tab 1 color Some(1)"'
+wait 'value="Mode Some(2) period 1 tab 1"'
 wait 'Tab "Details" selected'
 key left
-wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
-click 'ListBoxOption "Green"'
-wait 'value="Mode Some(2) period 1 tab 0 color Some(2)"'
-key up
-wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
-type g
-wait 'value="Mode Some(2) period 1 tab 0 color Some(2)"'
-pause 1500
-type a
-wait 'value="Mode Some(2) period 1 tab 0 color Some(0)"'
-type b
-wait 'value="Mode Some(2) period 1 tab 0 color Some(0)"'
-pause 1500
-type b
-wait 'value="Mode Some(2) period 1 tab 0 color Some(1)"'
+wait 'value="Mode Some(2) period 1 tab 0"'

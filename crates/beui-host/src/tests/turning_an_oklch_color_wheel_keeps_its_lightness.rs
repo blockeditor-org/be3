@@ -13,7 +13,8 @@ fn turning_an_oklch_color_wheel_keeps_its_lightness() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <OklchColorWheel
+                <ColorWheel
+                    model=WheelModel::Oklch
                     @node_ref=&wheel
                     value={Binding::new(start.to_color(), move |next| changes.update(|changes| changes.push(next)))}
                 />

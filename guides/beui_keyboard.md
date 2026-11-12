@@ -17,7 +17,7 @@ control's exact keys are in its code and tests. The patterns that span them:
 
 - Buttons and everything pressable activate on the release of Space or Enter;
   Escape or losing focus cancels, and key repeats do not activate again.
-- A group (tabs, radio group, segmented control, listbox, tree, calendar
+- A group (tabs, radio group, segmented control, tree, calendar
   grid, time list, dock tab bar) is one Tab stop, at the selected item, with
   arrows inside it. Selecting programmatically moves the stop, and moves the
   focus only if the group already has it. Tabs and segmented controls without

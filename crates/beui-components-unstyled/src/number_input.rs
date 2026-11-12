@@ -231,7 +231,7 @@ pub fn NumberInput(
     }));
     view! {
         <List spacing=0.0>
-            <ShowKeepAlive condition={idle}>
+            <Show keep_alive=true condition={idle}>
                 <Interactive
                     focusable=true
                     tab_stop
@@ -248,8 +248,8 @@ pub fn NumberInput(
                     on_active_change={active}
                     children={Some(face)}
                 />
-            </ShowKeepAlive>
-            <ShowKeepAlive condition={editing}>{field}</ShowKeepAlive>
+            </Show>
+            <Show keep_alive=true condition={editing}>{field}</Show>
         </List>
     }
 }

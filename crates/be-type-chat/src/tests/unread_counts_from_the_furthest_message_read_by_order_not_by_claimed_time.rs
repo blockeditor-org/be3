@@ -14,9 +14,9 @@ fn unread_counts_from_the_furthest_message_read_by_order_not_by_claimed_time() {
     // Bo's clock runs an hour fast, Ada's a day slow: order decides, not their claims.
     let mut chat = chat;
     let (_, mine) = chat.send(CHAT, Message::new(BO, 3_600_000, "Mine"));
-    chat.apply(&mine);
+    chat.apply(&mine.into());
     let (_, three) = chat.send(CHAT, Message::new(ADA, -86_400_000, "Three"));
-    chat.apply(&three);
+    chat.apply(&three.into());
     assert_eq!(chat.unread([two], BO), 1, "my own messages are not unread");
     assert_eq!(
         chat.unread(std::iter::empty(), BO),
