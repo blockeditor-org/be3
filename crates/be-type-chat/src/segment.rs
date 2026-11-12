@@ -1,5 +1,5 @@
 //! A closed segment: the oldest recent messages as one part of the chat's stored form
-//! (plans/chat.md, step 1d), never changed once written. The part is the messages as they were
+//! (guides/chat.md, "Segments"), never changed once written. The part is the messages as they were
 //! sent (their edits, deletions and reactions stay in the header, keyed by message id), in a
 //! fixed encoding, so the same messages always give the same bytes and hash.
 
