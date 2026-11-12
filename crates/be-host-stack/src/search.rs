@@ -42,6 +42,10 @@ use crate::{
     worker::{Shared, Store, Tasks},
 };
 
+/// How often a commit that cannot be read holds a catch-up's watermark back before it is let
+/// go (a history collected under the head it was listed at never reads).
+const MAX_READ_FAILURES: u8 = 3;
+
 /// Hits a search reads from each index, the best first.
 const HITS: usize = 50;
 
@@ -96,9 +100,24 @@ struct Answer {
     read: u64,
     found: Vec<Found>,
     shown: Option<Searched>,
-    /// The graph's revision when it was shown, if some hit was left out for want of its block
-    /// in the mirror: it is shown again once the graph moves.
+    /// The graph's revision when it was shown: it is shown again once the graph moves.
     missing: Option<u64>,
+}
+
+/// What `wants_index` was worked out at: the graph revision, the sizes of the sets that decide
+/// it, and whether the device is connected.
+#[derive(Clone, Copy, PartialEq)]
+struct WantKey {
+    graph: u64,
+    creating: usize,
+    named: usize,
+    failed: usize,
+    given_up: usize,
+    caught_up: usize,
+    catching: usize,
+    confirming: usize,
+    settle: usize,
+    connected: bool,
 }
 
 /// A define that was sent: where it is on its way to the files pane's size.
@@ -108,6 +127,40 @@ struct Confirm {
     read: bool,
     /// `Shared::drains` when it was defined: a drain finished after it has sent what it could.
     drains: u64,
+}
+
+/// What the indexer needs of a block `changed-since` named, which the mirror may not hold.
+#[derive(Clone, Debug)]
+struct Caught {
+    root: Uuid,
+    content_type: Uuid,
+    name: String,
+    head: Option<CommitId>,
+}
+
+impl Settle {
+    /// The sequence the index has seen every change up to.
+    #[cfg(test)]
+    pub(crate) fn sequence(&self) -> u64 {
+        self.sequence
+    }
+
+    /// The blocks that left its tree.
+    #[cfg(test)]
+    pub(crate) fn left(&self) -> &[Uuid] {
+        &self.left
+    }
+}
+
+/// What an index is to be given once the blocks a catch-up queued are indexed: the sequence it
+/// has now seen every change up to, and the blocks that left its tree.
+#[derive(Default)]
+pub(crate) struct Settle {
+    sequence: u64,
+    left: Vec<Uuid>,
+    /// The blocks the catch-up queued: the watermark moves only once each is indexed, or the
+    /// next catch-up, from the old one, lists them again.
+    blocks: BTreeSet<Uuid>,
 }
 
 /// What the worker keeps for search, in `Shared::search`.
@@ -121,6 +174,18 @@ pub struct Searching {
     creating: HashMap<Uuid, Uuid>,
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
+    /// Blocks that `changed-since` named, for the indexer to read where the mirror does not.
+    caught: HashMap<Uuid, Caught>,
+    /// Roots whose catch-up runs, and those that ran since this device last connected.
+    catching: HashSet<Uuid>,
+    caught_up: HashSet<Uuid>,
+    /// By index: what it is given when the blocks a catch-up queued for it are done.
+    settle: HashMap<Uuid, Vec<Settle>>,
+    /// Blocks a batch that was written put, for a settle to check against.
+    done: HashSet<Uuid>,
+    /// How often a block's commit could not be read: held back a few times, then counted as
+    /// put, since a catch-up that lists it again would otherwise never end.
+    failures: HashMap<Uuid, u8>,
     /// Roots just defined, until their define is sent and the mirror has read the root again,
     /// so the size it shows is the server's with the define in it.
     confirming: HashMap<Uuid, Confirm>,
@@ -131,7 +196,7 @@ pub struct Searching {
     /// account had then: tried again when the access changes.
     given_up: HashMap<Uuid, Access>,
     /// `wants_index` for the graph and queues it was last worked out at.
-    wants: std::cell::Cell<Option<((u64, usize, usize, usize, usize), bool)>>,
+    wants: std::cell::Cell<Option<(WantKey, bool)>>,
     /// Failed attempts to name each root's index.
     tries: HashMap<Uuid, u32>,
     /// Blocks whose root's index is being made or named (`creating`).
@@ -170,6 +235,8 @@ impl Searching {
             && (!self.dirty.is_empty()
                 || !self.creating.is_empty()
                 || !self.confirming.is_empty()
+                || !self.catching.is_empty()
+                || !self.settle.is_empty()
                 || unindexed))
             || !self.writing.is_empty()
             || !self.running.is_empty()
@@ -317,6 +384,71 @@ impl Searching {
         std::mem::take(&mut self.dirty).into_iter().collect()
     }
 
+    /// The settles that may be written, one per index: the pages of a catch-up that are done, in
+    /// order, merged. A page with a block that was not put (a commit that could not be fetched, a
+    /// type that could not be asked) ends them, and it and the pages after it are dropped: the
+    /// next catch-up lists their blocks again from the watermark the last done page left.
+    pub(crate) fn settled(&mut self) -> HashMap<Uuid, Settle> {
+        let mut ready = HashMap::new();
+        for (index, pages) in std::mem::take(&mut self.settle) {
+            let mut merged: Option<Settle> = None;
+            let mut stopped = false;
+            for page in pages {
+                let put = !stopped && page.blocks.iter().all(|block| self.done.contains(block));
+                for block in &page.blocks {
+                    self.done.remove(block);
+                }
+                stopped |= !put;
+                if put {
+                    let merged = merged.get_or_insert_with(Settle::default);
+                    merged.sequence = page.sequence;
+                    merged.left.extend(page.left);
+                }
+            }
+            if let Some(merged) = merged {
+                ready.insert(index, merged);
+            }
+        }
+        ready
+    }
+
+    /// Records a page of a catch-up (a test's way into `settle`).
+    #[cfg(test)]
+    pub(crate) fn catch_page(
+        &mut self,
+        index: Uuid,
+        sequence: u64,
+        left: Vec<Uuid>,
+        blocks: &[Uuid],
+    ) {
+        self.settle.entry(index).or_default().push(Settle {
+            sequence,
+            left,
+            blocks: blocks.iter().copied().collect(),
+        });
+    }
+
+    /// Records that a batch put a block.
+    #[cfg(test)]
+    pub(crate) fn put(&mut self, block: Uuid) {
+        self.mark_put(vec![block]);
+    }
+
+    /// Records blocks a written batch put, for a page of a catch-up to count: only those a
+    /// pending page names, so what live edits put is not kept.
+    fn mark_put(&mut self, blocks: Vec<Uuid>) {
+        for block in blocks {
+            if self
+                .settle
+                .values()
+                .flatten()
+                .any(|page| page.blocks.contains(&block))
+            {
+                self.done.insert(block);
+            }
+        }
+    }
+
     /// Parks blocks for an index that has no head on this device yet.
     pub(crate) fn park(&mut self, index: Uuid, blocks: Vec<Uuid>) {
         self.parked.push((index, blocks));
@@ -374,6 +506,7 @@ pub(crate) async fn step(
 ) -> bool {
     name_indexes(peer, shared, replicas, tasks).await;
     confirm_names(peer, shared, tasks);
+    start_catch_ups(peer, shared, tasks);
     let mut moved = index(peer, shared, replicas, tasks).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
@@ -407,15 +540,25 @@ async fn index(
             |index| roots_naming.contains(&index),
         );
         if held.search.dirty.is_empty() {
+            let settles = match held.search.writing.is_empty() {
+                true => held.search.settled(),
+                false => HashMap::new(),
+            };
+            held.search.writing.extend(settles.keys().copied());
             drop(held);
             make_indexes(peer, shared, tasks, roots);
+            settle_indexes(peer, shared, tasks, settles);
             return false;
         }
         let dirty = std::mem::take(&mut held.search.dirty);
         let mut batches: BTreeMap<Uuid, Vec<Uuid>> = BTreeMap::new();
         let mut kept = BTreeSet::new();
         for block in dirty {
-            let root = match place(&held.graph, block) {
+            let placed = match (held.graph.get(block), held.search.caught.get(&block)) {
+                (None, Some(caught)) => Place::Root(caught.root),
+                _ => place(&held.graph, block),
+            };
+            let root = match placed {
                 Place::Unknown if held.graph.fetching() => {
                     kept.insert(block);
                     continue;
@@ -464,10 +607,31 @@ async fn index(
     let moved = batches.is_some();
     if let Some((index, blocks)) = batches {
         let mut batch = Batch::default();
+        let mut put_blocks = Vec::new();
         for block in &blocks {
-            batch
-                .put
-                .extend(puts_of(peer, shared, replicas, *block).await);
+            // None: held back (a commit or part that could not be read), so not put.
+            match puts_of(peer, shared, replicas, *block).await {
+                Some(puts) => {
+                    // Failures count the reads in a row that failed.
+                    shared
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .search
+                        .failures
+                        .remove(block);
+                    put_blocks.push(*block);
+                    batch.put.extend(puts);
+                }
+                None => {
+                    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                    let failures = held.search.failures.entry(*block).or_default();
+                    *failures += 1;
+                    if *failures >= MAX_READ_FAILURES {
+                        held.search.failures.remove(block);
+                        put_blocks.push(*block);
+                    }
+                }
+            }
         }
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         tasks.spawn(async move {
@@ -480,7 +644,13 @@ async fn index(
                 held.search.writing.remove(&index);
                 match written {
                     // Every answer is read again, whichever index it read.
-                    Ok(true) => held.search.answers.clear(),
+                    Ok(true) => {
+                        for block in &put_blocks {
+                            held.search.caught.remove(block);
+                        }
+                        held.search.mark_put(put_blocks);
+                        held.search.answers.clear();
+                    }
                     // Not on this device yet: made by a command still queued.
                     Ok(false) => held.search.park(index, blocks),
                     Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
@@ -544,19 +714,24 @@ pub(crate) fn unindexed(held: &Shared) -> Vec<Uuid> {
 /// Whether some workspace wants an index it has none of, as the worker's `busy` asks: worked
 /// out again only when the graph or the sets that decide it changed.
 pub(crate) fn wants_index(held: &Shared) -> bool {
-    let key = (
-        held.graph.revision,
-        held.search.creating.len(),
-        held.search.named.len(),
-        held.search.failed.len(),
-        held.search.given_up.len(),
-    );
+    let key = WantKey {
+        graph: held.graph.revision,
+        creating: held.search.creating.len(),
+        named: held.search.named.len(),
+        failed: held.search.failed.len(),
+        given_up: held.search.given_up.len(),
+        caught_up: held.search.caught_up.len(),
+        catching: held.search.catching.len(),
+        confirming: held.search.confirming.len(),
+        settle: held.search.settle.len(),
+        connected: held.connected,
+    };
     if let Some((cached, wants)) = held.search.wants.get()
         && cached == key
     {
         return wants;
     }
-    let wants = !unindexed(held).is_empty();
+    let wants = !unindexed(held).is_empty() || !catch_ups_due(held, held.connected).is_empty();
     held.search.wants.set(Some((key, wants)));
     wants
 }
@@ -597,33 +772,75 @@ async fn puts_of(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     block: Uuid,
-) -> Vec<Put> {
+) -> Option<Vec<Put>> {
     let Some((content_type, name, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.graph.get(block).map(|node| {
-            (
+        match held.graph.get(block) {
+            Some(node) => Some((
                 node.content_type,
                 node.metadata.name().unwrap_or_default(),
                 node.head,
-            )
-        })
+            )),
+            None => held
+                .search
+                .caught
+                .get(&block)
+                .map(|caught| (caught.content_type, caught.name.clone(), caught.head)),
+        }
     }) else {
-        return Vec::new();
+        // Gone from the mirror and from what a catch-up named: nothing to index.
+        return Some(Vec::new());
     };
-    let Some(head) = peer.local_head(block).or(head) else {
-        return Vec::new();
+    let caught_head = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .caught
+        .get(&block)
+        .and_then(|caught| caught.head);
+    // A block a catch-up named is read at the head it was listed at, unless this device holds
+    // a newer one (an edit not sent yet); a local head that lags the server's is not used, and
+    // a local head that is not a descendant (a concurrent edit not sent) is indexed once it is
+    // sent. The walk of the local head's history is what it costs.
+    let head = match (peer.local_head(block), caught_head) {
+        (Some(local), Some(listed)) if local != listed => {
+            match peer.descends(local, listed).await {
+                Ok(true) => Some(local),
+                _ => Some(listed),
+            }
+        }
+        (Some(local), _) => Some(local),
+        (None, listed) => listed.or(head),
     };
+    let Some(head) = head else {
+        // A block no one has written to has nothing to index.
+        return Some(Vec::new());
+    };
+    // A commit that cannot be fetched now (a connection, a key) is held back: the block is not
+    // put, and a catch-up that listed it does not move its watermark past it.
     let Ok(commit) = peer.load_commit(head).await else {
-        return Vec::new();
+        return None;
     };
     let at = be_lib_search::Commit {
         time: commit.time,
         id: *head.hash().as_bytes(),
     };
     // Only a module already running is asked: starting one would hold up the worker's loop.
-    let mut documents = match crate::kind_of(content_type) {
-        Some(_) => documents_of(peer, shared, replicas, content_type, &commit, None).await,
-        None => Vec::new(),
+    // A block a catch-up named may be of a type this device has not run yet: its module is
+    // started once, which is worth it to index what other devices wrote.
+    let from_catch_up = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .caught
+        .contains_key(&block);
+    let known = match from_catch_up {
+        true => replicas.kind(content_type).await.is_some(),
+        false => crate::kind_of(content_type).is_some(),
+    };
+    let mut documents = match known {
+        true => documents_of(peer, shared, replicas, content_type, &commit, None).await?,
+        false => Vec::new(),
     };
     if !documents.iter().any(|document| document.key.is_empty()) {
         documents.push(be_sdk_type_api::SearchDocument {
@@ -633,24 +850,26 @@ async fn puts_of(
             body: Some(String::new()),
         });
     }
-    documents
-        .into_iter()
-        .map(|document| Put {
-            doc: DocId {
-                block: block.as_bytes().to_vec(),
-                key: document.key.clone(),
-            },
-            commit: at,
-            source: None,
-            text: Some(Text {
-                name: match document.key.is_empty() {
-                    true => name.clone(),
-                    false => document.name.unwrap_or_default(),
+    Some(
+        documents
+            .into_iter()
+            .map(|document| Put {
+                doc: DocId {
+                    block: block.as_bytes().to_vec(),
+                    key: document.key.clone(),
                 },
-                body: capped(document.body.unwrap_or_default()),
-            }),
-        })
-        .collect()
+                commit: at,
+                source: None,
+                text: Some(Text {
+                    name: match document.key.is_empty() {
+                        true => name.clone(),
+                        false => document.name.unwrap_or_default(),
+                    },
+                    body: capped(document.body.unwrap_or_default()),
+                }),
+            })
+            .collect(),
+    )
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
@@ -674,12 +893,17 @@ async fn documents_of(
     content_type: Uuid,
     commit: &be_block_commit::Commit,
     keys: Option<Vec<String>>,
-) -> Vec<be_sdk_type_api::SearchDocument> {
-    replicas
+) -> Option<Vec<be_sdk_type_api::SearchDocument>> {
+    match replicas
         .search_text((peer, shared), content_type, &commit.manifest, keys, &[])
         .await
-        .map(|searched| searched.documents)
-        .unwrap_or_default()
+    {
+        Ok(searched) => Some(searched.documents),
+        // A part that could not be read (offline, a key): held back, as a commit is.
+        Err(be_block_type_host::NotSearched::Read(_)) => None,
+        // A type that answers nothing, or breaks the rules: found by its name alone.
+        Err(_) => Some(Vec::new()),
+    }
 }
 
 /// A document's text at a block's head, for a snippet.
@@ -695,7 +919,7 @@ async fn text_of(
     let commit = peer.load_commit(head).await.ok()?;
     let keys = Some(vec![key.to_owned()]);
     documents_of(peer, shared, replicas, content_type, &commit, keys)
-        .await
+        .await?
         .into_iter()
         .find(|document| document.key == key)?
         .body
@@ -824,6 +1048,220 @@ async fn name_indexes(
     }
 }
 
+/// Starts the catch-up of each root this device may edit whose index is named and has not
+/// been caught up since this device connected (plans/search.md, "Step 1, designed"): commits
+/// from devices that never index, and blocks that left the tree, are found by what
+/// `changed-since` lists after the index's watermark.
+fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if held.search.off {
+        return;
+    }
+    if !peer.is_attached() || !held.connected {
+        held.search.caught_up.clear();
+        return;
+    }
+    let due = catch_ups_due(&held, true);
+    for (root, index) in due {
+        held.search.catching.insert(root);
+        let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        tasks.spawn(async move {
+            let caught = catch_up(&peer, &shared, root, index).await;
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.search.catching.remove(&root);
+                match caught {
+                    Ok(true) => {
+                        held.search.caught_up.insert(root);
+                    }
+                    // No head yet: tried again when the graph next moves.
+                    Ok(false) => {
+                        let revision = held.graph.revision;
+                        held.search.failed.insert(root, revision);
+                    }
+                    Err(error) if error.is_unreachable() => {}
+                    Err(error) => {
+                        held.search.caught_up.insert(root);
+                        held.error = Some(format!("Catching up a search index failed: {error}"));
+                    }
+                }
+            }
+            tasks_held.sync(&peer, &shared);
+            be_host_base::host::wake();
+        });
+    }
+}
+
+/// The roots a catch-up is due for: this device may edit them, their index is named and has not
+/// been caught up since it connected. None while it is not connected.
+pub(crate) fn catch_ups_due(held: &Shared, attached: bool) -> Vec<(Uuid, Uuid)> {
+    if held.search.off || !attached {
+        return Vec::new();
+    }
+    held.graph
+        .nodes()
+        .filter(|node| {
+            node.parent == Some(BlockParent::Root)
+                && node.content_type == be_block::WORKSPACE_TYPE
+                && node.access.can_edit()
+                && !node.locked
+                && !held
+                    .search
+                    .excluded(node.id, held.graph.revision, node.access)
+        })
+        .filter_map(|node| {
+            let index = index_of(&held.graph, &held.search.named, node.id)?;
+            let idle = !held.search.catching.contains(&node.id)
+                && !held.search.caught_up.contains(&node.id)
+                && !held.search.creating.contains_key(&node.id)
+                && !held.search.confirming.contains_key(&node.id);
+            idle.then_some((node.id, index))
+        })
+        .collect()
+}
+
+/// Catches `root`'s index up, a page of `changed-since` at a time from its watermark: each
+/// page queues the blocks it lists and leaves a settle with the watermark it reaches (all
+/// before the page's last sequence, which the next page may share), so a catch-up that is
+/// interrupted resumes from the last page that was indexed. False while the index has no head
+/// here.
+async fn catch_up(
+    peer: &Peer<Store>,
+    shared: &Arc<Mutex<Shared>>,
+    root: Uuid,
+    index: Uuid,
+) -> Result<bool, be_block_client::ClientError> {
+    const PAGE: u32 = 200;
+    let Some(head) = head_of(peer, index).await else {
+        return Ok(false);
+    };
+    let Ok(content) = load(peer, head).await else {
+        return Ok(false);
+    };
+    let since = content.index().watermark();
+    let mut after = be_block_protocol::ChangeCursor {
+        changed: since,
+        block: Uuid::max(),
+    };
+    loop {
+        let page = peer.changed_page(root, after, PAGE).await?;
+        peer.learn(&page.summaries).await?;
+        let blocks: Vec<(Uuid, Caught)> = page
+            .summaries
+            .iter()
+            .filter(|summary| {
+                summary.id != root
+                    && summary.access.can_view()
+                    && summary.content_type != SEARCH_INDEX_TYPE
+                    && summary.content_type != SETTINGS_TYPE
+                    && !EDIT_KINDS.contains(&summary.content_type)
+            })
+            .map(|summary| {
+                let name = peer
+                    .metadata(summary)
+                    .ok()
+                    .and_then(|metadata| metadata.name())
+                    .unwrap_or_default();
+                (
+                    summary.id,
+                    Caught {
+                        root,
+                        content_type: summary.content_type,
+                        name,
+                        head: summary.head,
+                    },
+                )
+            })
+            .collect();
+        // Everything before the cursor's sequence is in this page or an earlier one; the
+        // sequence itself may go on in the next.
+        let reached = match &page.next {
+            Some(next) => next.changed.saturating_sub(1).max(since),
+            None => page.sequence,
+        };
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            // What a live edit put before is not what this page lists.
+            for (block, _) in &blocks {
+                held.search.done.remove(block);
+            }
+            held.search.settle.entry(index).or_default().push(Settle {
+                sequence: reached,
+                left: page.removed,
+                blocks: blocks.iter().map(|(block, _)| *block).collect(),
+            });
+            for (block, caught) in blocks {
+                held.search.caught.insert(block, caught);
+                held.search.dirty.insert(block);
+            }
+        }
+        be_host_base::host::wake();
+        match page.next {
+            Some(next) => after = next,
+            None => return Ok(true),
+        }
+    }
+}
+
+/// Gives each index the watermark of its catch-up and the blocks that left its tree, in one
+/// batch, once everything the catch-up queued is indexed.
+fn settle_indexes(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    settles: HashMap<Uuid, Settle>,
+) {
+    for (index, settle) in settles {
+        let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        tasks.spawn(async move {
+            let at = be_lib_search::Commit {
+                time: be_block_commit::now_milliseconds(),
+                id: [0; 32],
+            };
+            // Only what the index holds is masked: the call names every block that left the
+            // tree, and an index that never had one has nothing of it to hide.
+            let held = held_blocks(&peer, index, &settle.left).await;
+            let batch = Batch {
+                removed_blocks: held
+                    .iter()
+                    .map(|block| (block.as_bytes().to_vec(), at))
+                    .collect(),
+                watermark: Some(settle.sequence),
+                ..Batch::default()
+            };
+            let written = write(&peer, index, batch).await;
+            tasks_held.sync(&peer, &shared);
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.search.writing.remove(&index);
+            match written {
+                Ok(true) => held.search.answers.clear(),
+                Ok(false) => {}
+                Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
+            }
+            drop(held);
+            be_host_base::host::wake();
+        });
+    }
+}
+
+/// Which of `blocks` the index holds a document of.
+async fn held_blocks(peer: &Peer<Store>, index: Uuid, blocks: &[Uuid]) -> Vec<Uuid> {
+    let Some(head) = head_of(peer, index).await else {
+        return Vec::new();
+    };
+    let Ok(content) = load(peer, head).await else {
+        return Vec::new();
+    };
+    let mut held = Vec::new();
+    for block in blocks {
+        let entries = content.entries_of(&PeerParts(peer), block.as_bytes()).await;
+        if entries.is_ok_and(|entries| entries.iter().any(|entry| !entry.is_removed())) {
+            held.push(*block);
+        }
+    }
+    held
+}
+
 /// Once a define is sent the root is read again, whatever order the server's own news of it
 /// came in, and the host is busy until it has been; a define that stays in the outbox after a
 /// drain, or a lost connection, is not waited for.
@@ -925,6 +1363,13 @@ async fn outdate_ancestors<S: ObjectStore>(
             .entries_of(&PeerParts(peer), &put.doc.block)
             .await
             .map_err(|error| error.to_string())?;
+        // A block that left and came back is put at a commit the index masked: it is stamped
+        // after the removal, which is only an order.
+        if let Some(removal) = content.index().removed_at(&put.doc.block)
+            && removal >= put.commit
+        {
+            put.commit.time = removal.time.saturating_add(1);
+        }
         let Some(old) = held.iter().find(|entry| entry.doc == put.doc) else {
             continue;
         };
@@ -1123,12 +1568,10 @@ async fn show(
     for (asked, found) in unshown {
         let query = Query::parse(&asked.text);
         let mut hits = Vec::new();
-        let mut missing = false;
         for found in found {
             let (content_type, head) = {
                 let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 let Some(node) = held.graph.get(found.block) else {
-                    missing = true;
                     continue;
                 };
                 let viewable = node.access.can_view() && node.parent != Some(BlockParent::Detached);
@@ -1167,7 +1610,9 @@ async fn show(
                 hits,
                 complete: false,
             });
-            answer.missing = missing.then_some(graph);
+            // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
+            // out of what the search is within, or the mirror may now hold one it lacked.
+            answer.missing = Some(graph);
             held.search.revision += 1;
         }
     }

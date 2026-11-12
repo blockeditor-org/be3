@@ -136,9 +136,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | blocks::Call::SetParent { block: of, .. } => block(*of, Access::Edit),
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
-            blocks::Call::ListHistory { block: of, .. } | blocks::Call::Watch { block: of, .. } => {
-                block(*of, Access::View)
-            }
+            blocks::Call::ListHistory { block: of, .. }
+            | blocks::Call::Watch { block: of, .. }
+            | blocks::Call::ChangedSince { root: of, .. } => block(*of, Access::View),
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
             // before the store answers, which refuses less than `KnowExists` as not found.
@@ -267,6 +267,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::ListHistory { .. }
+            | blocks::Call::ChangedSince { .. }
             | blocks::Call::Watch { .. }
             | blocks::Call::Changes { .. } => true,
             blocks::Call::SetAccess { .. }
@@ -1824,6 +1825,22 @@ impl Client {
                 }
                 self.streams
                     .open(&mut self.peer.lock(), stream, Route::Changes);
+            }
+            Call::ChangedSince {
+                reply,
+                root,
+                after,
+                limit,
+            } => {
+                let changed = async {
+                    prelude?;
+                    connection
+                        .store
+                        .changed_since(connection.identity()?, root, after, limit)
+                        .await
+                }
+                .await;
+                self.reply(reply, changed);
             }
             Call::ListHistory { reply, block } => {
                 let listed = async {
