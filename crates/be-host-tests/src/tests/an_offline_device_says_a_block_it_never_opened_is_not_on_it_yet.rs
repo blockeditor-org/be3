@@ -13,6 +13,9 @@ fn an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet() {
     laptop.type_text("Garden");
     laptop.key("Enter");
     laptop.wait("TreeItem \"Garden\"");
+    laptop.click("#text.surface");
+    laptop.type_text("Plant the tomatoes");
+    laptop.wait("Plant the tomatoes");
     laptop.synced();
     phone.wait("TreeItem \"Garden\"");
 
@@ -26,6 +29,7 @@ fn an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet() {
     phone.synced();
     phone.gone("#workspace.out-of-reach");
     phone.wait("Pane \"Text\"");
+    phone.wait("Plant the tomatoes");
     phone.close();
     laptop.close();
 }

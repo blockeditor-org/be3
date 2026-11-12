@@ -551,6 +551,7 @@ impl Shared {
         if self.connected != connected {
             self.connected = connected;
             self.graph.revision += 1;
+            self.stale_revision += 1;
         }
     }
 

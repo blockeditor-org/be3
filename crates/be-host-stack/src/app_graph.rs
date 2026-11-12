@@ -174,6 +174,6 @@ pub fn entries_of(entries: MetadataEntries) -> be_block::Entries {
 
 /// Offline, whether this device holds none of a block's heads whole (`Peer::held_head`), so it
 /// can neither open nor change it. A block with no content yet has nothing to hold.
-fn out_of_reach(peer: &Peer<Store>, node: &Node) -> bool {
+pub(crate) fn out_of_reach(peer: &Peer<Store>, node: &Node) -> bool {
     node.head.is_some() && peer.held_head(node.id).is_none()
 }

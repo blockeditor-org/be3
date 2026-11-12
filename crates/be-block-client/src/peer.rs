@@ -1260,9 +1260,7 @@ impl<S: ObjectStore> Peer<S> {
         let vault = self.commits.vault();
         let whole = matches!(
             self.commits.try_get(head),
-            Ok(Some(commit)) if vault
-                .missing_objects(&commit.manifest, 0, u64::MAX)
-                .is_ok_and(|missing| missing.is_empty())
+            Ok(Some(commit)) if vault.holds_all(&commit.manifest).unwrap_or(false)
         );
         if whole {
             self.whole.lock().unwrap().insert(head);

@@ -380,6 +380,9 @@ pub fn change_child(
     if !is_known(content_type) {
         return None;
     }
+    if out_of_reach(block) {
+        return Some(false);
+    }
     send(Command::ChangeChild {
         block,
         content_type,
@@ -964,6 +967,16 @@ pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<work
         false => shared.peer.clone(),
     })
     .flatten()
+}
+
+/// Whether the host is offline and holds no version of the block's content whole, so it can
+/// neither open the block nor change it, a child added or moved in included
+/// (`BlockInfo::out_of_reach`).
+pub fn out_of_reach(block: Uuid) -> bool {
+    let Some(peer) = offline_peer() else {
+        return false;
+    };
+    node(block).is_some_and(|node| app_graph::out_of_reach(&peer, &node))
 }
 
 pub fn graph_revision() -> u64 {
