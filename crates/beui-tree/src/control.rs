@@ -62,12 +62,11 @@ fn show<C: SlotChild>(condition: Prop<bool>, then: RenderFn<(), Children<C>>, sl
 
 fn keep<C: SlotChild>(condition: Prop<bool>, then: RenderFn<(), Children<C>>, slot: ChildSlot<C>) {
     let held = store(RefCell::new(None::<(std::rc::Rc<NestedHost<C>>, Scope)>));
-    let built = store(std::cell::Cell::new(false));
     create_binding(move || {
         let visible = condition.get();
         let held = held.value();
         let mut held = held.borrow_mut();
-        if visible && held.is_none() && !built.value().replace(true) {
+        if visible && held.is_none() {
             let scope = Scope::detached().pausable();
             let host = scope.context().run(|| then.call(()).mount_in(slot.clone()));
             *held = Some((host, scope));

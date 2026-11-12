@@ -210,6 +210,7 @@ host queues settled events per app. The calls stay `local`
   non-`Copy` values (a callback, a state struct) or read the cell with
   `with`/`try_with`, so each needs its own look (`StoredCell` has `replace`,
   `take` and `set`; add what a use needs).
+
 Update beui-demo for every component that merges or goes.
 
 ## 13. beui: `Glide` and `Selectable` leave the base layer

@@ -34,8 +34,9 @@ use cpu::Faces;
 #[cfg(feature = "gpu")]
 use gpu::Faces;
 
-/// The colour model a wheel edits: HSV, whose triangle picks saturation and value, or OKLCH,
-/// whose triangle picks lightness and chroma and whose accessibility says so.
+/// The colour model a wheel edits: HSV (the default), whose triangle picks saturation and
+/// value, or OKLCH, whose triangle picks lightness and chroma and whose accessible value is
+/// reported in OKLCH.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum WheelModel {
     #[default]
@@ -56,7 +57,7 @@ struct Face {
 #[component]
 pub fn ColorWheel(
     value: Binding<Color32>,
-    #[prop(default = WheelModel::Hsv)] model: WheelModel,
+    #[prop(default = WheelModel::default())] model: WheelModel,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_preview: Callback<Option<Color32>>,
