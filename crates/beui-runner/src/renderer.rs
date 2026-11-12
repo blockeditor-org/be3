@@ -225,9 +225,11 @@ impl SurfaceLease {
 
     /// Keeps the surface of lease `handed` from being revoked while the guard
     /// lives, as while renderers load and probe it; `None` once it has been.
-    pub fn hold(&self, handed: u64) -> Option<std::sync::MutexGuard<'_, u64>> {
+    /// Loading at a cold start opens the GPU, and `revoke` (Android's
+    /// `surfaceDestroyed`, on the UI thread) waits that long if it comes then.
+    pub fn hold(&self, handed: u64) -> Option<SurfaceHeld<'_>> {
         let current = self.lock();
-        (*current == handed).then_some(current)
+        (*current == handed).then_some(SurfaceHeld(current))
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, u64> {
@@ -236,6 +238,9 @@ impl SurfaceLease {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
+
+/// A surface kept from being revoked (`SurfaceLease::hold`).
+pub struct SurfaceHeld<'a>(std::sync::MutexGuard<'a, u64>);
 
 /// A renderer that draws to its window only while the window's `SurfaceLease`
 /// lasts.

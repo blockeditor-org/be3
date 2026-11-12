@@ -142,6 +142,9 @@ struct Shared {
     /// Ended by `surfaceDestroyed`, which returns once the renderer has let the
     /// surface go.
     lease: Arc<SurfaceLease>,
+    /// Set by the runner, under this lock, before its last look at the queue,
+    /// so a message is either taken in or refused (`send`), never lost.
+    stopped: Mutex<bool>,
 }
 
 static SHARED: OnceLock<Shared> = OnceLock::new();
@@ -157,12 +160,17 @@ fn shared() -> &'static Shared {
             sender,
             receiver: Mutex::new(Some(receiver)),
             lease: SurfaceLease::new(),
+            stopped: Mutex::new(false),
         }
     })
 }
 
+/// Whether the runner will take `message` in. When it will not, a caller waiting
+/// on an answer gives it itself.
 fn send(message: Message) -> bool {
-    shared().sender.send(message).is_ok()
+    let shared = shared();
+    let stopped = shared.stopped.lock().unwrap_or_else(PoisonError::into_inner);
+    !*stopped && shared.sender.send(message).is_ok()
 }
 
 type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>>>;
@@ -574,6 +582,10 @@ impl Runner {
     /// Answers what still waits on the runner once it stops: Android waits on
     /// each `drawingFinished`, and `surfaceDestroyed` on the detach.
     fn drain(&mut self, receiver: &Receiver<Message>) {
+        *shared()
+            .stopped
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = true;
         while let Ok(message) = receiver.try_recv() {
             match message {
                 Message::RedrawNeeded(finished) => self.platform.redraws.push(finished),
