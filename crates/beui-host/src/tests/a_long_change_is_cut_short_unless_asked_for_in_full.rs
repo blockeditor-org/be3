@@ -15,13 +15,13 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
                     variant=ButtonVariant::Primary
                     on_click={move || shown.update(|shown| *shown = !*shown)}
                 />
-                <ShowKeepAlive condition={shown}>
+                <Show keep_alive=true condition={shown}>
                     <List spacing=0.0>
                         <ForEach keys={(0..80).collect::<Vec<usize>>()}>|row: usize|
                             <Text>{format!("Row {row}")}</Text>
                         </ForEach>
                     </List>
-                </ShowKeepAlive>
+                </Show>
             </List>
         }
     });

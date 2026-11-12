@@ -1981,18 +1981,6 @@ impl EditorHost {
         });
     }
 
-    /// Notifies `block_id`'s members who are not connected, on their other devices: `text`,
-    /// sealed so only members read it, each device naming the sender and the block itself.
-    /// `mentions` names the accounts the text mentions. Needs Edit on the block.
-    pub fn notify(&self, block_id: Uuid, text: impl Into<String>, mentions: &[Uuid]) {
-        let text = text.into();
-        let mentions = mentions
-            .iter()
-            .map(|account| account.into_bytes())
-            .collect();
-        self.ask(|| host_services::notify(block_id.into_bytes(), text, mentions).detach());
-    }
-
     /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows
     /// every block's.
     pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {
@@ -2689,7 +2677,7 @@ impl EditorHost {
         self.host_palette.set(host_palette);
     }
 
-    /// Asks the host to open its command palette (`shell.open-palette`).
+    /// Asks the host to open its command palette (`shell-message.open-palette`).
     pub fn open_palette(&self, mode: be_sdk_api::PaletteMode) {
         self.palette_opens.borrow_mut().push(mode);
         self.changed();

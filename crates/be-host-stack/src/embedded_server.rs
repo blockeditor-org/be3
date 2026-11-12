@@ -22,13 +22,21 @@ impl Drop for EmbeddedServer {
 pub fn start_embedded_server(
     data_dir: PathBuf,
 ) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
-    start_embedded_server_at("127.0.0.1:0", data_dir, be_server::ServerConfig::OPEN.lease)
+    start_embedded_server_at(
+        "127.0.0.1:0",
+        data_dir,
+        be_server::ServerConfig::OPEN.lease,
+        be_server::push::PushConfig::DEFAULT,
+    )
 }
 
+/// A server at `address`; `push` says where it may push (tests that serve a push service on
+/// loopback allow local endpoints).
 pub fn start_embedded_server_at(
     address: &str,
     data_dir: PathBuf,
     lease: std::time::Duration,
+    push: be_server::push::PushConfig,
 ) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
     let listener = StdTcpListener::bind(address)?;
     listener.set_nonblocking(true)?;
@@ -54,6 +62,7 @@ pub fn start_embedded_server_at(
                         local_profiles: true,
                         lease,
                         account_quota: None,
+                        push,
                         ..be_server::ServerConfig::OPEN
                     },
                     shutdown,

@@ -19,6 +19,12 @@ mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
+mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
+mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
+mod a_chat_message_sent_with_two_editors_open_notifies_once;
+mod a_chat_message_told_before_a_restart_is_not_told_again;
+mod a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting;
+mod a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_child_reordered_in_a_folder_is_listed_in_its_new_place;
@@ -28,6 +34,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_duplicated_block_carries_what_its_source_held;
+mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
@@ -200,6 +207,7 @@ pub struct Harness {
     organization: Uuid,
     phrase: be_block_keys::RecoveryPhrase,
     lease: Duration,
+    push: be_server::push::PushConfig,
     relay: Option<be_block_fault_relay::Relay>,
     clock: be_block_client::Clock,
     _one_stack: std::sync::MutexGuard<'static, ()>,
@@ -208,6 +216,18 @@ pub struct Harness {
 impl Harness {
     pub fn start() -> Self {
         Self::leasing(be_server::ServerConfig::OPEN.lease)
+    }
+
+    /// A harness whose server pushes to Web Push endpoints on loopback (`PushService`).
+    fn pushing() -> Self {
+        Self::serving(
+            be_server::ServerConfig::OPEN.lease,
+            be_server::push::PushConfig {
+                allow_local_endpoints: true,
+                fcm: None,
+                hosts: vec!["127.0.0.1".to_owned()].into(),
+            },
+        )
     }
 
     pub fn lapsing() -> Self {
@@ -270,6 +290,10 @@ impl Harness {
     }
 
     fn leasing(lease: Duration) -> Self {
+        Self::serving(lease, be_server::push::PushConfig::DEFAULT)
+    }
+
+    fn serving(lease: Duration, push: be_server::push::PushConfig) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
@@ -294,6 +318,7 @@ impl Harness {
             "127.0.0.1:0",
             directory.join("server"),
             lease,
+            push.clone(),
         )
         .expect("the embedded block server starts");
         let url = server.url.clone();
@@ -317,6 +342,7 @@ impl Harness {
             organization,
             phrase: be_block_keys::RecoveryPhrase::generate(),
             lease,
+            push,
             relay: None,
             clock: be_block_client::Clock::real(),
             _one_stack: one_stack,
@@ -340,6 +366,7 @@ impl Harness {
                 address,
                 self.directory.join("server"),
                 self.lease,
+                self.push.clone(),
             )
             .expect("the embedded block server starts again"),
         );
@@ -403,6 +430,9 @@ impl Drop for Harness {
         } else {
             stop_and_wait();
         }
+        // The server stops before its files go, or it fails opening them as it winds down.
+        self.relay = None;
+        self.server = None;
         let _ = std::fs::remove_dir_all(&self.directory);
     }
 }
@@ -813,6 +843,12 @@ impl Harness {
 
     fn connect_personal(&self) -> Uuid {
         let personal = self.personal();
+        self.start_in(personal);
+        personal
+    }
+
+    /// Starts the stack in `organization` (the personal one), from what it kept before.
+    fn start_in(&self, personal: Uuid) {
         start(Config {
             organization: personal,
             ..self.config(self.directory.join("personal"))
@@ -820,7 +856,6 @@ impl Harness {
         wait_until("loaded the graph", |shared| {
             shared.graph.ready(super::graph::Query::Roots)
         });
-        personal
     }
 }
 
@@ -963,5 +998,357 @@ impl Device {
                 .all(|outcome| matches!(outcome, be_block_client::Drained::Published { .. })),
             "the other device could not send what it wrote offline: {drained:?}"
         );
+    }
+}
+
+/// A Web Push service on loopback that takes every push the server sends and answers it
+/// delivered: which endpoint each went to, how urgent the server said it was, and its body.
+struct PushService {
+    url: String,
+    pushes: std::sync::mpsc::Receiver<Pushed>,
+}
+
+struct Pushed {
+    to: String,
+    urgency: String,
+    body: Vec<u8>,
+}
+
+/// Every member's device key: the generator of P-256, whose private key is 1, so the secret a
+/// push agrees on with it is the x coordinate of the push's own sender key.
+const DEVICE_KEY: [u8; 65] = [
+    0x04, 0x6b, 0x17, 0xd1, 0xf2, 0xe1, 0x2c, 0x42, 0x47, 0xf8, 0xbc, 0xe6, 0xe5, 0x63, 0xa4, 0x40,
+    0xf2, 0x77, 0x03, 0x7d, 0x81, 0x2d, 0xeb, 0x33, 0xa0, 0xf4, 0xa1, 0x39, 0x45, 0xd8, 0x98, 0xc2,
+    0x96, 0x4f, 0xe3, 0x42, 0xe2, 0xfe, 0x1a, 0x7f, 0x9b, 0x8e, 0xe7, 0xeb, 0x4a, 0x7c, 0x0f, 0x9e,
+    0x16, 0x2b, 0xce, 0x33, 0x57, 0x6b, 0x31, 0x5e, 0xce, 0xcb, 0xb6, 0x40, 0x68, 0x37, 0xbf, 0x51,
+    0xf5,
+];
+const DEVICE_AUTH: [u8; 16] = [7; 16];
+
+impl PushService {
+    fn start() -> Self {
+        let listener =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("the push service listens");
+        let url = format!(
+            "http://{}",
+            listener
+                .local_addr()
+                .expect("the push service has an address")
+        );
+        let (sender, pushes) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { return };
+                if let Some(push) = read_push(&mut stream) {
+                    let _ = std::io::Write::write_all(
+                        &mut stream,
+                        b"HTTP/1.1 201 Created\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                    );
+                    if sender.send(push).is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+        Self { url, pushes }
+    }
+
+    /// The endpoint of the member called `name`.
+    fn endpoint(&self, name: &str) -> be_block_protocol::PushEndpoint {
+        be_block_protocol::PushEndpoint {
+            service: be_block_protocol::PushService::WebPush,
+            address: format!("{}/{name}", self.url),
+            p256dh: DEVICE_KEY.to_vec(),
+            auth: DEVICE_AUTH.to_vec(),
+        }
+    }
+
+    fn next(&self) -> Pushed {
+        self.pushes
+            .recv_timeout(Duration::from_secs(60))
+            .expect("a push arrived")
+    }
+}
+
+/// Reads one request: its path, less the leading slash, its `urgency` header and its body.
+fn read_push(stream: &mut std::net::TcpStream) -> Option<Pushed> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    let mut buffer = [0; 8192];
+    let end = loop {
+        let read = stream.read(&mut buffer).ok()?;
+        if read == 0 {
+            return None;
+        }
+        bytes.extend_from_slice(&buffer[..read]);
+        if let Some(end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+            break end + 4;
+        }
+    };
+    let head = String::from_utf8_lossy(&bytes[..end]).into_owned();
+    let to = head
+        .lines()
+        .next()?
+        .split(' ')
+        .nth(1)?
+        .trim_start_matches('/')
+        .to_owned();
+    let header = |name: &str| {
+        head.lines().find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            key.eq_ignore_ascii_case(name)
+                .then(|| value.trim().to_owned())
+        })
+    };
+    let length: usize = header("content-length")?.parse().ok()?;
+    while bytes.len() < end + length {
+        let read = stream.read(&mut buffer).ok()?;
+        if read == 0 {
+            return None;
+        }
+        bytes.extend_from_slice(&buffer[..read]);
+    }
+    Some(Pushed {
+        to,
+        urgency: header("urgency").unwrap_or_default(),
+        body: bytes[end..end + length].to_vec(),
+    })
+}
+
+/// A chat in this account's personal organization that `away` (notified of every message) and
+/// the `others` can see, opened from an earlier message by each, and the push service their
+/// devices take pushes at, each at its name. Every member but the ones `others` keeps connected
+/// is signed out, so the server pushes to them.
+struct ChatRoom {
+    block: Uuid,
+    personal: Uuid,
+    me: Uuid,
+    members: Vec<(&'static str, Uuid)>,
+    /// `away`, signed out, whose peer still holds the chat's key to open what pushes carry.
+    reader: Member,
+    _connected: Vec<Member>,
+    pushes: PushService,
+}
+
+/// A member of a chat besides `away`: its name, the mode it sets, if any, and whether it stays
+/// connected.
+type Other = (&'static str, Option<be_block_protocol::NotifyMode>, bool);
+
+impl ChatRoom {
+    fn start(harness: &Harness, others: &[Other]) -> Self {
+        let pushes = PushService::start();
+        let personal = harness.connect_personal();
+        let block = Uuid::new_v4();
+        let mut joined = Vec::new();
+        let mut chat = be_type_chat::ChatContent::default();
+        for (name, mode, connected) in [("away", None, false)].iter().chain(others) {
+            let member = Member::join(harness, personal, &format!("{name}@example.com"), name);
+            let (_, said) = chat.send(
+                block,
+                be_type_chat::Message::new(member.account(), 1, format!("{name} is in")),
+            );
+            chat.apply(&be_type_chat::ChatOp::Edit(said));
+            joined.push((*name, *mode, *connected, member));
+        }
+        create(
+            block,
+            be_type_chat::ChatContent::CONTENT_TYPE,
+            be_block_graph::BlockParent::Root,
+            be_block::BlockMetadata::named("Lunch"),
+            Some(chat.encode()),
+            false,
+        );
+        flush();
+        let mut members = Vec::new();
+        let mut reader = None;
+        let mut kept = Vec::new();
+        for (name, mode, connected, member) in joined {
+            member.may_view(block);
+            member.takes_pushes(&pushes, name);
+            if let Some(mode) = mode {
+                member.mode(block, mode);
+            }
+            members.push((name, member.account()));
+            match (name, connected) {
+                ("away", _) => {
+                    member.reads(block);
+                    member.signs_out();
+                    reader = Some(member);
+                }
+                (_, true) => kept.push(member),
+                (_, false) => member.signs_out(),
+            }
+        }
+        Self {
+            block,
+            personal,
+            me: harness.account,
+            members,
+            reader: reader.expect("away joined"),
+            _connected: kept,
+            pushes,
+        }
+    }
+
+    /// Starts the host again after `stop`, from what it kept.
+    fn restart(&self, harness: &Harness) {
+        harness.start_in(self.personal);
+    }
+
+    fn account(&self, name: &str) -> Uuid {
+        self.members
+            .iter()
+            .find(|(member, _)| *member == name)
+            .map(|(_, account)| *account)
+            .expect("the chat has the member")
+    }
+
+    fn editor(&self) -> Editor<be_type_chat::ChatContent> {
+        let mut editor = Editor::attach(self.block);
+        editor.wait("was sent the chat", |_| true);
+        editor
+    }
+
+    /// Sends `body` from this account, replying to `to`'s first message when given.
+    fn send(&self, editor: &mut Editor<be_type_chat::ChatContent>, body: &str, to: Option<Uuid>) {
+        let content = editor.content();
+        let quoted = to.and_then(|author| {
+            content.messages().into_iter().find(|id| {
+                content
+                    .message(*id)
+                    .is_some_and(|message| message.author == author)
+            })
+        });
+        let message = be_type_chat::Message::new(self.me, 2, body).replying_to(quoted);
+        let (_, edit) = content.send(self.block, message);
+        editor.operate(be_type_chat::ChatOp::Edit(edit));
+    }
+
+    /// The next push: whom it went to, its urgency and the text it carries, opened as the
+    /// member's device opens it.
+    fn next(&self) -> (String, String, String) {
+        let pushed = self.pushes.next();
+        let sender =
+            be_lib_web_push::sender_key(&pushed.body).expect("a push names its sender key");
+        let secret = &sender[1..33];
+        let plain = be_lib_web_push::open(secret, &DEVICE_KEY, &DEVICE_AUTH, &pushed.body)
+            .expect("the push decrypts with the device's keys");
+        let message =
+            be_block_protocol::PushMessage::decode(&plain).expect("a push carries a push message");
+        assert_eq!((message.block, message.sender), (self.block, self.me));
+        let opened = self
+            .reader
+            .peer
+            .open_notification(&message, be_block_commit::now_milliseconds())
+            .expect("the notification opens with the chat's key");
+        (pushed.to, pushed.urgency, opened.text)
+    }
+
+    /// The next push goes to `away` and says `text`, not urgently: it mentions nobody.
+    fn told_away(&self, text: &str) {
+        assert_eq!(
+            self.next(),
+            ("away".to_owned(), "normal".to_owned(), text.to_owned())
+        );
+    }
+
+    /// Replies to `away`'s message, which tells them urgently, and checks that the next push
+    /// they get is that one alone: an earlier message told again would come first, or fold
+    /// into it as "2 new messages".
+    fn told_nothing_more(&self, editor: &mut Editor<be_type_chat::ChatContent>) {
+        self.send(editor, "See you there", Some(self.account("away")));
+        assert_eq!(
+            self.next(),
+            (
+                "away".to_owned(),
+                "high".to_owned(),
+                "See you there".to_owned()
+            ),
+            "an earlier message told away again"
+        );
+    }
+}
+
+/// Another account, a contact of this one in its personal organization, with the runtime its
+/// connection runs on.
+struct Member {
+    someone: Someone,
+    runtime: tokio::runtime::Runtime,
+    peer: std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>>,
+}
+
+impl Member {
+    fn join(harness: &Harness, personal: Uuid, email: &str, name: &str) -> Self {
+        let someone =
+            Someone::register(&harness.directory.join("server"), &harness.url, email, name);
+        let code = made_link(None);
+        let runtime = runtime();
+        let peer = runtime.block_on(someone.peer(&harness.url, personal));
+        runtime
+            .block_on(be_block_client::contacts::open_link(
+                &peer.connection(),
+                &code,
+            ))
+            .expect("the member opens the link");
+        runtime
+            .block_on(be_block_client::contacts::accept_link(
+                &peer.connection(),
+                &someone.phrase.secret(),
+                &someone.me().card(),
+                &code,
+            ))
+            .expect("the member accepts");
+        let account = someone.session.account;
+        wait_until("confirmed the member as a contact", |shared| {
+            shared
+                .contacts
+                .iter()
+                .any(|contact| contact.account == account && contact.public.is_some())
+        });
+        Self {
+            someone,
+            runtime,
+            peer,
+        }
+    }
+
+    fn account(&self) -> Uuid {
+        self.someone.session.account
+    }
+
+    fn may_view(&self, block: Uuid) {
+        set_access(block, self.account(), be_block_graph::Access::View);
+        flush();
+        assert_eq!(status().error, None);
+    }
+
+    /// Reads the block, which leaves its key with the member's peer.
+    fn reads(&self, block: Uuid) {
+        self.runtime
+            .block_on(self.peer.open::<be_type_chat::ChatContent>(block))
+            .expect("the member opens the chat")
+            .expect("the chat has content");
+    }
+
+    fn takes_pushes(&self, pushes: &PushService, name: &str) {
+        self.runtime
+            .block_on(self.peer.register_endpoint(pushes.endpoint(name)))
+            .expect("the member registers a push endpoint");
+    }
+
+    fn mode(&self, block: Uuid, mode: be_block_protocol::NotifyMode) {
+        self.runtime
+            .block_on(self.peer.set_notify_mode(block, mode))
+            .expect("the member sets its mode");
+    }
+
+    /// Signs out, which the server counts as not connected before it answers.
+    fn signs_out(&self) {
+        self.runtime
+            .block_on(be_block_protocol::client::account::logout(
+                &self.peer.connection(),
+            ))
+            .expect("the logout is answered")
+            .expect("the member signs out");
     }
 }

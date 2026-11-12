@@ -2,7 +2,7 @@ use std::{collections::HashSet, error::Error, fmt};
 
 use be_block_commit::MergeResult;
 pub use be_block_store::{LoadedPart, Part, PartRef, Stored};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 pub mod blob;
@@ -105,6 +105,13 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 
     const LOADS: Loads = Loads::Whole;
 
+    /// Whether the stored form read whole decodes to the content, so a copy through bytes (a
+    /// duplicate, an export, a revision restore, a transfer) loses nothing. A file's does, though
+    /// its `encode()` may leave its payload unloaded. False for a type whose stored form has parts
+    /// that decoding it cannot rebuild (chat's closed segments): those refuse such a copy when the
+    /// block has parts after its first.
+    const WHOLE_BYTES: bool = true;
+
     const FROZEN: bool = false;
 
     fn schema() -> String {
@@ -160,15 +167,16 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     /// a type need not answer documents outside `keys`, nor read a part in `indexed`, so a
     /// snippet reads one part of a large block and reindexing it reads only its changed
     /// parts. The host drops documents outside `keys` and the bodies of documents whose source
-    /// is in `indexed` whatever the type answers.
+    /// is in `indexed` whatever the type answers. Boxed, as a future returned from a trait
+    /// method in another crate must be (guides/type_modules.md, "The generator").
     fn search_text(
         &self,
         keys: Option<&HashSet<String>>,
         indexed: &HashSet<PartRef>,
         parts: PartReader,
-    ) -> impl Future<Output = Result<Vec<SearchDocument>, String>> + 'static {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<SearchDocument>, String>>>> {
         let _ = (keys, indexed, parts);
-        std::future::ready(Ok(Vec::new()))
+        Box::pin(std::future::ready(Ok(Vec::new())))
     }
 }
 
@@ -219,10 +227,33 @@ pub enum ChildChange {
     Reorder { block: Uuid, after: Option<Uuid> },
 }
 
+/// What an edit made on this device tells the block's other members who are not connected, once
+/// the server holds it: the text of a notification and the accounts it mentions. `key` names
+/// what is announced (chat: the message), unique in the block and the same each time the edit
+/// is made again (a host replays an editor's edits into a restarted replica), so it is told
+/// once. `several` is the text when it goes together with others of the block (an outbox
+/// drained at once), with `{count}` for how many (chat: "{count} new messages").
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Announcement {
+    pub key: String,
+    pub text: String,
+    pub several: String,
+    pub mentions: Vec<Uuid>,
+}
+
 pub trait LiveEdit: BlockContent {
     type Op: Clone + Serialize + DeserializeOwned + Send + Sync + 'static;
 
     fn apply(&mut self, operation: &Self::Op);
+
+    /// What `operation` announces (`Announcement`), asked when the edit is made on this device
+    /// of content that holds it. The replica hands it to the host with the edit, and the host
+    /// keeps it beside the journal entry or commit holding the edit and sends it once the
+    /// server holds that, whether the replica is open then or not.
+    fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
+        let _ = operation;
+        Vec::new()
+    }
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         self.apply(operation);
@@ -341,7 +372,7 @@ pub trait MergeParts: Merge {
         ours: Self,
         theirs: Self,
         parts: PartReader,
-    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static;
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>>;
 }
 
 #[cfg(test)]

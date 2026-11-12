@@ -9,8 +9,6 @@ role button 'Close tab'
 role heading 'Radio group' level=2
 role radio Automatic checked
 role radio Manual not-checked
-role option Blue selected
-role option Amber not-selected
 role combobox 'Favorite fruit'
 role switch Kitchen checked
 role switch Hall not-checked

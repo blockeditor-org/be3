@@ -6,7 +6,7 @@ use crate::theme::use_theme;
 use beui_components_unstyled::MenuItem;
 use beui_view::actions::Chord;
 use beui_view::components::selectable::{
-    COPY_KEY, SELECT_ALL_KEY, Selectable, SelectableState, copy_selection, select_all,
+    COPY_KEY, SELECT_ALL_KEY, Selectable, SelectableState, copy_selection,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -51,7 +51,7 @@ pub fn SelectableText(
             }}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => copy_selection(state),
-                Some(1) => select_all(state),
+                Some(1) => state.select_all(),
                 _ => {}
             }}
         >

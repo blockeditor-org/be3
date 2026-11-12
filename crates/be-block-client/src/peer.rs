@@ -258,6 +258,9 @@ pub struct Peer<S: ObjectStore> {
     keys: KeyBook,
     current: Mutex<HashMap<Uuid, Uuid>>,
     tried: Mutex<HashSet<Uuid>>,
+    /// How many outbox drains are under way: announcements wait for their end
+    /// (`send_announcements`).
+    draining: std::sync::atomic::AtomicUsize,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -352,6 +355,7 @@ impl<S: ObjectStore> Peer<S> {
             keys,
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
+            draining: std::sync::atomic::AtomicUsize::new(0),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -564,7 +568,7 @@ impl<S: ObjectStore> Peer<S> {
             .refs
             .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
-            let _ = self.refs.move_to_unsent(summary.id, now_milliseconds());
+            let _ = self.move_to_unsent(summary.id);
         }
     }
 

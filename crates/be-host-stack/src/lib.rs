@@ -824,6 +824,14 @@ pub fn busy() -> Vec<&'static str> {
     with_shared(Shared::busy).unwrap_or_default()
 }
 
+/// Why the device is not in step with the server yet (`Shared::unsynced`): connected, nothing
+/// waiting to be sent, and everything it missed since it connected asked for. The block store
+/// not running is a reason too.
+pub fn unsynced() -> Vec<String> {
+    with_shared(Shared::unsynced)
+        .unwrap_or_else(|| vec!["the block store is not running".to_owned()])
+}
+
 pub fn seal_owed() {
     if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
         let (done, _) = std::sync::mpsc::channel();
@@ -1199,16 +1207,6 @@ pub fn set_access(block: Uuid, account: Uuid, access: be_block_graph::Access) {
         block,
         account,
         access,
-    });
-}
-
-/// Notifies `block`'s members who are not connected (`Peer::notify`), naming the block and the
-/// signed-in account; dropped when the server cannot be reached.
-pub fn notify(block: Uuid, text: String, mentions: Vec<Uuid>) {
-    send(Command::Notify {
-        block,
-        text,
-        mentions,
     });
 }
 

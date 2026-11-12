@@ -1,11 +1,13 @@
 //! What the server lacks of the edits made on this device, for editors that show what is still
-//! sending (`ToEditor::Lacking`). While an editor follows, the replica adds each edit as it makes
-//! it and drops it once the server holds it: an append the server answered, a commit published to
-//! it, or the owner accepting a follower's edit. Entries outlive the replica: a replica reopened,
-//! or opened again after its editors closed, carries on with what the last one lacked.
+//! sending (`ToEditor::Lacking`) and for announcing them (`LiveEdit::announcements`). The replica
+//! adds each edit as it makes it and drops it once the server holds it: an append the server
+//! answered, a commit published to it, or the owner accepting a follower's edit. Entries outlive
+//! the replica: a replica reopened, or opened again after its editors closed, carries on with what
+//! the last one lacked.
 
 use std::collections::BTreeSet;
 
+use be_block::Announcement;
 use be_block_commit::CommitId;
 use be_sdk_type_api::{EditorId, KeptCommits};
 
@@ -47,6 +49,9 @@ pub(crate) struct Entry {
     /// The sequence it had in the journal, once it had one: how a replayed journal entry is
     /// told from another with the same (or no) bytes, and from a folded one.
     sequence: Option<u64>,
+    /// What the edit announces, until it goes with the append holding it (an owner's) or the
+    /// server holds it (a follower's).
+    announcements: Vec<Announcement>,
 }
 
 #[derive(Default)]
@@ -64,6 +69,9 @@ pub(crate) struct Lacking {
     /// device still holds after it was refused is not refused again.
     refused: BTreeSet<CommitId>,
     next: u64,
+    /// What the edits the server came to hold since this was last taken announce, which no
+    /// append carried: a follower's.
+    held: Vec<Announcement>,
     /// The entries the followers were last told of, by id, with whether each had failed.
     told: Vec<(u64, bool)>,
     /// Something changed since the followers were last told.
@@ -73,21 +81,30 @@ pub(crate) struct Lacking {
 }
 
 impl Lacking {
-    /// Adds an edit made here, while an editor follows.
-    pub(crate) fn add(&mut self, mut operation: Vec<u8>, until: Until) {
-        if self.followers.is_empty() {
-            return;
-        }
+    /// Adds an edit made here, with what it announces.
+    pub(crate) fn add(
+        &mut self,
+        mut operation: Vec<u8>,
+        until: Until,
+        announcements: Vec<Announcement>,
+    ) {
         if operation.len() > LARGEST_KEPT {
             operation = Vec::new();
         }
         // An edit carried from the replica before, made again here (the host replays what it
         // kept), is followed as this one.
         self.journaled(&operation, None);
-        self.push(operation, until, false, None);
+        self.push(operation, until, false, None, announcements);
     }
 
-    fn push(&mut self, operation: Vec<u8>, until: Until, failed: bool, sequence: Option<u64>) {
+    fn push(
+        &mut self,
+        operation: Vec<u8>,
+        until: Until,
+        failed: bool,
+        sequence: Option<u64>,
+        announcements: Vec<Announcement>,
+    ) {
         self.next += 1;
         let sequence = match until {
             Until::Sequenced(sequence) | Until::Lost(sequence) => Some(sequence),
@@ -99,6 +116,7 @@ impl Lacking {
             until,
             failed,
             sequence,
+            announcements,
         });
         self.changed = true;
     }
@@ -107,12 +125,13 @@ impl Lacking {
     /// editor follows yet or not: it opens before they ask.
     pub(crate) fn add_replayed(&mut self, operation: Vec<u8>, sequence: u64) {
         self.journaled(&operation, Some(sequence));
-        self.push(operation, Until::Lost(sequence), false, None);
+        self.push(operation, Until::Lost(sequence), false, None, Vec::new());
     }
 
     /// The server's journal holds `operation` at `sequence`, or this replica made it again: one
     /// edit carried from before with that sequence, or else with those bytes (when it has any),
-    /// is followed no longer.
+    /// is followed no longer. Held by the server's journal, what it announces is announced; made
+    /// again, the new edit announces it.
     pub(crate) fn journaled(&mut self, operation: &[u8], sequence: Option<u64>) {
         let named = |entry: &Entry| {
             entry.until == Until::Carried
@@ -120,23 +139,55 @@ impl Lacking {
                     || (!operation.is_empty() && entry.operation == operation))
         };
         if let Some(at) = self.entries.iter().position(named) {
-            self.entries.remove(at);
+            let entry = self.entries.remove(at);
+            if sequence.is_some() {
+                self.held.extend(entry.announcements);
+            }
             self.changed = true;
         }
+    }
+
+    /// What the edits sequenced from `from` through `through` announce, to go with the append
+    /// holding them: the host keeps it from here on.
+    pub(crate) fn take_appended(&mut self, from: u64, through: u64) -> Vec<(u64, Announcement)> {
+        let mut taken = Vec::new();
+        for entry in &mut self.entries {
+            if let Until::Sequenced(sequence) = entry.until
+                && (from..=through).contains(&sequence)
+            {
+                taken.extend(
+                    std::mem::take(&mut entry.announcements)
+                        .into_iter()
+                        .map(|announcement| (sequence, announcement)),
+                );
+            }
+        }
+        taken
     }
 
     fn update(&mut self, change: impl Fn(Until) -> Option<Until>) {
         let before = self.entries.len();
         let mut moved = false;
+        let mut held = Vec::new();
         self.entries.retain_mut(|entry| match change(entry.until) {
             Some(until) => {
                 moved |= until != entry.until;
                 entry.until = until;
                 true
             }
-            None => false,
+            None => {
+                held.append(&mut entry.announcements);
+                false
+            }
         });
+        self.held.extend(held);
         self.changed |= moved || self.entries.len() != before;
+    }
+
+    /// What the edits the server came to hold since this was last called announce, as they were
+    /// added.
+    pub(crate) fn take_held(&mut self) -> Vec<Announcement> {
+        std::mem::take(&mut self.held)
     }
 
     /// The owner sequenced the edit it held back longest as `sequence`.
@@ -217,8 +268,15 @@ impl Lacking {
     /// until it is dismissed, so a "Not sent" never goes unseen.
     fn forget_kept(&mut self) {
         let before = self.entries.len();
-        self.entries
-            .retain(|entry| entry.until != Until::Kept || entry.failed);
+        let mut held = Vec::new();
+        self.entries.retain_mut(|entry| {
+            let stays = entry.until != Until::Kept || entry.failed;
+            if !stays {
+                held.append(&mut entry.announcements);
+            }
+            stays
+        });
+        self.held.extend(held);
         self.changed |= self.entries.len() != before;
     }
 
@@ -301,13 +359,16 @@ impl Lacking {
         if accepted == 0 {
             return;
         }
-        self.entries.retain(|entry| {
+        let mut held = Vec::new();
+        self.entries.retain_mut(|entry| {
             if accepted > 0 && entry.until == Until::Unsettled {
                 accepted -= 1;
+                held.append(&mut entry.announcements);
                 return false;
             }
             true
         });
+        self.held.extend(held);
         self.changed = true;
     }
 
@@ -358,7 +419,13 @@ impl Lacking {
     pub(crate) fn adopt(&mut self, carried: Carried) {
         self.refused.extend(carried.refused);
         for entry in carried.entries {
-            self.push(entry.operation, entry.until, entry.failed, entry.sequence);
+            self.push(
+                entry.operation,
+                entry.until,
+                entry.failed,
+                entry.sequence,
+                entry.announcements,
+            );
         }
         for editor in carried.followers {
             self.follow(editor);
