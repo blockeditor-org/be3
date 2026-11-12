@@ -2,17 +2,16 @@ use std::collections::HashSet;
 
 use super::*;
 
-/// Every message of `chat`, in segments and recent, each once.
-fn everything(chat: &ChatContent) -> Vec<ObjectId> {
-    let mut all = chat.closed_messages();
-    all.extend(chat.messages());
-    all
-}
-
 fn assert_whole(merged: &ChatContent, expected: &HashSet<ObjectId>) {
-    let all = everything(merged);
-    let seen: HashSet<ObjectId> = all.iter().copied().collect();
-    assert_eq!(all.len(), seen.len(), "no message twice");
+    let recent = merged.messages();
+    let recent_set: HashSet<ObjectId> = recent.iter().copied().collect();
+    assert_eq!(recent.len(), recent_set.len(), "no recent message twice");
+    let closed: HashSet<ObjectId> = merged.closed_messages_held_as_bytes().into_iter().collect();
+    assert!(
+        recent_set.is_disjoint(&closed),
+        "a message is recent or closed"
+    );
+    let seen: HashSet<ObjectId> = recent_set.union(&closed).copied().collect();
     assert_eq!(&seen, expected, "no message lost");
 }
 
@@ -32,8 +31,9 @@ fn two_closes_made_apart_merge_into_one_segment_without_a_conflict() {
     }
 
     // A side that deleted a message first closed a different segment over the same messages,
-    // and one that deleted the oldest closed from the next: neither merge conflicts, loses or
-    // repeats a message, and a deleted one is not brought back.
+    // and one that deleted the oldest closed from the next: neither merge conflicts or loses a
+    // message, both segments stay (they overlap, and a reader shows each message once), and a
+    // deleted one is not brought back to the recent messages.
     for gone in [3, 0] {
         let mut other = base.clone();
         let deleted = base.messages()[gone];
@@ -44,31 +44,40 @@ fn two_closes_made_apart_merge_into_one_segment_without_a_conflict() {
         for (a, b) in [(&ours, &other), (&other, &ours)] {
             let (merged, conflicts) = merged(&base, a, b);
             assert_eq!(conflicts, 0, "a chat merge never conflicts");
-            let mut seen: HashSet<ObjectId> = everything(&merged).into_iter().collect();
-            // Ours' segment may hold the message the other side deleted; it is not shown.
+            assert_eq!(merged.segments().len(), 2, "both segments stay");
+            assert!(!merged.messages().contains(&deleted));
+            let mut seen: HashSet<ObjectId> = merged.messages().into_iter().collect();
+            seen.extend(merged.closed_messages_held_as_bytes());
             seen.remove(&deleted);
             assert_eq!(seen, expected, "no message lost");
-            assert!(!merged.messages().contains(&deleted));
-            let all = everything(&merged);
+            let recent = merged.messages();
             assert_eq!(
-                all.len(),
-                all.iter().copied().collect::<HashSet<_>>().len(),
-                "no message twice"
+                recent.len(),
+                recent.iter().copied().collect::<HashSet<_>>().len(),
+                "no recent message twice"
             );
         }
     }
 
     // A third device's own close, merged after the first two.
+    let gone = base.messages()[5];
     let mut third = base.clone();
-    third.apply(&base.delete(base.messages()[5], BO, 9).into());
+    third.apply(&base.delete(gone, BO, 9).into());
     let third = closed(&third);
     let (first, conflicts) = merged(&base, &ours, &third);
     assert_eq!(conflicts, 0);
     let (second, conflicts) = merged(&base, &first, &theirs);
     assert_eq!(conflicts, 0);
-    let mut seen: HashSet<ObjectId> = everything(&second).into_iter().collect();
-    seen.remove(&base.messages()[5]);
+    let mut seen: HashSet<ObjectId> = second.messages().into_iter().collect();
+    seen.extend(second.closed_messages_held_as_bytes());
+    seen.remove(&gone);
     let mut expected = all.clone();
-    expected.remove(&base.messages()[5]);
+    expected.remove(&gone);
     assert_eq!(seen, expected);
+    let recent = second.messages();
+    assert_eq!(
+        recent.len(),
+        recent.iter().copied().collect::<HashSet<_>>().len(),
+        "no recent message twice"
+    );
 }

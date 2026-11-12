@@ -127,7 +127,7 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
 - **Not built: rewriting a segment**: plans/deferred/chat_segment_rewrite.md.
   A deleted message's body stays in its closed segment until then. A chat
   rebuilt from the header's bytes (a view) saves the header alone, never a
-  placeholder part. Duplicate, `be` transfer and revision preview or restore refuse a block of a
+  placeholder part. Duplicate, export, `be` transfer, version control's re-listing of a parent and revision preview or restore refuse a block of a
   first-part type that has parts after its first, until a copy of parts exists.
 - **Limits.** A message larger than the largest segment closes alone. A
   segment's Bloom filter can name a message it does not hold (unread counts
@@ -159,19 +159,18 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   (`merge_appends`), not a merge written for chat. In a live session the owner
   sequences each send, an insert at the end, so a message lands after those
   sequenced before it, the same order.
-- Closing offline. An editor proposes a `Close` only while its replica has
-  nothing unsent, so a device holds at most one unconfirmed close; an offline
-  device may still close, and so may another, over the same messages. A replica
-  applies a `Close` only when its index entry is the one its bytes give (count,
-  first and last message, length and hash) and its edit does no more than remove
-  those messages and add the entry. A chat merge never conflicts (a merge runs on
-  one device and only its result is applied, so it need not match the other
-  direction's): a segment both sides closed is one; when we closed segments they
-  did not, ours stand, and theirs that differ leave the index, their messages
-  that are not in ours' segments (and not deleted) returning to the recent
-  messages in their place (the merge reads those parts, `merge_parts`). Where a
-  part is not at hand (`merge3` of sides that hold only headers) the entries stay
-  as they are. Edits, deletions and
+- Closing offline. An editor proposes a `Close` only while every edit of its
+  replica is confirmed (its lacking set is empty), so a device holds at most one
+  unconfirmed close; an offline device may still close, and so may another, over
+  the same messages. A replica applies a `Close` only when its index entry is
+  the one its bytes give (count, first and last message, length and hash) and
+  its edit does no more than remove those messages and add the entry. A chat
+  merge never conflicts and reads no part (a merge runs on one device and only
+  its result is applied): a segment both sides closed is one; entries that differ
+  stay, each with its own part (matched by the whole entry), and can overlap,
+  which loses nothing and costs storage. The editor shows a message once, in the
+  first segment it reads. Closing is not undone by a later merge, but once one
+  side has added an entry nothing compacts the overlap until a rewrite exists. Edits, deletions and
   reactions are kept by message id whether the message is recent or not, so an
   offline edit to a message that moved into a segment merges clean and stays in
   the header's maps. The journal bounds how many closes a session carries

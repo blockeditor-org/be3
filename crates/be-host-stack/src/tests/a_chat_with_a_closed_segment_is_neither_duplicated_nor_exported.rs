@@ -5,7 +5,7 @@ use be_type_chat::{ChatContent, Message};
 use super::*;
 
 #[test]
-fn a_chat_with_a_closed_segment_is_not_duplicated() {
+fn a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported() {
     let harness = Harness::start();
     let block = Uuid::new_v4();
 
@@ -55,5 +55,15 @@ fn a_chat_with_a_closed_segment_is_not_duplicated() {
     assert!(
         node(copy).is_none_or(|copy| copy.head.is_none()),
         "the copy holds no content: its closed history would be lost"
+    );
+
+    let (sender, receiver) = std::sync::mpsc::channel();
+    export(block, move |exported| {
+        let _ = sender.send(exported);
+    });
+    let exported = receiver.recv().expect("the export answers");
+    assert!(
+        exported.is_err_and(|error| error.contains("not exported yet")),
+        "a block file would carry only the header, so it is refused"
     );
 }

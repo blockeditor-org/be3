@@ -189,18 +189,17 @@ pub fn Chat(editor: Editor) -> NodeId {
     // Any editor may propose it, and the segment closes once: the messages it names are the
     // oldest ones in the order every replica has, and a second proposal finds them gone.
     let visible = editor.presence_visible();
+    let lacking_any = create_memo(move || lacking.with(|lacking| !lacking.is_empty()));
     create_effect(move || {
         let _ = chat.revision();
-        let (visible, lacking) = (
-            visible.get(),
-            unsent.with(|unsent| unsent.keys().copied().collect::<Vec<ObjectId>>()),
-        );
-        // Only while nothing of ours is unsent: a device that holds an unconfirmed close or an
-        // unsent message stays out of closing, so two devices rarely close apart.
-        if !visible || !lacking.is_empty() {
+        let visible = visible.get();
+        let unconfirmed = lacking_any.get();
+        // Only while every edit of ours (a message, a close, an edit, a reaction) is confirmed: a
+        // device holds at most one unconfirmed close, so two devices rarely close apart.
+        if !visible || unconfirmed {
             return;
         }
-        if let Ok(Some(closing)) = chat.read(|content| content.closing(&lacking)) {
+        if let Ok(Some(closing)) = chat.read(|content| content.closing(&[])) {
             untrack(|| chat.operate(closing));
         }
     });
@@ -455,6 +454,16 @@ impl Older {
                     Some(messages) => {
                         this.reading.set(false);
                         let mut read = this.read.get_untracked();
+                        // Segments closed apart can overlap (a merge keeps both); a message
+                        // shows once, in the segment read first.
+                        let held: std::collections::HashSet<ObjectId> = read
+                            .iter()
+                            .flat_map(|(_, held)| held.iter().map(|(id, _)| *id))
+                            .collect();
+                        let messages = messages
+                            .into_iter()
+                            .filter(|(id, _)| !held.contains(id))
+                            .collect();
                         read.push((first, messages));
                         this.read.set(read);
                     }

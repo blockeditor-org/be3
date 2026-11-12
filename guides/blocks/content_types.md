@@ -61,13 +61,13 @@ back as `Reused`, and `encode` gives only the loaded bytes, which is what its
 replica's followers and editors are sent. So `decode(encode())` of such a type is a
 view, not the content: chat's gives the header's index entries with no part behind them, and
 saving it writes the header alone, with no part behind the entries. Whole-bytes
-paths (Replace, import, `be sync`) therefore cannot carry its parts (Duplicate, `be`
-transfer and revision preview or restore refuse such a block); only `from_stored`, `parts` and `MergeParts` do. Its editors read the rest by range
+paths (Replace, import, `be sync`) therefore cannot carry its parts (Duplicate, export, `be`
+transfer, version control's re-listing and revision preview or restore refuse such a block); only `from_stored`, `parts` and `MergeParts` do. Its editors read the rest by range
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`
-(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's `merge_parts` reads only the
-segments it must settle, and a chat merge never conflicts (plans/chat.md).
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's merge reads no part and never
+conflicts (plans/chat.md); it is the same `merge3` the replica runs when it resumes a session.
 
 ## Documents: `be_block_model`
 

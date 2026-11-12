@@ -747,18 +747,18 @@ impl ChatContent {
         }
     }
 
-    /// The part of the segment `first` opens, as one side of a merge holds it.
-    fn held_by_first(&self, first: ObjectId) -> Option<&Held> {
-        let at = self
-            .segments()
-            .iter()
-            .position(|segment| segment.first == first)?;
+    /// The part of `segment`, as one side of a merge holds it: matched by the whole entry
+    /// (which opens at the same message as another when two closes overlap, but not in count,
+    /// last message, length and hash).
+    fn held_of(&self, segment: &Segment) -> Option<&Held> {
+        let at = self.segments().iter().position(|held| held == segment)?;
         self.held.get(at)
     }
 
-    /// The messages of every closed segment this replica holds as bytes, oldest first.
+    /// The messages of every closed segment this replica holds as bytes (not those it saved
+    /// and holds as parts), oldest first, repeating a message that two overlapping segments hold.
     #[cfg(test)]
-    pub(crate) fn closed_messages(&self) -> Vec<ObjectId> {
+    pub(crate) fn closed_messages_held_as_bytes(&self) -> Vec<ObjectId> {
         let segments = self.segments();
         self.held
             .iter()
@@ -952,36 +952,19 @@ impl LiveEdit for ChatContent {
     }
 }
 
-/// The bytes of closed segments a merge reads: by the side that holds them (`true` for theirs)
-/// and the message each opens at.
-type SegmentBytes = BTreeMap<(bool, ObjectId), Vec<u8>>;
-
-impl ChatContent {
-    /// The segments each side closed since `base`, and which of theirs lose to ours: a segment
-    /// both closed is one segment, and when we closed any that they did not, ours stand and
-    /// theirs that differ go back to recent messages (their messages are in no way known not to
-    /// overlap ours).
-    fn closes_to_settle(base: &Self, ours: &Self, theirs: &Self) -> (Vec<Segment>, Vec<Segment>) {
-        let added = |side: &Self| -> Vec<Segment> {
-            let known = base.segments();
-            side.segments()
-                .into_iter()
-                .filter(|segment| !known.contains(segment))
-                .collect()
-        };
-        let ours_added = added(ours);
-        let demoted = added(theirs)
-            .into_iter()
-            .filter(|segment| !ours_added.is_empty() && !ours_added.contains(segment))
-            .collect();
-        (ours_added, demoted)
-    }
-
-    /// The merge, given the bytes of the segments `closes_to_settle` names where they are known.
-    /// A chat merge never conflicts: segments both sides closed become one, theirs that differ
-    /// from ours give their messages back to the recent ones (those not in ours' segments, not
-    /// deleted), and a segment whose bytes are not at hand stays as it is.
-    fn merged_with(base: &Self, ours: &Self, theirs: &Self, bytes: &SegmentBytes) -> Self {
+impl Merge for ChatContent {
+    /// The header merges as a document (a closed segment's messages leave `messages` on the side
+    /// that closed it, and an edit, deletion or reaction of one is kept by key); each segment of
+    /// the merged index keeps the part of the side that has it, matched by the whole entry.
+    ///
+    /// A chat merge never conflicts and reads no part. Two sides that closed while apart each
+    /// added entries: one both added is one segment (the later copy leaves the index), and
+    /// entries that differ stay, both with their own parts. They can overlap (both hold some of
+    /// the same messages), which loses nothing and costs only the storage; a reader shows a
+    /// message once, in the first segment it reads (the editor's `Older`). Conflicts the header's
+    /// own merge counts (a register both sides changed keeps ours; a message object that differs
+    /// keeps ours, and messages are immutable) are resolved as it resolved them, not reported.
+    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
         let header = match <Document<ChatHeader> as Merge>::merge3(
             &base.header,
             &ours.header,
@@ -993,47 +976,11 @@ impl ChatContent {
             header,
             held: Vec::new(),
         };
-        let (ours_added, demoted) = Self::closes_to_settle(base, ours, theirs);
-        let mut changes: Vec<Change> = Vec::new();
-        let mut restored: Vec<(ObjectId, Message)> = Vec::new();
-        let recent: std::collections::HashSet<ObjectId> = value.messages().into_iter().collect();
-        let ours_closed: Option<std::collections::HashSet<ObjectId>> = ours_added
-            .iter()
-            .map(|segment| {
-                let held = bytes.get(&(false, segment.first))?;
-                segment.read(held)
-            })
-            .collect::<Option<Vec<_>>>()
-            .map(|read| read.into_iter().flatten().map(|(id, _)| id).collect());
-        let mut dropped = Vec::new();
-        if let Some(ours_closed) = &ours_closed {
-            for segment in &demoted {
-                let Some(messages) = bytes
-                    .get(&(true, segment.first))
-                    .and_then(|held| segment.read(held))
-                else {
-                    continue;
-                };
-                dropped.push(segment.clone());
-                for (id, message) in messages {
-                    if !recent.contains(&id)
-                        && !ours_closed.contains(&id)
-                        && value.deletion_of(id).is_none()
-                        && !restored.iter().any(|(held, _)| *held == id)
-                    {
-                        restored.push((id, message));
-                    }
-                }
-            }
-        }
-        // Segments both sides closed are one; the later copy leaves the index with the losers.
         let segments = value.segments();
-        let mut leaving: Vec<usize> = Vec::new();
-        for (index, segment) in segments.iter().enumerate() {
-            if segments[..index].contains(segment) || dropped.contains(segment) {
-                leaving.push(index);
-            }
-        }
+        let leaving: Vec<usize> = (0..segments.len())
+            .filter(|index| segments[..*index].contains(&segments[*index]))
+            .collect();
+        let mut changes: Vec<Change> = Vec::new();
         for index in leaving.into_iter().rev() {
             let Some(held) = value.header.series(ObjectId::ROOT, ChatHeader::SEGMENTS) else {
                 continue;
@@ -1042,87 +989,36 @@ impl ChatContent {
                 changes.push(ChatHeader::SEGMENTS.edit(ObjectId::ROOT, op));
             }
         }
-        // Their messages go back where they were: after the message before them that is recent,
-        // else first.
-        let mut after: Option<ObjectId> = None;
-        for (id, message) in &restored {
-            let anchor = after.map_or(Anchor::Start, Anchor::After);
-            changes.push(ChatHeader::MESSAGES.insert_as(*id, ObjectId::ROOT, anchor, message));
-            after = Some(*id);
+        if !changes.is_empty() {
+            let edit: Edit = changes.into_iter().collect();
+            LiveEdit::apply(&mut value.header, &edit);
         }
-        let edit: Edit = changes.into_iter().collect();
-        LiveEdit::apply(&mut value.header, &edit);
         value.held = value
             .segments()
             .iter()
             .map(|segment| {
                 [ours, theirs, base]
                     .into_iter()
-                    .find_map(|side| side.held_by_first(segment.first))
+                    .find_map(|side| side.held_of(segment))
                     .cloned()
                     .unwrap_or(Held::Absent)
             })
             .collect();
-        value
-    }
-}
-
-impl Merge for ChatContent {
-    /// The header merges as a document (a closed segment's messages leave `messages` on the side
-    /// that closed it, and an edit, deletion or reaction of one is kept by key); each segment of
-    /// the merged index keeps the part of the side that has it. Never a conflict
-    /// (`merged_with`).
-    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        let (ours_added, demoted) = Self::closes_to_settle(base, ours, theirs);
-        let mut bytes = SegmentBytes::new();
-        for (is_theirs, segment) in ours_added
-            .iter()
-            .map(|segment| (false, segment))
-            .chain(demoted.iter().map(|segment| (true, segment)))
-        {
-            let side = if is_theirs { theirs } else { ours };
-            if let Some(Held::Bytes(held)) = side.held_by_first(segment.first) {
-                bytes.insert((is_theirs, segment.first), held.clone());
-            }
-        }
-        MergeResult::Clean(Self::merged_with(base, ours, theirs, &bytes))
+        MergeResult::Clean(value)
     }
 }
 
 impl MergeParts for ChatContent {
     /// The same merge, over the sides as they loaded: the segments a side saved are reused as
-    /// they are, and only those that must be settled (closed on both sides while apart, and
-    /// different) are read.
+    /// they are, so merging reads none of them.
     fn merge_parts(
         base: Self,
         ours: Self,
         theirs: Self,
         parts: PartReader,
     ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static {
-        async move {
-            let (ours_added, demoted) = Self::closes_to_settle(&base, &ours, &theirs);
-            let mut bytes = SegmentBytes::new();
-            for (is_theirs, segment) in ours_added
-                .iter()
-                .map(|segment| (false, segment))
-                .chain(demoted.iter().map(|segment| (true, segment)))
-            {
-                let side = if is_theirs { &theirs } else { &ours };
-                match side.held_by_first(segment.first) {
-                    Some(Held::Bytes(held)) => {
-                        bytes.insert((is_theirs, segment.first), held.clone());
-                    }
-                    Some(Held::Saved(part)) => {
-                        let read = parts.read_all(*part).await?;
-                        bytes.insert((is_theirs, segment.first), read);
-                    }
-                    _ => {}
-                }
-            }
-            Ok(MergeResult::Clean(Self::merged_with(
-                &base, &ours, &theirs, &bytes,
-            )))
-        }
+        let _ = parts;
+        std::future::ready(Ok(Self::merge3(&base, &ours, &theirs)))
     }
 }
 

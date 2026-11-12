@@ -2723,7 +2723,7 @@ async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, Clie
 }
 
 /// Whether the block's newest save holds more than the first part a type loads.
-async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<bool, ClientError> {
+pub(super) async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<bool, ClientError> {
     let Some(head) = peer.newest_head(block).await? else {
         return Ok(false);
     };
@@ -2913,6 +2913,20 @@ async fn export(
         .iter()
         .map(|summary| (summary.id, summary.head))
         .collect();
+    // A block file carries bytes, which drop the parts after the first of a type that loads
+    // only its first part (chat's closed segments): refuse until a file carries parts.
+    for block in &blocks {
+        if replicas
+            .kind(block.block_type)
+            .await
+            .is_some_and(|kind| kind.first_part)
+            && has_later_parts(peer, block.id).await?
+        {
+            return Err(ClientError::Encoding(
+                "a block that keeps parts after its first is not exported yet".to_string(),
+            ));
+        }
+    }
     let wanted: Vec<_> = blocks
         .iter()
         .filter(|block| !replicas.is_open(block.id))
