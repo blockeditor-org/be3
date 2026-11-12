@@ -107,7 +107,7 @@ pub fn Toasts(
     });
     let label = create_memo(move || label.get());
     let padding = create_memo(move || Sides::all(margin.get()));
-    let outer = create_memo(move || Extent::px(width.get() + 2.0 * margin.get()));
+    let outer = create_memo(move || Extent::at_most(width.get() + 2.0 * margin.get()));
     view! {
         <Overlay
             anchor

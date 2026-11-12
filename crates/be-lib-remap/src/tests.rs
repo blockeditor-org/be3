@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_held_modifier_is_lifted_for_a_tap_and_put_back_after_it;
+mod a_key_remapped_to_nothing_is_kept_from_the_program;
 mod a_remap_only_applies_in_the_window_it_names;
 mod a_remapped_button_holds_its_key_until_it_is_let_go;
 mod a_sequence_plays_its_steps_on_the_clock;
