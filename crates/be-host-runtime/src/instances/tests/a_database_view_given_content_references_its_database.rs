@@ -33,7 +33,7 @@ fn a_database_view_given_content_references_its_database() {
     });
 
     seed(&mut instances, view, database);
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     to_replica(
         &mut instances,
         view,
@@ -45,14 +45,14 @@ fn a_database_view_given_content_references_its_database() {
         (database_in(held.bytes()) == Some(database)).then_some(())
     });
 
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     be_host_stack::wait_until(|shared| {
         let node = shared.graph.get(view)?;
         (node.references == [database]).then_some(())
     });
 
     seed(&mut instances, view, other);
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     let held = be_host_stack::content(view).expect("the view is still open");
     assert_eq!(database_in(held.bytes()), Some(database));
 }

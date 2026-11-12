@@ -104,8 +104,11 @@ no network), and hands every later connection to it with `attach`.
 
 ## Disconnects, offline and stopping
 
-`flush()` seals and waits; `stop()` and organization changes go through it,
-because a session merely dropped loses everything since the last autosave.
+`flush()` seals and waits until every open block is kept on the device (in its
+journal or as a local commit), not for the server, so closing a host whose
+server stopped answering does not wait for it; `stop()` and organization
+changes go through it, because a session merely dropped loses everything since
+the last autosave. What a flush kept is sent as the outbox drains.
 
 A dropped connection (`Connection::closed`, not the broadcast, which outlives
 the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
@@ -144,7 +147,9 @@ its head.
 - **Locked messages.** A relayed message is unsealed on the spot; one whose key
   is missing (`ClientError::Locked`, first time: `Peer::first_search_for`)
   fetches keys in a task, and that block's later events wait behind it.
-- **Stopping**: `be_host_stack::stop`, `stop_and_wait`.
+- **Stopping**: `be_host_stack::stop`, `stop_and_wait`. Tests stop as a crash
+  would with `crash`: the worker ends without keeping the open blocks, so only
+  what the device had written survives.
 
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and

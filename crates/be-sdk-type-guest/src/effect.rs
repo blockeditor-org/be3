@@ -20,6 +20,8 @@ pub(crate) enum Effect {
         expected: Option<CommitId>,
         merging: Option<Merging>,
         content: Written,
+        /// The session's generation and the last sequence a seal holds.
+        sealed_through: Option<(u64, u64)>,
     },
     Stash {
         replica: ReplicaId,
@@ -78,6 +80,7 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         generation: u64,
         base: JournalBase,
+        entries: Vec<JournalEntry>,
     },
     Release {
         replica: ReplicaId,

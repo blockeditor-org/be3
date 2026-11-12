@@ -1172,7 +1172,7 @@ impl HostCore {
     fn busy(&self) -> Vec<String> {
         let mut reasons = self.own_busy();
         if self.error.is_none() {
-            reasons.extend(be_host_stack::busy().into_iter().map(str::to_owned));
+            reasons.extend(be_host_stack::busy());
         }
         reasons
     }

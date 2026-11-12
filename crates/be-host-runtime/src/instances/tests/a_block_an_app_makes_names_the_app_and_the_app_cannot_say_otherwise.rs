@@ -28,7 +28,7 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
             owner_only: false,
         },
     );
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
 
     let global = be_host_stack::wait_until(|shared| shared.graph.get(made).map(|_| made));
     let created_by =
@@ -47,7 +47,7 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
             value: claimed.defined.get(&be_block::CREATED_BY.id).cloned(),
         },
     );
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     assert_eq!(
         created_by().as_deref(),
         Some("example.maker"),

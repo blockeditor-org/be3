@@ -32,7 +32,7 @@ fn a_checklist_and_a_counter_are_held_by_one_peer() {
     wait_until("listed the item", |shared| {
         listed(shared) == Some(vec!["buy milk".to_owned()])
     });
-    flush();
+    flush_and_send();
     stop();
 
     harness.connect();

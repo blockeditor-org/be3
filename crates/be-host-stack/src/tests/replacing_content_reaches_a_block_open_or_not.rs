@@ -33,7 +33,7 @@ fn replacing_content_reaches_a_block_open_or_not() {
     });
 
     replace(closed, ImageContent::CONTENT_TYPE, image("unopened.png"));
-    flush();
+    flush_and_send();
     hold(closed, ImageContent::CONTENT_TYPE);
     wait_until("opened what was written while it was closed", |shared| {
         holds(shared, closed, "unopened.png")

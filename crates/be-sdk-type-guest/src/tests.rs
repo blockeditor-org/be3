@@ -79,6 +79,8 @@ mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over
 mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
+mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
+mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
 mod a_viewer_cannot_make_a_follower_read_a_part;
@@ -110,6 +112,8 @@ mod two_quick_edits_folded_into_one_append_are_both_held_by_it;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
+mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
+mod what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {
@@ -318,6 +322,7 @@ struct Stored {
     parents: Vec<CommitId>,
     bytes: Vec<u8>,
     manifest: be_block_store::Manifest,
+    sealed_through: Option<(u64, u64)>,
 }
 
 const SEALING: Uuid = Uuid::from_u128(0x5ea1);
@@ -383,6 +388,7 @@ fn opening(
         journal_kept: false,
         commits_kept: be_sdk_type_api::KeptCommits::None,
         refused_commits: Vec::new(),
+        sealed_head: None,
     }
 }
 
@@ -438,6 +444,12 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
+    /// The generation each journal entry was appended in, by sequence, as the host's journal
+    /// keeps it.
+    journal_generations: BTreeMap<u64, u64>,
+    /// The seal a device made of the journal and the last sequence it holds, as the host's
+    /// journal notes it with the seal's commit, until the next rebase.
+    sealing: Option<(usize, CommitId, u64)>,
     journal_tag: SessionTag,
     appended: usize,
     make: fn() -> Module,
@@ -498,6 +510,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             largest_written: 0,
             written: 0,
             journal: None,
+            journal_generations: BTreeMap::new(),
+            sealing: None,
             journal_tag: TAG,
             appended: 0,
             make,
@@ -535,6 +549,62 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.to(device, |host| call(replica, host))
     }
 
+    /// What `device`'s replica opening at `head` loads, as `be_block_type_host::journal_for`
+    /// gives it: the journal on `head`, or, when `head` is the seal `device` noted of the
+    /// journal and the journal reaches it (`reaches_seal`), the journal on the commit the seal
+    /// was made on, which it loads first, then takes `head` as its sealed head.
+    fn journal_on(
+        &self,
+        device: usize,
+        head: Option<CommitId>,
+    ) -> (
+        Option<Journal>,
+        Option<CommitId>,
+        Option<be_sdk_type_api::SealedHead>,
+    ) {
+        let journal = self.journal.clone();
+        if journal
+            .as_ref()
+            .is_some_and(|journal| journal.base.commit == head)
+        {
+            return (journal, head, None);
+        }
+        let noted = |commit: CommitId| {
+            self.sealing
+                .is_some_and(|(by, sealing, _)| by == device && sealing == commit)
+        };
+        let sealed = head.filter(|commit| noted(*commit)).and_then(|commit| {
+            let stored = self.commits.get(&commit)?;
+            let parent = match stored.parents.as_slice() {
+                [] => None,
+                [parent] => Some(*parent),
+                _ => return None,
+            };
+            Some((commit, parent, stored.sealed_through?))
+        });
+        match (journal, sealed) {
+            (Some(journal), Some((commit, parent, (generation, through))))
+                if journal.base.commit == parent
+                    && be_block_session::reaches_seal(
+                        journal.base.sequence,
+                        journal.entries.iter().map(|entry| {
+                            let of = self.journal_generations.get(&entry.sequence);
+                            (entry.sequence, of.copied().unwrap_or(u64::MAX))
+                        }),
+                        generation,
+                        through,
+                    ) =>
+            {
+                (
+                    Some(journal),
+                    parent,
+                    Some(be_sdk_type_api::SealedHead { commit, through }),
+                )
+            }
+            _ => (None, head, None),
+        }
+    }
+
     fn open(&mut self, device: usize) {
         self.open_at(device, self.head);
     }
@@ -554,10 +624,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
         self.settle();
-        let journal = self
-            .journal
-            .clone()
-            .filter(|journal| journal.base.commit == local);
+        let (journal, local, sealed_head) = self.journal_on(device, local);
+        let settles_on = sealed_head.as_ref().map(|sealed| sealed.commit);
         let foreign = self.journal_tag != self.devices[device].tag;
         let lost_edits = foreign
             && journal
@@ -568,12 +636,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             tag: self.devices[device].tag,
             journal: journal.filter(|_| !foreign),
             lost_edits,
+            sealed_head,
             ..opening(client, local, self.lease.state().clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));
         self.devices[device].replica = Some(replica);
         if let Some(head) = self.head
             && local != self.head
+            && settles_on != self.head
         {
             self.with_replica(device, |replica, host| replica.head_moved(host, head));
         }
@@ -753,6 +823,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 parents,
                 bytes,
                 manifest,
+                sealed_through: None,
             },
         );
         id
@@ -952,6 +1023,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 expected,
                 merging,
                 content,
+                sealed_through,
             } if !self.stalled => {
                 if expected != self.head {
                     self.rejections += 1;
@@ -981,6 +1053,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .chain(merging.map(|merging| merging.ours))
                     .collect();
                 let head = self.commit(manifest, parents);
+                if let Some(stored) = self.commits.get_mut(&head) {
+                    stored.sealed_through = sealed_through;
+                }
+                if let Some((_, through)) = sealed_through {
+                    self.sealing = Some((device, head, through));
+                }
                 self.head = Some(head);
                 self.publishes += 1;
                 let kept = self.kept_publishes;
@@ -1121,6 +1199,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         .last()
                         .map_or(journal.base.sequence, |entry| entry.sequence);
                     if entry.sequence > last {
+                        self.journal_generations.insert(entry.sequence, generation);
                         journal.entries.push(entry);
                     }
                 }
@@ -1129,16 +1208,23 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 reply,
                 generation,
                 base,
+                entries,
             } => {
                 self.to(device, |host| reply.send(host, &()));
                 let state = self.lease.state();
                 if !state.is_owner(client) || state.generation != generation {
                     return;
                 }
-                self.journal = Some(Journal {
-                    base,
-                    entries: Vec::new(),
-                });
+                let entries: Vec<_> = entries
+                    .into_iter()
+                    .filter(|entry| entry.sequence > base.sequence)
+                    .collect();
+                self.journal_generations = entries
+                    .iter()
+                    .map(|entry| (entry.sequence, generation))
+                    .collect();
+                self.sealing = None;
+                self.journal = Some(Journal { base, entries });
                 self.journal_tag = self.devices[device].tag;
             }
             Call::ReportStatus { reply, status } => {

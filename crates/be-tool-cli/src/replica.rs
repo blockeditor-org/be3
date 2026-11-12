@@ -55,6 +55,10 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         held(shared).errors.push(explain(error));
     }
 
+    fn record_sync(shared: &Arc<Mutex<Self>>, error: ClientError) {
+        Self::record(shared, error);
+    }
+
     fn report(shared: &Arc<Mutex<Self>>, _: Option<Uuid>, message: String) {
         held(shared).errors.push(message);
     }

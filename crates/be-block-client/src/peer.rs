@@ -151,6 +151,7 @@ pub struct Write<'a> {
     expected: Option<CommitId>,
     merging: Option<(Option<CommitId>, CommitId)>,
     bookmark: Option<String>,
+    sealed_through: Option<be_block_commit::SealedThrough>,
 }
 
 impl<'a> Write<'a> {
@@ -176,6 +177,7 @@ impl<'a> Write<'a> {
             expected,
             merging: None,
             bookmark: None,
+            sealed_through: None,
         }
     }
 
@@ -197,6 +199,13 @@ impl<'a> Write<'a> {
 
     pub fn bookmark(mut self, label: &str) -> Self {
         self.bookmark = Some(label.to_owned());
+        self
+    }
+
+    /// The commit holds its session through a sequence of a generation
+    /// (`Commit::sealed_through`).
+    pub fn sealed_through(mut self, sealed: Option<be_block_commit::SealedThrough>) -> Self {
+        self.sealed_through = sealed;
         self
     }
 }
@@ -860,6 +869,27 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.head(block)
     }
 
+    /// For a commit this device holds that sealed a session: the commit it was sealed on and
+    /// where in its session it stands (`Commit::sealed_through`).
+    pub fn sealed_on(
+        &self,
+        commit: CommitId,
+    ) -> Option<(Option<CommitId>, be_block_commit::SealedThrough)> {
+        let commit = self.commits.try_get(commit).ok().flatten()?;
+        let through = commit.sealed_through?;
+        match commit.parents.as_slice() {
+            [] => Some((None, through)),
+            [parent] => Some((Some(*parent), through)),
+            _ => None,
+        }
+    }
+
+    /// The seal this device made of `block`'s journal since its last rebase, and the last
+    /// sequence it holds: noted with the seal's commit in one write.
+    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
+        self.refs.sealing(block)
+    }
+
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.remote(block)
     }
@@ -1410,6 +1440,7 @@ impl<S: ObjectStore> Peer<S> {
             references,
             expected,
             bookmark,
+            sealed_through,
             ..
         } = write;
         let previous = match expected {
@@ -1451,21 +1482,25 @@ impl<S: ObjectStore> Peer<S> {
             .with_parents(parents.clone())
             .with_kind(kind)
             .with_references(references.clone())
-            .with_metadata(encoded);
+            .with_metadata(encoded)
+            .with_sealed_through(sealed_through);
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         self.commits.vault().store().sync()?;
-        self.refs.push_publish(Pending {
-            block,
-            commit: id,
-            expected,
-            parents,
-            chunks,
-            time,
-            pinned,
-            references: listed.clone(),
-            metadata: sealed.clone(),
-        })?;
+        self.refs.push_publish(
+            Pending {
+                block,
+                commit: id,
+                expected,
+                parents,
+                chunks,
+                time,
+                pinned,
+                references: listed.clone(),
+                metadata: sealed.clone(),
+            },
+            sealed_through.map(|sealed| sealed.sequence),
+        )?;
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {

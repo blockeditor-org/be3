@@ -36,6 +36,18 @@ interface replicas {
         /// aside in the unsent area. They stay there after the edit that sent them is
         /// let go, so a replica applies the refusal of each commit once.
         refused-commits: list<commit-id>,
+        /// The block's head when it is a seal this device made on `head`, which
+        /// the journal is still on: the owner stopped after the server took the
+        /// seal and before it heard so. The replica replays the journal on
+        /// `head`, then takes `sealed-head.commit` as its head, holding the
+        /// session through `sealed-head.through`, and keeps journaled what came
+        /// after.
+        sealed-head: option<sealed-head>,
+    }
+
+    record sealed-head {
+        commit: commit-id,
+        through: u64,
     }
 
     enum kept-commits {

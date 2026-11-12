@@ -112,12 +112,28 @@ impl HostTest {
         self.run(&["offline"]);
     }
 
+    /// Takes this device's network away without a word, as a network that drops what it is sent
+    /// and answers nothing: its connections stay open but carry nothing, and a new one is
+    /// accepted and never answered. Unlike [`HostTest::offline`], the device is not told and does
+    /// not know at once; it returns at once.
+    pub fn unreachable(&mut self) {
+        self.steps.push("# unreachable".to_owned());
+        let relay = &self.joined("unreachable").relay;
+        relay.hold_new(true);
+        relay.stall();
+    }
+
     /// Gives this device its network back and tells it so (`drive network`), as the system tells
     /// a program the network came back, so it reconnects at once instead of when its wait for
     /// the next try runs out. Wait for what it should catch up on with [`HostTest::synced`].
     pub fn online(&mut self) {
         self.steps.push("# online".to_owned());
-        self.joined("online").relay.offline(false);
+        let relay = &self.joined("online").relay;
+        // Connections held by `unreachable` never reached the server: end them, as a
+        // network that comes back resets what timed out on it.
+        relay.hold_new(false);
+        relay.cut();
+        relay.offline(false);
         self.run(&["network"]);
     }
 

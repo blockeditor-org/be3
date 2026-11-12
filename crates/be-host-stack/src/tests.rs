@@ -59,6 +59,7 @@ mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
+mod a_sync_error_clears_once_nothing_waits_to_be_sent;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 #[cfg(not(target_os = "android"))]
@@ -76,6 +77,7 @@ mod an_edit_made_offline_is_lacking_until_the_drain_publishes_it;
 mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
 mod an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publishes;
 mod an_empty_search_request_is_not_a_change;
+mod an_error_that_is_not_about_sending_outlasts_a_device_in_step;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
@@ -103,6 +105,7 @@ mod two_peers_of_one_organization_share_a_counter;
 mod typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here;
 mod undo_steps_back_through_what_this_peer_did;
 mod what_is_typed_is_found_through_the_workspaces_search_index;
+mod what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_sent_once;
 
 struct Editor<C: LiveEdit> {
     block: Uuid,

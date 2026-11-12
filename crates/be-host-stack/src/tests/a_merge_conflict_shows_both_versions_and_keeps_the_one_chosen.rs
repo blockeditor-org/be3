@@ -19,11 +19,11 @@ fn a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen() {
     wait_for_count(block, 0);
     add(block, 5);
     wait_for_count(block, 5);
-    flush();
+    flush_and_send();
     let ours = node(block).unwrap().head.unwrap();
     add(block, 2);
     wait_for_count(block, 7);
-    flush();
+    flush_and_send();
     let theirs = node(block).unwrap().head.unwrap();
     with_shared_mut(|shared| {
         shared
