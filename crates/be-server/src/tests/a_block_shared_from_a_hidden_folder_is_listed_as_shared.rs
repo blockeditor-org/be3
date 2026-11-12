@@ -13,7 +13,7 @@ async fn listed(client: &mut TestClient, shared: bool) -> Vec<Uuid> {
             )
         })
         .await;
-    let Ok(blocks) = response else {
+    let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
         panic!("listing failed: {response:?}");
     };
     let mut ids: Vec<Uuid> = blocks.into_iter().map(|block| block.id).collect();

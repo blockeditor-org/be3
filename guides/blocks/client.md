@@ -180,11 +180,19 @@ longer decodes is skipped on load.
 It keeps one summary per block, the newest revision winning, and a listing is
 the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
-block's `References` listing is what its summary references, so a seal or an
-offline commit after the listing was fetched shows; a child or deleted block
-shows only where its summary puts it, and backrefs are the summaries that
-reference the block. A summary is dropped only with the blocks `forget` drops,
-so one the server no longer lists stays until then.
+listing answers as the summaries place its blocks now:
+
+- a block's `References` are what its summary references, so a seal or an
+  offline commit after the listing was fetched shows;
+- its `Backrefs` are the summaries that reference it;
+- a block's `Children`, and the `Deleted` blocks, are those the listing held
+  that their summaries still put there, then those whose summaries put them
+  there and are newer than the revision the server answered the listing at
+  (`Refs::listed`, kept with the listing). So a block made online, moved in,
+  or pushed since the listing was fetched shows, and one moved away does not.
+
+A summary is dropped only with the blocks `forget` drops, so one the server no
+longer lists stays until then.
 
 `Peer::cached` builds a peer from it with no network, and `Peer::attach` hands
 it a signed-in connection later (after every reconnect), which opens the

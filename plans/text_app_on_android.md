@@ -44,15 +44,6 @@ not (its connections stay open and carry nothing), which is what blocking the po
 under a request is noticed once an early ping goes unanswered, about 25 s (`ANSWER_WAIT` plus
 `PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
 
-4. **Starting with no connection.** A device of a remote server restarted while it cannot reach
-   it shows Files at once (`resume_organization`) and lists My files with the block it made
-   (fix/offline-my-files); the blank window seen here was probably the `:dev` embedded server
-   blocked by the same rule. What is left: the text tab it had open is not reopened, offline or
-   unreachable alike, though an online restart reopens it. The session's view block opens at
-   the same head either way and neither journal holds anything, yet offline the tab's own view
-   block is never opened and the dock shows "No file open".
-   `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored until
-   then.
 5. **Version commands and merging still wait in the block store's loop.** Create, define, move
    and duplicate are kept on the device and sent by the drain, and the commands that need only
    the server run in a lane (guides/blocks/host.md). Version commands and merges read the server

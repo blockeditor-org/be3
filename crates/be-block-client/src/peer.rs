@@ -1230,10 +1230,10 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(self.listed_here(listing, block));
         }
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
-            Ok(blocks) => {
+            Ok(be_block_protocol::Listed { revision, blocks }) => {
                 let _ = self.refs.observe(&blocks);
                 let blocks = self.with_outbox(listing, blocks);
-                let _ = self.refs.set_listing(listing, &blocks);
+                let _ = self.refs.listed(listing, &blocks, revision);
                 Ok(blocks)
             }
             Err(error) if error.is_unreachable() => match self.refs.cached_listing(listing) {

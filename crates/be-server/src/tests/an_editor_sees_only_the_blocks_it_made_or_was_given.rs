@@ -8,7 +8,7 @@ async fn listed(client: &mut TestClient) -> Vec<(Uuid, Access)> {
         let response = client
             .call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent)))
             .await;
-        let Ok(blocks) = response else {
+        let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
             panic!("listing failed: {response:?}");
         };
         for block in blocks {
