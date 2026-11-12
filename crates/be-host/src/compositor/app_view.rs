@@ -76,6 +76,11 @@ pub(crate) type ChildView =
 #[derive(Clone, Copy)]
 struct Presented(Memo<bool>);
 
+/// The backdrop a view shows, for the views placed in it: one whose instance has reported no
+/// frame yet shows its placer's until it draws, never what is behind its placer.
+#[derive(Clone, Copy)]
+struct Behind(Memo<Option<beui::color::Color32>>);
+
 #[derive(Clone, Copy)]
 pub(crate) struct ChildFit(pub(crate) Memo<Option<Vec2>>);
 
@@ -443,16 +448,24 @@ pub(crate) fn AppView(
         });
         on_cleanup(move || super::desktop::forget_origin(&app_id.value(), instance, region.id));
     }
+    let behind = use_context::<Behind>();
     let state = create_memo(move || {
         revision.get();
-        be_host_runtime::placed_view(
+        let mut state = be_host_runtime::placed_view(
             &editor.app,
             instance,
             region.id,
             placed.with(Cell::get),
             view.get(),
-        )
+        );
+        if !state.reported && state.backdrop.is_none() {
+            state.backdrop = behind.and_then(|Behind(behind)| behind.get());
+        }
+        state
     });
+    provide_context(Behind(create_memo(move || {
+        state.with(|view| view.backdrop)
+    })));
     if shows_desktop {
         let key = (app_id.value().to_string(), instance, region.id);
         let held = key.clone();
