@@ -231,12 +231,7 @@ impl Guest for Exports {
         Box::pin(std::future::ready(()))
     }
 
-    fn draw(
-        &self,
-        now_micros: u64,
-        wall_micros: u64,
-        seen: bool,
-    ) -> LocalFuture<PresentCommit> {
+    fn draw(&self, now_micros: u64, wall_micros: u64, seen: bool) -> LocalFuture<PresentCommit> {
         let (sender, drawn) = oneshot();
         self.0.0.borrow_mut().draws.push_back(sender);
         self.0.push(Delivery::Draw {
@@ -363,9 +358,7 @@ impl GuestEditor for OpenEditor {
         Box::pin(std::future::ready(()))
     }
 
-    fn commit_creation(
-        &self,
-    ) -> LocalFuture<Result<[u8; 16], be_sdk_api::Failure>> {
+    fn commit_creation(&self) -> LocalFuture<Result<[u8; 16], be_sdk_api::Failure>> {
         let (sender, created) = oneshot();
         self.wire.call(self.instance, move |session| {
             sender.send(session.commit_creation())
@@ -377,10 +370,7 @@ impl GuestEditor for OpenEditor {
         })
     }
 
-    fn regenerate_artifact(
-        &self,
-        data: Vec<u8>,
-    ) -> LocalFuture<Result<(), be_sdk_api::Failure>> {
+    fn regenerate_artifact(&self, data: Vec<u8>) -> LocalFuture<Result<(), be_sdk_api::Failure>> {
         let (sender, regenerated) = oneshot();
         self.wire.call(self.instance, move |session| {
             session.regenerate_artifact(&data, sender)
@@ -392,11 +382,7 @@ impl GuestEditor for OpenEditor {
         })
     }
 
-    fn render_clip(
-        &self,
-        serial: u64,
-        format: String,
-    ) -> LocalFuture<Option<Vec<u8>>> {
+    fn render_clip(&self, serial: u64, format: String) -> LocalFuture<Option<Vec<u8>>> {
         let (sender, rendered) = oneshot();
         self.wire.call(self.instance, move |session| {
             session.render_clip(serial, &format, sender)
