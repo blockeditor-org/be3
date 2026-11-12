@@ -44,10 +44,7 @@ fn a_caret_stops_blinking_a_while_after_it_last_moved() {
         Duration::MAX,
         "after a while without moving, the caret asks for no more frames"
     );
-    assert!(
-        still.main().shapes() == shown,
-        "and stays shown"
-    );
+    assert!(still.main().shapes() == shown, "and stays shown");
 
     harness.frame(vec![Input::Text("x".to_owned())]);
     assert!(

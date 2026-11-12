@@ -555,10 +555,13 @@ impl Runner {
         };
         self.last_physical = Some(physical);
         if !self.held.is_empty() {
-            self.intake.incoming.splice(0..0, std::mem::take(&mut self.held));
+            self.intake
+                .incoming
+                .splice(0..0, std::mem::take(&mut self.held));
         }
         if !self.held_events.is_empty() {
-            self.events.splice(0..0, std::mem::take(&mut self.held_events));
+            self.events
+                .splice(0..0, std::mem::take(&mut self.held_events));
         }
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
