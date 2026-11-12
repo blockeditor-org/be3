@@ -7,7 +7,7 @@ fn a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives() 
     fresh_ids();
     let scope = Scope::new();
     let name = create_signal::<Ready<String>>(Err(Pending::Loading));
-    let effects = store(Cell::new(0));
+    let effects = StoredCell::new(0);
     let page = scope.run(|| {
         let fallback = |pending: Pending| match pending {
             Pending::Loading => view! {

@@ -427,7 +427,7 @@ impl DemoDialogs {
         let open = create_signal(Vec::new());
         Self {
             open,
-            next: store(std::cell::Cell::new(DIALOG_TABS)),
+            next: StoredCell::new(DIALOG_TABS),
         }
     }
 

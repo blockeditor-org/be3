@@ -346,8 +346,8 @@ fn live_text(
         Arc::new(Basic),
     );
     let stored = content.field(object, Entity::TEXT);
-    let adopted = store(Cell::new(false));
-    let fitted = store(Cell::new(0_u64));
+    let adopted = StoredCell::new(false);
+    let fitted = StoredCell::new(0_u64);
     create_effect(move || {
         area.content().get();
         let editing = editing.get();

@@ -7,7 +7,7 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
     let scope = Scope::new();
     let open = create_signal(true);
     let note = create_signal(0);
-    let runs = store(Cell::new(0));
+    let runs = StoredCell::new(0);
     let page = scope.run(|| {
         let text = create_memo(move || {
             runs.with(|runs| runs.set(runs.get() + 1));

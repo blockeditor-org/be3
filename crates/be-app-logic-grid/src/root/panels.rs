@@ -991,7 +991,7 @@ fn GraphCanvas(
     height: Memo<Size>,
     draw: Prop<Draw>,
 ) -> NodeId {
-    let hovered = store(Cell::new(None::<usize>));
+    let hovered = StoredCell::new(None::<usize>);
     let over = move |press: PointerPress| {
         let local = press.local;
         let shape = shape.get_untracked();
@@ -999,7 +999,7 @@ fn GraphCanvas(
             (local.x - center.x).abs() <= GRAPH_NODE_SIZE.x * 0.5
                 && (local.y - center.y).abs() <= GRAPH_NODE_SIZE.y * 0.5
         });
-        if hovered.value().replace(node) == node {
+        if hovered.replace(node) == node {
             return;
         }
         let mut hover = GraphHover::default();
@@ -1010,7 +1010,7 @@ fn GraphCanvas(
     };
     let left = move |inside: bool| {
         if !inside {
-            hovered.value().set(None);
+            hovered.set(None);
             session.graph_hover.set(GraphHover::default());
         }
     };
