@@ -9,8 +9,8 @@ fn a_search_index_is_compacted_by_the_device_that_writes_it() {
     let peer = std::sync::Arc::clone(&device.peer.borrow());
     let (root, index) = (Uuid::new_v4(), Uuid::new_v4());
     let words = [
-        "apple", "banana", "cherry", "damson", "elder", "fig", "grape", "hazel", "iris",
-        "juniper", "kiwi", "lemon",
+        "apple", "banana", "cherry", "damson", "elder", "fig", "grape", "hazel", "iris", "juniper",
+        "kiwi", "lemon",
     ];
     let notes: Vec<Uuid> = words.iter().map(|_| Uuid::new_v4()).collect();
     device.runtime.block_on(async {
@@ -54,9 +54,7 @@ fn a_search_index_is_compacted_by_the_device_that_writes_it() {
                 Ok(true),
                 "batch {n} is written"
             );
-            peer.drain(|_| false)
-                .await
-                .expect("the batch is published");
+            peer.drain(|_| false).await.expect("the batch is published");
         }
         let head = crate::search::head_of(peer.as_ref(), index)
             .await
@@ -79,7 +77,8 @@ fn a_search_index_is_compacted_by_the_device_that_writes_it() {
                     .map(|hit| Uuid::from_slice(&hit.doc.block).expect("a block id"))
                     .collect::<Vec<_>>(),
                 vec![*note],
-                "{} is found after compaction", words[n]
+                "{} is found after compaction",
+                words[n]
             );
         }
     });
