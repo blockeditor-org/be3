@@ -93,7 +93,7 @@ fn an_active_child_takes_the_frame_of_the_dock_view_holding_the_content() {
         occluders: Vec::new(),
     });
     assert_eq!(
-        instances.frame_child(INSTANCE),
+        instances.frame_child(INSTANCE).map(|(_, _, block)| block),
         Some(Uuid::from_bytes([1; 16])),
         "an active child there takes the frame"
     );

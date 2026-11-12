@@ -136,7 +136,10 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   from a picker (Press it, through `InputCaptureWatch`; Mouse; All keys, listed from
   `be_lib_remap::names`), with a typed name or code, read as the TOML reads it, as the fallback.
   A program group is picked from `OpenProgramsWatch` and `ProgramsWatch`; the TOML itself is
-  behind an "Edit as TOML" switch. Its module is `crates/be-lib-remap-module` (staged as `remapper.wasm`), which
+  behind an "Edit as TOML" switch. The picker is a card pointing at the control that opened it. A
+  new rule is `{ on = "", send = "" }`, nothing to nothing: a rule with nothing pressed reads and
+  does nothing until a key is picked, and `send = ""` (or `tap = ""`) sends nothing, which disables
+  what is pressed (`Action::NOTHING`). Its module is `crates/be-lib-remap-module` (staged as `remapper.wasm`), which
   runs `be-lib-remap`'s engine and text reader (`be_lib_remap::text`, key names in
   `be_lib_remap::names`). Rules can be scoped to a window by executable, program id or title.
 - **The protocol.** A module exports `memory`, `be_remap_buffer` and `be_remap_handle` and trades
@@ -148,7 +151,8 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   Super+L and Super+Escape never reach the module, and nothing does while the screen is locked, so a
   module can neither trap the session nor read the password.
 - **In the host.** be-host-desktop's `remap/linux.rs` fetches the module (only from an app with an
-  `InputRemapper` editor), reconfigures it when only the config changes, and caches the last module
+  `InputRemapper` editor), reconfigures it when only the config changes (the next input runs
+  the new rules), fetches it again with the next change if it could not be fetched or loaded, and caches the last module
   and config in its database so remapping works from the first input. The DRM platform passes input
   through the `InputFilter` on `InputControl` after the `WakeGate`, delivers its output as if
   libinput had sent it, and `InputControl::inject` carries changes made outside input (releases on
@@ -160,4 +164,7 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   remapper, by Linux input code, until the first chord, and keeps it from programs. The rules are
   `be_host_remap_host::capture`'s, and the WIT doc comment; `remap/linux.rs` starts a capture at
   each opening (`watches::openings`) and stops it once no watch is open. A new watch is never told
-  the chord an earlier one caught (`be_sdk_api::starts_anew`).
+  the chord an earlier one caught (`be_sdk_api::starts_anew`). But `watch_while`'s signal keeps the last chord after the
+  watch closes, so an editor acts only on a chord caught while it listens, and listens on past a
+  chord it cannot use by closing the watch for a frame and opening a new one (the picker does this
+  for a wheel turn as a key to send).
