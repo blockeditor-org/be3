@@ -20,6 +20,8 @@ enum Kind {
 struct Hand {
     now: Duration,
     sleepers: Vec<Waker>,
+    /// Whether a wait for something the clock's holder is not moving it for may move it on.
+    driven: bool,
 }
 
 impl Clock {
@@ -29,6 +31,24 @@ impl Clock {
 
     pub fn manual() -> Self {
         Self(Kind::Manual(Arc::default()))
+    }
+
+    /// A manual clock that a host test's waits may move on (`be_host_stack::wait_until`): to the
+    /// moment the stack waits on to reconnect, which no one else would move it to. `manual` is
+    /// for tests that move the clock themselves, where a wait must never do it.
+    pub fn driven() -> Self {
+        Self(Kind::Manual(Arc::new(Mutex::new(Hand {
+            driven: true,
+            ..Hand::default()
+        }))))
+    }
+
+    /// Whether a wait on the stack may move this clock on.
+    pub fn is_driven(&self) -> bool {
+        match &self.0 {
+            Kind::Real => false,
+            Kind::Manual(hand) => hand.lock().unwrap_or_else(PoisonError::into_inner).driven,
+        }
     }
 
     pub fn same(&self, other: &Clock) -> bool {

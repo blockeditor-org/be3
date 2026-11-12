@@ -151,8 +151,12 @@ shell when it changes; its sessions screen picks profile and session.
 
 A shell keeps its dock layout and recents in the session's view state. Every
 tab, and the file tree, is a view block child of the session that the layout
-references; closing a tab detaches its view. A tab on a block that is itself a
-view block uses it as its view.
+references. Closing a tab keeps its view among the session's closed views
+(`closed-views` view state, the 20 most recent, `saved::CLOSED_VIEWS`), and
+opening that block again in the editor the view names (`VIEW_EDITOR`) takes it
+back, so what the editor kept there (the text app's scroll position and caret)
+survives going back on a phone or a restart; a view pushed off the end is
+detached. A tab on a block that is itself a view block uses it as its view.
 
 ## View state
 
