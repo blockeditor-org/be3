@@ -1,5 +1,5 @@
-use be_sdk_api::{DialogAnswer, ViewChange};
 use be_sdk_api::shell_types::ShellMessage;
+use be_sdk_api::{DialogAnswer, ViewChange};
 use beui::Vec2;
 use beui::styled::Root;
 
