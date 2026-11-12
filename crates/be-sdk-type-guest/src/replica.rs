@@ -424,6 +424,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     base: Option<CommitId>,
     sealed: u64,
     sealed_state: Vec<u8>,
+    /// The sequence and session state the seal on its way holds, when the owner is alone and
+    /// keeps sequencing and journaling what is typed meanwhile (`journals_during_seal`).
+    sealing_through: Option<(u64, Vec<u8>)>,
     reload: bool,
     catching_up: bool,
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
@@ -637,6 +640,7 @@ where
             role: Role::Follower(Follower::new(opened.client)),
             projected: Settling::new(empty.clone(), Vec::new()),
             sealed_state: Vec::new(),
+            sealing_through: None,
             visible: empty.clone(),
             confirmed: empty,
             unsent: VecDeque::new(),
@@ -787,6 +791,15 @@ where
         self.tell_lacking();
         self.report();
         out.append(&mut self.out);
+    }
+
+    /// Whether what the owner's editors do while its seal is on the way is sequenced and
+    /// journaled at once, as at any other time, rather than held until the seal is answered: so
+    /// it is on this device whatever the server does. Only when the seal holds a known sequence
+    /// (`sealing_through`): with others in the session, who would hear the seal's older sequence
+    /// after the newer operations, and for a seal that restarts the session, it is held.
+    fn journals_during_seal(&self) -> bool {
+        self.sealing_through.is_some()
     }
 
     fn sealing_out(&self) -> bool {
@@ -1077,7 +1090,7 @@ where
     }
 
     fn unblocked(&mut self) {
-        if !(self.is_owner() && self.sealing_out()) {
+        if !(self.is_owner() && self.sealing_out() && !self.journals_during_seal()) {
             self.sequence_held();
         }
     }
@@ -1703,6 +1716,9 @@ where
     }
 
     fn answer_awaited(&mut self, event: HeadEvent) {
+        if !matches!(event, HeadEvent::Published { .. }) {
+            self.sealing_through = None;
+        }
         match (self.waiting.take(), event) {
             (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, held, .. }) => {
                 let sealing = matches!(then, AfterPublish::Seal { .. });
@@ -2175,11 +2191,12 @@ where
         let payload = C::encode_operation(&operation);
         let size = payload.len();
         let oversized = size > LARGEST_RELAYED_OPERATION;
-        if self.is_owner() && (oversized || self.sealing_out() || !self.held.is_empty()) {
+        let sealing = self.sealing_out() && !self.journals_during_seal();
+        if self.is_owner() && (oversized || sealing || !self.held.is_empty()) {
             self.lacking.add(payload, Until::Waiting);
             let first = self.held.is_empty();
             self.held.push_back(operation);
-            if first && !self.sealing_out() {
+            if first && !sealing {
                 self.sequence_held();
             }
             return true;
@@ -3407,6 +3424,12 @@ where
             );
         }
         self.restarting = self.restart_due();
+        self.sealing_through = match (&self.role, self.restarting || !self.alone()) {
+            (Role::Owner(sequencer), false) => {
+                Some((sequencer.sequence(), self.confirmed.session_state()))
+            }
+            _ => None,
+        };
         let content = self.written(&self.confirmed);
         self.publish(
             self.base,
@@ -3469,10 +3492,15 @@ where
         let Role::Owner(sequencer) = &mut self.role else {
             return;
         };
-        sequencer.sealed(head);
-        let sequence = sequencer.sequence();
+        let (sequence, state) = match self.sealing_through.take() {
+            Some(through) => through,
+            None => (sequencer.sequence(), self.confirmed.session_state()),
+        };
+        sequencer.sealed_through(head, sequence);
+        // What was sequenced while the seal was on its way: journaled again over the new base.
+        let after = sequencer.since(sequence);
         self.sealed = sequence;
-        self.sealed_state = self.confirmed.session_state();
+        self.sealed_state = state;
         self.owes_since = None;
         self.unappended.clear();
         self.append_at = None;
@@ -3485,6 +3513,9 @@ where
             }
             false => {
                 self.rebase_journal();
+                if let Some(from) = after.first().map(|op| op.sequence) {
+                    self.append(after, false, from);
+                }
                 std::mem::take(&mut self.reload).then(|| self.sealed_state.clone())
             }
         };

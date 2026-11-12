@@ -3,7 +3,6 @@ use super::*;
 /// Offline, an edit is saved on the device and waits to sync: the host says so, not that a save
 /// is taking long, and once the device is back it syncs with no error left over.
 #[test]
-#[ignore = "while a seal's publish waits on a silent server, the text module holds new edits out of the journal and stays unsettled"]
 fn an_edit_made_offline_reads_as_kept_on_the_device_and_syncs_without_an_error() {
     let server = Server::start();
     let dev = server.account("Dev");
@@ -13,17 +12,18 @@ fn an_edit_made_offline_reads_as_kept_on_the_device_and_syncs_without_an_error()
     phone.type_text("Recipes");
     phone.synced();
 
-    // Sealing waits for a pause in typing, as for a person, so the second edit comes while the
-    // first one's seal is out to a server that no longer answers.
-    phone.run(&["hurry", "off"]);
+    // A driven host seals each edit at once, so the second edit comes while the first one's seal
+    // waits on a server that no longer answers. The clock runs, as for a person, for the
+    // "Saving changes" toast, which shows once edits stay off the device for a few seconds.
+    phone.run(&["clock", "run"]);
     phone.unreachable();
     phone.run(&["--no-settle", "type", " for soup"]);
-    phone.pause(5_000);
     phone.run(&["--no-settle", "type", " and bread"]);
-    phone.pause(10_000);
+    phone.run(&["--no-settle", "pause", "6000"]);
+    let tree = phone.run(&["--no-settle", "tree"]);
     assert!(
-        !phone.shown("Saving changes"),
-        "an edit kept on the device is saved, offline or not"
+        !tree.contains("Saving changes"),
+        "an edit kept on the device is saved, offline or not:\n{tree}"
     );
     phone.online();
     phone.synced();

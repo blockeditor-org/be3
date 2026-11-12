@@ -196,8 +196,14 @@ impl Sequencer {
     }
 
     pub fn sealed(&mut self, head: CommitId) {
+        self.sealed_through(head, self.sequence);
+    }
+
+    /// `head` holds every operation through `sequence`: those sequenced after it, while the
+    /// commit was on its way, stay unsealed.
+    pub fn sealed_through(&mut self, head: CommitId, sequence: u64) {
         self.head = Some(head);
-        self.log.clear();
+        self.log.retain(|op| op.sequence > sequence);
         self.inherited = 0;
     }
 

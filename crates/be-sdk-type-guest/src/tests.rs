@@ -99,6 +99,7 @@ mod two_quick_edits_folded_into_one_append_are_both_held_by_it;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
+mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {
