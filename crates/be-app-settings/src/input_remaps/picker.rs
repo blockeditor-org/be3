@@ -191,7 +191,9 @@ pub(super) fn KeyPicker(
                             @test_id={"input-remaps.picker.nothing"}
                             on_click={move || pick.call(Picked::key(String::new()))}
                         />
-                        <Text style=TextStyle::CAPTION>"Sends nothing, so the key does nothing."</Text>
+                        <Text style=TextStyle::CAPTION>
+                            "Sends nothing, so the key does nothing."
+                        </Text>
                     </List>
                 </Show>
                 <TypedKey open={typing} typed={typed} wheel={wheel} pick={pick} />

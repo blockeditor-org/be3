@@ -23,10 +23,7 @@ fn listening_ends_when_its_picker_closes() {
         editor.shown("input-remaps.picker.stop"),
         "a wheel turn is no key to send, so it listens on"
     );
-    assert!(
-        editor.watches::<InputCaptureWatch>(),
-        "with a new capture"
-    );
+    assert!(editor.watches::<InputCaptureWatch>(), "with a new capture");
     assert_eq!(stored(&editor), CAPS_TO_ESCAPE);
 
     editor.key(Key::Escape, Modifiers::NONE);

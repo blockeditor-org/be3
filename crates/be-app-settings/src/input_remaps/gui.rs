@@ -3,10 +3,10 @@ use be_lib_remap::edit::{
 };
 use be_lib_remap::text;
 use be_sdk_beui::Editor;
-use be_sdk_beui::beui::{NodeId, NodeRef};
 use be_sdk_beui::beui::icons::{ICON_PENCIL, ICON_PLUS, ICON_TRASH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::{NodeId, NodeRef};
 
 use super::picker::{KeyPicker, Picked, Picking, Target};
 use super::programs::{ProgramDialog, Scope, Scoping};
