@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use beui_tree::reactive::{Callback, ClickCallback};
+use beui_tree::reactive::Callback;
 use beui_types::input::{ImeEvent, KeyPress, PointerInput, PointerPress, WheelInput};
 use beui_types::region::{Area, Claim};
 use beui_types::{ClipItem, Pos2, SoftKeyboard, Vec2};
@@ -13,19 +13,19 @@ pub use beui_types::forward::ForwardedInput;
 #[derive(Default)]
 pub struct Handlers {
     pub on_focus_change: Callback<bool>,
-    pub on_activate: ClickCallback,
+    pub on_activate: Callback<()>,
     pub on_key: Callback<KeyPress, bool>,
     pub on_text: Callback<String>,
     pub on_ime: Callback<ImeEvent>,
     pub on_paste: Callback<ClipItem>,
-    pub on_click: ClickCallback,
+    pub on_click: Callback<()>,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
     pub on_hover_move: Callback<PointerPress>,
     pub on_pointed_change: Callback<bool>,
     pub on_active_change: Callback<bool>,
-    pub on_cancel: ClickCallback,
-    pub on_middle_click: ClickCallback,
+    pub on_cancel: Callback<()>,
+    pub on_middle_click: Callback<()>,
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
     pub on_long_press_drag: Callback<PointerPress>,
@@ -480,7 +480,7 @@ mod web {
             self.pressed.set(None);
             self.handlers.on_active_change.call(false);
             if stage == PointerStage::Cancel {
-                self.handlers.on_cancel.call();
+                self.handlers.on_cancel.call(());
             }
         }
 
@@ -727,7 +727,7 @@ mod web {
                 });
                 if matches!(event.key().as_str(), "Enter" | " ") && held.activating.replace(false) {
                     held.handlers.on_activate_change.call(false);
-                    held.handlers.on_activate.call();
+                    held.handlers.on_activate.call(());
                     done = true;
                 }
                 handled(event, done);
@@ -894,7 +894,7 @@ mod web {
                 }
                 let clicks =
                     !held.handlers.on_click.is_empty() || !held.handlers.on_click_at.is_empty();
-                held.handlers.on_click.call();
+                held.handlers.on_click.call(());
                 if !held.handlers.on_click_at.is_empty() {
                     held.handlers.on_click_at.call(press(&element, event));
                 }
@@ -912,7 +912,7 @@ mod web {
                     return;
                 };
                 if event.button() == 1 && !held.handlers.on_middle_click.is_empty() {
-                    held.handlers.on_middle_click.call();
+                    held.handlers.on_middle_click.call(());
                     handled(event, true);
                 }
             }),

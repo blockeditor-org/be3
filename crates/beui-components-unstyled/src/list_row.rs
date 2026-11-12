@@ -15,8 +15,8 @@ pub fn ListRow(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] activates: bool,
     #[prop(children)] content: Render<ButtonHandle>,
-    on_click: ClickCallback,
-    on_activate: ClickCallback,
+    on_click: Callback<()>,
+    on_activate: Callback<()>,
 ) -> NodeId {
     let selected = create_memo(move || selected.get());
     let accessibility = create_memo(move || {
@@ -32,7 +32,7 @@ pub fn ListRow(
             on_click={on_click}
             on_click_at={move |press: PointerPress| {
                 if press.clicks >= 2 {
-                    on_activate.call();
+                    on_activate.call(());
                 }
             }}
             on_key={move |press: KeyPress| {
@@ -40,7 +40,7 @@ pub fn ListRow(
                     return false;
                 }
                 if press.pressed {
-                    on_activate.call();
+                    on_activate.call(());
                 }
                 true
             }}

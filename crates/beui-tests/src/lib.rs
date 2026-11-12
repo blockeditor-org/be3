@@ -221,7 +221,7 @@ pub fn Fixture(name: String) -> Root {
 }
 
 #[component]
-fn Button(id: &'static str, label: &'static str, on_click: ClickCallback) -> NodeId {
+fn Button(id: &'static str, label: &'static str, on_click: Callback<()>) -> NodeId {
     view! {
         <Interactive @test_id={id} focusable=true on_click={on_click}>
             <Frame fill={AMBER} padding={Sides::symmetric(12.0, 6.0)} radius={Corners::all(4.0)}>

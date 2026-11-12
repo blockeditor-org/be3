@@ -9,7 +9,7 @@ use beui_types::{Rect, Vec2};
 use crate::current::with_document;
 use crate::document::Document;
 use crate::node::{Element, FocusChild, NodeOf, Rects};
-use beui_tree::callback::{Callback, ClickCallback};
+use beui_tree::callback::Callback;
 use beui_types::NodeId;
 use std::ops::Range;
 
@@ -34,7 +34,7 @@ pub struct Focus {
     pub ime_text: Option<ImeText>,
     pub on_focus_change: Callback<bool>,
     pub on_activate_change: Callback<bool>,
-    pub on_activate: ClickCallback,
+    pub on_activate: Callback<()>,
     pub on_step: Callback<f32>,
     pub on_text: Callback<String>,
     pub pastes: Vec<String>,
@@ -61,7 +61,7 @@ impl Focus {
             ime_text: None,
             on_focus_change: Callback::empty(),
             on_activate_change: Callback::empty(),
-            on_activate: ClickCallback::empty(),
+            on_activate: Callback::empty(),
             on_step: Callback::empty(),
             on_text: Callback::empty(),
             pastes: Vec::new(),
@@ -722,7 +722,7 @@ impl Document {
         }
         let on_activate = focus_of(self.arena.get(id)).map(|node| node.on_activate);
         if let Some(on_activate) = on_activate {
-            on_activate.call();
+            on_activate.call(());
         }
     }
 

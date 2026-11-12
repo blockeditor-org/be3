@@ -90,18 +90,14 @@ pub fn TextContextMenu(
             on_toolbar_close={move || requested.set(None)}
             items={view! {
                 <ForEach keys={actions}>|action: MenuAction|
-                    <MenuItem label={action.label().to_owned()} />
+                    <MenuItem
+                        label={action.label().to_owned()}
+                        on_click={move || {
+                            state.focus();
+                            run(&state, action);
+                        }}
+                    />
                 </ForEach>
-            }}
-            on_select={move |path: Vec<usize>| {
-                let Some(action) = path
-                    .first()
-                    .and_then(|index| actions.get_untracked().get(*index).copied())
-                else {
-                    return;
-                };
-                state.focus();
-                run(&state, action);
             }}
         >
             {content.call(open)}

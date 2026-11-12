@@ -12,7 +12,7 @@ use beui_types::{Pos2, Rect, Vec2};
 
 use crate::document::Document;
 use crate::node::{Element, NodeOf, Rects};
-use beui_tree::callback::{Callback, ClickCallback};
+use beui_tree::callback::Callback;
 use beui_types::NodeId;
 
 pub struct InteractiveNode {
@@ -35,14 +35,14 @@ pub struct InteractiveNode {
     pub hover_pos: Option<Pos2>,
     pub pointed: bool,
     pub active: bool,
-    pub on_click: ClickCallback,
+    pub on_click: Callback<()>,
     pub on_click_at: Callback<PointerPress>,
     pub on_hover_change: Callback<bool>,
     pub on_hover_move: Callback<PointerPress>,
     pub on_pointed_change: Callback<bool>,
     pub on_active_change: Callback<bool>,
-    pub on_cancel: ClickCallback,
-    pub on_middle_click: ClickCallback,
+    pub on_cancel: Callback<()>,
+    pub on_middle_click: Callback<()>,
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
     pub on_long_press_drag: Callback<PointerPress>,
@@ -87,14 +87,14 @@ impl InteractiveNode {
             hover_pos: None,
             pointed: false,
             active: false,
-            on_click: ClickCallback::empty(),
+            on_click: Callback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
             on_hover_move: Callback::empty(),
             on_pointed_change: Callback::empty(),
             on_active_change: Callback::empty(),
-            on_cancel: ClickCallback::empty(),
-            on_middle_click: ClickCallback::empty(),
+            on_cancel: Callback::empty(),
+            on_middle_click: Callback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
             on_long_press_drag: Callback::empty(),

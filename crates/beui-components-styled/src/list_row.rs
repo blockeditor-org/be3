@@ -20,8 +20,8 @@ pub fn ListRow(
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = RowSize::Compact)] size: RowSize,
-    on_click: ClickCallback,
-    on_activate: ClickCallback,
+    on_click: Callback<()>,
+    on_activate: Callback<()>,
     children: Option<Child>,
 ) -> NodeId {
     let activates = !on_activate.is_empty();

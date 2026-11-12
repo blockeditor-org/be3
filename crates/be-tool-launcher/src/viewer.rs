@@ -95,10 +95,10 @@ pub(crate) fn ViewerBar(
     position: Prop<String>,
     first: Prop<bool>,
     last: Prop<bool>,
-    on_previous: ClickCallback,
-    on_next: ClickCallback,
-    on_browse: ClickCallback,
-    on_close: ClickCallback,
+    on_previous: Callback<()>,
+    on_next: Callback<()>,
+    on_browse: Callback<()>,
+    on_close: Callback<()>,
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>

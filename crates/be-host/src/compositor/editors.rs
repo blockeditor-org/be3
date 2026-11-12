@@ -10,6 +10,7 @@ use be_sdk_api::{
     EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
     View, ViewId,
 };
+use beui::KeyPhase;
 use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
@@ -582,7 +583,7 @@ struct TabContext {
     stack: Memo<Vec<Uuid>>,
     top_bar: Prop<TopBar>,
     portals: Signal<Vec<(Uuid, NodeId)>>,
-    exit: ClickCallback,
+    exit: Callback<()>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -848,7 +849,7 @@ fn ConflictPreview(preview: Uuid) -> NodeId {
 }
 
 fn stop_on_escape(overlay: NodeRef) {
-    on_global_key(move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
         if event.held() {
             return true;
         }
@@ -958,7 +959,7 @@ fn FrameStack(
         stack
     });
     let portals = create_signal(Vec::<(Uuid, NodeId)>::new());
-    let exit = ClickCallback::new(move || {
+    let exit = Callback::new(move |()| {
         let stack = stack.get_untracked();
         let parent = match stack.len() {
             0 | 1 => block,
@@ -1399,7 +1400,7 @@ fn BlockFrameView(
         create_effect(move || {
             revision.get();
             if be_host_runtime::take_leaving(&app_id.value(), instance) {
-                tab.exit.call();
+                tab.exit.call(());
             }
         });
     }

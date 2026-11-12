@@ -13,7 +13,7 @@ pub(crate) struct DialogParts {
     pub(crate) size: Memo<Vec2>,
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
-    pub(crate) on_close: Option<ClickCallback>,
+    pub(crate) on_close: Option<Callback<()>>,
     pub(crate) content: RenderFn<()>,
 }
 
@@ -108,7 +108,7 @@ pub(crate) enum EntryKind<K: 'static> {
         title: Memo<String>,
         icon: Memo<Option<Glyph>>,
         picture: Memo<Option<Image>>,
-        on_close: Option<ClickCallback>,
+        on_close: Option<Callback<()>>,
         back_closes: bool,
         see_through: bool,
         group: Memo<Option<String>>,
@@ -211,7 +211,7 @@ pub fn DockDialog<K>(
     size: Prop<Vec2>,
     #[prop(default = false)] modal: Prop<bool>,
     #[prop(default = false)] dismiss_on_outside_press: Prop<bool>,
-    on_close: Option<ClickCallback>,
+    on_close: Option<Callback<()>>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockNode<K>
 where
@@ -273,7 +273,7 @@ pub fn DockTab<K>(
     title: Prop<String>,
     #[prop(default = None)] icon: Prop<Option<Glyph>>,
     #[prop(default = None)] picture: Prop<Option<Image>>,
-    on_close: Option<ClickCallback>,
+    on_close: Option<Callback<()>>,
     #[prop(default = true)] back_closes: bool,
     #[prop(default = false)] see_through: bool,
     #[prop(default = None)] group: Prop<Option<String>>,

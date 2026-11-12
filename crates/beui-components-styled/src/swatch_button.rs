@@ -15,7 +15,7 @@ pub fn SwatchButton(
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = Radius::Full)] radius: Radius,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     view! {
         <unstyled::Button label icon_only=true disabled on_click={on_click}>|handle|

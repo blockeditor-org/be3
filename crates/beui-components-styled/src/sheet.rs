@@ -29,7 +29,7 @@ pub fn Sheet(
     #[prop(default = SHEET_STOPS[1])] rest: f32,
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
-    on_close: ClickCallback,
+    on_close: Callback<()>,
     children: Child,
 ) -> NodeId {
     view! {
@@ -59,7 +59,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS[2])] rest: f32,
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
-    on_close: ClickCallback,
+    on_close: Callback<()>,
     #[prop(children)] content: Render,
 ) -> NodeId {
     let theme = crate::theme::use_theme();

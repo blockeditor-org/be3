@@ -93,36 +93,29 @@ pub fn ChoicesFixture() -> NodeId {
     }
 }
 
-fn path_label(path: &[usize]) -> &'static str {
-    match path {
-        [0] => "Copy",
-        [1, 0] => "Email",
-        [1, 1] => "Link",
-        [2] => "Delete",
-        _ => "something else",
-    }
-}
-
 #[component]
 pub fn MenusFixture() -> NodeId {
     let chosen = create_signal(String::from("nothing"));
     let fruit = create_signal(Some(0_usize));
     let report = create_memo(move || format!("Chose {} fruit {:?}", chosen.get(), fruit.get()));
-    let choose = move |path: Vec<usize>| chosen.set(path_label(&path).to_owned());
+    let choose = move |what: &str| chosen.set(what.to_owned());
     view! {
         <List spacing=Space::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <MenuButton
                     label="Actions"
                     items={view! {
-                        <MenuItem label="Copy" />
+                        <MenuItem label="Copy" on_click={move || choose("Copy")} />
                         <MenuItem label="Share">
-                            <MenuItem label="Email" />
-                            <MenuItem label="Link" />
+                            <MenuItem label="Email" on_click={move || choose("Email")} />
+                            <MenuItem label="Link" on_click={move || choose("Link")} />
                         </MenuItem>
-                        <MenuItem label="Delete" separated=true />
+                        <MenuItem
+                            label="Delete"
+                            separated=true
+                            on_click={move || choose("Delete")}
+                        />
                     }}
-                    on_select={choose}
                 />
                 <Select
                     options={view! {
@@ -137,14 +130,13 @@ pub fn MenusFixture() -> NodeId {
             </List>
             <ContextMenu
                 items={view! {
-                    <MenuItem label="Copy" />
+                    <MenuItem label="Copy" on_click={move || choose("Copy")} />
                     <MenuItem label="Share">
-                        <MenuItem label="Email" />
-                        <MenuItem label="Link" />
+                        <MenuItem label="Email" on_click={move || choose("Email")} />
+                        <MenuItem label="Link" on_click={move || choose("Link")} />
                     </MenuItem>
-                    <MenuItem label="Delete" separated=true />
+                    <MenuItem label="Delete" separated=true on_click={move || choose("Delete")} />
                 }}
-                on_select={choose}
             >
                 <Card @test_id="menus.card">
                     <List spacing=Space::Md>
@@ -171,15 +163,20 @@ pub fn LongMenusFixture() -> NodeId {
                     label="Long"
                     items={view! {
                         <ForEach keys={rows}>|row: u32|
-                            <MenuItem label={format!("Item {row}")} />
+                            <MenuItem
+                                label={format!("Item {row}")}
+                                on_click={move || chosen.set(vec![row as usize - 1])}
+                            />
                         </ForEach>
                         <MenuItem label="Item 24">
                             <ForEach keys={subrows}>|row: u32|
-                                <MenuItem label={format!("Sub {row}")} />
+                                <MenuItem
+                                    label={format!("Sub {row}")}
+                                    on_click={move || chosen.set(vec![23, row as usize - 1])}
+                                />
                             </ForEach>
                         </MenuItem>
                     }}
-                    on_select={move |path: Vec<usize>| chosen.set(path)}
                 />
             </List>
             <Text>{report}</Text>
