@@ -2633,12 +2633,12 @@ impl<H: Host> Replicas<H> {
                         expected,
                     )
                     .described(content.references, content.derived)
-                    .sealed_through(sealed_through.map(|(generation, sequence)| {
-                        be_block_commit::SealedThrough {
+                    .sealed_through(sealed_through.map(
+                        |(generation, sequence)| be_block_commit::SealedThrough {
                             generation,
                             sequence,
-                        }
-                    }));
+                        },
+                    ));
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
                     }
