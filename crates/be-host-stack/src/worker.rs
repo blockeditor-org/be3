@@ -1004,7 +1004,11 @@ impl Session<'_> {
         loop {
             if stopping && (self.uploads.is_empty() || !self.line.is_up()) {
                 #[cfg(any(test, feature = "testing"))]
-                if shared.lock().unwrap_or_else(PoisonError::into_inner).crashed {
+                if shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .crashed
+                {
                     return;
                 }
                 self.replicas.keep_all((peer, shared)).await;
