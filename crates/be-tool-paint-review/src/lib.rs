@@ -81,6 +81,7 @@ fn PaintReview(
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Capture,
+        KeyReveal::Focus,
         move |event: KeyEvent| event.press().is_some_and(|press| shortcut(review, press)),
     );
     let loading = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Loading)));

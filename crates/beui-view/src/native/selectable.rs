@@ -930,7 +930,7 @@ pub(crate) fn selectable(
             state.paint();
         });
     });
-    on_key(KeyAt::Node(focusable), KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Node(focusable), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         event.press().is_some_and(|press| {
             key(
                 state,

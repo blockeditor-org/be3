@@ -137,7 +137,7 @@ pub(crate) fn FrameChrome(
     });
     provide_context(crate::popover::PopoverWindow(shown_in));
     let escaping = exit_writer.clone();
-    on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Window, KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         let escaped = event
             .press()
             .is_some_and(|press| press.pressed && press.key == Key::Escape);

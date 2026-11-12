@@ -68,7 +68,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         },
     };
     let overlay = NodeRef::new();
-    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event: KeyEvent| {
         if event.held() {
             return true;
         }

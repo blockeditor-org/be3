@@ -38,7 +38,7 @@ impl Renaming {
                 untrack(|| renaming.start(key));
             }
         });
-        on_key(KeyAt::Window, KeyPhase::Capture, move |event| {
+        on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event| {
             let confirms = event
                 .press()
                 .is_some_and(|press| press.pressed && press.key == Key::Enter)

@@ -68,7 +68,7 @@ pub fn ContextMenu(
         },
         None => OverlayAnchor::Node(holder),
     });
-    on_key(KeyAt::Control(holder), KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Control(holder), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         let Some(press) = event.press() else {
             return false;
         };

@@ -849,7 +849,7 @@ fn ConflictPreview(preview: Uuid) -> NodeId {
 }
 
 fn stop_on_escape(overlay: NodeRef) {
-    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event: KeyEvent| {
         if event.held() {
             return true;
         }

@@ -248,6 +248,7 @@ pub fn DialogBody(
     on_key(
         KeyAt::Node(component_node()),
         KeyPhase::Bubble,
+        KeyReveal::Focus,
         move |event| {
             event.press().is_some_and(|press| {
                 press.key == Key::Enter

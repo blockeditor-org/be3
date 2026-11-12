@@ -54,7 +54,7 @@ pub(crate) fn selectable(
         beui_core_html::document::set_style(region, property, Some("text".to_owned()));
     }
     state.0.fill(region);
-    on_key(KeyAt::Node(state.0), KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Node(state.0), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         event.press().is_some_and(|press| {
             if copy_key
                 .get_untracked()

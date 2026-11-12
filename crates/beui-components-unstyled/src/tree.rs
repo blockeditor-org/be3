@@ -644,7 +644,7 @@ pub fn TreeRowEditor(
     };
     let field = NodeRef::new();
     let escape = once.clone();
-    on_key(KeyAt::Node(field), KeyPhase::Capture, move |event| {
+    on_key(KeyAt::Node(field), KeyPhase::Capture, KeyReveal::Focus, move |event| {
         let escaped = event
             .press()
             .is_some_and(|press| press.pressed && press.key == Key::Escape);

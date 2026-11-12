@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use crate::types::{BackGesture, Direction, KeyAt, KeyEvent, KeyPhase, NodeId, NodeRef};
+use crate::types::{BackGesture, Direction, KeyAt, KeyEvent, KeyPhase, KeyReveal, NodeId, NodeRef};
 use beui_tree::reactive::*;
 
 use beui_core::document::Document;
@@ -68,8 +68,13 @@ pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     })
 }
 
-pub(crate) fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
-    listen(at, phase, true, handler);
+pub(crate) fn on_key(
+    at: KeyAt,
+    phase: KeyPhase,
+    reveal: KeyReveal,
+    handler: impl Fn(KeyEvent) -> bool + 'static,
+) {
+    listen(at, phase, reveal == KeyReveal::Focus, handler);
 }
 
 pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(BackGesture) + 'static) {
@@ -84,14 +89,6 @@ pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(BackGesture) + 'stat
     on_cleanup(move || {
         try_with_document(|document| document.remove_back_handler(id));
     });
-}
-
-pub(crate) fn on_scroll_key(
-    at: KeyAt,
-    phase: KeyPhase,
-    handler: impl Fn(KeyEvent) -> bool + 'static,
-) {
-    listen(at, phase, false, handler);
 }
 
 fn listen(at: KeyAt, phase: KeyPhase, reveal: bool, handler: impl Fn(KeyEvent) -> bool + 'static) {
@@ -128,7 +125,7 @@ pub(crate) fn to_host(window: crate::types::WindowId) -> Option<crate::types::Ho
 }
 
 pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<Direction>) {
-    on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Node(row), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         let Some(press) = event.press() else {
             return false;
         };

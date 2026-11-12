@@ -187,12 +187,10 @@ host queues settled events per app. The calls stay `local`
   and the hand-drawn `focus_ring(..)` + accent border copies (`TileButton`,
   `SwatchButton`, tree, treemap, colour picker); `FocusRing` becomes a `Frame`
   with `focus`. Paintings change; accept them after looking.
-- Key listeners (left): `on_global_key` is gone (it was `on_key(KeyAt::Window,
-  KeyPhase::Capture, …)`). `on_scroll_key`'s "don't reveal focus" should be an
-  option of `on_key` (the listener already carries a `reveal` flag; the two
-  callers are `SearchList` and the scroll catcher), and `on_shortcut` users
-  (the logic grid's key table, the demo, tests) should move to actions.
-  Update guides/beui_keyboard.md when they do.
+- Key listeners (left): `on_global_key` and `on_scroll_key` are gone (`on_key`
+  takes a `KeyReveal`). `on_shortcut` users (the logic grid's key table, the
+  demo, tests) should move to actions. Update guides/beui_keyboard.md when
+  they do.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
   non-`Copy` values (a callback, a state struct) or read the cell with

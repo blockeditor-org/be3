@@ -6,7 +6,7 @@ use crate::reactive::*;
 #[component]
 fn Holder(heard: Signal<Vec<bool>>) -> NodeId {
     let owned = store(Key::I);
-    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event: KeyEvent| {
         let key = owned.with(|key| *key);
         let Some(press) = event.press().filter(|press| press.key == key) else {
             return false;

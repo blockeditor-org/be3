@@ -109,7 +109,7 @@ pub(crate) fn HostPalette(
         }
         open.set(true);
     };
-    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event: KeyEvent| {
         let KeyInput::Press(press) = event.input else {
             return false;
         };

@@ -190,7 +190,7 @@ fn AnchoredPopover(
         PickAnchor::Node(node) => Some(node),
         PickAnchor::Centre | PickAnchor::Rect(_) => None,
     };
-    on_key(KeyAt::Host, KeyPhase::Capture, move |event| {
+    on_key(KeyAt::Host, KeyPhase::Capture, KeyReveal::Focus, move |event| {
         let escaped = event
             .press()
             .is_some_and(|press| press.pressed && press.key == Key::Escape);

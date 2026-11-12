@@ -53,7 +53,7 @@ pub use input::{
     DroppedFile, Event, FileDrag, Input, KeyChord, Keyboard, Keystroke, Pen, PenPhase,
     PointerEvent, PointerPhase, ScrollDelta, TouchId, TouchPhase, TouchpadGesture,
 };
-pub use keys::{KeyAt, KeyEvent, KeyInput, KeyTarget};
+pub use keys::{KeyAt, KeyEvent, KeyInput, KeyReveal, KeyTarget};
 pub use layer::{
     AboveEmbeds, Dismiss, EscapedLayer, HostTransform, LayerEdge, LayerLevel, LayerPlacement,
     LayerPolicy, LayerSpace, OverlayAnchor, Placement,

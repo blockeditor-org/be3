@@ -67,7 +67,7 @@ pub(crate) fn AppDialog(
         modal,
         dismiss,
     }));
-    on_key(KeyAt::Root, KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Root, KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         let escape = event
             .press()
             .is_some_and(|press| press.key == Key::Escape && press.pressed && !press.repeat);

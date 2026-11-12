@@ -1289,7 +1289,7 @@ where
                 .retain(|(_, node, _)| *node != glide)
         });
     });
-    on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Node(row), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         let Some(press) = event.press() else {
             return false;
         };

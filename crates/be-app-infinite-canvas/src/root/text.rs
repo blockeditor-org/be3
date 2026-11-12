@@ -242,7 +242,7 @@ pub(crate) fn EntityText(
             }
         });
     });
-    on_key(KeyAt::Node(field), KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Node(field), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         let escaped = event
             .press()
             .is_some_and(|press| press.pressed && press.key == Key::Escape);

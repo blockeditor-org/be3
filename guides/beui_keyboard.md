@@ -75,7 +75,7 @@ for a paste after the trip, only if nothing took the key.
 
 Answering a key scrolls the focus into view. A handler that reveals something
 else (a `SearchList` row it highlights while the field keeps the focus)
-registers with `on_scroll_key`, or the core's reveal of the focus overrides its
+registers with `KeyReveal::Nothing` (the third argument of `on_key`), or the core's reveal of the focus overrides its
 own.
 
 **Holding.** Whatever takes a press holds that key: a capture listener gets its

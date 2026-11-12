@@ -109,7 +109,7 @@ pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
         move |()| host.close_dialog(DialogAnswer::Accepted)
     });
     let dismiss = Callback::new(move |()| host.close_dialog(DialogAnswer::Dismissed));
-    on_key(KeyAt::Window, KeyPhase::Capture, move |event| {
+    on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, move |event| {
         let escaped = event
             .press()
             .is_some_and(|press| press.pressed && press.key == Key::Escape);

@@ -74,7 +74,12 @@ pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     beui_core_html::focus::holds_focus(node)
 }
 
-pub(crate) fn on_key(at: KeyAt, phase: KeyPhase, handler: impl Fn(KeyEvent) -> bool + 'static) {
+pub(crate) fn on_key(
+    at: KeyAt,
+    phase: KeyPhase,
+    _reveal: KeyReveal,
+    handler: impl Fn(KeyEvent) -> bool + 'static,
+) {
     let handler: Rc<KeyHandler> = Rc::new(handler);
     beui_core_html::keys::listen(at, phase, handler);
 }
@@ -113,14 +118,6 @@ pub(crate) fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
 pub(crate) use beui_core_html::frame::after_input;
 pub(crate) use beui_core_html::page::touched_by_finger;
 
-pub(crate) fn on_scroll_key(
-    at: KeyAt,
-    phase: KeyPhase,
-    handler: impl Fn(KeyEvent) -> bool + 'static,
-) {
-    on_key(at, phase, handler);
-}
-
 pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(crate::types::BackGesture) + 'static) {
     let at = try_current_component().map(|_| beui_core_html::tree::component_node());
     let id = beui_core_html::back::add(at, enabled.get_untracked(), Callback::new(handler));
@@ -143,7 +140,7 @@ pub(crate) fn to_host(_window: crate::types::WindowId) -> Option<crate::types::H
 }
 
 pub(crate) fn arrow_focus(row: NodeRef, direction: Prop<crate::types::Direction>) {
-    on_key(KeyAt::Node(row), KeyPhase::Bubble, move |event| {
+    on_key(KeyAt::Node(row), KeyPhase::Bubble, KeyReveal::Focus, move |event| {
         let Some(press) = event.press() else {
             return false;
         };
