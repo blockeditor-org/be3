@@ -9,6 +9,7 @@ use beui::reactive::*;
 use beui::styled;
 use beui::styled::{Window, WindowHandle};
 use beui::{Pos2, pos2};
+use be_sdk_beui_platform_api::Report;
 use beui_core::document::Document;
 
 use std::any::Any;
@@ -36,6 +37,7 @@ mod a_window_the_program_floats_inside_a_view_stays_in_that_view;
 mod a_window_the_program_opens_is_painted_in_the_frame_that_opens_it;
 mod a_zoomed_out_views_menu_paints_all_of_itself;
 mod an_anchored_view_left_empty_keeps_a_finite_place;
+mod an_overlay_brings_only_what_it_draws_not_the_views_clear_color;
 mod each_view_reads_its_own_viewport_size;
 mod every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it;
 
@@ -113,6 +115,8 @@ struct Windowed {
     document: Rc<RefCell<Option<Document>>>,
     views: Option<Views>,
     requested: OwnedSignal<Vec<View>>,
+    /// Each view's window, once built, when the program reports its overlays as an app's does.
+    reported: Option<Rc<RefCell<Vec<(ViewRef, beui::WindowId)>>>>,
 }
 
 impl Windowed {
@@ -123,6 +127,7 @@ impl Windowed {
             document: Rc::default(),
             views: None,
             requested: OwnedSignal::new(Vec::new()),
+            reported: None,
         }
     }
 
@@ -136,6 +141,12 @@ impl Windowed {
 
     fn hooked(mut self, hook: impl FnMut(&Context) + 'static) -> Self {
         self.hook = Some(Box::new(hook));
+        self
+    }
+
+    /// Reports where each view's overlays paint, as be-sdk-beui does for an app's views.
+    fn reporting(mut self) -> Self {
+        self.reported = Some(Rc::default());
         self
     }
 
@@ -162,6 +173,7 @@ impl Program for Windowed {
         let mut held = self.document.borrow_mut();
         let requested = self.requested.read_only();
         let content = Rc::clone(&self.content);
+        let reported = self.reported.clone();
         let document = held.get_or_insert_with(move || {
             build(move || {
                 let keys = create_memo(move || {
@@ -182,6 +194,7 @@ impl Program for Windowed {
                                     requested
                                     views={views.clone()}
                                     content={Rc::clone(&content)}
+                                    reported={reported.clone()}
                                 />
                             </ForEach>
                         </styled::List>
@@ -191,6 +204,16 @@ impl Program for Windowed {
         });
         with_reactive_scope(document, || {});
         document.show(context, rect);
+        let reporting = self.views.as_ref().expect("set up before the first frame");
+        for (id, window) in self.reported.iter().flat_map(|held| held.borrow().clone()) {
+            reporting.report(
+                id,
+                Report {
+                    floating_painted: document.overlay_painted_rects(window),
+                    ..Report::default()
+                },
+            );
+        }
         drop(held);
         if let Some(hook) = &mut self.hook {
             hook(context);
@@ -199,7 +222,13 @@ impl Program for Windowed {
 }
 
 #[component]
-fn Shown(id: ViewRef, requested: ReadSignal<Vec<View>>, views: Views, content: Content) -> NodeId {
+fn Shown(
+    id: ViewRef,
+    requested: ReadSignal<Vec<View>>,
+    views: Views,
+    content: Content,
+    reported: Option<Rc<RefCell<Vec<(ViewRef, beui::WindowId)>>>>,
+) -> NodeId {
     let size = create_memo(move || {
         requested.with(|views| {
             views
@@ -209,7 +238,10 @@ fn Shown(id: ViewRef, requested: ReadSignal<Vec<View>>, views: Views, content: C
         })
     });
     view! {
-        <Window size={size} placement={views.placement(id)}>|_window: WindowHandle| {
+        <Window size={size} placement={views.placement(id)}>|window: WindowHandle| {
+            if let Some(reported) = &reported {
+                reported.borrow_mut().push((id, window.id));
+            }
             content(id)
         }</Window>
     }
