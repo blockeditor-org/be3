@@ -1,9 +1,8 @@
 use super::*;
 use crate::unstyled::{TextArea, TextAreaState};
-use beui_text_editor_core::TextBuffer;
 use beui_core::base::text::CARET_BLINKS_FOR;
+use beui_text_editor_core::TextBuffer;
 use std::sync::Arc;
-
 
 #[test]
 fn a_caret_stops_blinking_a_while_after_it_last_moved() {
