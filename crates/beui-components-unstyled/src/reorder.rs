@@ -1118,7 +1118,7 @@ pub fn ReorderItem<K, P>(
     item: Prop<K>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     #[prop(children)] content: Render<ReorderItemHandle>,
 ) -> NodeId
 where
@@ -1229,7 +1229,7 @@ where
     };
     let clicked = move |_: PointerPress| {
         if state.with(|state| state.lifted.with_untracked(Option::is_none)) {
-            on_click.call();
+            on_click.call(());
         }
     };
     let across = create_memo(move || match draggable.get() {

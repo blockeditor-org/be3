@@ -38,8 +38,8 @@ pub struct TextInputHandle {
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
     pub empty: Memo<bool>,
-    pub clear: ClickCallback,
-    pub copy: ClickCallback,
+    pub clear: Callback<()>,
+    pub copy: Callback<()>,
 }
 
 #[derive(Clone, Copy)]
@@ -174,10 +174,10 @@ pub fn TextInput(
         edited.get();
         text_of(state).is_empty()
     });
-    let clear = ClickCallback::new(move || {
+    let clear = Callback::new(move |()| {
         state.execute(EditorCommand::ReplaceWholeFile(b""));
     });
-    let copy = ClickCallback::new(move || beui_view::reactive::copy(Clip::text(text_of(state))));
+    let copy = Callback::new(move |()| beui_view::reactive::copy(Clip::text(text_of(state))));
     let content_changed = state.content();
     create_effect(move || {
         content_changed.get();
@@ -204,13 +204,13 @@ pub fn TextInput(
     let accessibility = crate::labelled_node(role, accessibility, label);
     let form = crate::form::form_submit();
     let submit = match (on_submit.is_empty(), form) {
-        (true, None) => ClickCallback::empty(),
-        _ => ClickCallback::new(move || {
+        (true, None) => Callback::empty(),
+        _ => Callback::new(move |()| {
             on_submit.call(text_of(state));
             if let Some(form) = form
                 && !browser
             {
-                form.call();
+                form.call(());
             }
         }),
     };
@@ -241,10 +241,9 @@ pub fn TextInput(
                 }}
             />
         };
-        let clear = ClickCallback::new(move || value.set(String::new()));
-        let copy = ClickCallback::new(move || {
-            beui_view::reactive::copy(Clip::text(value.get_untracked()))
-        });
+        let clear = Callback::new(move |()| value.set(String::new()));
+        let copy =
+            Callback::new(move |()| beui_view::reactive::copy(Clip::text(value.get_untracked())));
         return match content {
             Some(build) => build.call(TextInputHandle {
                 field,

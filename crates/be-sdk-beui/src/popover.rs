@@ -37,7 +37,7 @@ pub(crate) fn ChildPopover(
     sized: Memo<bool>,
     testing: &'static str,
     on_state: Callback<ChildState>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
 ) -> NodeId {
     let ready = create_memo(move || shown == Shown::Sheet || sized.get());
     let window = match anchor {
@@ -77,7 +77,7 @@ pub(crate) fn ChildPopover(
                 open=true
                 on_dismiss={move |why: Dismiss| {
                     if matches!(why, Dismiss::Escape | Dismiss::Back) {
-                        on_dismiss.call();
+                        on_dismiss.call(());
                     }
                 }}
             >
@@ -110,7 +110,7 @@ fn AnchoredPopover(
     size: Memo<Vec2>,
     ready: Memo<bool>,
     room_out: Signal<Option<Vec2>>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
 ) -> NodeId {
     let viewport = create_memo(move || {
         beui::native::try_with_document(|document| {
@@ -195,7 +195,7 @@ fn AnchoredPopover(
             .press()
             .is_some_and(|press| press.pressed && press.key == Key::Escape);
         if escaped {
-            on_dismiss.call();
+            on_dismiss.call(());
         }
         escaped
     });
@@ -210,7 +210,7 @@ fn AnchoredPopover(
             open=true
             on_dismiss={move |why: Dismiss| {
                 if matches!(why, Dismiss::OutsidePress | Dismiss::Escape | Dismiss::Back) {
-                    on_dismiss.call();
+                    on_dismiss.call(());
                 }
             }}
         >

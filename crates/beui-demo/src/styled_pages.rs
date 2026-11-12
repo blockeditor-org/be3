@@ -1949,32 +1949,41 @@ fn CardMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <MenuItem label="Copy" glyph=ICON_COPY detail="Ctrl+C" />
+                    <MenuItem
+                        label="Copy"
+                        glyph=ICON_COPY
+                        detail="Ctrl+C"
+                        on_click={move || {
+                            copied.set(true);
+                            menu_text.set("Chose: Copy".to_owned());
+                        }}
+                    />
                     <MenuItem
                         label="Paste"
                         glyph=ICON_CLIPBOARD
                         detail="Ctrl+V"
                         disabled={nothing_copied}
+                        on_click={move || menu_text.set("Chose: Paste".to_owned())}
                     />
                     <MenuItem label="Share" glyph=ICON_SHARE_2>
-                        <MenuItem label="Email" glyph=ICON_MAIL />
-                        <MenuItem label="Link" glyph=ICON_LINK />
+                        <MenuItem
+                            label="Email"
+                            glyph=ICON_MAIL
+                            on_click={move || menu_text.set("Chose: Share > Email".to_owned())}
+                        />
+                        <MenuItem
+                            label="Link"
+                            glyph=ICON_LINK
+                            on_click={move || menu_text.set("Chose: Share > Link".to_owned())}
+                        />
                     </MenuItem>
-                    <MenuItem label="Delete" glyph=ICON_TRASH danger=true separated=true />
-                }}
-                on_select={move |path: Vec<usize>| {
-                    let label = match path.as_slice() {
-                        [0] => {
-                            copied.set(true);
-                            "Copy".to_owned()
-                        }
-                        [1] => "Paste".to_owned(),
-                        [2, 0] => "Share > Email".to_owned(),
-                        [2, 1] => "Share > Link".to_owned(),
-                        [3] => "Delete".to_owned(),
-                        other => format!("{other:?}"),
-                    };
-                    menu_text.set(format!("Chose: {label}"));
+                    <MenuItem
+                        label="Delete"
+                        glyph=ICON_TRASH
+                        danger=true
+                        separated=true
+                        on_click={move || menu_text.set("Chose: Delete".to_owned())}
+                    />
                 }}
             >
                 <Card>
@@ -2032,19 +2041,19 @@ fn TrayIcons() -> NodeId {
                     image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
                     click_opens=false
                     items={view! {
-                        <MenuItem label="Open" />
-                        <MenuItem label="Quit" separated=true />
+                        <MenuItem
+                            label="Open"
+                            on_click={move || outcome.set("Chose Open".to_owned())}
+                        />
+                        <MenuItem
+                            label="Quit"
+                            separated=true
+                            on_click={move || outcome.set("Chose Quit".to_owned())}
+                        />
                     }}
                     on_click={move || outcome.set("Clicked Chat".to_owned())}
                     on_middle_click={move || outcome.set("Middle-clicked Chat".to_owned())}
                     on_scroll={move |_: ScrollGesture| outcome.set("Scrolled over Chat".to_owned())}
-                    on_select={move |path: Vec<usize>| {
-                        let label = match path.as_slice() {
-                            [0] => "Open",
-                            _ => "Quit",
-                        };
-                        outcome.set(format!("Chose {label}"));
-                    }}
                 />
                 <MenuButton
                     icon_only=true
@@ -2091,17 +2100,18 @@ fn SortMenus() -> NodeId {
                 <MenuButton
                     label="Sort"
                     items={view! {
-                        <MenuItem label="By name" />
-                        <MenuItem label="By date" />
-                        <MenuItem label="By size" />
-                    }}
-                    on_select={move |path: Vec<usize>| {
-                        let by = match path.as_slice() {
-                            [0] => "name",
-                            [1] => "date",
-                            _ => "size",
-                        };
-                        sort_text.set(format!("Sorted by {by}"));
+                        <MenuItem
+                            label="By name"
+                            on_click={move || sort_text.set("Sorted by name".to_owned())}
+                        />
+                        <MenuItem
+                            label="By date"
+                            on_click={move || sort_text.set("Sorted by date".to_owned())}
+                        />
+                        <MenuItem
+                            label="By size"
+                            on_click={move || sort_text.set("Sorted by size".to_owned())}
+                        />
                     }}
                 />
                 <MenuButton
@@ -2111,9 +2121,11 @@ fn SortMenus() -> NodeId {
                     arrow=false
                     variant=ButtonVariant::Ghost
                     items={view! {
-                        <MenuItem label="Reverse the order" />
+                        <MenuItem
+                            label="Reverse the order"
+                            on_click={move || sort_text.set("Sorted in reverse".to_owned())}
+                        />
                     }}
-                    on_select={move |_: Vec<usize>| sort_text.set("Sorted in reverse".to_owned())}
                 />
                 <MenuButton
                     label={status}
@@ -2128,10 +2140,9 @@ fn SortMenus() -> NodeId {
                         />
                     }}
                     items={view! {
-                        <MenuItem label="In progress" />
-                        <MenuItem label="Done" />
+                        <MenuItem label="In progress" on_click={move || done.set(false)} />
+                        <MenuItem label="Done" on_click={move || done.set(true)} />
                     }}
-                    on_select={move |path: Vec<usize>| done.set(path.as_slice() == [1])}
                 />
                 <MenuButton
                     label={priority_label}
@@ -2139,16 +2150,13 @@ fn SortMenus() -> NodeId {
                     variant=ButtonVariant::Ghost
                     arrow=false
                     items={view! {
-                        <MenuItem label="High" />
-                        <MenuItem label="Low" />
-                        <MenuItem label="Clear" separated=true />
-                    }}
-                    on_select={move |path: Vec<usize>| {
-                        priority.set(match path.as_slice() {
-                            [0] => Some("High"),
-                            [1] => Some("Low"),
-                            _ => None,
-                        })
+                        <MenuItem label="High" on_click={move || priority.set(Some("High"))} />
+                        <MenuItem label="Low" on_click={move || priority.set(Some("Low"))} />
+                        <MenuItem
+                            label="Clear"
+                            separated=true
+                            on_click={move || priority.set(None)}
+                        />
                     }}
                 />
             </List>
@@ -2260,6 +2268,7 @@ fn NewBlockMenu() -> NodeId {
             .collect::<Vec<_>>()
     });
     let place = create_memo(move || FOLDERS[location.get()].0.to_owned());
+    let add = move |kind: &str| added.set(format!("Added {kind} in {}", place.get()));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -2284,10 +2293,23 @@ fn NewBlockMenu() -> NodeId {
                             glyph=ICON_TEXT_ALIGN_START
                             glyph_color={text_icon_color}
                             separated=true
+                            on_click={move || add("a text")}
                         />
-                        <MenuItem label="Canvas" glyph=ICON_PEN_TOOL />
-                        <MenuItem label="Folder" glyph=ICON_FOLDER />
-                        <MenuItem label="Database" glyph=ICON_TABLE />
+                        <MenuItem
+                            label="Canvas"
+                            glyph=ICON_PEN_TOOL
+                            on_click={move || add("a canvas")}
+                        />
+                        <MenuItem
+                            label="Folder"
+                            glyph=ICON_FOLDER
+                            on_click={move || add("a folder")}
+                        />
+                        <MenuItem
+                            label="Database"
+                            glyph=ICON_TABLE
+                            on_click={move || add("a database")}
+                        />
                         <MenuItem
                             label="More blocks…"
                             glyph=ICON_BLOCKS
@@ -2296,24 +2318,22 @@ fn NewBlockMenu() -> NodeId {
                             row_test_id="demo.new.more"
                         >
                             <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
-                                <MenuItem label={MORE_BLOCKS[kind]} />
+                                <MenuItem
+                                    label={MORE_BLOCKS[kind]}
+                                    on_click={move || add(MORE_BLOCKS[kind])}
+                                />
                             </ForEach>
                         </MenuItem>
-                        <MenuItem label="Link existing…" glyph=ICON_LINK />
-                        <MenuItem label="Import a file…" glyph=ICON_FILE_UP />
-                    }}
-                    on_select={move |path: Vec<usize>| {
-                        let kind = match path.as_slice() {
-                            [1] => "a text",
-                            [2] => "a canvas",
-                            [3] => "a folder",
-                            [4] => "a database",
-                            [5, kind] => MORE_BLOCKS[*kind],
-                            [6] => "a link",
-                            [7] => "an import",
-                            _ => return,
-                        };
-                        added.set(format!("Added {kind} in {}", place.get()));
+                        <MenuItem
+                            label="Link existing…"
+                            glyph=ICON_LINK
+                            on_click={move || add("a link")}
+                        />
+                        <MenuItem
+                            label="Import a file…"
+                            glyph=ICON_FILE_UP
+                            on_click={move || add("an import")}
+                        />
                     }}
                 />
             </List>
@@ -2350,14 +2370,22 @@ fn HeldMenu() -> NodeId {
                 open
                 min_width={Size::Custom(240.0)}
                 on_dismiss={move || open.set(false)}
-                on_select={move |path: Vec<usize>| {
-                    let colour = ["Red", "Green", "Blue"][path.first().copied().unwrap_or_default()];
-                    chosen.set(format!("Chose {colour}"));
-                }}
                 items={view! {
-                    <MenuItem label="Red" lead="Paint it" />
-                    <MenuItem label="Green" lead="Paint it" />
-                    <MenuItem label="Blue" lead="Paint it" />
+                    <MenuItem
+                        label="Red"
+                        lead="Paint it"
+                        on_click={move || chosen.set("Chose Red".to_owned())}
+                    />
+                    <MenuItem
+                        label="Green"
+                        lead="Paint it"
+                        on_click={move || chosen.set("Chose Green".to_owned())}
+                    />
+                    <MenuItem
+                        label="Blue"
+                        lead="Paint it"
+                        on_click={move || chosen.set("Chose Blue".to_owned())}
+                    />
                 }}
             />
             <Text style=TextStyle::CAPTION>
@@ -2378,14 +2406,20 @@ fn MenuInPlace() -> NodeId {
                 <MenuRows
                     @test_id="demo.menu-rows"
                     min_width={Size::Custom(240.0)}
-                    on_select={move |path: Vec<usize>| {
-                        let shape = ["Circle", "Square", "Star"][path.first().copied().unwrap_or_default()];
-                        chosen.set(format!("Chose {shape}"));
-                    }}
                     items={view! {
-                        <MenuItem label="Circle" />
-                        <MenuItem label="Square" />
-                        <MenuItem label="Star" separated=true />
+                        <MenuItem
+                            label="Circle"
+                            on_click={move || chosen.set("Chose Circle".to_owned())}
+                        />
+                        <MenuItem
+                            label="Square"
+                            on_click={move || chosen.set("Chose Square".to_owned())}
+                        />
+                        <MenuItem
+                            label="Star"
+                            separated=true
+                            on_click={move || chosen.set("Chose Star".to_owned())}
+                        />
                     }}
                 />
             </Frame>
@@ -2421,22 +2455,23 @@ fn NewSlideMenu() -> NodeId {
                                     checked={create_memo(move || Some(chosen.get() == Some(layout)))}
                                     radio=true
                                     row_test_id={format!("demo.slide.{layout}")}
+                                    on_click={move || {
+                                        chosen.set(Some(layout));
+                                        added.set(format!("Added {}", SLIDE_LAYOUTS[layout].0));
+                                    }}
                                 />
                             </ForEach>
                         </MenuGrid>
-                        <MenuItem label="Other blocks…" separated=true />
-                        <MenuItem label="Link existing…" glyph=ICON_LINK />
-                    }}
-                    on_select={move |path: Vec<usize>| {
-                        let what = match path.as_slice() {
-                            [1, layout] => {
-                                chosen.set(Some(*layout));
-                                SLIDE_LAYOUTS[*layout].0
-                            }
-                            [2] => "another block",
-                            _ => "a link",
-                        };
-                        added.set(format!("Added {what}"));
+                        <MenuItem
+                            label="Other blocks…"
+                            separated=true
+                            on_click={move || added.set("Added another block".to_owned())}
+                        />
+                        <MenuItem
+                            label="Link existing…"
+                            glyph=ICON_LINK
+                            on_click={move || added.set("Added a link".to_owned())}
+                        />
                     }}
                 />
             </List>
@@ -2463,27 +2498,28 @@ fn RunButtons() -> NodeId {
                     variant=ButtonVariant::Primary
                     menu_label="More ways to run it"
                     items={view! {
-                        <MenuItem label="Run with fresh data" />
-                        <MenuItem label="Run on the web" />
+                        <MenuItem
+                            label="Run with fresh data"
+                            on_click={move || run_text.set("Running the program with fresh data".to_owned())}
+                        />
+                        <MenuItem
+                            label="Run on the web"
+                            on_click={move || run_text.set("Running the program on the web".to_owned())}
+                        />
                     }}
                     on_click={move || run_text.set("Running the program".to_owned())}
-                    on_select={move |path: Vec<usize>| {
-                        let how = match path.as_slice() {
-                            [0] => "with fresh data",
-                            _ => "on the web",
-                        };
-                        run_text.set(format!("Running the program {how}"));
-                    }}
                 />
                 <SplitButton
                     label="Save"
                     variant=ButtonVariant::Secondary
                     menu_label="More ways to save"
                     items={view! {
-                        <MenuItem label="Save as a copy" />
+                        <MenuItem
+                            label="Save as a copy"
+                            on_click={move || save_text.set("Saved a copy".to_owned())}
+                        />
                     }}
                     on_click={move || save_text.set("Saved".to_owned())}
-                    on_select={move |_: Vec<usize>| save_text.set("Saved a copy".to_owned())}
                 />
             </List>
             <Text style=TextStyle::CAPTION>{run_text}</Text>
@@ -2920,19 +2956,25 @@ fn ActionsSheet() -> NodeId {
                 <MenuButton
                     label="Show actions"
                     items={view! {
-                        <MenuItem label="Duplicate" glyph=ICON_COPY_PLUS />
-                        <MenuItem label="Rename" glyph=ICON_PENCIL detail="Ctrl+R" />
+                        <MenuItem
+                            label="Duplicate"
+                            glyph=ICON_COPY_PLUS
+                            on_click={move || outcome.set("Duplicated".to_owned())}
+                        />
+                        <MenuItem
+                            label="Rename"
+                            glyph=ICON_PENCIL
+                            detail="Ctrl+R"
+                            on_click={move || outcome.set("Renamed".to_owned())}
+                        />
                         <MenuItem label="Share" glyph=ICON_SHARE_2 disabled=true />
-                        <MenuItem label="Delete" glyph=ICON_TRASH danger=true separated=true />
-                    }}
-                    on_select={move |path: Vec<usize>| {
-                        let done = match path.as_slice() {
-                            [0] => "Duplicated",
-                            [1] => "Renamed",
-                            [3] => "Deleted",
-                            _ => return,
-                        };
-                        outcome.set(done.to_owned());
+                        <MenuItem
+                            label="Delete"
+                            glyph=ICON_TRASH
+                            danger=true
+                            separated=true
+                            on_click={move || outcome.set("Deleted".to_owned())}
+                        />
                     }}
                 />
             </List>
@@ -3062,7 +3104,7 @@ fn FullscreenButton() -> NodeId {
 
 #[sample]
 #[component]
-fn FullscreenBody(on_close: ClickCallback) -> NodeId {
+fn FullscreenBody(on_close: Callback<()>) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=ROW_SPACING>
@@ -3370,7 +3412,7 @@ fn ScrollRow(
     selection: Selector<Option<usize>>,
     timings: ReadSignal<bool>,
     compact: ReadSignal<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let selected = create_memo(move || selection.is_selected(&Some(index.get())));
     view! {

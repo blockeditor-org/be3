@@ -53,7 +53,7 @@ Use them as `<A::View editor />`. A component method takes no `self`.
 boxes a closure. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
 clone a non-`Copy` prop in a block head:
 `<Show condition>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
-A `Callback<T>` also takes a `Signal<T>`, which it sets.
+A `Callback<T>` also takes a `Signal<T>`, which it sets. A `Callback<()>` prop takes a closure without arguments (`on_click={move || ..}`) and is called with `.call(())`.
 
 **Ownership.** A node belongs to the scope it was built in and leaves the tree
 when that scope is disposed, so a subtree that outlives its builder (one shown

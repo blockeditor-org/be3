@@ -21,7 +21,7 @@ pub fn ReorderItem<K, P>(
     #[prop(default = Padding::ZERO)] margin: Prop<Padding>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     #[prop(children)] content: Render<ReorderItemHandle>,
 ) -> NodeId
 where

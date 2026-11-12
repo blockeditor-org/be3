@@ -264,10 +264,6 @@ pub fn on_shortcut(shortcut: impl Fn(KeyPress) -> bool + 'static) {
     });
 }
 
-pub fn on_global_key(handler: impl Fn(KeyEvent) -> bool + 'static) {
-    on_key(KeyAt::Window, KeyPhase::Capture, handler);
-}
-
 pub fn on_back(enabled: impl IntoProp<bool>, handler: impl Fn(BackGesture) + 'static) {
     core::on_back(enabled.into_prop(), handler);
 }

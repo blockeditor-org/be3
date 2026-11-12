@@ -187,24 +187,12 @@ host queues settled events per app. The calls stay `local`
   and the hand-drawn `focus_ring(..)` + accent border copies (`TileButton`,
   `SwatchButton`, tree, treemap, colour picker); `FocusRing` becomes a `Frame`
   with `focus`. Paintings change; accept them after looking.
-- Key listeners: remove `on_global_key` (it is `on_key(KeyAt::Window,
-  KeyPhase::Capture, …)`), make `on_scroll_key`'s "don't reveal focus" an
-  option of `on_key`, and move `on_shortcut` users to actions. Update
-  guides/beui_keyboard.md.
-- `ClickCallback`, `IntoClickCallback` and `into_click_callback` go in favour
-  of `Callback<()>` (`beui-tree/src/callback.rs`). If a blanket impl for
-  zero-argument closures overlaps the one for `FnMut(V)`, the `#[component]`
-  macro wraps zero-argument closures for `Callback<()>` props.
-- Menus: remove the public `on_select: Callback<Vec<usize>>` from styled
-  `ContextMenu`, `MenuPopup`, `MenuRows`, `MenuButton` and `SplitButton`; an
-  item says what it does with `on_click` or `action`. The three product
-  callers (`be-host/src/ui/onboarding.rs`, `be-host-accounts-ui/src/lib.rs`,
-  `be-app-logic-grid/src/root/hotbar_ui.rs`) move to item callbacks. Path
-  routing can stay inside unstyled if `MenuNodes` needs it. Separators are
-  written one way.
-- `ActionRow` becomes `ListRow` with `action` and `danger`; the row's role
-  follows from whether it is selectable. `SettingsLink` becomes `SettingsRow`
-  with `on_click`.
+- Key listeners (left): `on_global_key` is gone (it was `on_key(KeyAt::Window,
+  KeyPhase::Capture, …)`). `on_scroll_key`'s "don't reveal focus" should be an
+  option of `on_key` (the listener already carries a `reveal` flag; the two
+  callers are `SearchList` and the scroll catcher), and `on_shortcut` users
+  (the logic grid's key table, the demo, tests) should move to actions.
+  Update guides/beui_keyboard.md when they do.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
   non-`Copy` values (a callback, a state struct) or read the cell with

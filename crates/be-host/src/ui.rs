@@ -50,7 +50,7 @@ pub(crate) fn notice_toasts() -> Vec<Toast> {
             Toast {
                 id: notice.id,
                 message: notice.message,
-                danger: notice.link.is_none(),
+                danger: notice.link.is_none() && !notice.refusal,
                 actions: report.chain(link).collect(),
                 ..Toast::default()
             }

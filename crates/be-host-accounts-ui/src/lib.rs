@@ -50,7 +50,7 @@ pub fn Column(children: Children<ListItem>) -> NodeId {
 pub fn AccountsScreen(
     accounts: Memo<Vec<AccountRow>>,
     error: Memo<Option<String>>,
-    on_add: ClickCallback,
+    on_add: Callback<()>,
     on_open: Callback<String>,
     on_choose_organization: Callback<String>,
     on_log_out: Callback<String>,
@@ -88,7 +88,7 @@ pub fn AccountsScreen(
                 label="Add account"
                 glyph=ICON_PLUS
                 variant=ButtonVariant::Secondary
-                on_click={move || on_add.call()}
+                on_click={move || on_add.call(())}
             />
             <ErrorText text={error} />
         </Column>
@@ -121,12 +121,10 @@ fn AccountCard(
                         icon_only=true
                         arrow=false
                         @test_id={format!("account.options.{}", name.get_untracked())}
-                        on_select={move |_path: Vec<usize>| {
-                            on_log_out.call(key.get_untracked());
-                        }}
                         items={view! {
                             <MenuItem
                                 label={create_memo(move || leave_label(account.get().local).to_owned())}
+                                on_click={move || on_log_out.call(key.get_untracked())}
                             />
                         }}
                     />

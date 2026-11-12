@@ -62,9 +62,9 @@ pub struct DateTimePanelHandle {
     pub times: DateTimeTimesHandle,
     pub page: ReadSignal<usize>,
     pub show_page: Callback<usize>,
-    pub now: ClickCallback,
+    pub now: Callback<()>,
     pub now_label: &'static str,
-    pub clear: ClickCallback,
+    pub clear: Callback<()>,
 }
 
 #[derive(Clone, Copy)]
@@ -235,7 +235,7 @@ fn FieldBox(
     on_segment_focus: Callback<Option<DateSegment>>,
     on_open: Callback<DateSegment>,
     on_draft: Callback<DateDraft>,
-    on_press: ClickCallback,
+    on_press: Callback<()>,
 ) -> NodeId {
     let Field {
         current,
@@ -256,7 +256,7 @@ fn FieldBox(
                 field: view! {
                     <Interactive
                         cursor=CursorIcon::Text
-                        on_click_at={move |_: PointerPress| on_press.call()}
+                        on_click_at={move |_: PointerPress| on_press.call(())}
                     >
                         {segments.call(view! {
                             <DateTimeField
@@ -363,7 +363,7 @@ fn PickerPanel(
         current.set(Some(DateTime::new(date, time)));
         close.call(());
     });
-    let now = ClickCallback::new(move || {
+    let now = Callback::new(move |()| {
         let now = DateTime::now();
         let kept = current.get_untracked();
         let next = match parts {
@@ -376,7 +376,7 @@ fn PickerPanel(
         current.set(Some(next));
         close.call(());
     });
-    let clear = ClickCallback::new(move || {
+    let clear = Callback::new(move |()| {
         current.set(None);
         close.call(());
     });

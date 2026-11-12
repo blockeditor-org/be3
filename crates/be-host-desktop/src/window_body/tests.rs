@@ -46,7 +46,7 @@ fn shown_drawing(initial: WindowStatus, buffer: Vec2) -> Shown {
         let signal = create_signal(Some(initial));
         held = Some(signal);
         let status = create_memo(move || signal.get());
-        let on_force_close = ClickCallback::new(move || counted.set(counted.get() + 1));
+        let on_force_close = Callback::new(move |()| counted.set(counted.get() + 1));
         view! {
             <Root>
                 <WindowBody status on_force_close>

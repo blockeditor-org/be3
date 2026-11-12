@@ -49,7 +49,7 @@ pub fn Toasts(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
-    on_more: ClickCallback,
+    on_more: Callback<()>,
 ) -> NodeId {
     view! {
         <unstyled::Toasts
@@ -74,7 +74,7 @@ pub fn Toasts(
 }
 
 #[component]
-fn ToastsHidden(hidden: Memo<usize>, on_more: ClickCallback) -> NodeId {
+fn ToastsHidden(hidden: Memo<usize>, on_more: Callback<()>) -> NodeId {
     let label = create_memo(move || format!("{} more", hidden.get()));
     let card = view! {
         <Frame

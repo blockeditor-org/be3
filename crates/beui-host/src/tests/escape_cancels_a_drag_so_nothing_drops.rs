@@ -16,7 +16,7 @@ fn escape_cancels_a_drag_so_nothing_drops() {
                     preview={|_: u32| view! {
                         <Frame width=40.0 height=40.0 />
                     }}
-                    on_cancel={move |()| cancelled.update(|count| *count += 1)}
+                    on_cancel={move || cancelled.update(|count| *count += 1)}
                     on_drag_change={move |now: bool| dragging.set(now)}
                 >|_: DragHandle|
                     <Frame width=40.0 height=40.0 />

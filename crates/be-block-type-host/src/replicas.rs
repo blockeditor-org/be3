@@ -760,6 +760,11 @@ impl<H: Host> Replicas<H> {
         let (client, session, head, offline, journal) = match joined {
             Ok((client, _, _, true, _)) => {
                 let head = known_head_of(peer, block);
+                if head.is_some() && peer.held_head(block).is_none() {
+                    // Nothing to read: the block opens once the host reconnects, and meanwhile
+                    // takes no edits it could never journal or publish.
+                    return;
+                }
                 (client, offline_session(head), head, true, None)
             }
             Ok(joined) => joined,
@@ -2543,11 +2548,15 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
                     let read = async {
-                        let commit = peer.load_commit(commit).await?;
-                        match first_part {
-                            true => peer.load_first_part(&commit.manifest).await,
-                            false => peer.load_manifest(&commit.manifest).await,
+                        let loaded = peer.load_commit(commit).await?;
+                        let read = match first_part {
+                            true => peer.load_first_part(&loaded.manifest).await,
+                            false => peer.load_manifest(&loaded.manifest).await,
+                        };
+                        if read.is_ok() && !first_part {
+                            peer.read_whole(block, commit);
                         }
+                        read
                     }
                     .await;
                     if let Err(ClientError::Locked(_)) = &read {
@@ -2912,7 +2921,8 @@ impl<H: Host> Replicas<H> {
 }
 
 fn known_head_of<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Option<CommitId> {
-    peer.local_head(block)
+    peer.held_head(block)
+        .or_else(|| peer.local_head(block))
         .or_else(|| peer.known_remote_head(block))
         .or_else(|| peer.known_summary(block).and_then(|summary| summary.head))
 }
@@ -3016,7 +3026,7 @@ fn kept_commits<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> 
 
 /// What a replica opening at `head` loads: the journal, whether it is this device's (holding
 /// entries the server lacks), the commit to load it on, and the sealed head to take after.
-type Loads = (
+pub type Loads = (
     Option<be_block_protocol::Journal>,
     bool,
     Option<CommitId>,
@@ -3028,10 +3038,11 @@ type Loads = (
 /// heard so, `Commit::sealed_through`), that journal on that commit, with `head` as the sealed
 /// head the replica takes once it replayed it.
 ///
-/// Only this device's own journal is trusted for that, and only when it holds the seal's last
-/// entry, in the seal's generation: what the seal holds then replays exactly. Another device's
-/// seal, or a journal of another session, is loaded plainly at `head`.
-fn journal_for<S: be_block_store::ObjectStore>(
+/// Only this device's own journal is trusted for that, and only when it noted that very seal
+/// (`Peer::sealing`, written with the seal's commit and dropped by the next rebase) and holds
+/// the seal's last entry in the seal's generation (`reaches_seal`). Anything else is loaded
+/// plainly at `head`.
+pub fn journal_for<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     server: Option<be_block_protocol::Journal>,
@@ -3041,19 +3052,29 @@ fn journal_for<S: be_block_store::ObjectStore>(
     if journal.is_some() {
         return (journal, kept, head, None);
     }
-    let Some((commit, (parent, sealed))) =
-        head.and_then(|commit| Some((commit, peer.sealed_on(commit)?)))
-    else {
+    let Some(commit) = head else {
         return (None, false, head, None);
     };
     let own = peer
-        .local_journal(block)
-        .ok()
-        .flatten()
-        .filter(|journal| journal.base.commit == parent)
-        .filter(|journal| reaches(journal, sealed));
+        .sealing(block)
+        .filter(|(sealing, _)| *sealing == commit)
+        .and_then(|_| peer.sealed_on(commit))
+        .and_then(|(parent, sealed)| {
+            let journal = peer.local_journal(block).ok().flatten()?;
+            let reaches = journal.base.commit == parent
+                && be_block_session::reaches_seal(
+                    journal.base.sequence,
+                    journal
+                        .entries
+                        .iter()
+                        .map(|entry| (entry.sequence, entry.generation)),
+                    sealed.generation,
+                    sealed.sequence,
+                );
+            reaches.then_some((journal, parent, sealed))
+        });
     match own {
-        Some(journal) => {
+        Some((journal, parent, sealed)) => {
             let kept = journal
                 .entries
                 .iter()
@@ -3070,26 +3091,6 @@ fn journal_for<S: be_block_store::ObjectStore>(
         }
         None => (None, false, head, None),
     }
-}
-
-/// Whether `journal` holds what a seal at `sealed` holds: its base is at or before the seal
-/// and its entries through the seal's sequence are the seal's session's, ending on that
-/// sequence exactly.
-fn reaches(journal: &be_block_protocol::Journal, sealed: be_block_commit::SealedThrough) -> bool {
-    let through: Vec<_> = journal
-        .entries
-        .iter()
-        .take_while(|entry| entry.sequence <= sealed.sequence)
-        .collect();
-    let ends = match through.last() {
-        Some(last) => last.sequence == sealed.sequence,
-        None => journal.base.sequence == sealed.sequence,
-    };
-    journal.base.sequence <= sealed.sequence
-        && ends
-        && through
-            .iter()
-            .all(|entry| entry.generation == sealed.generation)
 }
 
 /// The journal on `head`: the server's or this device's, whichever holds more, and whether it

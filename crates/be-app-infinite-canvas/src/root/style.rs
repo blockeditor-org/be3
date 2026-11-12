@@ -283,7 +283,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                                     kind="fill-style"
                                     name
                                     chosen={create_memo(move || fill.get() == CommonValue::Uniform(choice))}
-                                    on_pick={move |()| state.update_selected(closed, move |style| style.fill = choice)}
+                                    on_pick={move || state.update_selected(closed, move |style| style.fill = choice)}
                                 />
                             }
                         }</ForEach>
@@ -302,7 +302,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                                     kind="width"
                                     name
                                     chosen={create_memo(move || width.get() == CommonValue::Uniform(choice))}
-                                    on_pick={move |()| state.update_selected(stroked, move |style| style.stroke_width = choice)}
+                                    on_pick={move || state.update_selected(stroked, move |style| style.stroke_width = choice)}
                                 />
                             }
                         }</ForEach>
@@ -317,7 +317,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                                     kind="stroke-style"
                                     name
                                     chosen={create_memo(move || stroke_style.get() == CommonValue::Uniform(choice))}
-                                    on_pick={move |()| state.update_selected(stroked, move |style| style.stroke_style = choice)}
+                                    on_pick={move || state.update_selected(stroked, move |style| style.stroke_style = choice)}
                                 />
                             }
                         }</ForEach>
@@ -332,7 +332,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                                     kind="roughness"
                                     name
                                     chosen={create_memo(move || roughness.get() == CommonValue::Uniform(choice))}
-                                    on_pick={move |()| state.update_selected(stroked, move |style| choice.apply(style))}
+                                    on_pick={move || state.update_selected(stroked, move |style| choice.apply(style))}
                                 />
                             }
                         }</ForEach>
@@ -348,7 +348,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                                 kind="text-size"
                                 name
                                 chosen={create_memo(move || size.get() == CommonValue::Uniform(choice))}
-                                on_pick={move |()| state.update_selected(texted, move |style| style.text_size = choice)}
+                                on_pick={move || state.update_selected(texted, move |style| style.text_size = choice)}
                             />
                         }
                     }</ForEach>

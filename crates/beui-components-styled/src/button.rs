@@ -156,7 +156,7 @@ pub fn Button(
     #[prop(default = None)] href: Prop<Option<String>>,
     #[prop(default = false)] submit: bool,
     action: Option<Action>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     on_focus_change: Callback<bool>,
 ) -> NodeId {
     let busy = create_memo(move || busy.get());

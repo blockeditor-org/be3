@@ -3,8 +3,6 @@ use std::cell::RefCell;
 use beui_reactive::{Set, Signal, Stored, store, untrack};
 
 type Handler<V, R> = Box<dyn FnMut(V) -> R>;
-type ClickHandler = Box<dyn FnMut()>;
-type Slot<H> = Option<Stored<RefCell<Option<H>>>>;
 
 pub struct Callback<V, R = ()>(Target<V, R>);
 
@@ -92,39 +90,6 @@ impl<V: PartialEq + 'static> From<Signal<V>> for Callback<V> {
     }
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct ClickCallback(Slot<ClickHandler>);
-
-impl ClickCallback {
-    pub fn new(handler: impl FnMut() + 'static) -> Self {
-        Self(Some(store(RefCell::new(Some(Box::new(handler))))))
-    }
-
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0
-            .and_then(|slot| slot.try_with(|slot| slot.borrow().is_none()))
-            .unwrap_or(true)
-    }
-
-    pub fn call(&self) {
-        let Some(slot) = self.0.and_then(|slot| slot.try_value()) else {
-            return;
-        };
-        let Some(mut handler) = slot.borrow_mut().take() else {
-            return;
-        };
-        untrack(&mut handler);
-        let mut slot = slot.borrow_mut();
-        if slot.is_none() {
-            *slot = Some(handler);
-        }
-    }
-}
-
 pub trait IntoCallback<V, R> {
     fn into_callback(self) -> Callback<V, R>;
 }
@@ -147,18 +112,21 @@ impl<V: PartialEq + 'static> IntoCallback<V, ()> for Signal<V> {
     }
 }
 
-pub trait IntoClickCallback {
-    fn into_click_callback(self) -> ClickCallback;
+/// What a `Callback<()>` prop takes: a closure without arguments, or a
+/// `Callback<()>`. The `#[component]` macro's setter for a `Callback<()>` prop
+/// asks for this, since the blanket `IntoCallback` impl wants `FnMut(())`.
+pub trait IntoUnitCallback {
+    fn into_unit_callback(self) -> Callback<()>;
 }
 
-impl<F: FnMut() + 'static> IntoClickCallback for F {
-    fn into_click_callback(self) -> ClickCallback {
-        ClickCallback::new(self)
+impl<F: FnMut() + 'static> IntoUnitCallback for F {
+    fn into_unit_callback(mut self) -> Callback<()> {
+        Callback::new(move |()| self())
     }
 }
 
-impl IntoClickCallback for ClickCallback {
-    fn into_click_callback(self) -> ClickCallback {
+impl IntoUnitCallback for Callback<()> {
+    fn into_unit_callback(self) -> Callback<()> {
         self
     }
 }

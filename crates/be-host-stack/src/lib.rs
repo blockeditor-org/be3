@@ -285,6 +285,24 @@ pub fn stop() {
     drop(stack);
 }
 
+/// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
+/// hold, so only what the device had already written survives.
+#[cfg(any(test, feature = "testing"))]
+pub fn crash() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+    {
+        stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .crashed = true;
+    }
+    stop();
+}
+
 pub fn stop_and_wait() {
     stop();
     platform::wait_for_stopped();
@@ -379,6 +397,9 @@ pub fn change_child(
 ) -> Option<bool> {
     if !is_known(content_type) {
         return None;
+    }
+    if out_of_reach(block) {
+        return Some(false);
     }
     send(Command::ChangeChild {
         block,
@@ -1011,6 +1032,26 @@ pub fn stale_revision() -> u64 {
         + be_block_type_host::kinds_revision()
 }
 
+/// The workspace's peer while the host is not connected, for telling apps which blocks this
+/// device cannot read (`BlockInfo::out_of_reach`).
+pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<worker::Store>>> {
+    with_shared(|shared| match shared.connected {
+        true => None,
+        false => shared.peer.clone(),
+    })
+    .flatten()
+}
+
+/// Whether the host is offline and holds no version of the block's content whole, so it can
+/// neither open the block nor change it, a child added or moved in included
+/// (`BlockInfo::out_of_reach`).
+pub fn out_of_reach(block: Uuid) -> bool {
+    let Some(peer) = offline_peer() else {
+        return false;
+    };
+    node(block).is_some_and(|node| app_graph::out_of_reach(&peer, &node))
+}
+
 pub fn graph_revision() -> u64 {
     with_shared(|shared| shared.graph.revision).unwrap_or_default()
 }
@@ -1472,13 +1513,20 @@ pub fn plain_file(
     });
 }
 
-pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) {
+/// Replaces a block's content with a file's, as its type reads one. False, with nothing sent,
+/// when the block is out of reach offline (`out_of_reach`): try again once the host reconnects.
+#[must_use]
+pub fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) -> bool {
+    if out_of_reach(block) {
+        return false;
+    }
     send(Command::FromFile {
         block,
         content_type,
         name,
         bytes,
     });
+    true
 }
 
 /// Brings in the blocks of a block file under `parent`. `created_by` is the app that asked

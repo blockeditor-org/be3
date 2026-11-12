@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use be_sdk_api::{EditorInstanceId, PaletteMode, ViewId};
+use beui::KeyPhase;
 use beui::icons::ICON_FILE;
 use beui::native::try_with_document;
 use beui::reactive::*;
@@ -108,7 +109,7 @@ pub(crate) fn HostPalette(
         }
         open.set(true);
     };
-    on_global_key(move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
         let KeyInput::Press(press) = event.input else {
             return false;
         };

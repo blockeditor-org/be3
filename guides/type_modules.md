@@ -330,8 +330,9 @@ rebase. The rules an agent most needs:
   and its own journal is still there (it stopped after the server took the seal
   and before it heard so). The replica replays the journal on `opening.head`,
   then takes the seal as its head with the session as of `through`, keeps what
-  came after and rebases onto the seal. The host hands it over only when the
-  journal holds the seal's last entry in the seal's generation (`journal_for`);
+  came after and rebases onto the seal. The host hands it over only when this
+  device's journal noted that very seal (`Peer::sealing`) and holds the seal's
+  last entry in the seal's generation (`journal_for`, `reaches_seal`);
   otherwise it opens the seal plainly.
 - A replica opening on the journal's base (`opening.journal`) loads its session
   state and replays it: as owner it continues the journal's numbering, as a

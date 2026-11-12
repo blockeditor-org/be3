@@ -9,7 +9,7 @@ use super::{State, TabId};
 pub struct DockAwayHandle {
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
-    pub leave: ClickCallback,
+    pub leave: Callback<()>,
 }
 
 impl super::State {
@@ -55,7 +55,7 @@ impl super::State {
 pub(super) fn DockAway(dock: State, gone: Memo<Option<TabId>>) -> NodeId {
     let title = create_memo(move || gone.get().map(|tab| dock.title(tab)).unwrap_or_default());
     let icon = create_memo(move || gone.get().map(|tab| dock.icon(tab)).unwrap_or_default());
-    let leave = ClickCallback::new(move || {
+    let leave = Callback::new(move |()| {
         if let Some(tab) = gone.get_untracked() {
             dock.leave_fullscreen(tab);
         }

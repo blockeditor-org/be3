@@ -153,8 +153,8 @@ struct Motion {
     shift: Signal<f32>,
     gone: Signal<bool>,
     on_presence: Callback<f32>,
-    on_gone: ClickCallback,
-    on_close: ClickCallback,
+    on_gone: Callback<()>,
+    on_close: Callback<()>,
 }
 
 fn own_units(measured: Measured) -> Rect {
@@ -388,7 +388,7 @@ impl Motion {
 
     fn close(&self, velocity: f32) {
         self.held.borrow_mut().flung = velocity;
-        self.on_close.call();
+        self.on_close.call(());
         if self.open.get_untracked() {
             self.held.borrow_mut().flung = 0.0;
             self.start(Phase::Snap {
@@ -506,7 +506,7 @@ impl Motion {
             self.held.borrow_mut().slide = Slide::Gone;
             self.on_presence.call(0.0);
             self.gone.set(true);
-            self.on_gone.call();
+            self.on_gone.call(());
             return;
         };
         {
@@ -566,7 +566,7 @@ impl Motion {
         self.dragging.set(false);
         self.on_presence.call(0.0);
         self.gone.set(true);
-        self.on_gone.call();
+        self.on_gone.call(());
     }
 
     fn morph(&self, from: f32) {
@@ -668,7 +668,7 @@ impl Motion {
                 self.held.borrow_mut().slide = Slide::Gone;
                 self.on_presence.call(0.0);
                 self.gone.set(true);
-                self.on_gone.call();
+                self.on_gone.call(());
                 return false;
             }
         };
@@ -730,7 +730,7 @@ impl Motion {
         match next {
             Slide::Gone => {
                 self.gone.set(true);
-                self.on_gone.call();
+                self.on_gone.call(());
                 false
             }
             Slide::Shown | Slide::Morphing { .. } => false,
@@ -992,7 +992,7 @@ impl Motion {
             Slide::Leaving { .. } => {
                 self.on_presence.call(0.0);
                 self.gone.set(true);
-                self.on_gone.call();
+                self.on_gone.call(());
             }
             Slide::Entering { .. } | Slide::Returning { .. } => {
                 self.shifted.set(0.0);
@@ -1115,8 +1115,8 @@ pub fn Sheet(
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_presence: Callback<f32>,
-    on_gone: ClickCallback,
-    on_close: ClickCallback,
+    on_gone: Callback<()>,
+    on_close: Callback<()>,
     children: Child,
 ) -> NodeId {
     let mut stops = stops;
@@ -1278,7 +1278,7 @@ pub fn ModalSheet(
     scrim: Prop<Color>,
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
-    on_close: ClickCallback,
+    on_close: Callback<()>,
     #[prop(children)] content: Render,
 ) -> NodeId {
     let shown = open;
@@ -1317,7 +1317,7 @@ fn ModalSheetBody(
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_presence: Callback<f32>,
-    on_close: ClickCallback,
+    on_close: Callback<()>,
     children: Child,
 ) -> NodeId {
     let gone = create_signal(false);
