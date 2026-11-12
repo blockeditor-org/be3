@@ -1700,8 +1700,7 @@ impl Generator {
             let constant = &method.constant;
             let args = &method.args;
             let result = self.result_of(method)?;
-            let signature_result =
-                quote!(-> impl ::core::future::Future<Output = #result> + 'static);
+            let signature_result = quote!(-> ::be_wasm_ops::guest::LocalFuture<#result>);
             let encoding = match &method.shape {
                 Shape::Call(result) => self.encoding(result.as_ref()),
                 Shape::Stream(_) => quote!(::be_wasm_ops::wire::Plain),
@@ -1751,7 +1750,7 @@ impl Generator {
                         ::be_wasm_ops::guest::Serve::Resource {
                             instance,
                             on_drop: ::std::boxed::Box::new(move || {
-                                ::std::boxed::Box::pin(#bound::on_drop(&*closing))
+                                #bound::on_drop(&*closing)
                             }),
                         }
                     }));
@@ -1792,7 +1791,7 @@ impl Generator {
                 pub trait #bound: 'static {
                     #(#items)*
 
-                    fn on_drop(&self) -> impl ::core::future::Future<Output = ()> + 'static;
+                    fn on_drop(&self) -> ::be_wasm_ops::guest::LocalFuture<()>;
                 }
             }
         });

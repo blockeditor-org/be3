@@ -31,7 +31,7 @@ use beui_core::file_picker::{FilePickAnswer, FilePickId, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveId, FileSaveRequest};
 use beui_core::program::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::window::WindowState;
-use beui_runner::renderer::{Loaded, WindowHandle};
+use beui_runner::renderer::{Attaching, Leased, Loaded, SurfaceLease, WindowHandle};
 use beui_runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use beui_types::FileSave;
 use beui_types::SystemBars;
@@ -44,7 +44,7 @@ use beui_types::{Motion, PreferenceLayer, ThemeKind};
 use beui_types::{Vec2, pos2, vec2};
 use clipboard::Clipboard;
 
-const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);
+const SURFACE_DETACH_WAIT: Duration = Duration::from_millis(100);
 
 const META_SHIFT_ON: jint = 0x1;
 const META_ALT_ON: jint = 0x2;
@@ -85,11 +85,15 @@ enum Message {
     View(Arc<Global<JObject<'static>>>),
     Surface {
         window: NativeWindow,
+        lease: u64,
         width: u32,
         height: u32,
         density: f32,
     },
     SurfaceGone(SyncSender<()>),
+    /// `surfaceRedrawNeededAsync`'s `drawingFinished`, run once a frame is on the
+    /// surface.
+    RedrawNeeded(Global<JObject<'static>>),
     Insets(SafeArea),
     Preferences(PreferenceLayer),
     Focus(bool),
@@ -135,6 +139,12 @@ enum Message {
 struct Shared {
     sender: Sender<Message>,
     receiver: Mutex<Option<Receiver<Message>>>,
+    /// Ended by `surfaceDestroyed`, which returns once the renderer has let the
+    /// surface go.
+    lease: Arc<SurfaceLease>,
+    /// Set by the runner, under this lock, before its last look at the queue,
+    /// so a message is either taken in or refused (`send`), never lost.
+    stopped: Mutex<bool>,
 }
 
 static SHARED: OnceLock<Shared> = OnceLock::new();
@@ -149,12 +159,21 @@ fn shared() -> &'static Shared {
         Shared {
             sender,
             receiver: Mutex::new(Some(receiver)),
+            lease: SurfaceLease::new(),
+            stopped: Mutex::new(false),
         }
     })
 }
 
+/// Whether the runner will take `message` in. When it will not, a caller waiting
+/// on an answer gives it itself.
 fn send(message: Message) -> bool {
-    shared().sender.send(message).is_ok()
+    let shared = shared();
+    let stopped = shared
+        .stopped
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    !*stopped && shared.sender.send(message).is_ok()
 }
 
 type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>>>;
@@ -201,8 +220,10 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
             sent_ime: None,
             keyboard_shown: std::cell::Cell::new(false),
             light_bars: None,
+            redraws: Vec::new(),
         },
         load: Some(load),
+        attaching: None,
         window: None,
         safe_area: SafeArea::default(),
         next_update: None,
@@ -220,6 +241,7 @@ struct Runner {
     runner: beui_runner::Runner,
     platform: AndroidPlatform,
     load: Option<Load>,
+    attaching: Option<Attaching>,
     window: Option<NativeWindow>,
     safe_area: SafeArea,
     next_update: Option<Instant>,
@@ -236,6 +258,8 @@ struct AndroidPlatform {
     sent_ime: Option<(Option<ImeText>, u64)>,
     keyboard_shown: std::cell::Cell<bool>,
     light_bars: Option<bool>,
+    /// What Android waits on before it shows the surface (`Message::RedrawNeeded`).
+    redraws: Vec<Global<JObject<'static>>>,
 }
 
 impl PlatformServices for AndroidPlatform {
@@ -292,6 +316,22 @@ impl AndroidPlatform {
             self.set_ime_text(sent.0.as_ref(), sent.1);
             self.sent_ime = Some(sent);
         }
+    }
+
+    /// Tells Android the surface has a frame on it, or that none is coming.
+    fn drawn(&mut self) {
+        if self.redraws.is_empty() {
+            return;
+        }
+        let redraws = std::mem::take(&mut self.redraws);
+        let _ = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                for finished in &redraws {
+                    env.call_method(finished.as_obj(), jni_str!("run"), jni_sig!("()V"), &[])?;
+                }
+                Ok(())
+            });
     }
 
     fn set_keyboard(&self, shown: bool) {
@@ -538,11 +578,31 @@ impl Runner {
                 None => self.frame(),
             }
         }
+        self.drain(receiver);
         self.exit();
+    }
+
+    /// Answers what still waits on the runner once it stops: Android waits on
+    /// each `drawingFinished`, and `surfaceDestroyed` on the detach.
+    fn drain(&mut self, receiver: &Receiver<Message>) {
+        *shared()
+            .stopped
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = true;
+        while let Ok(message) = receiver.try_recv() {
+            match message {
+                Message::RedrawNeeded(finished) => self.platform.redraws.push(finished),
+                Message::SurfaceGone(detached) => {
+                    let _ = detached.send(());
+                }
+                _ => {}
+            }
+        }
     }
 
     fn exit(&mut self) {
         self.runner.exit();
+        self.platform.drawn();
     }
 
     fn fail(&mut self, error: impl ToString) {
@@ -576,16 +636,22 @@ impl Runner {
             }
             Message::Surface {
                 window,
+                lease,
                 width,
                 height,
                 density,
-            } => self.surface(window, width, height, density),
-            Message::SurfaceGone(done) => {
+            } => self.surface(window, lease, width, height, density),
+            Message::SurfaceGone(detached) => {
                 if let Some(rendering) = self.runner.rendering() {
                     rendering.detach();
                 }
                 self.window = None;
-                let _ = done.send(());
+                let _ = detached.send(());
+                self.platform.drawn();
+            }
+            Message::RedrawNeeded(finished) => {
+                self.platform.redraws.push(finished);
+                self.redraw = true;
             }
             Message::Insets(area) => {
                 self.safe_area = area;
@@ -680,12 +746,12 @@ impl Runner {
         }
     }
 
-    fn surface(&mut self, window: NativeWindow, width: u32, height: u32, density: f32) {
+    fn surface(&mut self, window: NativeWindow, lease: u64, width: u32, height: u32, density: f32) {
         self.runner.reports().scaled(density);
         self.runner.reports().resized(width, height);
         self.redraw = true;
         if !self.runner.started()
-            && let Err(error) = self.start(&window)
+            && let Err(error) = self.start(&window, lease)
         {
             return self.fail(error);
         }
@@ -697,6 +763,9 @@ impl Runner {
         }
         rendering.detach();
         self.window = None;
+        if let Some(attaching) = &self.attaching {
+            attaching.set(lease);
+        }
         let handle = Arc::new(SurfaceWindow(window.clone()));
         if let Err(error) = rendering.attach(handle, width, height) {
             return self.fail(error);
@@ -704,12 +773,23 @@ impl Runner {
         self.window = Some(window);
     }
 
-    fn start(&mut self, window: &NativeWindow) -> Result<(), Box<dyn Error>> {
+    /// Loads the renderers on the first surface, which they probe. A surface
+    /// destroyed before they load waits for the next one.
+    fn start(&mut self, window: &NativeWindow, handed: u64) -> Result<(), Box<dyn Error>> {
+        let lease = shared().lease.clone();
+        let Some(held) = lease.hold(handed) else {
+            return Ok(());
+        };
         let load = self
             .load
             .take()
             .ok_or("the renderers were already loaded")?;
-        let loaded = load(Arc::new(SurfaceWindow(window.clone())))?;
+        let loaded = load(Arc::new(SurfaceWindow(window.clone())));
+        drop(held);
+        let mut loaded = loaded?;
+        let (leased, attaching) = Leased::new(loaded.renderer, shared().lease.clone());
+        loaded.renderer = Box::new(leased);
+        self.attaching = Some(attaching);
         let sender = shared().sender.clone();
         let setup = Setup::new(Waker::new(move || {
             let _ = sender.send(Message::Wake);
@@ -720,8 +800,12 @@ impl Runner {
     fn frame(&mut self) {
         let redraw = std::mem::take(&mut self.redraw);
         let pending = self.update();
-        if (pending || redraw) && self.runner.present() {
-            self.redraw = true;
+        if pending || redraw {
+            match self.runner.present() {
+                true => self.redraw = true,
+                false if self.window.is_some() => self.platform.drawn(),
+                false => {}
+            }
         }
     }
 
@@ -1063,6 +1147,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceChanged<'local>(
         if let Some(window) = window {
             send(Message::Surface {
                 window,
+                lease: shared().lease.current(),
                 width: count(width),
                 height: count(height),
                 density,
@@ -1079,10 +1164,28 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceDestroyed<'local>
     _env: EnvUnowned<'local>,
     _: JClass<'local>,
 ) {
-    let (done, released) = mpsc::sync_channel(1);
-    if send(Message::SurfaceGone(done)) {
-        let _ = released.recv_timeout(SURFACE_RELEASE_TIMEOUT);
+    // The runner detaches between frames, which destroys the swapchain before the
+    // surface goes, as EGL wants. A long frame cannot hold Android up for it: the
+    // lease then keeps the renderer off the surface from here on.
+    let (detached, released) = mpsc::sync_channel(1);
+    if send(Message::SurfaceGone(detached)) {
+        let _ = released.recv_timeout(SURFACE_DETACH_WAIT);
     }
+    shared().lease.revoke();
+}
+
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativeRedrawNeeded<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    finished: JObject<'local>,
+) -> jboolean {
+    env.with_env(|env| -> Result<bool, JniError> {
+        let finished = env.new_global_ref(&finished)?;
+        Ok(send(Message::RedrawNeeded(finished)))
+    })
+    .resolve::<LogErrorAndDefault>()
 }
 
 // unsafe(ffi)

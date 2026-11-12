@@ -200,11 +200,6 @@ pub(super) enum Command {
         block: Uuid,
         reply: AccessReply,
     },
-    Notify {
-        block: Uuid,
-        text: String,
-        mentions: Vec<Uuid>,
-    },
     SetNotifyMode {
         block: Uuid,
         mode: be_block_protocol::NotifyMode,
@@ -329,7 +324,6 @@ impl Command {
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
             | Command::ListAccess { block, .. }
-            | Command::Notify { block, .. }
             | Command::SetNotifyMode { block, .. }
             | Command::ReadHead { block, .. }
             | Command::CreateBlockAgent { block, .. }
@@ -1305,6 +1299,8 @@ async fn drain_outbox(
     let mut diverged = Vec::new();
     let mut published = Vec::new();
     if peer.pending().operations == 0 {
+        // What waited for the server to be reached goes now.
+        be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
         return (diverged, published);
     }
     match peer.drain(|_| false).await {
@@ -1358,6 +1354,8 @@ async fn drain_outbox(
         }
         Err(error) => record(shared, error),
     }
+    // The drain published commits holding announced edits.
+    be_block_type_host::replicas::send_announcements::<Shared>(peer, shared).await;
     report(peer, shared);
     (diverged, published)
 }
@@ -1618,8 +1616,6 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         }
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        // A notification is about now: one that cannot go now is dropped.
-        Command::Notify { .. } => {}
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
@@ -1700,17 +1696,6 @@ impl Ran<'_> {
                 }
                 reply(created.map_err(|error| error.to_string()));
                 be_host_base::host::wake();
-                false
-            }
-            Command::Notify {
-                block,
-                text,
-                mentions,
-            } => {
-                let peer = Arc::clone(self.peer);
-                platform::spawn_local(async move {
-                    let _ = peer.notify(block, &text, mentions).await;
-                });
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
@@ -2216,7 +2201,6 @@ async fn apply(
         | Command::CreateAgent { .. }
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
-        | Command::Notify { .. }
         | Command::SetNotifyMode { .. }
         | Command::Push(_)
         | Command::Authorship(_)
@@ -2498,6 +2482,29 @@ async fn apply(
                     .settle(to);
                 return false;
             }
+            // Some types keep parts that their bytes cannot carry (`WHOLE_BYTES` is false: chat's
+            // closed segments), and a copy through bytes would drop them: refuse until a copy of
+            // parts exists.
+            if replicas
+                .kind(content_type)
+                .await
+                .is_some_and(|kind| !kind.whole_bytes)
+                && has_later_parts(peer, from).await.unwrap_or(false)
+            {
+                record(
+                    shared,
+                    ClientError::Encoding(
+                        "this block keeps parts after its first, which a copy does not carry yet"
+                            .to_string(),
+                    ),
+                );
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .settle(to);
+                return false;
+            }
             let created = peer
                 .create_block(to, content_type, BlockParent::Detached, &metadata, false)
                 .await;
@@ -2763,6 +2770,16 @@ async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, Clie
     Ok(Some(peer.read_manifest(&commit.manifest).await?))
 }
 
+/// Whether the block's newest save holds more than the first part a type loads.
+pub(super) async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<bool, ClientError> {
+    let Some(head) = peer.newest_head(block).await? else {
+        return Ok(false);
+    };
+    let commit = peer.load_commit(head).await?;
+    let first = peer.load_first_part(&commit.manifest).await?;
+    Ok((first.bytes.len() as u64) < commit.manifest.length())
+}
+
 async fn seed(
     peer: &Arc<Peer<Store>>,
     replicas: &mut Replicas,
@@ -2944,6 +2961,20 @@ async fn export(
         .iter()
         .map(|summary| (summary.id, summary.head))
         .collect();
+    // A block file carries bytes, which drop the parts after the first of a type that loads
+    // only its first part (chat's closed segments): refuse until a file carries parts.
+    for block in &blocks {
+        if replicas
+            .kind(block.block_type)
+            .await
+            .is_some_and(|kind| !kind.whole_bytes)
+            && has_later_parts(peer, block.id).await?
+        {
+            return Err(ClientError::Encoding(
+                "a block that keeps parts after its first is not exported yet".to_string(),
+            ));
+        }
+    }
     let wanted: Vec<_> = blocks
         .iter()
         .filter(|block| !replicas.is_open(block.id))
