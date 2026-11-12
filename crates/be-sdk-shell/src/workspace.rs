@@ -520,7 +520,9 @@ impl Workspace {
         for (account, access) in grants {
             let workspace = *self;
             let asked = self.host().set_access(share.block, account, access);
-            let task = self.editor.then(asked, move |set| workspace.access_set(set));
+            let task = self
+                .editor
+                .then(asked, move |set| workspace.access_set(set));
             self.state.value().share_asks.borrow_mut().push(task);
             reload = true;
         }

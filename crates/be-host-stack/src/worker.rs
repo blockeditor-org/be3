@@ -1901,7 +1901,8 @@ impl Ran<'_> {
     /// (`Served`), and carries out any other.
     async fn carry_out(&mut self, command: Command) -> bool {
         if command.served() && self.peer.is_attached() {
-            self.served.start(self.peer, self.shared, self.tasks, command);
+            self.served
+                .start(self.peer, self.shared, self.tasks, command);
             self.done();
             return false;
         }
@@ -2487,10 +2488,13 @@ async fn serve_command(
                 Some(public) => peer.share(block, account, access, &public).await,
                 None => peer.grant(block, account, access).await,
             };
-            let failed = granted.as_ref().err().map(|error| match error.is_unreachable() {
-                true => OFFLINE_SHARING.to_owned(),
-                false => error.to_string(),
-            });
+            let failed = granted
+                .as_ref()
+                .err()
+                .map(|error| match error.is_unreachable() {
+                    true => OFFLINE_SHARING.to_owned(),
+                    false => error.to_string(),
+                });
             tend(peer, shared).await;
             reply(failed.map_or(Ok(()), Err));
             be_host_base::host::wake();

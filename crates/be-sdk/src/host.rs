@@ -1983,9 +1983,11 @@ impl EditorHost {
         account: Uuid,
         access: AccessLevel,
     ) -> Asked<Result<(), Failure>> {
-        Asked::of(self.ask(|| {
-            host_services::set_access(block_id.into_bytes(), account.into_bytes(), access)
-        }))
+        Asked::of(
+            self.ask(|| {
+                host_services::set_access(block_id.into_bytes(), account.into_bytes(), access)
+            }),
+        )
     }
 
     /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows

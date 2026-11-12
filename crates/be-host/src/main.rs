@@ -3707,8 +3707,9 @@ impl HostCore {
             UiCommand::CancelRecovery => self.keys.cancel_replacing(),
             UiCommand::ApprovePairing(from, code) => {
                 self.pairing_refused.remove(&from);
-                let (answers, post) =
-                    desk().mailbox(move |core: &mut HostCore, approved| core.pairing_approved(from, approved));
+                let (answers, post) = desk().mailbox(move |core: &mut HostCore, approved| {
+                    core.pairing_approved(from, approved)
+                });
                 be_host_stack::approve_pairing(from, code, move |approved| post.send(approved));
                 self.pairing_answers.push(answers);
             }
