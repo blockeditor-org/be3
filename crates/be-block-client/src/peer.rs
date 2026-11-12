@@ -880,6 +880,12 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    /// The seal this device made of `block`'s journal since its last rebase, and the last
+    /// sequence it holds: noted with the seal's commit in one write.
+    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
+        self.refs.sealing(block)
+    }
+
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.remote(block)
     }
@@ -1447,17 +1453,20 @@ impl<S: ObjectStore> Peer<S> {
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         self.commits.vault().store().sync()?;
-        self.refs.push_publish(Pending {
-            block,
-            commit: id,
-            expected,
-            parents,
-            chunks,
-            time,
-            pinned,
-            references: listed,
-            metadata: sealed.clone(),
-        })?;
+        self.refs.push_publish(
+            Pending {
+                block,
+                commit: id,
+                expected,
+                parents,
+                chunks,
+                time,
+                pinned,
+                references: listed,
+                metadata: sealed.clone(),
+            },
+            sealed_through.map(|sealed| sealed.sequence),
+        )?;
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {

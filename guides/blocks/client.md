@@ -144,8 +144,9 @@ with the block key; the server keeps it beside history, never in it
   and last sequence it holds (`Commit::sealed_through`); a device that stopped
   after the server took the seal and before it heard so opens on the commit the
   seal was made on, replays its own journal there and takes the seal as its
-  head, when that journal holds the seal's last entry in its generation
-  (guides/type_modules.md, Peers).
+  head, when its journal noted that seal (written with the seal's commit in one
+  refs write, dropped by the next rebase: `Peer::sealing`) and holds the seal's
+  last entry in its generation (`reaches_seal`; guides/type_modules.md, Peers).
 - Joining (`Peer::join_session`) answers the journal as of joining, so a
   replica opening on its base needs no state from the owner
   (`be_block_type_host::Replicas` picks the server's or the device's,
