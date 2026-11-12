@@ -150,11 +150,19 @@ close and switch guards flush, then ask only while `unsaved` is above zero, and
 the "Saving changes" toast shows only while it stays above zero.
 
 Not built yet: a closing web tab cannot wait for `flush()`, so it asks first
-(`beforeunload`) while anything is unsaved (`Replicas::counts`). Commands that
-need the server (create, move, share, version commands, opening a never-listed
-block, `peer.attach`, merging a diverged block) still wait in the worker's
-loop, so on a server that stopped answering, commands behind one wait until the
-connection is declared lost.
+(`beforeunload`) while anything is unsaved (`Replicas::counts`).
+
+**Commands that need the server.** Those that need only the server and no open
+block (move, share, list access, read a head, leave, approve pairing, members,
+block agents; `Command::served`) run in a lane beside the loop
+(`worker/served.rs`): one at a time, in the order sent, each in a task, so a
+server that stopped answering holds up only the lane. They count as unsynced,
+not busy (`Shared::serving`). A loop command that needs a block a lane command
+holds waits for it (`Served::defer`), and an open block whose key the lane
+rotates is resealed once that command ends. Commands that also need the open
+blocks (create, duplicate, define, versions, merging a diverged block) still
+wait in the loop, so on a server that stopped answering the commands behind
+one wait until the connection is declared lost.
 
 ## The graph mirror
 

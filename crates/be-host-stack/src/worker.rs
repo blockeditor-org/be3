@@ -689,14 +689,13 @@ impl Shared {
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
             ),
-            (
-                self.search.busy(super::search::wants_index(self)),
-                "the block store indexes edits or answers a search",
-            ),
         ]
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
         .collect();
+        if let Some(searching) = self.search.busy_with(super::search::wants_index(self)) {
+            reasons.push(format!("the block store's search is busy: {searching}"));
+        }
         if self.pending > 0
             && let Some(step) = self.step
         {
@@ -1103,6 +1102,7 @@ impl Session<'_> {
                         versions: &mut self.versions,
                         flushes: &mut flushes,
                         tasks: &self.tasks.0,
+                        served: &mut self.served,
                     };
                     let mut next = Some(command);
                     let mut applied = false;
@@ -1116,11 +1116,11 @@ impl Session<'_> {
                             }
                             command => match self.uploads.defer(command) {
                                 Some(command) if command.served() && peer.is_attached() => {
-                                    self.served.start(peer, shared, &self.tasks.0, command);
+                                    ran.served.start(peer, shared, ran.tasks, command);
                                     ran.done();
                                 }
                                 Some(command) => {
-                                    if let Some(command) = self.served.defer(command) {
+                                    if let Some(command) = ran.served.defer(command) {
                                         applied |= ran.run(command).await;
                                     }
                                 }
@@ -1143,6 +1143,7 @@ impl Session<'_> {
                         versions: &mut self.versions,
                         flushes: &mut flushes,
                         tasks: &self.tasks.0,
+                        served: &mut self.served,
                     };
                     let mut applied = false;
                     for command in self.uploads.runnable() {
@@ -1185,6 +1186,7 @@ impl Session<'_> {
                     false
                 }
                 Woken::Finished => {
+                    let runnable = self.served.runnable();
                     let mut ran = Ran {
                         peer,
                         replicas: &mut *self.replicas,
@@ -1194,8 +1196,9 @@ impl Session<'_> {
                         versions: &mut self.versions,
                         flushes: &mut flushes,
                         tasks: &self.tasks.0,
+                        served: &mut self.served,
                     };
-                    for command in self.served.runnable() {
+                    for command in runnable {
                         step(shared, Some(command.name()));
                         ran.run(command).await;
                     }
@@ -1765,6 +1768,7 @@ struct Ran<'a> {
     versions: &'a mut Versions,
     flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
     tasks: &'a Tasks,
+    served: &'a mut Served,
 }
 
 const NEEDS_CONNECTION: &str =

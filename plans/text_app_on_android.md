@@ -87,21 +87,14 @@ under a request is noticed once an early ping goes unanswered, about 25 s (`ANSW
    document that was open is not reopened, because My files' cached listing is from before the
    device's own new block (the gap fix/offline-my-files works on). `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored
    until then.
-5. **The files pane, and every command, wait on one that needs the server.** Going back on a phone
-   runs a `SetParent`, which waits on the server in the block store's loop; every command queued
-   behind it waits too (the busy reason names the step: "the block store's loop is busy with set
-   parent"). guides/blocks/host.md lists this as not built: run commands that need the server off
-   the loop, ordered per block (`Command::needs`), as uploads are.
-   `on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops` is ignored until
-   then.
+5. **Create, duplicate, define, versions and merging still wait in the block store's loop.**
+   Commands that need only the server run in a lane beside it (guides/blocks/host.md), but these
+   also need the open blocks. Moving create there broke the commands that follow it without
+   naming the new block (branches, checkouts, imports): split each into its loop part and its
+   server part with an order that covers what they depend on.
 7. **Why a reconnect hits "the session has a newer owner"** is still not known: a test's drop and
    reconnect did not meet it. The error no longer outlives its cause: it clears once the device is
    connected with nothing waiting (`report` in worker.rs).
-8. **Search indexing waits on the server.** Typing as the connection silently drops keeps the host
-   busy with "the block store indexes edits or answers a search" until the drop is noticed.
-   Sending the outbox and listing revisions are unsynced now, not busy, and a flush keeps on the
-   device without waiting for the server, so closing no longer waits on it.
-   `typing_as_the_connection_silently_drops_leaves_the_host_settled` is ignored until then.
 
 What already works, and must keep working:
 - an edit made during a drop came through a reconnect once, with no duplicate, and synced;

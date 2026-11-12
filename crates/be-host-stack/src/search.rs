@@ -228,23 +228,34 @@ impl Searching {
     /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
     /// written or a wanted search is not answered yet. The index counts in the size of the
     /// tree it is under, so a painting taken before it is named would change.
+    /// What keeps search busy (`busy`), named for the block store's busy reason.
+    pub(crate) fn busy_with(&self, unindexed: bool) -> Option<&'static str> {
+        let indexing = !self.off;
+        [
+            (indexing && !self.dirty.is_empty(), "edits wait to be indexed"),
+            (indexing && !self.creating.is_empty(), "an index is being made"),
+            (indexing && !self.confirming.is_empty(), "an index waits for its root"),
+            (indexing && !self.catching.is_empty(), "an index catches up"),
+            (indexing && !self.settle.is_empty(), "an index waits to settle"),
+            (indexing && unindexed, "a workspace waits for its index"),
+            (!self.writing.is_empty(), "a batch is written to an index"),
+            (!self.running.is_empty(), "a search runs"),
+            (
+                self.wanted().any(|asked| {
+                    self.answers
+                        .get(asked)
+                        .is_none_or(|answer| answer.shown.is_none())
+                }),
+                "a search waits to be shown",
+            ),
+        ]
+        .into_iter()
+        .find_map(|(busy, reason)| busy.then_some(reason))
+    }
+
+    #[cfg(test)]
     pub(crate) fn busy(&self, unindexed: bool) -> bool {
-        // A workspace in the mirror that wants its index and has none yet: the loop makes it
-        // next round.
-        (!self.off
-            && (!self.dirty.is_empty()
-                || !self.creating.is_empty()
-                || !self.confirming.is_empty()
-                || !self.catching.is_empty()
-                || !self.settle.is_empty()
-                || unindexed))
-            || !self.writing.is_empty()
-            || !self.running.is_empty()
-            || self.wanted().any(|asked| {
-                self.answers
-                    .get(asked)
-                    .is_none_or(|answer| answer.shown.is_none())
-            })
+        self.busy_with(unindexed).is_some()
     }
 
     fn wanted(&self) -> impl Iterator<Item = &SearchAsk> {
@@ -1303,11 +1314,20 @@ impl<S: ObjectStore> AsyncRead for PeerParts<'_, S> {
 
 /// An index's newest head this device knows: its own unsent one, else the server's, else the
 /// one it last saw.
+/// The head a batch applies to: the newest this device knows, so indexing never waits on the
+/// server; a batch on a head older than the server's meets the newer one as a diverged block and
+/// merges by parts. The server is asked only when the device knows no head.
 async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
-    match peer.newest_head(index).await {
-        Ok(Some(head)) => Some(head),
-        Ok(None) | Err(_) => peer.local_head(index),
+    let known = match peer.pending_commits(index).is_empty() {
+        false => peer.local_head(index),
+        true => peer
+            .known_remote_head(index)
+            .or_else(|| peer.local_head(index)),
+    };
+    if known.is_some() {
+        return known;
     }
+    peer.newest_head(index).await.ok().flatten()
 }
 
 async fn load<S: ObjectStore>(
