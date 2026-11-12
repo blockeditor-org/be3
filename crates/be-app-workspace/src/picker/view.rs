@@ -15,8 +15,8 @@ use be_sdk_beui::{BlockParent, ChildMode, ChildState, Subregion, SubregionConten
 use uuid::Uuid;
 
 use super::model::{
-    Creating, Pick, PickAction, PickError, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
-    link_rows, place_rows, slides, tile_key,
+    Creating, Pick, PickAction, PickError, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common,
+    groups, link_rows, place_rows, slides, tile_key,
 };
 use super::picking::Picker;
 use beui::{Align, Direction};
@@ -969,10 +969,12 @@ fn PickerError(picker: Picker, error: Memo<Option<PickError>>, act: Act, node: N
     let open = create_memo(move || error.get().is_some());
     let title = create_memo(move || error.get().map(|error| error.title).unwrap_or_default());
     let text = create_memo(move || error.get().map(|error| error.message).unwrap_or_default());
-    let color = create_memo(move || match error.get().is_some_and(|error| error.failed) {
-        true => TextColor::Danger,
-        false => TextColor::Default,
-    });
+    let color = create_memo(
+        move || match error.get().is_some_and(|error| error.failed) {
+            true => TextColor::Danger,
+            false => TextColor::Default,
+        },
+    );
     if picker.sheet {
         return view! {
             <Dialog
