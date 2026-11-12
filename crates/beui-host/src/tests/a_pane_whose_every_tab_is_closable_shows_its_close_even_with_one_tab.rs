@@ -3,7 +3,7 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 
 #[test]
-fn a_locked_pane_with_one_closable_tab_shows_one_close_named_by_the_tabs_key() {
+fn a_pane_whose_every_tab_is_closable_shows_its_close_even_with_one_tab() {
     let _root = crate::reactive::RootScope::new();
     let second = create_signal(false);
     let document = build_node(move || {
@@ -42,8 +42,8 @@ fn a_locked_pane_with_one_closable_tab_shows_one_close_named_by_the_tabs_key() {
         "a tab's close button is named by the key it was declared with"
     );
     assert!(
-        harness.document().find_test_id("dock.side.close").is_none(),
-        "a pane whose only tab closes itself shows no second close button"
+        harness.document().find_test_id("dock.side.close").is_some(),
+        "a pane whose only tab is closable is closable too"
     );
 
     second.set(true);
