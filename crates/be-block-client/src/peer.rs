@@ -1282,7 +1282,11 @@ impl<S: ObjectStore> Peer<S> {
 
     /// A listing the server answered, as this device has it: what a creation or move waiting in
     /// the outbox puts in it or takes out.
-    pub fn with_outbox(&self, listing: Listing, mut blocks: Vec<BlockSummary>) -> Vec<BlockSummary> {
+    pub fn with_outbox(
+        &self,
+        listing: Listing,
+        mut blocks: Vec<BlockSummary>,
+    ) -> Vec<BlockSummary> {
         for (_, op) in self.refs.outbox() {
             let (block, parent) = match op {
                 Op::Create(creation) => (creation.block, creation.parent),

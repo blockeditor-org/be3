@@ -8,7 +8,9 @@ fn a_block_made_while_a_listing_is_answered_stays_listed() {
     let harness = Harness::relayed();
     harness.connect();
     ask_for(vec![Query::Roots]);
-    wait_until("listed the roots", |shared| shared.graph.ready(Query::Roots));
+    wait_until("listed the roots", |shared| {
+        shared.graph.ready(Query::Roots)
+    });
 
     let mut listed = harness
         .relay()
