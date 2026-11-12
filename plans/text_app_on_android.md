@@ -75,38 +75,43 @@ here runs Android. Line numbers are from when this was written. Remove an item w
 
 ## Offline-first
 
-4. **Starting with no connection shows a blank window.** With the server unreachable from
-   launch, the window stayed empty for more than 30 s, and `drive` reported it settled with an
-   empty tree. The workspace, files and the last open document appeared about 10 s after the
-   connection was let through. Starting must not wait for the server: open from local data,
-   and allow editing.
-5. **The files pane hangs on "Loading the files" after the connection drops, and stays stuck
-   after reconnecting.**
-   - After the server port was blocked, going back from a document showed
-     `#editor.loading` "Loading the files" for more than 75 s.
-   - It stayed that way for more than 60 s after the socket reconnected, until the app
-     restarted.
-   - Because going back closes the document's tab, no document can be reached meanwhile.
+Host tests reproduce these with a device of a test's server (guides/testing_a_gui.md, 6):
+`HostTest::offline` is a drop the device notices at once, `HostTest::unreachable` one it does
+not (its connections stay open and carry nothing), which is what blocking the port did. A drop
+not noticed lasts until the connection's ping goes unanswered, about 35 s (`PING_INTERVAL` plus
+`PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
 
-   The files pane should show the local graph offline and recover on reconnect.
-6. **The status during a drop tells offline users to keep the app open.**
-   - With the connection blocked, a toast said "Saving changes… This is taking longer than
-     usual. Keep be-host open until it finishes."
-   - The Block Stack panel said "Changes: 1 not yet saved on this device" for more than a
-     minute.
-   - The edit did survive a `kill -9`, so it was in the journal, and both messages are wrong.
-   - Being offline should read as offline and saved on this device, not as a stalled save.
-     Check that the local seal really does not wait on the network.
-7. **A sync error outlives its cause.** After a connection reset, the host menu said
-   "Changes could not sync" and the Block Stack panel said "Error: the server refused
-   (InvalidRequest): the session has a newer owner". Both stayed after a clean restart, with
-   "Waiting to sync: 0". They cleared only on a later relaunch. Find:
-   - why a reconnect hits "the session has a newer owner";
-   - why the error stays once nothing is waiting.
-8. **While the connection is down but not yet noticed, the block store stays busy.** Typing
-   right after the port was blocked kept `drive` from settling for 30 s ("the block store sends
-   sealed edits; … lists a block's revisions; … indexes edits"). Check that nothing the editor
-   or files pane waits on is stuck behind a send that cannot finish.
+4. **Starting with no connection.** A device of a remote server restarted while it cannot reach
+   it shows Files at once (`resume_organization`); the blank window seen here was probably the
+   `:dev` embedded server blocked by the same rule. What is left: My files is empty and the
+   document that was open is not reopened, because My files' cached listing is from before the
+   device's own new block (the gap `a_device_restarted_offline_still_lists_a_block_it_made`
+   holds). `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored
+   until then.
+5. **The files pane, and every command, wait on one that needs the server.** Going back on a phone
+   runs a `SetParent`, which waits on the server in the block store's loop; every command queued
+   behind it waits too (the busy reason names the step: "the block store's loop is busy with set
+   parent"). guides/blocks/host.md lists this as not built: run commands that need the server off
+   the loop, ordered per block (`Command::needs`), as uploads are.
+   `on_a_phone_the_files_show_what_the_device_keeps_after_its_connection_drops` is ignored until
+   then.
+6. **Edits typed while a seal waits on the server are not kept.** With sealing at its real pace
+   (`drive hurry off`), the text module's publish waits on a server that stopped answering; while
+   that seal is out the module holds new operations (`held`, be-sdk-type-guest replica.rs,
+   `sealing_out`) out of the journal. So the block store counts them as not saved on this device
+   (the "Saving changes" toast), and the module stays unsettled, which stops even `drive pause`.
+   Either release a publish unanswered for a moment as kept, a local commit the outbox sends, as
+   `Replicas::keep_all` does at a flush, or journal what is typed during a seal.
+   `an_edit_made_offline_reads_as_kept_on_the_device_and_syncs_without_an_error` is ignored until
+   then.
+7. **Why a reconnect hits "the session has a newer owner"** is still not known: a test's drop and
+   reconnect did not meet it. The error no longer outlives its cause: it clears once the device is
+   connected with nothing waiting (`report` in worker.rs).
+8. **Search indexing waits on the server.** Typing as the connection silently drops keeps the host
+   busy with "the block store indexes edits or answers a search" until the drop is noticed.
+   Sending the outbox and listing revisions are unsynced now, not busy, and a flush keeps on the
+   device without waiting for the server, so closing no longer waits on it.
+   `typing_as_the_connection_silently_drops_leaves_the_host_settled` is ignored until then.
 
 What already works, and must keep working:
 - an edit made during a drop came through a reconnect once, with no duplicate, and synced;

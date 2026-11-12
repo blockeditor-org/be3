@@ -277,7 +277,9 @@ runs be-server in the test's process on a directory of its own, and hosts join i
   network: `offline` cuts its connections, refuses new ones and returns once the device says it
   is not connected (`drive unsynced`); `online` gives it back and sends
   `drive network`, so the device reconnects at once instead of when its wait for the next try runs
-  out. `Server::offline` does it for every device. Object bytes go to the server's own address,
+  out. `unreachable` takes the network away without a word, as a network that drops what it is
+  sent: connections stay open and carry nothing, and the device notices only when its ping goes
+  unanswered, so it shows what waits on a server that stopped answering. `online` ends it too. `Server::offline` does it for every device. Object bytes go to the server's own address,
   not through the relay, but a device asks for their URLs over its connection, so an offline one
   moves none.
 - `restart` closes the host, failing unless it exits cleanly, and starts it on the same data. A
