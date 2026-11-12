@@ -3062,7 +3062,7 @@ fn FullscreenButton() -> NodeId {
 
 #[sample]
 #[component]
-fn FullscreenBody(on_close: ClickCallback) -> NodeId {
+fn FullscreenBody(on_close: Callback<()>) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=ROW_SPACING>
@@ -3370,7 +3370,7 @@ fn ScrollRow(
     selection: Selector<Option<usize>>,
     timings: ReadSignal<bool>,
     compact: ReadSignal<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let selected = create_memo(move || selection.is_selected(&Some(index.get())));
     view! {

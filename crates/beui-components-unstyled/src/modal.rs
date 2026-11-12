@@ -49,7 +49,7 @@ pub fn Modal(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     #[prop(children)] content: Render<ModalHandle>,
 ) -> NodeId {
     let presence = create_signal(match motion {
@@ -80,7 +80,7 @@ pub fn Modal(
                         open={stays}
                         on_back={move || {
                             asked.set(true);
-                            on_dismiss.call();
+                            on_dismiss.call(());
                         }}
                         on_gone={move || asked.set(false)}
                         on_presence={presence}
@@ -111,7 +111,7 @@ pub fn Modal(
                 true => LayerPolicy::Inert,
                 false => LayerPolicy::BlocksAll,
             })}
-            on_dismiss={move |_: Dismiss| on_dismiss.call()}
+            on_dismiss={move |_: Dismiss| on_dismiss.call(())}
             content={move || body.call(())}
         />
     }

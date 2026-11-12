@@ -130,7 +130,7 @@ fn HeaderToggle(
     label: Memo<String>,
     accessibility: Memo<Node>,
     open: Memo<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let glyph = create_memo(move || match open.get() {
         true => ICON_CHEVRON_UP,

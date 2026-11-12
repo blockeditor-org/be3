@@ -1818,7 +1818,7 @@ pub(crate) fn ButtonFace(label: String) -> NodeId {
 }
 
 #[component]
-pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
+pub(crate) fn LabelledButton(label: String, on_click: Callback<()>) -> NodeId {
     view! {
         <unstyled::Button on_click={on_click}>
             <ButtonFace label />

@@ -42,7 +42,7 @@ pub struct TreemapHandle<K: 'static> {
     /// The levels gone into, outermost first.
     pub path: Memo<Vec<TreemapItem<K>>>,
     /// Back out one level; nothing at the top.
-    pub up: ClickCallback,
+    pub up: Callback<()>,
     /// Back out to the first `n` levels of `path` (0 is the top).
     pub climb: Callback<usize>,
     /// The tile under the pointer, else the one with focus.
@@ -188,7 +188,7 @@ where
         }))
     });
     let path_memo = create_memo(move || path.get());
-    let up = ClickCallback::new(move || go_up(state));
+    let up = Callback::new(move |()| go_up(state));
     let climb = Callback::new(move |levels: usize| {
         let refocus = state.focus.get_untracked().is_some();
         state.path.update(|path| path.truncate(levels));
@@ -280,7 +280,7 @@ where
     let built = NodeRef::new();
     let laid_out = create_signal(None::<Vec2>);
     let size = create_memo(move || laid_out.get());
-    let open = ClickCallback::new(move || {
+    let open = Callback::new(move |()| {
         let tile = data.get_untracked();
         if let (true, TreemapTileKey::Item(key)) = (tile.opens, tile.key) {
             go_in(

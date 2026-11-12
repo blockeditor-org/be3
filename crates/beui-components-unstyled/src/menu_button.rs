@@ -29,9 +29,9 @@ pub fn MenuButton(
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
     accessibility: Option<Prop<Node>>,
-    on_click: ClickCallback,
-    on_secondary_click: ClickCallback,
-    on_middle_click: ClickCallback,
+    on_click: Callback<()>,
+    on_secondary_click: Callback<()>,
+    on_middle_click: Callback<()>,
     on_scroll: Callback<ScrollGesture>,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
@@ -65,7 +65,7 @@ pub fn MenuButton(
                     }
                     match secondary_opens.get_untracked() {
                         true => open.set(true),
-                        false => on_secondary_click.call(),
+                        false => on_secondary_click.call(()),
                     }
                 }}
             >
@@ -78,7 +78,7 @@ pub fn MenuButton(
             <Interactive
                 on_middle_click={move || {
                     if !disabled.get_untracked() {
-                        on_middle_click.call();
+                        on_middle_click.call(());
                     }
                 }}
             >

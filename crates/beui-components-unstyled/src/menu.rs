@@ -50,7 +50,7 @@ pub struct MenuRowHandle {
     pub has_submenu: Prop<bool>,
     pub depth: Prop<Option<usize>>,
     pub expanded: Prop<Option<bool>>,
-    pub toggle: ClickCallback,
+    pub toggle: Callback<()>,
     pub pointed: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -82,7 +82,7 @@ pub struct MenuItem {
     then: MenuThen,
     test_id: Option<String>,
     pub(crate) action: Option<Action>,
-    pub(crate) on_click: ClickCallback,
+    pub(crate) on_click: Callback<()>,
     pub(crate) children: Run<MenuItem>,
 }
 
@@ -134,7 +134,7 @@ pub fn MenuItem(
     #[prop(default = MenuThen::Close)] then: MenuThen,
     row_test_id: Option<String>,
     action: Option<Action>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     children: Children<MenuItem>,
 ) -> MenuItem {
     let label = action_label(action.as_ref(), label);
@@ -217,7 +217,7 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
         then: MenuThen::Close,
         test_id: None,
         action: None,
-        on_click: ClickCallback::default(),
+        on_click: Callback::default(),
         children,
     }
 }
@@ -535,7 +535,7 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         has_submenu: Prop::Static(false),
         depth: Prop::Static(None),
         expanded: Prop::Static(None),
-        toggle: ClickCallback::default(),
+        toggle: Callback::default(),
         pointed: quiet(),
         active: quiet(),
         focused: quiet(),
@@ -561,7 +561,7 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
         has_submenu: Prop::Static(false),
         depth: item.depth.into_prop(),
         expanded: item.expanded.into_prop(),
-        toggle: ClickCallback::new(move || toggled.toggle()),
+        toggle: Callback::new(move |()| toggled.toggle()),
         pointed: handle.pointed,
         active: handle.active,
         focused: handle.focused,
@@ -805,7 +805,7 @@ fn choose(state: State, path: Vec<usize>, item: &MenuItem) {
     if let Some(action) = &item.action {
         action.run();
     }
-    item.on_click.call();
+    item.on_click.call(());
     if item.then == MenuThen::Back {
         state.parent.leave();
     }

@@ -449,8 +449,8 @@ fn named_setter(prop: &Prop) -> Setter {
         func_setter(ident, args, |build| build)
     } else if prop.is_optional_click_callback {
         plain(
-            quote! { value: impl ::__beui_tree::reactive::IntoClickCallback },
-            quote! { Some(::__beui_tree::reactive::IntoClickCallback::into_click_callback(value)) },
+            quote! { value: impl ::__beui_tree::reactive::IntoUnitCallback },
+            quote! { Some(::__beui_tree::reactive::IntoUnitCallback::into_unit_callback(value)) },
         )
     } else if let Some(signature) = &prop.optional_callback_signature {
         plain(
@@ -478,8 +478,8 @@ fn named_setter(prop: &Prop) -> Setter {
         }
     } else if prop.is_click_callback {
         plain(
-            quote! { value: impl ::__beui_tree::reactive::IntoClickCallback },
-            quote! { ::__beui_tree::reactive::IntoClickCallback::into_click_callback(value) },
+            quote! { value: impl ::__beui_tree::reactive::IntoUnitCallback },
+            quote! { ::__beui_tree::reactive::IntoUnitCallback::into_unit_callback(value) },
         )
     } else if let Some(signature) = &prop.callback_signature {
         plain(
@@ -631,6 +631,16 @@ fn is_primitive_type(ty: &Type) -> bool {
     path.path
         .get_ident()
         .is_some_and(|ident| PRIMITIVES.iter().any(|primitive| ident == primitive))
+}
+
+/// `Callback<()>`: a prop that is called with nothing, so its setter also takes a
+/// closure without arguments.
+fn is_unit_callback(ty: &Type) -> bool {
+    is_named_type(ty, "Callback")
+        && matches!(
+            generic_args(ty, "Callback").as_deref(),
+            Some([Type::Tuple(tuple)]) if tuple.elems.is_empty()
+        )
 }
 
 fn is_named_type(ty: &Type, name: &str) -> bool {
@@ -791,7 +801,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             let inner_ty = generic_inner(ty, "Option");
             let is_optional_click_callback = inner_ty
                 .as_ref()
-                .is_some_and(|inner| is_named_type(inner, "ClickCallback"));
+                .is_some_and(is_unit_callback);
             let optional_callback_signature = inner_ty
                 .as_ref()
                 .filter(|inner| is_named_type(inner, "Callback"))
@@ -825,7 +835,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 is_optional_child,
                 callback_signature,
                 optional_callback_signature,
-                is_click_callback: is_named_type(ty, "ClickCallback"),
+                is_click_callback: is_unit_callback(ty),
                 is_optional_click_callback,
                 default,
                 is_children_slot: children,

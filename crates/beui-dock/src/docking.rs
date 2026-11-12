@@ -673,7 +673,7 @@ impl<K: DockKey> DockingLayout<K> {
                 size: create_memo(move || described.with(|described| described.size)),
                 modal: read(|described| described.modal),
                 dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
-                on_close: closable.then(|| ClickCallback::new(move || closing.close(inner))),
+                on_close: closable.then(|| Callback::new(move |()| closing.close(inner))),
                 content: RenderFn::new(move |()| {
                     let place = stored
                         .value()
@@ -1154,7 +1154,7 @@ impl<K: DockKey> Found<K> {
         }
     }
 
-    fn on_close(&self, tab: TabId) -> Option<ClickCallback> {
+    fn on_close(&self, tab: TabId) -> Option<Callback<()>> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab { on_close, .. } => *on_close,
             EntryKind::Group { .. } => None,
@@ -1221,7 +1221,7 @@ where
                 .or_else(|| found.live_parts(tab).and_then(|parts| parts.on_close))),
         });
         match close {
-            Ok(Some(close)) => close.call(),
+            Ok(Some(close)) => close.call(()),
             Ok(None) => {}
             Err((joined, inner)) => joined.close(inner),
         }

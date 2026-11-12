@@ -10,7 +10,7 @@ use beui_view::types::{Dismiss, LayerPolicy};
 
 pub struct AnchoredSheetHandle {
     pub open: Memo<bool>,
-    pub on_close: ClickCallback,
+    pub on_close: Callback<()>,
     pub content: Render,
 }
 
@@ -64,7 +64,7 @@ pub fn Anchored(
     trigger: Option<NodeRef>,
     #[prop(default = false)] keep_alive: bool,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     #[prop(children)] content: RenderFn<AnchoredHandle>,
 ) -> NodeId {
     let mut was_open = false;
@@ -100,7 +100,7 @@ pub fn Anchored(
                 trigger={trigger}
                 open={dropped}
                 keep_alive
-                on_dismiss={move |_: Dismiss| on_dismiss.call()}
+                on_dismiss={move |_: Dismiss| on_dismiss.call(())}
                 content={move || style.dropdown.call(content.call(AnchoredHandle {
                     sheet: false,
                     shown: dropped,
@@ -109,7 +109,7 @@ pub fn Anchored(
             <Show condition={sheet_built}>|| {
                 style.sheet.call(AnchoredSheetHandle {
                     open: raised,
-                    on_close: ClickCallback::new(move || on_dismiss.call()),
+                    on_close: Callback::new(move |()| on_dismiss.call(())),
                     content: Render::new(move |()| {
                         content.call(AnchoredHandle {
                             sheet: true,

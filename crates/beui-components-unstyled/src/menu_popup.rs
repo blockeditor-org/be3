@@ -85,7 +85,7 @@ pub fn MenuPopup(
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     #[prop(default = NodeRef::new())] content: NodeRef,
     trigger: Option<NodeRef>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
@@ -112,7 +112,7 @@ pub fn MenuPopup(
     let choose = Callback::new(move |(path, then): (Vec<usize>, MenuThen)| {
         on_select.call(path);
         if then == MenuThen::Close {
-            on_dismiss.call();
+            on_dismiss.call(());
         }
     });
     view! {

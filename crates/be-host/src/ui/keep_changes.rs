@@ -14,8 +14,8 @@ pub(crate) fn KeepChanges(
     timeout: Duration,
     #[prop(default = 0)] round: Prop<u64>,
     id: String,
-    on_keep: ClickCallback,
-    on_revert: ClickCallback,
+    on_keep: Callback<()>,
+    on_revert: Callback<()>,
 ) -> NodeId {
     let deadline = StoredCell::new(None::<Instant>);
     let left = create_signal(timeout);
@@ -25,7 +25,7 @@ pub(crate) fn KeepChanges(
         left.set(remaining);
         if remaining.is_zero() {
             deadline.set(None);
-            on_revert.call();
+            on_revert.call(());
             return None;
         }
         Some(until_next_second(remaining))
@@ -56,11 +56,11 @@ pub(crate) fn KeepChanges(
     };
     let keep = move || {
         stop();
-        on_keep.call();
+        on_keep.call(());
     };
-    let revert = ClickCallback::new(move || {
+    let revert = Callback::new(move |()| {
         stop();
-        on_revert.call();
+        on_revert.call(());
     });
     let title = create_memo(move || title.get());
     view! {

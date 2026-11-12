@@ -115,7 +115,7 @@ pub struct DockTabHandle {
     pub test_key: Option<String>,
     pub grouped: bool,
     pub notice: Memo<Option<String>>,
-    pub close: ClickCallback,
+    pub close: Callback<()>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -154,7 +154,7 @@ pub struct DockBarHandle {
     pub vacant: Memo<bool>,
     pub closable: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
-    pub close: ClickCallback,
+    pub close: Callback<()>,
     pub test_prefix: String,
 }
 
@@ -183,15 +183,15 @@ pub struct DockStackHandle {
     pub icon: Memo<Option<Glyph>>,
     pub backward: Memo<bool>,
     pub menu: Memo<Vec<MenuNode>>,
-    pub back: ClickCallback,
+    pub back: Callback<()>,
     pub open_tabs: Memo<usize>,
     pub switch_label: Memo<String>,
-    pub open_switcher: ClickCallback,
+    pub open_switcher: Callback<()>,
 }
 
 pub struct DockSwitcherHandle {
     pub open: ReadSignal<bool>,
-    pub close: ClickCallback,
+    pub close: Callback<()>,
     pub tabs: Memo<Vec<TabId>>,
     pub fixed: Memo<Vec<TabId>>,
     pub card: Func<TabId, DockSwitcherCardHandle>,
@@ -205,8 +205,8 @@ pub struct DockSwitcherCardHandle {
     pub current: Memo<bool>,
     pub closable: bool,
     pub menu: Memo<Vec<MenuNode>>,
-    pub pick: ClickCallback,
-    pub close: ClickCallback,
+    pub pick: Callback<()>,
+    pub close: Callback<()>,
 }
 
 type DockNotices = HashMap<TabId, (u64, Memo<Option<String>>)>;
@@ -2312,10 +2312,10 @@ fn stack_handle(
         icon,
         backward,
         menu,
-        back: ClickCallback::new(move || dock.go_back()),
+        back: Callback::new(move |()| dock.go_back()),
         open_tabs,
         switch_label,
-        open_switcher: ClickCallback::new(move || switching.set(true)),
+        open_switcher: Callback::new(move |()| switching.set(true)),
     }
 }
 
@@ -2346,7 +2346,7 @@ fn switcher_handle(
     });
     DockSwitcherHandle {
         open: switching.read_only(),
-        close: ClickCallback::new(move || switching.set(false)),
+        close: Callback::new(move |()| switching.set(false)),
         tabs: open,
         fixed,
         card: Func::new(move |tab: TabId| DockSwitcherCardHandle {
@@ -2362,11 +2362,11 @@ fn switcher_handle(
                     switching,
                 )
             }),
-            pick: ClickCallback::new(move || {
+            pick: Callback::new(move |()| {
                 switching.set(false);
                 dock.show(tab);
             }),
-            close: ClickCallback::new(move || dock.close_tab(tab)),
+            close: Callback::new(move |()| dock.close_tab(tab)),
         }),
     }
 }
@@ -2774,7 +2774,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         create_memo(move || !(vacant.get() && state.with(|state| state.hides_empty_bar(leaf))));
     let sidebar_width = dock.sidebar_width(Some(leaf));
     let icons_only = dock.icons_only(Some(leaf));
-    let close = ClickCallback::new(move || dock.close_leaf(leaf));
+    let close = Callback::new(move |()| dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
     let closable = dock.all_closable(contents);
     let lone_tab = create_memo(move || {
@@ -3170,23 +3170,23 @@ fn DockTabView(
                 .is_some_and(|drag| drag.dragged == DockDragged::Entry(entry))
         })
     });
-    let close = ClickCallback::new(move || dock.close_entry(entry));
-    let float = ClickCallback::new(move || dock.float_entry(entry));
-    let group = ClickCallback::new(move || {
+    let close = Callback::new(move |()| dock.close_entry(entry));
+    let float = Callback::new(move |()| dock.float_entry(entry));
+    let group = Callback::new(move |()| {
         dock.edit(|state| {
             if let Some((leaf, index)) = state.locate(entry) {
                 state.group_with_next(leaf, index);
             }
         });
     });
-    let split = ClickCallback::new(move || {
+    let split = Callback::new(move |()| {
         dock.edit(|state| {
             if let Some((leaf, index)) = state.locate(entry) {
                 state.split_with_next(leaf, index);
             }
         });
     });
-    let ungroup = ClickCallback::new(move || {
+    let ungroup = Callback::new(move |()| {
         if let Entry::Group(group) = entry {
             dock.edit(|state| state.ungroup(group));
         }
@@ -3254,7 +3254,7 @@ fn DockTabView(
             .then(|| dock.fullscreen_tab() == Some(tab)),
         Entry::Group(_) => None,
     });
-    let toggle_fullscreen = ClickCallback::new(move || {
+    let toggle_fullscreen = Callback::new(move |()| {
         if let Entry::Tab(tab) = entry {
             dock.toggle_fullscreen(tab);
         }
@@ -3319,12 +3319,12 @@ fn TabMenu(
     has_next: Memo<bool>,
     closable: Memo<bool>,
     fullscreen: Memo<Option<bool>>,
-    close: ClickCallback,
-    float: ClickCallback,
-    group: ClickCallback,
-    split: ClickCallback,
-    ungroup: ClickCallback,
-    toggle_fullscreen: ClickCallback,
+    close: Callback<()>,
+    float: Callback<()>,
+    group: Callback<()>,
+    split: Callback<()>,
+    ungroup: Callback<()>,
+    toggle_fullscreen: Callback<()>,
     children: Child,
 ) -> NodeId {
     let offered = create_memo(move || fullscreen.get().is_some());
@@ -3363,19 +3363,19 @@ fn TabMenu(
                 </Show>
             }}
             on_select={move |path: Vec<usize>| match path.first() {
-                Some(0) => float.call(),
-                Some(1) => group.call(),
-                Some(2) => split.call(),
-                Some(3) => close.call(),
-                Some(4) if grouped => ungroup.call(),
-                Some(4 | 5) => toggle_fullscreen.call(),
+                Some(0) => float.call(()),
+                Some(1) => group.call(()),
+                Some(2) => split.call(()),
+                Some(3) => close.call(()),
+                Some(4) if grouped => ungroup.call(()),
+                Some(4 | 5) => toggle_fullscreen.call(()),
                 _ => {}
             }}
         >
             <Interactive
                 on_middle_click={move || {
                     if closable.get_untracked() {
-                        close.call();
+                        close.call(());
                     }
                 }}
             >
@@ -3389,7 +3389,7 @@ fn TabMenu(
 struct GripPane {
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
-    close: ClickCallback,
+    close: Callback<()>,
 }
 
 #[component]
@@ -3399,9 +3399,9 @@ fn GripMenu(
     icons_only: Memo<bool>,
     pane: GripPane,
     lock: Memo<Option<bool>>,
-    toggle: ClickCallback,
-    toggle_icons: ClickCallback,
-    toggle_lock: ClickCallback,
+    toggle: Callback<()>,
+    toggle_icons: Callback<()>,
+    toggle_lock: Callback<()>,
     children: Child,
 ) -> NodeId {
     let label = match vertical {
@@ -3436,10 +3436,10 @@ fn GripMenu(
                 <MenuNodes nodes={tab_menu} />
             }}
             on_select={move |path: Vec<usize>| match path.first() {
-                Some(0) => toggle.call(),
-                Some(1) => toggle_icons.call(),
-                Some(2) => close.call(),
-                Some(3) => toggle_lock.call(),
+                Some(0) => toggle.call(()),
+                Some(1) => toggle_icons.call(()),
+                Some(2) => close.call(()),
+                Some(3) => toggle_lock.call(()),
                 _ => {}
             }}
         >
@@ -3804,7 +3804,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         })
     });
     let vacant = create_memo(move || contents.with(Vec::is_empty));
-    let close = ClickCallback::new(move || {
+    let close = Callback::new(move |()| {
         for leaf in dock.state.get_untracked().leaves(surface) {
             dock.close_leaf(leaf);
         }

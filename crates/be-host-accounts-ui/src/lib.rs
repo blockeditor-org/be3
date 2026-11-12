@@ -50,7 +50,7 @@ pub fn Column(children: Children<ListItem>) -> NodeId {
 pub fn AccountsScreen(
     accounts: Memo<Vec<AccountRow>>,
     error: Memo<Option<String>>,
-    on_add: ClickCallback,
+    on_add: Callback<()>,
     on_open: Callback<String>,
     on_choose_organization: Callback<String>,
     on_log_out: Callback<String>,
@@ -88,7 +88,7 @@ pub fn AccountsScreen(
                 label="Add account"
                 glyph=ICON_PLUS
                 variant=ButtonVariant::Secondary
-                on_click={move || on_add.call()}
+                on_click={move || on_add.call(())}
             />
             <ErrorText text={error} />
         </Column>

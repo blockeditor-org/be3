@@ -628,7 +628,7 @@ fn KeyButton(
     label: Memo<String>,
     disabled: Memo<bool>,
     id: String,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let named = create_memo(move || format!("Change {}", label.get()));
     view! {

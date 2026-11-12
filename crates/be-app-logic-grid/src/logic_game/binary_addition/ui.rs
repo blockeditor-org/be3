@@ -296,7 +296,7 @@ fn BitCell(
     answer: Memo<Option<bool>>,
     wrong: Memo<bool>,
     read_only: Memo<bool>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     let label = create_memo(move || match answer.get() {
         Some(bit) => u8::from(bit).to_string(),

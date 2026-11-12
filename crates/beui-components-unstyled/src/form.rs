@@ -7,10 +7,10 @@ use beui_view::{CORE, Core};
 
 #[derive(Clone, Copy)]
 struct FormContext {
-    submit: ClickCallback,
+    submit: Callback<()>,
 }
 
-pub(crate) fn form_submit() -> Option<ClickCallback> {
+pub(crate) fn form_submit() -> Option<Callback<()>> {
     use_context::<FormContext>().map(|form| form.submit)
 }
 
@@ -64,12 +64,12 @@ pub(crate) fn Posted(
 pub fn Form(
     #[prop(default = String::new())] action: Prop<String>,
     #[prop(default = Vec::new())] hidden: Vec<(&'static str, String)>,
-    on_submit: ClickCallback,
+    on_submit: Callback<()>,
     #[prop(children)] content: Render,
 ) -> NodeId {
     let submit = on_submit;
     provide_context(FormContext {
-        submit: ClickCallback::new(move || submit.call()),
+        submit: Callback::new(move |()| submit.call(())),
     });
     let content = content.call(());
     if CORE != Core::Html {
@@ -98,7 +98,7 @@ pub fn Form(
                 on_submit={move |event: Event| {
                     if !on_submit.is_empty() {
                         event.prevent_default();
-                        on_submit.call();
+                        on_submit.call(());
                     }
                 }}
             >

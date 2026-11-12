@@ -61,8 +61,8 @@ impl Hash for Toast {
 #[derive(Clone)]
 pub struct ToastHandle {
     pub toast: Toast,
-    pub dismiss: ClickCallback,
-    pub activate: ClickCallback,
+    pub dismiss: Callback<()>,
+    pub activate: Callback<()>,
     pub act: Callback<String>,
 }
 
@@ -203,12 +203,12 @@ fn ToastItem(
     node.set_label(spoken(&toast));
     component_accessibility(node);
     let activate = match toast.activates {
-        true => ClickCallback::new(move || on_activate.call(id)),
-        false => ClickCallback::empty(),
+        true => Callback::new(move |()| on_activate.call(id)),
+        false => Callback::empty(),
     };
     let handle = ToastHandle {
         toast,
-        dismiss: ClickCallback::new(move || on_dismiss.call(id)),
+        dismiss: Callback::new(move |()| on_dismiss.call(id)),
         activate,
         act: Callback::new(move |key: String| on_action.call((id, key))),
     };

@@ -42,8 +42,8 @@ struct Slide {
     behind: bool,
     enters: bool,
     open: Option<Prop<bool>>,
-    on_back: ClickCallback,
-    on_gone: ClickCallback,
+    on_back: Callback<()>,
+    on_gone: Callback<()>,
     on_presence: Callback<f32>,
 }
 
@@ -125,7 +125,7 @@ impl Slide {
                 match self.open {
                     None => self.start(Phase::Leaving { from: position }),
                     Some(open) => {
-                        self.on_back.call();
+                        self.on_back.call(());
                         match open.get_untracked() {
                             true if phase == Phase::Dragging => {
                                 self.start(Phase::Returning { from: position })
@@ -157,10 +157,10 @@ impl Slide {
     fn gone(&self) {
         if self.open.is_some() {
             self.start(Phase::Still);
-            self.on_gone.call();
+            self.on_gone.call(());
             return;
         }
-        self.on_back.call();
+        self.on_back.call(());
         match self.enters && !self.behind {
             true => {
                 self.state.borrow_mut().direction *= -1.0;
@@ -237,9 +237,9 @@ impl Slide {
 pub fn BackSlide(
     #[prop(default = true)] enabled: Prop<bool>,
     #[prop(default = true)] enters: bool,
-    #[prop(default = ClickCallback::default())] on_back: ClickCallback,
+    #[prop(default = Callback::default())] on_back: Callback<()>,
     #[prop(default = None)] open: Option<Prop<bool>>,
-    #[prop(default = ClickCallback::default())] on_gone: ClickCallback,
+    #[prop(default = Callback::default())] on_gone: Callback<()>,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
     #[prop(default = None)] behind: Option<RenderFn<()>>,
     #[prop(default = Color::TRANSPARENT)] shade: Prop<Color>,

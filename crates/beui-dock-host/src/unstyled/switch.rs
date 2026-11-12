@@ -25,7 +25,7 @@ pub struct DockSwitchRowHandle {
     pub title: Memo<String>,
     pub icon: Memo<Option<Glyph>>,
     pub chosen: Memo<bool>,
-    pub pick: ClickCallback,
+    pub pick: Callback<()>,
 }
 
 impl State {
@@ -58,7 +58,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         title: create_memo(move || dock.title(tab)),
         icon: create_memo(move || dock.icon(tab)),
         chosen: create_memo(move || chosen.get() == Some(tab)),
-        pick: ClickCallback::new(move || dock.pick_switch(tab)),
+        pick: Callback::new(move |()| dock.pick_switch(tab)),
     });
     let body = move || match &dock.switch {
         Some(render) => render.call(DockSwitchHandle { tabs, chosen, row }),

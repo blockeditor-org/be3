@@ -17,7 +17,7 @@ pub fn Link(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = TextSize::Base)] size: Prop<TextSize>,
     #[prop(default = None)] href: Prop<Option<String>>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     view! {
         <unstyled::Button label glyph role=Role::Link disabled href on_click={on_click}>|handle|

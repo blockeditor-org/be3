@@ -582,7 +582,7 @@ struct TabContext {
     stack: Memo<Vec<Uuid>>,
     top_bar: Prop<TopBar>,
     portals: Signal<Vec<(Uuid, NodeId)>>,
-    exit: ClickCallback,
+    exit: Callback<()>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -958,7 +958,7 @@ fn FrameStack(
         stack
     });
     let portals = create_signal(Vec::<(Uuid, NodeId)>::new());
-    let exit = ClickCallback::new(move || {
+    let exit = Callback::new(move |()| {
         let stack = stack.get_untracked();
         let parent = match stack.len() {
             0 | 1 => block,
@@ -1384,7 +1384,7 @@ fn BlockFrameView(
         create_effect(move || {
             revision.get();
             if be_host_runtime::take_leaving(&app_id.value(), instance) {
-                tab.exit.call();
+                tab.exit.call(());
             }
         });
     }

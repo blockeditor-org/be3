@@ -22,7 +22,7 @@ pub fn TileButton(
     #[prop(default = false)] toggle: bool,
     #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = Size::Xl)] size: Size,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     children: Child,
 ) -> NodeId {
     let selected = create_memo(move || selected.get());

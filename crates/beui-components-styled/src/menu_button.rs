@@ -31,9 +31,9 @@ pub fn MenuButton(
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     leading: Option<Child>,
     items: Children<MenuItem>,
-    on_click: ClickCallback,
-    on_secondary_click: ClickCallback,
-    on_middle_click: ClickCallback,
+    on_click: Callback<()>,
+    on_secondary_click: Callback<()>,
+    on_middle_click: Callback<()>,
     on_scroll: Callback<ScrollGesture>,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {

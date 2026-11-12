@@ -34,7 +34,7 @@ pub fn SplitButton(
     #[prop(default = String::from("More options"))] menu_label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     items: Children<MenuItem>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let disabled = create_memo(move || disabled.get());

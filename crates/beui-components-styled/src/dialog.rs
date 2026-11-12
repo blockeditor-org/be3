@@ -44,7 +44,7 @@ pub fn Modal(
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     #[prop(children)] content: Render,
 ) -> NodeId {
     let theme = use_theme();
@@ -79,7 +79,7 @@ pub fn Dialog(
     #[prop(default = String::new())] id: Prop<String>,
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     #[prop(children)] content: Render<(), Children<ListItem>>,
 ) -> NodeId {
     view! {
@@ -103,7 +103,7 @@ pub fn DialogFrame(
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     #[prop(children)] content: Render,
 ) -> NodeId {
     let theme = use_theme();
@@ -169,7 +169,7 @@ pub fn DialogBody(
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] focuses: Prop<bool>,
     #[prop(default = true)] scrolls: bool,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     #[prop(children)] content: Render<(), Children<ListItem>>,
 ) -> NodeId {
     let id = create_memo(move || id.get());

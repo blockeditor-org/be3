@@ -205,7 +205,7 @@ struct Surface {
     completion_layer: NodeRef,
     on_widget_press: Callback<usize, bool>,
     on_toolbar: Callback<Option<Rect>>,
-    on_submit: ClickCallback,
+    on_submit: Callback<()>,
 }
 
 type Context = Surface;
@@ -1261,7 +1261,7 @@ pub fn TextArea(
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
     on_toolbar: Callback<Option<Rect>>,
-    on_submit: ClickCallback,
+    on_submit: Callback<()>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
     #[prop(default = false)] pastes_images: bool,

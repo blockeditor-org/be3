@@ -182,7 +182,7 @@ fn DockTitle(
 }
 
 #[component]
-fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback) -> NodeId {
+fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: Callback<()>) -> NodeId {
     let shown = create_memo(move || count.get().to_string());
     view! {
         <unstyled::Button

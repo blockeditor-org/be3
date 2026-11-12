@@ -56,9 +56,9 @@ pub fn ContextMenu(
     #[prop(default = true)] opens_on_hold: bool,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
-    on_close: ClickCallback,
+    on_close: Callback<()>,
     #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
-    on_toolbar_close: ClickCallback,
+    on_toolbar_close: Callback<()>,
 ) -> NodeId {
     view! {
         <unstyled::ContextMenu
@@ -92,7 +92,7 @@ pub fn MenuPopup(
     #[prop(default = false)] sheet: Prop<bool>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
@@ -371,7 +371,7 @@ fn leading_mark(
 pub(crate) fn MenuTreeLead(
     depth: Prop<Option<usize>>,
     expanded: Prop<Option<bool>>,
-    toggle: ClickCallback,
+    toggle: Callback<()>,
     indent: Space,
     chevron: Size,
 ) -> DynamicSegment<ListItem> {
