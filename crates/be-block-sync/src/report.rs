@@ -6,7 +6,8 @@ pub struct Report {
     pub uploaded: usize,
     pub renamed: usize,
     pub deleted: usize,
-    /// Deletions of `deleted` made while not connected: queued until reconnected.
+    /// Deletions made while not connected, counted apart from `deleted`: queued until
+    /// reconnected.
     pub queued: usize,
     pub written: usize,
     pub moved: usize,

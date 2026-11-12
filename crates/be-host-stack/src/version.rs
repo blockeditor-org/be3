@@ -1566,6 +1566,14 @@ impl Versions {
         self.statuses.reconnected();
     }
 
+    /// The server ended the watch of `block`: watch it again when it is next wanted.
+    pub(super) fn unwatched(&mut self, block: Uuid) {
+        self.watching
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&block);
+    }
+
     pub(super) fn announced(&mut self) {
         self.statuses.announced();
     }

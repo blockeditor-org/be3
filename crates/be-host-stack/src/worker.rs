@@ -1024,6 +1024,9 @@ impl Session<'_> {
                         ) {
                             self.versions.announced();
                         }
+                        if let Some(Event::WatchEnded { block }) = &event {
+                            self.versions.unwatched(*block);
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),

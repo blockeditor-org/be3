@@ -85,9 +85,15 @@ pub enum Event {
     /// The account's notification modes changed on another of its devices.
     NotifyModesChanged,
     KeyWorkChanged,
+    /// The server ended a watch (the connection can no longer view the block, or the
+    /// block was collected); a later `watch` subscribes again.
+    WatchEnded {
+        block: Uuid,
+    },
 }
 
 struct Watching {
+    id: u64,
     count: usize,
     _stop: tokio::sync::oneshot::Sender<()>,
 }
@@ -96,6 +102,7 @@ struct Watching {
 struct Registry {
     subscribed: bool,
     watching: HashMap<Uuid, Watching>,
+    watches_made: u64,
     sessions: HashMap<Uuid, Arc<client::sessions::Session>>,
 }
 
@@ -257,22 +264,26 @@ impl Connection {
         receiver
     }
 
-    pub fn watch(&self, block: Uuid) {
+    pub fn watch(self: &Arc<Self>, block: Uuid) {
         let mut registry = self.registry();
         if let Some(watching) = registry.watching.get_mut(&block) {
             watching.count += 1;
             return;
         }
         let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        registry.watches_made += 1;
+        let id = registry.watches_made;
         registry.watching.insert(
             block,
             Watching {
+                id,
                 count: 1,
                 _stop: stop,
             },
         );
         drop(registry);
         let events = self.events.clone();
+        let connection = Arc::clone(self);
         let mut heard = client::blocks::watch(&self.peer, block);
         self.pump(async move {
             let heard = async move {
@@ -286,6 +297,17 @@ impl Connection {
                         BlockEvent::Deleted => Event::BlockDeleted { block },
                     });
                 }
+                // The server ended it: forget it, so the next `watch` subscribes again.
+                let mut registry = connection.registry();
+                if registry
+                    .watching
+                    .get(&block)
+                    .is_some_and(|held| held.id == id)
+                {
+                    registry.watching.remove(&block);
+                }
+                drop(registry);
+                let _ = events.send(Event::WatchEnded { block });
             };
             select(std::pin::pin!(heard), stopped).await;
         });
