@@ -1,7 +1,7 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, HostTransform,
-    HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, Pos2, ScreenId, ScreenLayout,
+    HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, OpeningKind, Pos2, ScreenId, ScreenLayout,
     ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2, ViewId,
     ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
@@ -484,7 +484,7 @@ impl Screens {
                 return false;
             }
             Delivery::Open(opening) => {
-                let instance = opening.instance();
+                let instance = opening.instance;
                 self.open_editor(opening);
                 if !self.sessions.contains_key(&instance) {
                     return false;
@@ -544,50 +544,21 @@ impl Screens {
 
     fn open_editor(&mut self, opening: Opening) {
         let block_types = Rc::clone(&self.block_types);
-        let (instance, editor, account_id, organization_id, client_id) = match &opening {
-            Opening::Block(open) => (
-                open.instance,
-                open.editor,
-                open.account_id,
-                open.organization_id,
-                open.client_id,
-            ),
-            Opening::Creation(open) => (
-                open.instance,
-                open.editor,
-                open.account_id,
-                open.organization_id,
-                open.client_id,
-            ),
-            Opening::Artifact(open) => (
-                open.instance,
-                open.editor,
-                open.account_id,
-                open.organization_id,
-                open.client_id,
-            ),
-            Opening::Picker(open) => (
-                open.instance,
-                open.editor,
-                open.account_id,
-                open.organization_id,
-                open.client_id,
-            ),
-            Opening::Rename(open) => (
-                open.instance,
-                open.editor,
-                open.account_id,
-                open.organization_id,
-                open.client_id,
-            ),
-        };
+        let Opening {
+            instance,
+            editor,
+            account_id,
+            organization_id,
+            client_id,
+            kind,
+        } = opening;
         let session = self.open(instance, Uuid::from_bytes(editor));
         session.set_block_types(block_types);
         session.set_client_id(Uuid::from_bytes(client_id));
         session.set_account_id(Uuid::from_bytes(account_id));
         session.set_organization_id(Uuid::from_bytes(organization_id));
-        match opening {
-            Opening::Block(open) => {
+        match kind {
+            OpeningKind::Block(open) => {
                 session.set_view_block(open.view_block.map(Uuid::from_bytes));
                 session.set_editable(open.editable);
                 session.set_page_origin(open.page_origin);
@@ -597,17 +568,17 @@ impl Screens {
                     Uuid::from_bytes(open.block_type),
                 );
             }
-            Opening::Creation(open) => session.connect_creation(open.template),
-            Opening::Picker(open) => session.connect_picker(crate::host::PickerRequest {
+            OpeningKind::Creation(open) => session.connect_creation(open.template),
+            OpeningKind::Picker(open) => session.connect_picker(crate::host::PickerRequest {
                 filter: open.filter,
                 parent: crate::graph::BlockParent::decode(open.parent),
                 sheet: open.sheet,
             }),
-            Opening::Rename(open) => session.connect_rename(crate::host::RenameRequest {
+            OpeningKind::Rename(open) => session.connect_rename(crate::host::RenameRequest {
                 block: Uuid::from_bytes(open.block_id),
                 sheet: open.sheet,
             }),
-            Opening::Artifact(open) => session.connect_artifact(
+            OpeningKind::Artifact(open) => session.connect_artifact(
                 crate::Artifact {
                     block_id: Uuid::from_bytes(open.block_id),
                     block_type: Uuid::from_bytes(open.block_type),

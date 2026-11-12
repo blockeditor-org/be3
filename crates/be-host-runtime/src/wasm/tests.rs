@@ -1,5 +1,5 @@
 use be_sdk_api::{
-    EditorInstanceId, HelloAccepted, OpenBlock, Opening, ParentView, ScreenId, ScreenRequest,
+    EditorInstanceId, HelloAccepted, OpenBlock, Opening, OpeningKind, ParentView, ScreenId, ScreenRequest,
     ViewId, ViewPlacement, ViewportMetrics,
     embed::{
         exports::app::{self, Editor},
@@ -93,19 +93,21 @@ fn accepted() -> HelloAccepted {
 }
 
 fn opening(editor: [u8; 16]) -> Opening {
-    Opening::Block(OpenBlock {
+    Opening {
         instance: EditorInstanceId(1),
         editor,
-        block_id: [1; 16],
-        block_type: [2; 16],
-        view_block: None,
         account_id: [3; 16],
         organization_id: [4; 16],
         client_id: [5; 16],
-        editable: true,
-        page_origin: String::new(),
-        host_palette: false,
-    })
+        kind: OpeningKind::Block(OpenBlock {
+            block_id: [1; 16],
+            block_type: [2; 16],
+            view_block: None,
+            editable: true,
+            page_origin: String::new(),
+            host_palette: false,
+        }),
+    }
 }
 
 fn screens() -> Vec<ScreenRequest> {

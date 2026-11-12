@@ -41,19 +41,21 @@ fn a_frame_sent_to_a_replica_is_answered_once_the_host_takes_it_in() {
     }));
     let mut wire = Wire::default();
     let mut heard = Vec::new();
-    wire.open(Opening::Block(be_sdk_api::OpenBlock {
+    wire.open(Opening {
         instance: INSTANCE,
         editor: [1; 16],
-        block_id: [2; 16],
-        block_type: [3; 16],
-        view_block: None,
         account_id: [4; 16],
         organization_id: [5; 16],
         client_id: [6; 16],
-        editable: true,
-        page_origin: String::new(),
-        host_palette: false,
-    }));
+        kind: be_sdk_api::OpeningKind::Block(OpenBlock {
+            block_id: [2; 16],
+            block_type: [3; 16],
+            view_block: None,
+            editable: true,
+            page_origin: String::new(),
+            host_palette: false,
+        }),
+    });
     exchange(&mut wire, &guest, &mut heard);
     let editor = editor.borrow().expect("the guest served the editor");
 

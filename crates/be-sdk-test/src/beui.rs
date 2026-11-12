@@ -1,4 +1,4 @@
-use be_sdk_api::Opening;
+use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
@@ -329,63 +329,73 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let open = match kind {
             Kind::Frame(block) | Kind::Preview(block) => {
                 store.own(block, block_type);
-                Opening::Block(OpenBlock {
+                Opening {
                     instance: INSTANCE,
                     editor: ADOPTED_EDITOR,
-                    block_id: block.into_bytes(),
-                    block_type: block_type.into_bytes(),
-                    view_block: host.view_block().map(Uuid::into_bytes),
                     account_id,
                     organization_id,
                     client_id,
-                    editable: host.editable(),
-                    page_origin: host.page_origin(),
-                    host_palette: host.host_palette(),
-                })
+                    kind: OpeningKind::Block(OpenBlock {
+                        block_id: block.into_bytes(),
+                        block_type: block_type.into_bytes(),
+                        view_block: host.view_block().map(Uuid::into_bytes),
+                        editable: host.editable(),
+                        page_origin: host.page_origin(),
+                        host_palette: host.host_palette(),
+                    }),
+                }
             }
-            Kind::Creation => Opening::Creation(OpenCreation {
+            Kind::Creation => Opening {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
-                template: template.clone(),
                 account_id,
                 organization_id,
                 client_id,
-            }),
+                kind: OpeningKind::Creation(OpenCreation {
+                    template: template.clone(),
+                }),
+            },
             Kind::Picker => {
                 let request = PICKER
                     .with(|picker| picker.borrow_mut().take())
                     .expect("a picker test names what it picks");
-                Opening::Picker(be_sdk_api::OpenPicker {
+                Opening {
                     instance: INSTANCE,
                     editor: ADOPTED_EDITOR,
-                    filter: request.filter,
-                    parent: request.parent.encode(),
-                    sheet: request.sheet,
                     account_id,
                     organization_id,
                     client_id,
-                })
+                    kind: OpeningKind::Picker(be_sdk_api::OpenPicker {
+                        filter: request.filter,
+                        parent: request.parent.encode(),
+                        sheet: request.sheet,
+                    }),
+                }
             }
-            Kind::Rename(block) => Opening::Rename(be_sdk_api::OpenRename {
+            Kind::Rename(block) => Opening {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
-                block_id: block.into_bytes(),
-                sheet: false,
                 account_id,
                 organization_id,
                 client_id,
-            }),
-            Kind::Settings => Opening::Artifact(OpenArtifact {
+                kind: OpeningKind::Rename(be_sdk_api::OpenRename {
+                    block_id: block.into_bytes(),
+                    sheet: false,
+                }),
+            },
+            Kind::Settings => Opening {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
-                block_id: artifact.unwrap_or_default().0.into_bytes(),
-                block_type: block_type.into_bytes(),
-                source: artifact.unwrap_or_default().1.into_bytes(),
                 account_id,
                 organization_id,
                 client_id,
-                data: data.clone(),
-            }),
+                kind: OpeningKind::Artifact(OpenArtifact {
+                    block_id: artifact.unwrap_or_default().0.into_bytes(),
+                    block_type: block_type.into_bytes(),
+                    source: artifact.unwrap_or_default().1.into_bytes(),
+                    data: data.clone(),
+                }),
+            },
         };
         let frame = match &kind {
             Kind::Frame(_) => Some(be_sdk_api::FrameSpec {
