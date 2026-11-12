@@ -95,6 +95,22 @@ pub async fn create_local_profile(
     Ok(session)
 }
 
+/// Signs in with a token the server issued another way: a test's server hands one to each
+/// device of an account (crates/be-host-tests), since a local profile is a new account each time.
+pub async fn token_login(server_url: String, token: String) -> Result<Session, AccountError> {
+    let connection = crate::link::connect(&server_url).await?;
+    let mut session = session_of(
+        ask(client::account::authenticate(
+            &connection,
+            Some(token.clone()),
+        ))
+        .await?,
+    );
+    session.token = token;
+    crate::link::adopt(&server_url, &session.token, session.account, connection).await;
+    Ok(session)
+}
+
 /// How often a browser sign-in is polled while nobody asks to check now. A poll at once is
 /// `browser_login`'s `check_now`; neither polls sooner than the server's interval.
 pub const LOGIN_POLL_EVERY: std::time::Duration = std::time::Duration::from_secs(10);

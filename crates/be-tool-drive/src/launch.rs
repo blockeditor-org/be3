@@ -44,6 +44,7 @@ struct Launch {
     space: bool,
     unrendered: bool,
     arguments: Vec<String>,
+    environment: Vec<(String, String)>,
 }
 
 const RUN_USAGE: &str =
@@ -194,6 +195,7 @@ impl Launch {
         if self.data {
             command.env("XDG_DATA_HOME", &data);
         }
+        command.envs(self.environment.iter().map(|(name, value)| (name, value)));
         let see = log.map_or_else(String::new, |log| format!("; see {}", log.display()));
         let spawned = command.spawn();
         drop(listener);
@@ -258,26 +260,24 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Starts `start` as [`crate::Driven`] does, in `dir`, on the data already there unless `fresh`.
 pub(crate) fn start(
-    program: &str,
-    arguments: Vec<String>,
-    size: &str,
-    libraries: Option<String>,
-    space: bool,
-    render: bool,
+    start: &crate::driven::Start,
+    fresh: bool,
     dir: &Path,
     log: &Path,
 ) -> Result<Child, String> {
     Launch {
-        program: Some(program.to_owned()),
+        program: Some(start.program.clone()),
         data: true,
-        fresh: true,
+        fresh,
         pin_clock: true,
-        space,
-        unrendered: !render,
-        libraries,
-        size: Some(size.to_owned()),
-        arguments,
+        space: start.space,
+        unrendered: !start.render,
+        libraries: start.libraries.clone(),
+        size: Some(start.size.clone()),
+        arguments: start.arguments.clone(),
+        environment: start.environment.clone(),
         ..Launch::default()
     }
     .start(dir, Some(log))

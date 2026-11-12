@@ -53,6 +53,19 @@ pub trait Program: std::any::Any {
         Vec::new()
     }
 
+    /// What the program still waits on outside its window before it is in step with it, one
+    /// reason each: `None` for a program with nothing outside to keep in step with (be-host
+    /// names its server). drive's `synced` waits until it gives none.
+    fn out_of_step(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    /// Whether the program is connected to what it keeps in step with outside its window:
+    /// `None` for a program with nothing outside. drive's `offline` waits until it is not.
+    fn connected(&self) -> Option<bool> {
+        None
+    }
+
     fn environment(&self) -> Vec<(String, String)> {
         Vec::new()
     }

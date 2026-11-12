@@ -5,6 +5,10 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-block-fault-relay = { path = "../be-block-fault-relay" }
+be-server = { path = "../be-server" }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+uuid = { version = "1", features = ["v4"] }
 be-tool-drive = { path = "../be-tool-drive" }
 beui-layer-drive = { path = "../beui-layer-drive" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
