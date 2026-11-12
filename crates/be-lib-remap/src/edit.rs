@@ -71,8 +71,6 @@ pub enum RuleEdit {
     StepMs(usize, Option<i64>),
 }
 
-const NEW_KEY: &str = "Space";
-
 pub struct Editing(DocumentMut);
 
 impl Editing {
@@ -176,8 +174,8 @@ impl Editing {
             table.insert("rules", value(Array::new()));
         }
         let mut rule = InlineTable::new();
-        rule.insert("on", NEW_KEY.into());
-        rule.insert("send", NEW_KEY.into());
+        rule.insert("on", "".into());
+        rule.insert("send", "".into());
         match table.get_mut("rules") {
             Some(Item::Value(Value::Array(rules))) => push(rules, Value::InlineTable(rule)),
             Some(Item::ArrayOfTables(rules)) => rules.push(rule.into_table()),
@@ -337,7 +335,7 @@ impl Editing {
                 let mut step = InlineTable::new();
                 match wait {
                     true => step.insert("wait_ms", 10.into()),
-                    false => step.insert("tap", NEW_KEY.into()),
+                    false => step.insert("tap", "".into()),
                 };
                 if let Some(steps) = table.get_mut("steps").and_then(Item::as_array_mut) {
                     push(steps, Value::InlineTable(step));
@@ -502,7 +500,7 @@ fn action_key(table: &dyn TableLike) -> String {
                     .find_map(|step| step.as_inline_table()?.get("tap")?.as_str())
             })
     };
-    direct.or_else(first_step).unwrap_or(NEW_KEY).to_owned()
+    direct.or_else(first_step).unwrap_or_default().to_owned()
 }
 
 fn set_ms(table: &mut dyn TableLike, key: &str, ms: Option<i64>) {
@@ -566,14 +564,15 @@ pub struct Combo {
 }
 
 impl Combo {
+    /// The last part is the key, empty while none is chosen (`Ctrl+`).
     pub fn parse(text: &str) -> Self {
-        let mut held: Vec<String> = text
-            .split('+')
-            .map(str::trim)
+        let mut parts: Vec<&str> = text.split('+').map(str::trim).collect();
+        let key = parts.pop().unwrap_or_default().to_owned();
+        let held = parts
+            .into_iter()
             .filter(|part| !part.is_empty())
             .map(str::to_owned)
             .collect();
-        let key = held.pop().unwrap_or_default();
         Self { held, key }
     }
 

@@ -3,15 +3,17 @@
 
 use be_lib_remap::names::{Modifier, Source};
 use be_lib_remap::rules::Wheel;
-use be_sdk_beui::beui::icons::{ICON_KEYBOARD, ICON_SEARCH};
+use std::time::Duration;
+
+use be_sdk_beui::beui::icons::{ICON_BAN, ICON_KEYBOARD, ICON_SEARCH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{Align, Direction, NodeId, TextAlign};
+use be_sdk_beui::beui::{Align, Direction, NodeId, NodeRef, TextAlign};
 use be_sdk_beui::{
     CapturedChord, CapturedTrigger, Editor, InputCapture, InputCaptureWatch, RemapsWatch, WheelTurn,
 };
 
-use super::keys::{self, id_part, label};
+use super::keys::{self, NOTHING, id_part, label};
 
 const SPACING: Space = Space::Lg;
 const KEY_SPACING: Space = Space::Sm;
@@ -68,15 +70,19 @@ impl Tab {
     }
 }
 
+/// The picker, a card that points at the control it was opened from
+/// (`opener`, which `Edits::pick` fills).
 #[component]
 pub(super) fn KeyPicker(
     editor: Editor,
     picking: Signal<Option<Picking>>,
+    opener: NodeRef,
     choose: Callback<(Picking, Picked)>,
 ) -> NodeId {
     let open = create_memo(move || picking.get().is_some());
     let target = create_memo(move || picking.get().map(|picking| picking.target));
     let wheel = create_memo(move || target.get() == Some(Target::On));
+    let nothing = create_memo(move || target.get() == Some(Target::Key));
     let title = create_memo(move || {
         match target.get() {
             Some(Target::On) | None => "Choose what you press",
@@ -104,10 +110,12 @@ pub(super) fn KeyPicker(
     let typing = create_signal(false);
     let typed = create_signal(String::new());
     let listening = create_signal(false);
+    let resting = create_signal(false);
     create_effect(move || {
-        if open.get() {
+        let open = open.get();
+        untrack(|| listening.set(false));
+        if open {
             untrack(|| {
-                listening.set(false);
                 tab.set(first());
                 query.set(String::new());
                 typing.set(false);
@@ -119,8 +127,19 @@ pub(super) fn KeyPicker(
         create_memo(move || tabs.with(|tabs| tabs.get(tab.get()) == Some(&which)))
     };
     let pressing = shown(Tab::Press);
-    let capture = editor
-        .watch_while::<InputCaptureWatch>(move || open.get() && pressing.get() && listening.get());
+    let capture = editor.watch_while::<InputCaptureWatch>(move || {
+        open.get() && pressing.get() && listening.get() && !resting.get()
+    });
+    // A capture ends with what it caught, so listening on past a wheel turn
+    // that cannot be picked closes the watch for a frame and opens a new one.
+    let resume = create_timer(move || {
+        resting.set(false);
+        None
+    });
+    let listen_again = Callback::new(move |()| {
+        resting.set(true);
+        resume.restart(Duration::ZERO);
+    });
     let pick = Callback::new(move |picked: Picked| {
         if let Some(now) = picking.get_untracked() {
             picking.set(None);
@@ -133,6 +152,7 @@ pub(super) fn KeyPicker(
             title={title}
             id="input-remaps.picker"
             actions={vec![DialogAction::cancel("Cancel")]}
+            anchor={DialogAnchor::Control(opener)}
             on_dismiss={move || picking.set(None)}
         >
             <List spacing=SPACING>
@@ -147,7 +167,13 @@ pub(super) fn KeyPicker(
                     @test_id={"input-remaps.picker.tabs"}
                 />
                 <Show condition={pressing}>
-                    <PressTab target={target} listening={listening} capture={capture} pick={pick} />
+                    <PressTab
+                        target={target}
+                        listening={listening}
+                        capture={capture}
+                        listen_again={listen_again}
+                        pick={pick}
+                    />
                 </Show>
                 <Show condition={shown(Tab::Mouse)}>
                     <MouseTab wheel={wheel} pick={pick} />
@@ -156,6 +182,18 @@ pub(super) fn KeyPicker(
                     <AllKeysTab query={query} wheel={wheel} pick={pick} />
                 </Show>
                 <Separator />
+                <Show condition={nothing}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=KEY_SPACING>
+                        <Button
+                            label=NOTHING
+                            glyph={Some(ICON_BAN)}
+                            size=ButtonSize::Small
+                            @test_id={"input-remaps.picker.nothing"}
+                            on_click={move || pick.call(Picked::key(String::new()))}
+                        />
+                        <Text style=TextStyle::CAPTION>"Sends nothing, so the key does nothing."</Text>
+                    </List>
+                </Show>
                 <TypedKey open={typing} typed={typed} wheel={wheel} pick={pick} />
             </List>
         </Dialog>
@@ -169,8 +207,9 @@ fn source_name(code: u16) -> String {
 
 /// What a chord the session caught picks, for what is being picked: what is
 /// pressed takes all that was held with it, a key sent or tapped only the
-/// modifiers, and a key to hold only itself. A wheel turn is only ever pressed.
-fn caught(chord: &CapturedChord, target: Target) -> Result<Picked, String> {
+/// modifiers, and a key to hold only itself. A wheel turn is only ever pressed,
+/// so for anything else it picks nothing and the picker listens on.
+fn caught(chord: &CapturedChord, target: Target) -> Option<Picked> {
     let key = match chord.trigger {
         CapturedTrigger::Source(code) => source_name(code),
         CapturedTrigger::Wheel(turn) if target == Target::On => {
@@ -182,14 +221,10 @@ fn caught(chord: &CapturedChord, target: Target) -> Result<Picked, String> {
             };
             wheel.name().to_owned()
         }
-        CapturedTrigger::Wheel(_) => {
-            return Err(
-                "A wheel turn can only be what you press. Press a key or button.".to_owned(),
-            );
-        }
+        CapturedTrigger::Wheel(_) => return None,
     };
     if target == Target::Held {
-        return Ok(Picked { key, with: None });
+        return Some(Picked { key, with: None });
     }
     let mut with: Vec<String> = Vec::new();
     for code in &chord.held {
@@ -209,37 +244,40 @@ fn caught(chord: &CapturedChord, target: Target) -> Result<Picked, String> {
         .filter(|name| with.contains(name))
         .collect();
     let others = with.into_iter().filter(|name| !modifiers.contains(name));
-    Ok(Picked {
+    Some(Picked {
         key,
         with: Some(modifiers.iter().cloned().chain(others).collect()),
     })
 }
 
 /// Catches the next key, button or wheel turn, before any remap or program
-/// sees it, while the session offers that.
+/// sees it, while the session offers that. Only a chord caught while it
+/// listens counts: the last capture's chord outlives its watch.
 #[component]
 fn PressTab(
     target: Memo<Option<Target>>,
     listening: Signal<bool>,
     capture: ReadSignal<InputCapture>,
+    listen_again: Callback<()>,
     pick: Callback<Picked>,
 ) -> NodeId {
-    let problem = create_signal(None::<String>);
     create_effect(move || {
         let Some(chord) = capture.with(|capture| capture.chord.clone()) else {
             return;
         };
         untrack(|| {
-            listening.set(false);
+            if !listening.get() {
+                return;
+            }
             let Some(target) = target.get() else {
                 return;
             };
             match caught(&chord, target) {
-                Ok(picked) => {
-                    problem.set(None);
+                Some(picked) => {
+                    listening.set(false);
                     pick.call(picked);
                 }
-                Err(why) => problem.set(Some(why)),
+                None => listen_again.call(()),
             }
         });
     });
@@ -266,8 +304,6 @@ fn PressTab(
         }
         .to_owned()
     });
-    let failed = create_memo(move || problem.get().is_some());
-    let why = create_memo(move || problem.get().unwrap_or_default());
     view! {
         <Frame border=Border::DEFAULT radius=Radius::Md padding={Padding::all(Space::Xl)}>
             <List spacing=SPACING align=Align::Center>
@@ -277,10 +313,7 @@ fn PressTab(
                         glyph={Some(ICON_KEYBOARD)}
                         variant=ButtonVariant::Primary
                         @test_id={"input-remaps.picker.listen"}
-                        on_click={move || {
-                            problem.set(None);
-                            listening.set(true);
-                        }}
+                        on_click={move || listening.set(true)}
                     />
                 </Show>
                 <Show condition={listening}>
@@ -302,9 +335,6 @@ fn PressTab(
                     </List>
                 </Show>
                 <Text style=TextStyle::CAPTION align=TextAlign::Center>{prompt}</Text>
-                <Show condition={failed}>
-                    <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{why}</Text>
-                </Show>
             </List>
         </Frame>
     }

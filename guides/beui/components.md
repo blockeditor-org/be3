@@ -57,7 +57,7 @@ Program code wants `styled::Scroll`, which adds the overlay scrollbar ([decision
 
 ### Long lists
 
-Layout culls nodes more than `CULLING_MARGIN` outside the view (the focused node never), so a long scroll of ordinary content needs nothing more. A `VirtualList` is for when building every row is itself the cost.
+Layout culls nodes more than `CULLING_MARGIN` outside the view (never the focused node, nor anything holding an open overlay), so a long scroll of ordinary content needs nothing more. A `VirtualList` is for when building every row is itself the cost.
 
 It can sit anywhere a tall child could. Its trap is recycling: the row builder runs once per built row with a `ReadSignal` of its key, which the list later points at another key. Derive everything shown from that signal; state a row keeps carries over to the next key, unless its content is in `<Dynamic value={key}>`.
 
