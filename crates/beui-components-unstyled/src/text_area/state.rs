@@ -472,7 +472,8 @@ impl TextAreaState {
         self.request_reveal();
     }
 
-    pub(crate) fn pending_scroll(&self) -> Option<ScrollAnchor> {
+    /// The anchor a `scroll_to` is still on its way to.
+    pub fn pending_scroll(&self) -> Option<ScrollAnchor> {
         self.0.value().scroll_to.get()
     }
 

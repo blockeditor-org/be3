@@ -7,6 +7,16 @@ use beui_layer_drive::Reply;
 
 use crate::{Unanswered, launch, request};
 
+/// What a program was started with, to start it again.
+struct Started {
+    program: String,
+    arguments: Vec<String>,
+    size: String,
+    libraries: Option<String>,
+    space: bool,
+    render: bool,
+}
+
 const CLOSING: Duration = Duration::from_secs(60);
 const LOG_TAIL: usize = 40;
 const PANIC_LINES: usize = 12;
@@ -18,6 +28,7 @@ const PANIC_LINES: usize = 12;
 /// them, so `paint` works and `shot` does not, and neither does anything that is a texture
 /// (space's 3D view, block previews).
 pub struct Driven {
+    started: Started,
     child: Option<Child>,
     dir: PathBuf,
     socket: PathBuf,
@@ -44,26 +55,34 @@ impl Driven {
         std::fs::create_dir_all(&dir)
             .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
         let log = dir.join("app.log");
-        let child = launch::start(
-            program,
-            arguments
+        let started = Started {
+            program: program.to_owned(),
+            arguments: arguments
                 .iter()
                 .map(|argument| (*argument).to_owned())
                 .collect(),
-            size,
+            size: size.to_owned(),
             libraries,
             space,
             render,
-            &dir,
-            &log,
-        )?;
+        };
+        let child = launch_with(&started, true, &dir, &log)?;
         Ok(Self {
+            started,
             child: Some(child),
             socket: dir.join("drive.sock"),
             dir,
             log,
             timeout: crate::TIMEOUT,
         })
+    }
+
+    /// Closes the program cleanly and starts it again on the data it left, as a person quitting
+    /// and opening it again does.
+    pub fn restart(&mut self) -> Result<(), String> {
+        self.stop()?;
+        self.child = Some(launch_with(&self.started, false, &self.dir, &self.log)?);
+        Ok(())
     }
 
     pub fn set_timeout(&mut self, timeout: Duration) {
@@ -81,6 +100,10 @@ impl Driven {
 
     /// Asks the program to close and fails unless it exits cleanly within [`CLOSING`].
     pub fn close(mut self) -> Result<(), String> {
+        self.stop()
+    }
+
+    fn stop(&mut self) -> Result<(), String> {
         let Some(child) = self.child.take() else {
             return Ok(());
         };
@@ -93,6 +116,20 @@ impl Driven {
         };
         closed.map_err(|error| format!("{error}\n\n{}", self.log_report()))
     }
+}
+
+fn launch_with(started: &Started, fresh: bool, dir: &Path, log: &Path) -> Result<Child, String> {
+    launch::start(
+        &started.program,
+        started.arguments.clone(),
+        &started.size,
+        started.libraries.clone(),
+        started.space,
+        started.render,
+        fresh,
+        dir,
+        log,
+    )
 }
 
 pub fn log_report(log: &str) -> String {

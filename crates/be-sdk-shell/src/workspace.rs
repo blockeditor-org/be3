@@ -608,9 +608,14 @@ impl Workspace {
         ))
     }
 
-    /// Keeps a closed tab's `view` among the session's closed views, so opening `block` in
-    /// `editor` again finds it; the oldest past `MAX_CLOSED_VIEWS` is detached.
-    fn keep_closed_view(&self, block: Uuid, editor: Uuid, view: Uuid) {
+    /// Keeps a closed tab's `view` among the session's closed views, so opening `block` again in
+    /// the editor the view names (`VIEW_EDITOR`) finds it; the oldest past `MAX_CLOSED_VIEWS` is
+    /// detached.
+    fn keep_closed_view(&self, block: Uuid, view: Uuid) {
+        let editor = self
+            .info(view)
+            .and_then(|info| info.metadata.get(&VIEW_EDITOR))
+            .unwrap_or_default();
         let mut closed = saved::closed_views(self.editor.view_state(CLOSED_VIEWS).as_ref());
         let mut dropped = Vec::new();
         closed.retain(|(held, held_view)| {
@@ -974,14 +979,13 @@ impl Workspace {
         if held.editor == item.editor {
             return;
         }
-        let before = self.editor_of(held).unwrap_or_default();
         held.editor = item.editor;
         if item.block_type != EditorViewContent::CONTENT_TYPE {
             let mut views = self.views.get_untracked();
             if let Some(view) = views.remove(&tab)
                 && view != item.id
             {
-                self.keep_closed_view(item.id, before, view);
+                self.keep_closed_view(item.id, view);
             }
             if let Some(view) = self.view_for(&item) {
                 views.insert(tab, view);
@@ -1044,8 +1048,7 @@ impl Workspace {
         if let Some(view) = views.remove(&tab) {
             self.views.set(views);
             if view != closed.id {
-                let editor = self.editor_of(&closed).unwrap_or_default();
-                self.keep_closed_view(closed.id, editor, view);
+                self.keep_closed_view(closed.id, view);
             }
         }
         self.tabs.set(tabs);

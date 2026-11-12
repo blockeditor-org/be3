@@ -4,10 +4,14 @@ use be_sdk_type_guest::api::{Change, FileChange, PlainFile, guest::exports::repl
 use super::*;
 
 fn from_file(current: Option<Vec<u8>>, name: &str, bytes: &[u8]) -> Vec<u8> {
+    from_file_by(current, name, bytes, 3)
+}
+
+fn from_file_by(current: Option<Vec<u8>>, name: &str, bytes: &[u8], client: u64) -> Vec<u8> {
     pollster::block_on(crate::block_types().apply(
         TextContent::CONTENT_TYPE,
         current,
-        3,
+        client,
         Change::FromFile(FileChange {
             name: name.into(),
             bytes: bytes.to_vec(),
@@ -47,4 +51,14 @@ fn a_text_file_becomes_a_text_block_and_back() {
     let edited = TextContent::decode(&edited).unwrap();
     assert_eq!(TextBlock::text(&edited), "pub fn a() {}\npub fn b() {}\n");
     assert_eq!(edited.root().language, TextLanguage::Rust);
+
+    // The host makes a new block from a file with no client of its own: client 0 is the
+    // sequence's loaded buffer, which no edit may claim.
+    let made = from_file_by(None, "notes.md", "# Notes\n\nÜber ✓\n".as_bytes(), 0);
+    let made = TextContent::decode(&made).unwrap();
+    assert_eq!(TextBlock::text(&made), "# Notes\n\nÜber ✓\n");
+    assert!(
+        TextBlock::body(&made).is_some_and(|body| body.is_fresh()),
+        "a new block's text is the loaded buffer, with no edit authored by client 0"
+    );
 }

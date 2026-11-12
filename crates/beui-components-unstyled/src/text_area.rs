@@ -66,7 +66,6 @@ const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
-const SCROLL_ATTEMPTS: u8 = 8;
 const SELECT_ALL_CLICKS: u32 = 4;
 const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
@@ -512,30 +511,32 @@ impl Surface {
         }
     }
 
-    /// Puts `anchor`'s line at the top of the view. Lines not laid out yet are estimated, and
-    /// the content may not be tall enough to scroll there until they are, so the anchor stays
-    /// pending, and is tried again each frame, until the view reaches it or `SCROLL_ATTEMPTS`
-    /// run out (a text that has since grown shorter).
+    /// Puts `anchor`'s line at the top of the view. Until that line's row is built its place is
+    /// estimated: the view moves there and the anchor stays pending, and the next change to the
+    /// scroll or to the rows laid out tries again. It settles once the row is built, or at once
+    /// when the text is too short to scroll that far.
     fn scroll_to_anchor(&self, anchor: ScrollAnchor) {
-        let held = self.held.value();
-        let Some(y) = self.estimated_y(anchor.line_start) else {
+        let Some(estimated) = self.estimated_y(anchor.line_start) else {
             return;
         };
-        let target = (y + anchor.within).max(0.0);
+        let exact = self.entry(self.line_of(anchor.line_start)).and_then(|entry| {
+            let rect = entry.rect(&self.held.value())?;
+            let canvas = self.canvas_rect()?;
+            Some((rect.min.y - canvas.min.y) / self.scale())
+        });
+        let target = (exact.unwrap_or(estimated) + anchor.within).max(0.0);
         let position = self.scroll.get_untracked();
-        let attempts = held.reveal_attempts.get();
-        if (target - position.clamped()).abs() <= 0.5 || attempts >= SCROLL_ATTEMPTS {
-            held.reveal_attempts.set(0);
+        let most = position.max_offset().max(0.0);
+        let offset = target.min(most);
+        if (offset - position.clamped()).abs() > 0.5 {
+            self.offset.set_unconditionally(offset);
+        }
+        if exact.is_some() || target >= most {
             self.state.take_scroll_to();
-            if let Some(reached) = self.top_anchor(position.clamped()) {
+            if let Some(reached) = self.top_anchor(offset) {
                 self.state.set_scrolled(reached);
             }
-            return;
         }
-        held.reveal_attempts.set(attempts + 1);
-        self.offset
-            .set_unconditionally(target.min(position.max_offset().max(0.0)));
-        self.state.scroll_to(anchor);
     }
 
     /// The line at the top of the view, and how far into it the view begins.
@@ -1604,8 +1605,10 @@ pub fn TextArea(
         reveals.get();
         revealing.start(Duration::ZERO);
     });
+    let rights = cx.rights;
     create_effect(move || {
         let position = scroll.get();
+        rights.with(|_| ());
         if single_line || position.viewport <= 0.0 {
             return;
         }

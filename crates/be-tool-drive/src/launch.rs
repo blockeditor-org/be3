@@ -265,13 +265,14 @@ pub(crate) fn start(
     libraries: Option<String>,
     space: bool,
     render: bool,
+    fresh: bool,
     dir: &Path,
     log: &Path,
 ) -> Result<Child, String> {
     Launch {
         program: Some(program.to_owned()),
         data: true,
-        fresh: true,
+        fresh,
         pin_clock: true,
         space,
         unrendered: !render,

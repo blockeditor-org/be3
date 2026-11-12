@@ -18,6 +18,13 @@ fn a_texts_label_leaves_out_clear_spans_and_inline_items() {
                     <Span>"item a1"</Span>
                     <Span color={Some(Color32::TRANSPARENT.into())}>"mm"</Span>
                 </Text>
+                <Text color=Color32::WHITE>
+                    <Span>"see"</Span>
+                    <TextItem>
+                        <Frame width=10.0 height=10.0 />
+                    </TextItem>
+                    <Span>"here"</Span>
+                </Text>
             </List>
         }
     });
@@ -33,8 +40,9 @@ fn a_texts_label_leaves_out_clear_spans_and_inline_items() {
         .collect();
     assert_eq!(
         labels,
-        vec!["item a1"],
+        vec!["item a1", "see here"],
         "a screen reader reads the text shown: not a slot drawn in a clear color, such as a text \
-         area's newline, nor the object character standing in for an inline item"
+         area's newline, nor the object character standing in for an inline item, which reads as \
+         a space between two words"
     );
 }

@@ -315,7 +315,8 @@ enum Flow<'a> {
 impl TextNode {
     /// What a screen reader reads: the text it shows, without spans drawn in a clear color (a
     /// slot held open for layout, such as a text area's newline) or the object characters that
-    /// stand in for inline items, which describe themselves as children.
+    /// stand in for inline items, which describe themselves as children; an item between two
+    /// runs of text reads as a space.
     pub fn accessible_text(&self) -> Option<Cow<'_, str>> {
         let seen = |color: Color| !color.is_clear();
         let string = self.string.content();
@@ -346,9 +347,24 @@ impl TextNode {
             true => string.text.clone(),
             false => String::new(),
         };
-        for part in self.parts.iter().filter(|part| spoken(part)) {
-            if let TextPart::Span(span) = part {
-                text.push_str(&span.content().text);
+        // An inline item between two runs of text stands apart from both, as a word does.
+        let mut apart = false;
+        for part in self.parts.iter() {
+            match part {
+                TextPart::Inline(_) => apart = true,
+                TextPart::Span(span) if spoken(part) => {
+                    let content = span.content();
+                    if apart
+                        && !text.ends_with(char::is_whitespace)
+                        && !content.text.starts_with(char::is_whitespace)
+                        && !text.is_empty()
+                    {
+                        text.push(' ');
+                    }
+                    apart = false;
+                    text.push_str(&content.text);
+                }
+                TextPart::Span(_) | TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {}
             }
         }
         Some(Cow::Owned(text))
