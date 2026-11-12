@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -258,9 +258,9 @@ pub fn TextInput(
         };
     }
 
-    let opener = store(Cell::new(None::<Callback<Option<Rect>>>));
+    let opener = StoredCell::new(None::<Callback<Option<Rect>>>);
     let open_menu = move |at: Option<Rect>| {
-        if let Some(open) = opener.with(Cell::get) {
+        if let Some(open) = opener.get() {
             open.call(at);
         }
     };
@@ -287,7 +287,7 @@ pub fn TextInput(
                     false => 1.0,
                 }}
             >|open: Callback<Option<Rect>>| {
-                opener.with(|opener| opener.set(Some(open)));
+                opener.set(Some(open));
                 match content {
                     Some(build) => build.call(TextInputHandle {
                         field,

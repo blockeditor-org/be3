@@ -338,7 +338,7 @@ pub(crate) fn AppView(
     let corner_radius = use_context::<Rounded>().map(|Rounded(radius)| radius);
     provide_context(Rounded(create_memo(|| 0.0)));
     let revision = super::listen(&app_id.value());
-    let placed = store(Cell::new(None::<EmbedPlacement>));
+    let placed = StoredCell::new(None::<EmbedPlacement>);
     let window = super::anchored::host_window();
     let parent_bounds = use_context::<super::anchored::AnchorBounds>();
     let viewport = use_viewport_size();
@@ -395,7 +395,7 @@ pub(crate) fn AppView(
     });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
-        placed.with(|placed| placed.set(placement));
+        placed.set(placement);
         placer.call(placement);
         if placement.is_some() {
             be_host_runtime::set_view_inert(
@@ -419,7 +419,7 @@ pub(crate) fn AppView(
             radius: 0.0,
             raster: 1.0,
         };
-        placed.with(|placed| placed.set(Some(placement)));
+        placed.set(Some(placement));
         placer.call(Some(placement));
     }
     create_effect(move || {
@@ -430,7 +430,7 @@ pub(crate) fn AppView(
         let _ = floated_placement.map(|placement| placement.get());
         let _ = origin.get();
         let _ = anchor_bounds.get();
-        placer.call(placed.with(Cell::get));
+        placer.call(placed.get());
     });
     if shows_desktop {
         create_effect(move || {
@@ -445,7 +445,7 @@ pub(crate) fn AppView(
             &editor.app,
             instance,
             region.id,
-            placed.with(Cell::get),
+            placed.get(),
             view.get(),
         )
     });
