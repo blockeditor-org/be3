@@ -62,8 +62,12 @@ pub fn ColorWheel(
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
     match model {
-        WheelModel::Hsv => view! { <HsvWheel value focused disabled on_preview /> },
-        WheelModel::Oklch => view! { <OklchWheel value focused disabled on_preview /> },
+        WheelModel::Hsv => view! {
+            <HsvWheel value focused disabled on_preview />
+        },
+        WheelModel::Oklch => view! {
+            <OklchWheel value focused disabled on_preview />
+        },
     }
 }
 
