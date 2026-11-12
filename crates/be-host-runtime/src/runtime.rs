@@ -8,10 +8,11 @@ use std::{
 };
 
 use be_sdk_api::{
-    AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId,
-    FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PresentedFrame,
-    PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
-    ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
+    AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
+    EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
+    PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
+    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange,
+    ViewId, ViewSize, WindowRequest,
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
@@ -352,11 +353,18 @@ struct Laid {
     sizes: Vec<ViewSize>,
     windows: Vec<ScreenWindow>,
     children: Vec<ChildPlacements>,
+    /// The commit's dock messages, applied after its children: which tabs a root shows decides
+    /// which of the children it places are drawn, so a tab switched to and the one it hides
+    /// change in the same frame (`docks::resolve`).
+    docks: Vec<DockMessage>,
 }
 
 impl Laid {
     fn is_empty(&self) -> bool {
-        self.sizes.is_empty() && self.windows.is_empty() && self.children.is_empty()
+        self.sizes.is_empty()
+            && self.windows.is_empty()
+            && self.children.is_empty()
+            && self.docks.is_empty()
     }
 
     fn screens(&self, instances: &Instances) -> be_lib_stable_hash::HashSet<ScreenId> {
@@ -1240,13 +1248,18 @@ impl Runtime {
                 }) && self.instances.only_moves(placements)
                 });
         commit.children = moving;
-        let later = Laid {
+        let mut later = Laid {
             serial: commit.serial,
             presented_by: self.layouts_heard,
             sizes: Vec::new(),
             windows: std::mem::take(&mut commit.windows),
             children: coming,
+            docks: Vec::new(),
         };
+        let waiting = self.held.iter().any(|held| matches!(held, Answer::Laid(_)));
+        if waiting || !later.is_empty() {
+            later.docks = std::mem::take(&mut commit.docks);
+        }
         (commit, (!later.is_empty()).then_some(later))
     }
 
@@ -1286,6 +1299,7 @@ impl Runtime {
         }
         self.instances.laid(laid.serial, &screens);
         changed |= self.report_docked();
+        changed |= super::docks::heard(&self.app.identity.id, laid.docks);
         changed
     }
 
@@ -1487,6 +1501,7 @@ impl Runtime {
             sizes,
             windows,
             children,
+            docks: Vec::new(),
         });
         changed |= self.instances.refresh_anchoring_views();
         changed |= super::docks::heard(&self.app.identity.id, docks);
@@ -2339,7 +2354,11 @@ pub fn take_created(app_id: &str, instance: EditorInstanceId) -> Option<Result<U
     with(app_id, |runtime| runtime.instances.take_created(instance)).flatten()
 }
 
-pub fn frame_child(app_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
+/// The child that has taken `instance`'s frame: the view placing it, the child and its block.
+pub fn frame_child(
+    app_id: &str,
+    instance: EditorInstanceId,
+) -> Option<(ViewId, be_sdk_api::ChildId, Uuid)> {
     with(app_id, |runtime| runtime.instances.frame_child(instance)).flatten()
 }
 
@@ -3052,8 +3071,12 @@ pub struct PlacedView {
     pub work_area: Option<Rect>,
     pub used: Option<Vec2>,
     /// The opaque color the app clears the view to, which the host fills the view with under
-    /// its children (`FrameReport::backdrop`).
+    /// its children (`FrameReport::backdrop`). Until the app reports a frame of the view (a
+    /// view shown again, as a dock tab switched back to), the color its instance last reported
+    /// for another view, so the space is never left empty while the app draws it.
     pub backdrop: Option<beui::color::Color32>,
+    /// Whether the app has reported a frame of the view yet.
+    pub reported: bool,
 }
 
 impl PlacedView {
@@ -3089,6 +3112,7 @@ impl PlacedView {
             work_area: None,
             used: None,
             backdrop: None,
+            reported: false,
         }
     }
 
@@ -3360,9 +3384,11 @@ fn shown_view(
                 .and_then(|report| report.work_area)
                 .map(|insets| insets.inside(Rect::from_min_size(Pos2::ZERO, rect.size()))),
             used: runtime.instances.view_size(instance, region),
-            backdrop: report
-                .and_then(|report| report.backdrop.as_ref())
-                .map(reported_color),
+            backdrop: match report {
+                Some(report) => report.backdrop.as_ref().map(reported_color),
+                None => runtime.instances.backdrop(instance).map(reported_color),
+            },
+            reported: report.is_some(),
         }
     }
 }

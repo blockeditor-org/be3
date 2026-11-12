@@ -342,10 +342,6 @@ impl AppEditor {
         }
     }
 
-    pub(crate) fn id(&self) -> Uuid {
-        self.id
-    }
-
     pub(crate) fn app(&self) -> Option<&Arc<AppManifest>> {
         self.app.as_ref().map(|(app, _)| app)
     }

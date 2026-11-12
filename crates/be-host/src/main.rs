@@ -2702,10 +2702,10 @@ impl HostCore {
         }
         let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
             self.editors.with(|open| {
-                open.values()
-                    .map(|editor| {
+                open.iter()
+                    .map(|(key, editor)| {
                         (
-                            editor.id(),
+                            *key,
                             editor.take_focus_report(),
                             editor.take_artifact_watch(),
                         )
@@ -2739,19 +2739,36 @@ impl HostCore {
 
     fn focus(&self, shell: Uuid) -> Option<editors::FocusReport> {
         let mut report = self.focus_reports.get(&shell)?;
+        let mut at = shell;
         let mut visited = HashSet::from([shell]);
         while let Some((block, _)) = report.block
-            && visited.insert(block)
-            && let Some(inner) = self.focus_reports.get(&block)
+            && let inside = self.placed_in(at, block)
+            && visited.insert(inside)
+            && let Some(inner) = self.focus_reports.get(&inside)
             && inner.block.is_some()
         {
             report = inner;
+            at = inside;
         }
         Some(editors::FocusReport {
             block: report.block,
             editor: report.editor,
             via: report.via.clone(),
         })
+    }
+
+    /// The key of the editor showing `block` inside the editor keyed `parent`: a second
+    /// placement of a block has a key of its own (`Editors::block`).
+    fn placed_in(&self, parent: Uuid, block: Uuid) -> Uuid {
+        self.focus_reports
+            .keys()
+            .copied()
+            .find(|key| {
+                *key != block
+                    && self.editors.block(*key) == block
+                    && self.editors.parent_of(*key) == Some(parent)
+            })
+            .unwrap_or(block)
     }
 
     fn watched(&self) -> Vec<Uuid> {
@@ -2763,8 +2780,8 @@ impl HostCore {
 
     fn forward_child_commits(&mut self) {
         let editors: Vec<(Uuid, InstanceSource)> = self.editors.with(|open| {
-            open.values()
-                .filter_map(|editor| Some((editor.id(), editor.source()?)))
+            open.iter()
+                .filter_map(|(key, editor)| Some((*key, editor.source()?)))
                 .collect()
         });
         let hosted = self.editors.hosted_sources();

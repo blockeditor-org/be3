@@ -309,6 +309,7 @@ fn fetch(app: String, module: String) {
         be_host_base::notices::report(format!(
             "The input remaps name {app}, which is not an app that remaps input here."
         ));
+        STATE.with_borrow_mut(|state| state.loader.failed());
         return;
     }
     let fetched = STATE.with_borrow(|state| Arc::clone(&state.fetched));
@@ -342,14 +343,20 @@ fn take_fetched() {
         Ok(bytes) => bytes,
         Err(error) => {
             be_host_base::notices::report(format!("The input remapper could not be read: {error}"));
+            STATE.with_borrow_mut(|state| {
+                if state.loader.fetching(&app, &module) {
+                    state.loader.failed();
+                }
+            });
             return;
         }
     };
     let Some(wanted) = STATE.with_borrow_mut(|state| state.loader.fetched(&app, &module)) else {
         return;
     };
-    if install(&wanted, &bytes) {
-        remember();
+    match install(&wanted, &bytes) {
+        true => remember(),
+        false => STATE.with_borrow_mut(|state| state.loader.failed()),
     }
 }
 
