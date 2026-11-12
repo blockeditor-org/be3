@@ -285,6 +285,24 @@ pub fn stop() {
     drop(stack);
 }
 
+/// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
+/// hold, so only what the device had already written survives.
+#[cfg(any(test, feature = "testing"))]
+pub fn crash() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+    {
+        stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .crashed = true;
+    }
+    stop();
+}
+
 pub fn stop_and_wait() {
     stop();
     platform::wait_for_stopped();

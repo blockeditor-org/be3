@@ -535,6 +535,9 @@ pub struct Shared {
     pub reconnect: Option<(be_block_client::Clock, Duration)>,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
+    /// Set by `crash`: the worker ends without keeping what open replicas hold.
+    #[cfg(any(test, feature = "testing"))]
+    pub crashed: bool,
     pub reached: bool,
     /// Between connecting and having asked for everything the device must catch up on: set as
     /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
@@ -1000,6 +1003,10 @@ impl Session<'_> {
         let mut stopping = false;
         loop {
             if stopping && (self.uploads.is_empty() || !self.line.is_up()) {
+                #[cfg(any(test, feature = "testing"))]
+                if shared.lock().unwrap_or_else(PoisonError::into_inner).crashed {
+                    return;
+                }
                 self.replicas.keep_all((peer, shared)).await;
                 report(peer, shared);
                 return;
