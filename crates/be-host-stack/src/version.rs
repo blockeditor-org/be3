@@ -1562,16 +1562,22 @@ impl Versions {
         awaiting
     }
 
-    pub(super) fn reconnected(&mut self) {
-        self.statuses.reconnected();
-    }
-
-    /// The server ended the watch of `block`: watch it again when it is next wanted.
-    pub(super) fn unwatched(&mut self, block: Uuid) {
+    /// Records a watch as taken, and whether it was new.
+    #[cfg(test)]
+    pub(super) fn note_watching(&self, block: Uuid) -> bool {
         self.watching
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .remove(&block);
+            .insert(block)
+    }
+
+    pub(super) fn reconnected(&mut self) {
+        // The new connection watches nothing yet.
+        self.watching
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+        self.statuses.reconnected();
     }
 
     pub(super) fn announced(&mut self) {

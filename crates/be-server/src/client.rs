@@ -1929,6 +1929,8 @@ impl Client {
                     .await
                     .is_err()
                 {
+                    // This drops the connection's watch of the block, not only this stream's: it
+                    // can no longer view the block, so none of its streams on it should hear.
                     connection.hub.unwatch(place, connection.client).await;
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
@@ -1976,7 +1978,7 @@ impl Client {
                         .require_access(connection.identity()?, vec![block], Access::View)
                         .await
                     {
-                        connection.registry.leave(place, connection.client).await;
+                        connection.left_session(place, connection.client).await;
                         return Err(error);
                     }
                     connection.announce(place, &state).await;
@@ -2685,14 +2687,12 @@ impl Connection {
                     .filter(|place| place.organization == organization)
                     .map(|place| place.block)
                     .collect();
-                let below = self
-                    .store
-                    .within(organization, root, ids)
-                    .await
-                    .unwrap_or_default();
-                held.retain(|place| {
-                    place.organization == organization && below.contains(&place.block)
-                });
+                // A store error keeps everything held: each block is checked just below.
+                if let Ok(below) = self.store.within(organization, root, ids).await {
+                    held.retain(|place| {
+                        place.organization == organization && below.contains(&place.block)
+                    });
+                }
             }
             for block in held {
                 let kept = block.organization != organization
@@ -2706,21 +2706,26 @@ impl Connection {
                 }
                 self.hub.unwatch(block, client).await;
                 self.hub.send_to(client, Push::Unwatched { block }).await;
-                if let Some(state) = self.registry.leave(block, client).await {
-                    let mut told = state.participants.clone();
-                    told.push(client);
-                    self.hub
-                        .send_all(
-                            &told,
-                            0,
-                            &Push::SessionChanged {
-                                block,
-                                state: state.clone(),
-                            },
-                        )
-                        .await;
-                }
+                self.left_session(block, client).await;
             }
+        }
+    }
+
+    /// Takes `client` out of the session of `block` and tells the rest.
+    async fn left_session(&self, block: Place, client: u64) {
+        if let Some(state) = self.registry.leave(block, client).await {
+            let mut told = state.participants.clone();
+            told.push(client);
+            self.hub
+                .send_all(
+                    &told,
+                    0,
+                    &Push::SessionChanged {
+                        block,
+                        state: state.clone(),
+                    },
+                )
+                .await;
         }
     }
 
