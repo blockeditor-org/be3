@@ -883,8 +883,9 @@ where
     /// Whether what the owner's editors do while its seal is on the way is sequenced and
     /// journaled at once, as at any other time, rather than held until the seal is answered: so
     /// it is on this device whatever the server does. Only when the seal holds a known sequence
-    /// (`sealing_through`), which `seal` records for an owner alone in its session and not for
-    /// a seal that restarts the session; otherwise what is typed is held.
+    /// (`sealing_through`), which `seal` records unless the seal restarts the session; then what
+    /// is typed is held. Followers that applied what came after the seal reload the seal and
+    /// hear it again (`settle_at`).
     fn journals_during_seal(&self) -> bool {
         self.sealing_through.is_some()
     }
@@ -3789,7 +3790,7 @@ where
         // then keeps with this commit (`rebase-journal`).
         self.append_unappended();
         self.restarting = self.restart_due();
-        self.sealing_through = match (&self.role, self.restarting || !self.alone()) {
+        self.sealing_through = match (&self.role, self.restarting) {
             (Role::Owner(sequencer), false) => {
                 Some((sequencer.sequence(), self.confirmed.session_state()))
             }
@@ -3871,6 +3872,7 @@ where
         self.unappended.clear();
         self.append_at = None;
         self.appended_bytes = after.iter().map(parted).sum::<usize>();
+        let resent = after.clone();
         let carried: Vec<JournalEntry> = after
             .into_iter()
             .map(|op| JournalEntry {
@@ -3893,15 +3895,23 @@ where
                 // One write: the new base and what came after it, so no crash between them
                 // loses what was typed while the seal was on its way.
                 self.rebase_journal(carried);
-                std::mem::take(&mut self.reload).then(|| self.sealed_state.clone())
+                // Followers applied what came after the seal already: they load the seal with
+                // its session as of `sequence`, and hear what came after again on top of it.
+                (std::mem::take(&mut self.reload) || !clean).then(|| self.sealed_state.clone())
             }
         };
+        let reloads = reload.is_some();
         self.broadcast(&SessionMessage::Sealed {
             head,
             sequence,
             reload,
             restart,
         });
+        if reloads && !restart {
+            for op in resent {
+                self.broadcast(&SessionMessage::Accepted { op });
+            }
+        }
         self.beaten = Some(self.now);
         self.active = false;
         // Clean only with nothing past the seal: a takeover reads `clean_at` as nothing unsealed.
