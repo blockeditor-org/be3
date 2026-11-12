@@ -293,8 +293,9 @@ counts and records nothing: `upload-urls` did before it signed.
   replica host ignores the refusal). Losing `View` ends both (a grant removed,
   the block trashed, or a move out of view): `evict_sessions` takes the
   account's connections out of the sessions and unwatches the blocks, sending
-  `Push::Unwatched`, so the client forgets the watch and a later `watch`
-  subscribes again (`Event::WatchEnded`). Watching and joining check `View` a
+  `Push::Unwatched`; the client keeps the watch's holders and reopens its
+  stream when a `Changed` summary of the block with `View` arrives
+  (`Connection::resume`). Watching and joining check `View` a
   second time once registered, so a view lost in between does not stay. Trashing
   a block rotates no keys; a block collected for good tells its watchers
   `deleted`.
