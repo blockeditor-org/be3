@@ -18,7 +18,10 @@ fn super_drag(host: &mut HostTest, from: (f32, f32), by: (f32, f32)) {
 
 #[test]
 fn a_desktop_window_moves_by_super_drag_and_keeps_its_bar_on_the_screen() {
-    let mut host = HostTest::start(Options { desktop: true, ..Options::default() });
+    let mut host = HostTest::start(Options {
+        desktop: true,
+        ..Options::default()
+    });
     host.click("#desktop.apps");
     host.click("#desktop.apps.sessions.new");
     host.wait(PANE);

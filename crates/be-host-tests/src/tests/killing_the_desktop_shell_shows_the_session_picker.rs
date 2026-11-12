@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn killing_the_desktop_shell_shows_the_session_picker() {
-    let mut host = HostTest::start(Options { desktop: true, ..Options::default() });
+    let mut host = HostTest::start(Options {
+        desktop: true,
+        ..Options::default()
+    });
     host.click("#desktop.apps");
     host.click("#desktop.apps.menu");
     host.click("#host.menu.panel.Apps");

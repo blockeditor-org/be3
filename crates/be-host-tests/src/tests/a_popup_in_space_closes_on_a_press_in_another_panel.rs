@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn a_popup_in_space_closes_on_a_press_in_another_panel() {
-    let mut host = HostTest::start(Options { space: true, ..Options::default() });
+    let mut host = HostTest::start(Options {
+        space: true,
+        ..Options::default()
+    });
     host.wait(NEW);
     host.run(&["--into=space", "click", NEW]);
     host.run(&["--into=space", "click", NEW_IN_MY_FILES]);

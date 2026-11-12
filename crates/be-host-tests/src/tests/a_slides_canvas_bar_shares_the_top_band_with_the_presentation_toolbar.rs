@@ -5,7 +5,10 @@ const CANVAS_BAR: &str = "GenericContainer #infinite-canvas.dock at";
 
 #[test]
 fn a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar() {
-    let mut host = HostTest::start(Options { previews: true, ..Options::default() });
+    let mut host = HostTest::start(Options {
+        previews: true,
+        ..Options::default()
+    });
     add_to_my_files(&mut host, "Presentation");
     host.click("#presentation.add");
     host.wait("#picker.slides");

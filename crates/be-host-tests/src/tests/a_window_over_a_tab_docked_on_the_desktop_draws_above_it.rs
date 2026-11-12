@@ -22,7 +22,10 @@ fn innermost(host: &mut HostTest, x: f32, y: f32) -> String {
 
 #[test]
 fn a_window_over_a_tab_docked_on_the_desktop_draws_above_it() {
-    let mut host = HostTest::start(Options { desktop: true, ..Options::default() });
+    let mut host = HostTest::start(Options {
+        desktop: true,
+        ..Options::default()
+    });
     new_session(&mut host, "#desktop.windows.block.2");
     new_session(&mut host, "#desktop.windows.block.3");
     let grip = host.place(DOCKED);
