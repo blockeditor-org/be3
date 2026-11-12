@@ -23,7 +23,6 @@ pub fn SplitButton(
     main: Render<ButtonHandle>,
     arrow: Render<PopupTriggerHandle>,
     on_click: Callback<()>,
-    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let disabled = create_memo(move || disabled.get());
@@ -42,7 +41,6 @@ pub fn SplitButton(
                 disabled
                 menu
                 trigger={arrow}
-                on_select={on_select}
             />
         </List>
     }

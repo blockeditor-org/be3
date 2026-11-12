@@ -3365,25 +3365,24 @@ fn TabMenu(
                     label="Pop out into a window"
                     disabled={stuck}
                     row_test_id="dock.tab.pop-out"
+                    on_click={move || float.call(())}
                 />
-                <MenuItem label={group_label} disabled={alone} />
-                <MenuItem label={split_label} disabled={alone} />
-                <MenuItem label={close_label} disabled={unclosable} />
+                <MenuItem label={group_label} disabled={alone} on_click={move || group.call(())} />
+                <MenuItem label={split_label} disabled={alone} on_click={move || split.call(())} />
+                <MenuItem
+                    label={close_label}
+                    disabled={unclosable}
+                    on_click={move || close.call(())}
+                />
                 <Show condition={grouped}>
-                    <MenuItem label="Ungroup" disabled={pinned} />
+                    <MenuItem label="Ungroup" disabled={pinned} on_click={move || ungroup.call(())} />
                 </Show>
                 <Show condition={offered}>
-                    <MenuItem label={fullscreen_label} />
+                    <MenuItem
+                        label={fullscreen_label}
+                        on_click={move || toggle_fullscreen.call(())}
+                    />
                 </Show>
-            }}
-            on_select={move |path: Vec<usize>| match path.first() {
-                Some(0) => float.call(()),
-                Some(1) => group.call(()),
-                Some(2) => split.call(()),
-                Some(3) => close.call(()),
-                Some(4) if grouped => ungroup.call(()),
-                Some(4 | 5) => toggle_fullscreen.call(()),
-                _ => {}
             }}
         >
             <Interactive
@@ -3441,20 +3440,22 @@ fn GripMenu(
         <ContextMenu
             menu
             items={view! {
-                <MenuItem label />
-                <MenuItem label="Icons only" checked />
-                <MenuItem label="Close all tabs" disabled={unclosable} />
+                <MenuItem label on_click={move || toggle.call(())} />
+                <MenuItem label="Icons only" checked on_click={move || toggle_icons.call(())} />
+                <MenuItem
+                    label="Close all tabs"
+                    disabled={unclosable}
+                    on_click={move || close.call(())}
+                />
                 <Show condition={lockable}>
-                    <MenuItem label="Locked" checked={lock} row_test_id="dock.pane.locked" />
+                    <MenuItem
+                        label="Locked"
+                        checked={lock}
+                        row_test_id="dock.pane.locked"
+                        on_click={move || toggle_lock.call(())}
+                    />
                 </Show>
                 <MenuNodes nodes={tab_menu} />
-            }}
-            on_select={move |path: Vec<usize>| match path.first() {
-                Some(0) => toggle.call(()),
-                Some(1) => toggle_icons.call(()),
-                Some(2) => close.call(()),
-                Some(3) => toggle_lock.call(()),
-                _ => {}
             }}
         >
             {children}

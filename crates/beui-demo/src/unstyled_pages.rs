@@ -708,9 +708,12 @@ fn ExportMenu() -> NodeId {
             <List direction=Direction::Horizontal spacing=Space::None>
                 <unstyled::MenuButton
                     items={view! {
-                        <unstyled::MenuItem label="PDF" />
-                        <unstyled::MenuItem label="PNG" />
-                        <unstyled::MenuItem label="Markdown" />
+                        <ForEach keys={(0..formats.len()).collect::<Vec<_>>()}>|index: usize|
+                            <unstyled::MenuItem
+                                label={formats[index]}
+                                on_click={move || exported.set(format!("Exported as {}", formats[index]))}
+                            />
+                        </ForEach>
                     }}
                     trigger={move |handle: PopupTriggerHandle| view! {
                         <PillFace handle={handle.button} label="Export" />
@@ -724,11 +727,6 @@ fn ExportMenu() -> NodeId {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
-                    on_select={move |path: Vec<usize>| {
-                        if let [index] = path.as_slice() {
-                            exported.set(format!("Exported as {}", formats[*index]));
-                        }
-                    }}
                 />
             </List>
             <Text color=TextColor::Muted>{exported}</Text>
@@ -747,8 +745,14 @@ fn RunSplit() -> NodeId {
                     label="Run"
                     menu_label="More ways to run"
                     items={view! {
-                        <unstyled::MenuItem label="Run with fresh data" />
-                        <unstyled::MenuItem label="Run in the background" />
+                        <unstyled::MenuItem
+                            label="Run with fresh data"
+                            on_click={move || ran.set("Ran option 1".to_owned())}
+                        />
+                        <unstyled::MenuItem
+                            label="Run in the background"
+                            on_click={move || ran.set("Ran option 2".to_owned())}
+                        />
                     }}
                     menu={MenuStyle::new(
                     2.0,
@@ -766,9 +770,6 @@ fn RunSplit() -> NodeId {
                         <PillFace handle={handle.button} label="More" />
                     }}
                     on_click={move || ran.set("Ran".to_owned())}
-                    on_select={move |path: Vec<usize>| {
-                        ran.set(format!("Ran option {}", path.first().map_or(0, |index| index + 1)));
-                    }}
                 />
             </List>
             <Text color=TextColor::Muted>{ran}</Text>
