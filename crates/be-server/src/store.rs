@@ -122,9 +122,11 @@ fn reserve_revisions(connection: &Connection, from: Option<u64>) -> Result<u64, 
     let start = match from {
         Some(from) => from,
         None => connection
-            .query_row("SELECT revision FROM revision_floor WHERE id = 1", [], |row| {
-                row.get::<_, i64>(0)
-            })
+            .query_row(
+                "SELECT revision FROM revision_floor WHERE id = 1",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
             .optional()?
             .map_or(0, |floor| u64::try_from(floor).unwrap_or_default()),
     };

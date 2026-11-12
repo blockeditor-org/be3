@@ -4,9 +4,8 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    Listed,
     AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
-    Hold, KeyKind, KeySet, ObjectChange, OrganizationRole, ReferenceChange,
+    Hold, KeyKind, KeySet, Listed, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -1338,12 +1337,15 @@ impl ServerStore {
             if seen.administrator {
                 return Ok(listed(graph, Vec::new()));
             }
-            Ok(listed(graph, graph
-                .shared(identity.account)
-                .into_iter()
-                .filter_map(|block| summary_with(graph, &seen, block))
-                .filter(|block| block.access.can_view())
-                .collect()))
+            Ok(listed(
+                graph,
+                graph
+                    .shared(identity.account)
+                    .into_iter()
+                    .filter_map(|block| summary_with(graph, &seen, block))
+                    .filter(|block| block.access.can_view())
+                    .collect(),
+            ))
         })
         .await
     }
@@ -1356,13 +1358,16 @@ impl ServerStore {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
             let settings = crate::organization::settings_of(identity.organization);
-            Ok(listed(graph, graph
-                .children(parent)
-                .into_iter()
-                .filter(|block| *block != settings)
-                .filter_map(|block| summary_with(graph, &seen, block))
-                .filter(|block| block.access.can_know_exists())
-                .collect()))
+            Ok(listed(
+                graph,
+                graph
+                    .children(parent)
+                    .into_iter()
+                    .filter(|block| *block != settings)
+                    .filter_map(|block| summary_with(graph, &seen, block))
+                    .filter(|block| block.access.can_know_exists())
+                    .collect(),
+            ))
         })
         .await
     }
@@ -1377,11 +1382,14 @@ impl ServerStore {
                     .filter(|block| graph.contains(*block) && !graph.holds(*block))
                     .collect(),
             };
-            Ok(listed(graph, deleted
-                .into_iter()
-                .filter_map(|block| summary_with(graph, &seen, block))
-                .filter(|block| block.access.can_know_exists())
-                .collect()))
+            Ok(listed(
+                graph,
+                deleted
+                    .into_iter()
+                    .filter_map(|block| summary_with(graph, &seen, block))
+                    .filter(|block| block.access.can_know_exists())
+                    .collect(),
+            ))
         })
         .await
     }
@@ -1393,12 +1401,15 @@ impl ServerStore {
     ) -> Result<Listed, ServerError> {
         self.with_graph(identity.organization, move |_, graph, _| {
             let seen = visibility(identity);
-            Ok(listed(graph, graph
-                .backrefs(block)
-                .into_iter()
-                .filter_map(|referrer| summary_with(graph, &seen, referrer))
-                .filter(|block| block.access.can_know_exists())
-                .collect()))
+            Ok(listed(
+                graph,
+                graph
+                    .backrefs(block)
+                    .into_iter()
+                    .filter_map(|referrer| summary_with(graph, &seen, referrer))
+                    .filter(|block| block.access.can_know_exists())
+                    .collect(),
+            ))
         })
         .await
     }
@@ -1444,12 +1455,15 @@ impl ServerStore {
             if !seen.can_view(graph, block) {
                 return Ok(listed(graph, Vec::new()));
             }
-            Ok(listed(graph, graph
-                .references(block)
-                .into_iter()
-                .filter_map(|reference| summary_with(graph, &seen, reference))
-                .filter(|block| block.access.can_know_exists())
-                .collect()))
+            Ok(listed(
+                graph,
+                graph
+                    .references(block)
+                    .into_iter()
+                    .filter_map(|reference| summary_with(graph, &seen, reference))
+                    .filter(|block| block.access.can_know_exists())
+                    .collect(),
+            ))
         })
         .await
     }

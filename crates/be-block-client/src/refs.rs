@@ -367,7 +367,10 @@ impl State {
     fn keep(&mut self, summary: BlockSummary) {
         let id = summary.id;
         let parent = summary.parent;
-        if let Some(old) = self.summaries.insert(id, summary).and_then(|old| old.parent)
+        if let Some(old) = self
+            .summaries
+            .insert(id, summary)
+            .and_then(|old| old.parent)
             && Some(old) != parent
             && let Some(held) = self.placed.get_mut(&old)
         {
