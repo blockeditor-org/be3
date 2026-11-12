@@ -1619,6 +1619,7 @@ dependencies = [
  "be-lib-build-id",
  "be-lib-search",
  "be-lib-stable-hash",
+ "be-lib-web-push",
  "be-sdk",
  "be-sdk-api",
  "be-sdk-manifest",

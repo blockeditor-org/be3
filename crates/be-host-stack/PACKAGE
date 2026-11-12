@@ -50,6 +50,7 @@ write_package_value("be3.cargo", {
             ],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-lib-web-push:be-lib-web-push",
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-type-bundle:be-type-bundle",
                 "//crates/be-type-chat:be-type-chat",
@@ -102,6 +103,7 @@ write_package_value("be3.cargo", {
             ],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-lib-web-push:be-lib-web-push",
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-tool-cli:be-tool-cli",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -155,6 +157,7 @@ write_package_value("be3.cargo", {
             ],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-lib-web-push:be-lib-web-push",
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-tool-cli:be-tool-cli",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -208,6 +211,7 @@ write_package_value("be3.cargo", {
             ],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-lib-web-push:be-lib-web-push",
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-tool-cli:be-tool-cli",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -261,6 +265,7 @@ write_package_value("be3.cargo", {
             ],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-lib-web-push:be-lib-web-push",
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-tool-cli:be-tool-cli",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -350,6 +355,7 @@ write_package_value("be3.cargo", {
             ],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-lib-web-push:be-lib-web-push",
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-tool-cli:be-tool-cli",
                 "//crates/be-type-bundle:be-type-bundle",
@@ -403,6 +409,7 @@ write_package_value("be3.cargo", {
             ],
             "test_deps": [
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-lib-web-push:be-lib-web-push",
                 "//crates/be-sdk:be-sdk",
                 "//crates/be-tool-cli:be-tool-cli",
                 "//crates/be-type-bundle:be-type-bundle",

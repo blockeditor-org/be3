@@ -14,7 +14,7 @@ use uuid::Uuid;
 use super::{Peer, locked};
 use crate::{
     ClientError,
-    refs::{Announcing, Until},
+    refs::{Announcing, Made, Until},
 };
 
 /// What a notification's sender wrote, sealed under the block's data key, with the
@@ -112,27 +112,37 @@ impl<S: ObjectStore> Peer<S> {
         announcements: Vec<Announcement>,
     ) -> Result<(), ClientError> {
         let key = self.sealing_key(block).await?;
-        let sealed = announcements
+        let made = announcements
             .into_iter()
-            .map(|announcement| -> Result<_, ClientError> {
-                Ok((
-                    announcement.key,
-                    self.commits
-                        .vault()
-                        .seal(key, announcement.text.as_bytes())?,
-                    announcement.mentions,
-                ))
-            })
+            .map(|announcement| self.made(key, announcement))
             .collect::<Result<Vec<_>, ClientError>>()?;
-        Ok(self.refs.add_announcements(block, Until::Held, sealed)?)
+        Ok(self.refs.add_announcements(block, Until::Held, made)?)
+    }
+
+    /// An announcement as this device keeps it, its text sealed under `key`.
+    pub(super) fn made(&self, key: Uuid, announcement: Announcement) -> Result<Made, ClientError> {
+        Ok(Made {
+            sealed: self
+                .commits
+                .vault()
+                .seal(key, announcement.text.as_bytes())?,
+            key: announcement.key,
+            several: announcement.several,
+            mentions: announcement.mentions,
+        })
     }
 
     /// Sends what every edit the server now holds announces, once: one notification per block,
-    /// the text of one alone or "N new messages" for several (a drained outbox), mentioning
-    /// everyone they mention. While the server cannot be reached they wait for the next call;
-    /// one it refuses (past its rate) is dropped, since it is about now.
+    /// the text of one alone or, for several (a drained outbox), the newest's `several` with
+    /// `{count}` replaced by how many, mentioning everyone they mention. While the server cannot
+    /// be reached they wait for the next call; one it refuses (past its rate) is dropped, since
+    /// it is about now. Nothing is sent while the outbox drains, so a burst it publishes goes as
+    /// one: the drain sends at its end.
     pub async fn send_announcements(&self) -> Result<(), ClientError> {
-        if !self.is_attached() || !self.refs.has_held_announcements() {
+        if !self.is_attached()
+            || self.draining.load(std::sync::atomic::Ordering::SeqCst)
+            || !self.refs.has_held_announcements()
+        {
             return Ok(());
         }
         let taken = self.refs.take_held_announcements()?;
@@ -153,13 +163,21 @@ impl<S: ObjectStore> Peer<S> {
                 [one] => self
                     .commits
                     .vault()
-                    .open(&one.sealed)
+                    .open(&one.made.sealed)
                     .map_err(locked)
                     .map(|text| String::from_utf8_lossy(&text).into_owned()),
-                several => Ok(format!("{} new messages", several.len())),
+                several => Ok(several
+                    .last()
+                    .map(|newest| {
+                        newest
+                            .made
+                            .several
+                            .replace("{count}", &several.len().to_string())
+                    })
+                    .unwrap_or_default()),
             };
             let mut mentions: Vec<Uuid> = Vec::new();
-            for mention in held.iter().flat_map(|announcing| &announcing.mentions) {
+            for mention in held.iter().flat_map(|announcing| &announcing.made.mentions) {
                 if !mentions.contains(mention) {
                     mentions.push(*mention);
                 }

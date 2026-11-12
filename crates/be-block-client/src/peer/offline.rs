@@ -265,7 +265,19 @@ impl<S: ObjectStore> Peer<S> {
         self.load_manifest(&commit.manifest).await
     }
 
+    /// Publishes the outbox in order (guides/blocks/client.md, "Saving and the outbox").
+    /// Announcements the drain makes held wait for its end, so a burst goes as one: its caller
+    /// sends them (`send_announcements`).
     pub async fn drain(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
+        self.draining
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let drained = self.drain_outbox(skip).await;
+        self.draining
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        drained
+    }
+
+    async fn drain_outbox(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
         let mut outcomes: Vec<Drained> = Vec::new();
         let mut stopped = HashSet::new();
         for (sequence, op) in self.refs.outbox() {
@@ -273,7 +285,10 @@ impl<S: ObjectStore> Peer<S> {
             if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
                 continue;
             }
-            let publishing = matches!(op, Op::Publish(_));
+            let publishing = match &op {
+                Op::Publish(pending) => Some(pending.commit),
+                _ => None,
+            };
             let sent = match op {
                 Op::Create(creation) => self.send_creation(sequence, creation).await,
                 Op::Publish(pending) => self.drain_publish(sequence, pending).await,
@@ -286,8 +301,8 @@ impl<S: ObjectStore> Peer<S> {
                 Err(error) if error.is_unreachable() => break,
                 Err(ClientError::Refused(code, _)) => {
                     stopped.insert(block);
-                    if publishing {
-                        self.refuse_announced(block)?;
+                    if let Some(commit) = publishing {
+                        self.refs.commits_refused(block, &HashSet::from([commit]))?;
                     }
                     Drained::Refused { block, code }
                 }
@@ -307,7 +322,6 @@ impl<S: ObjectStore> Peer<S> {
                 }
                 Drained::Unsent { .. } => {
                     stopped.insert(block);
-                    self.refuse_announced(block)?;
                 }
                 Drained::Created { .. }
                 | Drained::Moved { .. }
@@ -612,26 +626,11 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.forget(&blocks)?)
     }
 
-    /// The server refused what this device keeps of `block`: what its kept commits announce
-    /// is never sent (a message shown "Not sent" tells nobody, and one sent again tells as a new
-    /// one).
-    fn refuse_announced(&self, block: Uuid) -> Result<(), ClientError> {
-        let commits: HashSet<CommitId> = self
-            .refs
-            .unsent()
-            .into_iter()
-            .filter(|(unsent, _)| *unsent == block)
-            .flat_map(|(_, unsent)| unsent.ops)
-            .filter_map(|op| match op {
-                Op::Publish(pending) => Some(pending.commit),
-                _ => None,
-            })
-            .chain(self.pending_commits(block))
-            .collect();
-        Ok(self.refs.commits_refused(block, &commits)?)
-    }
-
+    /// Sets what this device keeps of `block` aside: what its commits announce is never sent
+    /// (a message shown "Not sent" tells nobody, and one sent again tells as a new one).
     pub fn move_to_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
+        let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
+        self.refs.commits_refused(block, &commits)?;
         Ok(self.refs.move_to_unsent(block, now_milliseconds())?)
     }
 

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 pub struct Harness {
     directory: PathBuf,
-    _server: EmbeddedServer,
+    server: Option<EmbeddedServer>,
     url: String,
     account: Uuid,
     token: String,
@@ -53,7 +53,7 @@ impl Harness {
             .expect("the organization is created");
         Self {
             directory,
-            _server: server,
+            server: Some(server),
             url,
             account: profile.account,
             token,
@@ -85,6 +85,8 @@ impl Drop for Harness {
         } else {
             be_host_stack::stop_and_wait();
         }
+        // The server stops before its files go, or it fails opening them as it winds down.
+        self.server = None;
         let _ = std::fs::remove_dir_all(&self.directory);
     }
 }

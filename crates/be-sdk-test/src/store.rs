@@ -7,8 +7,8 @@ use be_sdk_api::{BlockCommand, EditorInstanceId, StoredHead};
 use be_sdk_beui::be_block::{LiveEdit, Merge, Undo};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use be_sdk_type_guest::api::{
-    Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome, Recipients, Resume,
-    SessionState, SessionTag,
+    Announcement, Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome,
+    Recipients, Resume, SessionState, SessionTag,
     embed::{
         exports::replicas::{self, Replica},
         host::Call,
@@ -112,9 +112,10 @@ struct Inner {
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
-    /// What edits announce until the server holds them, as the host keeps them beside the
-    /// journal or a kept commit: the block, the key, until, the text and mentions.
-    announcing: Vec<(Option<Uuid>, String, Announcing, String, Vec<String>)>,
+    /// What edits announce until the server holds them, kept beside the journal or a kept
+    /// commit: a simpler host than be-block-client's (one device, so every rebase is on its own
+    /// commit; every key remembered; guides/type_modules.md, "Announcements").
+    announcing: Vec<(Option<Uuid>, Announcing, Announcement)>,
     /// The keys announced, which are not announced again.
     announced: BTreeSet<(Option<Uuid>, String)>,
     notified: Vec<(Option<Uuid>, String, Vec<Uuid>)>,
@@ -367,13 +368,10 @@ impl Inner {
                     false => Announcing::Journal,
                 };
                 for announced in announcements {
-                    let made = announced.announcement;
                     self.announcing.push((
                         block,
-                        made.key,
                         until(announced.sequence),
-                        made.text,
-                        made.mentions,
+                        announced.announcement,
                     ));
                 }
                 self.send_announcements(block);
@@ -384,13 +382,7 @@ impl Inner {
                 announcements,
             } => {
                 for made in announcements {
-                    self.announcing.push((
-                        block,
-                        made.key,
-                        Announcing::Held(0),
-                        made.text,
-                        made.mentions,
-                    ));
+                    self.announcing.push((block, Announcing::Held(0), made));
                 }
                 self.send_announcements(block);
                 reply.send(&mut self.host, &());
@@ -398,7 +390,7 @@ impl Inner {
             Call::RebaseJournal { reply, base, .. } => {
                 // This device seals every commit here, so what the base holds goes with it.
                 let kept = block.is_some_and(|block| self.kept.contains(&block));
-                for (at, _, until, ..) in &mut self.announcing {
+                for (at, until, _) in &mut self.announcing {
                     if *at == block
                         && let Announcing::Journal(sequence) = *until
                     {
@@ -410,7 +402,7 @@ impl Inner {
                     }
                 }
                 self.announcing
-                    .retain(|(.., until, _, _)| *until != Announcing::Dropped);
+                    .retain(|(_, until, _)| *until != Announcing::Dropped);
                 self.send_announcements(block);
                 reply.send(&mut self.host, &());
             }
@@ -425,24 +417,26 @@ impl Inner {
     }
 
     /// Sends what the server holds the edits of in `block`, as the host does: one notification,
-    /// or "N new messages" for several, each key once.
+    /// the newest's `several` for several, each key once.
     fn send_announcements(&mut self, block: Option<Uuid>) {
         let mut held = Vec::new();
-        self.announcing.retain(|(at, key, until, text, mentions)| {
+        self.announcing.retain(|(at, until, made)| {
             let sending = *at == block && matches!(until, Announcing::Held(_));
             if sending {
-                held.push((key.clone(), text.clone(), mentions.clone()));
+                held.push(made.clone());
             }
             !sending
         });
-        held.retain(|(key, ..)| self.announced.insert((block, key.clone())));
+        held.retain(|made| self.announced.insert((block, made.key.clone())));
         let text = match held.as_slice() {
             [] => return,
-            [(_, text, _)] => text.clone(),
-            several => format!("{} new messages", several.len()),
+            [one] => one.text.clone(),
+            several => several[several.len() - 1]
+                .several
+                .replace("{count}", &several.len().to_string()),
         };
         let mut mentions = Vec::new();
-        for mention in held.iter().flat_map(|(.., mentions)| mentions) {
+        for mention in held.iter().flat_map(|made| &made.mentions) {
             if let Ok(mention) = Uuid::parse_str(mention)
                 && !mentions.contains(&mention)
             {
@@ -975,7 +969,7 @@ impl ContentStore {
                 inner.refused.entry(block).or_default().push(commit);
                 commits.push(commit);
             }
-            for (at, _, until, ..) in &mut inner.announcing {
+            for (at, until, _) in &mut inner.announcing {
                 if *at == Some(block) && *until == Announcing::Kept {
                     *until = match refused {
                         true => Announcing::Dropped,
@@ -985,7 +979,7 @@ impl ContentStore {
             }
             inner
                 .announcing
-                .retain(|(.., until, _, _)| *until != Announcing::Dropped);
+                .retain(|(_, until, _)| *until != Announcing::Dropped);
             inner.send_announcements(Some(block));
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
                 replica.drained(&mut inner.host, refused, commits);

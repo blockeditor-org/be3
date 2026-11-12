@@ -17,7 +17,7 @@ mod announcements;
 mod sqlite;
 
 use announcements::Waiting;
-pub(crate) use announcements::{Announcing, Until};
+pub(crate) use announcements::{Announcing, Made, Until};
 
 type Backend = sqlite::SqliteRefs;
 
@@ -588,6 +588,9 @@ impl Refs {
     }
 
     pub fn lose_access(&self, block: Uuid) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        announcements::forget(&mut self.state.lock().unwrap(), block, &mut rows);
+        self.write(rows)?;
         let Some(mut summary) = self.summary(block) else {
             return Ok(());
         };
@@ -994,6 +997,7 @@ impl Refs {
             }
             state.listings.retain(|listing, _| !about(listing));
             for block in &gone {
+                announcements::forget(state, *block, &mut rows);
                 if state.journals.remove(block).is_some() {
                     rows.push(Row {
                         table: Table::JournalBase,

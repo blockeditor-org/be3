@@ -28,6 +28,6 @@ fn a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_dr
     wait_until("reconnected and drained the outbox", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
     });
-    room.told_away();
+    room.told_away("3 new messages");
     room.told_nothing_more(&mut room.editor());
 }

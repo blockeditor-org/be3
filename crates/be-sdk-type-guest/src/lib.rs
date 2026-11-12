@@ -1178,6 +1178,7 @@ fn announcement(made: be_block::Announcement) -> be_sdk_type_api::Announcement {
     be_sdk_type_api::Announcement {
         key: made.key,
         text: made.text,
+        several: made.several,
         mentions: made.mentions.iter().map(Uuid::to_string).collect(),
     }
 }

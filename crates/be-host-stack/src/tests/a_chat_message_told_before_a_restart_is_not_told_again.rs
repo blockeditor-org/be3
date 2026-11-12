@@ -6,7 +6,7 @@ fn a_chat_message_told_before_a_restart_is_not_told_again() {
     let room = ChatRoom::start(&harness, &[]);
     let mut editor = room.editor();
     room.send(&mut editor, "Running late", None);
-    room.told_away();
+    room.told_away("Running late");
     drop(editor);
     stop();
 

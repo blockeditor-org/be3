@@ -234,11 +234,13 @@ interface types {
 
     /// What an edit made on this device tells the block's other members once
     /// the server holds it (`be_block::Announcement`): `key` names what it
-    /// announces, unique in the block, and each mention is the text of an
-    /// account's uuid.
+    /// announces, unique in the block, `several` is the text for several sent
+    /// together, with `{count}` for how many, and each mention is the text of
+    /// an account's uuid.
     record announcement {
         key: string,
         text: string,
+        several: string,
         mentions: list<string>,
     }
 

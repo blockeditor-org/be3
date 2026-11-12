@@ -19,9 +19,8 @@ const REMEMBERED: usize = 256;
 /// What has to happen before an announcement is sent.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) enum Until {
-    /// The edit is in this device's journal as `sequence`, appended by the owner of
-    /// `generation`, and the server does not hold it yet.
-    Journal { generation: u64, sequence: u64 },
+    /// The edit is in this device's journal as `sequence`, and the server does not hold it yet.
+    Journal(u64),
     /// The edit is in this commit, kept in the outbox.
     Commit(CommitId),
     /// The server holds the edit.
@@ -34,9 +33,17 @@ pub(crate) enum Until {
 pub(crate) struct Waiting {
     pub(crate) order: u64,
     pub(crate) until: Until,
-    /// The text, sealed with the block's key.
+    pub(crate) made: Made,
+}
+
+/// An announcement as this device keeps it: its text sealed with the block's key.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct Made {
+    pub(crate) key: String,
     #[serde(with = "serde_bytes")]
     pub(crate) sealed: Vec<u8>,
+    /// The text for several sent together (`be_block::Announcement::several`).
+    pub(crate) several: String,
     pub(crate) mentions: Vec<Uuid>,
 }
 
@@ -44,9 +51,7 @@ pub(crate) struct Waiting {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Announcing {
     pub(crate) block: Uuid,
-    pub(crate) key: String,
-    pub(crate) sealed: Vec<u8>,
-    pub(crate) mentions: Vec<Uuid>,
+    pub(crate) made: Made,
 }
 
 fn key_of(block: Uuid, key: &str) -> Vec<u8> {
@@ -55,39 +60,56 @@ fn key_of(block: Uuid, key: &str) -> Vec<u8> {
     bytes
 }
 
+/// Forgets every announcement of `block`: this device no longer keeps the block.
+pub(super) fn forget(state: &mut super::State, block: Uuid, rows: &mut Vec<Row>) {
+    for key in state
+        .announcements
+        .remove(&block)
+        .unwrap_or_default()
+        .into_keys()
+    {
+        rows.push(Row {
+            table: Table::Announcement,
+            key: key_of(block, &key),
+            value: None,
+        });
+    }
+}
+
 impl Refs {
-    /// Keeps announcements of edits of `block`, each sealed, until `until`; a key already
-    /// known (waiting or sent) is not kept again.
+    /// Keeps announcements of edits of `block` until `until`. A key already held, sent or kept
+    /// with a commit is not kept again; one waiting in the journal is replaced, since the edit
+    /// was made again (a replica restarted with it) and the journal entry may never be held.
     pub fn add_announcements(
         &self,
         block: Uuid,
         until: Until,
-        announcements: Vec<(String, Vec<u8>, Vec<Uuid>)>,
+        announcements: Vec<Made>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut guard = self.state.lock().unwrap();
             let state = &mut *guard;
-            for (key, sealed, mentions) in announcements {
-                if state
+            for made in announcements {
+                let known = state
                     .announcements
                     .get(&block)
-                    .is_some_and(|held| held.contains_key(&key))
-                {
+                    .and_then(|held| held.get(&made.key));
+                if known.is_some_and(|known| !matches!(known.until, Until::Journal(_))) {
                     continue;
                 }
+                let key = key_of(block, &made.key);
                 let waiting = Waiting {
                     order: state.take(),
                     until,
-                    sealed,
-                    mentions,
+                    made,
                 };
-                rows.push(row(Table::Announcement, key_of(block, &key), &waiting));
+                rows.push(row(Table::Announcement, key, &waiting));
                 state
                     .announcements
                     .entry(block)
                     .or_default()
-                    .insert(key, waiting);
+                    .insert(waiting.made.key.clone(), waiting);
             }
         }
         self.write(rows)
@@ -133,7 +155,7 @@ impl Refs {
     /// The server took the journal entries holding the announcements named.
     pub fn journal_held(&self, block: Uuid, keys: &HashSet<String>) -> Result<(), StoreError> {
         self.update_announcements(block, |key, until| match until {
-            Until::Journal { .. } if keys.contains(key) => Some(Some(Until::Held)),
+            Until::Journal(_) if keys.contains(key) => Some(Some(Until::Held)),
             _ => None,
         })
     }
@@ -150,7 +172,7 @@ impl Refs {
         kept: bool,
     ) -> Result<(), StoreError> {
         self.update_announcements(block, |_, until| match until {
-            Until::Journal { sequence: at, .. } => Some(match commit {
+            Until::Journal(at) => Some(match commit {
                 Some(commit) if own && at <= sequence => Some(match kept {
                     true => Until::Commit(commit),
                     false => Until::Held,
@@ -199,9 +221,7 @@ impl Refs {
                         waiting.order,
                         Announcing {
                             block: *block,
-                            key: key.clone(),
-                            sealed: waiting.sealed.clone(),
-                            mentions: waiting.mentions.clone(),
+                            made: waiting.made.clone(),
                         },
                     ));
                 }
@@ -238,7 +258,7 @@ impl Refs {
             by_block
                 .entry(announcing.block)
                 .or_default()
-                .insert(announcing.key.clone());
+                .insert(announcing.made.key.clone());
         }
         for (block, keys) in by_block {
             self.update_announcements(block, |key, until| match until {

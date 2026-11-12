@@ -623,6 +623,7 @@ impl LiveEdit for ChatContent {
                 Some(be_block::Announcement {
                     key: id.to_string(),
                     text: self.body(id)?,
+                    several: "{count} new messages".to_owned(),
                     mentions,
                 })
             })

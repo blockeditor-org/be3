@@ -217,16 +217,14 @@ impl Harness {
 
     /// A harness whose server pushes to Web Push endpoints on loopback (`PushService`).
     fn pushing() -> Self {
-        let mut harness = Self::start();
-        harness.push = be_server::push::PushConfig {
-            allow_local_endpoints: true,
-            fcm: None,
-            hosts: vec!["127.0.0.1".to_owned()].into(),
-        };
-        let address = harness.address();
-        harness.stop_server();
-        harness.start_server(&address);
-        harness
+        Self::serving(
+            be_server::ServerConfig::OPEN.lease,
+            be_server::push::PushConfig {
+                allow_local_endpoints: true,
+                fcm: None,
+                hosts: vec!["127.0.0.1".to_owned()].into(),
+            },
+        )
     }
 
     pub fn lapsing() -> Self {
@@ -289,6 +287,10 @@ impl Harness {
     }
 
     fn leasing(lease: Duration) -> Self {
+        Self::serving(lease, be_server::push::PushConfig::DEFAULT)
+    }
+
+    fn serving(lease: Duration, push: be_server::push::PushConfig) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
@@ -313,7 +315,7 @@ impl Harness {
             "127.0.0.1:0",
             directory.join("server"),
             lease,
-            be_server::push::PushConfig::DEFAULT,
+            push.clone(),
         )
         .expect("the embedded block server starts");
         let url = server.url.clone();
@@ -337,7 +339,7 @@ impl Harness {
             organization,
             phrase: be_block_keys::RecoveryPhrase::generate(),
             lease,
-            push: be_server::push::PushConfig::DEFAULT,
+            push,
             relay: None,
             clock: be_block_client::Clock::real(),
             _one_stack: one_stack,
@@ -425,6 +427,9 @@ impl Drop for Harness {
         } else {
             stop_and_wait();
         }
+        // The server stops before its files go, or it fails opening them as it winds down.
+        self.relay = None;
+        self.server = None;
         let _ = std::fs::remove_dir_all(&self.directory);
     }
 }
@@ -994,11 +999,28 @@ impl Device {
 }
 
 /// A Web Push service on loopback that takes every push the server sends and answers it
-/// delivered: which endpoint each went to, and how urgent the server said it was.
+/// delivered: which endpoint each went to, how urgent the server said it was, and its body.
 struct PushService {
     url: String,
-    pushes: std::sync::mpsc::Receiver<(String, String)>,
+    pushes: std::sync::mpsc::Receiver<Pushed>,
 }
+
+struct Pushed {
+    to: String,
+    urgency: String,
+    body: Vec<u8>,
+}
+
+/// Every member's device key: the generator of P-256, whose private key is 1, so the secret a
+/// push agrees on with it is the x coordinate of the push's own sender key.
+const DEVICE_KEY: [u8; 65] = [
+    0x04, 0x6b, 0x17, 0xd1, 0xf2, 0xe1, 0x2c, 0x42, 0x47, 0xf8, 0xbc, 0xe6, 0xe5, 0x63, 0xa4, 0x40,
+    0xf2, 0x77, 0x03, 0x7d, 0x81, 0x2d, 0xeb, 0x33, 0xa0, 0xf4, 0xa1, 0x39, 0x45, 0xd8, 0x98, 0xc2,
+    0x96, 0x4f, 0xe3, 0x42, 0xe2, 0xfe, 0x1a, 0x7f, 0x9b, 0x8e, 0xe7, 0xeb, 0x4a, 0x7c, 0x0f, 0x9e,
+    0x16, 0x2b, 0xce, 0x33, 0x57, 0x6b, 0x31, 0x5e, 0xce, 0xcb, 0xb6, 0x40, 0x68, 0x37, 0xbf, 0x51,
+    0xf5,
+];
+const DEVICE_AUTH: [u8; 16] = [7; 16];
 
 impl PushService {
     fn start() -> Self {
@@ -1028,34 +1050,25 @@ impl PushService {
         Self { url, pushes }
     }
 
-    /// The endpoint of the member called `name`, with a device key the server encrypts to (the
-    /// generator of P-256: no test reads what a push carries, only where it went).
+    /// The endpoint of the member called `name`.
     fn endpoint(&self, name: &str) -> be_block_protocol::PushEndpoint {
-        const GENERATOR: [u8; 65] = [
-            0x04, 0x6b, 0x17, 0xd1, 0xf2, 0xe1, 0x2c, 0x42, 0x47, 0xf8, 0xbc, 0xe6, 0xe5, 0x63,
-            0xa4, 0x40, 0xf2, 0x77, 0x03, 0x7d, 0x81, 0x2d, 0xeb, 0x33, 0xa0, 0xf4, 0xa1, 0x39,
-            0x45, 0xd8, 0x98, 0xc2, 0x96, 0x4f, 0xe3, 0x42, 0xe2, 0xfe, 0x1a, 0x7f, 0x9b, 0x8e,
-            0xe7, 0xeb, 0x4a, 0x7c, 0x0f, 0x9e, 0x16, 0x2b, 0xce, 0x33, 0x57, 0x6b, 0x31, 0x5e,
-            0xce, 0xcb, 0xb6, 0x40, 0x68, 0x37, 0xbf, 0x51, 0xf5,
-        ];
         be_block_protocol::PushEndpoint {
             service: be_block_protocol::PushService::WebPush,
             address: format!("{}/{name}", self.url),
-            p256dh: GENERATOR.to_vec(),
-            auth: vec![7; 16],
+            p256dh: DEVICE_KEY.to_vec(),
+            auth: DEVICE_AUTH.to_vec(),
         }
     }
 
-    /// The next push: the member it went to and its urgency.
-    fn next(&self) -> (String, String) {
+    fn next(&self) -> Pushed {
         self.pushes
             .recv_timeout(Duration::from_secs(60))
             .expect("a push arrived")
     }
 }
 
-/// Reads one request: its path, less the leading slash, and its `urgency` header.
-fn read_push(stream: &mut std::net::TcpStream) -> Option<(String, String)> {
+/// Reads one request: its path, less the leading slash, its `urgency` header and its body.
+fn read_push(stream: &mut std::net::TcpStream) -> Option<Pushed> {
     use std::io::Read;
     let mut bytes = Vec::new();
     let mut buffer = [0; 8192];
@@ -1070,8 +1083,8 @@ fn read_push(stream: &mut std::net::TcpStream) -> Option<(String, String)> {
         }
     };
     let head = String::from_utf8_lossy(&bytes[..end]).into_owned();
-    let mut lines = head.lines();
-    let path = lines
+    let to = head
+        .lines()
         .next()?
         .split(' ')
         .nth(1)?
@@ -1092,7 +1105,11 @@ fn read_push(stream: &mut std::net::TcpStream) -> Option<(String, String)> {
         }
         bytes.extend_from_slice(&buffer[..read]);
     }
-    Some((path, header("urgency").unwrap_or_default()))
+    Some(Pushed {
+        to,
+        urgency: header("urgency").unwrap_or_default(),
+        body: bytes[end..end + length].to_vec(),
+    })
 }
 
 /// A chat in this account's personal organization that `away` (notified of every message) and
@@ -1104,6 +1121,8 @@ struct ChatRoom {
     personal: Uuid,
     me: Uuid,
     members: Vec<(&'static str, Uuid)>,
+    /// `away`, signed out, whose peer still holds the chat's key to open what pushes carry.
+    reader: Member,
     _connected: Vec<Member>,
     pushes: PushService,
 }
@@ -1138,6 +1157,7 @@ impl ChatRoom {
         );
         flush();
         let mut members = Vec::new();
+        let mut reader = None;
         let mut kept = Vec::new();
         for (name, mode, connected, member) in joined {
             member.may_view(block);
@@ -1146,9 +1166,14 @@ impl ChatRoom {
                 member.mode(block, mode);
             }
             members.push((name, member.account()));
-            match connected {
-                true => kept.push(member),
-                false => member.signs_out(),
+            match (name, connected) {
+                ("away", _) => {
+                    member.reads(block);
+                    member.signs_out();
+                    reader = Some(member);
+                }
+                (_, true) => kept.push(member),
+                (_, false) => member.signs_out(),
             }
         }
         Self {
@@ -1156,6 +1181,7 @@ impl ChatRoom {
             personal,
             me: harness.account,
             members,
+            reader: reader.expect("away joined"),
             _connected: kept,
             pushes,
         }
@@ -1195,19 +1221,46 @@ impl ChatRoom {
         editor.operate(edit);
     }
 
-    /// The next push to `away`, which must not be urgent: one about a message that does not
-    /// mention them.
-    fn told_away(&self) {
-        assert_eq!(self.pushes.next(), ("away".to_owned(), "normal".to_owned()));
+    /// The next push: whom it went to, its urgency and the text it carries, opened as the
+    /// member's device opens it.
+    fn next(&self) -> (String, String, String) {
+        let pushed = self.pushes.next();
+        let sender =
+            be_lib_web_push::sender_key(&pushed.body).expect("a push names its sender key");
+        let secret = &sender[1..33];
+        let plain = be_lib_web_push::open(secret, &DEVICE_KEY, &DEVICE_AUTH, &pushed.body)
+            .expect("the push decrypts with the device's keys");
+        let message =
+            be_block_protocol::PushMessage::decode(&plain).expect("a push carries a push message");
+        assert_eq!((message.block, message.sender), (self.block, self.me));
+        let opened = self
+            .reader
+            .peer
+            .open_notification(&message, be_block_commit::now_milliseconds())
+            .expect("the notification opens with the chat's key");
+        (pushed.to, pushed.urgency, opened.text)
     }
 
-    /// Replies to `away`'s message, which tells them urgently: the next push they get is that
-    /// one, so no notification of an earlier message is still on its way.
+    /// The next push goes to `away` and says `text`, not urgently: it mentions nobody.
+    fn told_away(&self, text: &str) {
+        assert_eq!(
+            self.next(),
+            ("away".to_owned(), "normal".to_owned(), text.to_owned())
+        );
+    }
+
+    /// Replies to `away`'s message, which tells them urgently, and checks that the next push
+    /// they get is that one alone: an earlier message told again would come first, or fold
+    /// into it as "2 new messages".
     fn told_nothing_more(&self, editor: &mut Editor<be_type_chat::ChatContent>) {
         self.send(editor, "See you there", Some(self.account("away")));
         assert_eq!(
-            self.pushes.next(),
-            ("away".to_owned(), "high".to_owned()),
+            self.next(),
+            (
+                "away".to_owned(),
+                "high".to_owned(),
+                "See you there".to_owned()
+            ),
             "an earlier message told away again"
         );
     }
@@ -1266,6 +1319,14 @@ impl Member {
         assert_eq!(status().error, None);
     }
 
+    /// Reads the block, which leaves its key with the member's peer.
+    fn reads(&self, block: Uuid) {
+        self.runtime
+            .block_on(self.peer.open::<be_type_chat::ChatContent>(block))
+            .expect("the member opens the chat")
+            .expect("the chat has content");
+    }
+
     fn takes_pushes(&self, pushes: &PushService, name: &str) {
         self.runtime
             .block_on(self.peer.register_endpoint(pushes.endpoint(name)))
@@ -1279,7 +1340,7 @@ impl Member {
     }
 
     /// Signs out, which the server counts as not connected before it answers.
-    fn signs_out(self) {
+    fn signs_out(&self) {
         self.runtime
             .block_on(be_block_protocol::client::account::logout(
                 &self.peer.connection(),

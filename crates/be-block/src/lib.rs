@@ -223,11 +223,13 @@ pub enum ChildChange {
 /// the server holds it: the text of a notification and the accounts it mentions. `key` names
 /// what is announced (chat: the message), unique in the block and the same each time the edit
 /// is made again (a host replays an editor's edits into a restarted replica), so it is told
-/// once.
+/// once. `several` is the text when it goes together with others of the block (an outbox
+/// drained at once), with `{count}` for how many (chat: "{count} new messages").
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Announcement {
     pub key: String,
     pub text: String,
+    pub several: String,
     pub mentions: Vec<Uuid>,
 }
 

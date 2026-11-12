@@ -22,6 +22,6 @@ fn a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting() {
     wait_until("reconnected and drained the outbox", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
     });
-    room.told_away();
+    room.told_away("Running late");
     room.told_nothing_more(&mut room.editor());
 }

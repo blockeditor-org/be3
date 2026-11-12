@@ -40,18 +40,9 @@ impl<S: ObjectStore> Peer<S> {
         self.refs
             .append_journal(block, tag, generation, sealed.clone())?;
         for (sequence, announcement) in announcements {
-            let sealed = self
-                .commits
-                .vault()
-                .seal(key, announcement.text.as_bytes())?;
-            self.refs.add_announcements(
-                block,
-                Until::Journal {
-                    generation,
-                    sequence,
-                },
-                vec![(announcement.key, sealed, announcement.mentions)],
-            )?;
+            let made = self.made(key, announcement)?;
+            self.refs
+                .add_announcements(block, Until::Journal(sequence), vec![made])?;
         }
         Ok(online.then(|| {
             self.connection()

@@ -61,9 +61,12 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c and 2 have landed.
   and not the sender's account (plans/notifications.md). Tests: be-host-stack's
   `a_chat_message_*` (members away, connected, off and mentions only; a closed
   chat draining; a restart before and after telling; two editors), chat's editor
-  tests and be-server's. Known gap: a follower's message is told by the
-  follower's replica once the owner accepts it, so a follower that closes or
-  restarts before then tells nobody, as its unsent edit is lost too.
+  tests and be-server's. Known gaps (guides/type_modules.md, "Announcements"):
+  a follower's message is told by the follower's replica once the owner accepts
+  it, so a follower that closes or restarts before then tells nobody, as its
+  unsent edit is lost too; and an owner whose append the server took but whose
+  answer a disconnect lost, after which another device took the session over,
+  never tells it.
 - **Unread counts (1c).** Where the account read each chat up to is theirs,
   never in the chat, where it would be a read receipt: the owner-only settings
   kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are

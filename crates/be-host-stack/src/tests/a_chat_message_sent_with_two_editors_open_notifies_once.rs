@@ -10,6 +10,6 @@ fn a_chat_message_sent_with_two_editors_open_notifies_once() {
     beside.until("showed the message", |beside| {
         beside.content().messages().len() == 2
     });
-    room.told_away();
+    room.told_away("Running late");
     room.told_nothing_more(&mut beside);
 }

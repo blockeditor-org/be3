@@ -95,6 +95,7 @@ fn announcement(sent: be_sdk_type_api::Announcement) -> be_block::Announcement {
     be_block::Announcement {
         key: sent.key,
         text: sent.text,
+        several: sent.several,
         mentions: sent
             .mentions
             .iter()
@@ -412,10 +413,10 @@ struct Open {
     early: Vec<Replayed>,
     unreported: bool,
     reporting: Option<CommitId>,
-    /// The last commit this replica's publish answered, published or kept: a journal rebased on
-    /// it hands its announcements to it (`Peer::rebase_journal`).
-    sealed: Option<CommitId>,
 }
+
+/// How many commits sealed here `Replicas` remembers per block.
+const SEALED_REMEMBERED: usize = 16;
 
 pub struct Replicas<H: Host> {
     pub modules: Modules,
@@ -442,6 +443,9 @@ pub struct Replicas<H: Host> {
     changed: bool,
     /// Blocks whose next publish is a bookmark, with its label (`Replicas::bookmark`).
     bookmarks: HashMap<Uuid, String>,
+    /// The newest commits each block's replicas sealed here, published or kept, across
+    /// reopens: a journal rebased on one hands its announcements to it (`Peer::rebase_journal`).
+    sealed: HashMap<Uuid, VecDeque<CommitId>>,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
@@ -475,6 +479,7 @@ impl<H: Host> Replicas<H> {
             kept: false,
             changed: false,
             bookmarks: HashMap::new(),
+            sealed: HashMap::new(),
             handled: 0,
             host: std::marker::PhantomData,
         }
@@ -875,7 +880,6 @@ impl<H: Host> Replicas<H> {
                 early: Vec::new(),
                 unreported: false,
                 reporting: None,
-                sealed: None,
             },
         );
         if reader {
@@ -1375,6 +1379,16 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    fn sealed_here(&mut self, block: Uuid, head: CommitId) {
+        let sealed = self.sealed.entry(block).or_default();
+        if !sealed.contains(&head) {
+            sealed.push_back(head);
+        }
+        while sealed.len() > SEALED_REMEMBERED {
+            sealed.pop_front();
+        }
+    }
+
     fn answer_publish(
         &mut self,
         unanswered: Unanswered,
@@ -1394,14 +1408,16 @@ impl<H: Host> Replicas<H> {
             self.modules
                 .call(module, |connection| reply.send(connection, &result));
         }
+        if let Ok(PublishOutcome::Published(head) | PublishOutcome::Kept(head)) = result
+            && let Some(block) = self.open.get(&replica).map(|open| open.block)
+        {
+            self.sealed_here(block, head);
+        }
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
         if open.epoch != epoch {
             return;
-        }
-        if let Ok(PublishOutcome::Published(head) | PublishOutcome::Kept(head)) = result {
-            open.sealed = Some(head);
         }
         if delivered
             && let Ok(PublishOutcome::Published(head) | PublishOutcome::Kept(head)) = result
@@ -1953,7 +1969,8 @@ impl<H: Host> Replicas<H> {
                 }
                 if let Some(head) = published {
                     open.published.push(head);
-                    open.sealed = Some(head);
+                    let block = open.block;
+                    self.sealed_here(block, head);
                 }
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
@@ -2490,11 +2507,14 @@ impl<H: Host> Replicas<H> {
                     state: base.state,
                 };
                 let online = !made_up && peer.is_attached();
-                let own = base.commit.is_some()
-                    && self
-                        .open
-                        .get(&replica)
-                        .is_some_and(|open| open.sealed == base.commit);
+                // An own commit: one a replica of this host sealed, or one this device's outbox
+                // keeps.
+                let own = base.commit.is_some_and(|commit| {
+                    self.sealed
+                        .get(&block)
+                        .is_some_and(|sealed| sealed.contains(&commit))
+                        || peer.pending_commits(block).contains(&commit)
+                });
                 let rebased = peer
                     .rebase_journal(block, generation, tag, base, online, own)
                     .await;
