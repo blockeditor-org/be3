@@ -823,6 +823,7 @@ dependencies = [
 name = "be-app-chat"
 version = "0.1.0"
 dependencies = [
+ "be-block-commit",
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-chat",
@@ -1628,6 +1629,7 @@ dependencies = [
  "be-server",
  "be-tool-cli",
  "be-type-bundle",
+ "be-type-chat",
  "be-type-checklist",
  "be-type-example-counter",
  "be-type-image",
@@ -2525,6 +2527,7 @@ dependencies = [
  "be-block-model",
  "be-block-store",
  "be-sdk-type-guest",
+ "postcard",
  "serde",
  "serde_bytes",
  "sha2 0.10.9",

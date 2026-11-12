@@ -13,8 +13,8 @@ fn a_message_sent_in_a_live_session_lands_after_those_sequenced_before_it() {
     // The owner sequences another member's message before ours reaches it.
     visible.apply_beneath(
         &mut confirmed,
-        &earlier,
-        &[mine],
+        &earlier.into(),
+        &[mine.into()],
         &mut Vec::<Touched>::new(),
     );
 

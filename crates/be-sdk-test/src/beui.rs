@@ -545,6 +545,16 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.hold(block, content);
     }
 
+    /// Like `hold`, with the content's parts after its first kept, for a type that loads only
+    /// its first part and reads the rest by range.
+    pub fn hold_parts<C: LiveEdit + Merge + Clone + Default>(
+        &mut self,
+        block: Option<Uuid>,
+        content: C,
+    ) {
+        self.store.hold_parts(block, content);
+    }
+
     pub fn content<C: LiveEdit + Merge + Clone + Default>(&self, block: Option<Uuid>) -> C {
         self.store.content(block)
     }
