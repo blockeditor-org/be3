@@ -7,7 +7,7 @@ use be_type_text::{TextBlock, TextContent};
 use beui::Vec2;
 use uuid::Uuid;
 
-use super::{PEER, text};
+use super::{PEER, shown_cursor};
 use crate::root::TextRoot;
 use crate::root::position::{POSITION, Position};
 
@@ -64,8 +64,19 @@ fn top_line(editor: &BeuiTest<TextRoot>) -> (String, f32) {
         .expect("the text shows its lines")
 }
 
+/// Where the caret is, as the editor shows it to its peers: in a text loaded afresh, a
+/// position's offset is its byte.
+fn caret(editor: &mut BeuiTest<TextRoot>) -> usize {
+    let cursor = shown_cursor(editor)
+        .flatten()
+        .expect("the editor shows its caret to its peers");
+    assert_eq!(cursor["anchor"], cursor["focus"], "{cursor}");
+    assert_eq!(cursor["focus"]["client"], 0, "{cursor}");
+    cursor["focus"]["offset"].as_u64().expect("an offset") as usize
+}
+
 #[test]
-fn a_reopened_text_opens_where_it_was_scrolled_with_its_caret() {
+fn a_reopened_text_opens_scrolled_where_it_was_and_keeps_its_caret() {
     let text_bytes = (1..=120)
         .map(|line| format!("Line {line}\n"))
         .collect::<String>();
@@ -81,6 +92,7 @@ fn a_reopened_text_opens_where_it_was_scrolled_with_its_caret() {
     first.click("text.surface");
     first.run();
     first.type_text("Y");
+    first.run();
     first.advance(Duration::from_secs(1));
     first.run();
     let left = top_line(&first);
@@ -91,29 +103,58 @@ fn a_reopened_text_opens_where_it_was_scrolled_with_its_caret() {
         "where the text was left is saved once it holds still"
     );
 
-    // While it is closed, a peer adds a line above, with characters of more than one byte.
-    let mut content = first.content::<TextContent>(None);
-    let edit = TextBlock::insert(&content, PEER, 0, "Añadido € ✓\n".as_bytes())
-        .expect("the peer has somewhere to type");
-    content.apply(&edit);
+    let left_text = TextBlock::text(&first.content::<TextContent>(None));
+    let after_y = left_text.find('Y').expect("the Y was typed") + 1;
 
-    let mut reopened = opened(block, view, content, kept);
+    let mut reopened = opened(
+        block,
+        view,
+        first.content::<TextContent>(None),
+        kept.clone(),
+    );
     let shown = top_line(&reopened);
     assert_eq!(
         shown.0, left.0,
-        "the reopened text shows the same line at the top, though a line was added above it"
+        "the reopened text shows the same line at the top"
     );
     assert!((shown.1 - left.1).abs() < 1.0, "{shown:?} against {left:?}");
-
-    reopened.a11y("text.surface", "focus");
-    reopened.type_text("X");
-    reopened.run();
-    let now = text(&reopened);
-    assert!(now.starts_with("Añadido € ✓\n"), "the peer's line is kept");
-    assert!(
-        now.contains("YX"),
-        "the caret came back where it was left, after the Y typed there, following the peer's \
-         edit: {now:?}"
+    assert_eq!(
+        caret(&mut reopened),
+        after_y,
+        "the caret came back where it was left, after the Y typed there"
     );
-    reopened.snapshot("a_reopened_text_opens_where_it_was_scrolled_with_its_caret");
+    reopened.snapshot("a_reopened_text_opens_scrolled_where_it_was");
+
+    // While it is closed, a peer adds a line at the top, with characters of more than one byte.
+    let added = "Añadido € ✓\n";
+    let mut content = first.content::<TextContent>(None);
+    let edit = TextBlock::insert(&content, PEER, 0, added.as_bytes())
+        .expect("the peer has somewhere to type");
+    content.apply(&edit);
+    let mut moved = opened(block, view, content, kept.clone());
+    let shown = top_line(&moved);
+    assert_eq!(
+        shown.0, left.0,
+        "the same line is at the top, though a line was added above it"
+    );
+    assert!((shown.1 - left.1).abs() < 1.0, "{shown:?} against {left:?}");
+    assert_eq!(
+        caret(&mut moved),
+        after_y + added.len(),
+        "the caret follows its text down"
+    );
+
+    // A peer puts a character of three bytes just before the Y, so the byte the caret was at is
+    // now inside it: the caret is found by the text after it.
+    let mut content = first.content::<TextContent>(None);
+    let edit = TextBlock::insert(&content, PEER, after_y - 1, "€".as_bytes())
+        .expect("the peer has somewhere to type");
+    content.apply(&edit);
+    let mut squeezed = opened(block, view, content, kept);
+    assert_eq!(top_line(&squeezed).0, left.0, "the same line is at the top");
+    assert_eq!(
+        caret(&mut squeezed),
+        after_y + "€".len(),
+        "the caret stays after the Y, not inside the €"
+    );
 }

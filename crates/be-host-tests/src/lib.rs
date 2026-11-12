@@ -90,7 +90,12 @@ impl HostTest {
     /// and stops the clock again. The clock starts over at the pinned moment.
     pub fn restart(&mut self, ready: &str) {
         self.steps.push("restart".to_owned());
-        if let Err(error) = self.host.as_mut().expect("the host is still open").restart() {
+        if let Err(error) = self
+            .host
+            .as_mut()
+            .expect("the host is still open")
+            .restart()
+        {
             self.fail(&format!("the host did not restart: {error}"));
         }
         self.wait(ready);

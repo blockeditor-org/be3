@@ -513,25 +513,29 @@ impl Surface {
 
     /// Puts `anchor`'s line at the top of the view. Until that line's row is built its place is
     /// estimated: the view moves there and the anchor stays pending, and the next change to the
-    /// scroll or to the rows laid out tries again. It settles once the row is built, or at once
-    /// when the text is too short to scroll that far.
+    /// scroll or to the rows laid out tries again (rows laid out above it move it). It settles
+    /// once the row is built and the view is already at it, or at once when the text is too
+    /// short to scroll that far.
     fn scroll_to_anchor(&self, anchor: ScrollAnchor) {
         let Some(estimated) = self.estimated_y(anchor.line_start) else {
             return;
         };
-        let exact = self.entry(self.line_of(anchor.line_start)).and_then(|entry| {
-            let rect = entry.rect(&self.held.value())?;
-            let canvas = self.canvas_rect()?;
-            Some((rect.min.y - canvas.min.y) / self.scale())
-        });
+        let exact = self
+            .entry(self.line_of(anchor.line_start))
+            .and_then(|entry| {
+                let rect = entry.rect(&self.held.value())?;
+                let canvas = self.canvas_rect()?;
+                Some((rect.min.y - canvas.min.y) / self.scale())
+            });
         let target = (exact.unwrap_or(estimated) + anchor.within).max(0.0);
         let position = self.scroll.get_untracked();
         let most = position.max_offset().max(0.0);
         let offset = target.min(most);
-        if (offset - position.clamped()).abs() > 0.5 {
+        let there = (offset - position.clamped()).abs() <= 0.5;
+        if !there {
             self.offset.set_unconditionally(offset);
         }
-        if exact.is_some() || target >= most {
+        if (exact.is_some() && there) || target >= most {
             self.state.take_scroll_to();
             if let Some(reached) = self.top_anchor(offset) {
                 self.state.set_scrolled(reached);

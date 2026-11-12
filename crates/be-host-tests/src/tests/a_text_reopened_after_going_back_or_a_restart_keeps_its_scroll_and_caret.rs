@@ -34,12 +34,12 @@ fn reopen(host: &mut HostTest) {
 }
 
 /// Types where the caret is without moving it, by focusing the text as a screen reader does,
-/// and answers the text that follows the caret's line.
-fn type_at_caret(host: &mut HostTest, typed: &str) -> bool {
+/// and answers whether the last line then reads `last`.
+fn type_at_caret(host: &mut HostTest, typed: &str, last: &str) -> bool {
     host.run(&["a11y", "MultilineTextInput", "focus"]);
     host.type_text(typed);
     host.run(&["settle"]);
-    host.tree().contains(&format!("Line {LINES}{typed}"))
+    host.tree().contains(&format!("Line {LINES}{last}"))
 }
 
 fn back(host: &mut HostTest) {
@@ -73,9 +73,12 @@ fn a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret() {
          the same line at the top"
     );
     assert!(
-        type_at_caret(&mut host, "A"),
+        type_at_caret(&mut host, "A", "A"),
         "the caret is where it was left, at the end"
     );
+    // Typing scrolled to the end, which shows less with the format bar down; move up from it.
+    host.key("Escape");
+    host.run(&["scroll", "#text.surface", "-300"]);
     host.pause(1000);
     let typed = top_line(&mut host);
 
@@ -90,7 +93,7 @@ fn a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret() {
         "after a restart the text opens at the same line too"
     );
     assert!(
-        type_at_caret(&mut host, "B"),
+        type_at_caret(&mut host, "B", "AB"),
         "with the caret where it was"
     );
     host.close();

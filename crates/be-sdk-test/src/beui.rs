@@ -2337,12 +2337,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.drive("focus", &[], &[]);
     }
 
-    /// Does what a screen reader does to `target` (`drive a11y`): `focus` focuses it without a
-    /// press, so a text keeps its caret.
-    pub fn a11y(&mut self, target: impl Into<Target>, action: &str) {
-        self.drive_at("a11y", &[target.into()], &[action.to_owned()]);
-    }
-
     pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
         self.drive_at(
             "scroll",

@@ -32,12 +32,13 @@ fn a_texts_label_leaves_out_clear_spans_and_inline_items() {
 
     let output = harness.frame(Vec::new());
     let tree = output.accessibility_tree("Test", VIEWPORT);
-    let labels: Vec<_> = tree
+    let mut labels: Vec<_> = tree
         .nodes
         .iter()
         .filter(|(_, node)| node.role() == Role::Label)
         .filter_map(|(_, node)| node.value())
         .collect();
+    labels.sort_unstable();
     assert_eq!(
         labels,
         vec!["item a1", "see here"],
