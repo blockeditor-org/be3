@@ -217,6 +217,15 @@ Tests:
 flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
 
+### Whole bytes
+
+`type-info.whole-bytes` (`BlockContent::WHOLE_BYTES`, true unless a type says otherwise) says the
+stored form read whole decodes to the content, so the host copies such a block through its
+bytes: Duplicate, export, `be` transfer, version control's re-listing, a revision's preview or
+restore. A type that loads only its first part and keeps parts its first part cannot rebuild (chat's
+closed segments) sets it false, and the host refuses those paths for a block that has parts after
+its first (`has_later_parts`).
+
 ### Merging by parts
 
 Outside a session (`Replicas::merge`, which `merge_diverged` and version

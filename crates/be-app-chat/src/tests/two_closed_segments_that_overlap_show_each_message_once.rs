@@ -1,15 +1,38 @@
+use std::collections::HashSet;
+
 use be_block_commit::MergeResult;
 use be_sdk_beui::be_block::Merge;
 
 use super::*;
 
+/// The messages of `order` that show, each with where: they must run down the page in time order
+/// and none may show twice.
+fn shown_in_order(chat: &Harness, order: &[ObjectId]) -> Vec<ObjectId> {
+    let shown: Vec<ObjectId> = order
+        .iter()
+        .copied()
+        .filter(|id| chat.editor.shown(&format!("chat.message.{id}")))
+        .collect();
+    let tops: Vec<f32> = shown
+        .iter()
+        .map(|id| chat.editor.rect_of(&format!("chat.message.{id}")).min.y)
+        .collect();
+    assert!(
+        tops.windows(2).all(|pair| pair[0] < pair[1]),
+        "the messages that show run down the page in time order"
+    );
+    let unique: HashSet<ObjectId> = shown.iter().copied().collect();
+    assert_eq!(unique.len(), shown.len(), "no message shows twice");
+    shown
+}
+
 #[test]
 fn two_closed_segments_that_overlap_show_each_message_once() {
-    // Two devices closed the oldest messages while apart; one had deleted the fourth first, so
-    // the closes differ but open at the same message.
+    // Two devices each closed the oldest messages twice while apart; one had deleted the third
+    // first, so the closes differ and overlap, and the merged index keeps all four entries.
     let line = "a line of chat ".repeat(70);
     let mut base = ChatContent::default();
-    for index in 0..120 {
+    for index in 0..260 {
         let (_, send) = base.send(CHAT, Message::new(ROSA, index, format!("{index}: {line}")));
         base.apply(&send.into());
     }
@@ -19,59 +42,48 @@ fn two_closed_segments_that_overlap_show_each_message_once() {
         chat.apply(&closing);
         chat
     };
-    let ours = close(&base);
-    let deleted = base.messages()[3];
+    let ours = close(&close(&base));
+    let deleted = base.messages()[2];
     let mut other = base.clone();
     other.apply(&ChatOp::Edit(base.delete(deleted, ROSA, 9)));
-    let theirs = close(&other);
+    let theirs = close(&close(&other));
     let MergeResult::Clean(merged) = ChatContent::merge3(&base, &ours, &theirs) else {
         panic!("a chat merge never conflicts");
     };
     let segments = merged.segments();
-    assert_eq!(segments.len(), 2, "both segments stay");
-    assert_eq!(
-        segments[0].first, segments[1].first,
-        "they open at the same message"
-    );
-
-    // The older messages are read one segment at a time, each told apart by its whole entry:
-    // reading the newest does not mark the other, which opens at the same message, as read.
-    let read_first: Vec<(be_type_chat::Segment, ())> = vec![(segments[1].clone(), ())];
-    assert_eq!(
-        crate::root::ui::unread_segment(&segments, &read_first),
-        Some(0),
-        "the segment that opens at the same message is still to read"
-    );
-    let read_both: Vec<(be_type_chat::Segment, ())> = segments
-        .iter()
-        .cloned()
-        .map(|segment| (segment, ()))
-        .collect();
-    assert_eq!(crate::root::ui::unread_segment(&segments, &read_both), None);
-
-    // What was read shows each message once, in order, whichever segment held it.
-    let message = |id: ObjectId| (id, Message::new(ROSA, 0, ""));
+    assert_eq!(segments.len(), 4, "all four segments stay");
     let order = base.messages();
-    let of = |segment: &be_type_chat::Segment| -> Vec<(ObjectId, Message)> {
-        let from = order
-            .iter()
-            .position(|id| *id == segment.first)
-            .unwrap_or(0);
-        let to = order.iter().position(|id| *id == segment.last).unwrap_or(0);
-        order[from..=to].iter().copied().map(message).collect()
-    };
-    let (a, b) = (of(&segments[0]), of(&segments[1]));
-    let woven: Vec<ObjectId> = ChatContent::weave(&[&a, &b])
-        .into_iter()
-        .map(|(id, _)| id)
-        .collect();
-    let mut once = woven.clone();
-    once.dedup();
-    assert_eq!(woven.len(), once.len(), "no message twice");
-    for segment in &segments {
-        assert!(
-            woven.contains(&segment.first) && woven.contains(&segment.last),
-            "every message either segment holds shows"
-        );
+
+    let mut chat = Harness::holding_parts(merged);
+    chat.editor.advance(Duration::from_millis(500));
+    chat.run();
+    let recent = chat.content().messages()[0];
+
+    // Scrolled back to the start, the segments are read one at a time, newest first, and after
+    // each read what shows is in order, none twice, whichever segments are still unread.
+    let mut seen = HashSet::new();
+    for _ in 0..8 {
+        chat.editor
+            .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
+        chat.editor.advance(Duration::from_millis(100));
+        chat.run();
+        seen.extend(shown_in_order(&chat, &order));
+        if !chat.editor.shown("chat.older") {
+            break;
+        }
+        chat.click("chat.older");
+        seen.extend(shown_in_order(&chat, &order));
     }
+    assert!(!chat.editor.shown("chat.older"), "every segment was read");
+
+    // At the very top, the oldest message shows, and the one only the later closes hold shows
+    // too (above the recent ones), each once.
+    chat.editor
+        .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
+    chat.editor.advance(Duration::from_millis(100));
+    chat.run();
+    assert!(
+        shown_in_order(&chat, &order).contains(&order[0]),
+        "the oldest message shows"
+    );
 }

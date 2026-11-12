@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use be_block_store::Hash;
+use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, Manifest, MemoryStore, Vault};
 use be_sdk_api::{BlockCommand, EditorInstanceId, StoredHead};
 use be_sdk_beui::be_block::{LiveEdit, Merge, Undo};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
@@ -27,6 +27,7 @@ const THIS_DEVICE: ClientId = u64::MAX - 1;
 const ELSEWHERE: ClientId = u64::MAX;
 const TAG: SessionTag = SessionTag([0; 32]);
 const STORE: EditorId = u64::MAX;
+const SEALING: Uuid = Uuid::from_u128(0x5ea1);
 
 fn every_type() -> Vec<Registration> {
     be_sdk_type_host::registrations()
@@ -75,6 +76,10 @@ struct Inner {
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     commits: BTreeMap<CommitId, Vec<u8>>,
+    /// The commits written with parts after their first, as a vault holds them: a type that loads
+    /// only its first part reads the rest by range.
+    manifests: BTreeMap<CommitId, Manifest>,
+    vault: Vault<MemoryStore>,
     next_commit: u64,
     blocks: BTreeMap<Uuid, Block>,
     attached: BTreeMap<Uuid, BTreeSet<EditorId>>,
@@ -116,6 +121,12 @@ impl Default for Inner {
             now: 0,
             replicas: BTreeMap::new(),
             commits: BTreeMap::new(),
+            manifests: BTreeMap::new(),
+            vault: {
+                let keys = Keyring::new();
+                keys.insert(SEALING, ContentKey::from_bytes([7; 32]));
+                Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL)
+            },
             next_commit: 0,
             blocks: BTreeMap::new(),
             attached: BTreeMap::new(),
@@ -162,6 +173,31 @@ impl Inner {
         id[..8].copy_from_slice(&self.next_commit.to_be_bytes());
         let commit = CommitId::from_hash(Hash::from_bytes(id));
         self.commits.insert(commit, bytes);
+        commit
+    }
+
+    /// A commit of content with `parts` after its first (`Written`): kept in the vault, so
+    /// `Load` and `ReadPart` answer from it. Content with none is kept whole.
+    fn write_written(
+        &mut self,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        parts: &[be_sdk_type_guest::api::WrittenPart],
+    ) -> CommitId {
+        if parts.is_empty() {
+            return self.write(bytes);
+        }
+        let manifest = self
+            .vault
+            .write(
+                SEALING,
+                content_type,
+                be_sdk_type_guest::api::written_parts(&bytes, parts),
+            )
+            .expect("a commit's parts are written");
+        let whole = self.vault.read(&manifest).expect("a commit reads whole");
+        let commit = self.write(whole);
+        self.manifests.insert(commit, manifest);
         commit
     }
 
@@ -270,10 +306,18 @@ impl Inner {
                 if expected != head {
                     return reply.send(&mut self.host, &Ok(PublishOutcome::Rejected(head)));
                 }
-                let unchanged = head.is_some_and(|head| self.commits[&head] == content.bytes);
+                let unchanged = head.is_some_and(|head| {
+                    content.parts.is_empty()
+                        && !self.manifests.contains_key(&head)
+                        && self.commits[&head] == content.bytes
+                });
+                let content_type = self
+                    .blocks
+                    .get(&block)
+                    .map_or(Uuid::nil(), |held| held.content_type);
                 let head = match (unchanged, head) {
                     (true, Some(head)) => head,
-                    _ => self.write(content.bytes),
+                    _ => self.write_written(content_type, content.bytes, &content.parts),
                 };
                 if let Some(held) = self.blocks.get_mut(&block) {
                     held.head = Some(head);
@@ -288,11 +332,29 @@ impl Inner {
                 reply.send(&mut self.host, &Ok(outcome));
             }
             Call::Stash { reply, content, .. } => {
-                let commit = self.write(content.bytes);
+                let content_type = block
+                    .and_then(|block| self.blocks.get(&block))
+                    .map_or(Uuid::nil(), |held| held.content_type);
+                let commit = self.write_written(content_type, content.bytes, &content.parts);
                 reply.send(&mut self.host, &Ok(commit));
             }
+            Call::Load {
+                reply,
+                commit,
+                first_part,
+            } if self.manifests.contains_key(&commit) => {
+                let manifest = &self.manifests[&commit];
+                let loaded = match first_part {
+                    true => self.vault.load_first(manifest),
+                    false => self.vault.load(manifest),
+                };
+                let result = loaded
+                    .map(be_sdk_type_guest::api::Loaded::of)
+                    .map_err(|error| error.to_string());
+                reply.send(&mut self.host, &result);
+            }
             Call::Load { reply, commit, .. } => {
-                // Commits are kept whole, with no parts, so content loads all of itself.
+                // Commits without parts are kept whole, so their content loads all of itself.
                 let result = self
                     .commits
                     .get(&commit)
@@ -303,11 +365,12 @@ impl Inner {
                     .ok_or_else(|| "no such commit".to_owned());
                 reply.send(&mut self.host, &result);
             }
-            Call::ReadPart { reply, .. } => {
-                reply.send(
-                    &mut self.host,
-                    &Err("commits here have no parts".to_owned()),
-                );
+            Call::ReadPart { reply, part, range } => {
+                let result = self
+                    .vault
+                    .read_part(part.into(), range.offset, range.length)
+                    .map_err(|error| error.to_string());
+                reply.send(&mut self.host, &result);
             }
             Call::PutPart { reply, .. } => {
                 reply.send(
@@ -504,6 +567,16 @@ impl Inner {
     }
 
     fn put(&mut self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+        self.put_written(block, content_type, bytes, &[]);
+    }
+
+    fn put_written(
+        &mut self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        parts: &[be_sdk_type_guest::api::WrittenPart],
+    ) {
         let same_type = self
             .blocks
             .get(&block)
@@ -515,7 +588,7 @@ impl Inner {
             return self.change(block, Change::Replace(bytes));
         }
         self.close(block);
-        let head = self.write(bytes);
+        let head = self.write_written(content_type, bytes, parts);
         match self.blocks.get_mut(&block) {
             Some(held) => {
                 held.content_type = content_type;
@@ -705,6 +778,23 @@ impl ContentStore {
         self.0
             .borrow_mut()
             .put(key, C::CONTENT_TYPE, content.encode());
+    }
+
+    /// Like `hold`, but keeps the content's parts after its first (`BlockContent::parts`) in the
+    /// store, which a type that loads only its first part reads by range. Held before the block
+    /// is open.
+    pub fn hold_parts<C: LiveEdit + Merge + Clone + Default>(
+        &self,
+        block: Option<Uuid>,
+        content: C,
+    ) {
+        let key = self.key(block);
+        self.know::<C>();
+        let (bytes, parts) = be_sdk_type_guest::api::written_shape(&content.parts())
+            .unwrap_or_else(|| (content.encode(), Vec::new()));
+        self.0
+            .borrow_mut()
+            .put_written(key, C::CONTENT_TYPE, bytes, &parts);
     }
 
     pub fn keep_history<C: Undo + Merge + Clone + Default + 'static>(&self, block: Option<Uuid>) {

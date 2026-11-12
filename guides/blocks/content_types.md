@@ -62,7 +62,7 @@ replica's followers and editors are sent. Most such types (a file, an index) hav
 content anyway, so a copy through bytes loses nothing. A type whose `encode` leaves parts out
 sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`): chat's `decode(encode())`
 is a view, the header's index entries with no part behind them, and saving it writes the
-header alone. Whole-bytes paths (Replace, import, `be sync`) therefore cannot carry its parts,
+header alone. Whole-bytes paths (Replace, import) therefore cannot carry its parts (`be sync` has no file form for chat),
 and Duplicate, export, `be` transfer, version control's re-listing and revision preview or
 restore refuse such a block when it has parts after its first; only `from_stored`, `parts` and
 `MergeParts` carry them. Its editors read the rest by range

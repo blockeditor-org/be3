@@ -105,10 +105,11 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 
     const LOADS: Loads = Loads::Whole;
 
-    /// Whether `encode()` is the whole content, so a copy through bytes (a duplicate, an export,
-    /// a revision restore, a transfer) loses nothing. False for a type whose content has parts
-    /// `encode()` leaves out (chat's closed segments): those refuse such a copy when the block
-    /// has parts after its first.
+    /// Whether the stored form read whole decodes to the content, so a copy through bytes (a
+    /// duplicate, an export, a revision restore, a transfer) loses nothing. A file's does, though
+    /// its `encode()` may leave its payload unloaded. False for a type whose stored form has parts
+    /// that decoding it cannot rebuild (chat's closed segments): those refuse such a copy when the
+    /// block has parts after its first.
     const WHOLE_BYTES: bool = true;
 
     const FROZEN: bool = false;

@@ -33,7 +33,8 @@ pub struct ChatHeader {
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
     pub deletions: LatestMap<ObjectId, Deletion>,
     pub reactions: LatestMap<ReactionKey, Reaction>,
-    /// The closed segments, oldest first. None is closed yet.
+    /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
+    /// yet.
     pub segments: Series<Segment>,
 }
 
@@ -630,7 +631,7 @@ impl ChatContent {
         self.held.resize(count, Held::Absent);
     }
 
-    /// The closed segments' index entries, oldest first.
+    /// The closed segments' index entries, in time order.
     pub fn segments(&self) -> Vec<Segment> {
         self.header
             .field(ObjectId::ROOT, ChatHeader::SEGMENTS)
@@ -753,7 +754,7 @@ impl ChatContent {
     }
 
     /// The messages of every closed segment this replica holds as bytes (not those it saved
-    /// and holds as parts), oldest first, repeating a message that two overlapping segments hold.
+    /// and holds as parts), in index order, repeating a message that two overlapping segments hold.
     #[cfg(test)]
     pub(crate) fn closed_messages_held_as_bytes(&self) -> Vec<ObjectId> {
         let segments = self.segments();
@@ -770,25 +771,59 @@ impl ChatContent {
     }
 
     /// The messages of segments read back (each in the order of its part), as one run of messages
-    /// in order, each once: segments closed apart can overlap, and an unseen message goes after
+    /// in order, each once, in time linear in the messages per segment: segments closed apart can overlap, and an unseen message goes after
     /// the message before it in its own segment (or before the first of its segment already
     /// there), so the run keeps every segment's order.
     pub fn weave(segments: &[&[(ObjectId, Message)]]) -> Vec<(ObjectId, Message)> {
-        let mut run: Vec<(ObjectId, Message)> = Vec::new();
+        // A linked run: each message knows the one after it, so placing one after another is
+        // constant time and the whole weave is linear in the messages.
+        let mut next: std::collections::HashMap<Option<ObjectId>, Option<ObjectId>> =
+            std::collections::HashMap::new();
+        let mut held: std::collections::HashMap<ObjectId, &Message> =
+            std::collections::HashMap::new();
+        next.insert(None, None);
         for segment in segments {
-            let mut place = segment
-                .iter()
-                .find_map(|(id, _)| run.iter().position(|(held, _)| held == id))
-                .unwrap_or(run.len());
-            for (id, message) in *segment {
-                match run.iter().position(|(held, _)| held == id) {
-                    Some(at) => place = at + 1,
-                    None => {
-                        run.insert(place, (*id, message.clone()));
-                        place += 1;
+            // Where this segment's unseen messages start: before the first of its messages
+            // already there (after the one before that), or at the end.
+            let mut after: Option<Option<ObjectId>> = None;
+            if let Some((first, _)) = segment.iter().find(|(id, _)| held.contains_key(id)) {
+                let mut before = None;
+                let mut at = next[&None];
+                while let Some(id) = at {
+                    if id == *first {
+                        break;
                     }
+                    before = Some(id);
+                    at = next[&Some(id)];
                 }
+                after = Some(before);
             }
+            let mut place = after.unwrap_or_else(|| {
+                let mut tail = None;
+                let mut at = next[&None];
+                while let Some(id) = at {
+                    tail = Some(id);
+                    at = next[&Some(id)];
+                }
+                tail
+            });
+            for (id, message) in *segment {
+                if held.contains_key(id) {
+                    place = Some(*id);
+                    continue;
+                }
+                let following = next[&place];
+                next.insert(place, Some(*id));
+                next.insert(Some(*id), following);
+                held.insert(*id, message);
+                place = Some(*id);
+            }
+        }
+        let mut run = Vec::with_capacity(held.len());
+        let mut at = next[&None];
+        while let Some(id) = at {
+            run.push((id, held[&id].clone()));
+            at = next[&Some(id)];
         }
         run
     }
@@ -976,6 +1011,55 @@ impl LiveEdit for ChatContent {
     }
 }
 
+impl ChatContent {
+    /// Puts the index in time order. Each side's new entries land in the merged index as one
+    /// block, either first, so the entries new since `base` are sorted by where the message each
+    /// opens at and ends at stood among the recent messages of `base` (unknown ones, sent since,
+    /// last); the entries `base` had stay in front, as they were.
+    fn order_segments(&mut self, base: &Self) {
+        let known = base.segments();
+        let position: std::collections::HashMap<ObjectId, usize> = base
+            .messages()
+            .into_iter()
+            .enumerate()
+            .map(|(at, id)| (id, at))
+            .collect();
+        let key = |segment: &Segment| {
+            (
+                position.get(&segment.first).copied().unwrap_or(usize::MAX),
+                position.get(&segment.last).copied().unwrap_or(usize::MAX),
+            )
+        };
+        let segments = self.segments();
+        let (mut wanted, mut added): (Vec<Segment>, Vec<Segment>) = segments
+            .iter()
+            .cloned()
+            .partition(|segment| known.contains(segment));
+        added.sort_by_key(key);
+        wanted.extend(added);
+        if wanted == segments {
+            return;
+        }
+        let Some(held) = self.header.series(ObjectId::ROOT, ChatHeader::SEGMENTS) else {
+            return;
+        };
+        let Some(clear) = held.delete(0..held.len()) else {
+            return;
+        };
+        let clear: Edit = [ChatHeader::SEGMENTS.edit(ObjectId::ROOT, clear)]
+            .into_iter()
+            .collect();
+        LiveEdit::apply(&mut self.header, &clear);
+        let Some(held) = self.header.series(ObjectId::ROOT, ChatHeader::SEGMENTS) else {
+            return;
+        };
+        if let Some(append) = ChatHeader::SEGMENTS.append(ObjectId::ROOT, held, &wanted) {
+            let append: Edit = [append].into_iter().collect();
+            LiveEdit::apply(&mut self.header, &append);
+        }
+    }
+}
+
 impl Merge for ChatContent {
     /// The header merges as a document (a closed segment's messages leave `messages` on the side
     /// that closed it, and an edit, deletion or reaction of one is kept by key); each segment of
@@ -983,9 +1067,10 @@ impl Merge for ChatContent {
     ///
     /// A chat merge never conflicts and reads no part. Two sides that closed while apart each
     /// added entries: one both added is one segment (the later copy leaves the index), and
-    /// entries that differ stay, both with their own parts. They can overlap (both hold some of
-    /// the same messages), which loses nothing and costs only the storage; a reader shows a
-    /// message once, in the first segment it reads (the editor's `Older`). Conflicts the header's
+    /// entries that differ stay, both with their own parts, the new ones in time order
+    /// (`order_segments`). They can overlap (both hold some of the same messages), which loses
+    /// nothing and costs only the storage; a reader shows a message once, in its place
+    /// (`weave`). `merge_parts` settles the overlap by reading the parts. Conflicts the header's
     /// own merge counts (a register both sides changed keeps ours; a message object that differs
     /// keeps ours, and messages are immutable) are resolved as it resolved them, not reported.
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
@@ -1017,6 +1102,7 @@ impl Merge for ChatContent {
             let edit: Edit = changes.into_iter().collect();
             LiveEdit::apply(&mut value.header, &edit);
         }
+        value.order_segments(base);
         value.held = value
             .segments()
             .iter()

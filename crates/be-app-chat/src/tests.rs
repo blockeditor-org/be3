@@ -88,10 +88,15 @@ impl Harness {
             let send = signed_by(&content, *author, Message::new(*author, time, *body));
             content.apply(&send.into());
         }
-        Self::open(content, trusted, shown)
+        Self::open(content, trusted, shown, false)
     }
 
-    fn open(content: ChatContent, trusted: &[(Uuid, Signer)], shown: Uuid) -> Self {
+    /// The editor of a chat whose closed segments are saved as parts, which it reads by range.
+    fn holding_parts(content: ChatContent) -> Self {
+        Self::open(content, &[], CHAT, true)
+    }
+
+    fn open(content: ChatContent, trusted: &[(Uuid, Signer)], shown: Uuid, parts: bool) -> Self {
         let mut harness = Self {
             editor: match shown == CHAT {
                 true => BeuiTest::new(OwnedEditor::new(host(), shown)),
@@ -105,7 +110,10 @@ impl Harness {
             .editor
             .store()
             .register(be_type_chat::registrations());
-        harness.editor.hold(None, content);
+        match parts {
+            true => harness.editor.hold_parts(None, content),
+            false => harness.editor.hold(None, content),
+        }
         harness.editor.set_size(vec2(480.0, 560.0));
         harness.editor.presence_visible(true);
         harness.run();
