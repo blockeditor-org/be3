@@ -35,7 +35,11 @@ fn editing_a_rule_keeps_the_rest_of_the_text_as_it_was() {
     assert!(!text.contains("window"), "{text}");
     let groups = text::parse(&text).expect("what the editor writes reads");
     assert_eq!(groups.len(), 2);
-    assert_eq!(groups[0].rules.len(), 3);
+    assert_eq!(
+        groups[0].rules.len(),
+        2,
+        "a rule added has nothing pressed yet, so it reads as no rule"
+    );
     assert_eq!(
         groups[0].rules[0].action,
         Action::Steps {
@@ -50,7 +54,8 @@ fn editing_a_rule_keeps_the_rest_of_the_text_as_it_was() {
         }
     );
     assert_eq!(groups[1].name, "Everywhere");
-    assert_eq!(groups[1].rules.len(), 1);
+    assert!(groups[1].rules.is_empty(), "its new rule is unfinished");
+    assert_eq!(editing.outline()[1].rules.len(), 1, "but kept");
 
     editing.remove_rule(0, 2);
     editing.remove_group(1);

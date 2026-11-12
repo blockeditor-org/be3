@@ -5,10 +5,16 @@ use be_lib_remap::edit::modifier_of;
 use be_lib_remap::names::{KeyKind, Modifier, Source};
 use be_lib_remap::rules::Wheel;
 
+/// What an empty name reads as: a rule not chosen yet, or a key sent as nothing.
+pub(super) const NOTHING: &str = "Nothing";
+
 /// The name a person reads for a name as the TOML writes it: `Left Ctrl` for
 /// `LeftCtrl`, `Wheel up` for `WheelUp`, `Shift` for `Shift`. A name nothing
-/// reads is shown as written.
+/// reads is shown as written, and no name at all is `Nothing`.
 pub(super) fn label(name: &str) -> String {
+    if name.trim().is_empty() {
+        return NOTHING.to_owned();
+    }
     if let Some(wheel) = Wheel::named(name) {
         return wheel.label().to_owned();
     }
