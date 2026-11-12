@@ -27,7 +27,8 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
     );
 
     let response = peer
-        .relay(block, Some(owner_id), RelayKind::Edit, sealed.clone()).await;
+        .relay(block, Some(owner_id), RelayKind::Edit, sealed.clone())
+        .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
     let joined = owner.notification().await;

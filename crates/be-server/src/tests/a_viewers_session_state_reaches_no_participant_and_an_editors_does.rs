@@ -52,7 +52,12 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
         .await;
     assert!(matches!(submit, Ok(())), "{submit:?}");
     let accepted = owner
-        .relay(block, Some(editor_id), RelayKind::Owner, b"accepted".to_vec())
+        .relay(
+            block,
+            Some(editor_id),
+            RelayKind::Owner,
+            b"accepted".to_vec(),
+        )
         .await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
 

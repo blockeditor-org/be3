@@ -8,8 +8,8 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    BlockEvent, ClientId, Journal, JournalBase, JournalEntry, PairingMessage, RelayKind, SessionEvent,
-    SessionState, client, hello, read_hello,
+    BlockEvent, ClientId, Journal, JournalBase, JournalEntry, PairingMessage, RelayKind,
+    SessionEvent, SessionState, client, hello, read_hello,
 };
 use be_block_store::Hash;
 use be_wasm_ops::{

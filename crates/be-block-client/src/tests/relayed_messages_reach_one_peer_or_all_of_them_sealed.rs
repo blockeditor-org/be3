@@ -49,7 +49,9 @@ async fn relayed_messages_reach_one_peer_or_all_of_them_sealed() {
         .await
         .unwrap();
     let to_everyone = phone
-        .relay(block, None, RelayKind::Peer, b"to everyone").await.unwrap();
+        .relay(block, None, RelayKind::Peer, b"to everyone")
+        .await
+        .unwrap();
     to_laptop.await.unwrap();
     to_everyone.await.unwrap();
 
