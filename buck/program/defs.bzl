@@ -74,6 +74,22 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) 
     )
     return artifact
 
+# One module precompiled, as a file a test reads at run time: a test that loads a large
+# module (the base library is 22 MB, ten seconds of Cranelift) takes it compiled from here, once
+# for the build, rather than compiling it in its own process.
+def _precompiled_module_impl(ctx: AnalysisContext) -> list[Provider]:
+    wasm = ctx.attrs.module[DefaultInfo].default_outputs[0]
+    return [DefaultInfo(default_output = _precompile(ctx, wasm))]
+
+precompiled_module = rule(
+    attrs = {
+        "module": attrs.dep(),
+        "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
+        "precompiler": attrs.dep(providers = [RunInfo]),
+    },
+    impl = _precompiled_module_impl,
+)
+
 # Every app's modules, libraries and type modules precompiled once, for
 # apps that stage some or all of them (crates/be-host-tests stages a few editors
 # per test): an app given it as `precompiled` takes each .cwasm from here
