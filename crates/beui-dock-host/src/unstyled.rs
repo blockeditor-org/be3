@@ -2273,7 +2273,7 @@ fn BackPreview(dock: State, switching: Signal<bool>) -> NodeId {
     let shown = create_memo(move || Some(behind));
     let backward = after.back().is_some();
     let backward = create_memo(move || backward);
-    let tabs = after.recent_tabs();
+    let tabs = after.switchable(after.recent_tabs());
     let tabs = create_memo(move || tabs.clone());
     let bar = dock
         .stack
@@ -2301,8 +2301,14 @@ fn stack_handle(
     let icon = create_memo(move || shown.get().map(|tab| dock.icon(tab)).unwrap_or_default());
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
-    let open_tabs = create_memo(move || tabs.with(Vec::len));
+    // The badge counts what the switcher lists as open, its cards: not the tabs that are always
+    // there (the files list, settings), which it lists as rows.
+    let closable = dock.closable;
+    let open_tabs = create_memo(move || {
+        tabs.with(|tabs| tabs.iter().filter(|tab| closable.call(**tab)).count())
+    });
     let switch_label = create_memo(move || match open_tabs.get() {
+        0 => "No open tabs".to_owned(),
         1 => "1 open tab".to_owned(),
         count => format!("{count} open tabs"),
     });
