@@ -3136,13 +3136,13 @@ pub(crate) fn gliding_rows(
         view! {
             <List spacing=0.0>
                 <ForEach keys={order}>|key: u64|
-                    <Glide @test_id={format!("slot.{key}")} arm={arm}>
+                    <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
                         <Frame
                             @test_id={format!("row.{key}")}
                             height=GLIDE_ROW
                             fill={Color32::from_rgb((key * 40 % 256) as u8, 90, 160)}
                         />
-                    </Glide>
+                    </unstyled::Glide>
                 </ForEach>
             </List>
         }

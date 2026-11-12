@@ -59,8 +59,7 @@ pub use layer::{
     LayerPolicy, LayerSpace, OverlayAnchor, Placement,
 };
 pub use layout::{
-    Align, Align2, CanvasArrangement, CanvasView, Corners, Direction, Extent, GlideHold,
-    GlideMotion, ItemSize, Justify, Measured, Outline, ScrollPosition, Sides, Sizing, Track,
+    Align, Align2, CanvasArrangement, CanvasView, Corners, Direction, Extent, ItemSize, Justify, Measured, Outline, ScrollPosition, Sides, Sizing, Track,
 };
 pub use node::{BuildsNode, ImeCursor, NodeId, NodeRef};
 pub use path::{FillRule, LineCap, LineJoin, Path, PathElement, PathStyle, Stroke};

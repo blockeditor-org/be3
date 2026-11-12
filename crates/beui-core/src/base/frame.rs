@@ -531,7 +531,7 @@ impl Document {
 
     pub fn set_frame_translate(&mut self, frame: NodeOf<FrameNode>, translate: Vec2) {
         if self.arena.get_as::<FrameNode>(frame).translate != translate {
-            self.arena.get_mut_as::<FrameNode>(frame).translate = translate;
+            self.arena.relayout_alone_mut_as::<FrameNode>(frame).translate = translate;
         }
     }
 

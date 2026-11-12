@@ -27,3 +27,15 @@ Set aside until the user picks them up.
   needs a decision on one canonical rich-layout API; and `Piece` and
   `RichOptions` live in beui-core and are used through `beui::text` by host
   tests, the HTML core and be-host-runtime.
+- **`Selectable` leaves the base layer.** It is still a single-child base node
+  (`beui-view/src/primitives.rs`), which decisions/beui_base_layer_kept_small.md
+  rules out; `Glide` has already moved to unstyled. Natively its selection walks
+  the document (`native/selection.rs`: texts under a node, a `VirtualList`'s
+  rows by key, scrolling the nearest `Offset`), and on HTML it is the browser's
+  own selection over `user-select: text`. As one unstyled component over the
+  base `Text`'s hit testing and selection highlight, the HTML core first needs
+  those tree queries, and the web would trade the browser's selection (its
+  handles, its menu, find-in-page highlights) for beui's. Set aside because
+  that trade is the owner's to make. Done: `Selectable` is unstyled code on
+  both cores, the styled `SelectableText` keeps its look, and both cores lose
+  their bodies.

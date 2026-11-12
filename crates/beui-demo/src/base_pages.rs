@@ -5,7 +5,7 @@ use beui::Vec2;
 use beui::primitives::Drawing;
 use beui::primitives::Frame;
 use beui::primitives::Gap;
-use beui::primitives::Glide;
+use beui::unstyled::Glide;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
