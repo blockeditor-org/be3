@@ -2448,11 +2448,15 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
                     let read = async {
-                        let commit = peer.load_commit(commit).await?;
-                        match first_part {
-                            true => peer.load_first_part(&commit.manifest).await,
-                            false => peer.load_manifest(&commit.manifest).await,
+                        let loaded = peer.load_commit(commit).await?;
+                        let read = match first_part {
+                            true => peer.load_first_part(&loaded.manifest).await,
+                            false => peer.load_manifest(&loaded.manifest).await,
+                        };
+                        if read.is_ok() && !first_part {
+                            peer.read_whole(block, commit);
                         }
+                        read
                     }
                     .await;
                     if let Err(ClientError::Locked(_)) = &read {
@@ -2795,7 +2799,8 @@ impl<H: Host> Replicas<H> {
 }
 
 fn known_head_of<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Option<CommitId> {
-    peer.local_head(block)
+    peer.held_head(block)
+        .or_else(|| peer.local_head(block))
         .or_else(|| peer.known_remote_head(block))
         .or_else(|| peer.known_summary(block).and_then(|summary| summary.head))
 }

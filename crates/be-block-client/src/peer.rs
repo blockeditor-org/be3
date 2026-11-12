@@ -560,11 +560,9 @@ impl<S: ObjectStore> Peer<S> {
             self.make_current(summary.id, key);
         }
         let _ = self.refs.observe(std::slice::from_ref(summary));
-        if self.is_attached() || self.refs.listing(&Listing::Block(summary.id)).is_none() {
-            let _ = self
-                .refs
-                .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
-        }
+        let _ = self
+            .refs
+            .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
             let _ = self.refs.move_to_unsent(summary.id, now_milliseconds());
         }
@@ -1207,7 +1205,9 @@ impl<S: ObjectStore> Peer<S> {
                 let stored = match summary.head {
                     Some(head) => {
                         let commit = self.load_commit(head).await?;
-                        Some(self.load_manifest(&commit.manifest).await?)
+                        let stored = self.load_manifest(&commit.manifest).await?;
+                        self.read_whole(summary.id, head);
+                        Some(stored)
                     }
                     None => None,
                 };
@@ -1220,6 +1220,29 @@ impl<S: ObjectStore> Peer<S> {
             },
         ))
         .await
+    }
+
+    /// Records that this device has read a block's content at `head` whole, so it can read it
+    /// again offline (`held_head`).
+    pub fn read_whole(&self, block: Uuid, head: CommitId) {
+        if self.holds(head) {
+            let _ = self.refs.hold(block, head);
+        }
+    }
+
+    /// The newest head of a block whose content this device holds, for reading it offline: its
+    /// own commit, else what it last read, else what the server last said if that is held too.
+    /// A head the server moved to while this device was not reading the block is not held.
+    pub fn held_head(&self, block: Uuid) -> Option<CommitId> {
+        [
+            self.local_head(block),
+            self.refs.held(block),
+            self.known_remote_head(block),
+            self.refs.summary(block).and_then(|summary| summary.head),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|head| self.holds(*head))
     }
 
     fn holds(&self, head: CommitId) -> bool {
