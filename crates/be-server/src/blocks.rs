@@ -1453,6 +1453,24 @@ impl ServerStore {
         .await
     }
 
+    /// Which of `blocks` are `root` or below it.
+    pub async fn within(
+        &self,
+        organization: Uuid,
+        root: Uuid,
+        blocks: Vec<Uuid>,
+    ) -> Result<BTreeSet<Uuid>, ServerError> {
+        self.with_graph(organization, move |_, graph, _| {
+            Ok(blocks
+                .into_iter()
+                .filter(|block| {
+                    *block == root || graph.ancestors(*block).any(|above| above == root)
+                })
+                .collect())
+        })
+        .await
+    }
+
     /// What changed after `since` in `root`'s tree (a top-level block's), from `after`
     /// (`changes.rs`): the blocks in the tree now that changed, and the blocks that left that
     /// tree (moved out, or deleted for good from it) since, and are not in it. A page ends at `limit` blocks of either kind, or at `MAX_SCANNED` changes looked
@@ -1588,17 +1606,6 @@ impl ServerStore {
             Ok(entries)
         })
         .await
-    }
-
-    pub async fn delete_block(
-        &self,
-        identity: Identity,
-        block: Uuid,
-    ) -> Result<BTreeSet<Uuid>, ServerError> {
-        let (before, _) = self
-            .set_parent(identity, block, BlockParent::Detached, KeySet::default())
-            .await?;
-        Ok(before)
     }
 
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {

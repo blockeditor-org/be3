@@ -30,7 +30,6 @@ const REACHING_PAST: &[&str] = &[
     "put-contact",
     "remove-contact",
     "set-parent",
-    "delete-block",
     "collect-detached",
     "set-access",
     "list-access",
@@ -165,7 +164,9 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         );
     }
     let response = agent
-        .call(|peer| client::blocks::delete_block(peer, terminal))
+        .call(|peer| {
+            client::blocks::set_parent(peer, terminal, BlockParent::Detached, KeySet::default())
+        })
         .await;
     assert!(
         refused_as(&response, ErrorCode::PermissionDenied),

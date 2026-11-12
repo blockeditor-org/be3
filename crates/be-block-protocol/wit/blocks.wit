@@ -181,7 +181,7 @@ interface blocks {
     variant block-event {
         /// Another connection published a new head.
         moved(head-moved),
-        /// The block was deleted; the stream then ends.
+        /// The block was collected for good; the stream then ends.
         deleted,
     }
 
@@ -247,8 +247,6 @@ interface blocks {
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
 
-    delete-block: async func(block: block-id) -> result<_, error>;
-
     /// Deletes the detached blocks nothing reaches any more.
     collect-detached: async func() -> result<collected, error>;
 
@@ -256,8 +254,8 @@ interface blocks {
 
     list-access: async func(block: block-id) -> result<access-list, error>;
 
-    /// Head moves of a block made by other connections, until it is deleted
-    /// or the stream dropped. Each stream is its own: two on one block both
+    /// Head moves of a block made by other connections, until it is collected,
+    /// the connection loses the right to view it, or the stream is dropped. Each stream is its own: two on one block both
     /// hear, and dropping one leaves the other.
     watch: func(block: block-id) -> stream<block-event>;
 }
