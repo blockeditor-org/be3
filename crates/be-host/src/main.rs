@@ -2097,7 +2097,9 @@ impl HostCore {
         destination: Uuid,
         is_reference: bool,
     ) {
-        if refused_offline(destination) || matches!(source, SidebarDragSource::Block(source) if refused_offline(source)) {
+        if refused_offline(destination)
+            || matches!(source, SidebarDragSource::Block(source) if refused_offline(source))
+        {
             return;
         }
         if self
