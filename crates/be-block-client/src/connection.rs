@@ -46,12 +46,10 @@ pub const PING_INTERVAL: Duration = Duration::from_secs(15);
 /// wakes.
 pub const PONG_WAIT: Duration = Duration::from_secs(20);
 /// Silence after something was sent that the connection takes as a sign the server may be gone:
-/// it pings at once rather than at `PING_INTERVAL`, so a link that went silent under a request is
-/// noticed in `ANSWER_WAIT` plus `QUICK_PONG_WAIT`, not in `PING_INTERVAL` plus `PONG_WAIT`.
+/// it pings then rather than at `PING_INTERVAL`, so a link that went silent under a request is
+/// noticed in `ANSWER_WAIT` plus `PONG_WAIT`. The ping waits as long as any, so a server that
+/// is slow but answers is not taken for gone.
 pub const ANSWER_WAIT: Duration = Duration::from_secs(5);
-/// How long such an early ping waits for its answer. Any frame from the server answers it, so a
-/// slow link that still carries frames is not torn down.
-pub const QUICK_PONG_WAIT: Duration = Duration::from_secs(10);
 
 pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;
 
@@ -665,10 +663,8 @@ async fn carry(
     let mut heard = opened;
     let mut owed = false;
     let mut pinged: Option<Duration> = None;
-    // When something other than a ping was written with nothing heard since, and whether the
-    // ping outstanding was sent early for it.
+    // When something other than a ping was written with nothing heard since.
     let mut asked: Option<Duration> = None;
-    let mut quick = false;
     let mut sending_message = false;
     let mut reading_first = false;
     let mut shut = Some(shut);
@@ -678,12 +674,7 @@ async fn carry(
         if !owed && pinged.is_none() && (now >= heard + PING_INTERVAL || early) {
             ping = Some(client::connection::ping(&peer));
             owed = true;
-            quick = now < heard + PING_INTERVAL;
         }
-        let pong_wait = match quick {
-            true => QUICK_PONG_WAIT,
-            false => PONG_WAIT,
-        };
         while let Ok(frame) = frames.try_recv() {
             queue(&mut queued, frame);
         }
@@ -699,7 +690,7 @@ async fn carry(
             .map(|(_, since)| (heard + PING_INTERVAL).max(*since) + PONG_WAIT);
         let next = match (pinged, stuck) {
             (Some(sent), stuck) => {
-                stuck.map_or(sent + pong_wait, |stuck| stuck.min(sent + pong_wait))
+                stuck.map_or(sent + PONG_WAIT, |stuck| stuck.min(sent + PONG_WAIT))
             }
             (None, Some(stuck)) if owed => stuck,
             (None, _) => match (owed, asked) {
@@ -757,7 +748,7 @@ async fn carry(
             }
             Woke::Timer => {
                 let now = clock.now();
-                if pinged.is_some_and(|sent| now >= sent + pong_wait)
+                if pinged.is_some_and(|sent| now >= sent + PONG_WAIT)
                     || stuck.is_some_and(|stuck| now >= stuck)
                 {
                     return;
@@ -769,7 +760,6 @@ async fn carry(
                 heard = clock.now();
                 pinged = None;
                 asked = None;
-                quick = false;
                 match frame {
                     Some(Frame::Binary(bytes)) => {
                         if peer.receive(&bytes).is_err() {

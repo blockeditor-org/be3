@@ -78,8 +78,8 @@ here runs Android. Line numbers are from when this was written. Remove an item w
 Host tests reproduce these with a device of a test's server (guides/testing_a_gui.md, 6):
 `HostTest::offline` is a drop the device notices at once, `HostTest::unreachable` one it does
 not (its connections stay open and carry nothing), which is what blocking the port did. A drop
-under a request is noticed once an early ping goes unanswered, about 15 s (`ANSWER_WAIT` plus
-`QUICK_PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
+under a request is noticed once an early ping goes unanswered, about 25 s (`ANSWER_WAIT` plus
+`PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
 
 4. **Starting with no connection.** A device of a remote server restarted while it cannot reach
    it shows Files at once (`resume_organization`); the blank window seen here was probably the

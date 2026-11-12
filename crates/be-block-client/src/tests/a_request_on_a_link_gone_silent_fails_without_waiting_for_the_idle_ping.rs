@@ -1,9 +1,9 @@
 use super::*;
-use crate::connection::{ANSWER_WAIT, PING_INTERVAL, QUICK_PONG_WAIT};
+use crate::connection::{ANSWER_WAIT, PING_INTERVAL, PONG_WAIT};
 use be_block_protocol::client;
 
 /// A request that hears nothing back pings at once instead of at the idle ping, and the
-/// connection closes once that ping goes unanswered too: well before an idle connection would.
+/// connection closes once that ping goes unanswered too: sooner than an idle connection would.
 #[tokio::test]
 async fn a_request_on_a_link_gone_silent_fails_without_waiting_for_the_idle_ping() {
     let harness = Harness::start().await;
@@ -25,7 +25,7 @@ async fn a_request_on_a_link_gone_silent_fails_without_waiting_for_the_idle_ping
         .unwrap();
     clock.advance(ANSWER_WAIT);
     pings.wait_for(|pings| *pings > 0).await.unwrap();
-    clock.advance(QUICK_PONG_WAIT);
+    clock.advance(PONG_WAIT);
 
     assert!(
         matches!(answer.await, Err(ClientError::Disconnected(_))),
