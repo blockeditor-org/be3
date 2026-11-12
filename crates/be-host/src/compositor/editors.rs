@@ -1684,87 +1684,94 @@ fn HostedChild(
         any.get();
         let mut frame = None;
         let kind = (|| {
-        let (id, block_type, view_block, editor) = match content.get() {
-            None => return Kind::Missing,
-            Some(HostContent::Window(window)) => {
-                return window_kind(window, super::shell().get() == Some(parent), hidden.get());
+            let (id, block_type, view_block, editor) = match content.get() {
+                None => return Kind::Missing,
+                Some(HostContent::Window(window)) => {
+                    return window_kind(window, super::shell().get() == Some(parent), hidden.get());
+                }
+                Some(_) if hidden.get() => return Kind::Unavailable,
+                Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
+                Some(HostContent::DockTab { block, tab }) => {
+                    let shown = child.with(|child| {
+                        child
+                            .as_ref()
+                            .is_some_and(|child| child.mode != ChildMode::Preview)
+                    });
+                    return match shown && editors.handle(block).is_some() {
+                        true => Kind::DockTab(block, tab),
+                        false => Kind::Unavailable,
+                    };
+                }
+                Some(HostContent::ArtifactSettings(block)) => {
+                    editors.show_settings(creation_key, block);
+                    return Kind::ArtifactSettings(block);
+                }
+                Some(HostContent::Creation { editor, template }) => {
+                    return match editors.ensure_creation(creation_key, editor, &template) {
+                        true => Kind::Creation,
+                        false => Kind::Unavailable,
+                    };
+                }
+                Some(HostContent::Picker { filter, parent }) => {
+                    let request = be_host_runtime::PickerRequest {
+                        filter,
+                        parent,
+                        sheet: sheet.get(),
+                    };
+                    return match editors
+                        .ensure_picker(creation_key, |registry| registry.picker(request))
+                    {
+                        true => Kind::Picker,
+                        false => Kind::NoPicker,
+                    };
+                }
+                Some(HostContent::Rename(block)) => {
+                    let sheet = sheet.get();
+                    return match editors
+                        .ensure_picker(creation_key, |registry| registry.rename(block, sheet))
+                    {
+                        true => Kind::Picker,
+                        false => Kind::Unavailable,
+                    };
+                }
+                Some(HostContent::Block {
+                    block_id,
+                    block_type,
+                    view_block,
+                    editor,
+                }) => (block_id, block_type, view_block, editor),
+            };
+            if be_host_stack::revisions::released(id) {
+                return Kind::Unavailable;
             }
-            Some(_) if hidden.get() => return Kind::Unavailable,
-            Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
-            Some(HostContent::DockTab { block, tab }) => {
-                let shown = child.with(|child| {
-                    child
-                        .as_ref()
-                        .is_some_and(|child| child.mode != ChildMode::Preview)
-                });
-                return match shown && editors.handle(block).is_some() {
-                    true => Kind::DockTab(block, tab),
-                    false => Kind::Unavailable,
-                };
+            if nesting.above.with(|above| above.contains(&id)) {
+                return Kind::Unavailable;
             }
-            Some(HostContent::ArtifactSettings(block)) => {
-                editors.show_settings(creation_key, block);
-                return Kind::ArtifactSettings(block);
+            if let Some(program) = editor.filter(|editor| be_host_desktop::programs::opens(*editor))
+            {
+                be_host_desktop::programs::show(id, block_type, program, parent);
+                return Kind::Program(id);
             }
-            Some(HostContent::Creation { editor, template }) => {
-                return match editors.ensure_creation(creation_key, editor, &template) {
-                    true => Kind::Creation,
-                    false => Kind::Unavailable,
-                };
+            let Some(child) = child.get() else {
+                return Kind::Missing;
+            };
+            if child.mode == ChildMode::Preview {
+                // A block previewed in several places is drawn once, by the editor under
+                // its own id, and each place shows its part.
+                editors.ensure(id, block_type, view_block, editor, parent);
+                return Kind::Preview;
             }
-            Some(HostContent::Picker { filter, parent }) => {
-                let request = be_host_runtime::PickerRequest {
-                    filter,
-                    parent,
-                    sheet: sheet.get(),
-                };
-                return match editors
-                    .ensure_picker(creation_key, |registry| registry.picker(request))
-                {
-                    true => Kind::Picker,
-                    false => Kind::NoPicker,
-                };
+            let key = editors.place(place, id, block_type, view_block, editor);
+            frame = Some(key);
+            let in_stack = tab
+                .as_ref()
+                .is_some_and(|tab| tab.stack.get().contains(&key));
+            match child.mode {
+                ChildMode::Preview => Kind::Preview,
+                _ if child.frame_owner && child.own_frame => Kind::OwnFrame,
+                _ if child.frame_owner && in_stack => Kind::FrameChild,
+                _ => Kind::Embedded,
             }
-            Some(HostContent::Rename(block)) => {
-                let sheet = sheet.get();
-                return match editors
-                    .ensure_picker(creation_key, |registry| registry.rename(block, sheet))
-                {
-                    true => Kind::Picker,
-                    false => Kind::Unavailable,
-                };
-            }
-            Some(HostContent::Block {
-                block_id,
-                block_type,
-                view_block,
-                editor,
-            }) => (block_id, block_type, view_block, editor),
-        };
-        if be_host_stack::revisions::released(id) {
-            return Kind::Unavailable;
-        }
-        if nesting.above.with(|above| above.contains(&id)) {
-            return Kind::Unavailable;
-        }
-        if let Some(program) = editor.filter(|editor| be_host_desktop::programs::opens(*editor)) {
-            be_host_desktop::programs::show(id, block_type, program, parent);
-            return Kind::Program(id);
-        }
-        let key = editors.place(place, id, block_type, view_block, editor);
-        frame = Some(key);
-        let Some(child) = child.get() else {
-            return Kind::Missing;
-        };
-        let in_stack = tab
-            .as_ref()
-            .is_some_and(|tab| tab.stack.get().contains(&key));
-        match child.mode {
-            ChildMode::Preview => Kind::Preview,
-            _ if child.frame_owner && child.own_frame => Kind::OwnFrame,
-            _ if child.frame_owner && in_stack => Kind::FrameChild,
-            _ => Kind::Embedded,
-        }
         })();
         if frame.is_none() {
             editors.unplace(place);
@@ -1807,7 +1814,7 @@ fn HostedChild(
                 Kind::Unavailable | Kind::Missing | Kind::NoPicker
             );
             let mut status = status_of(&editors, &child, frame.get(), available);
-            if let (Kind::Preview, Some(key)) = (kind.get(), frame.get()) {
+            if let (Kind::Preview, Some(key)) = (kind.get(), frame.get().or(child.block_id())) {
                 status.preview = preview_of(&editors, key);
             }
             if let Some((progress, height, dialog)) = editors.creation_status(&creation_key) {
