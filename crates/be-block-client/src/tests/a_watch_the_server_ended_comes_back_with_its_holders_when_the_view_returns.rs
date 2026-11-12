@@ -20,7 +20,7 @@ async fn next<T>(
 }
 
 #[tokio::test]
-async fn a_watch_the_server_ended_is_taken_again_when_the_view_returns() {
+async fn a_watch_the_server_ended_comes_back_with_its_holders_when_the_view_returns() {
     let harness = Harness::start().await;
     let owner = harness.owner("owner@example.com").await;
     let guest = harness.member(&owner, "guest@example.com").await;
@@ -47,8 +47,11 @@ async fn a_watch_the_server_ended_is_taken_again_when_the_view_returns() {
         .await
         .unwrap();
 
-    let mut events = guest.connection().subscribe();
+    let connection = guest.connection();
+    let mut events = connection.subscribe();
     guest.children(BlockParent::Block(shared)).await.unwrap();
+    // Two holders want the block, as a replica and the version panel do.
+    guest.watch(note);
     guest.watch(note);
 
     let head = owner.summary(note).await.unwrap().head;
@@ -61,23 +64,41 @@ async fn a_watch_the_server_ended_is_taken_again_when_the_view_returns() {
     })
     .await;
 
+    // Out of view, the server ends the stream; the holders keep their watch.
     owner
         .set_parent(note, BlockParent::Block(hidden))
         .await
         .unwrap();
     next(&mut events, |event| {
-        matches!(event, Event::WatchEnded { block } if *block == note).then_some(())
+        matches!(event, Event::BlockRemoved { block, .. } if *block == note).then_some(())
     })
     .await;
 
+    // In view again, it is taken again with no holder asking.
     owner
         .set_parent(note, BlockParent::Block(shared))
         .await
         .unwrap();
-    guest.watch(note);
+    next(&mut events, |event| {
+        matches!(event, Event::BlockChanged(block) if block.id == note).then_some(())
+    })
+    .await;
+    connection.round_trip().await;
     let head = owner.summary(note).await.unwrap().head;
     owner
         .save(note, &TextBlock::of("third"), head)
+        .await
+        .unwrap();
+    next(&mut events, |event| {
+        matches!(event, Event::HeadChanged { block, .. } if *block == note).then_some(())
+    })
+    .await;
+
+    // One holder letting go leaves the other's watch.
+    guest.unwatch(note).unwrap().await.unwrap();
+    let head = owner.summary(note).await.unwrap().head;
+    owner
+        .save(note, &TextBlock::of("fourth"), head)
         .await
         .unwrap();
     next(&mut events, |event| {
