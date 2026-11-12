@@ -84,30 +84,8 @@ What already works, and must keep working:
 - an edit made during a drop came through a reconnect once, with no duplicate, and synced;
 - edits survive `kill -9`, even straight after typing.
 
-## Keyboard
-
-11. **The keyboard is not shown again on unlock** (from reading the code). If it was up when
-    the phone locked, nothing asks for it again: `View` is only sent from `nativeCreate`, and
-    `show_window` acts only on a change (`crates/beui-platform-android/src/lib.rs:258-274`).
-12. **The layout jumps in one step while the keyboard slides** (from reading the code). There
-    is no `WindowInsetsAnimation` callback, so the clear color can show under the moving
-    keyboard. Follow the inset animation.
-
 ## Lock, unlock and single frames (from reading the code)
 
-13. **Unlocking can show a blank or stale frame.** `BeuiView` implements only
-    `SurfaceHolder.Callback`, and `surfaceChanged` returns before a frame is presented
-    (`crates/beui-platform-android/android/java/com/be3/beui/BeuiView.java:53-60`). Implement
-    `SurfaceHolder.Callback2.surfaceRedrawNeeded` (or `surfaceRedrawNeededAsync`) so Android
-    waits for the first frame on the new surface.
-14. **Input that arrives while there is no surface is thrown away**
-    (`crates/beui-runner/src/lib.rs:542-544`). A late touch cancel, focus loss or IME event
-    can be lost, leaving a stuck press or drag after resume. Keep the events that end
-    something.
-15. **The surface can be destroyed while the renderer still holds it.** `surfaceDestroyed`
-    waits at most 2 s for the runner to let go
-    (`crates/beui-platform-android/src/lib.rs:47, 1078-1086`). A frame that runs longer (a
-    long wasm step) leaves the renderer holding a destroyed surface.
 16. **The window loses 1 px of scroll when the format bar hides.** On `drive blur` (standing
     in for lock), the format bar goes and every line moves up by 1 px (line 279 from y=136 to
     y=135). Keep the scroll anchored to the content.
@@ -115,25 +93,6 @@ What already works, and must keep working:
     wheel, drag and fling, a heading under the caret, a keyboard-height window), blur moved no
     line, except within a bar's height of the end, where the view is pinned there. Find the
     document and offset that show it before fixing.
-
-## Power and frames
-
-17. **The text app runs about three steps for every host frame.**
-    - One fling: 351 window frames, about 1,060 `be3.text` steps (`drive frames`).
-    - Typing: 708 window frames, 683 steps.
-    - Idle with the caret blinking: 17 window frames, 24 steps.
-
-    guides/apps/runtime.md says a runtime is asked at most once per host frame. Find what
-    these steps are (input, layout and present commits, or extra draws) and drop any that
-    draw nothing.
-18. **A focused editor never goes idle.** With the keyboard up, the host ran about 4 frames a
-    second. The caret blink asks for a repaint every 530 ms with no end
-    (`crates/beui-core/src/base/text.rs:29, 752-764`). Two frames per blink is the most it
-    should cost. Consider stopping the blink after a while with no input, as other platforms
-    do.
-
-What already works: a fling decelerates smoothly frame by frame and ends within about 1 s. An
-unfocused editor draws nothing while idle.
 
 ## Opening documents
 
