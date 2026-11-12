@@ -1135,7 +1135,7 @@ impl ChatContent {
 impl ChatContent {
     /// Puts the index in time order. Each side's new entries land in the merged index as one
     /// block, either first, so the entries new since `base` are sorted by where the message each
-    /// opens at and ends at stood among the recent messages of `base` (unknown ones, sent since,
+    /// ends at and opens at stood among the recent messages of `base` (unknown ones, sent since,
     /// last); the entries `base` had stay in front, as they were.
     fn order_segments(&mut self, base: &Self) {
         let known: std::collections::HashSet<Segment> = base.segments().into_iter().collect();
@@ -1147,8 +1147,8 @@ impl ChatContent {
             .collect();
         let key = |segment: &Segment| {
             (
-                position.get(&segment.first).copied().unwrap_or(usize::MAX),
                 position.get(&segment.last).copied().unwrap_or(usize::MAX),
+                position.get(&segment.first).copied().unwrap_or(usize::MAX),
             )
         };
         let segments = self.segments();

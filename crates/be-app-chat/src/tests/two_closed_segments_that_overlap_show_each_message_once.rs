@@ -71,7 +71,7 @@ fn every_message_shows_once(base: &ChatContent, merged: ChatContent, deleted: Ob
     let recent = chat.content().messages()[0];
 
     // The segments are read one at a time, newest index entry first, and held back between
-    // reads. After each one what shows is a run of the messages in time order, none missing
+    // reads (the editor asks for one segment's reads at a time, so each step lets one segment in). After each one what shows is a run of the messages in time order, none missing
     // between them, on to the newest message.
     chat.editor.store().hold_reads(true);
     chat.editor

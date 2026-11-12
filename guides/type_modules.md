@@ -257,8 +257,9 @@ merge that still cannot have a part is dropped, so the replica's jobs go on, rep
 (`error`), and the owner tries it again as a `Job::Reconcile` on a timer (5 s, doubling to a
 minute; a replica that stops owning the session drops the timer), for as long as it fails: a
 `merge_parts` error that always recurs (a corrupt part) is retried for ever at the ceiling. Until
-it resolves the owner's seals on the old base are rejected, and a rejected seal leaves the retry
-to the timer; the work stays unsealed in the journal. While a merge waits, the replica's jobs (an
+it resolves the owner makes no due seal (it would publish on the old base and be rejected), and
+a seal asked for (`Seal` once or rekey) is answered without publishing; the work stays unsealed
+in the journal. While a merge waits, the replica's jobs (an
 editor's edit, a peer's operation, a close) queue behind it and then land on its result.
 `merge_parts` must await only the `PartReader` reads it asks for: a merge that waits for anything
 else is reported and dropped, since nothing would wake it. A type without `merge_parts` merges at

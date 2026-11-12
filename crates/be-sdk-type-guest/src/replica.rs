@@ -1186,6 +1186,11 @@ where
     /// When the owner commits what it owes: after a quiet spell, at most `COMMIT_INTERVAL`
     /// after it started owing, or at once when the journal grew past `JOURNAL_BYTES`.
     fn commit_at(&self) -> Option<u64> {
+        // No due seal while a merge cannot read its parts: it would publish on the old base and be
+        // rejected at each tick until the merge's timer fires. The work stays in the journal.
+        if self.merge_failures > 0 {
+            return None;
+        }
         let since = self.owes_since?;
         if self.appended_bytes >= JOURNAL_BYTES {
             return Some(since);

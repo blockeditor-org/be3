@@ -23,7 +23,7 @@ fn a_merged_index_keeps_the_entries_in_time_order() {
         };
         let keys: Vec<(usize, usize)> = segments
             .iter()
-            .map(|segment| (at(segment.first), at(segment.last)))
+            .map(|segment| (at(segment.last), at(segment.first)))
             .collect();
         assert!(
             keys.windows(2).all(|pair| pair[0] <= pair[1]),
