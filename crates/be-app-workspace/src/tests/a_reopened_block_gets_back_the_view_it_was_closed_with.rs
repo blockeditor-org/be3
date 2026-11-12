@@ -24,7 +24,11 @@ fn a_reopened_block_gets_back_the_view_it_was_closed_with() {
         .state("closed-views")
         .cloned()
         .expect("the closed views are saved");
-    assert_eq!(closed.refs, vec![view], "the session lists it among its closed views");
+    assert_eq!(
+        closed.refs,
+        vec![view],
+        "the session lists it among its closed views"
+    );
 
     show(&mut fixture, opened, None);
     let layout = profile(&fixture).state("layout").cloned().expect("saved");

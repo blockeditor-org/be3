@@ -1,9 +1,9 @@
 use accesskit::Role;
 
 use super::*;
+use crate::color::Color32;
 use crate::primitives::Span;
 use crate::primitives::*;
-use crate::color::Color32;
 
 #[test]
 fn a_texts_label_leaves_out_clear_spans_and_inline_items() {

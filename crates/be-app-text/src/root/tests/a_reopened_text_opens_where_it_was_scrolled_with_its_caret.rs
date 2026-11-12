@@ -46,8 +46,14 @@ fn a_reopened_text_opens_where_it_was_scrolled_with_its_caret() {
     first.run();
     let (kept, position) = saved(&first, view);
     let position = position.expect("where the text was left is saved once it holds still");
-    assert!(position.line_start > 0, "the view was scrolled down: {position:?}");
-    assert!(position.focus > position.line_start, "the caret is below the top line");
+    assert!(
+        position.line_start > 0,
+        "the view was scrolled down: {position:?}"
+    );
+    assert!(
+        position.focus > position.line_start,
+        "the caret is below the top line"
+    );
 
     let mut reopened = opened(block, view, &text, kept);
     reopened.advance(Duration::from_secs(1));

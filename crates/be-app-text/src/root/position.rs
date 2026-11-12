@@ -49,8 +49,12 @@ impl Position {
     fn restore(self, state: State) {
         let len = state.text.bytes().len();
         let at = |byte: u64| usize::try_from(byte).unwrap_or(usize::MAX).min(len);
-        let (anchor, focus) =
-            state.text.with_core(|core| (core.position(at(self.anchor)), core.position(at(self.focus))));
+        let (anchor, focus) = state.text.with_core(|core| {
+            (
+                core.position(at(self.anchor)),
+                core.position(at(self.focus)),
+            )
+        });
         state
             .text
             .execute(EditorCommand::SetSelection { anchor, focus });
@@ -98,12 +102,12 @@ pub(crate) fn keep_position(state: State) {
     let save = Rc::new({
         let latest = Rc::clone(&latest);
         move || {
-        let Some(position) = latest.get() else {
-            return;
-        };
-        if saved.replace(Some(position)) != Some(position) {
-            core.set_view_state(POSITION, Some(&ViewState::new(&position, Vec::new())));
-        }
+            let Some(position) = latest.get() else {
+                return;
+            };
+            if saved.replace(Some(position)) != Some(position) {
+                core.set_view_state(POSITION, Some(&ViewState::new(&position, Vec::new())));
+            }
         }
     });
     let saving = create_timer({

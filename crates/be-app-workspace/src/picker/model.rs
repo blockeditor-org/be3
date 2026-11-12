@@ -236,11 +236,12 @@ impl Pick {
     pub(crate) fn imported(
         mut self,
         imported: Result<Option<(Uuid, Uuid)>, Failure>,
+        named: bool,
     ) -> PickOutcome {
         self.importing = None;
         match imported {
             Ok(Some((block, block_type))) if self.allowed(block_type) => {
-                self.made(block, block_type, true)
+                self.made(block, block_type, named)
             }
             Ok(Some(_)) => {
                 self.error = Some("The imported block can't be used here.".to_owned());
@@ -254,7 +255,7 @@ impl Pick {
         }
     }
 
-    /// Answers the pick with a block made here; `named` when it came with a name (an import).
+    /// Answers the pick with a block made here; `named` when it came with a name (an imported file).
     fn made(&self, block: Uuid, block_type: Uuid, named: bool) -> PickOutcome {
         let into = match self.place {
             Some(BlockParent::Block(container)) => Some((block, block_type, container)),
