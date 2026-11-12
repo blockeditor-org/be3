@@ -69,8 +69,8 @@ restore refuse such a block when it has parts after its first; only `from_stored
 (guides/blocks/apps.md, "Reading a range"), except a reused part the content
 holds anyway (`reused_bytes`, guides/type_modules.md, "Parts named by hash"). Such
 a type merges outside a session by parts if it implements `MergeParts`
-(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's merge reads no part and never
-conflicts (plans/chat.md); it is the same `merge3` the replica runs when it resumes a session.
+(guides/type_modules.md, "Merging by parts"), and otherwise as whole bytes. Chat's merge by parts reads the segments it
+settles and never conflicts (plans/chat.md).
 
 ## Documents: `be_block_model`
 

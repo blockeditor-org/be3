@@ -64,6 +64,32 @@ fn merged(base: &ChatContent, ours: &ChatContent, theirs: &ChatContent) -> (Chat
     }
 }
 
+/// The merge by parts, reading parts with `reader`, polled once (a reader here answers at once).
+fn merged_by_parts(
+    base: &ChatContent,
+    ours: &ChatContent,
+    theirs: &ChatContent,
+    reader: be_block::PartReader,
+) -> Result<(ChatContent, usize), String> {
+    use be_block::MergeParts;
+    let merge = ChatContent::merge_parts(base.clone(), ours.clone(), theirs.clone(), reader);
+    let mut merge = std::pin::pin!(merge);
+    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+    match merge.as_mut().poll(&mut context) {
+        std::task::Poll::Ready(Ok(MergeResult::Clean(value))) => Ok((value, 0)),
+        std::task::Poll::Ready(Ok(MergeResult::Conflicted { value, conflicts })) => {
+            Ok((value, conflicts))
+        }
+        std::task::Poll::Ready(Err(error)) => Err(error),
+        std::task::Poll::Pending => Err("the merge waits for a part".to_owned()),
+    }
+}
+
+/// A reader of no parts, for sides that hold their segments as bytes.
+fn no_parts() -> be_block::PartReader {
+    be_block::PartReader::new(|_, _, _| Box::pin(async { Err("no parts here".to_owned()) }))
+}
+
 fn round_trip(chat: &ChatContent) -> ChatContent {
     ChatContent::decode(&chat.encode()).expect("a chat decodes what it encoded")
 }

@@ -165,12 +165,17 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   the same messages. A replica applies a `Close` only when its index entry is
   the one its bytes give (count, first and last message, length and hash) and
   its edit does no more than remove those messages and add the entry. A chat
-  merge never conflicts and reads no part (a merge runs on one device and only
-  its result is applied): a segment both sides closed is one; entries that differ
-  stay, each with its own part (matched by the whole entry), and can overlap,
-  which loses nothing and costs storage. The editor shows each message once, in its place
-  (`ChatContent::weave`). Closing is not undone by a later merge, but once one
-  side has added an entry nothing compacts the overlap until a rewrite exists. Edits, deletions and
+  merge never conflicts (a merge runs on one device and only its result is applied,
+  so it need not match the other direction's): a segment both sides closed is one;
+  when we closed segments they did not, ours stand and theirs that differ leave the
+  index, their messages that are not in ours' segments (and not deleted) returning
+  to the recent messages in front of them. That needs the parts of both, so it is
+  `merge_parts`, which every merge of a chat takes (outside a session, `be sync`, and
+  the replica's resume: guides/type_modules.md, "Merging by parts"), waiting while
+  the parts are read and never resolving without them. `merge3`, which only a context
+  with no parts runs, is the union: entries that differ stay, each with its own part, and
+  can overlap, which loses nothing; the editor shows each message once, in its place
+  (`ChatContent::weave`). Closing is not undone by a later merge. Edits, deletions and
   reactions are kept by message id whether the message is recent or not, so an
   offline edit to a message that moved into a segment merges clean and stays in
   the header's maps. The journal bounds how many closes a session carries

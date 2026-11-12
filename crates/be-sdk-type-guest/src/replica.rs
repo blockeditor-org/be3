@@ -98,6 +98,9 @@ pub(crate) struct Opened {
     pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
     pub(crate) refused_commits: Vec<CommitId>,
     pub(crate) from_file: Option<FromFileFn>,
+    /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
+    /// merges by parts.
+    pub(crate) parts_merge: Option<std::rc::Rc<dyn std::any::Any>>,
     pub(crate) now: u64,
 }
 
@@ -378,7 +381,58 @@ enum AfterStash<C> {
     Keep,
 }
 
+/// A type's merge by parts, over the three contents, reading what it needs with the reader.
+pub(crate) type PartsMerge<C> =
+    fn(
+        C,
+        C,
+        C,
+        be_block::PartReader,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<MergeResult<C>, String>>>>;
+
+/// The part reads an asynchronous merge asked for, and what answered them.
+#[derive(Default)]
+struct MergeReads {
+    next: u64,
+    asked: Vec<(u64, PartRef, u64, u64)>,
+    answered: BTreeMap<u64, Result<Vec<u8>, String>>,
+}
+
+/// A part read of a merge that is out: the merge's own id for it, and how often it was tried.
+struct MergeRead {
+    id: u64,
+    part: PartRef,
+    offset: u64,
+    length: u64,
+    tries: u8,
+}
+
+/// What a merge goes on to do once it has merged.
+enum MergeThen<C> {
+    /// The head moved to `to` while this replica had work the server lacks: ours is what it
+    /// confirmed.
+    FastForward { to: CommitId },
+    Resume {
+        base: Option<CommitId>,
+        ours: CommitId,
+        theirs: CommitId,
+        unsealed: bool,
+        ours_content: C,
+    },
+}
+
+/// How often a part read of a merge is tried before the merge gives up and reports it.
+const MERGE_READ_TRIES: u8 = 3;
+
 enum Wait<C> {
+    /// A merge by parts, polled again as the parts it asked for arrive: it never resolves
+    /// without them.
+    Merging {
+        merge: std::pin::Pin<Box<dyn std::future::Future<Output = Result<MergeResult<C>, String>>>>,
+        reads: std::rc::Rc<std::cell::RefCell<MergeReads>>,
+        reading: BTreeMap<Token, MergeRead>,
+        then: MergeThen<C>,
+    },
     Reads {
         slots: Vec<Slot<C>>,
         then: Then,
@@ -413,6 +467,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     client: ClientId,
     tag: SessionTag,
     from_file: Option<FromFileFn>,
+    parts_merge: Option<PartsMerge<C>>,
     state: SessionState,
     role: Role,
     confirmed: C,
@@ -633,6 +688,11 @@ where
             client: opened.client,
             tag: opened.tag,
             from_file: opened.from_file,
+            parts_merge: opened
+                .parts_merge
+                .as_ref()
+                .and_then(|merge| merge.downcast_ref::<PartsMerge<C>>())
+                .copied(),
             state: opened.session,
             role: Role::Follower(Follower::new(opened.client)),
             projected: Settling::new(empty.clone(), Vec::new()),
@@ -1535,26 +1595,8 @@ where
             Then::FastForwardMerge { to } => {
                 let ancestor = next();
                 let theirs = next();
-                match C::merge3(&ancestor, &self.confirmed, &theirs) {
-                    MergeResult::Clean(value) => {
-                        let content = self.written(&value);
-                        self.publish(Some(to), None, content, AfterPublish::Merged { value });
-                    }
-                    MergeResult::Conflicted { value, conflicts } => {
-                        let content = self.written(&self.confirmed);
-                        let base = self.base;
-                        self.stash(
-                            base,
-                            content,
-                            AfterStash::Merge {
-                                value,
-                                expected: to,
-                                base,
-                                count: conflicts,
-                            },
-                        );
-                    }
-                }
+                let ours = self.confirmed.clone();
+                self.merging(MergeThen::FastForward { to }, ancestor, ours, theirs);
             }
             Then::Merge {
                 base,
@@ -1568,8 +1610,172 @@ where
                     false => next(),
                 };
                 let theirs_content = next();
-                let (value, conflicts) = match C::merge3(&ancestor, &ours_content, &theirs_content)
-                {
+                self.merging(
+                    MergeThen::Resume {
+                        base,
+                        ours,
+                        theirs,
+                        unsealed,
+                        ours_content: ours_content.clone(),
+                    },
+                    ancestor,
+                    ours_content,
+                    theirs_content,
+                );
+            }
+        }
+    }
+
+    /// Merges three contents: with the type's merge by parts when it has one, which waits while
+    /// the parts it needs are read (and never resolves without them), otherwise at once.
+    fn merging(&mut self, then: MergeThen<C>, base: C, ours: C, theirs: C) {
+        let Some(merge) = self.parts_merge else {
+            let result = C::merge3(&base, &ours, &theirs);
+            return self.merged(then, result);
+        };
+        let reads = std::rc::Rc::new(std::cell::RefCell::new(MergeReads::default()));
+        let reader = {
+            let reads = std::rc::Rc::clone(&reads);
+            be_block::PartReader::new(move |part, offset, length| {
+                let id = {
+                    let mut asked = reads.borrow_mut();
+                    asked.next += 1;
+                    let id = asked.next;
+                    asked.asked.push((id, part, offset, length));
+                    id
+                };
+                let reads = std::rc::Rc::clone(&reads);
+                Box::pin(std::future::poll_fn(move |_| {
+                    match reads.borrow_mut().answered.remove(&id) {
+                        Some(answer) => std::task::Poll::Ready(answer),
+                        None => std::task::Poll::Pending,
+                    }
+                }))
+            })
+        };
+        self.waiting = Some(Wait::Merging {
+            merge: merge(base, ours, theirs, reader),
+            reads,
+            reading: BTreeMap::new(),
+            then,
+        });
+        self.poll_merge();
+    }
+
+    /// Polls the merge out, asking the host for the parts it asked for since.
+    fn poll_merge(&mut self) {
+        let Some(Wait::Merging {
+            mut merge,
+            reads,
+            mut reading,
+            then,
+        }) = self.waiting.take()
+        else {
+            return;
+        };
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        match merge.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(Ok(result)) => self.merged(then, result),
+            std::task::Poll::Ready(Err(error)) => self.error(error),
+            std::task::Poll::Pending => {
+                let asked = std::mem::take(&mut reads.borrow_mut().asked);
+                for (id, part, offset, length) in asked {
+                    let read = MergeRead {
+                        id,
+                        part,
+                        offset,
+                        length,
+                        tries: 1,
+                    };
+                    self.ask_part(&mut reading, read);
+                }
+                self.waiting = Some(Wait::Merging {
+                    merge,
+                    reads,
+                    reading,
+                    then,
+                });
+            }
+        }
+    }
+
+    fn ask_part(&mut self, reading: &mut BTreeMap<Token, MergeRead>, read: MergeRead) {
+        let token = self.token();
+        self.out.push(Effect::ReadPart {
+            replica: self.id,
+            token,
+            part: read.part,
+            offset: read.offset,
+            length: read.length,
+        });
+        reading.insert(token, read);
+    }
+
+    /// A part the merge asked for was read, or could not be: a read that failed is tried again,
+    /// and the merge that cannot have it is reported rather than resolved without it.
+    fn answer_merge_read(&mut self, token: Token, result: &Result<Vec<u8>, String>) -> bool {
+        let Some(Wait::Merging { reading, .. }) = &mut self.waiting else {
+            return false;
+        };
+        let Some(read) = reading.remove(&token) else {
+            return false;
+        };
+        if result.is_err() && read.tries < MERGE_READ_TRIES {
+            let again = MergeRead {
+                tries: read.tries + 1,
+                ..read
+            };
+            let token = self.token();
+            self.out.push(Effect::ReadPart {
+                replica: self.id,
+                token,
+                part: again.part,
+                offset: again.offset,
+                length: again.length,
+            });
+            if let Some(Wait::Merging { reading, .. }) = &mut self.waiting {
+                reading.insert(token, again);
+            }
+            return true;
+        }
+        if let Some(Wait::Merging { reads, .. }) = &self.waiting {
+            reads.borrow_mut().answered.insert(read.id, result.clone());
+        }
+        self.poll_merge();
+        true
+    }
+
+    /// What a finished merge goes on to do.
+    fn merged(&mut self, then: MergeThen<C>, result: MergeResult<C>) {
+        match then {
+            MergeThen::FastForward { to } => match result {
+                MergeResult::Clean(value) => {
+                    let content = self.written(&value);
+                    self.publish(Some(to), None, content, AfterPublish::Merged { value });
+                }
+                MergeResult::Conflicted { value, conflicts } => {
+                    let content = self.written(&self.confirmed);
+                    let base = self.base;
+                    self.stash(
+                        base,
+                        content,
+                        AfterStash::Merge {
+                            value,
+                            expected: to,
+                            base,
+                            count: conflicts,
+                        },
+                    );
+                }
+            },
+            MergeThen::Resume {
+                base,
+                ours,
+                theirs,
+                unsealed,
+                ours_content,
+            } => {
+                let (value, conflicts) = match result {
                     MergeResult::Clean(value) => (value, None),
                     MergeResult::Conflicted { value, conflicts } => (value, Some(conflicts)),
                 };
@@ -2395,6 +2601,9 @@ where
     }
 
     fn answer_part_read(&mut self, token: Token, result: Result<Vec<u8>, String>) {
+        if self.answer_merge_read(token, &result) {
+            return;
+        }
         if let Some(part) = self.reading.remove(&token) {
             return self.answer_payload(part, result);
         }
