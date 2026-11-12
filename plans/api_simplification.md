@@ -191,10 +191,6 @@ host queues settled events per app. The calls stay `local`
   KeyPhase::Capture, …)`), make `on_scroll_key`'s "don't reveal focus" an
   option of `on_key`, and move `on_shortcut` users to actions. Update
   guides/beui_keyboard.md.
-- `ClickCallback`, `IntoClickCallback` and `into_click_callback` go in favour
-  of `Callback<()>` (`beui-tree/src/callback.rs`). If a blanket impl for
-  zero-argument closures overlaps the one for `FnMut(V)`, the `#[component]`
-  macro wraps zero-argument closures for `Callback<()>` props.
 - Menus: remove the public `on_select: Callback<Vec<usize>>` from styled
   `ContextMenu`, `MenuPopup`, `MenuRows`, `MenuButton` and `SplitButton`; an
   item says what it does with `on_click` or `action`. The three product
