@@ -317,7 +317,11 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         >
             <List direction=Direction::Horizontal spacing=Space::None>
                 <ListItem grow=1.0>
-                    <ListRow @test_id={format!("dock.switcher.tab.{id}")} on_click={pick}>
+                    <ListRow
+                        @test_id={format!("dock.switcher.tab.{id}")}
+                        label={title}
+                        on_click={pick}
+                    >
                         <Frame padding={Padding::vertical(CARD_PADDING)}>
                             <List spacing=CARD_LINES>
                                 <List direction=Direction::Horizontal spacing=Space::None>

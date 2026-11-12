@@ -72,6 +72,7 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
             block_id: imported.into_bytes(),
             block_type: SHOWN_TYPE.into_bytes(),
             linked: false,
+            named: true,
             placed: false,
         }))]
     );

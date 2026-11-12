@@ -60,6 +60,7 @@ fn an_import_keeps_the_location_it_started_with() {
             block_id: imported.into_bytes(),
             block_type: SHOWN_TYPE.into_bytes(),
             linked: false,
+            named: true,
             placed: true,
         }))]
     );

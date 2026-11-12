@@ -189,6 +189,8 @@ impl Picker {
                 let ask = self.ask_number();
                 let picker = *self;
                 let parent = held.import_parent();
+                // A file brings its name; a copy of a template is new, and asks for one.
+                let named = matches!(action, PickAction::Import);
                 let asked = match action {
                     PickAction::CopyTemplate(template) => self.host().copy_blocks(template, parent),
                     _ => self.host().import_blocks(parent),
@@ -197,7 +199,7 @@ impl Picker {
                     if let Some(held) = picker.held.get_untracked()
                         && held.importing == Some(ask)
                     {
-                        picker.resolve(held.imported(imported));
+                        picker.resolve(held.imported(imported, named));
                     }
                 });
                 held.importing = Some(ask);

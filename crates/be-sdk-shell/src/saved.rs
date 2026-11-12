@@ -127,3 +127,33 @@ pub(crate) fn restore_titles(state: &ViewState) -> HashMap<TabId, String> {
         .map(|(tab, title)| (TabId::new(tab), title))
         .collect()
 }
+
+/// The views of the tabs closed lately, most recent first: a block opened again in the same
+/// editor gets its view back, with whatever the editor kept in it (where it was scrolled to).
+pub(crate) const CLOSED_VIEWS: &str = "closed-views";
+pub(crate) const MAX_CLOSED_VIEWS: usize = 20;
+
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
+pub(crate) struct ClosedView {
+    pub(crate) block: Uuid,
+    pub(crate) editor: Uuid,
+}
+
+/// The closed views in `state`, each with its view block (the ref of the same index); a view
+/// deleted since is blanked, and left out.
+pub(crate) fn closed_views(state: Option<&ViewState>) -> Vec<(ClosedView, Uuid)> {
+    let Some(state) = state else {
+        return Vec::new();
+    };
+    let listed: Vec<ClosedView> = state.value().unwrap_or_default();
+    listed
+        .into_iter()
+        .zip(state.refs.iter().copied())
+        .filter(|(_, view)| !view.is_nil())
+        .collect()
+}
+
+pub(crate) fn save_closed_views(closed: Vec<(ClosedView, Uuid)>) -> ViewState {
+    let (listed, refs): (Vec<ClosedView>, Vec<Uuid>) = closed.into_iter().unzip();
+    ViewState::new(&listed, refs)
+}
