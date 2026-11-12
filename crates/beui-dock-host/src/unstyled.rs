@@ -545,7 +545,10 @@ impl State {
         let dock = *self;
         create_memo(move || {
             let entries = dock.state.with(|state| {
-                leaves(state).into_iter().flat_map(|leaf| state.entries(leaf)).collect::<Vec<_>>()
+                leaves(state)
+                    .into_iter()
+                    .flat_map(|leaf| state.entries(leaf))
+                    .collect::<Vec<_>>()
             });
             !entries.is_empty() && entries.iter().all(|entry| dock.entry_closable(*entry))
         })
