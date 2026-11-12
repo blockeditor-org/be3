@@ -312,7 +312,6 @@ impl Command {
             Command::Define { .. } => "define",
             Command::SetAccess { .. } => "set access",
             Command::ListAccess { .. } => "list access",
-            Command::Notify { .. } => "notify",
             Command::SetNotifyMode { .. } => "set notify mode",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",

@@ -1920,10 +1920,9 @@ where
         let token = self.token();
         // A seal holds the session through what its owner sequenced when it began.
         let sealed_through = match (&then, &self.role) {
-            (AfterPublish::Seal { .. }, Role::Owner(_)) => self
-                .sealing_through
-                .as_ref()
-                .map(|(sequence, _)| *sequence),
+            (AfterPublish::Seal { .. }, Role::Owner(_)) => {
+                self.sealing_through.as_ref().map(|(sequence, _)| *sequence)
+            }
             _ => None,
         };
         self.out.push(Effect::Publish {

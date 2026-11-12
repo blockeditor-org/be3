@@ -17,7 +17,11 @@ fn what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered
     sim.advance(crate::APPEND_INTERVAL);
     sim.crash(0);
     sim.unstall();
-    assert_eq!(prose(&sim.head_content()), "soup", "the server took the seal");
+    assert_eq!(
+        prose(&sim.head_content()),
+        "soup",
+        "the server took the seal"
+    );
 
     sim.open(0);
     assert_eq!(prose(&sim.content(0)), "soup and bread");

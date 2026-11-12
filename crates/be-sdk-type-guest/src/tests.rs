@@ -27,7 +27,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 
-mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
 mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
@@ -80,6 +79,7 @@ mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over
 mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
+mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
 mod a_viewer_cannot_make_a_follower_read_a_part;
@@ -552,7 +552,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         Option<be_sdk_type_api::SealedHead>,
     ) {
         let journal = self.journal.clone();
-        if journal.as_ref().is_some_and(|journal| journal.base.commit == head) {
+        if journal
+            .as_ref()
+            .is_some_and(|journal| journal.base.commit == head)
+        {
             return (journal, head, None);
         }
         let sealed = head.and_then(|commit| {
