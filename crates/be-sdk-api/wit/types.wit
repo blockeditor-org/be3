@@ -483,7 +483,7 @@ interface types {
         dock-tab(dock-tab-path),
         picker(picker-child),
         /// A form renaming a block: the host runs it in the editor whose
-        /// manifest accepts `rename` (opened with `opening.rename`), which an
+        /// manifest accepts `rename` (opened with `opening-kind.rename`), which an
         /// editor places in a view it anchored. The form says it is done with
         /// `close-dialog`, which arrives as the child's `child-status.dialog`.
         rename(block-id),
@@ -789,14 +789,9 @@ interface types {
     }
 
     record open-block {
-        instance: editor-instance-id,
-        editor: editor-id,
         block-id: block-id,
         block-type: block-type-id,
         view-block: option<block-id>,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
         editable: bool,
         /// The origin of the web page the host runs in (`https://be3.example`),
         /// empty where the host is not a web page. On the web `fetch` is the
@@ -809,64 +804,55 @@ interface types {
     }
 
     record open-creation {
-        instance: editor-instance-id,
-        editor: editor-id,
         template: string,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
     }
 
     record open-artifact {
-        instance: editor-instance-id,
-        editor: editor-id,
         block-id: block-id,
         block-type: block-type-id,
         /// The block the artifact is made from.
         source: block-id,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
         data: list<u8>,
     }
 
     /// A picker another editor placed as a child, which answers with
     /// `shell-message.picked`.
     record open-picker {
-        instance: editor-instance-id,
-        editor: editor-id,
         filter: block-filter,
         parent: block-location,
         /// Placed in a view attached to an edge: the picker draws itself as
         /// a sheet, laid out for touch.
         sheet: bool,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
     }
 
     /// A form renaming a block another editor placed as a child
     /// (`child-content.rename`).
     record open-rename {
-        instance: editor-instance-id,
-        editor: editor-id,
         block-id: block-id,
         /// Placed in a view attached to an edge: the form draws itself as a
         /// sheet.
         sheet: bool,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
     }
 
     /// How an editor instance opens: on a block, as a creation dialog, on an
     /// artifact's settings, as a picker, or as a form renaming a block.
-    variant opening {
+    variant opening-kind {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
         picker(open-picker),
         rename(open-rename),
+    }
+
+    /// An editor instance opening: which instance, which editor, who opens it
+    /// and how.
+    record opening {
+        instance: editor-instance-id,
+        editor: editor-id,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+        kind: opening-kind,
     }
 
     // Docking across apps. A docked view declares its own tree; the

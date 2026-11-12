@@ -9,7 +9,7 @@ use std::{
 
 use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId,
-    FrameSpec, HostPanel, HostTransform, LayoutCommit, Opening, PresentCommit, PresentedFrame,
+    FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PresentedFrame,
     PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
     ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
 };
@@ -670,7 +670,7 @@ impl Runtime {
             matches!(
                 message,
                 Outbound::Open(opening)
-                    if matches!(**opening, Opening::Block(_) | Opening::Artifact(_))
+                    if matches!(opening.kind, OpeningKind::Block(_) | OpeningKind::Artifact(_))
             )
         });
         self.pacing.need_if(!messages.is_empty());

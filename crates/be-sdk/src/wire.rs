@@ -182,7 +182,7 @@ impl Guest for Exports {
     type Editor = OpenEditor;
 
     fn new_editor(&self, op: OpId, opening: Opening) -> OpenEditor {
-        let instance = opening.instance();
+        let instance = opening.instance;
         crate::asked::opened(instance, op);
         self.0.push(Delivery::Open(opening));
         let watch = with_parent(op, || shell::ChildStatusesWatch::new(instance));

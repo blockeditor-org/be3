@@ -125,7 +125,7 @@ impl From<AppCall> for Outbound {
 impl Outbound {
     pub(super) fn instance(&self) -> Option<EditorInstanceId> {
         match self {
-            Self::Open(opening) => Some(opening.instance()),
+            Self::Open(opening) => Some(opening.instance),
             Self::Close(instance) | Self::Editor(instance, _) => Some(*instance),
             Self::App(_) => None,
         }

@@ -154,7 +154,7 @@ impl Wire {
 
     pub(super) fn open(&mut self, opening: Opening) {
         self.flush_hearing();
-        let instance = opening.instance();
+        let instance = opening.instance;
         let editor = Editor::new(&mut self.connection, opening);
         if let Some(earlier) = self.editors.insert(instance, editor) {
             earlier.resource_drop(&mut self.connection);
