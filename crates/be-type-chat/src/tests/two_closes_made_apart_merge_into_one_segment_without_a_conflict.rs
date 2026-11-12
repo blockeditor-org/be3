@@ -59,6 +59,25 @@ fn two_closes_made_apart_merge_into_one_segment_without_a_conflict() {
             assert_eq!(conflicts, 0, "a chat merge never conflicts");
             assert_eq!(merged.segments(), a.segments(), "ours stand");
             assert_whole(&merged, &expected, Some(deleted));
+            // What went back to the recent messages is in order, and as it was written.
+            let closed: HashSet<ObjectId> = a.closed_messages_held_as_bytes().into_iter().collect();
+            let wanted: Vec<ObjectId> = base
+                .messages()
+                .into_iter()
+                .filter(|id| !closed.contains(id) && *id != deleted)
+                .collect();
+            assert_eq!(
+                merged.messages(),
+                wanted,
+                "the recent messages stay in order"
+            );
+            for id in &wanted {
+                assert_eq!(
+                    merged.message(*id),
+                    base.message(*id),
+                    "a message is as it was sent"
+                );
+            }
         }
     }
 
@@ -74,21 +93,15 @@ fn two_closes_made_apart_merge_into_one_segment_without_a_conflict() {
     expected.remove(&gone);
     assert_whole(&second, &expected, Some(gone));
 
-    // A segment whose part no side has cannot be settled: the merge is not done without it.
+    // A segment whose part no side holds (a chat rebuilt from its header) is not settled: the
+    // union keeps its entries, and nothing is lost.
     let view = round_trip(&ours);
-    assert!(
-        merged_by_parts(
-            &base,
-            &view,
-            &closed(&{
-                let mut other = base.clone();
-                other.apply(&base.delete(base.messages()[3], ADA, 9).into());
-                other
-            }),
-            no_parts()
-        )
-        .is_err()
-    );
+    let mut other = base.clone();
+    other.apply(&base.delete(base.messages()[3], ADA, 9).into());
+    let (kept, conflicts) =
+        merged_by_parts(&base, &view, &closed(&other), no_parts()).expect("merges");
+    assert_eq!(conflicts, 0);
+    assert_eq!(kept.segments().len(), 2, "both entries stay");
 
     // Without parts the merge keeps overlapping entries, each with its own part: nothing lost.
     let mut other = base.clone();

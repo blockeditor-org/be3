@@ -1201,8 +1201,8 @@ impl Merge for ChatContent {
 
 impl MergeParts for ChatContent {
     /// The merge reading the parts it settles (`settling`): those a side holds as bytes, or
-    /// saved (read as the host fetches them). One that no side has is not mergeable yet, so the
-    /// merge is not done without it.
+    /// saved (read as the host fetches them, and the merge waits for them). A segment whose part
+    /// no side holds at all is not settled: the union keeps its entries.
     fn merge_parts(
         base: Self,
         ours: Self,
@@ -1216,7 +1216,9 @@ impl MergeParts for ChatContent {
                 let read = match side.held_of(&segment) {
                     Some(Held::Bytes(held)) => held.clone(),
                     Some(Held::Saved(part)) => parts.read_all(*part).await?,
-                    _ => return Err("a closed segment's part is not available yet".to_owned()),
+                    // A segment whose part no side holds (a chat rebuilt from its header) is not
+                    // settled: its entries stay as they are.
+                    _ => continue,
                 };
                 bytes.push((is_theirs, segment, read));
             }

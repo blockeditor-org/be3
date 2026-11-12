@@ -251,10 +251,14 @@ The in-session merges of a replica (a rejected seal, a head written offline, a r
 finds the head moved) go the same way for a type that registered `merge_parts`: the replica
 (`be-sdk-type-guest/src/replica.rs`, `Wait::Merging`) polls `MergeParts::merge_parts` itself, and each
 part the merge reads goes to the host as `Effect::ReadPart` (`read-part` with the replica as its
-parent, which fetches a part the device lacks from the server). The merge waits while it is read,
-and never resolves without its parts: a read that fails is asked again (three tries), and a merge
-that still cannot have a part is reported (`error`) and left unresolved, so nothing is published
-without it and the head stays where it was. A type without `merge_parts` merges at once with
+parent, which fetches a part the device lacks from the server). The merge waits while it is read, and never resolves without its parts: a read that fails is
+asked again (three tries); a merge that still cannot have a part is dropped, so the replica goes
+on (the owner keeps sequencing and sealing on its old base), reported once (`error`), and tried
+again as a `Job::Reconcile` on a timer (5 s, doubling to a minute) until its parts can be read, so
+nothing is published without them. While the merge waits, the replica's jobs (an editor's edit, a
+peer's operation, a close) queue behind it and then land on its result. `merge_parts` must await
+only the `PartReader` reads it asks for: a merge that waits for anything else is reported and
+dropped, since nothing would wake it. A type without `merge_parts` merges at once with
 `Merge::merge3` on the values it loaded, so one that loads only its first part writes `merge3`
 over what it holds (`Sections` settles a part unloaded on a side by refs where they settle it, and
 otherwise keeps ours with a conflict, never read). `merge_parts` must agree with `merge3`

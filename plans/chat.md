@@ -172,7 +172,8 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   to the recent messages in front of them. That needs the parts of both, so it is
   `merge_parts`, which every merge of a chat takes (outside a session, `be sync`, and
   the replica's resume: guides/type_modules.md, "Merging by parts"), waiting while
-  the parts are read and never resolving without them. `merge3`, which only a context
+  the parts are read, and when a part cannot be read, left undone and tried again on a
+  timer, never resolving without it. `merge3`, which only a context
   with no parts runs, is the union: entries that differ stay, each with its own part, and
   can overlap, which loses nothing; the editor shows each message once, in its place
   (`ChatContent::weave`). Closing is not undone by a later merge. Edits, deletions and

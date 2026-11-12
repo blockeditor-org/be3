@@ -396,6 +396,9 @@ struct MergeReads {
     next: u64,
     asked: Vec<(u64, PartRef, u64, u64)>,
     answered: BTreeMap<u64, Result<Vec<u8>, String>>,
+    /// The waker each pending read was last polled with: a combinator that polls only the
+    /// children woken needs it woken when the answer comes.
+    wakers: BTreeMap<u64, std::task::Waker>,
 }
 
 /// A part read of a merge that is out: the merge's own id for it, and how often it was tried.
@@ -423,6 +426,11 @@ enum MergeThen<C> {
 
 /// How often a part read of a merge is tried before the merge gives up and reports it.
 const MERGE_READ_TRIES: u8 = 3;
+
+/// How long a merge that could not read its parts waits to be tried again, doubling up to the
+/// ceiling.
+const MERGE_RETRY_INTERVAL: u64 = 5_000;
+const MERGE_RETRY_CEILING: u64 = 60_000;
 
 enum Wait<C> {
     /// A merge by parts, polled again as the parts it asked for arrive: it never resolves
@@ -508,6 +516,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     append_at: Option<u64>,
     /// When a follower puts again the part of an operation whose put failed.
     put_retry_at: Option<u64>,
+    /// When a merge that could not read its parts is tried again, and how often it failed since
+    /// one resolved.
+    merge_retry_at: Option<u64>,
+    merge_failures: u8,
     appended_bytes: usize,
     applied_ops: Vec<SessionOp>,
     restarting: bool,
@@ -631,6 +643,10 @@ where
             self.put_retry_at = None;
             self.flush();
         }
+        if self.merge_retry_at.is_some_and(|at| self.now >= at) {
+            self.merge_retry_at = None;
+            self.jobs.push_back(Job::Reconcile);
+        }
         let due = self.commit_at().is_some_and(|at| self.now >= at);
         if due && !self.sealing {
             self.sealing = true;
@@ -653,6 +669,7 @@ where
         seal.into_iter()
             .chain(self.append_at)
             .chain(self.put_retry_at)
+            .chain(self.merge_retry_at)
             .chain(self.catch_up_at)
             .chain(self.read_retry.values().copied())
             .chain(self.beat_at())
@@ -688,11 +705,11 @@ where
             client: opened.client,
             tag: opened.tag,
             from_file: opened.from_file,
-            parts_merge: opened
-                .parts_merge
-                .as_ref()
-                .and_then(|merge| merge.downcast_ref::<PartsMerge<C>>())
-                .copied(),
+            parts_merge: opened.parts_merge.as_ref().and_then(|merge| {
+                let merge = merge.downcast_ref::<PartsMerge<C>>().copied();
+                debug_assert!(merge.is_some(), "a merge by parts of another content type");
+                merge
+            }),
             state: opened.session,
             role: Role::Follower(Follower::new(opened.client)),
             projected: Settling::new(empty.clone(), Vec::new()),
@@ -732,6 +749,8 @@ where
             unappended: Vec::new(),
             append_at: None,
             put_retry_at: None,
+            merge_retry_at: None,
+            merge_failures: 0,
             appended_bytes: 0,
             applied_ops: Vec::new(),
             restarting: false,
@@ -1645,10 +1664,17 @@ where
                     id
                 };
                 let reads = std::rc::Rc::clone(&reads);
-                Box::pin(std::future::poll_fn(move |_| {
-                    match reads.borrow_mut().answered.remove(&id) {
-                        Some(answer) => std::task::Poll::Ready(answer),
-                        None => std::task::Poll::Pending,
+                Box::pin(std::future::poll_fn(move |context| {
+                    let mut reads = reads.borrow_mut();
+                    match reads.answered.remove(&id) {
+                        Some(answer) => {
+                            reads.wakers.remove(&id);
+                            std::task::Poll::Ready(answer)
+                        }
+                        None => {
+                            reads.wakers.insert(id, context.waker().clone());
+                            std::task::Poll::Pending
+                        }
                     }
                 }))
             })
@@ -1675,10 +1701,20 @@ where
         };
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
         match merge.as_mut().poll(&mut context) {
-            std::task::Poll::Ready(Ok(result)) => self.merged(then, result),
-            std::task::Poll::Ready(Err(error)) => self.error(error),
+            std::task::Poll::Ready(Ok(result)) => {
+                self.merge_failures = 0;
+                self.merged(then, result)
+            }
+            std::task::Poll::Ready(Err(error)) => self.merge_failed(error),
             std::task::Poll::Pending => {
                 let asked = std::mem::take(&mut reads.borrow_mut().asked);
+                if asked.is_empty() && reading.is_empty() {
+                    // It waits for something that is not a part read, which nothing here will
+                    // answer: report it rather than wait for ever, with the jobs behind it.
+                    return self.error(
+                        "a merge by parts waited for something other than a part read".to_owned(),
+                    );
+                }
                 for (id, part, offset, length) in asked {
                     let read = MergeRead {
                         id,
@@ -1711,6 +1747,18 @@ where
         reading.insert(token, read);
     }
 
+    /// A merge that could not have its parts is dropped, so the replica goes on, and tried again
+    /// on a timer that doubles up to a ceiling (a `Job::Reconcile`): it resolves only with its
+    /// parts. The failure is reported once, not at each try.
+    fn merge_failed(&mut self, error: String) {
+        if self.merge_failures == 0 {
+            self.error(error);
+        }
+        let wait = (MERGE_RETRY_INTERVAL << self.merge_failures.min(4)).min(MERGE_RETRY_CEILING);
+        self.merge_failures = self.merge_failures.saturating_add(1);
+        self.merge_retry_at = Some(self.now + wait);
+    }
+
     /// A part the merge asked for was read, or could not be: a read that failed is tried again,
     /// and the merge that cannot have it is reported rather than resolved without it.
     fn answer_merge_read(&mut self, token: Token, result: &Result<Vec<u8>, String>) -> bool {
@@ -1739,7 +1787,14 @@ where
             return true;
         }
         if let Some(Wait::Merging { reads, .. }) = &self.waiting {
-            reads.borrow_mut().answered.insert(read.id, result.clone());
+            let waker = {
+                let mut reads = reads.borrow_mut();
+                reads.answered.insert(read.id, result.clone());
+                reads.wakers.remove(&read.id)
+            };
+            if let Some(waker) = waker {
+                waker.wake();
+            }
         }
         self.poll_merge();
         true
