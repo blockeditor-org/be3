@@ -261,6 +261,9 @@ pub struct Peer<S: ObjectStore> {
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
     draining: std::sync::atomic::AtomicUsize,
+    /// Commits whose objects the store holds every one of (`holds`). The store never drops an
+    /// object, so a commit found whole stays whole.
+    whole: Mutex<HashSet<CommitId>>,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -356,6 +359,7 @@ impl<S: ObjectStore> Peer<S> {
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
             draining: std::sync::atomic::AtomicUsize::new(0),
+            whole: Mutex::new(HashSet::new()),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -1234,15 +1238,15 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// The newest head of a block whose content this device holds, for reading it offline: its
-    /// own commit, else what it last read, else what the server last said if that is held too.
-    /// A head the server moved to while this device was not reading the block is not held.
+    /// The newest head of a block whose content this device holds whole, for reading it
+    /// offline: its own commit, else what the server last said, else what it last read whole. A
+    /// head the server moved to while this device was not reading the block is not held.
     pub fn held_head(&self, block: Uuid) -> Option<CommitId> {
         [
             self.local_head(block),
-            self.refs.held(block),
             self.known_remote_head(block),
             self.refs.summary(block).and_then(|summary| summary.head),
+            self.refs.held(block),
         ]
         .into_iter()
         .flatten()
@@ -1250,13 +1254,20 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     fn holds(&self, head: CommitId) -> bool {
+        if self.whole.lock().unwrap().contains(&head) {
+            return true;
+        }
         let vault = self.commits.vault();
-        matches!(
+        let whole = matches!(
             self.commits.try_get(head),
             Ok(Some(commit)) if vault
                 .missing_objects(&commit.manifest, 0, u64::MAX)
                 .is_ok_and(|missing| missing.is_empty())
-        )
+        );
+        if whole {
+            self.whole.lock().unwrap().insert(head);
+        }
+        whole
     }
 
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {

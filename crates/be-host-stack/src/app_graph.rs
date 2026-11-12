@@ -111,12 +111,7 @@ pub fn level_of(access: be_block_graph::Access) -> AccessLevel {
     }
 }
 
-pub fn info_of(
-    node: &Node,
-    deleted: bool,
-    unfiled: Option<Uuid>,
-    offline: Option<&Peer<Store>>,
-) -> BlockInfo {
+pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>, out_of_reach: bool) -> BlockInfo {
     BlockInfo {
         block_id: node.id.into_bytes(),
         block_type: node.content_type.into_bytes(),
@@ -133,22 +128,30 @@ pub fn info_of(
         sets_access: node.sets_access,
         size: node.size,
         tree_size: node.tree_size,
-        out_of_reach: offline
-            .is_some_and(|peer| node.head.is_some() && peer.held_head(node.id).is_none()),
+        out_of_reach,
     }
 }
 
 pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
     let nodes = crate::query(query_of(query));
     let unfiled = crate::unfiled();
-    let offline = crate::offline_peer();
+    let nodes: Vec<(Node, bool)> = match crate::offline_peer() {
+        Some(peer) => nodes
+            .into_iter()
+            .map(|node| {
+                let out_of_reach = out_of_reach(&peer, &node);
+                (node, out_of_reach)
+            })
+            .collect(),
+        None => nodes.into_iter().map(|node| (node, false)).collect(),
+    };
     crate::with_graph(|graph| {
         nodes
             .iter()
-            .filter(|node| node.access.can_know_exists() && Some(node.id) != unfiled)
-            .map(|node| {
+            .filter(|(node, _)| node.access.can_know_exists() && Some(node.id) != unfiled)
+            .map(|(node, out_of_reach)| {
                 let deleted = graph.deleted_root(node.id).is_some();
-                info_of(node, deleted, unfiled, offline.as_deref())
+                info_of(node, deleted, unfiled, *out_of_reach)
             })
             .collect()
     })
@@ -167,4 +170,10 @@ pub fn entries_of(entries: MetadataEntries) -> be_block::Entries {
         .into_iter()
         .map(|(key, value)| (Uuid::from_bytes(key), value))
         .collect()
+}
+
+/// Offline, whether this device holds none of a block's heads whole (`Peer::held_head`), so it
+/// can neither open nor change it. A block with no content yet has nothing to hold.
+fn out_of_reach(peer: &Peer<Store>, node: &Node) -> bool {
+    node.head.is_some() && peer.held_head(node.id).is_none()
 }

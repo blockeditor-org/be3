@@ -169,7 +169,10 @@ It keeps one summary per block, the newest revision winning, and a listing is
 the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 block's `References` listing is what its summary references, so a seal or an
-offline commit after the listing was fetched shows.
+offline commit after the listing was fetched shows; a child or deleted block
+shows only where its summary puts it, and backrefs are the summaries that
+reference the block. A summary is dropped only with the blocks `forget` drops,
+so one the server no longer lists stays until then.
 
 `Peer::cached` builds a peer from it with no network, and `Peer::attach` hands
 it a signed-in connection later (after every reconnect), which opens the
@@ -179,9 +182,9 @@ head first while it has unpublished commits.
 
 A summary's head is the server's newest, which this device may never have read
 (another device moved it). Offline, content is read at `Peer::held_head`: the
-newest of the local head, the head last read whole (`Peer::read_whole`, which
-`read_contents` and a replica's whole load record) and the server's, whose
-objects the store holds. A block with none has nothing to read offline.
+first whose objects the store holds whole of the local head, the server's, and
+the head last read whole (`Peer::read_whole`, which `read_contents` and a
+replica's whole load record). A block with none has nothing to read offline.
 
 ## Saving and the outbox
 

@@ -198,8 +198,8 @@ access, artifact source, `locked` (viewable but no key yet, so metadata is
 empty), `deleted`, and the server's `size` and `tree_size` in bytes (the
 block alone, and with everything below it; zero where the reader only knows
 it exists). A size comes from that field, never from walking the children.
-`out_of_reach` says the host is offline and holds none of the block's content
-(`Peer::held_head`), so it can be neither opened nor changed, nor have a block
+`out_of_reach` says the host is offline and holds no version of the block's
+content whole (`Peer::held_head`), so it can be neither opened nor changed, nor have a block
 added to it, until the host reconnects; the block picker refuses to make a
 block there. `BlockInfo::reach` (`Open`, `Locked`, `NoAccess`),
 `BlockInfo::label` and `be_sdk_beui::label_glyph` give every place that draws

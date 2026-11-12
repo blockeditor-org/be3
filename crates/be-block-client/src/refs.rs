@@ -651,21 +651,50 @@ impl Refs {
     /// A listing as this device last knew it, for answering offline. What a block references is
     /// read from its summary, since one pushed or revised after the listing was fetched (another
     /// device's seal, or this device's own offline) names what it references then.
+    /// Children and deleted blocks are those whose summary still puts them there, so a block
+    /// moved since shows only where it went, and backrefs are the summaries that reference the
+    /// block.
     pub fn cached_listing(&self, listing: Listing) -> Option<Vec<BlockSummary>> {
-        let Listing::References(block) = listing else {
-            return self.listing(&listing);
-        };
-        let Some(referrer) = self.summary(block) else {
-            return self.listing(&listing);
-        };
-        Some(
-            referrer
-                .references
-                .iter()
-                .filter_map(|reference| self.summary(*reference))
-                .filter(|summary| summary.access.can_know_exists())
-                .collect(),
-        )
+        match listing {
+            Listing::References(block) => {
+                let Some(referrer) = self.summary(block) else {
+                    return self.listing(&listing);
+                };
+                Some(
+                    referrer
+                        .references
+                        .iter()
+                        .filter_map(|reference| self.summary(*reference))
+                        .filter(|summary| summary.access.can_know_exists())
+                        .collect(),
+                )
+            }
+            Listing::Backrefs(block) => {
+                let state = self.state.lock().unwrap();
+                state.listings.get(&listing)?;
+                Some(
+                    state
+                        .summaries
+                        .values()
+                        .filter(|summary| summary.references.contains(&block))
+                        .cloned()
+                        .collect(),
+                )
+            }
+            Listing::Children(parent) => Some(
+                self.listing(&listing)?
+                    .into_iter()
+                    .filter(|summary| summary.parent == Some(parent))
+                    .collect(),
+            ),
+            Listing::Deleted => Some(
+                self.listing(&listing)?
+                    .into_iter()
+                    .filter(|summary| summary.parent == Some(BlockParent::Detached))
+                    .collect(),
+            ),
+            _ => self.listing(&listing),
+        }
     }
 
     pub fn newest_revision(&self) -> u64 {

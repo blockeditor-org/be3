@@ -115,8 +115,8 @@ pub struct BlockInfo {
     pub size: u64,
     /// `size` plus each child's `tree_size`, as the server counts them.
     pub tree_size: u64,
-    /// The host is offline and holds none of the block's content, so the block can be neither
-    /// opened nor changed until it reconnects.
+    /// The host is offline and holds no version of the block's content whole, so the block can
+    /// be neither opened nor changed until it reconnects.
     pub out_of_reach: bool,
 }
 
