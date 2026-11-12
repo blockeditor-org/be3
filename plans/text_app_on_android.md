@@ -53,11 +53,11 @@ under a request is noticed once an early ping goes unanswered, about 25 s (`ANSW
    block is never opened and the dock shows "No file open".
    `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored until
    then.
-5. **Create, duplicate, define, versions and merging still wait in the block store's loop.**
-   Commands that need only the server run in a lane beside it (guides/blocks/host.md), but these
-   also need the open blocks. Moving create there broke the commands that follow it without
-   naming the new block (branches, checkouts, imports): split each into its loop part and its
-   server part with an order that covers what they depend on.
+5. **Version commands and merging still wait in the block store's loop.** Create, define, move
+   and duplicate are kept on the device and sent by the drain, and the commands that need only
+   the server run in a lane (guides/blocks/host.md). Version commands and merges read the server
+   between steps on the open replicas (sealing them, checking content out into them): split each
+   into its loop part and its server part, ordered by what they depend on.
 7. **Why a reconnect hits "the session has a newer owner"** is still not known: a test's drop and
    reconnect did not meet it. The error no longer outlives its cause: it clears once the device is
    connected with nothing waiting (`report` in worker.rs).

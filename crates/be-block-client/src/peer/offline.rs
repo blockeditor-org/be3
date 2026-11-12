@@ -22,6 +22,22 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.has_pending(block)
     }
 
+    /// Whether the block's creation waits in the outbox: the server does not know the block yet.
+    pub fn creating(&self, block: Uuid) -> bool {
+        self.refs.creating(block)
+    }
+
+    /// Whether a creation, move or definition of the block waits in the outbox, so what comes
+    /// after it waits there too and goes in order.
+    pub fn has_structural(&self, block: Uuid) -> bool {
+        self.refs.has_structural(block)
+    }
+
+    /// Moves a block on this device and keeps the move in the outbox for the drain to send.
+    pub fn keep_move(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
+        self.move_locally(block, parent)
+    }
+
     pub fn pending_commits(&self, block: Uuid) -> Vec<CommitId> {
         self.refs
             .pending_for(block)
@@ -66,7 +82,12 @@ impl<S: ObjectStore> Peer<S> {
                 "block {block} is not saved on this device, so it cannot move offline"
             )));
         };
-        self.refs.push(Op::Move(Moving { block, parent }))?;
+        let from = summary.parent;
+        self.refs.push(Op::Move(Moving {
+            block,
+            parent,
+            from,
+        }))?;
         summary.parent = Some(parent);
         self.refs.revise(summary)?;
         Ok(())
@@ -476,6 +497,9 @@ impl<S: ObjectStore> Peer<S> {
         match self.send_parent(block, moving.parent).await {
             Ok(()) => {
                 self.refs.remove(&[sequence])?;
+                let _ = self
+                    .follow_prefixes(block, moving.from, moving.parent)
+                    .await;
                 Ok(Drained::Moved { block })
             }
             Err(ClientError::Refused(code, _)) if lost_access(code) => {

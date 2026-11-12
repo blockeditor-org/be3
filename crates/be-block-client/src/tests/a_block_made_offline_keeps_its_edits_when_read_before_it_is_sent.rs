@@ -25,10 +25,11 @@ async fn a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent() {
             .is_err()
     );
     harness.reconnect(&offline, owner.token()).await;
-    assert!(matches!(
-        offline.summary(added).await,
-        Err(ClientError::Refused(..))
-    ));
+    assert_eq!(
+        offline.summary(added).await.map(|summary| summary.id).ok(),
+        Some(added),
+        "a block whose creation waits is answered from this device, not asked of the server"
+    );
     let counts = offline.pending();
     assert_eq!(
         (counts.operations, counts.unsent),

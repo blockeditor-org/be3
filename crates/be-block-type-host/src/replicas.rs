@@ -432,6 +432,9 @@ pub struct Replicas<H: Host> {
     unsealing: HashMap<Uuid, VecDeque<Event>>,
     leaving: Vec<Uuid>,
     rejoins: u64,
+    /// Blocks opened here while their creation waited in the outbox: they join their session
+    /// once it is sent (`created`).
+    uncreated: HashSet<Uuid>,
     publishes: HashMap<u64, Unanswered>,
     published: u64,
     keeping: bool,
@@ -469,6 +472,7 @@ impl<H: Host> Replicas<H> {
             unsealing: HashMap::new(),
             leaving: Vec::new(),
             rejoins: 0,
+            uncreated: HashSet::new(),
             publishes: HashMap::new(),
             published: 0,
             keeping: false,
@@ -689,22 +693,13 @@ impl<H: Host> Replicas<H> {
         let known = peer
             .known_summary(block)
             .is_some_and(|summary| summary.content_type == content_type);
+        let uncreated = peer.creating(block);
         let joined = if known
             && peer.is_attached()
+            && !uncreated
             && !(owned && H::reshaped(shared, block, &kind.schema))
         {
-            let joining: Pending<Joined> = Box::pin({
-                let peer = Arc::clone(peer);
-                async move {
-                    peer.ensure_type(block, content_type, BlockParent::Detached)
-                        .await?;
-                    let (client, session, journal) = peer.join_session(block)?.await?;
-                    peer.watch(block);
-                    let head = peer.remote_head(block).await?;
-                    let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
-                    Ok((client, session, head, ahead(&peer, block), journal))
-                }
-            });
+            let joining = joining(peer, block, content_type);
             let waited = self.modules.clock().sleep(EARLY_OPEN);
             match futures_util::future::select(joining, waited).await {
                 futures_util::future::Either::Left((joined, _)) => {
@@ -737,7 +732,9 @@ impl<H: Host> Replicas<H> {
                     peer.ensure_type(block, content_type, BlockParent::Detached)
                         .await?;
                 }
-                if !peer.is_attached() {
+                // Until the drain sends its creation, the server does not know the block: it
+                // opens as offline does and joins once that is sent (`created`).
+                if !peer.is_attached() || uncreated {
                     return Ok((OFFLINE_CLIENT, offline_session(None), None, true, None));
                 }
                 if owned && H::reshaped(shared, block, &kind.schema) {
@@ -759,6 +756,9 @@ impl<H: Host> Replicas<H> {
         };
         let (client, session, head, offline, journal) = match joined {
             Ok((client, _, _, true, _)) => {
+                if uncreated {
+                    self.uncreated.insert(block);
+                }
                 let head = known_head_of(peer, block);
                 if head.is_some() && peer.held_head(block).is_none() {
                     // Nothing to read: the block opens once the host reconnects, and meanwhile
@@ -2072,30 +2072,68 @@ impl<H: Host> Replicas<H> {
     pub fn reconnect(&mut self, (peer, _): Ctx<'_, H>) {
         self.rejoins += 1;
         let rejoin = self.rejoins;
-        for (replica, open) in &mut self.open {
-            open.joining = true;
-            open.rejoining = Some(rejoin);
-            open.early.clear();
-            let (replica, block) = (*replica, open.block);
-            let peer = Arc::clone(peer);
-            let io = self.io.clone();
-            H::spawn(async move {
-                let joined = async {
-                    let (client, session, _) = peer.join_session(block)?.await?;
-                    peer.watch(block);
-                    let head = peer.remote_head(block).await?;
-                    Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block)))
-                }
-                .await;
-                let _ = io.send(Io::Rejoined {
-                    replica,
-                    block,
-                    rejoin,
-                    joined: Box::new(joined),
-                });
-                H::wake();
-            });
+        self.uncreated.clear();
+        let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
+        for replica in replicas {
+            self.rejoin(peer, replica, rejoin);
         }
+    }
+
+    /// Replicas opened while their block's creation waited in the outbox join their sessions
+    /// once the server has taken it (after a drain). As on reconnecting, a replica first seals
+    /// what it owns in its made-up session, so it joins owning nothing: one with edits is sealed
+    /// and joins after a later drain sends that.
+    pub fn created(&mut self, (peer, _): Ctx<'_, H>) {
+        if !peer.is_attached() {
+            return;
+        }
+        let sent: Vec<Uuid> = self
+            .uncreated
+            .iter()
+            .copied()
+            .filter(|block| !peer.creating(*block))
+            .collect();
+        for block in sent {
+            let Some((replica, open)) = self.replica_of(block) else {
+                self.uncreated.remove(&block);
+                continue;
+            };
+            if !open.status.clean || !peer.pending_commits(block).is_empty() {
+                self.seal_later(block, false);
+                continue;
+            }
+            self.uncreated.remove(&block);
+            let rejoin = self.rejoins;
+            self.rejoin(peer, replica, rejoin);
+        }
+    }
+
+    fn rejoin(&mut self, peer: &Arc<Peer<H::Store>>, replica: ReplicaId, rejoin: u64) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        open.joining = true;
+        open.rejoining = Some(rejoin);
+        open.early.clear();
+        let block = open.block;
+        let peer = Arc::clone(peer);
+        let io = self.io.clone();
+        H::spawn(async move {
+            let joined = async {
+                let (client, session, _) = peer.join_session(block)?.await?;
+                peer.watch(block);
+                let head = peer.remote_head(block).await?;
+                Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block)))
+            }
+            .await;
+            let _ = io.send(Io::Rejoined {
+                replica,
+                block,
+                rejoin,
+                joined: Box::new(joined),
+            });
+            H::wake();
+        });
     }
 
     fn rejoined(
@@ -2918,6 +2956,24 @@ impl<H: Host> Replicas<H> {
         let (unsealed, owing, undurable) = self.counts();
         H::counted(shared, unsealed, owing, undurable);
     }
+}
+
+/// Joins `block`'s session, for a replica that shows before it has (`Replicas::open`).
+fn joining<S: be_block_store::ObjectStore + 'static>(
+    peer: &Arc<Peer<S>>,
+    block: Uuid,
+    content_type: Uuid,
+) -> Pending<Joined> {
+    let peer = Arc::clone(peer);
+    Box::pin(async move {
+        peer.ensure_type(block, content_type, BlockParent::Detached)
+            .await?;
+        let (client, session, journal) = peer.join_session(block)?.await?;
+        peer.watch(block);
+        let head = peer.remote_head(block).await?;
+        let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
+        Ok((client, session, head, ahead(&peer, block), journal))
+    })
 }
 
 fn known_head_of<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Option<CommitId> {

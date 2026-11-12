@@ -12,6 +12,7 @@ mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
 mod a_block_file_brings_a_tree_back_as_a_copy;
+mod a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
 mod a_block_opens_from_what_this_device_saved_before_its_session_is_joined;
@@ -894,7 +895,7 @@ fn written(block: Uuid, text: &str) {
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
-    flush();
+    flush_and_send();
 }
 
 async fn read_text(

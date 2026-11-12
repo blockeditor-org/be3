@@ -24,7 +24,7 @@ use crate::{
     ClientError,
     connection::{Answer, Connection},
     keys::KeyBook,
-    refs::{Creation, Pending, Refs, RefsDb, Scope, Session},
+    refs::{Creation, Op, Pending, Refs, RefsDb, Scope, Session},
 };
 
 /// A block as `Peer::read_contents` read it.
@@ -929,39 +929,113 @@ impl<S: ObjectStore> Peer<S> {
         metadata: &BlockMetadata,
         owner_only: bool,
     ) -> Result<BlockSummary, ClientError> {
-        let (key, keys) = self.new_keys(block, parent, owner_only).await?;
-        let references = deduplicated(self.resolve(block, metadata.references()));
-        let metadata = self.commits.vault().seal(key, &metadata.encode())?;
+        let creation = self
+            .creation(block, content_type, parent, metadata, owner_only)
+            .await?;
+        // A parent whose creation waits in the outbox is not on the server yet: this one waits
+        // behind it.
+        if let BlockParent::Block(above) = parent
+            && self.refs.creating(above)
+        {
+            return self.create_locally(creation);
+        }
         let response = crate::ask(client::blocks::create_block(
             &self.connection(),
             block,
             content_type,
             parent,
-            metadata.clone(),
-            references.clone(),
-            key,
-            keys.clone(),
+            creation.metadata.clone(),
+            creation.references.clone(),
+            creation.key,
+            creation.keys.clone(),
             owner_only,
         ))
         .await;
         let response = match response {
-            Err(error) if error.is_unreachable() => {
-                return self.create_locally(Creation {
-                    block,
-                    content_type,
-                    parent,
-                    metadata,
-                    references,
-                    key,
-                    keys,
-                    owner_only,
-                });
-            }
+            Err(error) if error.is_unreachable() => return self.create_locally(creation),
             response => response?,
         };
-        self.recorded(&keys);
+        self.recorded(&creation.keys);
         self.note(&response);
         Ok(response)
+    }
+
+    /// Makes a block on this device and keeps its creation in the outbox, for the drain to send
+    /// in order with what comes after it (guides/blocks/client.md, "Saving and the outbox").
+    pub async fn keep_creation(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        metadata: &BlockMetadata,
+        owner_only: bool,
+    ) -> Result<BlockSummary, ClientError> {
+        let creation = self
+            .creation(block, content_type, parent, metadata, owner_only)
+            .await?;
+        self.create_locally(creation)
+    }
+
+    async fn creation(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        metadata: &BlockMetadata,
+        owner_only: bool,
+    ) -> Result<Creation, ClientError> {
+        let (key, keys) = self.new_keys(block, parent, owner_only).await?;
+        let references = deduplicated(self.resolve(block, metadata.references()));
+        let metadata = self.commits.vault().seal(key, &metadata.encode())?;
+        Ok(Creation {
+            block,
+            content_type,
+            parent,
+            metadata,
+            references,
+            key,
+            keys,
+            owner_only,
+        })
+    }
+
+    /// Defines a block's metadata on this device and keeps the change in the outbox: a block
+    /// with no content yet gets its metadata set, one with content a commit carrying it, both
+    /// sent by the drain in order.
+    pub async fn keep_definition(
+        &self,
+        block: Uuid,
+        edit: impl Fn(&mut BlockMetadata),
+    ) -> Result<BlockSummary, ClientError> {
+        let summary = match self.refs.summary(block) {
+            Some(summary) => self.refs.current(vec![summary]).remove(0),
+            None => self.summary(block).await?,
+        };
+        let head = self.local_head(block).or(summary.head);
+        let current = match head {
+            Some(head) => self.metadata_of(head).await?,
+            None => self.metadata_of_summary(&summary).await?,
+        };
+        let mut next = current.clone();
+        edit(&mut next);
+        let next = current.with_defined(next.defined);
+        if next == current {
+            return Ok(summary);
+        }
+        let Some(head) = head else {
+            let sealed = self.seal_metadata(block, &next).await?;
+            let references = deduplicated(self.resolve(block, next.references()));
+            return self.define_locally(summary, sealed, references);
+        };
+        let commit = self.load_commit(head).await?;
+        let described = self.resolve(block, current.references());
+        let mut references = commit.references;
+        references.retain(|reference| !described.contains(reference));
+        let write = Write::written(commit.manifest, Some(head))
+            .described(references, next.derived)
+            .defined(next.defined);
+        self.seal(block, write).await?;
+        Ok(self.refs.summary(block).unwrap_or(summary))
     }
 
     pub async fn define(
@@ -1115,6 +1189,12 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
+        // The server does not know a block whose creation waits in the outbox.
+        if self.refs.creating(block)
+            && let Some(summary) = self.refs.summary(block)
+        {
+            return Ok(self.refs.current(vec![summary]).remove(0));
+        }
         let response = crate::ask(client::blocks::read_block(&self.connection(), block)).await;
         match response {
             Ok(block) => {
@@ -1139,8 +1219,9 @@ impl<S: ObjectStore> Peer<S> {
     async fn listed(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
             Ok(blocks) => {
-                let _ = self.refs.set_listing(listing, &blocks);
                 let _ = self.refs.observe(&blocks);
+                let blocks = self.with_outbox(listing, blocks);
+                let _ = self.refs.set_listing(listing, &blocks);
                 Ok(blocks)
             }
             Err(error) if error.is_unreachable() => match self.refs.cached_listing(listing) {
@@ -1149,6 +1230,28 @@ impl<S: ObjectStore> Peer<S> {
             },
             Err(error) => Err(error),
         }
+    }
+
+    /// A listing the server answered, as this device has it: what a creation or move waiting in
+    /// the outbox puts in it or takes out.
+    fn with_outbox(&self, listing: Listing, mut blocks: Vec<BlockSummary>) -> Vec<BlockSummary> {
+        for (_, op) in self.refs.outbox() {
+            let (block, parent) = match op {
+                Op::Create(creation) => (creation.block, creation.parent),
+                Op::Move(moving) => (moving.block, moving.parent),
+                Op::Publish(_) | Op::Define(_) => continue,
+            };
+            let here = match listing {
+                Listing::Children(under) => under == parent,
+                Listing::Deleted => parent == BlockParent::Detached,
+                _ => continue,
+            };
+            blocks.retain(|summary| summary.id != block);
+            if here && let Some(summary) = self.refs.summary(block) {
+                blocks.push(summary);
+            }
+        }
+        blocks
     }
 
     pub async fn remote_head(&self, block: Uuid) -> Result<Option<CommitId>, ClientError> {
@@ -1519,6 +1622,11 @@ impl<S: ObjectStore> Peer<S> {
         let Some((sequence, pending)) = self.pending_publish(block, commit) else {
             return Err(ClientError::MissingObject(commit.hash()));
         };
+        // A creation, move or definition of the block waits ahead of it in the outbox: the drain
+        // sends them in order. Offline, sending fails as any other does.
+        if self.is_attached() && self.refs.has_structural(block) {
+            return Ok(Saved::Unchanged(commit));
+        }
         let saved = self.send_pending(&pending).await?;
         if let Saved::Published(head) = saved {
             self.settle(sequence, &pending, head, true)?;

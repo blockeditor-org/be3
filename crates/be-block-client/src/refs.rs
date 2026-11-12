@@ -232,6 +232,8 @@ pub struct Creation {
 pub struct Moving {
     pub block: Uuid,
     pub parent: BlockParent,
+    /// Where it was, so sending it can carry its databases' prefixes along (`follow_prefixes`).
+    pub from: Option<BlockParent>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

@@ -207,7 +207,11 @@ sends it. `Peer::write` does both.
 - **Offline**, a failed publish stays in the outbox, as do creates
   (`refs::Op::Create`), moves (`Op::Move`) and defines on a block with no
   content (`Op::Define`); these rewrite the cached summary so listings show
-  them, and later ones for a block queue behind earlier ones. Sharing, access,
+  them, and later ones for a block queue behind earlier ones. `keep_creation`,
+  `keep_definition` and `keep_move` put them there online too (the host's
+  path); a publish waits behind a creation, move or define of its block, and a
+  server listing is laid over with what the outbox adds or moves. Sending a
+  move carries its databases' prefixes along (`Moving::from`). Sharing, access,
   members, invites, agents, contacts and pairing need the server.
 - **`Peer::drain`** publishes the outbox in order once attached and reports a
   `Drained` per block. A rejected publish whose remote head already contains

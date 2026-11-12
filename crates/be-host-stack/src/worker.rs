@@ -348,8 +348,7 @@ impl Command {
     fn served(&self) -> bool {
         matches!(
             self,
-            Command::SetParent { .. }
-                | Command::SetAccess { .. }
+            Command::SetAccess { .. }
                 | Command::ListAccess { .. }
                 | Command::ReadHead { .. }
                 | Command::Leave { .. }
@@ -361,7 +360,7 @@ impl Command {
 
     /// Whether the command reaches only the blocks it names (`needs`), so it may run while the
     /// lane holds others (`Served`). The rest, which may reach a whole tree (a version command,
-    /// a duplicate, an import), wait for the lane to be empty.
+    /// an import), wait for the lane to be empty.
     fn order_safe(&self) -> bool {
         #[cfg(any(test, feature = "testing"))]
         if let Command::Close(_) = self {
@@ -384,7 +383,9 @@ impl Command {
                 | Command::SetNotifyMode { .. }
                 | Command::Push(_)
                 | Command::Create { .. }
+                | Command::SetParent { .. }
                 | Command::Define { .. }
+                | Command::Duplicate { .. }
         ) || self.served()
     }
 
@@ -468,6 +469,20 @@ impl Command {
             | Command::Sync
             | Command::Storage
             | Command::HoldClock(_) => None,
+        }
+    }
+
+    /// The block a command in the loop asks the server about, which must know what this device
+    /// made of it first (`Tasks::sent`). Those in the lane wait there (`serve_command`).
+    fn asks_server_of(&self) -> Option<Uuid> {
+        match self {
+            Command::Contact(ContactCommand::Link {
+                offer: Some((block, _)),
+                ..
+            })
+            | Command::CreateBlockAgent { block, .. }
+            | Command::Version { block, .. } => Some(*block),
+            _ => None,
         }
     }
 
@@ -1381,6 +1396,9 @@ impl Session<'_> {
         if self.replicas.take_kept() {
             self.tasks.0.sync(peer, shared);
         }
+        if !self.tasks.0.syncing() {
+            self.replicas.created((peer, shared));
+        }
         // A seal kept since the drain answered keeps its edits sending.
         for (block, refused) in self.tasks.0.take_published() {
             if refused || peer.pending_commits(block).is_empty() {
@@ -1563,6 +1581,14 @@ async fn drain_outbox(
                 .collect();
             published.extend(refused.iter().map(|block| (*block, true)));
             for outcome in drained {
+                // The graph follows what the drain published, as it does a replica's publish.
+                if let be_block_client::Drained::Published { block, head } = &outcome {
+                    shared
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .graph
+                        .set_head(*block, Some(*head));
+                }
                 match outcome {
                     be_block_client::Drained::Published { block, .. }
                     | be_block_client::Drained::Created { block }
@@ -1948,6 +1974,12 @@ impl Ran<'_> {
             self.done();
             return false;
         };
+        if let Some(block) = command.asks_server_of() {
+            self.tasks.sent(self.peer, self.shared, Some(block)).await;
+        }
+        if matches!(command, Command::Export { .. }) {
+            self.tasks.sent(self.peer, self.shared, None).await;
+        }
         let applied = match command {
             command @ (Command::Members(_) | Command::BlockAgent { .. }) => {
                 serve_command(self.peer, self.shared, self.tasks, command).await;
@@ -2482,21 +2514,10 @@ async fn serve_command(
     tasks: &Tasks,
     command: Command,
 ) {
+    if let Some(block) = command.subject() {
+        tasks.sent(peer, shared, Some(block)).await;
+    }
     match command {
-        Command::SetParent { block, parent } => {
-            let moved = peer.set_parent(block, parent).await;
-            let settled = shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .settle(block);
-            if let Err(error) = moved {
-                record(shared, error);
-            }
-            if settled {
-                tasks.refresh(peer, shared, block);
-            }
-        }
         Command::SetAccess {
             block,
             account,
@@ -2586,8 +2607,28 @@ async fn apply(
 ) -> bool {
     let ctx = (peer, shared);
     match command {
-        command @ (Command::SetParent { .. }
-        | Command::SetAccess { .. }
+        Command::SetParent { block, parent } => {
+            // A block this device keeps moves here and its move waits in the outbox; one it
+            // never saw asks the server.
+            let moved = match peer.known_summary(block) {
+                Some(_) => peer.keep_move(block, parent),
+                None => peer.set_parent(block, parent).await,
+            };
+            let settled = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .settle(block);
+            if let Err(error) = moved {
+                record(shared, error);
+            }
+            if settled {
+                tasks.refresh(peer, shared, block);
+            }
+            tasks.sync(peer, shared);
+            true
+        }
+        command @ (Command::SetAccess { .. }
         | Command::ListAccess { .. }
         | Command::ReadHead { .. }
         | Command::Leave { .. }
@@ -2892,7 +2933,7 @@ async fn apply(
                 return false;
             }
             let created = peer
-                .create_block(to, content_type, BlockParent::Detached, &metadata, false)
+                .keep_creation(to, content_type, BlockParent::Detached, &metadata, false)
                 .await;
             if let Err(error) = settled(peer, shared, Some(tasks), to, created).await {
                 record(shared, error);
@@ -2920,6 +2961,7 @@ async fn apply(
                 record(shared, error);
             }
             remember_head(peer, shared, to);
+            tasks.sync(peer, shared);
             false
         }
         Command::Replace {
@@ -2991,8 +3033,9 @@ async fn apply(
                     None => kind.described.derived,
                 };
             }
+            // Kept here, and sent by the drain with its first content, online as offline.
             let created = peer
-                .create_block(block, content_type, parent, &metadata, owner_only)
+                .keep_creation(block, content_type, parent, &metadata, owner_only)
                 .await;
             if let Err(error) = settled(peer, shared, Some(tasks), block, created).await {
                 record(shared, error);
@@ -3004,11 +3047,12 @@ async fn apply(
                 record(shared, error);
             }
             remember_head(peer, shared, block);
+            tasks.sync(peer, shared);
             true
         }
         Command::Define { block, changes } => {
             let defined = peer
-                .define(block, |metadata| metadata.define(&changes))
+                .keep_definition(block, |metadata| metadata.define(&changes))
                 .await;
             if let Ok(summary) = &defined
                 && let Some(head) = peer.local_head(block).or(summary.head)
@@ -3018,6 +3062,7 @@ async fn apply(
             if let Err(error) = settled(peer, shared, Some(tasks), block, defined).await {
                 record(shared, error);
             }
+            tasks.sync(peer, shared);
             true
         }
         Command::Export { block, reply } => {
@@ -3372,6 +3417,8 @@ pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
     contacts: Arc<tokio::sync::Mutex<()>>,
     outbox: std::rc::Rc<std::cell::RefCell<Outbox>>,
+    /// Counts the drains of the outbox that ended, for what waits on one (`sent`).
+    drained: std::rc::Rc<tokio::sync::watch::Sender<u64>>,
     /// Stops the task following the account's storage, while one does.
     storage: std::rc::Rc<std::cell::RefCell<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
@@ -3399,6 +3446,7 @@ impl Tasks {
                 finished,
                 contacts,
                 outbox,
+                drained: std::rc::Rc::new(tokio::sync::watch::Sender::new(0)),
                 storage: Default::default(),
             },
             receiver,
@@ -3421,10 +3469,11 @@ impl Tasks {
             outbox.draining = true;
         }
         set_draining(shared, true);
-        let (peer, shared, outbox) = (
+        let (peer, shared, outbox, drained) = (
             Arc::clone(peer),
             Arc::clone(shared),
             std::rc::Rc::clone(&self.outbox),
+            std::rc::Rc::clone(&self.drained),
         );
         self.spawn(async move {
             loop {
@@ -3438,7 +3487,42 @@ impl Tasks {
                 }
             }
             set_draining(&shared, false);
+            drained.send_modify(|drains| *drains += 1);
         });
+    }
+
+    /// Waits until the server has what this device made of `block` (a creation, move or
+    /// definition waiting in the outbox), so a command that needs the server to know the block
+    /// goes after it. A drain under way goes once more when asked (`sync`), so the drain that
+    /// ends next has read the outbox since; after two, the command goes on whatever they did, and
+    /// the server answers it as things stand.
+    /// With no block, it waits for the whole outbox (an export reads a tree from the server).
+    pub(super) async fn sent(
+        &self,
+        peer: &Arc<Peer<Store>>,
+        shared: &Arc<Mutex<Shared>>,
+        block: Option<Uuid>,
+    ) {
+        let waits = || match block {
+            Some(block) => peer.has_structural(block),
+            None => peer.pending().operations > 0,
+        };
+        let mut drains = self.drained.subscribe();
+        for _ in 0..2 {
+            if !peer.is_attached() || !waits() {
+                return;
+            }
+            let before = *drains.borrow_and_update();
+            self.sync(peer, shared);
+            if !self.syncing() {
+                return;
+            }
+            while *drains.borrow_and_update() == before {
+                if drains.changed().await.is_err() {
+                    return;
+                }
+            }
+        }
     }
 
     fn syncing(&self) -> bool {

@@ -162,9 +162,23 @@ the "Saving changes" toast shows only while it stays above zero.
 Not built yet: a closing web tab cannot wait for `flush()`, so it asks first
 (`beforeunload`) while anything is unsaved (`Replicas::counts`).
 
+**Create, define, move and duplicate** are kept on the device and wait in the
+outbox, online as offline (`Peer::keep_creation`, `keep_definition`,
+`keep_move`), and the loop starts a drain for them; the loop never waits on the
+server for them. What follows such a block waits behind it: its publishes stay
+in the outbox while a creation, move or define of it waits
+(`Peer::publish_sealed`), a block made under it waits behind its parent's
+creation (`Peer::create_block`), `Peer::summary` answers from the device until
+the server knows it, and a listing the server answers is laid over with what the
+outbox adds or moves (`Peer::listed`). A block opened before its creation is
+sent opens as offline does; once a drain sends it, the replica seals what it
+owns and joins (`Replicas::created`). A command that needs the server to know a
+block waits first for a drain to send what this device made of it
+(`Tasks::sent`; an export waits for the whole outbox).
+
 **Commands that need the server.** Those that need only the server and no open
-block (move, share, list access, read a head, leave, approve pairing, members,
-block agents; `Command::served`) run in a lane beside the loop
+block (share, list access, read a head, leave, approve pairing, members, block
+agents; `Command::served`) run in a lane beside the loop
 (`worker/served.rs`): one at a time, in the order sent, each in a task, so a
 server that stopped answering holds up only the lane. They count as unsynced,
 not busy (`Shared::serving`). Offline, sharing, leaving and approving a device
@@ -172,11 +186,12 @@ are refused to the caller, who shows it where the person acted; they are not
 kept for later and are not the host's error. Order: a loop command waits while
 the lane holds a block it needs (`Command::needs`); one that is not order-safe
 (`Command::order_safe`: it may reach blocks it does not name, as a version
-command or a duplicate reaches a tree) waits until the lane is empty; and none
+command or an import reaches a tree) waits until the lane is empty; and none
 overtakes a command deferred before it. An open block whose key the lane
-rotates is resealed once that command ends. Create, define, duplicate, versions
-and merging still run in the loop, so on a server that stopped answering the
-commands behind one wait until the connection is declared lost.
+rotates is resealed once that command ends. Version commands and merging still
+run in the loop: they interleave server reads with the open replicas (sealing
+them, checking content out into them), so on a server that stopped answering
+the commands behind one wait until the connection is declared lost.
 
 ## The graph mirror
 
