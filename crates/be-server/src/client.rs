@@ -1782,7 +1782,7 @@ impl Client {
                             .await;
                         for account in lost {
                             connection
-                                .evict_sessions(identity.organization, account)
+                                .evict_sessions(identity.organization, account, None)
                                 .await;
                         }
                     }
@@ -1791,7 +1791,7 @@ impl Client {
                         // the block stops watching it and leaves its sessions.
                         for account in before {
                             connection
-                                .evict_sessions(identity.organization, account)
+                                .evict_sessions(identity.organization, account, Some(block))
                                 .await;
                         }
                     }
@@ -1921,6 +1921,17 @@ impl Client {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
                 connection.hub.watch(place, connection.client).await;
+                // The right to view was checked before this call ran; whoever lost it since
+                // had nothing to evict yet.
+                if connection
+                    .store
+                    .require_access(identity, vec![block], Access::View)
+                    .await
+                    .is_err()
+                {
+                    connection.hub.unwatch(place, connection.client).await;
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
                 self.streams
                     .open(&mut self.peer.lock(), stream, Route::Watch(place));
             }
@@ -1959,6 +1970,15 @@ impl Client {
                         block,
                     };
                     let state = connection.registry.join(place, connection.client).await;
+                    // As for a watch: a view lost since the check ran leaves the session again.
+                    if let Err(error) = connection
+                        .store
+                        .require_access(connection.identity()?, vec![block], Access::View)
+                        .await
+                    {
+                        connection.registry.leave(place, connection.client).await;
+                        return Err(error);
+                    }
                     connection.announce(place, &state).await;
                     let journal = connection
                         .store
@@ -2636,7 +2656,7 @@ impl Connection {
         }
         for organization in organizations {
             for account in accounts {
-                self.evict_sessions(organization, *account).await;
+                self.evict_sessions(organization, *account, None).await;
             }
         }
     }
@@ -2650,13 +2670,29 @@ impl Connection {
     }
 
     /// Ends what `account` holds on blocks it can no longer view: its sessions and its watches.
-    async fn evict_sessions(&self, organization: Uuid, account: Uuid) {
+    /// With `within`, only what it holds on that block and below it.
+    async fn evict_sessions(&self, organization: Uuid, account: Uuid, within: Option<Uuid>) {
         for (client, identity) in self.hub.clients_of(organization, account).await {
             let mut held = self.registry.blocks_of(client).await;
             for block in self.hub.watched_by(client).await {
                 if !held.contains(&block) {
                     held.push(block);
                 }
+            }
+            if let Some(root) = within {
+                let ids = held
+                    .iter()
+                    .filter(|place| place.organization == organization)
+                    .map(|place| place.block)
+                    .collect();
+                let below = self
+                    .store
+                    .within(organization, root, ids)
+                    .await
+                    .unwrap_or_default();
+                held.retain(|place| {
+                    place.organization == organization && below.contains(&place.block)
+                });
             }
             for block in held {
                 let kept = block.organization != organization
