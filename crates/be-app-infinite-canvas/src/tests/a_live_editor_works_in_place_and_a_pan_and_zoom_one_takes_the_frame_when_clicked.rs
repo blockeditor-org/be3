@@ -29,7 +29,6 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
             child: placement.child,
             available: true,
             intrinsic: None,
-            aspect_ratio: None,
             active: false,
             interaction: InteractionMode::Live,
             capabilities: EditorCapabilities {

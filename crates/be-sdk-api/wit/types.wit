@@ -804,7 +804,7 @@ interface types {
         page-origin: string,
         /// The host draws the command palette, listing the actions every
         /// instance describes: the editor's frame keeps none of its own and
-        /// asks the host for it with `shell.open-palette`.
+        /// asks the host for it with `shell-message.open-palette`.
         host-palette: bool,
     }
 
@@ -831,7 +831,7 @@ interface types {
     }
 
     /// A picker another editor placed as a child, which answers with
-    /// `shell.picked`.
+    /// `shell-message.picked`.
     record open-picker {
         instance: editor-instance-id,
         editor: editor-id,
@@ -990,7 +990,7 @@ interface types {
         /// returns to. False for a tab whose closing can lose work, such as
         /// a program's window: Back then returns from it and leaves it open.
         back-closes: bool,
-        /// The menu of the tab's view (`shell.menu` of that view), which the
+        /// The menu of the tab's view (`shell-message.menu` of that view), which the
         /// root shows on the tab's bar. The host fills it in as it splices a
         /// declaration; a declaring instance leaves it empty. A pick reaches
         /// the owner as its `menu-pick` of that view.
