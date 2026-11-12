@@ -12,11 +12,17 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     wait_for_count(sent, 1);
     wait_for_count(owed, 1);
     flush();
-    hold_clock(Some(std::time::Instant::now()));
+    // The stack holds the clock at a frame's instant; on the harness's manual clock that instant
+    // reads as the clock's own time (`Clock::at`), which nothing in this test moves.
+    let held = harness.clock.now();
+    let anchor = std::time::Instant::now();
+    hold_clock(Some(anchor));
 
     add(owed, 2);
     wait_until("owes a seal for the edit", |shared| shared.owing > 0);
-    crate::wait_until(|shared| shared.modules_due);
+    let due = crate::wait_until(|shared| shared.modules_due);
+    assert!(due > anchor, "the seal is due after the held moment");
+    assert_eq!(harness.clock.now(), held, "the modules' clock stood still");
 
     harness.relay().stall();
     add(sent, 3);
@@ -26,6 +32,8 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     seal_owed();
     wait_until("the seal waits on the server", |shared| shared.waiting > 0);
     add(owed, 4);
+    // `parked` is set while the worker sleeps between rounds, so the round that saw the new edit
+    // has ended and published what it offers.
     let due = crate::wait_until(|shared| {
         (shared.owing > 0 && shared.parked.is_some()).then_some(shared.modules_due)
     });

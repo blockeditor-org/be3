@@ -1153,9 +1153,13 @@ impl Session<'_> {
             moved |= report(peer, shared);
             let typing = !self.replicas.modules.settled();
             // A held clock is moved to a module's timer only when nothing but that timer can
-            // make progress: nothing sent waits for an answer, and no module is still working.
-            let idle =
-                self.line.quiet() && !self.tasks.0.syncing() && self.uploads.is_empty() && !typing;
+            // make progress: the line is up, nothing sent waits for an answer, and no module is
+            // still working. Offline, the reconnect is what's next, not a module's timer.
+            let idle = self.line.is_up()
+                && self.line.quiet()
+                && !self.tasks.0.syncing()
+                && self.uploads.is_empty()
+                && !typing;
             let (was_typing, was_due, due) = {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 let due = (idle && held.waiting == 0 && held.pending == 0 && !held.arriving)
