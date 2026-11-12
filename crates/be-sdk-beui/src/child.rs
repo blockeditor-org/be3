@@ -211,7 +211,7 @@ fn SubregionView(
             pane.focus();
         }
         if let Some(tab) = tab {
-            tab.show();
+            tab.content_focused();
         }
         on_focus.call(());
     });

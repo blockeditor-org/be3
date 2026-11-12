@@ -155,7 +155,7 @@ can't be dismissed. Each request goes to one layer:
   (`be_host_runtime::dismissed_by_press`).
 
 Within the layer, the request goes first to the most recently made enabled
-`on_back` handler whose component is in the tree (not hidden `ShowKeepAlive`
+`on_back` handler whose component is in the tree (not hidden kept-alive `Show`
 content), and to `on_dismiss` only when there is none, so Escape, back and a
 press outside all play the same slide-away. A layer closed because its parent
 closed is told afterwards (`Dismiss::WithParent`). The owner writing `open`

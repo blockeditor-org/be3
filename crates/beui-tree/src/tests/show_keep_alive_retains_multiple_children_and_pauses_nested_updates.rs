@@ -35,10 +35,10 @@ fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
         view! {
             <Element tag="div">
                 <Element tag="b" text="before" />
-                <ShowKeepAlive condition={shown}>
-                    <RetainedPair label tail builds={built} disposed={cleaned} />
+                <Show keep_alive=true condition={shown}>
+                    <RetainedPair label tail builds={built.clone()} disposed={cleaned.clone()} />
                     <Element tag="i" text="sibling" />
-                </ShowKeepAlive>
+                </Show>
                 <Element tag="b" text="after" />
             </Element>
         }

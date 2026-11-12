@@ -182,15 +182,6 @@ host queues settled events per app. The calls stay `local`
 
 ## 12. beui: one form per concept
 
-- Delete styled `Listbox` and unstyled `ChoiceKind::Listbox` with its
-  typeahead and arrow handling (`beui-components-unstyled/src/choice.rs`).
-  Nothing outside tests and the demo uses it; `Select` and `SearchList` cover
-  choosing from a list. Remove its tests, demo entry and paintings.
-- `ColorWheel` and `OklchColorWheel` become one `ColorWheel` with a public
-  `model` prop.
-- `Show` and `ShowKeepAlive` become `Show` with `keep_alive`; a kept-alive
-  `Show` builds its `RenderFn` once. Update guides/beui.md and
-  guides/reactive.md.
 - One focus ring: styled `Frame` takes `focus=` (drawn as an outline with an
   offset). It replaces `focus_border()`, `beui_view::reactive::focus_outline()`
   and the hand-drawn `focus_ring(..)` + accent border copies (`TileButton`,
@@ -215,9 +206,10 @@ host queues settled events per app. The calls stay `local`
   follows from whether it is selectable. `SettingsLink` becomes `SettingsRow`
   with `on_click`.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
-  `store(Cell::new(..))` uses.
-- `SelectableState::select_all()` and the free `select_all(state)` are one;
-  keep the method.
+  `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
+  non-`Copy` values (a callback, a state struct) or read the cell with
+  `with`/`try_with`, so each needs its own look (`StoredCell` has `replace`,
+  `take` and `set`; add what a use needs).
 
 Update beui-demo for every component that merges or goes.
 

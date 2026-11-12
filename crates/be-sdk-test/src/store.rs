@@ -2,13 +2,13 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use be_block_store::Hash;
+use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, Manifest, MemoryStore, Vault};
 use be_sdk_api::{BlockCommand, EditorInstanceId, StoredHead};
 use be_sdk_beui::be_block::{LiveEdit, Merge, Undo};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use be_sdk_type_guest::api::{
-    Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome, Recipients, Resume,
-    SessionState, SessionTag,
+    Announcement, Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome,
+    Recipients, Resume, SessionState, SessionTag,
     embed::{
         exports::replicas::{self, Replica},
         host::Call,
@@ -27,6 +27,7 @@ const THIS_DEVICE: ClientId = u64::MAX - 1;
 const ELSEWHERE: ClientId = u64::MAX;
 const TAG: SessionTag = SessionTag([0; 32]);
 const STORE: EditorId = u64::MAX;
+const SEALING: Uuid = Uuid::from_u128(0x5ea1);
 
 fn every_type() -> Vec<Registration> {
     be_sdk_type_host::registrations()
@@ -64,6 +65,19 @@ impl Block {
     }
 }
 
+/// What has to happen before the server holds an announced edit, as the host tracks it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Announcing {
+    /// In this device's journal as this sequence.
+    Journal(u64),
+    /// In a commit kept in the outbox.
+    Kept,
+    /// The server holds it.
+    Held(u64),
+    /// Never to be held.
+    Dropped,
+}
+
 struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
@@ -75,6 +89,10 @@ struct Inner {
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     commits: BTreeMap<CommitId, Vec<u8>>,
+    /// The commits written with parts after their first, as a vault holds them: a type that loads
+    /// only its first part reads the rest by range.
+    manifests: BTreeMap<CommitId, Manifest>,
+    vault: Vault<MemoryStore>,
     next_commit: u64,
     blocks: BTreeMap<Uuid, Block>,
     attached: BTreeMap<Uuid, BTreeSet<EditorId>>,
@@ -99,6 +117,16 @@ struct Inner {
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
+    /// What edits announce until the server holds them, kept beside the journal or a kept
+    /// commit: a simpler host than be-block-client's (one device, so every rebase is on its own
+    /// commit; every key remembered; guides/type_modules.md, "Announcements").
+    announcing: Vec<(Option<Uuid>, Announcing, Announcement)>,
+    /// The keys announced, which are not announced again.
+    announced: BTreeSet<(Option<Uuid>, String)>,
+    notified: Vec<(Option<Uuid>, String, Vec<Uuid>)>,
+    /// Part reads wait (held) until released one at a time, to see a view between reads.
+    hold_reads: bool,
+    held_reads: Vec<(Option<Uuid>, Call)>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
@@ -116,6 +144,12 @@ impl Default for Inner {
             now: 0,
             replicas: BTreeMap::new(),
             commits: BTreeMap::new(),
+            manifests: BTreeMap::new(),
+            vault: {
+                let keys = Keyring::new();
+                keys.insert(SEALING, ContentKey::from_bytes([7; 32]));
+                Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL)
+            },
             next_commit: 0,
             blocks: BTreeMap::new(),
             attached: BTreeMap::new(),
@@ -139,6 +173,11 @@ impl Default for Inner {
             kept: BTreeSet::new(),
             refused: BTreeMap::new(),
             refusals: 0,
+            announcing: Vec::new(),
+            announced: BTreeSet::new(),
+            notified: Vec::new(),
+            hold_reads: false,
+            held_reads: Vec::new(),
             known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
@@ -162,6 +201,31 @@ impl Inner {
         id[..8].copy_from_slice(&self.next_commit.to_be_bytes());
         let commit = CommitId::from_hash(Hash::from_bytes(id));
         self.commits.insert(commit, bytes);
+        commit
+    }
+
+    /// A commit of content with `parts` (`Written`): kept in the vault, so `Load` and `ReadPart`
+    /// answer from it. Content written whole, with no parts, is kept as its bytes.
+    fn write_written(
+        &mut self,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        parts: &[be_sdk_type_guest::api::WrittenPart],
+    ) -> CommitId {
+        if parts.is_empty() {
+            return self.write(bytes);
+        }
+        let manifest = self
+            .vault
+            .write(
+                SEALING,
+                content_type,
+                be_sdk_type_guest::api::written_parts(&bytes, parts),
+            )
+            .expect("a commit's parts are written");
+        let whole = self.vault.read(&manifest).expect("a commit reads whole");
+        let commit = self.write(whole);
+        self.manifests.insert(commit, manifest);
         commit
     }
 
@@ -270,10 +334,32 @@ impl Inner {
                 if expected != head {
                     return reply.send(&mut self.host, &Ok(PublishOutcome::Rejected(head)));
                 }
-                let unchanged = head.is_some_and(|head| self.commits[&head] == content.bytes);
+                // Unchanged content keeps the head: its parts' bytes whole are the head's.
+                let unchanged = head.is_some_and(|head| {
+                    let whole = match content.parts.is_empty() {
+                        true => Some(content.bytes.clone()),
+                        false => self
+                            .vault
+                            .write(
+                                SEALING,
+                                Uuid::nil(),
+                                be_sdk_type_guest::api::written_parts(
+                                    &content.bytes,
+                                    &content.parts,
+                                ),
+                            )
+                            .ok()
+                            .and_then(|manifest| self.vault.read(&manifest).ok()),
+                    };
+                    whole.is_some_and(|whole| whole == self.commits[&head])
+                });
+                let content_type = self
+                    .blocks
+                    .get(&block)
+                    .map_or(Uuid::nil(), |held| held.content_type);
                 let head = match (unchanged, head) {
                     (true, Some(head)) => head,
-                    _ => self.write(content.bytes),
+                    _ => self.write_written(content_type, content.bytes, &content.parts),
                 };
                 if let Some(held) = self.blocks.get_mut(&block) {
                     held.head = Some(head);
@@ -288,11 +374,29 @@ impl Inner {
                 reply.send(&mut self.host, &Ok(outcome));
             }
             Call::Stash { reply, content, .. } => {
-                let commit = self.write(content.bytes);
+                let content_type = block
+                    .and_then(|block| self.blocks.get(&block))
+                    .map_or(Uuid::nil(), |held| held.content_type);
+                let commit = self.write_written(content_type, content.bytes, &content.parts);
                 reply.send(&mut self.host, &Ok(commit));
             }
+            Call::Load {
+                reply,
+                commit,
+                first_part,
+            } if self.manifests.contains_key(&commit) => {
+                let manifest = &self.manifests[&commit];
+                let loaded = match first_part {
+                    true => self.vault.load_first(manifest),
+                    false => self.vault.load(manifest),
+                };
+                let result = loaded
+                    .map(be_sdk_type_guest::api::Loaded::of)
+                    .map_err(|error| error.to_string());
+                reply.send(&mut self.host, &result);
+            }
             Call::Load { reply, commit, .. } => {
-                // Commits are kept whole, with no parts, so content loads all of itself.
+                // Commits without parts are kept whole, so their content loads all of itself.
                 let result = self
                     .commits
                     .get(&commit)
@@ -303,11 +407,13 @@ impl Inner {
                     .ok_or_else(|| "no such commit".to_owned());
                 reply.send(&mut self.host, &result);
             }
-            Call::ReadPart { reply, .. } => {
-                reply.send(
-                    &mut self.host,
-                    &Err("commits here have no parts".to_owned()),
-                );
+            call @ Call::ReadPart { .. } if self.hold_reads => self.held_reads.push((block, call)),
+            Call::ReadPart { reply, part, range } => {
+                let result = self
+                    .vault
+                    .read_part(part.into(), range.offset, range.length)
+                    .map_err(|error| error.to_string());
+                reply.send(&mut self.host, &result);
             }
             Call::PutPart { reply, .. } => {
                 reply.send(
@@ -334,19 +440,91 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
-            Call::Append { reply, .. } => {
+            Call::Append {
+                reply,
+                announcements,
+                ..
+            } => {
                 let held = !self.offline;
+                let until = match held {
+                    true => Announcing::Held,
+                    false => Announcing::Journal,
+                };
+                for announced in announcements {
+                    self.announcing.push((
+                        block,
+                        until(announced.sequence),
+                        announced.announcement,
+                    ));
+                }
+                self.send_announcements(block);
                 reply.send(&mut self.host, &held);
+            }
+            Call::Announce {
+                reply,
+                announcements,
+            } => {
+                for made in announcements {
+                    self.announcing.push((block, Announcing::Held(0), made));
+                }
+                self.send_announcements(block);
+                reply.send(&mut self.host, &());
+            }
+            Call::RebaseJournal { reply, base, .. } => {
+                // This device seals every commit here, so what the base holds goes with it.
+                let kept = block.is_some_and(|block| self.kept.contains(&block));
+                for (at, until, _) in &mut self.announcing {
+                    if *at == block
+                        && let Announcing::Journal(sequence) = *until
+                    {
+                        *until = match (sequence <= base.sequence, kept) {
+                            (false, _) => Announcing::Dropped,
+                            (true, true) => Announcing::Kept,
+                            (true, false) => Announcing::Held(sequence),
+                        };
+                    }
+                }
+                self.announcing
+                    .retain(|(_, until, _)| *until != Announcing::Dropped);
+                self.send_announcements(block);
+                reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
             | Call::ReportClean { reply, .. }
-            | Call::RebaseJournal { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::History { reply, .. }
             | Call::Conflict { reply, .. }
             | Call::Error { reply, .. } => reply.send(&mut self.host, &()),
         }
+    }
+
+    /// Sends what the server holds the edits of in `block`, as the host does: one notification,
+    /// the newest's `several` for several, each key once.
+    fn send_announcements(&mut self, block: Option<Uuid>) {
+        let mut held = Vec::new();
+        self.announcing.retain(|(at, until, made)| {
+            let sending = *at == block && matches!(until, Announcing::Held(_));
+            if sending {
+                held.push(made.clone());
+            }
+            !sending
+        });
+        held.retain(|made| self.announced.insert((block, made.key.clone())));
+        let text = match held.as_slice() {
+            [] => return,
+            [one] => one.text.clone(),
+            several => several[several.len() - 1]
+                .several
+                .replace("{count}", &several.len().to_string()),
+        };
+        let mut mentions = Vec::new();
+        for mention in held.iter().flat_map(|made| &made.mentions) {
+            if !mentions.contains(mention) {
+                mentions.push(*mention);
+            }
+        }
+        self.notified.push((block, text, mentions));
     }
 
     fn ask<T, E: wire::Decode<T>>(
@@ -504,6 +682,16 @@ impl Inner {
     }
 
     fn put(&mut self, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
+        self.put_written(block, content_type, bytes, &[]);
+    }
+
+    fn put_written(
+        &mut self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        parts: &[be_sdk_type_guest::api::WrittenPart],
+    ) {
         let same_type = self
             .blocks
             .get(&block)
@@ -515,7 +703,7 @@ impl Inner {
             return self.change(block, Change::Replace(bytes));
         }
         self.close(block);
-        let head = self.write(bytes);
+        let head = self.write_written(content_type, bytes, parts);
         match self.blocks.get_mut(&block) {
             Some(held) => {
                 held.content_type = content_type;
@@ -707,6 +895,43 @@ impl ContentStore {
             .put(key, C::CONTENT_TYPE, content.encode());
     }
 
+    /// Like `hold`, but keeps the content's parts after its first (`BlockContent::parts`) in the
+    /// store, which a type that loads only its first part reads by range. Held before the block
+    /// is open.
+    pub fn hold_parts<C: LiveEdit + Merge + Clone + Default>(
+        &self,
+        block: Option<Uuid>,
+        content: C,
+    ) {
+        let key = self.key(block);
+        self.know::<C>();
+        let (bytes, parts) = be_sdk_type_guest::api::written_shape(&content.parts())
+            .unwrap_or_else(|| (content.encode(), Vec::new()));
+        self.0
+            .borrow_mut()
+            .put_written(key, C::CONTENT_TYPE, bytes, &parts);
+    }
+
+    /// Holds part reads back until `release_read` lets them through one at a time, so a test can
+    /// look at what an editor shows while only some of the parts it asked for were read.
+    pub fn hold_reads(&self, hold: bool) {
+        self.0.borrow_mut().hold_reads = hold;
+    }
+
+    /// Lets the oldest held part read through; false when none is held.
+    pub fn release_read(&self) -> bool {
+        let mut inner = self.0.borrow_mut();
+        if inner.held_reads.is_empty() {
+            return false;
+        }
+        let (block, call) = inner.held_reads.remove(0);
+        let held = std::mem::replace(&mut inner.hold_reads, false);
+        inner.act(block, call);
+        inner.hold_reads = held;
+        inner.run();
+        true
+    }
+
     pub fn keep_history<C: Undo + Merge + Clone + Default + 'static>(&self, block: Option<Uuid>) {
         let key = self.key(block);
         self.typed::<C>(key);
@@ -760,6 +985,17 @@ impl ContentStore {
         self.0
             .borrow_mut()
             .elsewhere(key, C::encode_operation(operation));
+    }
+
+    /// What the replica asked the host to notify the block's other members of, since last taken:
+    /// the block, the text and who it mentions.
+    pub fn take_notified(&self) -> Vec<(Uuid, String, Vec<Uuid>)> {
+        let mut inner = self.0.borrow_mut();
+        let own = inner.own.unwrap_or_default();
+        std::mem::take(&mut inner.notified)
+            .into_iter()
+            .map(|(block, text, mentions)| (block.unwrap_or(own), text, mentions))
+            .collect()
     }
 
     pub fn take_written(&self, block: Option<Uuid>) -> Vec<Vec<u8>> {
@@ -861,6 +1097,18 @@ impl ContentStore {
                 inner.refused.entry(block).or_default().push(commit);
                 commits.push(commit);
             }
+            for (at, until, _) in &mut inner.announcing {
+                if *at == Some(block) && *until == Announcing::Kept {
+                    *until = match refused {
+                        true => Announcing::Dropped,
+                        false => Announcing::Held(0),
+                    };
+                }
+            }
+            inner
+                .announcing
+                .retain(|(_, until, _)| *until != Announcing::Dropped);
+            inner.send_announcements(Some(block));
             if let Some(replica) = inner.blocks.get(&block).and_then(|held| held.replica) {
                 replica.drained(&mut inner.host, refused, commits);
             }

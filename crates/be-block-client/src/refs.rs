@@ -13,7 +13,11 @@ use be_block_store::{Hash, StoreError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
+mod announcements;
 mod sqlite;
+
+use announcements::Waiting;
+pub(crate) use announcements::{Announcing, Made, Until};
 
 type Backend = sqlite::SqliteRefs;
 
@@ -41,12 +45,13 @@ pub(crate) enum Table {
     JournalBase,
     JournalEntry,
     Signers,
+    Announcement,
     Summary,
     Held,
 }
 
 impl Table {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -60,6 +65,7 @@ impl Table {
         Self::JournalBase,
         Self::JournalEntry,
         Self::Signers,
+        Self::Announcement,
         Self::Summary,
         Self::Held,
     ];
@@ -79,8 +85,9 @@ impl Table {
             Self::JournalBase => 11,
             Self::JournalEntry => 12,
             Self::Signers => 13,
-            Self::Summary => 14,
-            Self::Held => 15,
+            Self::Announcement => 14,
+            Self::Summary => 15,
+            Self::Held => 16,
         }
     }
 
@@ -305,6 +312,8 @@ struct State {
     outbox: BTreeMap<u64, Op>,
     unsent: BTreeMap<Uuid, Unsent>,
     journals: HashMap<Uuid, Journaled>,
+    /// What edits made here announce, by block and key, until sent and for a while after.
+    announcements: HashMap<Uuid, BTreeMap<String, Waiting>>,
     next: u64,
 }
 
@@ -380,6 +389,16 @@ impl State {
                 self.unsent.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Workspaces => {}
+            Table::Announcement => {
+                let (block, key) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                let key = String::from_utf8(key.to_vec()).map_err(|_| StoreError::Corrupt)?;
+                let waiting: Waiting = decode(value)?;
+                self.next = self.next.max(waiting.order + 1);
+                self.announcements
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(key, waiting);
+            }
             Table::JournalBase => {
                 let head: JournalHead = decode(value)?;
                 let block = uuid_key(&row.key)?;
@@ -607,8 +626,10 @@ impl Refs {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
+            announcements::forget(&mut state, block, &mut rows);
             let Some(mut summary) = state.summaries.get(&block).cloned() else {
-                return Ok(());
+                drop(state);
+                return self.write(rows);
             };
             summary.access = be_block_graph::Access::None;
             state.summaries.insert(block, summary.clone());
@@ -1029,6 +1050,7 @@ impl Refs {
             }
             state.listings.retain(|listing, _| !about(listing));
             for block in &gone {
+                announcements::forget(state, *block, &mut rows);
                 if state.journals.remove(block).is_some() {
                     rows.push(Row {
                         table: Table::JournalBase,

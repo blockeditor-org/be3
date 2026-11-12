@@ -94,8 +94,11 @@ Pressing a pane's chrome (bar, tab, grip) gives the keyboard to the tab it shows
 first focusable. Content whose keyboard lives in another document (a program's window, a child
 block) follows `DockTabControl::keyboard` and `brought_forward` and asks its host for the keys
 (`focus_child`, guides/apps/children.md, Focus). The other way, when such content takes the focus
-there it shows its tab (`DockTabControl::show`) or, in an empty pane's view, focuses that pane
-(`DockPaneControl::focus`), which brings the window in front. A focused empty pane in a joined
+there it shows its tab (`DockTabControl::content_focused`) or, in an empty pane's view, focuses
+that pane (`DockPaneControl::focus`), which brings the window in front. `content_focused` also
+records that the tab's content has the keyboard, until this document or an empty pane takes it,
+so a dock that stops showing the tab hands the keyboard to the tab shown in its place, as it does
+for focus inside its own panels. A focused empty pane in a joined
 group has no tab, so `DockState::focused_or_host` stands the group's host tab in for it: that is
 what `DockingLayout::focused` and `DockHosted::focused` report.
 

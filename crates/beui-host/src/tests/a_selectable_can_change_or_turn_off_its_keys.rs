@@ -41,9 +41,7 @@ fn a_selectable_can_change_or_turn_off_its_keys() {
     let state = harness
         .document()
         .api::<crate::styled::SelectableState>(region.get());
-    with_reactive_scope(harness.document_mut(), || {
-        crate::selectable::select_all(state)
-    });
+    with_reactive_scope(harness.document_mut(), || state.select_all());
     assert_eq!(
         copy(&mut harness, Modifiers::CTRL),
         None,

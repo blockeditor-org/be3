@@ -23,7 +23,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         });
         view! {
             <List spacing=0.0>
-                <ShowKeepAlive condition={shown}>
+                <Show keep_alive=true condition={shown}>
                     <unstyled::Button
                         @test_id={"hidden.button"}
                         on_click={|| {}}
@@ -37,7 +37,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
                             <Text>"Themes"</Text>
                         }
                     }</unstyled::Button>
-                </ShowKeepAlive>
+                </Show>
             </List>
         }
     });

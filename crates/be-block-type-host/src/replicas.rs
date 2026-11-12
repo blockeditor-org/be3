@@ -90,6 +90,26 @@ pub(crate) fn answer_in(
     }
 }
 
+/// An announcement as the type module sent it.
+fn announcement(sent: be_sdk_type_api::Announcement) -> be_block::Announcement {
+    be_block::Announcement {
+        key: sent.key,
+        text: sent.text,
+        several: sent.several,
+        mentions: sent.mentions,
+    }
+}
+
+/// Sends what the edits the server now holds announce (`Peer::send_announcements`); an
+/// unreachable server leaves them for the next time.
+pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
+    if let Err(error) = peer.send_announcements().await
+        && !unreachable(&error)
+    {
+        H::record(shared, error);
+    }
+}
+
 fn unreachable(error: &ClientError) -> bool {
     error.is_unreachable()
 }
@@ -391,6 +411,9 @@ struct Open {
     reporting: Option<CommitId>,
 }
 
+/// How many commits sealed here `Replicas` remembers per block.
+const SEALED_REMEMBERED: usize = 16;
+
 pub struct Replicas<H: Host> {
     pub modules: Modules,
     answers: UnboundedReceiver<Io>,
@@ -416,6 +439,9 @@ pub struct Replicas<H: Host> {
     changed: bool,
     /// Blocks whose next publish is a bookmark, with its label (`Replicas::bookmark`).
     bookmarks: HashMap<Uuid, String>,
+    /// The newest commits each block's replicas sealed here, published or kept, across
+    /// reopens: a journal rebased on one hands its announcements to it (`Peer::rebase_journal`).
+    sealed: HashMap<Uuid, VecDeque<CommitId>>,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
@@ -449,6 +475,7 @@ impl<H: Host> Replicas<H> {
             kept: false,
             changed: false,
             bookmarks: HashMap::new(),
+            sealed: HashMap::new(),
             handled: 0,
             host: std::marker::PhantomData,
         }
@@ -1348,6 +1375,16 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    fn sealed_here(&mut self, block: Uuid, head: CommitId) {
+        let sealed = self.sealed.entry(block).or_default();
+        if !sealed.contains(&head) {
+            sealed.push_back(head);
+        }
+        while sealed.len() > SEALED_REMEMBERED {
+            sealed.pop_front();
+        }
+    }
+
     fn answer_publish(
         &mut self,
         unanswered: Unanswered,
@@ -1366,6 +1403,11 @@ impl<H: Host> Replicas<H> {
         if delivered {
             self.modules
                 .call(module, |connection| reply.send(connection, &result));
+        }
+        if let Ok(PublishOutcome::Published(head) | PublishOutcome::Kept(head)) = result
+            && let Some(block) = self.open.get(&replica).map(|open| open.block)
+        {
+            self.sealed_here(block, head);
         }
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -1923,6 +1965,8 @@ impl<H: Host> Replicas<H> {
                 }
                 if let Some(head) = published {
                     open.published.push(head);
+                    let block = open.block;
+                    self.sealed_here(block, head);
                 }
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
@@ -2378,7 +2422,16 @@ impl<H: Host> Replicas<H> {
                 generation,
                 entries,
                 relay,
+                announcements,
             } => {
+                let announcements: Vec<(u64, be_block::Announcement)> = announcements
+                    .into_iter()
+                    .map(|announced| (announced.sequence, announcement(announced.announcement)))
+                    .collect();
+                let keys: std::collections::HashSet<String> = announcements
+                    .iter()
+                    .map(|(_, announcement)| announcement.key.clone())
+                    .collect();
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
                 let entries = entries
                     .into_iter()
@@ -2390,7 +2443,15 @@ impl<H: Host> Replicas<H> {
                     .collect();
                 let online = !made_up && peer.is_attached();
                 let appended = peer
-                    .append(block, generation, tag, entries, relay, online)
+                    .append(
+                        block,
+                        generation,
+                        tag,
+                        entries,
+                        relay,
+                        online,
+                        announcements,
+                    )
                     .await;
                 // Answered once the server holds the entries, or at once when only this
                 // device does, so the replica can tell its editors what the server holds.
@@ -2398,9 +2459,18 @@ impl<H: Host> Replicas<H> {
                     Ok(Some(answer)) => {
                         self.relaying += 1;
                         let (shared, io) = (Arc::clone(shared), self.io.clone());
+                        let peer = Arc::clone(peer);
                         self.answer_later(replica, module, async move {
                             let held = match answer.await {
-                                Ok(()) => true,
+                                Ok(()) => {
+                                    if !keys.is_empty() {
+                                        match peer.journal_held(block, &keys) {
+                                            Ok(()) => send_announcements::<H>(&peer, &shared).await,
+                                            Err(error) => H::record(&shared, error),
+                                        }
+                                    }
+                                    true
+                                }
                                 Err(error) => {
                                     if !unreachable(&error) {
                                         H::record(&shared, error);
@@ -2433,10 +2503,20 @@ impl<H: Host> Replicas<H> {
                     state: base.state,
                 };
                 let online = !made_up && peer.is_attached();
+                // An own commit: one a replica of this host sealed, or one this device's outbox
+                // keeps.
+                let own = base.commit.is_some_and(|commit| {
+                    self.sealed
+                        .get(&block)
+                        .is_some_and(|sealed| sealed.contains(&commit))
+                        || peer.pending_commits(block).contains(&commit)
+                });
                 let rebased = peer
-                    .rebase_journal(block, generation, tag, base, online)
+                    .rebase_journal(block, generation, tag, base, online, own)
                     .await;
                 self.journaled(shared, rebased);
+                let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+                H::spawn(async move { send_announcements::<H>(&peer, &shared).await });
                 false
             }
             Call::Load {
@@ -2677,6 +2757,21 @@ impl<H: Host> Replicas<H> {
                         && !unreachable(&error)
                     {
                         H::record(&shared, error);
+                    }
+                });
+                false
+            }
+            Call::Announce {
+                reply,
+                announcements,
+            } => {
+                self.acknowledge(module, reply);
+                let announcements = announcements.into_iter().map(announcement).collect();
+                let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+                H::spawn(async move {
+                    match peer.announce_held(block, announcements).await {
+                        Ok(()) => send_announcements::<H>(&peer, &shared).await,
+                        Err(error) => H::record(&shared, error),
                     }
                 });
                 false

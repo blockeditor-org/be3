@@ -174,19 +174,25 @@ impl SearchIndexContent {
 }
 
 /// Reads a range of a saved part, as the host's `read-part` or a module's `PartReader` does.
+/// Boxed, as a future returned from a trait method in another crate must be
+/// (guides/type_modules.md, "The generator").
 pub trait AsyncRead {
     fn read(
         &self,
         part: PartRef,
         range: Range<u64>,
-    ) -> impl Future<Output = Result<Vec<u8>, String>>;
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>>;
 }
 
 impl AsyncRead for PartReader {
-    async fn read(&self, part: PartRef, range: Range<u64>) -> Result<Vec<u8>, String> {
+    fn read(
+        &self,
+        part: PartRef,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>> {
         let end = range.end.min(part.length());
         let start = range.start.min(end);
-        PartReader::read(self, part, start, end - start).await
+        PartReader::read(self, part, start, end - start)
     }
 }
 
@@ -197,23 +203,29 @@ struct Reader<'a, F> {
 }
 
 impl<F: AsyncRead> Parts for Reader<'_, F> {
-    async fn read(&self, part: &PartName, range: Range<u64>) -> Result<Vec<u8>, Error> {
-        match self.parts.get(part) {
-            Some(Held::Bytes(bytes)) => {
-                let end = (range.end.min(bytes.len() as u64)) as usize;
-                let start = (range.start as usize).min(end);
-                Ok(bytes[start..end].to_vec())
+    fn read<'a>(
+        &'a self,
+        part: &'a PartName,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
+        Box::pin(async move {
+            match self.parts.get(part) {
+                Some(Held::Bytes(bytes)) => {
+                    let end = (range.end.min(bytes.len() as u64)) as usize;
+                    let start = (range.start as usize).min(end);
+                    Ok(bytes[start..end].to_vec())
+                }
+                Some(Held::Saved(saved)) => {
+                    let end = range.end.min(saved.length());
+                    let start = range.start.min(end);
+                    self.read
+                        .read(*saved, start..end)
+                        .await
+                        .map_err(Error::Read)
+                }
+                None => Err(Error::Read(format!("the index names no part {part:?}"))),
             }
-            Some(Held::Saved(saved)) => {
-                let end = range.end.min(saved.length());
-                let start = range.start.min(end);
-                self.read
-                    .read(*saved, start..end)
-                    .await
-                    .map_err(Error::Read)
-            }
-            None => Err(Error::Read(format!("the index names no part {part:?}"))),
-        }
+        })
     }
 }
 
@@ -350,8 +362,8 @@ impl MergeParts for SearchIndexContent {
         ours: Self,
         theirs: Self,
         parts: PartReader,
-    ) -> impl Future<Output = Result<MergeResult<Self>, String>> + 'static {
-        async move {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<MergeResult<Self>, String>>>> {
+        Box::pin(async move {
             let mut origin = [0; 16];
             let both = be_block_store::Hash::of_parts(&[&ours.header(), &theirs.header()]);
             origin.copy_from_slice(&both.as_bytes()[..16]);
@@ -366,6 +378,6 @@ impl MergeParts for SearchIndexContent {
                 written,
                 [&ours, &theirs],
             )))
-        }
+        })
     }
 }

@@ -14,6 +14,7 @@ be-type-chat = { path = "../be-type-chat" }
 uuid = "1"
 
 [dev-dependencies]
+be-block-commit = { path = "../be-block-commit", default-features = false }
 be-sdk-test = { path = "../be-sdk-test" }
 
 [lints]

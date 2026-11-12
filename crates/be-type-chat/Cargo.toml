@@ -12,6 +12,7 @@ be-block = { path = "../be-block" }
 be-block-commit = { path = "../be-block-commit", default-features = false }
 be-block-model = { path = "../be-block-model" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
+postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
 sha2 = "0.10"

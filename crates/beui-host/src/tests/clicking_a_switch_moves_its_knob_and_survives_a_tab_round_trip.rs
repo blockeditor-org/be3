@@ -14,9 +14,9 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
         let condition = create_memo(move || tab.get() == 0);
         [view! {
             <List spacing=0.0>
-                <ShowKeepAlive condition>
+                <Show keep_alive=true condition>
                     <Switch @node_ref=&switch_ref on=false />
-                </ShowKeepAlive>
+                </Show>
             </List>
         }]
     });
