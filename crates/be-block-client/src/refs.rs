@@ -6,8 +6,8 @@ use std::{
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    BlockSummary, ErrorCode, EscrowKey, Journal, JournalBase, JournalEntry, KeyRow, KeySet, Listing,
-    Organization, OrganizationKind, OrganizationRole, WrappedBy, WrappedKey,
+    BlockSummary, ErrorCode, EscrowKey, Journal, JournalBase, JournalEntry, KeyRow, KeySet,
+    Listing, Organization, OrganizationKind, OrganizationRole, WrappedBy, WrappedKey,
 };
 use be_block_store::{Hash, StoreError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
