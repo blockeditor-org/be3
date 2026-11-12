@@ -179,8 +179,9 @@ the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 block's `References` listing is what its summary references, so a seal or an
 offline commit after the listing was fetched shows; a block's children (or the deleted
-blocks) are every summary that puts a block there, so a block made online or
-pushed since the listing was fetched shows too, and backrefs are the summaries that
+blocks) are what the listing held and its summary still puts there, plus every
+block whose summary is newer than the listing and puts it there, so a block
+made online or pushed since the listing was fetched shows too, and backrefs are the summaries that
 reference the block. A summary is dropped only with the blocks `forget` drops,
 so one the server no longer lists stays until then.
 

@@ -305,6 +305,9 @@ struct State {
     /// Each block's newest summary: what every listing that holds the block shows of it.
     summaries: HashMap<Uuid, BlockSummary>,
     listings: HashMap<Listing, Vec<Uuid>>,
+    /// The newest revision this device knew when it fetched each listing: a summary newer than
+    /// that is of a block made or moved since (`placed_in`).
+    listed_at: HashMap<Listing, u64>,
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<(Uuid, WrappedBy), (u64, WrappedKey)>,
     contacts: Vec<(Uuid, [u8; 32])>,
@@ -366,7 +369,10 @@ impl State {
                 self.held.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Listing => {
-                self.listings.insert(decode_raw(&row.key)?, decode(value)?);
+                let listing = decode_raw(&row.key)?;
+                let (at, ids): (u64, Vec<Uuid>) = decode(value)?;
+                self.listed_at.insert(listing, at);
+                self.listings.insert(listing, ids);
             }
             Table::Summary => {
                 self.summaries.insert(uuid_key(&row.key)?, decode(value)?);
@@ -558,7 +564,8 @@ impl Refs {
         if state.listings.get(&listing) == Some(&ids) {
             return;
         }
-        rows.push(row(Table::Listing, encode_raw(&listing), &ids));
+        let at = state.listed_at.get(&listing).copied().unwrap_or_default();
+        rows.push(row(Table::Listing, encode_raw(&listing), &(at, &ids)));
         state.listings.insert(listing, ids);
     }
 
@@ -569,7 +576,11 @@ impl Refs {
             for summary in blocks {
                 Self::put(&mut state, summary, &mut rows);
             }
-            let ids = blocks.iter().map(|summary| summary.id).collect();
+            let ids: Vec<Uuid> = blocks.iter().map(|summary| summary.id).collect();
+            let at = newest(&state);
+            if state.listed_at.insert(listing, at) != Some(at) {
+                state.listings.remove(&listing);
+            }
             Self::put_listing(&mut state, listing, ids, &mut rows);
         }
         self.write(rows)
@@ -693,19 +704,30 @@ impl Refs {
         }
     }
 
-    /// Every summary that puts its block under `parent`, for a listing of them this device has
-    /// fetched before: a block made or moved since (by this device online, or pushed from the
-    /// server) is in no listing it fetched, but its summary says where it is.
+    /// A listing of what `parent` holds that this device fetched before, as its summaries now
+    /// place them: what it listed and is still there, and every block whose summary is newer
+    /// than the listing and puts it there (made or moved since, by this device online or pushed
+    /// from the server, and so in no listing it fetched).
     fn placed_in(&self, listing: Listing, parent: BlockParent) -> Option<Vec<BlockSummary>> {
         let state = self.state.lock().unwrap();
-        state.listings.get(&listing)?;
-        let mut placed: Vec<BlockSummary> = state
-            .summaries
-            .values()
-            .filter(|summary| summary.parent == Some(parent))
+        let listed = state.listings.get(&listing)?;
+        let at = state.listed_at.get(&listing).copied().unwrap_or_default();
+        let there = |summary: &&BlockSummary| summary.parent == Some(parent);
+        let mut placed: Vec<BlockSummary> = listed
+            .iter()
+            .filter_map(|id| state.summaries.get(id))
+            .filter(there)
             .cloned()
             .collect();
-        placed.sort_by_key(|summary| summary.id);
+        let mut since: Vec<BlockSummary> = state
+            .summaries
+            .values()
+            .filter(there)
+            .filter(|summary| summary.revision > at && !listed.contains(&summary.id))
+            .cloned()
+            .collect();
+        since.sort_by_key(|summary| summary.id);
+        placed.extend(since);
         Some(placed)
     }
 
@@ -1113,7 +1135,8 @@ impl Refs {
                         value: None,
                     });
                 } else if held.len() != before {
-                    rows.push(row(Table::Listing, encode_raw(listing), &held.clone()));
+                    let at = state.listed_at.get(listing).copied().unwrap_or_default();
+                    rows.push(row(Table::Listing, encode_raw(listing), &(at, &held.clone())));
                 }
             }
             for block in &gone {
@@ -1126,6 +1149,7 @@ impl Refs {
                 }
             }
             state.listings.retain(|listing, _| !about(listing));
+            state.listed_at.retain(|listing, _| !about(listing));
             for block in &gone {
                 announcements::forget(state, *block, &mut rows);
                 if state.journals.remove(block).is_some() {
