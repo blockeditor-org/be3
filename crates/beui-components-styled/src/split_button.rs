@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::Overflow;
 use beui_view::types::icons::Glyph;
@@ -165,7 +165,8 @@ fn HalfFace(
 ) -> NodeId {
     view! {
         <Frame
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
+            focus={focused}
+            focus_offset=Stroke::Focus
             radius=Radius::Md
             corners={side.corners()}
         >

@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::icons::Glyph;
 
@@ -66,7 +66,8 @@ fn AccordionHeader(
     view! {
         <Frame
             fill={header_color}
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
+            focus={focused}
+            focus_offset=Stroke::Focus
             radius=Radius::Md
             padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >

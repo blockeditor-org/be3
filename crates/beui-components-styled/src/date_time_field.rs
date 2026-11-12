@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::Overflow;
 
@@ -464,7 +464,8 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
             height=TIME_ROW_HEIGHT
             fill={fill}
             radius=Radius::Md
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Custom(-Stroke::Hairline.px())))}
+            focus={focused}
+            focus_offset=Stroke::Custom(-Stroke::Hairline.px())
             padding={Padding::horizontal(Space::Md)}
         >
             <Text

@@ -110,7 +110,6 @@ where
         hovered,
         active,
     } = handle;
-    let ring = focus_ring(focused);
     let opens = create_memo(move || tile.with(|tile| tile.opens));
     let rest = create_memo(move || tile.with(|tile| tile.key == TreemapTileKey::Rest));
     let fill =
@@ -124,10 +123,7 @@ where
                 (false, _, true) => ColorRole::Hover,
             },
         );
-    let border = create_memo(move || match ring.get() {
-        true => Some(Border::new(ColorRole::Accent).width(Stroke::Focus)),
-        false => Some(Border::new(ColorRole::Border).width(Stroke::Hairline)),
-    });
+    let border = Some(Border::new(ColorRole::Border).width(Stroke::Hairline));
     let (label_width, label_height, detail_height) = (
         use_size(LABEL_WIDTH),
         use_size(LABEL_HEIGHT),
@@ -148,6 +144,7 @@ where
             height=Length::FILL
             fill
             border
+            focus={focused}
             radius=Radius::Sm
             padding=TILE_PADDING
         >

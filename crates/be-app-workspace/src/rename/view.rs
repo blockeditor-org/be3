@@ -109,15 +109,20 @@ pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
         move |()| host.close_dialog(DialogAnswer::Accepted)
     });
     let dismiss = Callback::new(move |()| host.close_dialog(DialogAnswer::Dismissed));
-    on_key(KeyAt::Window, KeyPhase::Capture, move |event| {
-        let escaped = event
-            .press()
-            .is_some_and(|press| press.pressed && press.key == Key::Escape);
-        if escaped {
-            dismiss.call(());
-        }
-        escaped
-    });
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event| {
+            let escaped = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+            if escaped {
+                dismiss.call(());
+            }
+            escaped
+        },
+    );
     let look = create_memo(move || {
         let types = editor.block_types();
         let info = info.with(|info| info());

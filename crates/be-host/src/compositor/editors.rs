@@ -849,27 +849,32 @@ fn ConflictPreview(preview: Uuid) -> NodeId {
 }
 
 fn stop_on_escape(overlay: NodeRef) {
-    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
-        if event.held() {
-            return true;
-        }
-        let Some(press) = event.press() else {
-            return false;
-        };
-        if press.key != Key::Escape || !press.pressed || !event.target.program {
-            return false;
-        }
-        let Some(overlay) = overlay.try_get() else {
-            return false;
-        };
-        with_document(|document| {
-            let reaches = document.escape_layer() == Some(overlay);
-            if reaches {
-                document.dismiss_overlay(overlay, Dismiss::Escape);
+    on_key(
+        KeyAt::Window,
+        KeyPhase::Capture,
+        KeyReveal::Focus,
+        move |event: KeyEvent| {
+            if event.held() {
+                return true;
             }
-            reaches
-        })
-    });
+            let Some(press) = event.press() else {
+                return false;
+            };
+            if press.key != Key::Escape || !press.pressed || !event.target.program {
+                return false;
+            }
+            let Some(overlay) = overlay.try_get() else {
+                return false;
+            };
+            with_document(|document| {
+                let reaches = document.escape_layer() == Some(overlay);
+                if reaches {
+                    document.dismiss_overlay(overlay, Dismiss::Escape);
+                }
+                reaches
+            })
+        },
+    );
 }
 
 #[component]
