@@ -140,7 +140,7 @@ impl<S: ObjectStore> Peer<S> {
     /// one: the drain sends at its end.
     pub async fn send_announcements(&self) -> Result<(), ClientError> {
         if !self.is_attached()
-            || self.draining.load(std::sync::atomic::Ordering::SeqCst)
+            || self.draining.load(std::sync::atomic::Ordering::SeqCst) > 0
             || !self.refs.has_held_announcements()
         {
             return Ok(());

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use be_block_commit::{CommitId, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
@@ -269,12 +270,8 @@ impl<S: ObjectStore> Peer<S> {
     /// Announcements the drain makes held wait for its end, so a burst goes as one: its caller
     /// sends them (`send_announcements`).
     pub async fn drain(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
-        self.draining
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-        let drained = self.drain_outbox(skip).await;
-        self.draining
-            .store(false, std::sync::atomic::Ordering::SeqCst);
-        drained
+        let _draining = Draining::start(&self.draining);
+        self.drain_outbox(skip).await
     }
 
     async fn drain_outbox(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
@@ -670,6 +667,23 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
         Ok(self.refs.take_unsent(block)?.is_some())
+    }
+}
+
+/// Counts a drain under way for as long as it lives, so one dropped mid-way (a canceled
+/// future) or overlapping another still ends.
+struct Draining<'a>(&'a AtomicUsize);
+
+impl<'a> Draining<'a> {
+    fn start(draining: &'a AtomicUsize) -> Self {
+        draining.fetch_add(1, Ordering::SeqCst);
+        Self(draining)
+    }
+}
+
+impl Drop for Draining<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 

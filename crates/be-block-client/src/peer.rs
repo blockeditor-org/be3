@@ -258,8 +258,9 @@ pub struct Peer<S: ObjectStore> {
     keys: KeyBook,
     current: Mutex<HashMap<Uuid, Uuid>>,
     tried: Mutex<HashSet<Uuid>>,
-    /// The outbox is draining: announcements wait for its end (`send_announcements`).
-    draining: std::sync::atomic::AtomicBool,
+    /// How many outbox drains are under way: announcements wait for their end
+    /// (`send_announcements`).
+    draining: std::sync::atomic::AtomicUsize,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -354,7 +355,7 @@ impl<S: ObjectStore> Peer<S> {
             keys,
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
-            draining: std::sync::atomic::AtomicBool::new(false),
+            draining: std::sync::atomic::AtomicUsize::new(0),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
