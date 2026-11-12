@@ -42,10 +42,6 @@ pub trait Instance: std::any::Any {
 
     fn resized(&mut self, _size: Vec2) {}
 
-    fn aspect_ratio(&mut self) -> Option<f32> {
-        None
-    }
-
     fn presence_visible(&mut self, _visible: bool) {}
 
     fn replace_child(&mut self, _old: Uuid, _new: Uuid) -> bool {

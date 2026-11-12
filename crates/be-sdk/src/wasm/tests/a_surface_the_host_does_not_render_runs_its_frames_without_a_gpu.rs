@@ -1,6 +1,7 @@
 use be_sdk_api::{
-    EditorInstanceId, HelloAccepted, OpenBlock, Opening, ParentView, ScreenId, ScreenRequest, Size,
-    SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
+    EditorInstanceId, HelloAccepted, OpenBlock, Opening, OpeningKind, ParentView, ScreenId,
+    ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef,
+    ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -67,19 +68,21 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
         EditorSession::adopt(INSTANCE, Box::new(Unpainted(host.clone())), host),
     );
     for delivery in [
-        Delivery::Open(Opening::Block(OpenBlock {
+        Delivery::Open(Opening {
             instance: INSTANCE,
             editor: [6; 16],
-            block_id: [1; 16],
-            block_type: [2; 16],
-            view_block: None,
             account_id: [3; 16],
             organization_id: [4; 16],
             client_id: [5; 16],
-            editable: true,
-            page_origin: String::new(),
-            host_palette: false,
-        })),
+            kind: OpeningKind::Block(OpenBlock {
+                block_id: [1; 16],
+                block_type: [2; 16],
+                view_block: None,
+                editable: true,
+                page_origin: String::new(),
+                host_palette: false,
+            }),
+        }),
         Delivery::Screens(vec![ScreenRequest {
             screen: ScreenId(1),
             instance: INSTANCE,

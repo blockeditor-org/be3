@@ -37,7 +37,7 @@ Keys: undo owns Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y for the block only after the
 focused control has had the key (so a text area keeps its own undo).
 Ctrl+Shift+P opens the command palette: the host's when `open-block` says
 `host-palette` (be-host's always does; see Actions and the palette below),
-whose menu entry asks for it with `shell.open-palette`, otherwise the frame's
+whose menu entry asks for it with `shell-message.open-palette`, otherwise the frame's
 own, as in app tests. Intercepting actions reach an
 instance whatever has the keyboard (guides/beui_keyboard.md); be-host honours
 them for the shell's frame only. The system Back gesture reaches an app's
@@ -183,7 +183,7 @@ enabled. `BeuiTest::described_actions` and `run_action` do what the host does.
 
 be-host draws the one palette (`be-host/src/compositor/palette.rs`, Ctrl+Shift+P
 in a window capture key listener that leaves the chord to a focused Wayland
-window and, pressed again, closes the palette; or `shell.open-palette` from an
+window and, pressed again, closes the palette; or `shell-message.open-palette` from an
 instance that shows a view and has the keyboard or whose frame menu was picked
 from in its last two layout commits, which reaches the palette through its own signal,
 `compositor::palette_asks`): the live actions of the instance whose view has

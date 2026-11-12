@@ -1,8 +1,9 @@
 use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use be_sdk_api::{
-    BarAction, ChildId, EditorInstanceId, Fonts, Hello, HelloAccepted, InputBatch, Opening,
-    Preferences, PresentCommit, Rect, ScreenId, ScreenRequest, ShellDialog, Size, ViewId,
+    EditorInstanceId, Fonts, Hello, HelloAccepted, InputBatch, Opening, Preferences, PresentCommit,
+    ScreenId, ScreenRequest,
+    app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame},
     guest::{
         debug::debug,
         exports::{
@@ -15,7 +16,7 @@ use be_sdk_api::{
         OpId,
         guest::{Executor, Sender, oneshot, spawn, with_parent},
     },
-    shell_types::{DragOver, Focus},
+    shell_types::DragOver,
 };
 
 use crate::asked::follow;
@@ -181,7 +182,7 @@ impl Guest for Exports {
     type Editor = OpenEditor;
 
     fn new_editor(&self, op: OpId, opening: Opening) -> OpenEditor {
-        let instance = opening.instance();
+        let instance = opening.instance;
         crate::asked::opened(instance, op);
         self.0.push(Delivery::Open(opening));
         let watch = with_parent(op, || shell::ChildStatusesWatch::new(instance));
@@ -261,132 +262,104 @@ impl Guest for Exports {
     }
 }
 
-impl GuestEditor for OpenEditor {
-    fn menu_pick(
-        &self,
-        view: be_sdk_api::ViewId,
-        id: String,
-        anchor: Option<be_sdk_api::Rect>,
-    ) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, move |session| {
-            session.pick_menu(view, id, anchor)
-        });
-        std::future::ready(())
-    }
-
-    fn dismiss(&self) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, |session| session.dismiss());
-        std::future::ready(())
-    }
-
-    fn child_bar(
-        &self,
-        _view: ViewId,
-        child: ChildId,
-        action: BarAction,
-    ) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, move |session| {
-            session.child_bar_action(child, action)
-        });
-        std::future::ready(())
-    }
-
-    fn child_focused(&self, _view: ViewId, child: ChildId) -> impl Future<Output = ()> + 'static {
-        self.wire
-            .call(self.instance, move |session| session.child_focused(child));
-        std::future::ready(())
-    }
-
-    fn set_editable(&self, editable: bool) -> impl Future<Output = ()> + 'static {
-        self.wire
-            .call(self.instance, move |session| session.set_editable(editable));
-        std::future::ready(())
-    }
-
-    fn view_changed(&self, view: Rect, scale: f32) -> impl Future<Output = ()> + 'static {
-        self.wire
-            .call(self.instance, move |session| session.set_view(view, scale));
-        std::future::ready(())
-    }
-
-    fn presenting_changed(&self, presenting: bool) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, move |session| {
-            session.set_presenting(presenting)
-        });
-        std::future::ready(())
-    }
-
-    fn presence(&self, visible: bool) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, move |session| {
-            session.presence_visible(visible)
-        });
-        std::future::ready(())
-    }
-
-    fn focus_changed(&self, focus: Focus) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, move |session| {
-            session.set_focused_block(crate::host::FocusedBlock {
-                block_id: focus.block_id.map(uuid::Uuid::from_bytes),
-                block_type: uuid::Uuid::from_bytes(focus.block_type),
-                editor: focus.editor.map(uuid::Uuid::from_bytes),
-                via: focus.via.into_iter().map(uuid::Uuid::from_bytes).collect(),
-            })
-        });
-        std::future::ready(())
-    }
-
-    fn resized(&self, size: Size) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, move |session| {
-            session.resized(be_lib_geometry::vec2(size.width, size.height))
-        });
-        std::future::ready(())
-    }
-
-    fn drag_over(&self, drag: DragOver) -> impl Future<Output = ()> + 'static {
-        use be_sdk_api::clipboard::{Blocks, Files};
-        let blocks = drag.items.iter().find_map(|item| item.decode::<Blocks>());
-        let files = drag.items.iter().find_map(|item| item.decode::<Files>());
-        let dragged = match (
-            blocks.and_then(|blocks| blocks.blocks.into_iter().next()),
-            files,
-        ) {
-            (Some(block), _) => Some(crate::host::Dragged::Block(crate::host::BlockDrag {
-                position: drag.pos,
-                block_id: block.id,
-                block_type: block.block_type,
-                dropped: drag.dropped,
-                action: drag.action,
-            })),
-            (None, Some(files)) => Some(crate::host::Dragged::Files(crate::host::FileDrop {
-                position: drag.pos,
-                files: files
-                    .files
-                    .into_iter()
-                    .map(|file| crate::PickedFile {
-                        name: file.name,
-                        data: file.data,
+impl OpenEditor {
+    fn hear_one(&self, event: EditorEvent) {
+        let wire = &self.wire;
+        let instance = self.instance;
+        match event {
+            EditorEvent::MenuPick(MenuChoice { view, id, anchor }) => {
+                wire.call(instance, move |session| session.pick_menu(view, id, anchor));
+            }
+            EditorEvent::Dismiss => wire.call(instance, |session| session.dismiss()),
+            EditorEvent::ChildBar(ChildBarPress { child, action }) => {
+                wire.call(instance, move |session| {
+                    session.child_bar_action(child, action)
+                });
+            }
+            EditorEvent::ChildFocused(child) => {
+                wire.call(instance, move |session| session.child_focused(child));
+            }
+            EditorEvent::SetEditable(editable) => {
+                wire.call(instance, move |session| session.set_editable(editable));
+            }
+            EditorEvent::ViewChanged(ViewFrame { view, scale }) => {
+                wire.call(instance, move |session| session.set_view(view, scale));
+            }
+            EditorEvent::PresentingChanged(presenting) => {
+                wire.call(instance, move |session| session.set_presenting(presenting));
+            }
+            EditorEvent::Presence(visible) => {
+                wire.call(instance, move |session| session.presence_visible(visible));
+            }
+            EditorEvent::FocusChanged(focus) => {
+                wire.call(instance, move |session| {
+                    session.set_focused_block(crate::host::FocusedBlock {
+                        block_id: focus.block_id.map(uuid::Uuid::from_bytes),
+                        block_type: uuid::Uuid::from_bytes(focus.block_type),
+                        editor: focus.editor.map(uuid::Uuid::from_bytes),
+                        via: focus.via.into_iter().map(uuid::Uuid::from_bytes).collect(),
                     })
-                    .collect(),
-                dropped: drag.dropped,
-            })),
-            (None, None) => None,
-        };
-        self.wire.call(self.instance, move |session| {
-            session.set_drag(dragged.map(|dragged| (drag.view, dragged)))
-        });
-        std::future::ready(())
+                });
+            }
+            EditorEvent::Resized(size) => {
+                wire.call(instance, move |session| {
+                    session.resized(be_lib_geometry::vec2(size.width, size.height))
+                });
+            }
+            EditorEvent::Drag(drag) => {
+                let dragged = drag.map(|drag| (drag.view, dragged(&drag)));
+                wire.call(instance, move |session| {
+                    session.set_drag(dragged.and_then(|(view, dragged)| dragged.map(|d| (view, d))))
+                });
+            }
+            EditorEvent::ArtifactSettings(data) => {
+                wire.call(instance, move |session| session.artifact_settings(data));
+            }
+            EditorEvent::ShowDialog(DialogRequest { block, dialog }) => {
+                let block = uuid::Uuid::from_bytes(block);
+                wire.call(instance, move |session| session.show_dialog(block, dialog));
+            }
+        }
     }
+}
 
-    fn drag_left(&self) -> impl Future<Output = ()> + 'static {
-        self.wire
-            .call(self.instance, move |session| session.set_drag(None));
-        std::future::ready(())
+/// What a drag over the editor carries: a block, or files.
+fn dragged(drag: &DragOver) -> Option<crate::host::Dragged> {
+    use be_sdk_api::clipboard::{Blocks, Files};
+    let blocks = drag.items.iter().find_map(|item| item.decode::<Blocks>());
+    let files = drag.items.iter().find_map(|item| item.decode::<Files>());
+    match (
+        blocks.and_then(|blocks| blocks.blocks.into_iter().next()),
+        files,
+    ) {
+        (Some(block), _) => Some(crate::host::Dragged::Block(crate::host::BlockDrag {
+            position: drag.pos,
+            block_id: block.id,
+            block_type: block.block_type,
+            dropped: drag.dropped,
+            action: drag.action,
+        })),
+        (None, Some(files)) => Some(crate::host::Dragged::Files(crate::host::FileDrop {
+            position: drag.pos,
+            files: files
+                .files
+                .into_iter()
+                .map(|file| crate::PickedFile {
+                    name: file.name,
+                    data: file.data,
+                })
+                .collect(),
+            dropped: drag.dropped,
+        })),
+        (None, None) => None,
     }
+}
 
-    fn artifact_settings(&self, data: Vec<u8>) -> impl Future<Output = ()> + 'static {
-        self.wire.call(self.instance, move |session| {
-            session.artifact_settings(data)
-        });
+impl GuestEditor for OpenEditor {
+    fn hear(&self, events: Vec<EditorEvent>) -> impl Future<Output = ()> + 'static {
+        for event in events {
+            self.hear_one(event);
+        }
         std::future::ready(())
     }
 
@@ -439,18 +412,6 @@ impl GuestEditor for OpenEditor {
             )
         });
         async move { replaced.await.unwrap_or(false) }
-    }
-
-    fn show_dialog(
-        &self,
-        block: [u8; 16],
-        dialog: ShellDialog,
-    ) -> impl Future<Output = ()> + 'static {
-        let block = uuid::Uuid::from_bytes(block);
-        self.wire.call(self.instance, move |session| {
-            session.show_dialog(block, dialog)
-        });
-        std::future::ready(())
     }
 
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {

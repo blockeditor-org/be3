@@ -356,7 +356,7 @@ pub fn set_grab(grab: bool) {
     with(|host| host.output.grab = Some(grab));
 }
 
-/// What an app instance copied (`shell.copy`): items without data are
+/// What an app instance copied (`shell-message.copy`): items without data are
 /// rendered by the instance on request (`render-clip` with `serial`).
 #[derive(Clone, Debug)]
 pub struct CopiedClip {

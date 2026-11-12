@@ -23,6 +23,9 @@ fn a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects() {
     phone.click("#file-tree.filter");
     phone.type_text("Packing");
     phone.wait("TreeItem \"Packing list\"");
+    // The search index's hit, which its own answer brings, once its block's name is known.
+    phone.wait("#file-tree.content-hits");
+    phone.wait("Button \"Packing list\"");
     phone.run(&["leave"]);
     phone.crop("#workspace.files");
     phone.snapshot("a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects");

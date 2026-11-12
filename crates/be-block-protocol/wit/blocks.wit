@@ -91,6 +91,28 @@ interface blocks {
         added: list<placed-reference>,
     }
 
+    /// A place in the order of an organization's changes: the changes after it
+    /// are those with a larger `changed`, or the same `changed` and a larger
+    /// `block` (ids compared as bytes).
+    record change-cursor {
+        changed: u64,
+        block: block-id,
+    }
+
+    /// A page of what changed in a tree after a cursor, oldest change first.
+    record changed-page {
+        /// Blocks in the tree now that the caller may view and that changed.
+        summaries: list<block-summary>,
+        /// Blocks that moved (or were deleted for good) since, and are not in
+        /// the tree now: ids only, for a reader to keep out of what it indexes.
+        removed: list<block-id>,
+        /// Where the next page starts, when this one was full.
+        next: option<change-cursor>,
+        /// The organization's change sequence when this page was made: the
+        /// cursor of everything up to now, once the pages end.
+        sequence: u64,
+    }
+
     record history-entry {
         commit: commit-id,
         parents: list<commit-id>,
@@ -159,7 +181,7 @@ interface blocks {
     variant block-event {
         /// Another connection published a new head.
         moved(head-moved),
-        /// The block was deleted; the stream then ends.
+        /// The block was collected for good; the stream then ends.
         deleted,
     }
 
@@ -195,6 +217,12 @@ interface blocks {
         objects: list<list<u8>>,
     ) -> result<publish-outcome, error>;
 
+    /// What changed in the tree of `root`, a page at a time from the cursor
+    /// `after` (first `{ changed: watermark, block: ff..ff }`),
+    /// at most `limit` blocks of each kind (plans/search.md). Needs View on
+    /// `root`.
+    changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
+
     /// One block's summary, which lists it as `listing.block` would.
     read-block: async func(block: block-id) -> result<block-summary, error>;
 
@@ -219,8 +247,6 @@ interface blocks {
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
 
-    delete-block: async func(block: block-id) -> result<_, error>;
-
     /// Deletes the detached blocks nothing reaches any more.
     collect-detached: async func() -> result<collected, error>;
 
@@ -228,8 +254,8 @@ interface blocks {
 
     list-access: async func(block: block-id) -> result<access-list, error>;
 
-    /// Head moves of a block made by other connections, until it is deleted
-    /// or the stream dropped. Each stream is its own: two on one block both
+    /// Head moves of a block made by other connections, until it is collected,
+    /// the connection loses the right to view it, or the stream is dropped. Each stream is its own: two on one block both
     /// hear, and dropping one leaves the other.
     watch: func(block: block-id) -> stream<block-event>;
 }

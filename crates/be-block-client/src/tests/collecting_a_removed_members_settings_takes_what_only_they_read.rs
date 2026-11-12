@@ -36,7 +36,10 @@ async fn collecting_a_removed_members_settings_takes_what_only_they_read() {
         .unwrap();
 
     admin.remove_member(member.account()).await.unwrap();
-    admin.delete(settings).await.unwrap();
+    admin
+        .set_parent(settings, BlockParent::Detached)
+        .await
+        .unwrap();
     let collected = admin.collect_detached().await.unwrap();
     assert!(collected.contains(&settings));
     assert!(

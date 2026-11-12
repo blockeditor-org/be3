@@ -78,10 +78,10 @@ pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
     ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameReport,
     FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
-    LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, Picture,
-    PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement,
-    ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
-    SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
+    LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, OpeningKind,
+    Picture, PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect,
+    SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
@@ -154,7 +154,6 @@ mod docking;
 mod fetching;
 mod input;
 mod nesting;
-mod opening;
 pub mod requested;
 mod watch;
 pub use be_lib_ui_types::clipboard;

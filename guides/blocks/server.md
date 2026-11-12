@@ -290,7 +290,15 @@ counts and records nothing: `upload-urls` did before it signed.
   (`watch::Place`): a block id is the client's choice, so another organization
   can hold a block with the same one. Watching or joining needs `View`, and
   taking a session's lease needs `Edit` (a viewer's claim is refused, and the
-  replica host ignores the refusal).
+  replica host ignores the refusal). Losing `View` ends both (a grant removed,
+  the block trashed, or a move out of view): `evict_sessions` takes the
+  account's connections out of the sessions and unwatches the blocks, sending
+  `Push::Unwatched`; the client keeps the watch's holders and reopens its
+  stream when a `Changed` summary of the block with `View` arrives
+  (`Connection::resume`). Watching and joining check `View` a
+  second time once registered, so a view lost in between does not stay. Trashing
+  a block rotates no keys; a block collected for good tells its watchers
+  `deleted`.
 
 ### Where objects live
 
@@ -395,6 +403,31 @@ Every `BlockSummary` and `BlockRemoved` carries a `revision`
 (`ServerStore::with_graph`). Replies and announcements can arrive out of order
 (a reply overtakes announcements queued before it), and the revision is how a
 client puts them back in order.
+
+### Changes since
+
+`changes.rs` keeps a durable, organization-wide change sequence
+(`organizations.change_sequence`), which unlike the graph's `revision` survives
+a restart (every graph change runs under the store's one database mutex, so
+writes are ordered). Every write that changes what a block holds, where it lies
+or who may view it sets the block's `changed` to the next sequence in its own
+transaction (`touch`: create, publish, metadata and references, grants;
+`touch_moved`: a new parent, for the block and everything below it). A block
+that leaves a top-level block's tree (moved out, trashed, or deleted for good
+while in it) leaves a row in `block_departures` for that root, kept a day, so
+every tree a block has been in hears of its leaving, however often it moved on
+(a move within one tree writes none); a reader away for more than a day misses what left
+in between, moved out, trashed or deleted.
+`blocks.changed-since(root, after, limit)` asks about a top-level block's tree
+(View on `root`) and pages through `blocks_changed` and that tree's departures in
+one order, oldest first: the summaries of blocks in the tree now that changed, and
+the ids of blocks that left THAT tree and are not in it now (ids of blocks a
+reader may not view are named too: a reader of a tree is told that a block left
+it, except blocks only their author may read), a cursor, and the organization's current sequence, which counts the writes
+the organization has made. A page ends at `MAX_CHANGES_PER_PAGE` blocks of either
+kind or `MAX_SCANNED` rows looked at; a page that stops on another tree's change
+reads on to the end of that change's sequence and returns a cursor that names no
+block, so a cursor never carries a block id the caller may not know.
 
 ### Limits
 

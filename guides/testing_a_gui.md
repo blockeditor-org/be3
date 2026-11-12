@@ -69,6 +69,11 @@ else the app sent (the `take_*` methods). Give it host-side state (view, chrome,
 its own calls (`set_view`, `set_chrome`, `drag_block`): setting it on the `EditorHost` directly
 skips the protocol, and the session overwrites it on the next frame.
 
+`BeuiTest` has no hosted or floated window for an editor's main view (`module.window(view.id)` is
+none), so `ModuleProgram::update`'s fit-window path (`fit_window_to`, and the repaint when the fit
+changed during the frame) cannot be unit tested there. Cover it with a host test that opens the
+window, and with `stress`.
+
 ### Gestures
 
 - A gesture only queues events: nothing it causes shows in `shown()`, `label()` or the model
@@ -270,9 +275,10 @@ runs be-server in the test's process on a directory of its own, and hosts join i
   the first, as a person adding a device does.
 - Each device reaches the server through a relay of its own (be-block-fault-relay), which is its
   network: `offline` cuts its connections, refuses new ones and returns once the device says it
-  is not connected (`drive unsynced`); `online` gives it back and sends
+  is not connected (`drive offline`); `online` gives it back and sends
   `drive network`, so the device reconnects at once instead of when its wait for the next try runs
-  out. `Server::offline` does it for every device. Object bytes go to the server's own address,
+  out. `Server::offline` cuts every device's relay at once, without waiting for any of them to
+  notice. Object bytes go to the server's own address,
   not through the relay, but a device asks for their URLs over its connection, so an offline one
   moves none.
 - `restart` closes the host, failing unless it exits cleanly, and starts it on the same data. A
@@ -281,11 +287,6 @@ runs be-server in the test's process on a directory of its own, and hosts join i
   sent, and everything it missed asked for. What another device changes arrives by push after
   that, so wait for it to show. Never pause for sync.
 - Each device is a host: keep a test to two unless it needs more.
-- A lead for a flake there: before the block store counted unjournaled edits as busy, a device
-  paired with its clock stopped once kept its Files on `#editor.loading` until a `pause` moved
-  the frame clock (reads that ran frames did not help), which suggests a frame-clock timer in the
-  file tree's loading path racing the listing. It has not come back since; no root cause was
-  found.
 
 Debugging:
 
