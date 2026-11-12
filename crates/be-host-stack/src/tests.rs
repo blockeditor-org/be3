@@ -1320,7 +1320,7 @@ impl Member {
 
     fn may_view(&self, block: Uuid) {
         set_access(block, self.account(), be_block_graph::Access::View);
-        flush();
+        flush_and_send();
         assert_eq!(status().error, None);
     }
 
