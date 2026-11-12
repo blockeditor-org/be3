@@ -1,4 +1,4 @@
-use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
+use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
@@ -6,10 +6,10 @@ use be_sdk_api::shell_types::{
     BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
 };
 use be_sdk_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
-    HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
-    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
-    ViewId, ViewportMetrics,
+    BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
+    InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock, OpenCreation,
+    ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewId,
+    ViewportMetrics,
 };
 use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::{
@@ -737,12 +737,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
+    /// The host asks for the details of `child`, from the child's bar.
+    pub fn child_details(&mut self, child: ChildId) {
         self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::ChildBar(ChildBarPress { child, action })],
-            );
+            editor.hear(connection, vec![EditorEvent::ChildDetails(child)]);
         });
     }
 
@@ -1894,11 +1892,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn take_bar_actions(&mut self) -> Vec<BarAction> {
+    /// How many times the editor asked to show its details.
+    pub fn take_details(&mut self) -> usize {
         self.take_shell_messages(|call| match call {
-            ShellMessage::BarAction(action) => Some(*action),
+            ShellMessage::Details => Some(()),
             _ => None,
         })
+        .len()
     }
 
     pub fn has_requests(&self) -> bool {

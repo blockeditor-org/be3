@@ -1,5 +1,5 @@
 use be_lib_stable_hash::{HashMap, HashSet};
-use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
+use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::{
     AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
@@ -165,7 +165,7 @@ struct Instance {
     reported_view: Option<EditorView>,
     views: Sent<EditorView>,
     view_changes: Vec<ViewChange>,
-    bar_actions: Vec<be_sdk_api::BarAction>,
+    details: bool,
     menus: BTreeMap<ViewId, Vec<be_sdk_api::MenuEntry>>,
     child_menu_picks: Vec<(ChildId, String, Option<Rect>)>,
     presenting: bool,
@@ -329,7 +329,7 @@ impl Instance {
             reported_view: None,
             views: Sent::default(),
             view_changes: Vec::new(),
-            bar_actions: Vec::new(),
+            details: false,
             menus: BTreeMap::new(),
             child_menu_picks: Vec::new(),
             presenting: false,
@@ -1836,14 +1836,10 @@ impl Instances {
         )]
     }
 
-    pub(super) fn take_bar_actions(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<be_sdk_api::BarAction> {
+    pub(super) fn take_details(&mut self, instance: EditorInstanceId) -> bool {
         self.entries
             .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.bar_actions))
-            .unwrap_or_default()
+            .is_some_and(|entry| std::mem::take(&mut entry.details))
     }
 
     pub(super) fn menu(&self, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
@@ -3413,22 +3409,6 @@ impl Instances {
         vec![Outbound::Event(instance, EditorEvent::Presence(visible))]
     }
 
-    pub(super) fn child_bar_actions(
-        &mut self,
-        instance: EditorInstanceId,
-        actions: Vec<(ChildId, be_sdk_api::BarAction)>,
-    ) -> Vec<Outbound> {
-        actions
-            .into_iter()
-            .map(|(child, action)| {
-                Outbound::Event(
-                    instance,
-                    EditorEvent::ChildBar(ChildBarPress { child, action }),
-                )
-            })
-            .collect()
-    }
-
     /// Asks the instance to render representation `format` of its copy
     /// `serial`; `take_rendered` with the request answers.
     pub(super) fn render_clip(
@@ -3734,9 +3714,9 @@ impl Instances {
             return false;
         };
         match message {
-            ShellMessage::BarAction(action) => {
-                if !super::docks::bar(instance, action) {
-                    entry.bar_actions.push(action);
+            ShellMessage::Details => {
+                if !super::docks::details(instance) {
+                    entry.details = true;
                 }
             }
             ShellMessage::Menu(MenuSet { view, items }) => match MenuEntry::nest(items.clone()) {

@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use be_lib_geometry::Vec2;
 use be_sdk_api::{
-    BarAction, BlockPick, ChildId, ChildPreview, CreationProgress, DialogStatus,
-    EditorCapabilities, InteractionMode, MenuAsk, MenuEntry, Picture, ResizeMode,
+    BlockPick, ChildId, ChildPreview, CreationProgress, DialogStatus, EditorCapabilities,
+    InteractionMode, MenuAsk, MenuEntry, Picture, ResizeMode,
 };
 
 use crate::EditorHost;
@@ -81,7 +81,7 @@ struct Slot {
     child: Cell<Option<ChildId>>,
     state: RefCell<ChildState>,
     on_state: Box<dyn Fn(&ChildState)>,
-    on_bar: Box<dyn Fn(BarAction)>,
+    on_details: Box<dyn Fn()>,
     on_focus: Box<dyn Fn()>,
 }
 
@@ -98,7 +98,7 @@ impl Children {
     pub(super) fn add(
         &self,
         on_state: impl Fn(&ChildState) + 'static,
-        on_bar: impl Fn(BarAction) + 'static,
+        on_details: impl Fn() + 'static,
         on_focus: impl Fn() + 'static,
     ) -> PlacedChild {
         let key = self.next.get();
@@ -107,7 +107,7 @@ impl Children {
             child: Cell::new(None),
             state: RefCell::default(),
             on_state: Box::new(on_state),
-            on_bar: Box::new(on_bar),
+            on_details: Box::new(on_details),
             on_focus: Box::new(on_focus),
         });
         self.slots.borrow_mut().push((key, Rc::clone(&slot)));
@@ -132,8 +132,8 @@ impl Children {
             .collect();
         for slot in slots {
             if let Some(child) = slot.child.get() {
-                for action in host.take_child_bar_actions(child) {
-                    (slot.on_bar)(action);
+                if host.take_child_details(child) {
+                    (slot.on_details)();
                 }
                 if host.take_child_focus(child) {
                     (slot.on_focus)();
