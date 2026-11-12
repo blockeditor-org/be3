@@ -39,7 +39,7 @@ enum Backing {
     Hosted {
         hosted: Memo<Option<DockHosted>>,
         request: Callback<DockRequest>,
-        claimed: StoredCell<bool>,
+        claimed: Stored<Cell<bool>>,
     },
 }
 
@@ -61,7 +61,7 @@ impl DockTabControl {
             backing: Backing::Hosted {
                 hosted,
                 request,
-                claimed: StoredCell::new(false),
+                claimed: store(Cell::new(false)),
             },
         }
     }
@@ -75,11 +75,11 @@ impl DockTabControl {
         let Backing::Hosted { claimed, .. } = self.backing else {
             return false;
         };
-        if claimed.replace(true) {
+        if claimed.with(|claimed| claimed.replace(true)) {
             return false;
         }
         on_cleanup(move || {
-            claimed.set(false);
+            claimed.try_with(|claimed| claimed.set(false));
         });
         true
     }

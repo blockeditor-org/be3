@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use beui_macros::component;
 use beui_reactive::{
-    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Stored, StoredCell, create_binding,
+    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Stored, create_binding,
     create_signal, store,
 };
 
@@ -62,12 +62,12 @@ fn show<C: SlotChild>(condition: Prop<bool>, then: RenderFn<(), Children<C>>, sl
 
 fn keep<C: SlotChild>(condition: Prop<bool>, then: RenderFn<(), Children<C>>, slot: ChildSlot<C>) {
     let held = store(RefCell::new(None::<(std::rc::Rc<NestedHost<C>>, Scope)>));
-    let built = StoredCell::new(false);
+    let built = store(std::cell::Cell::new(false));
     create_binding(move || {
         let visible = condition.get();
         let held = held.value();
         let mut held = held.borrow_mut();
-        if visible && held.is_none() && !built.replace(true) {
+        if visible && held.is_none() && !built.value().replace(true) {
             let scope = Scope::detached().pausable();
             let host = scope.context().run(|| then.call(()).mount_in(slot.clone()));
             *held = Some((host, scope));
@@ -102,9 +102,9 @@ where
         });
         let content = store((host, scope));
         let shown = store(RefCell::new(None::<(Pending, C::Stored, Scope)>));
-        let revealed = StoredCell::new(false);
+        let revealed = store(std::cell::Cell::new(false));
         create_binding(move || {
-            if revealed.get() {
+            if revealed.value().get() {
                 return;
             }
             let state = boundary.state().and_then(|()| {
@@ -115,7 +115,7 @@ where
             let mut shown = shown.borrow_mut();
             match state {
                 Ok(()) => {
-                    revealed.set(true);
+                    revealed.value().set(true);
                     boundary.reveal();
                     drop(shown.take());
                     let content = content.value();

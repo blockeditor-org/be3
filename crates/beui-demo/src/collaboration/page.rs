@@ -119,7 +119,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
     let same = create_signal(true);
     let seen = create_signal([None::<Caret>, None]);
     let published = Cell::new([None::<Caret>, None]);
-    let timer = StoredCell::new(None::<Timer>);
+    let timer = store(Cell::new(None::<Timer>));
 
     let pump = Callback::new(move |force: Option<(Side, Amount)>| {
         let now = now();

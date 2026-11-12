@@ -1059,7 +1059,7 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
-    let counted = StoredCell::new(false);
+    let counted = store(Cell::new(false));
     let count = move || {
         if counted.with(Cell::get) {
             return;

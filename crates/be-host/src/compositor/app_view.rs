@@ -338,7 +338,7 @@ pub(crate) fn AppView(
     let corner_radius = use_context::<Rounded>().map(|Rounded(radius)| radius);
     provide_context(Rounded(create_memo(|| 0.0)));
     let revision = super::listen(&app_id.value());
-    let placed = StoredCell::new(None::<EmbedPlacement>);
+    let placed = store(Cell::new(None::<EmbedPlacement>));
     let window = super::anchored::host_window();
     let parent_bounds = use_context::<super::anchored::AnchorBounds>();
     let viewport = use_viewport_size();

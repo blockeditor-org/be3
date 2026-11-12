@@ -52,8 +52,8 @@ impl Walking {
 pub(crate) fn Scene3DView() -> NodeId {
     let scene = Scene::default();
     let camera = create_signal(Camera::default());
-    let walking = StoredCell::new(Walking::default());
-    let clock = StoredCell::new(now());
+    let walking = store(Cell::new(Walking::default()));
+    let clock = store(Cell::new(now()));
     let drawing = create_memo(move || Some(scene.drawing(camera.get())));
     let looking = create_signal(false);
     let idle = create_memo(move || !looking.get());
