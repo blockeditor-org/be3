@@ -324,6 +324,11 @@ struct JournalHead {
     tag: Hash,
     generation: u64,
     base: JournalBase,
+    /// A seal this device made of the journal, with the last sequence it holds, written with
+    /// the seal's commit in one write and dropped by the next rebase: while it stands, the
+    /// seal's commit holds the journal through that sequence (`Peer::sealing`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sealing: Option<(CommitId, u64)>,
 }
 
 #[derive(Clone, Debug)]
@@ -425,6 +430,7 @@ impl State {
                                 sequence: 0,
                                 state: Vec::new(),
                             },
+                            sealing: None,
                         },
                         entries: BTreeMap::new(),
                     })
@@ -842,22 +848,41 @@ impl Refs {
         Ok(sequences)
     }
 
-    pub fn push_publish(&self, pending: Pending) -> Result<u64, StoreError> {
+    /// Keeps a sealed commit in the outbox. With `sealing`, the last sequence of the block's
+    /// journal the commit holds, the journal notes the seal in the same write.
+    pub fn push_publish(&self, pending: Pending, sealing: Option<u64>) -> Result<u64, StoreError> {
         let (block, head) = (pending.block, pending.commit);
         let op = Op::Publish(pending);
         let (sequence, rows) = {
             let mut state = self.state.lock().unwrap();
             let sequence = state.take();
-            let rows = vec![
+            let mut rows = vec![
                 row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op),
                 row(Table::Head, block.as_bytes().to_vec(), &head),
             ];
+            if let Some(through) = sealing
+                && let Some(journal) = state.journals.get_mut(&block)
+            {
+                journal.head.sealing = Some((head, through));
+                rows.push(row(
+                    Table::JournalBase,
+                    block.as_bytes().to_vec(),
+                    &journal.head,
+                ));
+            }
             state.outbox.insert(sequence, op);
             state.heads.insert(block, head);
             (sequence, rows)
         };
         self.write(rows)?;
         Ok(sequence)
+    }
+
+    /// The seal this device made of the block's journal since its last rebase, and the last
+    /// sequence it holds (`JournalHead::sealing`).
+    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
+        let state = self.state.lock().unwrap();
+        state.journals.get(&block)?.head.sealing
     }
 
     /// The block's journal on this device, sealed.
@@ -893,6 +918,7 @@ impl Refs {
                         sequence: 0,
                         state: Vec::new(),
                     },
+                    sealing: None,
                 },
                 entries: BTreeMap::new(),
             });
@@ -932,21 +958,25 @@ impl Refs {
         self.write(rows)
     }
 
-    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does.
+    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does,
+    /// and keeps `entries` past it (sealed) in the same write.
     pub fn rebase_journal(
         &self,
         block: Uuid,
         tag: Hash,
         generation: u64,
         base: JournalBase,
+        entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
+            // A rebase starts the journal over from a commit: no seal of the old one stands.
             let head = JournalHead {
                 tag,
                 generation,
                 base,
+                sealing: None,
             };
             if let Some(journal) = state.journals.get(&block) {
                 for sequence in journal.entries.keys() {
@@ -958,11 +988,23 @@ impl Refs {
                 }
             }
             rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &head));
+            let mut kept = BTreeMap::new();
+            for entry in entries {
+                if entry.sequence <= head.base.sequence {
+                    continue;
+                }
+                rows.push(row(
+                    Table::JournalEntry,
+                    journal_entry_key(block, entry.sequence),
+                    &entry,
+                ));
+                kept.insert(entry.sequence, entry);
+            }
             state.journals.insert(
                 block,
                 Journaled {
                     head,
-                    entries: BTreeMap::new(),
+                    entries: kept,
                 },
             );
         }

@@ -52,7 +52,7 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
     counted(watched, 5);
 
     assert!(instances.remove(INSTANCE));
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     be_host_stack::open(watched, CounterContent::CONTENT_TYPE);
     counted(watched, 2);
 }

@@ -45,6 +45,12 @@ pub const PING_INTERVAL: Duration = Duration::from_secs(15);
 /// unanswered ping closes it, so a process suspended for longer keeps a live connection when it
 /// wakes.
 pub const PONG_WAIT: Duration = Duration::from_secs(20);
+/// Silence after something was sent that the connection takes as a sign the server may be gone:
+/// it pings then rather than at `PING_INTERVAL`, so a link that went silent under a request is
+/// noticed in `ANSWER_WAIT` plus `PONG_WAIT`. The ping waits as long as any, so a server that
+/// is slow but answers is not taken for gone. A message that has no answer (a relay, an
+/// append) on an otherwise quiet link costs one extra ping this long after it.
+pub const ANSWER_WAIT: Duration = Duration::from_secs(5);
 
 pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;
 
@@ -658,11 +664,15 @@ async fn carry(
     let mut heard = opened;
     let mut owed = false;
     let mut pinged: Option<Duration> = None;
+    // When something other than a ping was written with nothing heard since.
+    let mut asked: Option<Duration> = None;
+    let mut sending_message = false;
     let mut reading_first = false;
     let mut shut = Some(shut);
     loop {
         let now = clock.now();
-        if !owed && pinged.is_none() && now >= heard + PING_INTERVAL {
+        let early = asked.is_some_and(|at| now >= at + ANSWER_WAIT);
+        if !owed && pinged.is_none() && (now >= heard + PING_INTERVAL || early) {
             ping = Some(client::connection::ping(&peer));
             owed = true;
         }
@@ -673,6 +683,7 @@ async fn carry(
             && let Some((out, is_ping)) = queued.pop_front()
             && let Some(idle) = writer.take()
         {
+            sending_message = matches!(out, Out::Message(_)) && !is_ping;
             sending = Some((write(idle, out, is_ping), now));
         }
         let stuck = sending
@@ -683,7 +694,10 @@ async fn carry(
                 stuck.map_or(sent + PONG_WAIT, |stuck| stuck.min(sent + PONG_WAIT))
             }
             (None, Some(stuck)) if owed => stuck,
-            (None, _) => heard + PING_INTERVAL,
+            (None, _) => match (owed, asked) {
+                (false, Some(at)) => (heard + PING_INTERVAL).min(at + ANSWER_WAIT),
+                _ => heard + PING_INTERVAL,
+            },
         };
         due.send_if_modified(|due| std::mem::replace(due, next) != next);
         let woke = {
@@ -729,6 +743,8 @@ async fn carry(
                 if is_ping {
                     owed = false;
                     pinged = Some(clock.now());
+                } else if sending_message && asked.is_none() {
+                    asked = Some(clock.now());
                 }
             }
             Woke::Timer => {
@@ -744,6 +760,7 @@ async fn carry(
             Woke::Frame(frame) => {
                 heard = clock.now();
                 pinged = None;
+                asked = None;
                 match frame {
                     Some(Frame::Binary(bytes)) => {
                         if peer.receive(&bytes).is_err() {

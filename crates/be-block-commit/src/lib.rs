@@ -7,7 +7,7 @@ pub mod retention;
 #[cfg(feature = "store")]
 mod store;
 
-pub use commit::{ChangeId, Commit, CommitId, CommitKind};
+pub use commit::{ChangeId, Commit, CommitId, CommitKind, SealedThrough};
 pub use merge::{
     Conflict, Merge, MergeOutcome, MergeResult, merge_lines, merge_slices, render_conflicts,
 };

@@ -81,14 +81,14 @@ fn a_paste_names_where_a_cut_reference_was_cut_from_once() {
             replace: false,
         },
     );
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     to_replica(
         &mut instances,
         holder,
         &be_sdk_type_guest::editor::FromEditor::Resend,
     );
     instances.next_screens(PASS);
-    be_host_stack::flush();
+    be_host_stack::flush_and_send();
     be_host_stack::wait_until(|shared| {
         let node = shared.graph.get(holder)?;
         (node.references == [linked]).then_some(())

@@ -285,6 +285,24 @@ pub fn stop() {
     drop(stack);
 }
 
+/// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
+/// hold, so only what the device had already written survives.
+#[cfg(any(test, feature = "testing"))]
+pub fn crash() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+    {
+        stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .crashed = true;
+    }
+    stop();
+}
+
 pub fn stop_and_wait() {
     stop();
     platform::wait_for_stopped();
@@ -760,7 +778,7 @@ pub fn status() -> Status {
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
         conflicted: shared.conflicts.keys().copied().collect(),
-        error: shared.error.clone(),
+        error: shared.error.clone().or_else(|| shared.sync_error.clone()),
         waiting: shared.unsealed + shared.waiting,
         syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
         unsent: shared.unsent.len(),
@@ -823,7 +841,7 @@ fn send(command: Command) {
     }
 }
 
-pub fn busy() -> Vec<&'static str> {
+pub fn busy() -> Vec<String> {
     with_shared(Shared::busy).unwrap_or_default()
 }
 
@@ -916,6 +934,17 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
             deadline = (now + WAIT_LIMIT).min(started + WAIT_CAP);
         }
     }
+}
+
+/// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
+/// keeps it, and the outbox sends it after. For a test that reads the server next.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
+pub fn flush_and_send() {
+    flush();
+    // A flush that kept anything has already set `draining`, and its command `recounting`, so
+    // `unsynced` is not empty before the outbox has been read again.
+    wait_until(|shared| shared.unsynced().is_empty().then_some(()));
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]

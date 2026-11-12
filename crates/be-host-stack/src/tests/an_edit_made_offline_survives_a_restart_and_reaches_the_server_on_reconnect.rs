@@ -35,7 +35,7 @@ fn an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect()
     wait_until("reconnected and sent what waited", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
     });
-    flush();
+    flush_and_send();
 
     let saved = runtime().block_on(async {
         harness

@@ -41,7 +41,7 @@ fn a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it() {
     wait_until("typed", |shared| {
         text_of(shared, block).as_deref() == Some("an index\n")
     });
-    flush();
+    flush_and_send();
     let part = put(&mut editor, 1, &segment).expect("the part is put");
     let read = runtime().block_on(async {
         harness

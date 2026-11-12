@@ -23,7 +23,7 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
 
     type_text(versioned.note, 5, " there");
     type_text(note, 5, " world");
-    flush();
+    flush_and_send();
     version(
         versioned.checkout,
         VersionCommand::Finish {
