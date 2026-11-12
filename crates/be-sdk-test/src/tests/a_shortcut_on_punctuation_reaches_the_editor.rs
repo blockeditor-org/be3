@@ -10,9 +10,11 @@ impl BeuiRoot for ShortcutRoot {
     #[component]
     fn View(_editor: Editor) -> Root {
         let pressed = create_signal(String::new());
-        Action::new("test.slash", "Slash", move || pressed.set("Slash".to_owned()))
-            .shortcut(Chord::ctrl(Key::Slash))
-            .register();
+        Action::new("test.slash", "Slash", move || {
+            pressed.set("Slash".to_owned())
+        })
+        .shortcut(Chord::ctrl(Key::Slash))
+        .register();
         let text = create_memo(move || pressed.get());
         view! {
             <Root>

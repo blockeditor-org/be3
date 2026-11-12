@@ -161,7 +161,12 @@ fn register_keys(session: Session) {
     key("flip-vertical", "Flip vertically", Key::V, edits);
     key("scale-down", "Scale down", Key::BracketLeft, always);
     key("scale-up", "Scale up", Key::BracketRight, always);
-    key("folder-up", "Up to the parent folder", Key::Backtick, always);
+    key(
+        "folder-up",
+        "Up to the parent folder",
+        Key::Backtick,
+        always,
+    );
     for (index, hotkey) in HOTBAR_KEYS.into_iter().enumerate() {
         key(
             &format!("hotbar.{}", index + 1),
