@@ -11,8 +11,8 @@ guide is for what that does not cover.
   joins), on the account's My files workspace. `:dev` passes it.
 - `--dev-workspace=URL`: the same on the server at URL: the first account saved for it, or else
   a sign-in with the token in `BE_DEV_TOKEN`, or through the browser without one. A device whose
-  account already has a phrase waits on the unlock screen. Like `--dev-workspace`, it saves the
-  first device's recovery phrase without asking, on a real server too. `main` takes the token
+  account already has a phrase waits on the unlock screen. As without a URL, it saves the first
+  device's recovery phrase without asking, on a real server too. `main` takes the token
   out of the environment, so the programs be-host starts do not inherit it. crates/be-host-tests'
   devices start this way (guides/testing_a_gui.md, 6).
 - `--desktop` (every native platform): the desktop shell in a window; with `BEUI_PLATFORM=drm`

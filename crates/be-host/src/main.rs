@@ -499,7 +499,11 @@ impl beui::native::Program for Shell {
     }
 
     fn out_of_step(&self) -> Option<Vec<String>> {
-        Some(self.core.unsynced())
+        Some(self.core.out_of_step())
+    }
+
+    fn connected(&self) -> Option<bool> {
+        Some(be_host_stack::status().connected)
     }
 
     fn environment(&self) -> Vec<(String, String)> {
@@ -1174,7 +1178,7 @@ impl HostCore {
     }
 
     /// Why the open workspace is not in step with its server (drive's `synced`).
-    fn unsynced(&self) -> Vec<String> {
+    fn out_of_step(&self) -> Vec<String> {
         if let Some(error) = &self.error {
             return vec![format!("the host shows an error: {error:?}")];
         }

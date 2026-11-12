@@ -20,6 +20,10 @@ impl Program for Behind {
         }
     }
 
+    fn connected(&self) -> Option<bool> {
+        Some(self.online)
+    }
+
     fn out_of_step(&self) -> Option<Vec<String>> {
         Some(match (self.online, self.frames) {
             (false, _) => vec!["offline".to_owned()],
@@ -42,10 +46,9 @@ fn synced_waits_until_the_program_is_in_step_with_its_server() {
         online: false,
         frames: 3,
     });
-    let reasons = driven
-        .ask(&["unsynced", "offline"])
-        .expect("unsynced answers with the reason it waited for");
-    assert_eq!(reasons, "offline\n");
+    driven
+        .ask(&["offline"])
+        .expect("offline answers while the program is not connected");
     driven.ask(&["network"]).expect("the network comes back");
     driven
         .ask(&["synced"])
@@ -58,7 +61,7 @@ fn synced_waits_until_the_program_is_in_step_with_its_server() {
 
     let mut serverless = headless(Serverless);
     assert!(
-        serverless.ask(&["synced"]).is_err(),
-        "a program with no server cannot be in step with one"
+        serverless.ask(&["synced"]).is_err() && serverless.ask(&["offline"]).is_err(),
+        "a program with no server cannot be in step with one, or offline"
     );
 }

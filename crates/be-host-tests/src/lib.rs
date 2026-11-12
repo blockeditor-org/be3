@@ -105,11 +105,11 @@ impl HostTest {
 
     /// Takes this device's network to the server away: its connections drop and it cannot
     /// connect, as a laptop that lost its Wi-Fi. It returns once the device knows
-    /// (`drive unsynced`). What it does meanwhile waits in its outbox.
+    /// (`drive offline`). What it does meanwhile waits in its outbox.
     pub fn offline(&mut self) {
         self.steps.push("# offline".to_owned());
         self.joined("offline").relay.offline(true);
-        self.run(&["unsynced", "not connected"]);
+        self.run(&["offline"]);
     }
 
     /// Gives this device its network back and tells it so (`drive network`), as the system tells
