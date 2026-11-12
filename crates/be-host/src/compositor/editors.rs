@@ -10,8 +10,8 @@ use be_sdk_api::{
     EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
     View, ViewId,
 };
-use beui::native::with_document;
 use beui::KeyPhase;
+use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2};

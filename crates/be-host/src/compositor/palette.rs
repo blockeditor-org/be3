@@ -6,9 +6,9 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use be_sdk_api::{EditorInstanceId, PaletteMode, ViewId};
+use beui::KeyPhase;
 use beui::icons::ICON_FILE;
 use beui::native::try_with_document;
-use beui::KeyPhase;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Key, KeyEvent, KeyInput, NodeId};
