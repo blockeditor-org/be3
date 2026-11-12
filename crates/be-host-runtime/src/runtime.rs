@@ -8,10 +8,11 @@ use std::{
 };
 
 use be_sdk_api::{
-    AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage, EditorInstanceId,
-    FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PresentedFrame,
-    PreviewImage, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
-    ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange, ViewId, ViewSize, WindowRequest,
+    AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
+    EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
+    PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
+    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange,
+    ViewId, ViewSize, WindowRequest,
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
@@ -1255,10 +1256,7 @@ impl Runtime {
             children: coming,
             docks: Vec::new(),
         };
-        let waiting = self
-            .held
-            .iter()
-            .any(|held| matches!(held, Answer::Laid(_)));
+        let waiting = self.held.iter().any(|held| matches!(held, Answer::Laid(_)));
         if waiting || !later.is_empty() {
             later.docks = std::mem::take(&mut commit.docks);
         }
