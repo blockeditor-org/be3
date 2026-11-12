@@ -173,13 +173,36 @@ impl DockState {
     pub fn add_bar(&mut self, bar: TabId, owner: Option<TabId>, placement: DockBarPlacement) {
         match self.bars.iter_mut().find(|held| held.bar == bar) {
             Some(held) => held.owner = owner,
-            None => self.bars.push(Bar {
-                bar,
-                owner,
-                placement,
-                hidden: false,
-                pane: None,
-            }),
+            None => {
+                let added = Bar {
+                    bar,
+                    owner,
+                    placement,
+                    hidden: false,
+                    pane: None,
+                };
+                let at = self.layer_place(&added);
+                self.bars.insert(at, added);
+            }
+        }
+    }
+
+    /// Where a bar new to a pane goes among the pane's bars: after the last of its own layer or a
+    /// layer outside it, else before the layers inside it, so outer layers sit nearer the edge
+    /// until someone drops a bar among another layer's.
+    fn layer_place(&self, added: &Bar) -> usize {
+        let Some((tab, depth)) = self.bar_pane(added) else {
+            return self.bars.len();
+        };
+        let on_pane = |at: &usize| {
+            self.bar_pane(&self.bars[*at])
+                .is_some_and(|(shown, _)| shown == tab)
+        };
+        let depth_of = |at: usize| self.bar_pane(&self.bars[at]).map_or(0, |(_, held)| held);
+        let mut held = (0..self.bars.len()).filter(on_pane);
+        match (0..self.bars.len()).filter(on_pane).rfind(|at| depth_of(*at) >= depth) {
+            Some(last) => last + 1,
+            None => held.next().unwrap_or(self.bars.len()),
         }
     }
 
@@ -277,17 +300,14 @@ impl DockState {
         }
     }
 
+    /// The bars a pane shows, in order from its edges: bars of every layer joined there, outer
+    /// layers first unless a bar was dropped among another layer's.
     pub fn pane_bars(&self, tab: TabId) -> Vec<TabId> {
-        let mut found: Vec<(usize, TabId)> = self
-            .bars
+        self.bars
             .iter()
-            .filter_map(|held| {
-                let (shown, depth) = self.bar_pane(held)?;
-                (shown == tab).then_some((depth, held.bar))
-            })
-            .collect();
-        found.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
-        found.into_iter().map(|(_, bar)| bar).collect()
+            .filter(|held| self.bar_pane(held).is_some_and(|(shown, _)| shown == tab))
+            .map(|held| held.bar)
+            .collect()
     }
 
     pub fn bars_with(&self, bar: TabId) -> Vec<TabId> {
@@ -312,7 +332,7 @@ impl DockState {
             .iter()
             .enumerate()
             .filter(|(_, held)| {
-                held.owner == moved.owner
+                held.owner.is_some() == moved.owner.is_some()
                     && held.placement.same_place(placement)
                     && pane(held) == tab
             })
@@ -336,7 +356,7 @@ impl DockState {
             .iter()
             .take_while(|other| other.bar != bar)
             .filter(|other| {
-                other.owner == held.owner
+                other.owner.is_some() == held.owner.is_some()
                     && other.placement.same_place(held.placement)
                     && pane(other) == tab
             })

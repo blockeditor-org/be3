@@ -478,18 +478,8 @@ impl State {
         let at = along_of(edge, pos);
         self.stacked_on(bar, pane, placement)
             .iter()
-            .filter(|(other, rect)| {
-                self.same_layer(bar, *other)
-                    && (along_start(edge, *rect) + along_end(edge, *rect)) / 2.0 < at
-            })
+            .filter(|(_, rect)| (along_start(edge, *rect) + along_end(edge, *rect)) / 2.0 < at)
             .count()
-    }
-
-    /// Whether two bars belong to one layer: a drop slots a bar only among its own owner's bars,
-    /// as `DockState::place_bar_at` counts them.
-    fn same_layer(&self, bar: TabId, other: TabId) -> bool {
-        self.state
-            .with_untracked(|state| state.bar_owner(bar) == state.bar_owner(other))
     }
 
     pub(super) fn resolve_bar(
@@ -531,9 +521,7 @@ impl State {
             }
             let slot = stacked
                 .iter()
-                .filter(|(other, rect)| {
-                    self.same_layer(bar, *other) && centre_reach(pane, *rect, edge) < distance
-                })
+                .filter(|(_, rect)| centre_reach(pane, *rect, edge) < distance)
                 .count();
             return Some(BarPlace {
                 placement,
@@ -940,11 +928,7 @@ impl State {
         align: DockAlign,
     ) -> BarPlace {
         let placement = DockBarPlacement::Over(edge, align);
-        let slot = self
-            .stacked_on(bar, pane, placement)
-            .iter()
-            .filter(|(other, _)| self.same_layer(bar, *other))
-            .count();
+        let slot = self.stacked_on(bar, pane, placement).len();
         BarPlace {
             placement,
             slot,
@@ -1080,7 +1064,7 @@ pub(super) struct Lift {
     carried: bool,
 }
 
-/// Where a carried bar would land: its placement, its slot among its own layer's bars there, and
+/// Where a carried bar would land: its placement, its slot among the bars there, and
 /// for a bar that may show on several panes (`DockState::bar_panes`), the tab whose pane it is.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(super) struct BarPlace {

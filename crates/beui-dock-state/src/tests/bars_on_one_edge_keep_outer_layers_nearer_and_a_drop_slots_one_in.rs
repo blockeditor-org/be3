@@ -76,8 +76,8 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
     state.place_bar_at(TabId::new(31), TOP, 0);
     assert_eq!(
         state.pane_bars(TabId::new(10)),
-        tabs(&[21, 20, 31, 30]),
-        "a hosted bar dropped first goes first among its own layer's bars"
+        tabs(&[31, 21, 20, 30]),
+        "a hosted bar dropped first goes first, before the outer layer's bars"
     );
     state.place_bar_at(
         TabId::new(20),
@@ -102,8 +102,18 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         .collect();
     assert_eq!(
         bottom,
-        tabs(&[20, 30]),
-        "on another edge the outer layer's bar still comes first"
+        tabs(&[30, 20]),
+        "on another edge too, a bar lands where it was dropped, whatever its layer"
+    );
+    state.add_bar(
+        TabId::new(22),
+        Some(TabId::new(2)),
+        DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
+    );
+    assert_eq!(
+        state.pane_bars(TabId::new(10)),
+        tabs(&[31, 21, 30, 20, 22]),
+        "a bar new to the pane goes after the last of its own or an outer layer"
     );
     state.show(TabId::new(11));
     assert_eq!(
