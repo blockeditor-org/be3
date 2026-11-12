@@ -115,6 +115,13 @@ own journal (`opening.journal-kept`) adds the edits it replays; a carried edit
 is settled by its journal sequence when the journal holds it (by its bytes only
 if it has any), so a journal the owner folded still settles it.
 
+A type can announce what an edit tells the block's other members once the server holds it:
+`LiveEdit::announcements` (chat: each message's body, mentioning the author it replies to).
+The replica calls the host (`host.notify`, which the host forwards as `Peer::notify`; dropped when
+the server cannot be reached) once per edit when that edit stops being lacking, whichever editors
+are open, and so only for edits it recorded: a message sent with no editor following is not
+announced, and one lost with a restarted module is not either.
+
 What is not kept:
 - A host or type module that restarts loses its list of edits. The host opens
   the new replica with `commits-kept`, which settles nothing it does not list:

@@ -1818,6 +1818,12 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    /// What the editor's replica announced to the block's other members once the server held an
+    /// edit (`LiveEdit::announcements`): the block, the text and the accounts it mentions.
+    pub fn take_announced(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {
+        self.store.take_notified()
+    }
+
     /// The notifications the editor sent (`host-services.notify`): the block, the text and
     /// the accounts it mentions.
     pub fn take_notifications(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {

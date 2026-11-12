@@ -2677,6 +2677,26 @@ impl<H: Host> Replicas<H> {
                 });
                 false
             }
+            Call::Notify {
+                reply,
+                text,
+                mentions,
+            } => {
+                self.acknowledge(module, reply);
+                // A notification is about now: one that cannot go now is dropped.
+                if !peer.is_attached() || made_up {
+                    return false;
+                }
+                let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+                H::spawn(async move {
+                    if let Err(error) = peer.notify(block, &text, mentions).await
+                        && !unreachable(&error)
+                    {
+                        H::record(&shared, error);
+                    }
+                });
+                false
+            }
             Call::ReportStatus { reply, status } => {
                 self.acknowledge(module, reply);
                 let Some(open) = self.open.get_mut(&replica) else {

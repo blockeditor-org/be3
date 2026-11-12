@@ -1,7 +1,10 @@
 # Chat
 
 Depends on: none; merging by parts (guides/type_modules.md, "Merging by
-parts"), which step 1d uses, has landed.
+parts"), which step 1d uses, has landed. Step 2's done check (a device that
+shows a push receives one) needs plans/notifications.md step 1, which is built
+except a Chromium test of the whole page; the server's side and the `notify` host
+call it uses have landed.
 
 A chat block: a group conversation that is an ordinary block, made and shared
 like any other. Chat grows forever, so it loads only what is on screen
@@ -41,18 +44,29 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1c and 2 have landed.
   would close that, which is the user's call. `drive` has no way to cut the
   server, so there is no be-host-tests test of this: be-host-stack tests and
   chat's editor tests stand in. A `drive` command that cuts the server would let a host test cover it.
-- **Notifications (2).** Each message sent from this device calls
-  `host.notify(block, text, mentions)` (guides/apps/host_services.md) once the
-  server holds it: when the message stops being one the server lacks (1b) and is
-  still in the chat, since `notify` is not ordered with the save that carries it.
-  A message the server refused, or one discarded, tells nobody; one kept offline
-  tells the members when the drain publishes it. The text is the message's body
-  (the host cuts it to `MAX_NOTIFICATION_TEXT`). Its mentions are the author of
-  the message it replies to (when that is not the sender), since apps cannot yet
-  name a member to mention otherwise; a member whose mode for the chat is
-  "mentions only" is told for those. The server tells only members with no
-  connection open, and none whose mode is "off" (plans/notifications.md); the
-  device that shows the push names the sender and the chat.
+- **Notifications (2).** Each message sent from this device tells the chat's
+  other members once the server holds it, and it is the replica that sends the
+  notification, not an editor: `LiveEdit::announcements` names what an operation
+  announces (for chat, each message it sends: its body, and the author of the
+  message it replies to as a mention), and the replica calls the host's `notify`
+  (`host.notify` in the type-module protocol, the same call as
+  guides/apps/host_services.md `notify`) when the edit stops being lacking
+  (1b): an append the server answered, a commit published, a drained outbox. So
+  it is sent once however many editors are open, or none (a chat switched away
+  from right after sending, or a message kept offline until the device
+  reconnects with the chat closed), and a message the server refused, or one
+  discarded, tells nobody since its edit is never held. A message edited before
+  the server holds it tells the edited body; an edit later tells nobody. The
+  host cuts the text to `MAX_NOTIFICATION_TEXT`. Mentions are the replied-to
+  author, since apps cannot yet name a member otherwise; a member whose mode for
+  the chat is "mentions only" is told for those. The server tells only members
+  with no connection open, none whose mode is "off", and not the sender's
+  account (plans/notifications.md); the device that shows the push names the
+  sender and the chat. The server allows 10 notifications per minute per account
+  and chat, so messages past that go unannounced (a burst drained from the
+  outbox announces the first ten). Tests: chat's editor tests (an announcement
+  only once the server holds the message, closed chat, refused, sent again,
+  edited, a reply's mention) and be-server's (who is told, muting).
 - **Unread counts (1c).** Where the account read each chat up to is theirs,
   never in the chat, where it would be a read receipt: the owner-only settings
   kind `ChatReads` (guides/settings.md, Owner only; ordinary settings are

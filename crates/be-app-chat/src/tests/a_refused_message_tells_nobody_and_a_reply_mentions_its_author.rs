@@ -12,7 +12,7 @@ fn a_refused_message_tells_nobody_and_a_reply_mentions_its_author() {
     chat.run();
     assert!(chat.row(refused).contains("Not sent"));
     assert!(
-        chat.editor.take_notifications().is_empty(),
+        chat.editor.take_announced().is_empty(),
         "a message the server refused tells nobody"
     );
 
@@ -20,7 +20,7 @@ fn a_refused_message_tells_nobody_and_a_reply_mentions_its_author() {
     chat.editor.advance(Duration::from_millis(500));
     chat.run();
     assert!(
-        chat.editor.take_notifications().is_empty(),
+        chat.editor.take_announced().is_empty(),
         "and neither does discarding it"
     );
 
@@ -31,7 +31,7 @@ fn a_refused_message_tells_nobody_and_a_reply_mentions_its_author() {
     chat.editor.advance(Duration::from_millis(500));
     chat.run();
     assert_eq!(
-        chat.editor.take_notifications(),
+        chat.editor.take_announced(),
         [(CHAT, "Yes, I can".to_owned(), vec![ROSA])],
         "a reply mentions the author of the message it answers"
     );

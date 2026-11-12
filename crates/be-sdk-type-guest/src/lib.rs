@@ -697,6 +697,11 @@ impl Module {
                 replica,
                 generation,
             } => ops::with_parent(replica, || host::claim_lease(generation)).detach(),
+            Effect::Notify {
+                replica,
+                text,
+                mentions,
+            } => ops::with_parent(replica, || host::notify(text, mentions)).detach(),
             Effect::ReportClean {
                 replica,
                 generation,

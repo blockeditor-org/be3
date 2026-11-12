@@ -7,7 +7,7 @@ package be3:block-type@0.1.0;
 interface host {
     use types.{
         byte-range, commit-id, description, journal-base, journal-entry, loaded, undo-state, merging,
-        part-ref, recipients, resume, status, written,
+        part-ref, recipients, resume, status, written, block-id,
     };
 
     /// The frame clock in milliseconds. The module starts it once; the host
@@ -92,4 +92,9 @@ interface host {
     conflict: async func(ours: commit-id, theirs: commit-id, count: u32);
 
     error: async func(message: string);
+
+    /// Tells the block's members who are not connected, with `text`, naming the block and the
+    /// signed-in account, and the accounts it mentions (ids like a block's, typed as `block-id`; `announcements` of a `live-edit`): dropped when
+    /// the server cannot be reached.
+    notify: async func(text: string, mentions: list<block-id>);
 }

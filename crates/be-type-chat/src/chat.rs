@@ -605,6 +605,29 @@ impl LiveEdit for ChatContent {
         LiveEdit::apply(&mut self.header, operation);
     }
 
+    /// Each message the operation sends, as the notification the chat's other members get once
+    /// the server holds it: its body now (a message edited before then tells the edit), naming
+    /// the author of the message it replies to, whom a member who wants only mentions is told
+    /// for. A message deleted since tells nobody.
+    fn announcements(&self, operation: &Edit) -> Vec<be_block::Announcement> {
+        Self::sent_in(operation)
+            .into_iter()
+            .filter_map(|id| {
+                let message = self.message(id)?;
+                let mentions = message
+                    .reply_to
+                    .and_then(|quoted| self.message(quoted))
+                    .map(|quoted| quoted.author)
+                    .into_iter()
+                    .collect();
+                Some(be_block::Announcement {
+                    text: self.body(id)?,
+                    mentions,
+                })
+            })
+            .collect()
+    }
+
     fn apply_touching(&mut self, operation: &Edit, touched: &mut Vec<Touched>) {
         self.header.apply_touching(operation, touched);
     }

@@ -2546,6 +2546,7 @@ where
     /// Tells the editors following `ToEditor::Lacking` what changed: a follower's edits the
     /// owner accepted since, one that took the session over keeping its unaccepted edits.
     fn tell_lacking(&mut self) {
+        self.announce_held();
         match &self.role {
             Role::Follower(_) => {
                 self.lacking.settled_to(self.unsettled());
@@ -2555,6 +2556,27 @@ where
         }
         for (editor, message) in self.lacking.messages() {
             self.tell_editor(editor, &message);
+        }
+    }
+
+    /// Announces each edit the server came to hold (`LiveEdit::announcements`), once: it is the
+    /// replica that knows the server holds it, whichever editors are open, if any.
+    fn announce_held(&mut self) {
+        // The content that holds the edits is not loaded yet, on a replica just opened.
+        if !self.loaded {
+            return;
+        }
+        for bytes in self.lacking.take_held() {
+            let Ok(operation) = C::decode_operation(&bytes) else {
+                continue;
+            };
+            for announcement in self.confirmed.announcements(&operation) {
+                self.out.push(Effect::Notify {
+                    replica: self.id,
+                    text: announcement.text,
+                    mentions: announcement.mentions,
+                });
+            }
         }
     }
 

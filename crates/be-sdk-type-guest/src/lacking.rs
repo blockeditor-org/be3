@@ -64,6 +64,8 @@ pub(crate) struct Lacking {
     /// device still holds after it was refused is not refused again.
     refused: BTreeSet<CommitId>,
     next: u64,
+    /// The edits the server came to hold since they were last taken: what the replica announces.
+    held: Vec<Vec<u8>>,
     /// The entries the followers were last told of, by id, with whether each had failed.
     told: Vec<(u64, bool)>,
     /// Something changed since the followers were last told.
@@ -128,15 +130,25 @@ impl Lacking {
     fn update(&mut self, change: impl Fn(Until) -> Option<Until>) {
         let before = self.entries.len();
         let mut moved = false;
+        let mut held = Vec::new();
         self.entries.retain_mut(|entry| match change(entry.until) {
             Some(until) => {
                 moved |= until != entry.until;
                 entry.until = until;
                 true
             }
-            None => false,
+            None => {
+                held.push(std::mem::take(&mut entry.operation));
+                false
+            }
         });
+        self.held.extend(held);
         self.changed |= moved || self.entries.len() != before;
+    }
+
+    /// The edits the server came to hold since this was last called, as they were added.
+    pub(crate) fn take_held(&mut self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut self.held)
     }
 
     /// The owner sequenced the edit it held back longest as `sequence`.
@@ -217,8 +229,15 @@ impl Lacking {
     /// until it is dismissed, so a "Not sent" never goes unseen.
     fn forget_kept(&mut self) {
         let before = self.entries.len();
-        self.entries
-            .retain(|entry| entry.until != Until::Kept || entry.failed);
+        let mut held = Vec::new();
+        self.entries.retain_mut(|entry| {
+            let stays = entry.until != Until::Kept || entry.failed;
+            if !stays {
+                held.push(std::mem::take(&mut entry.operation));
+            }
+            stays
+        });
+        self.held.extend(held);
         self.changed |= self.entries.len() != before;
     }
 
@@ -301,13 +320,16 @@ impl Lacking {
         if accepted == 0 {
             return;
         }
-        self.entries.retain(|entry| {
+        let mut held = Vec::new();
+        self.entries.retain_mut(|entry| {
             if accepted > 0 && entry.until == Until::Unsettled {
                 accepted -= 1;
+                held.push(std::mem::take(&mut entry.operation));
                 return false;
             }
             true
         });
+        self.held.extend(held);
         self.changed = true;
     }
 

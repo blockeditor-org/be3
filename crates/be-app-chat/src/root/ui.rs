@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_sdk_beui::be_block::{ObjectId, SettingsLayer};
@@ -191,36 +191,6 @@ pub fn Chat(editor: Editor) -> NodeId {
                 })
                 .collect::<HashMap<ObjectId, Unsent>>()
         })
-    });
-
-    // Each message sent from this device tells the chat's other members who are not connected,
-    // once the server holds it (`notify` is not ordered with the save that carries it): one
-    // that was sending and no longer is, and is still here (a discarded one is gone). A refused
-    // message keeps its entry until it is dismissed, so it tells nobody. A reply mentions the
-    // author of the message it answers, whom a member who wants only mentions is told for.
-    let sending = StoredCell::new(HashSet::<ObjectId>::new());
-    create_effect(move || {
-        let now: HashSet<ObjectId> = unsent.with(|unsent| unsent.keys().copied().collect());
-        let before = sending.replace(now.clone());
-        for id in before.difference(&now).copied() {
-            let told = chat
-                .read(|content| {
-                    let message = content.message(id)?;
-                    let mentions: Vec<Uuid> = message
-                        .reply_to
-                        .and_then(|quoted| content.message(quoted))
-                        .map(|quoted| quoted.author)
-                        .filter(|author| *author != me)
-                        .into_iter()
-                        .collect();
-                    Some((content.body(id)?, mentions))
-                })
-                .ok()
-                .flatten();
-            if let Some((body, mentions)) = told {
-                editor.host().notify(block, body, &mentions);
-            }
-        }
     });
 
     let message_rows = move |id: ObjectId| {

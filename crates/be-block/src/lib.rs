@@ -219,10 +219,26 @@ pub enum ChildChange {
     Reorder { block: Uuid, after: Option<Uuid> },
 }
 
+/// What an operation tells the block's other members, who are not connected, once the server
+/// holds it: the text of a notification and the accounts it mentions.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Announcement {
+    pub text: String,
+    pub mentions: Vec<Uuid>,
+}
+
 pub trait LiveEdit: BlockContent {
     type Op: Clone + Serialize + DeserializeOwned + Send + Sync + 'static;
 
     fn apply(&mut self, operation: &Self::Op);
+
+    /// What `operation` announces once the server holds it, read from this content (the
+    /// replica's confirmed content, which holds the operation). The replica sends each
+    /// announcement once, when the edit stops being lacking, whichever editors are open then.
+    fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
+        let _ = operation;
+        Vec::new()
+    }
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {
         self.apply(operation);

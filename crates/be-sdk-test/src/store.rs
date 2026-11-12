@@ -99,6 +99,7 @@ struct Inner {
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
+    notified: Vec<(Option<Uuid>, String, Vec<Uuid>)>,
     known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
@@ -139,6 +140,7 @@ impl Default for Inner {
             kept: BTreeSet::new(),
             refused: BTreeMap::new(),
             refusals: 0,
+            notified: Vec::new(),
             known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
@@ -337,6 +339,14 @@ impl Inner {
             Call::Append { reply, .. } => {
                 let held = !self.offline;
                 reply.send(&mut self.host, &held);
+            }
+            Call::Notify {
+                reply,
+                text,
+                mentions,
+            } => {
+                self.notified.push((block, text, mentions));
+                reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
             | Call::ClaimLease { reply, .. }
@@ -760,6 +770,17 @@ impl ContentStore {
         self.0
             .borrow_mut()
             .elsewhere(key, C::encode_operation(operation));
+    }
+
+    /// What the replica asked the host to notify the block's other members of, since last taken:
+    /// the block, the text and who it mentions.
+    pub fn take_notified(&self) -> Vec<(Uuid, String, Vec<Uuid>)> {
+        let mut inner = self.0.borrow_mut();
+        let own = inner.own.unwrap_or_default();
+        std::mem::take(&mut inner.notified)
+            .into_iter()
+            .map(|(block, text, mentions)| (block.unwrap_or(own), text, mentions))
+            .collect()
     }
 
     pub fn take_written(&self, block: Option<Uuid>) -> Vec<Vec<u8>> {

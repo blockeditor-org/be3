@@ -126,8 +126,9 @@ Notes on particular calls:
   `set_notify_mode` changes one; the workspace's block menu offers them
   (Notifications: All, Mentions only, Off), showing a change until the host
   answers and going back if it refuses. `BeuiTest::take_notifications`
-  records what an editor sent. Chat is the one sender: it notifies each message it sent
-  once the server holds it (plans/chat.md).
+  records what an editor sent. An editor rarely calls it: chat's
+  messages are announced by its replica when the server holds them (`LiveEdit::announcements`,
+  guides/type_modules.md), so they are sent once, whether an editor is open or not.
 - `set_push_device(on)` turns pushes to this device on or off and `PushDeviceWatch` follows it
   (none on a host that cannot receive them, which is every host but the web build); turning
   them on asks for the person's permission, so call it from their press. The settings list's

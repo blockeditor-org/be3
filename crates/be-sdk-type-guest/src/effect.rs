@@ -54,6 +54,11 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         generation: u64,
     },
+    Notify {
+        replica: ReplicaId,
+        text: String,
+        mentions: Vec<uuid::Uuid>,
+    },
     ReportClean {
         replica: ReplicaId,
         generation: u64,
