@@ -480,9 +480,13 @@ pub struct Shared {
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
-    /// Between connecting and having asked for everything the device must catch up on: the
-    /// outbox settled, listings and open blocks asked for again (`Session::arrive`).
+    /// Between connecting and having asked for everything the device must catch up on: set as
+    /// `Session::arrive` starts, cleared once the outbox has drained and the open replicas have
+    /// rejoined their sessions (`Session::settle_outbox`).
     pub arriving: bool,
+    /// Set when a command ran or a seal moved edits into the outbox, until `report` has read
+    /// the outbox into `waiting` again: `waiting` is stale meanwhile.
+    pub recounting: bool,
     pub draining: bool,
     /// Counts finished drains of the outbox.
     pub drains: u64,
@@ -564,6 +568,9 @@ impl Shared {
         }
         if self.draining {
             reasons.push("the block store sends the edits it kept".to_owned());
+        }
+        if self.recounting {
+            reasons.push("the block store has yet to count what waits to be sent".to_owned());
         }
         let waiting = self.unsealed + self.waiting;
         if waiting > 0 {
@@ -1186,6 +1193,10 @@ impl Session<'_> {
         if self.line.is_up() {
             self.replicas.reconnect((peer, shared));
         }
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .arriving = false;
         true
     }
 
@@ -1255,10 +1266,6 @@ impl Session<'_> {
         self.versions.reconnected();
         self.refresh_versions().await;
         report(peer, shared);
-        shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .arriving = false;
         self.changed.notify_all();
         be_host_base::host::wake();
     }
@@ -1383,8 +1390,9 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     expire_unsent(peer, now);
     let counts = peer.pending();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let mut changed = held.waiting != counts.operations;
+    let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
+    held.recounting = false;
     if held.unsent.len() != counts.unsent {
         held.unsent = peer.unsent();
         changed = true;
@@ -1766,6 +1774,7 @@ impl Ran<'_> {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
             (held.unsealed, held.owing, held.undurable) = self.replicas.counts();
+            held.recounting = true;
             held.typing = !self.replicas.modules.settled();
         }
         be_host_base::host::wake();

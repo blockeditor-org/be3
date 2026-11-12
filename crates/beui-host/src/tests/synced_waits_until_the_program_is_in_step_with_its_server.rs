@@ -20,7 +20,7 @@ impl Program for Behind {
         }
     }
 
-    fn unsynced(&self) -> Option<Vec<String>> {
+    fn out_of_step(&self) -> Option<Vec<String>> {
         Some(match (self.online, self.frames) {
             (false, _) => vec!["offline".to_owned()],
             (true, 0) => Vec::new(),
@@ -42,6 +42,10 @@ fn synced_waits_until_the_program_is_in_step_with_its_server() {
         online: false,
         frames: 3,
     });
+    let reasons = driven
+        .ask(&["unsynced", "offline"])
+        .expect("unsynced answers with the reason it waited for");
+    assert_eq!(reasons, "offline\n");
     driven.ask(&["network"]).expect("the network comes back");
     driven
         .ask(&["synced"])

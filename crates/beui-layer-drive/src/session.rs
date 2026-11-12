@@ -48,9 +48,12 @@ pub const USAGE: &str = "Session:
                             the window's, and those the program ran elsewhere, such as an app's
   close                     ask the window to close, as its close button does; a program that stays
                             open, to ask about unsaved changes, answers with what changed
-  synced                    wait until the program has settled with nothing waiting to send to its
-                            server and has caught up since it last connected (be-host); an error
-                            for a program that keeps nothing on a server
+  synced                    wait until the program has settled and says it waits on nothing outside
+                            its window (Program::out_of_step), such as be-host connected with
+                            nothing left to send and everything it missed asked for; an error for a
+                            program with nothing outside to keep in step with
+  unsynced TEXT             wait until one of the reasons the program gives for being out of step
+                            contains TEXT, such as be-host's \"not connected\"
   help                      this
 Reading the program:
   tree                      the accessibility tree, one node per line
@@ -165,7 +168,7 @@ enum Kind {
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" | "synced"
-        | "network" => Kind::Session,
+        | "unsynced" | "network" => Kind::Session,
         "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act"
         | "a11y" | "wait" | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
@@ -389,7 +392,8 @@ enum Phase {
     Settling {
         before: Option<Rc<Rendered>>,
     },
-    Syncing,
+    /// `synced` (None) or `unsynced TEXT`.
+    Syncing(Option<String>),
     Waiting {
         text: String,
         present: bool,
@@ -774,9 +778,9 @@ impl Session {
         busy.extend(frame.program.busy());
         let unsynced = match &self.active {
             Some(Active {
-                phase: Phase::Syncing,
+                phase: Phase::Syncing(_),
                 ..
-            }) => frame.program.unsynced().unwrap_or_default(),
+            }) => frame.program.out_of_step().unwrap_or_default(),
             _ => Vec::new(),
         };
         // A wait for the server is no frame owed, so it is only named if `synced` times out.
@@ -993,8 +997,13 @@ impl Session {
                         }
                     }))
                 }
-                Phase::Syncing if quiet && settled.unsynced.is_empty() => {
+                Phase::Syncing(None) if quiet && settled.unsynced.is_empty() => {
                     Some(Reply::Text(String::new()))
+                }
+                Phase::Syncing(Some(text))
+                    if settled.unsynced.iter().any(|reason| reason.contains(text.as_str())) =>
+                {
+                    Some(Reply::Text(settled.unsynced.join("\n") + "\n"))
                 }
                 Phase::Waiting {
                     text,
@@ -1276,10 +1285,17 @@ impl Session {
                     before: Some(view.rendered()),
                 })),
             },
-            "synced" => match frame.program.unsynced() {
-                Some(_) => Ok(Started::Phase(Phase::Syncing)),
-                None => Err("this program keeps nothing on a server to be in step with".to_owned()),
-            },
+            "synced" | "unsynced" => {
+                let reason = match command {
+                    "unsynced" => Some(argument(0)?.to_owned()),
+                    _ => None,
+                };
+                match frame.program.out_of_step() {
+                    Some(_) => Ok(Started::Phase(Phase::Syncing(reason))),
+                    None => Err("this program has nothing outside its window to keep in step with"
+                        .to_owned()),
+                }
+            }
             "network" => {
                 frame
                     .program

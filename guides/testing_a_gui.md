@@ -269,7 +269,8 @@ runs be-server in the test's process on a directory of its own, and hosts join i
   key. `another_device` starts one more and pairs it, typing the code its unlock screen shows into
   the first, as a person adding a device does.
 - Each device reaches the server through a relay of its own (be-block-fault-relay), which is its
-  network: `offline` cuts its connections and refuses new ones; `online` gives it back and sends
+  network: `offline` cuts its connections, refuses new ones and returns once the device says it
+  is not connected (`drive unsynced`); `online` gives it back and sends
   `drive network`, so the device reconnects at once instead of when its wait for the next try runs
   out. `Server::offline` does it for every device. Object bytes go to the server's own address,
   not through the relay, but a device asks for their URLs over its connection, so an offline one
@@ -280,6 +281,11 @@ runs be-server in the test's process on a directory of its own, and hosts join i
   sent, and everything it missed asked for. What another device changes arrives by push after
   that, so wait for it to show. Never pause for sync.
 - Each device is a host: keep a test to two unless it needs more.
+- A lead for a flake there: before the block store counted unjournaled edits as busy, a device
+  paired with its clock stopped once kept its Files on `#editor.loading` until a `pause` moved
+  the frame clock (reads that ran frames did not help), which suggests a frame-clock timer in the
+  file tree's loading path racing the listing. It has not come back since; no root cause was
+  found.
 
 Debugging:
 

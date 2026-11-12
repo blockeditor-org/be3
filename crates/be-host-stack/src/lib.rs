@@ -825,7 +825,7 @@ pub fn busy() -> Vec<&'static str> {
 }
 
 /// Why the device is not in step with the server yet (`Shared::unsynced`): connected, nothing
-/// waiting to be sent, and caught up since it connected. The block store not running is a reason
+/// waiting to be sent, and everything it missed since it connected asked for. The block store not running is a reason
 /// too.
 pub fn unsynced() -> Vec<String> {
     with_shared(Shared::unsynced)

@@ -85,9 +85,10 @@ fn run_options() -> beui_host::native::RunOptions {
 
 #[cfg(target_arch = "wasm32")]
 const WEB_DATA_DIR: &str = "/be-host";
-/// The token `--dev-workspace=URL` signs in with (`HostCore::open_dev_workspace`).
+/// The variable holding the token `--dev-workspace=URL` signs in with
+/// (`HostCore::open_dev_workspace`); `main` takes it out of the environment as it starts.
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-const DEV_TOKEN: &str = "BE_DEV_TOKEN";
+pub const DEV_TOKEN: &str = "BE_DEV_TOKEN";
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
@@ -96,7 +97,7 @@ fn storage_dir() -> Option<PathBuf> {
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-pub fn run() -> Result<(), Box<dyn Error>> {
+pub fn run(dev_token: Option<String>) -> Result<(), Box<dyn Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let platform = std::env::var(beui_host::native::environment::PLATFORM).ok();
     let arguments = arguments::parse(&arguments, platform.as_deref(), arguments::LINUX)?;
@@ -115,18 +116,21 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     #[cfg(target_os = "linux")]
     if arguments.drm {
         let console = login_session::start_log();
-        let ran = run_host(arguments);
+        let ran = run_host(arguments, dev_token);
         if let (Err(error), Some(mut console)) = (&ran, console) {
             use std::io::Write;
             let _ = writeln!(console, "be-host: the login session ended: {error}");
         }
         return ran;
     }
-    run_host(arguments)
+    run_host(arguments, dev_token)
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
+fn run_host(
+    arguments: arguments::Arguments,
+    dev_token: Option<String>,
+) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let data_dir = storage_dir().ok_or("the application-data directory is unavailable")?;
     std::fs::create_dir_all(&data_dir)
@@ -152,12 +156,7 @@ fn run_host(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
         ..run_options()
     };
     if arguments.dev_workspace {
-        core.open_dev_workspace(
-            arguments.dev_server.clone(),
-            std::env::var(DEV_TOKEN)
-                .ok()
-                .filter(|token| !token.is_empty()),
-        );
+        core.open_dev_workspace(arguments.dev_server.clone(), dev_token);
     }
     if arguments.desktop {
         core.run_as_desktop();
@@ -499,7 +498,7 @@ impl beui::native::Program for Shell {
         reasons
     }
 
-    fn unsynced(&self) -> Option<Vec<String>> {
+    fn out_of_step(&self) -> Option<Vec<String>> {
         Some(self.core.unsynced())
     }
 

@@ -59,19 +59,15 @@ impl HostTest {
     /// Start its other devices with [`HostTest::another_device`], which unlocks them with that
     /// key.
     pub fn device(account: &Account) -> Self {
-        Self::join(account, FILES, true)
+        Self::join(account, FILES)
     }
 
     /// Starts another device of this one's account, as [`HostTest::device`] does, and pairs it
     /// with this one, as a person adding a device does: the new device shows a code, which is
     /// typed into this one. It returns once the new device shows its My files.
-    ///
-    /// The new device's clock runs until then, as a host's does until `start` returns: with it
-    /// stopped from the unlock screen on, its file tree waits for a frame nothing asks for once
-    /// it opens.
     pub fn another_device(&mut self) -> Self {
         let account = self.joined("another_device").account.clone();
-        let mut other = Self::join(&account, SHOW_A_CODE, false);
+        let mut other = Self::join(&account, SHOW_A_CODE);
         other.click(SHOW_A_CODE);
         other.wait("Type this code on the other device:");
         let tree = other.tree();
@@ -86,7 +82,6 @@ impl HostTest {
         self.click("Button \"Approve\"");
         self.gone("Add a device");
         other.wait(FILE_TREE);
-        other.run(&["clock", "stop"]);
         other
     }
 
@@ -109,10 +104,12 @@ impl HostTest {
     }
 
     /// Takes this device's network to the server away: its connections drop and it cannot
-    /// connect, as a laptop that lost its Wi-Fi. What it does meanwhile waits in its outbox.
+    /// connect, as a laptop that lost its Wi-Fi. It returns once the device knows
+    /// (`drive unsynced`). What it does meanwhile waits in its outbox.
     pub fn offline(&mut self) {
         self.steps.push("# offline".to_owned());
         self.joined("offline").relay.offline(true);
+        self.run(&["unsynced", "not connected"]);
     }
 
     /// Gives this device its network back and tells it so (`drive network`), as the system tells
@@ -139,7 +136,7 @@ impl HostTest {
         })
     }
 
-    fn join(account: &Account, ready: &str, stop_clock: bool) -> Self {
+    fn join(account: &Account, ready: &str) -> Self {
         let relay = account.server.relay();
         let url = format!("http://{}", relay.address());
         let token = account.server.token(account.id);
@@ -156,7 +153,6 @@ impl HostTest {
                 account: account.clone(),
                 relay,
             }),
-            stop_clock,
         )
     }
 
@@ -188,7 +184,7 @@ impl HostTest {
             .chain(arguments.iter().copied())
             .map(str::to_owned)
             .collect();
-        Self::begin(start, ready, space, None, true)
+        Self::begin(start, ready, space, None)
     }
 
     fn program(space: bool, render: bool) -> be_tool_drive::Start {
@@ -208,7 +204,6 @@ impl HostTest {
         ready: &str,
         space: bool,
         device: Option<Device>,
-        stop_clock: bool,
     ) -> Self {
         let started = Instant::now();
         let host =
@@ -226,9 +221,7 @@ impl HostTest {
             device,
         };
         test.wait(ready);
-        if stop_clock {
-            test.run(&["clock", "stop"]);
-        }
+        test.run(&["clock", "stop"]);
         test
     }
 

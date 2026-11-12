@@ -53,10 +53,11 @@ pub trait Program: std::any::Any {
         Vec::new()
     }
 
-    /// What keeps the program from being in step with its server: `None` for a program that
-    /// keeps nothing on one, and no reason once it has nothing waiting to send and has caught
-    /// up since it last connected. drive's `synced` waits for that.
-    fn unsynced(&self) -> Option<Vec<String>> {
+    /// What the program still waits on outside its window before it is in step with it, one
+    /// reason each: `None` for a program with nothing outside to keep in step with (be-host
+    /// names its server). drive's `synced` waits until it gives none, and `unsynced TEXT` until
+    /// one contains TEXT.
+    fn out_of_step(&self) -> Option<Vec<String>> {
         None
     }
 
