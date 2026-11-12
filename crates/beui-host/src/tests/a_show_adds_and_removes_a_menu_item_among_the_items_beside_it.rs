@@ -11,19 +11,14 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     let selected = create_signal(Vec::new());
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Copy" on_click={move || selected.update(|selected| selected.push("Copy"))} />
             <Show condition={pasteable}>
-                <unstyled::MenuItem label="Paste" />
+                <unstyled::MenuItem label="Paste" on_click={move || selected.update(|selected| selected.push("Paste"))} />
             </Show>
-            <unstyled::MenuItem label="Delete" />
+            <unstyled::MenuItem label="Delete" on_click={move || selected.update(|selected| selected.push("Delete"))} />
         };
         [view! {
-            <ContextMenu
-                items
-                on_select={move |path| {
-                    selected.update(|selected| selected.push(path));
-                }}
-            >
+            <ContextMenu items>
                 <MenuRegion @node_ref=&region />
             </ContextMenu>
         }]
@@ -88,8 +83,8 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     harness.frame(Vec::new());
     assert_eq!(
         selected.get_untracked().as_slice(),
-        &[vec![2usize]],
-        "the items after a shown one report the index they now sit at"
+        &["Delete"],
+        "the row after a shown one runs its own item's click"
     );
 }
 

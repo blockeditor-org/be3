@@ -104,11 +104,8 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
             model.active_hotbar_folder.pop();
         });
     };
-    let chose = move |path: Vec<usize>| match path.first() {
-        Some(0) => session.update(LogicGridEditor::new_hotbar_folder),
-        Some(1) => session.update(|model| model.confirm_hotbar_reset = true),
-        _ => {}
-    };
+    let new_folder = move || session.update(LogicGridEditor::new_hotbar_folder);
+    let ask_reset = move || session.update(|model| model.confirm_hotbar_reset = true);
     let parent = create_memo(move || {
         session.read(|model| {
             let mut parent = model.active_hotbar_folder.clone();
@@ -140,10 +137,9 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                         arrow=false
                         @test_id={"logic-grid.hotbar-actions"}
                         items={view! {
-                            <MenuItem label="New folder" />
-                            <MenuItem label="Reset hotbar" />
+                            <MenuItem label="New folder" on_click={new_folder} />
+                            <MenuItem label="Reset hotbar" on_click={ask_reset} />
                         }}
-                        on_select={chose}
                     />
                 </List>
             </HotbarHeader>
@@ -247,12 +243,10 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
     let not_component = create_memo(move || !shown.get().is_some_and(|slot| slot.component));
     let not_folder = create_memo(move || !shown.get().is_some_and(|slot| slot.folder));
     let not_removable = create_memo(move || !shown.get().is_some_and(|slot| slot.removable));
-    let chose = move |chosen: Vec<usize>| match chosen.first() {
-        Some(0) => session.update(|model| model.remove_hotbar_slot(&path.value())),
-        Some(1) => session.update(|model| model.toggle_hotbar_folder(path.value().to_vec())),
-        Some(2) => session.update(|model| model.remove_hotbar_folder(&path.value())),
-        _ => {}
-    };
+    let remove_slot = move || session.update(|model| model.remove_hotbar_slot(&path.value()));
+    let open_folder =
+        move || session.update(|model| model.toggle_hotbar_folder(path.value().to_vec()));
+    let remove_folder = move || session.update(|model| model.remove_hotbar_folder(&path.value()));
     let hovered = create_signal(false);
     let disabled = create_memo(move || shown.get().is_none_or(|slot| slot.disabled));
     let payload = create_memo(move || (!disabled.get()).then(|| path.value().to_vec()));
@@ -294,12 +288,11 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
         <SlotDrop session={session} target={target} folder=false>
             <ContextMenu
                 items={view! {
-                    <MenuItem label="Remove from hotbar" disabled={not_component} />
-                    <MenuItem label="Open folder" disabled={not_folder} />
-                    <MenuItem label="Remove folder" disabled={not_removable} />
+                    <MenuItem label="Remove from hotbar" disabled={not_component} on_click={remove_slot} />
+                    <MenuItem label="Open folder" disabled={not_folder} on_click={open_folder} />
+                    <MenuItem label="Remove folder" disabled={not_removable} on_click={remove_folder} />
                 }}
                 disabled={menu_disabled}
-                on_select={chose}
             >
                 <Tooltip label={label}>
                     <Interactive focusable=true on_activate={clicked} on_hover_change={hovered}>

@@ -12,14 +12,11 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
     let selected = create_signal(Vec::new());
     let (document, [menu]) = toolbar_of(move || {
         let items = view! {
-            <unstyled::MenuItem label disabled={blocked} />
+            <unstyled::MenuItem label disabled={blocked} on_click={move || selected.update(|selected| selected.push(vec![0]))} />
         };
         [view! {
             <ContextMenu
                 items
-                on_select={move |path| {
-                    selected.update(|selected| selected.push(path));
-                }}
             >
                 <MenuRegion @node_ref=&region />
             </ContextMenu>

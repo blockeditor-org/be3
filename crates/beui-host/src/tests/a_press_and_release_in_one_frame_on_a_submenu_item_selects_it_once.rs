@@ -10,8 +10,8 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
     let (document, _) = toolbar_of(move || {
         let items = view! {
             <unstyled::MenuItem label="Profiles">
-                <unstyled::MenuItem label="Profile 1" />
-                <unstyled::MenuItem label="Profile 2" />
+                <unstyled::MenuItem label="Profile 1" on_click={move || selected.update(|selected| selected.push(vec![0, 0]))} />
+                <unstyled::MenuItem label="Profile 2" on_click={move || selected.update(|selected| selected.push(vec![0, 1]))} />
             </unstyled::MenuItem>
         };
         [view! {
@@ -19,9 +19,6 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
                 @node_ref=&button
                 label="More"
                 items
-                on_select={move |path: Vec<usize>| {
-                    selected.update(|selected| selected.push(path));
-                }}
             />
         }]
     });

@@ -57,7 +57,6 @@ pub fn ContextMenu(
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     on_close: Callback<()>,
-    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: Callback<()>,
 ) -> NodeId {
     view! {
@@ -74,7 +73,6 @@ pub fn ContextMenu(
             bounds
             placement
             on_close={on_close}
-            on_select={on_select}
             on_toolbar_close={on_toolbar_close}
         >
             {children}
@@ -93,7 +91,6 @@ pub fn MenuPopup(
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     on_dismiss: Callback<()>,
-    on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
     let sheet = create_memo(move || match sheet.get() {
@@ -111,7 +108,6 @@ pub fn MenuPopup(
             sheet={sheet}
             overlay
             on_dismiss={on_dismiss}
-            on_select={on_select}
         />
     }
 }
@@ -121,14 +117,12 @@ pub fn MenuRows(
     items: Children<MenuItem>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = false)] active: Prop<bool>,
-    on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     view! {
         <unstyled::MenuRows
             items={items.into_run()}
             menu={sized_menu_style(min_width.get_untracked())}
             active
-            on_select={on_select}
         />
     }
 }

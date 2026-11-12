@@ -191,13 +191,6 @@ host queues settled events per app. The calls stay `local`
   KeyPhase::Capture, …)`), make `on_scroll_key`'s "don't reveal focus" an
   option of `on_key`, and move `on_shortcut` users to actions. Update
   guides/beui_keyboard.md.
-- Menus: remove the public `on_select: Callback<Vec<usize>>` from styled
-  `ContextMenu`, `MenuPopup`, `MenuRows`, `MenuButton` and `SplitButton`; an
-  item says what it does with `on_click` or `action`. The three product
-  callers (`be-host/src/ui/onboarding.rs`, `be-host-accounts-ui/src/lib.rs`,
-  `be-app-logic-grid/src/root/hotbar_ui.rs`) move to item callbacks. Path
-  routing can stay inside unstyled if `MenuNodes` needs it. Separators are
-  written one way.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
   non-`Copy` values (a callback, a state struct) or read the cell with

@@ -86,7 +86,7 @@ pub fn MenuPopup(
     #[prop(default = NodeRef::new())] content: NodeRef,
     trigger: Option<NodeRef>,
     on_dismiss: Callback<()>,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();
@@ -164,7 +164,7 @@ pub fn MenuRows(
     items: Run<MenuItem>,
     menu: MenuStyle,
     #[prop(default = false)] active: Prop<bool>,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();

@@ -20,7 +20,6 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
                         @node_ref=&button
                         label="Actions"
                         items
-                        on_select={|_: Vec<usize>| {}}
                     />
                 </List>
             </Frame>

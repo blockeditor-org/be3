@@ -22,7 +22,6 @@ fn clicking_an_open_menu_buttons_button_again_closes_its_menu() {
                         label="Actions"
                         items
                         open
-                        on_select={|_: Vec<usize>| {}}
                     />
                 </List>
             </Frame>

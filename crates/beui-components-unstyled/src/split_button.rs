@@ -23,7 +23,7 @@ pub fn SplitButton(
     main: Render<ButtonHandle>,
     arrow: Render<PopupTriggerHandle>,
     on_click: Callback<()>,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let disabled = create_memo(move || disabled.get());

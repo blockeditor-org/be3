@@ -17,11 +17,10 @@ fn a_split_button_runs_its_action_or_opens_its_menu() {
                 variant=ButtonVariant::Primary
                 menu_label="More ways to run it"
                 items={view! {
-                    <MenuItem label="Run with fresh data" />
-                    <MenuItem label="Install its launcher" />
+                    <MenuItem label="Run with fresh data" on_click={move || picked.update(|picked| picked.push(vec![0]))} />
+                    <MenuItem label="Install its launcher" on_click={move || picked.update(|picked| picked.push(vec![1]))} />
                 }}
                 on_click={move || clicks.update(|clicks| *clicks += 1)}
-                on_select={move |path: Vec<usize>| picked.update(|picked| picked.push(path))}
             />
         }]
     });

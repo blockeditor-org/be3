@@ -121,12 +121,10 @@ fn AccountCard(
                         icon_only=true
                         arrow=false
                         @test_id={format!("account.options.{}", name.get_untracked())}
-                        on_select={move |_path: Vec<usize>| {
-                            on_log_out.call(key.get_untracked());
-                        }}
                         items={view! {
                             <MenuItem
                                 label={create_memo(move || leave_label(account.get().local).to_owned())}
+                                on_click={move || on_log_out.call(key.get_untracked())}
                             />
                         }}
                     />

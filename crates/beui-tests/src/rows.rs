@@ -31,10 +31,9 @@ pub fn RowsFixture() -> NodeId {
                 <SplitButton
                     label="Export"
                     items={view! {
-                        <MenuItem label="As PDF" />
+                        <MenuItem label="As PDF" on_click={move || chosen.set("As PDF".to_owned())} />
                     }}
                     on_click={move || chosen.set("Export".to_owned())}
-                    on_select={move |_: Vec<usize>| chosen.set("As PDF".to_owned())}
                 />
                 <Progress value={create_memo(|| Some(0.5_f32))} label="Working" />
             </List>
