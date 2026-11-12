@@ -36,7 +36,8 @@ one of its pages in a tab) gets an editor instance in each, so each has its own
 frame at its own size and may name its own editor. In be-host's `Editors`
 (`compositor/editors.rs`) the first placement holds the block's own id and any
 other is a twin under a key of its own (`Editors::block` maps it back), closed
-when that placement goes.
+when that placement goes. Previews are not twinned: they share the editor under
+the block's own id, drawn once as Preview says.
 
 ## Drawing order
 
