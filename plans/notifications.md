@@ -28,7 +28,7 @@ takes a push yet.
   (firebase-messaging, Play services) is an AAR from Maven, which the buck
   Android build cannot take yet (`buck/android/defs.bzl` takes Java sources
   only). The Android host prefers a UnifiedPush distributor when one is
-  installed and falls back to FCM. Record the choice as a decision (Web Push
+  installed and falls back to FCM (set aside, plans/deferred/notifications.md). Record the choice as a decision (Web Push
   everywhere, UnifiedPush or FCM on Android).
 - **Limits.** An Android high-priority message has about 10–20 s; every web
   push must show a notification, so the service worker always shows one.
@@ -45,13 +45,6 @@ takes a push yet.
    emulator, with a test distributor app and the app closed, a push shows the
    decrypted notification and opens the block. Signing out unregisters the
    endpoint.
-3. AAR and Maven dependencies in the buck Android build. Done: an APK builds
-   with one AAR dependency and runs on the emulator.
-4. FCM on Android. Done unattended: the APK builds with the FCM client, which
-   registers only through UnifiedPush without a client config. FCM stays off
-   until the user creates a Firebase project, starts the server with its
-   service account (`--fcm-credentials`) and gives the APK its client config
-   (`google-services.json`).
 
 ## Not planned here
 

@@ -66,7 +66,7 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
 - **Limits.** A segment's Bloom filter can name a message it does not hold
   (unread counts may read one segment too many, never too few). A replica
   holds a closed segment's bytes in memory until it reloads
-  (guides/type_modules.md, "Parts named by hash"). A deleted message's body stays
+  (guides/type_modules.md, "Parts named by hash"; plans/deferred/chat.md). A deleted message's body stays
   in its closed segment (plans/deferred/chat_segment_rewrite.md). A chat
   rebuilt from the header's bytes (a view) saves the header alone, never a
   placeholder part. Duplicate, export, `be` transfer, version control's
