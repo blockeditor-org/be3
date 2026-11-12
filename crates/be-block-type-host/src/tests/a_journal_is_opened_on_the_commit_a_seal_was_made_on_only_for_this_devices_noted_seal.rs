@@ -61,15 +61,26 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_no
             sequence: 0,
             state: Vec::new(),
         };
-        peer.rebase_journal(block, GENERATION, tag(), base.clone(), Vec::new(), false, false)
-            .await
-            .expect("the journal starts on the head");
+        peer.rebase_journal(
+            block,
+            GENERATION,
+            tag(),
+            base.clone(),
+            Vec::new(),
+            false,
+            false,
+        )
+        .await
+        .expect("the journal starts on the head");
         journaled(&peer, block, GENERATION, &[1, 2, 3, 4]).await;
 
         let sealed = seal(&peer, block, parent, "sealed", 3).await;
         let (journal, kept, load_at, sealed_head) =
             crate::replicas::journal_for(&peer, block, None, Some(sealed));
-        assert_eq!(load_at, parent, "it loads on the commit the seal was made on");
+        assert_eq!(
+            load_at, parent,
+            "it loads on the commit the seal was made on"
+        );
         assert_eq!(
             sealed_head.map(|head| (head.commit, head.through)),
             Some((sealed, 3))
@@ -79,19 +90,35 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_no
 
         // A seal this device did not note, though it holds the same place in a session.
         let other = seal(&peer, block, parent, "elsewhere", 3).await;
-        peer.rebase_journal(block, GENERATION, tag(), base.clone(), Vec::new(), false, false)
-            .await
-            .expect("the journal starts over");
+        peer.rebase_journal(
+            block,
+            GENERATION,
+            tag(),
+            base.clone(),
+            Vec::new(),
+            false,
+            false,
+        )
+        .await
+        .expect("the journal starts over");
         journaled(&peer, block, GENERATION, &[1, 2, 3]).await;
         let (_, _, load_at, sealed_head) =
             crate::replicas::journal_for(&peer, block, None, Some(other));
-        assert_eq!((load_at, sealed_head), (Some(other), None), "a seal not noted here");
+        assert_eq!(
+            (load_at, sealed_head),
+            (Some(other), None),
+            "a seal not noted here"
+        );
 
         // A noted seal whose sequence the journal never reached, in a reused generation.
         let reused = seal(&peer, block, parent, "reused", 5).await;
         let (_, _, load_at, sealed_head) =
             crate::replicas::journal_for(&peer, block, None, Some(reused));
-        assert_eq!((load_at, sealed_head), (Some(reused), None), "a journal short of it");
+        assert_eq!(
+            (load_at, sealed_head),
+            (Some(reused), None),
+            "a journal short of it"
+        );
 
         // A journal with no entries through the seal holds nothing of it.
         peer.rebase_journal(block, GENERATION, tag(), base, Vec::new(), false, false)
@@ -100,6 +127,10 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_no
         let empty = seal(&peer, block, parent, "empty", 0).await;
         let (_, _, load_at, sealed_head) =
             crate::replicas::journal_for(&peer, block, None, Some(empty));
-        assert_eq!((load_at, sealed_head), (Some(empty), None), "the base alone");
+        assert_eq!(
+            (load_at, sealed_head),
+            (Some(empty), None),
+            "the base alone"
+        );
     });
 }

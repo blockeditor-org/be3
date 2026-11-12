@@ -563,7 +563,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         Option<be_sdk_type_api::SealedHead>,
     ) {
         let journal = self.journal.clone();
-        if journal.as_ref().is_some_and(|journal| journal.base.commit == head) {
+        if journal
+            .as_ref()
+            .is_some_and(|journal| journal.base.commit == head)
+        {
             return (journal, head, None);
         }
         let noted = |commit: CommitId| {
