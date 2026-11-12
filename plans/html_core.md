@@ -8,10 +8,6 @@ decisions/beui_has_an_html_core_on_the_web.md says why. What the HTML core
 lacks, each with what "done" looks like. Larger directions and the rest of the
 ignored props are in plans/deferred/html_core.md.
 
-- **`Sheet`'s stops as CSS scroll snap.** `Sheet` still drives its `Offset`
-  itself on HTML, as natively. Done: on the HTML core a sheet's stops are scroll
-  snap points of its scroll element, and a sheet released between stops
-  settles on one by the browser's snapping, with no beui animation.
 - **Tests for `TreeNode`'s selection hooks.** On HTML `set_text_selection`
   draws through the text's CSS highlights and `set_text_selection_handles` as
   caret handles in its decoration overlay (`beui-core-html/src/text.rs`), but
