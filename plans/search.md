@@ -10,8 +10,7 @@ root's index with commits sealed into the outbox and merged by parts, the
 `search-watch` query on the app protocol, the file tree's filter listing hits
 in content, quick open listing hits, and catching up through `changed-since`
 (guides/blocks/server.md, "Changes since"; guides/blocks/host.md, "Catching
-up"). `plans/deferred/daily_driver.md`
-("Search") asks for the rest before daily use.
+up").
 
 ## Order of work
 
