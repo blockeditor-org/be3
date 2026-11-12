@@ -9,7 +9,7 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::unstyled;
-use be_sdk_beui::beui::{Align, Direction, NodeId, Overflow, TextAlign};
+use be_sdk_beui::beui::{Align, Direction, NodeId, NodeRef, Overflow, TextAlign};
 
 use super::gui::{Change, Edits};
 use super::keys::label;
@@ -38,10 +38,11 @@ struct Cap {
     muted: bool,
 }
 
+/// A key's cap; no key at all (`Nothing`) is muted.
 fn key_cap(name: &str) -> Cap {
     Cap {
         label: label(name),
-        muted: false,
+        muted: name.trim().is_empty(),
     }
 }
 
@@ -353,10 +354,12 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
         false => options(&outline.get(), false).join(", "),
     });
     let kept = create_memo(move || format!("The program still gets {} as well.", trigger.get()));
+    let add_held = NodeRef::new();
+    let add_tap_button = NodeRef::new();
     let add_tap = move || {
         let step = outline.get_untracked().steps.len();
         edit(RuleEdit::AddStep { wait: false });
-        edits.pick(group, rule, Target::Step(step));
+        edits.pick(add_tap_button, group, rule, Target::Step(step));
     };
     view! {
         <Frame padding=EDITOR_PADDING>
@@ -372,7 +375,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                             label={trigger}
                             disabled={read_only}
                             id={id("on")}
-                            on_click={move || edits.pick(group, rule, Target::On)}
+                            pick={move |from: NodeRef| edits.pick(from, group, rule, Target::On)}
                         />
                         <Text style=TextStyle::CAPTION>"while holding"</Text>
                         <ModifierToggles
@@ -393,8 +396,9 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                             label="Another key…"
                             variant=ButtonVariant::Ghost
                             disabled={read_only}
+                            @node_ref={&add_held}
                             @test_id={id("add-held")}
-                            on_click={move || edits.pick(group, rule, Target::Held)}
+                            on_click={move || edits.pick(add_held, group, rule, Target::Held)}
                         />
                     </List>
                 </Part>
@@ -429,7 +433,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                 label={key}
                                 disabled={read_only}
                                 id={id("key")}
-                                on_click={move || edits.pick(group, rule, Target::Key)}
+                                pick={move |from: NodeRef| edits.pick(from, group, rule, Target::Key)}
                             />
                         </List>
                     </Part>
@@ -487,6 +491,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                     glyph={Some(ICON_PLUS)}
                                     size=ButtonSize::Small
                                     disabled={read_only}
+                                    @node_ref={&add_tap_button}
                                     @test_id={id("add-tap")}
                                     on_click={add_tap}
                                 />
@@ -622,21 +627,24 @@ fn MoreOption(title: &'static str, description: Prop<String>, children: Child) -
     }
 }
 
-/// A key shown as its cap, which opens the picker to change it.
+/// A key shown as its cap, which opens the picker to change it, pointing at
+/// this button.
 #[component]
 fn KeyButton(
     label: Memo<String>,
     disabled: Memo<bool>,
     id: String,
-    on_click: Callback<()>,
+    pick: Callback<NodeRef>,
 ) -> NodeId {
     let named = create_memo(move || format!("Change {}", label.get()));
+    let button = NodeRef::new();
     view! {
         <unstyled::Button
             label={named}
             disabled={disabled}
+            @node_ref={&button}
             @test_id={id}
-            on_click={on_click}
+            on_click={move || pick.call(button)}
         >|handle: unstyled::ButtonHandle| {
             let fill = create_memo(move || match handle.hovered.get() && !handle.disabled.get() {
                 true => ColorRole::Hover,
@@ -798,7 +806,7 @@ fn StepTile(
                             label={key}
                             disabled={edits.read_only}
                             id={id("key")}
-                            on_click={move || edits.pick(group, rule, Target::Step(step))}
+                            pick={move |from: NodeRef| edits.pick(from, group, rule, Target::Step(step))}
                         />
                         <Text style=TextStyle::CAPTION>"held"</Text>
                     </List>

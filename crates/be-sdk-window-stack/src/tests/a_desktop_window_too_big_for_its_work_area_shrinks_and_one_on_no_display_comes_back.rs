@@ -7,8 +7,8 @@ fn a_desktop_window_too_big_for_its_work_area_shrinks_and_one_on_no_display_come
     let tall = Rect::from_min_size(pos2(100.0, 210.0), vec2(800.0, 700.0));
     assert_eq!(
         fitted(tall, display, banded),
-        Rect::from_min_size(pos2(100.0, 0.0), vec2(800.0, 679.0)),
-        "a window taller than the room above the band is shrunk to it"
+        Rect::from_min_size(pos2(100.0, 210.0), vec2(800.0, 679.0)),
+        "a window taller than the room above the band is shrunk to it, where it is"
     );
     let wide = Rect::from_min_size(pos2(-50.0, 100.0), vec2(1300.0, 200.0));
     assert_eq!(

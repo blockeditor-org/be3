@@ -49,20 +49,7 @@ under a request is noticed once an early ping goes unanswered, about 25 s (`ANSW
    the server run in a lane (guides/blocks/host.md). Version commands and merges read the server
    between steps on the open replicas (sealing them, checking content out into them): split each
    into its loop part and its server part, ordered by what they depend on.
-7. **Why a reconnect hits "the session has a newer owner"** is still not known: a test's drop and
-   reconnect did not meet it. The error no longer outlives its cause: it clears once the device is
-   connected with nothing waiting (`report` in worker.rs).
 
 What already works, and must keep working:
 - an edit made during a drop came through a reconnect once, with no duplicate, and synced;
 - edits survive `kill -9`, even straight after typing.
-
-## Lock, unlock and single frames (from reading the code)
-
-16. **The window loses 1 px of scroll when the format bar hides.** On `drive blur` (standing
-    in for lock), the format bar goes and every line moves up by 1 px (line 279 from y=136 to
-    y=135). Keep the scroll anchored to the content.
-    Not reproduced since: with a 300-line Markdown document at several scroll offsets (from
-    wheel, drag and fling, a heading under the caret, a keyboard-height window), blur moved no
-    line, except within a bar's height of the end, where the view is pinned there. Find the
-    document and offset that show it before fixing.

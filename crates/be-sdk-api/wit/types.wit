@@ -621,7 +621,9 @@ interface types {
         /// areas their scrims block, clear or not.
         floating: list<rect>,
         /// The parts of `floating` the overlays paint, which the host draws
-        /// above the view's children: their content. A scrim is never
+        /// above the view's children: their content, with the view's clear
+        /// color erased under it, so only what the overlays and the view
+        /// draw there shows over the children and windows. A scrim is never
         /// painted into the view's surface: a clear one only blocks
         /// input, and the host draws each one that dims (`scrims`) over the
         /// view's children and under the content, so the children show
