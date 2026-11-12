@@ -434,6 +434,7 @@ impl Module {
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
+                sealed_head: opening.sealed_head.clone(),
                 lost_edits: opening.lost_edits,
                 journal_kept: opening.journal_kept,
                 commits_kept: opening.commits_kept,
@@ -624,9 +625,11 @@ impl Module {
                 expected,
                 merging,
                 content,
+                sealed_through,
             } => {
-                let pending =
-                    ops::with_parent(replica, || host::publish(expected, merging, content));
+                let pending = ops::with_parent(replica, || {
+                    host::publish(expected, merging, content, sealed_through)
+                });
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {
                         Ok(PublishOutcome::Published(head)) => HeadEvent::Published {
@@ -759,7 +762,9 @@ impl Module {
                 replica,
                 generation,
                 base,
-            } => ops::with_parent(replica, || host::rebase_journal(generation, base)).detach(),
+                entries,
+            } => ops::with_parent(replica, || host::rebase_journal(generation, base, entries))
+                .detach(),
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);

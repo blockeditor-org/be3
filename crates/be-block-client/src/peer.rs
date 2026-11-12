@@ -151,6 +151,7 @@ pub struct Write<'a> {
     expected: Option<CommitId>,
     merging: Option<(Option<CommitId>, CommitId)>,
     bookmark: Option<String>,
+    sealed_through: Option<u64>,
 }
 
 impl<'a> Write<'a> {
@@ -176,6 +177,7 @@ impl<'a> Write<'a> {
             expected,
             merging: None,
             bookmark: None,
+            sealed_through: None,
         }
     }
 
@@ -197,6 +199,12 @@ impl<'a> Write<'a> {
 
     pub fn bookmark(mut self, label: &str) -> Self {
         self.bookmark = Some(label.to_owned());
+        self
+    }
+
+    /// The commit holds its session through `sequence` (`Commit::sealed_through`).
+    pub fn sealed_through(mut self, sequence: Option<u64>) -> Self {
+        self.sealed_through = sequence;
         self
     }
 }
@@ -856,6 +864,18 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.head(block)
     }
 
+    /// For a commit this device holds that sealed a session: the commit it was sealed on and the
+    /// sequence it holds through (`Commit::sealed_through`).
+    pub fn sealed_on(&self, commit: CommitId) -> Option<(Option<CommitId>, u64)> {
+        let commit = self.commits.try_get(commit).ok().flatten()?;
+        let through = commit.sealed_through?;
+        match commit.parents.as_slice() {
+            [] => Some((None, through)),
+            [parent] => Some((Some(*parent), through)),
+            _ => None,
+        }
+    }
+
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.remote(block)
     }
@@ -1376,6 +1396,7 @@ impl<S: ObjectStore> Peer<S> {
             references,
             expected,
             bookmark,
+            sealed_through,
             ..
         } = write;
         let previous = match expected {
@@ -1417,7 +1438,8 @@ impl<S: ObjectStore> Peer<S> {
             .with_parents(parents.clone())
             .with_kind(kind)
             .with_references(references.clone())
-            .with_metadata(encoded);
+            .with_metadata(encoded)
+            .with_sealed_through(sealed_through);
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         self.commits.vault().store().sync()?;

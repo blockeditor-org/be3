@@ -168,10 +168,15 @@ impl Refs {
         block: Uuid,
         commit: Option<CommitId>,
         sequence: u64,
+        carried: Option<u64>,
         own: bool,
         kept: bool,
     ) -> Result<(), StoreError> {
         self.update_announcements(block, |_, until| match until {
+            // Past the base, among the entries the rebase carried: still in the journal.
+            Until::Journal(at) if at > sequence && carried.is_some_and(|through| at <= through) => {
+                None
+            }
             Until::Journal(at) => Some(match commit {
                 Some(commit) if own && at <= sequence => Some(match kept {
                     true => Until::Commit(commit),

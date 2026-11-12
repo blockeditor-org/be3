@@ -93,6 +93,7 @@ pub(crate) struct Opened {
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
+    pub(crate) sealed_head: Option<be_sdk_type_api::SealedHead>,
     pub(crate) lost_edits: bool,
     pub(crate) journal_kept: bool,
     pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
@@ -514,6 +515,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     owes_since: Option<u64>,
     last_edit: Option<u64>,
     opened_journal: Option<Journal>,
+    /// The seal this device made on the head it opened at, which the server took after the
+    /// journal was last rebased (`opening.sealed-head`): taken once the journal is replayed.
+    sealed_head: Option<be_sdk_type_api::SealedHead>,
     rebased: bool,
     unappended: Vec<SessionOp>,
     append_at: Option<u64>,
@@ -752,6 +756,7 @@ where
             owes_since: None,
             last_edit: None,
             opened_journal: opened.journal,
+            sealed_head: opened.sealed_head,
             rebased: false,
             unappended: Vec::new(),
             append_at: None,
@@ -878,8 +883,8 @@ where
     /// Whether what the owner's editors do while its seal is on the way is sequenced and
     /// journaled at once, as at any other time, rather than held until the seal is answered: so
     /// it is on this device whatever the server does. Only when the seal holds a known sequence
-    /// (`sealing_through`): with others in the session, who would hear the seal's older sequence
-    /// after the newer operations, and for a seal that restarts the session, it is held.
+    /// (`sealing_through`), which `seal` records for an owner alone in its session and not for
+    /// a seal that restarts the session; otherwise what is typed is held.
     fn journals_during_seal(&self) -> bool {
         self.sealing_through.is_some()
     }
@@ -1267,7 +1272,7 @@ where
             return;
         }
         if !self.rebased {
-            self.rebase_journal();
+            self.rebase_journal(Vec::new());
         }
         self.appended_bytes += ops.iter().map(parted).sum::<usize>();
         let entries: Vec<JournalEntry> = ops
@@ -1299,7 +1304,7 @@ where
 
     /// Starts the journal from this owner's base: its last commit, the sequence number that
     /// commit holds, and the session state as of it.
-    fn rebase_journal(&mut self) {
+    fn rebase_journal(&mut self, entries: Vec<JournalEntry>) {
         self.rebased = true;
         self.out.push(Effect::Rebase {
             replica: self.id,
@@ -1309,6 +1314,7 @@ where
                 sequence: self.sealed,
                 state: self.sealed_state.clone(),
             },
+            entries,
         });
     }
 
@@ -1384,6 +1390,7 @@ where
                     sequence: 0,
                     state: Vec::new(),
                 },
+                entries: Vec::new(),
             });
         }
         self.out.push(Effect::Release { replica: self.id });
@@ -1911,12 +1918,21 @@ where
         then: AfterPublish<C>,
     ) {
         let token = self.token();
+        // A seal holds the session through what its owner sequenced when it began.
+        let sealed_through = match (&then, &self.role) {
+            (AfterPublish::Seal { .. }, Role::Owner(_)) => self
+                .sealing_through
+                .as_ref()
+                .map(|(sequence, _)| *sequence),
+            _ => None,
+        };
         self.out.push(Effect::Publish {
             replica: self.id,
             token,
             expected,
             merging,
             content,
+            sealed_through,
         });
         self.waiting = Some(Wait::Publish { token, then });
     }
@@ -2285,9 +2301,30 @@ where
             .opened_journal
             .take()
             .filter(|journal| journal.base.commit == self.base);
-        let replayed = match journal {
-            Some(journal) => self.replay_journal(journal),
-            None => Vec::new(),
+        let sealed_head = self.sealed_head.take();
+        let mut carried = None;
+        let replayed = match (journal, sealed_head) {
+            (Some(mut journal), Some(sealed)) => {
+                // What the seal holds replays onto the commit it was made on; the session as of
+                // its last sequence is the seal's; what came after replays on top of the seal.
+                let split = journal
+                    .entries
+                    .iter()
+                    .position(|entry| entry.sequence > sealed.through)
+                    .unwrap_or(journal.entries.len());
+                let later = journal.entries.split_off(split);
+                let mut replayed = self.replay_journal(journal);
+                self.base = Some(sealed.commit);
+                self.sealed = sealed.through;
+                self.sealed_state = self.confirmed.session_state();
+                replayed.retain(|op| op.sequence > sealed.through);
+                let after = self.replay_entries(later);
+                carried = Some(after.clone());
+                replayed.extend(after);
+                replayed
+            }
+            (Some(journal), None) => self.replay_journal(journal),
+            (None, _) => Vec::new(),
         };
         for op in &replayed {
             // An operation sent by its part is too large to keep: it is followed without bytes.
@@ -2320,6 +2357,21 @@ where
         };
         self.loaded = true;
         self.described = true;
+        if let Some(after) = carried
+            && self.is_owner()
+        {
+            // The journal is still on the commit the seal was made on: start it over from the
+            // seal, keeping what came after, in one write.
+            self.owes_since = (!after.is_empty()).then_some(self.now);
+            let entries = after
+                .into_iter()
+                .map(|op| JournalEntry {
+                    sequence: op.sequence,
+                    payload: Wire::Session(SessionMessage::Accepted { op }).encode(),
+                })
+                .collect();
+            self.rebase_journal(entries);
+        }
         if let Role::Follower(_) = &self.role {
             self.regreet();
         }
@@ -2346,8 +2398,13 @@ where
         }
         self.sealed = journal.base.sequence;
         self.rebased = self.state.is_owner(self.client);
+        self.replay_entries(journal.entries)
+    }
+
+    /// Applies journaled entries in order, as replaying a journal does.
+    fn replay_entries(&mut self, entries: Vec<JournalEntry>) -> Vec<SessionOp> {
         let mut replayed = Vec::new();
-        for entry in journal.entries {
+        for entry in entries {
             let Some(Wire::Session(SessionMessage::Accepted { op })) = Wire::decode(&entry.payload)
             else {
                 continue;
@@ -3810,10 +3867,23 @@ where
         let after = sequencer.since(sequence);
         self.sealed = sequence;
         self.sealed_state = state;
-        self.owes_since = None;
+        // What came after the seal still owes one, whatever the host reports.
+        self.owes_since = (!after.is_empty()).then_some(self.now);
         self.unappended.clear();
         self.append_at = None;
-        self.appended_bytes = 0;
+        self.appended_bytes = after.iter().map(parted).sum::<usize>();
+        let carried: Vec<JournalEntry> = after
+            .into_iter()
+            .map(|op| JournalEntry {
+                sequence: op.sequence,
+                payload: Wire::Session(SessionMessage::Accepted { op }).encode(),
+            })
+            .collect();
+        self.appended_bytes += carried
+            .iter()
+            .map(|entry| entry.payload.len())
+            .sum::<usize>();
+        let clean = carried.is_empty();
         let restart = std::mem::take(&mut self.restarting);
         let reload = match restart {
             true => {
@@ -3821,10 +3891,9 @@ where
                 Some(Vec::new())
             }
             false => {
-                self.rebase_journal();
-                if let Some(from) = after.first().map(|op| op.sequence) {
-                    self.append(after, false, from);
-                }
+                // One write: the new base and what came after it, so no crash between them
+                // loses what was typed while the seal was on its way.
+                self.rebase_journal(carried);
                 std::mem::take(&mut self.reload).then(|| self.sealed_state.clone())
             }
         };
@@ -3836,11 +3905,14 @@ where
         });
         self.beaten = Some(self.now);
         self.active = false;
-        self.out.push(Effect::ReportClean {
-            replica: self.id,
-            generation: self.state.generation,
-            clean_at: Some(head),
-        });
+        // Clean only with nothing past the seal: a takeover reads `clean_at` as nothing unsealed.
+        if clean {
+            self.out.push(Effect::ReportClean {
+                replica: self.id,
+                generation: self.state.generation,
+                clean_at: Some(head),
+            });
+        }
         if restart {
             self.replaced_at = sequence;
             self.jobs.push_front(Job::Restart(head));
@@ -3884,7 +3956,7 @@ where
         self.rebuild_visible();
         self.history.restart();
         self.restarted_at = Some(head);
-        self.rebase_journal();
+        self.rebase_journal(Vec::new());
     }
 
     /// Moves a follower's pending and unsent edits from `before` onto the content it just

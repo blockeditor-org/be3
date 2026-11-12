@@ -48,7 +48,8 @@ pub const PONG_WAIT: Duration = Duration::from_secs(20);
 /// Silence after something was sent that the connection takes as a sign the server may be gone:
 /// it pings then rather than at `PING_INTERVAL`, so a link that went silent under a request is
 /// noticed in `ANSWER_WAIT` plus `PONG_WAIT`. The ping waits as long as any, so a server that
-/// is slow but answers is not taken for gone.
+/// is slow but answers is not taken for gone. A message that has no answer (a relay, an
+/// append) on an otherwise quiet link costs one extra ping this long after it.
 pub const ANSWER_WAIT: Duration = Duration::from_secs(5);
 
 pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;

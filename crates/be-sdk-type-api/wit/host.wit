@@ -43,10 +43,14 @@ interface host {
     /// unchanged save answers `published` with the same head; one sealed on
     /// this device alone, offline or behind others in its outbox, answers
     /// `kept`, and the replica hears `drained` once it reaches the server.
+    /// `sealed-through`, for a seal of the session's owner, is the last sequence number the
+    /// content holds: kept with the commit, so what was journaled past it while the commit was
+    /// on its way replays on top of it when the journal is still on the commit's parent.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
+        sealed-through: option<u64>,
     ) -> result<publish-outcome, string>;
 
     variant publish-outcome {
@@ -84,10 +88,11 @@ interface host {
 
     /// The owner of `generation` starts the journal from `base`: after each
     /// commit, and before its first append when the journal it opened with
-    /// was not its base. The announcements kept beside the entries `base`
-    /// holds go with its commit when this device sealed it, sent once the
-    /// server holds it; the others are dropped.
-    rebase-journal: async func(generation: u64, base: journal-base);
+    /// was not its base. `entries` are what it sequenced past the base
+    /// meanwhile, kept with the base in one write. The announcements kept
+    /// beside the entries `base` holds go with its commit when this device
+    /// sealed it, sent once the server holds it; the others are dropped.
+    rebase-journal: async func(generation: u64, base: journal-base, entries: list<journal-entry>);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
     send: async func(to: recipients, bytes: list<u8>);

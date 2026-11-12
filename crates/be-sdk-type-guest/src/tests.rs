@@ -27,6 +27,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 
+mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
 mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
@@ -111,6 +112,7 @@ mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
 mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
+mod what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {
@@ -319,6 +321,7 @@ struct Stored {
     parents: Vec<CommitId>,
     bytes: Vec<u8>,
     manifest: be_block_store::Manifest,
+    sealed_through: Option<u64>,
 }
 
 const SEALING: Uuid = Uuid::from_u128(0x5ea1);
@@ -384,6 +387,7 @@ fn opening(
         journal_kept: false,
         commits_kept: be_sdk_type_api::KeptCommits::None,
         refused_commits: Vec::new(),
+        sealed_head: None,
     }
 }
 
@@ -536,6 +540,44 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.to(device, |host| call(replica, host))
     }
 
+    /// What a replica opening at `head` loads, as `be_block_type_host`'s `journal_for` gives it:
+    /// the journal on `head`, or on the commit `head` sealed, which it loads first and then
+    /// takes `head` as its sealed head.
+    fn journal_on(
+        &self,
+        head: Option<CommitId>,
+    ) -> (
+        Option<Journal>,
+        Option<CommitId>,
+        Option<be_sdk_type_api::SealedHead>,
+    ) {
+        let journal = self.journal.clone();
+        if journal.as_ref().is_some_and(|journal| journal.base.commit == head) {
+            return (journal, head, None);
+        }
+        let sealed = head.and_then(|commit| {
+            let stored = self.commits.get(&commit)?;
+            let parent = match stored.parents.as_slice() {
+                [] => None,
+                [parent] => Some(*parent),
+                _ => return None,
+            };
+            Some((commit, parent, stored.sealed_through?))
+        });
+        match (journal, sealed) {
+            (Some(journal), Some((commit, parent, through)))
+                if journal.base.commit == parent && journal.base.sequence <= through =>
+            {
+                (
+                    Some(journal),
+                    parent,
+                    Some(be_sdk_type_api::SealedHead { commit, through }),
+                )
+            }
+            _ => (None, head, None),
+        }
+    }
+
     fn open(&mut self, device: usize) {
         self.open_at(device, self.head);
     }
@@ -555,10 +597,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
         self.settle();
-        let journal = self
-            .journal
-            .clone()
-            .filter(|journal| journal.base.commit == local);
+        let (journal, local, sealed_head) = self.journal_on(local);
+        let settles_on = sealed_head.as_ref().map(|sealed| sealed.commit);
         let foreign = self.journal_tag != self.devices[device].tag;
         let lost_edits = foreign
             && journal
@@ -569,12 +609,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             tag: self.devices[device].tag,
             journal: journal.filter(|_| !foreign),
             lost_edits,
+            sealed_head,
             ..opening(client, local, self.lease.state().clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));
         self.devices[device].replica = Some(replica);
         if let Some(head) = self.head
             && local != self.head
+            && settles_on != self.head
         {
             self.with_replica(device, |replica, host| replica.head_moved(host, head));
         }
@@ -754,6 +796,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 parents,
                 bytes,
                 manifest,
+                sealed_through: None,
             },
         );
         id
@@ -953,6 +996,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 expected,
                 merging,
                 content,
+                sealed_through,
             } if !self.stalled => {
                 if expected != self.head {
                     self.rejections += 1;
@@ -982,6 +1026,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .chain(merging.map(|merging| merging.ours))
                     .collect();
                 let head = self.commit(manifest, parents);
+                if let Some(stored) = self.commits.get_mut(&head) {
+                    stored.sealed_through = sealed_through;
+                }
                 self.head = Some(head);
                 self.publishes += 1;
                 let kept = self.kept_publishes;
@@ -1130,16 +1177,18 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 reply,
                 generation,
                 base,
+                entries,
             } => {
                 self.to(device, |host| reply.send(host, &()));
                 let state = self.lease.state();
                 if !state.is_owner(client) || state.generation != generation {
                     return;
                 }
-                self.journal = Some(Journal {
-                    base,
-                    entries: Vec::new(),
-                });
+                let entries = entries
+                    .into_iter()
+                    .filter(|entry| entry.sequence > base.sequence)
+                    .collect();
+                self.journal = Some(Journal { base, entries });
                 self.journal_tag = self.devices[device].tag;
             }
             Call::ReportStatus { reply, status } => {

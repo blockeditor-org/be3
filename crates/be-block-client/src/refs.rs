@@ -853,13 +853,15 @@ impl Refs {
         self.write(rows)
     }
 
-    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does.
+    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does,
+    /// and keeps `entries` past it (sealed) in the same write.
     pub fn rebase_journal(
         &self,
         block: Uuid,
         tag: Hash,
         generation: u64,
         base: JournalBase,
+        entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
@@ -879,11 +881,23 @@ impl Refs {
                 }
             }
             rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &head));
+            let mut kept = BTreeMap::new();
+            for entry in entries {
+                if entry.sequence <= head.base.sequence {
+                    continue;
+                }
+                rows.push(row(
+                    Table::JournalEntry,
+                    journal_entry_key(block, entry.sequence),
+                    &entry,
+                ));
+                kept.insert(entry.sequence, entry);
+            }
             state.journals.insert(
                 block,
                 Journaled {
                     head,
-                    entries: BTreeMap::new(),
+                    entries: kept,
                 },
             );
         }

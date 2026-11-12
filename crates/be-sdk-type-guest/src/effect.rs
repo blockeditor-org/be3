@@ -20,6 +20,7 @@ pub(crate) enum Effect {
         expected: Option<CommitId>,
         merging: Option<Merging>,
         content: Written,
+        sealed_through: Option<u64>,
     },
     Stash {
         replica: ReplicaId,
@@ -78,6 +79,7 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         generation: u64,
         base: JournalBase,
+        entries: Vec<JournalEntry>,
     },
     Release {
         replica: ReplicaId,
