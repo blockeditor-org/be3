@@ -19,16 +19,13 @@ Each step is one PR.
    (old builds, `be` without it, a viewer's, another device's that left the
    session to this one) are found by comparing each document's indexed commit
    with the block's `head`. The host never lists a whole tree, so add a server
-   call `changed-since(root, revision)` answering, a page at a time, the
-   summaries of blocks in the tree changed after a revision. The server's graph
-   revision restarts at zero with the process, so the call needs a durable
-   change counter per block (a column the server bumps on every create,
-   publish, move and metadata change). The indexer runs it from the index's
-   watermark (`Batch::watermark`) when it opens a root's index and after
-   reconnecting, indexes what is stale, and moves the watermark with each
-   batch, so a long catch-up resumes where it stopped; `Searched::complete`
-   says it is still catching up. Imports (`Peer::queue_import`) are caught up
-   this way too, since no session seals them.
+   call `changed-since(root, sequence)`. Designed in "Step 1, designed" below.
+   The indexer runs it from the index's watermark (`Batch::watermark`) when it
+   opens a root's index and after reconnecting, indexes what is stale, and moves
+   the watermark with each batch, so a long catch-up resumes where it stopped;
+   `Searched::complete` says it is still catching up. Imports
+   (`Peer::queue_import`) are caught up this way too, since no session seals
+   them.
    - **Leaving the tree.** A block moved out of the tree, deleted to the trash
      or collected gets its documents masked (`Batch::removed_blocks`) by the
      device that moved it (it had Manage); its terms leave the head when
@@ -50,13 +47,43 @@ Each step is one PR.
    each document's `source` and pass the parts the index holds text for as
    `indexed`, so reindexing a large block reads only its changed parts.
 
+## Step 1, built
+
+`changed-since` and catching up are built as described in guides/blocks/server.md
+("Changes since") and guides/blocks/host.md ("Catching up"). What the plan said
+that they do not do, or do differently:
+
+- The watermark is written at the end of a catch-up, once every block it queued
+  is indexed, not with each batch: an interrupted catch-up starts again from the
+  old watermark.
+- Departures (`block_departures`, kept a day) are kept per tree a block left, so a call
+  for one tree names only what left that tree, however often the block moved on. A
+  device that was away longer than a day misses every block that left in between, moved
+  out, trashed or collected, and nothing tells it so.
+- The catch-up runs on connecting, not on a head change, and a viewer's device
+  runs none.
+- `Index::forget_before` has no caller yet, so the index's header keeps every
+  block it ever masked.
+
 ## Left open
 
-- **Leaving the tree is not masked** (step 3 of "The indexer"): a block moved to
-  a private root, trashed or emptied keeps its text in the old root's index, which
-  every viewer of that root can decrypt. The UI hides it (`show` filters by
-  access) but a modified client reads it. Mask it with `Batch::removed_blocks`
-  from the device that moves it.
+- **Leaving the tree is masked on the next connection** (`changed-since`, built),
+  not at once: a block moved to a private root, trashed or emptied keeps its text
+  in the old root's index until a device that may edit the root next catches up,
+  and only the catch-up masks it (no mask at the moment of the move). Until then
+  every viewer of that root can decrypt it with a modified client; the UI hides it
+  (`show` filters by access and by what the search is within). Departures are kept a
+  day on the server: a device that was away longer misses every block that left in
+  between, moved out, trashed or collected (it is only hidden by `show`).
+- **A block let go stays stale.** A block whose commit could not be read three times is
+  counted as indexed (`MAX_READ_FAILURES`), so a catch-up ends: its entry in the index is
+  stale or missing until the block next changes. Answers are filtered by the mirror, so
+  only snippets and ranking use the stale text.
+- **No host test for a second device.** be-host-tests start one host with its own
+  dev server, so catching up what another device wrote, and a host restart, are
+  only tested in be-host-stack: a harness for a second device and a host restart.
+- **A viewer's device does not catch up.** Only an editor of the root writes its
+  index, so a viewer's searches show the text the last editor catch-up indexed.
 - **Late text in a huge document is not searchable.** A document's text is
   indexed up to 1 MiB (`MAX_TEXT`); a word past that finds nothing, and nothing
   in the interface says why. It is capped after the body is loaded, so it does
