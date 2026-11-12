@@ -1,4 +1,4 @@
-use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::Overflow;
 
@@ -138,7 +138,7 @@ fn DockTitleButton(
                 <Frame
                     fill={fill}
                     radius=COUNT_TARGET_RADIUS
-                    border={focus_border(focused, Border::FOCUS)}
+                    focus={focused}
                     height=COUNT_TARGET
                     padding={Padding::horizontal(TITLE_PADDING)}
                     align={Align2::new(Align::Stretch, Align::Center)}
@@ -201,7 +201,7 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: Callback<()>)
                     height=COUNT_TARGET
                     fill={fill}
                     radius=COUNT_TARGET_RADIUS
-                    border={focus_border(focused, Border::FOCUS)}
+                    focus={focused}
                     align=Align::Center
                 >
                     <Frame

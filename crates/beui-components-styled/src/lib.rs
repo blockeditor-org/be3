@@ -104,7 +104,7 @@ pub use dialog::{
     DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, SHEET_BELOW, Scrim,
 };
 pub use focus_ring::FocusRing;
-pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
+pub use frame::{Border, ColorRole, Frame, Radius};
 pub use fullscreen::Fullscreen;
 pub use key_cap::KeyCap;
 pub use link::Link;

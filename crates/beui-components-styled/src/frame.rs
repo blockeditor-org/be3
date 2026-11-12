@@ -1,7 +1,7 @@
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::NodeId;
-use beui_view::reactive::{Child, Get, IntoProp, Memo, Prop, create_memo, focus_ring};
+use beui_view::reactive::{Child, Get, IntoProp, Prop, focus_ring};
 use beui_view::types::{Align2, Corners, Outline};
 use beui_view::types::{Color, Sides, Vec2};
 
@@ -289,11 +289,6 @@ impl Border {
     }
 }
 
-pub fn focus_border(focused: impl IntoProp<bool>, border: Border) -> Memo<Option<Border>> {
-    let ring = focus_ring(focused);
-    create_memo(move || ring.get().then_some(border))
-}
-
 fn fill_color(fill: Prop<ColorRole>, theme: ThemeStore) -> Prop<Color> {
     match fill {
         Prop::Static(role) if !role.themed() => Prop::Static(role.resolve(&theme)),
@@ -311,6 +306,30 @@ fn border_outline(border: Prop<Option<Border>>, theme: ThemeStore) -> Prop<Optio
     }
 }
 
+/// The outline a frame draws: the keyboard focus ring, an accent outline `offset` outside the
+/// frame, while `focus` shows one, and the border's the rest of the time.
+fn focus_outline(
+    focus: Prop<bool>,
+    offset: Stroke,
+    under: Prop<Option<Outline>>,
+    theme: ThemeStore,
+) -> Prop<Option<Outline>> {
+    if matches!(focus, Prop::Static(false)) {
+        return under;
+    }
+    let ring = focus_ring(focus);
+    Prop::dynamic(move || match ring.get() {
+        true => Some(
+            Outline::new(ColorRole::Accent.resolve(&theme), Stroke::Focus.px())
+                .offset(offset.px()),
+        ),
+        false => under.get(),
+    })
+}
+
+/// A frame: a box with a fill, a rounded corner, an outline, padding and a size. `focus`
+/// draws the keyboard focus ring around it, `focus_offset` outside its edge, in place of its
+/// border while the ring shows.
 #[component]
 pub fn Frame(
     #[prop(default = Length::INTRINSIC)] width: Prop<Length>,
@@ -322,6 +341,8 @@ pub fn Frame(
     #[prop(default = Radius::None)] radius: Prop<Radius>,
     #[prop(default = CornerSet::ALL)] corners: Prop<CornerSet>,
     #[prop(default = None)] border: Prop<Option<Border>>,
+    #[prop(default = false)] focus: Prop<bool>,
+    #[prop(default = Stroke::None)] focus_offset: Stroke,
     #[prop(default = Vec2::ZERO)] translate: Prop<Vec2>,
     #[prop(default = 0.0)] rotate: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
@@ -330,7 +351,7 @@ pub fn Frame(
 ) -> NodeId {
     let theme = use_theme();
     let fill = fill_color(fill, theme);
-    let outline = border_outline(border, theme);
+    let outline = focus_outline(focus, focus_offset, border_outline(border, theme), theme);
     let radius = match (radius, corners) {
         (radius, Prop::Static(CornerSet::ALL)) => radius.map(Radius::corners),
         (radius, corners) => Prop::dynamic(move || corners.get().of(radius.get().corners())),

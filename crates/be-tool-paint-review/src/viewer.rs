@@ -366,7 +366,7 @@ fn Stage(review: Review) -> NodeId {
                                 split.set((x / content.x.max(1.0)).clamp(0.0, 1.0));
                             };
                             view! {
-                                <Frame border={focus_border(focused, Border::FOCUS)}>
+                                <Frame focus={focused}>
                                     <Canvas view>
                                         <CanvasItem
                                             x=0.0

@@ -3452,7 +3452,7 @@ fn ScrollRowFace(
     view! {
         <Frame
             fill={fill_color}
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             radius=Radius::Md
             padding={create_memo(move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
         >
@@ -4450,7 +4450,7 @@ fn CanvasBoard(view: Memo<Option<CanvasView>>, focused: ReadSignal<bool>) -> Nod
     let [first, second, third, fourth] = STAGE_CARDS;
     view! {
         <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             radius=Radius::Md
         >
             <Canvas view>

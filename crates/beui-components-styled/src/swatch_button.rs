@@ -37,19 +37,17 @@ fn SwatchButtonFace(
         tooltip,
         ..
     } = handle;
-    let keyboard = focus_ring(focused);
     let ring = create_memo(move || {
-        let color = match selected.get() || keyboard.get() {
+        let color = match selected.get() {
             true => ColorRole::Accent,
             false => ColorRole::Border,
         };
-        (selected.get() || keyboard.get() || hovered.get())
-            .then(|| Border::new(color).width(Stroke::Focus))
+        (selected.get() || hovered.get()).then(|| Border::new(color).width(Stroke::Focus))
     });
     let fill = color.map(|color| ColorRole::Custom(color.into()));
     view! {
         <Tooltip label={tooltip}>
-            <Frame padding=Space::Xs radius border={ring}>
+            <Frame padding=Space::Xs radius border={ring} focus={focused}>
                 <Frame width=Size::Sm height=Size::Sm radius fill={fill} border={Border::DEFAULT} />
             </Frame>
         </Tooltip>

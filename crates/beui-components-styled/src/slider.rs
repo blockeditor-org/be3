@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
 use crate::list::{List, Spacer};
@@ -67,7 +67,7 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
+            focus={focused} focus_offset=Stroke::Focus
             radius=Radius::Md
         >
             <Layers>

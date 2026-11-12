@@ -1,4 +1,4 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::reactive::NodeId;
 use beui_view::types::Overflow;
@@ -39,7 +39,7 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     view! {
         <Frame
             fill={fill_color}
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Hairline))}
+            focus={focused} focus_offset=Stroke::Hairline
             radius=Radius::Md
             padding=OPTION_PADDING
         >
@@ -164,7 +164,7 @@ pub(super) fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
     view! {
         <Frame
             fill={fill_color}
-            border={focus_border(focused, Border::FOCUS.offset(Stroke::Hairline))}
+            focus={focused} focus_offset=Stroke::Hairline
             radius=Radius::Sm
             padding=SEGMENT_PADDING
         >

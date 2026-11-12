@@ -129,7 +129,7 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
         <Frame
             fill={fill}
             radius=PILL_RADIUS
-            border={focus_border(focused, Border::new(ColorRole::Text).width(Stroke::Focus).offset(Stroke::Focus))}
+            focus={focused} focus_offset=Stroke::Focus
             padding={Padding::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text color=TextColor::OnAccent weight=Weight::Bold>{label.to_owned()}</Text>
@@ -164,7 +164,7 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
     });
     view! {
         <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus).offset(Stroke::Focus))}
+            focus={focused} focus_offset=Stroke::Focus
             radius=Radius::Md
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -256,7 +256,7 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
             height=METER_HEIGHT
             fill=ColorRole::Track
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus).offset(Stroke::Focus))}
+            focus={focused} focus_offset=Stroke::Focus
         >
             <List direction=Direction::Horizontal spacing=Space::None>
                 <ListItem grow=fraction>
@@ -446,7 +446,7 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         <Frame
             fill={fill}
             radius=PILL_RADIUS
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             padding={Padding::symmetric(Space::Lg, Space::Sm)}
         >
             <Text color={ink}>{label}</Text>
@@ -493,7 +493,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
     } = handle;
     view! {
         <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             radius=Radius::Md
             padding=Space::Xs
         >
@@ -1015,7 +1015,7 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
         <Frame
             fill={fill}
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             padding={Padding::symmetric(Space::Md, Space::Sm)}
         >
             <Text>{name.to_owned()}</Text>
@@ -1068,7 +1068,7 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
         <Frame
             fill={fill}
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+            focus={focused}
             padding={Padding::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text align=TextAlign::Center>{text}</Text>
@@ -1322,7 +1322,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                 <Frame
                     fill={fill}
                     radius=Radius::Md
-                    border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
+                    focus={focused}
                     padding={Padding::symmetric(Space::Sm, Space::Xs2)}
                 >
                     <unstyled::TreeRowArea target>
