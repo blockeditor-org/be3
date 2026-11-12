@@ -2,8 +2,8 @@ use super::*;
 use crate::primitives::{Frame, List};
 use crate::reactive::*;
 use crate::sight::CULLING_MARGIN;
-use crate::styled::*;
 use crate::styled::Scroll;
+use crate::styled::*;
 
 #[test]
 fn a_dialog_held_far_below_the_view_still_opens() {
