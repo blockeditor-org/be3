@@ -400,17 +400,22 @@ which clients never unlist, does not count against
 of.
 
 Every `BlockSummary` and `BlockRemoved` carries a `revision`
-(`ServerStore::with_graph`). Replies and announcements can arrive out of order
-(a reply overtakes announcements queued before it), and the revision is how a
-client puts them back in order.
+(`ServerStore::with_graph`), and `list-blocks` answers the revision it read the
+listing at. Replies and announcements can arrive out of order (a reply
+overtakes announcements queued before it), and the revision is how a client
+puts them back in order. It only grows, across restarts too: the server
+reserves revisions a range at a time in `revision_floor` and starts past the
+last range it reserved, so a client that compares a summary with a listing it
+fetched before the restart still orders them.
 
 ### Changes since
 
 `changes.rs` keeps a durable, organization-wide change sequence
-(`organizations.change_sequence`), which unlike the graph's `revision` survives
-a restart (every graph change runs under the store's one database mutex, so
-writes are ordered). Every write that changes what a block holds, where it lies
-or who may view it sets the block's `changed` to the next sequence in its own
+(`organizations.change_sequence`), which unlike the graph's `revision` counts
+per organization and in the same transaction as each change (every graph
+change runs under the store's one database mutex, so writes are ordered).
+Every write that changes what a block holds, where it lies or who may view it
+sets the block's `changed` to the next sequence in its own
 transaction (`touch`: create, publish, metadata and references, grants;
 `touch_moved`: a new parent, for the block and everything below it). A block
 that leaves a top-level block's tree (moved out, trashed, or deleted for good

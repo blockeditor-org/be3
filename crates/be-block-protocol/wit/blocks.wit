@@ -133,6 +133,13 @@ interface blocks {
         journals: list<option<journal>>,
     }
 
+    /// A listing's blocks, and the revision the server read them at: a block
+    /// that changes after the answer does so at a later revision.
+    record listed {
+        revision: u64,
+        blocks: list<block-summary>,
+    }
+
     /// What `collect-detached` deleted and freed.
     record collected {
         blocks: list<block-id>,
@@ -235,7 +242,7 @@ interface blocks {
 
     /// The blocks of a listing, which the connection's `changes` stream then
     /// follows until `unlist`.
-    list-blocks: async func(listing: listing) -> result<list<block-summary>, error>;
+    list-blocks: async func(listing: listing) -> result<listed, error>;
 
     /// Stops following a listing.
     unlist: async func(listing: listing) -> result<_, error>;

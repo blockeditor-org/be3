@@ -65,7 +65,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
     let response = other
         .call(|peer| client::blocks::list_blocks(peer, Listing::References(view)))
         .await;
-    let Ok(blocks) = response else {
+    let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
         panic!("{response:?}");
     };
     let mut listed: Vec<Uuid> = blocks.iter().map(|block| block.id).collect();
