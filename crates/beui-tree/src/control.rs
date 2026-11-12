@@ -24,69 +24,65 @@ fn build_in_slot<C: SlotChild>(
 type HeldChild<C> = Stored<RefCell<Option<(<C as SlotChild>::Stored, Scope)>>>;
 type KeyedChild<K, C> = Stored<RefCell<Option<(K, <C as SlotChild>::Stored, Scope)>>>;
 
+/// Shows its children while `condition` holds. By default they are built each time it becomes
+/// true and dropped when it turns false. With `keep_alive` they are built once, the first time
+/// it is true, and kept while hidden, paused, so nothing in them runs until they are shown
+/// again.
 #[component]
 pub fn Show<C>(
     condition: Prop<bool>,
+    #[prop(default = false)] keep_alive: bool,
     #[prop(children)] then: RenderFn<(), Children<C>>,
 ) -> DynamicSegment<C>
 where
     C: SlotChild,
 {
-    DynamicSegment::new(move |slot: ChildSlot<C>| {
-        let held = store(RefCell::new(None::<Scope>));
-        create_binding(move || {
-            let visible = condition.get();
-            let held = held.value();
-            let mut held = held.borrow_mut();
-            if !visible {
-                slot.fill(Vec::new());
-                drop(held.take());
-            } else if held.is_none() {
-                let scope = Scope::detached();
-                scope.context().run(|| then.call(()).mount_in(slot.clone()));
-                *held = Some(scope);
-            }
-        });
+    DynamicSegment::new(move |slot: ChildSlot<C>| match keep_alive {
+        false => show(condition, then, slot),
+        true => keep(condition, then, slot),
     })
 }
 
-#[component]
-pub fn ShowKeepAlive<C>(
-    condition: Prop<bool>,
-    #[prop(children)] then: Render<(), Children<C>>,
-) -> DynamicSegment<C>
-where
-    C: SlotChild,
-{
-    DynamicSegment::new(move |slot: ChildSlot<C>| {
-        let held = store(RefCell::new(None::<(std::rc::Rc<NestedHost<C>>, Scope)>));
-        let mut then = Some(then);
-        create_binding(move || {
-            let visible = condition.get();
-            let held = held.value();
-            let mut held = held.borrow_mut();
-            if visible
-                && held.is_none()
-                && let Some(build) = then.take()
-            {
-                let scope = Scope::detached().pausable();
-                let host = scope
-                    .context()
-                    .run(|| build.call(()).mount_in(slot.clone()));
-                *held = Some((host, scope));
-            }
-            if let Some((host, scope)) = held.as_ref() {
-                host.set_visible(visible);
-                if visible {
-                    scope.resume();
-                } else {
-                    scope.pause();
-                }
+fn show<C: SlotChild>(condition: Prop<bool>, then: RenderFn<(), Children<C>>, slot: ChildSlot<C>) {
+    let held = store(RefCell::new(None::<Scope>));
+    create_binding(move || {
+        let visible = condition.get();
+        let held = held.value();
+        let mut held = held.borrow_mut();
+        if !visible {
+            slot.fill(Vec::new());
+            drop(held.take());
+        } else if held.is_none() {
+            let scope = Scope::detached();
+            scope.context().run(|| then.call(()).mount_in(slot.clone()));
+            *held = Some(scope);
+        }
+    });
+}
+
+fn keep<C: SlotChild>(condition: Prop<bool>, then: RenderFn<(), Children<C>>, slot: ChildSlot<C>) {
+    let held = store(RefCell::new(None::<(std::rc::Rc<NestedHost<C>>, Scope)>));
+    let built = store(std::cell::Cell::new(false));
+    create_binding(move || {
+        let visible = condition.get();
+        let held = held.value();
+        let mut held = held.borrow_mut();
+        if visible && held.is_none() && !built.value().replace(true) {
+            let scope = Scope::detached().pausable();
+            let host = scope.context().run(|| then.call(()).mount_in(slot.clone()));
+            *held = Some((host, scope));
+        }
+        if let Some((host, scope)) = held.as_ref() {
+            host.set_visible(visible);
+            if visible {
+                scope.resume();
             } else {
-                slot.fill(Vec::new());
+                scope.pause();
             }
-        });
-    })
+        } else {
+            slot.fill(Vec::new());
+        }
+    });
 }
 
 #[component]

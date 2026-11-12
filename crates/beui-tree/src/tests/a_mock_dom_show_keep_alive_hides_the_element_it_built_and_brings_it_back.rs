@@ -13,9 +13,9 @@ fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
                 <Show condition={open}>
                     <Element tag="p" text="rebuilt" />
                 </Show>
-                <ShowKeepAlive condition={open}>
+                <Show keep_alive=true condition={open}>
                     <Element tag="textarea" text={note} />
-                </ShowKeepAlive>
+                </Show>
             </Element>
         }
     });
@@ -32,7 +32,7 @@ fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
     assert_eq!(
         page.html(),
         "<div id=0><p id=3>rebuilt</p><textarea id=2>edited while hidden</textarea></div>",
-        "a `ShowKeepAlive` brings back the element it built, brought up to date as it is shown, \
+        "a kept-alive `Show` brings back the element it built, brought up to date as it is shown, \
          where a `Show` builds a new one"
     );
 }

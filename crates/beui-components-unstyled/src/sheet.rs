@@ -1213,9 +1213,11 @@ pub fn Sheet(
         dragging: dragging.read_only(),
         on_drag: Callback::new(move |gesture| motion.value().outside_drag(gesture)),
     });
+    // The kept-alive `Show` builds its children once.
+    let panel = panel.once();
     let sheet = view! {
         <List spacing=0.0>
-            <ShowKeepAlive condition={present}>
+            <Show keep_alive=true condition={present}>
                 <ListItem length=sheet_length max=sheet_max shrink=1.0>
                     <Frame @node_ref=&slot translate={shifted}>
                         {panel.call(view! {
@@ -1259,7 +1261,7 @@ pub fn Sheet(
                         })}
                     </Frame>
                 </ListItem>
-            </ShowKeepAlive>
+            </Show>
         </List>
     };
     on_back(open, move |gesture| motion.value().back(gesture));

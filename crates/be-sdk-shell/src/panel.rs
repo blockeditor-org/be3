@@ -251,7 +251,7 @@ pub(crate) fn BlockPanel(
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 </Show>
                 <TabBar bar={move || bar.call(())} own=true />
-                <ShowKeepAlive condition={live}>
+                <Show keep_alive=true condition={live}>
                     <ListItem grow=1.0>
                         <List spacing=Space::None>
                             <Dynamic value={content}>|content: Content| {
@@ -279,7 +279,7 @@ pub(crate) fn BlockPanel(
                             }</Dynamic>
                         </List>
                     </ListItem>
-                </ShowKeepAlive>
+                </Show>
                 <Show condition={previewing}>
                     <ListItem grow=1.0>
                         <ChildBlock

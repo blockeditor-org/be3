@@ -182,9 +182,6 @@ host queues settled events per app. The calls stay `local`
 
 ## 12. beui: one form per concept
 
-- `Show` and `ShowKeepAlive` become `Show` with `keep_alive`; a kept-alive
-  `Show` builds its `RenderFn` once. Update guides/beui.md and
-  guides/reactive.md.
 - One focus ring: styled `Frame` takes `focus=` (drawn as an outline with an
   offset). It replaces `focus_border()`, `beui_view::reactive::focus_outline()`
   and the hand-drawn `focus_ring(..)` + accent border copies (`TileButton`,
