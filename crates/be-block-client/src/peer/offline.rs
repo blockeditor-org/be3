@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use be_block_commit::{CommitId, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
@@ -90,6 +91,7 @@ impl<S: ObjectStore> Peer<S> {
     pub fn abandon(&self, block: Uuid, commit: CommitId) -> Result<(), ClientError> {
         if let Some((sequence, _)) = self.pending_publish(block, commit) {
             self.refs.remove(&[sequence])?;
+            self.refs.commits_refused(block, &HashSet::from([commit]))?;
         }
         Ok(())
     }
@@ -128,6 +130,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         let local = self.local_head(block);
         self.refs.remove(&settled)?;
+        self.refs.commits_held(block, &commits)?;
         self.refs.set_remote(block, head)?;
         if local.is_none_or(|local| commits.contains(&local)) {
             self.refs.set_head(block, head)?;
@@ -263,7 +266,15 @@ impl<S: ObjectStore> Peer<S> {
         self.load_manifest(&commit.manifest).await
     }
 
+    /// Publishes the outbox in order (guides/blocks/client.md, "Saving and the outbox").
+    /// Announcements the drain makes held wait for its end, so a burst goes as one: its caller
+    /// sends them (`send_announcements`).
     pub async fn drain(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
+        let _draining = Draining::start(&self.draining);
+        self.drain_outbox(skip).await
+    }
+
+    async fn drain_outbox(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
         let mut outcomes: Vec<Drained> = Vec::new();
         let mut stopped = HashSet::new();
         for (sequence, op) in self.refs.outbox() {
@@ -271,6 +282,10 @@ impl<S: ObjectStore> Peer<S> {
             if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
                 continue;
             }
+            let publishing = match &op {
+                Op::Publish(pending) => Some(pending.commit),
+                _ => None,
+            };
             let sent = match op {
                 Op::Create(creation) => self.send_creation(sequence, creation).await,
                 Op::Publish(pending) => self.drain_publish(sequence, pending).await,
@@ -283,6 +298,9 @@ impl<S: ObjectStore> Peer<S> {
                 Err(error) if error.is_unreachable() => break,
                 Err(ClientError::Refused(code, _)) => {
                     stopped.insert(block);
+                    if let Some(commit) = publishing {
+                        self.refs.commits_refused(block, &HashSet::from([commit]))?;
+                    }
                     Drained::Refused { block, code }
                 }
                 Err(_) => {
@@ -296,7 +314,10 @@ impl<S: ObjectStore> Peer<S> {
                         !matches!(held, Drained::Published { block: other, .. } if *other == block)
                     });
                 }
-                Drained::Diverged { .. } | Drained::Unsent { .. } => {
+                Drained::Diverged { .. } => {
+                    stopped.insert(block);
+                }
+                Drained::Unsent { .. } => {
                     stopped.insert(block);
                 }
                 Drained::Created { .. }
@@ -407,6 +428,7 @@ impl<S: ObjectStore> Peer<S> {
             .collect();
         let local = self.local_head(block);
         self.refs.remove(&settled)?;
+        self.refs.commits_held(block, &reached)?;
         self.refs.set_remote(block, head)?;
         if local.is_none_or(|local| local == head || reached.contains(&local)) {
             self.refs.set_head(block, head)?;
@@ -601,7 +623,11 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.forget(&blocks)?)
     }
 
+    /// Sets what this device keeps of `block` aside: what its commits announce is never sent
+    /// (a message shown "Not sent" tells nobody, and one sent again tells as a new one).
     pub fn move_to_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
+        let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
+        self.refs.commits_refused(block, &commits)?;
         Ok(self.refs.move_to_unsent(block, now_milliseconds())?)
     }
 
@@ -641,6 +667,23 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
         Ok(self.refs.take_unsent(block)?.is_some())
+    }
+}
+
+/// Counts a drain under way for as long as it lives, so one dropped mid-way (a canceled
+/// future) or overlapping another still ends.
+struct Draining<'a>(&'a AtomicUsize);
+
+impl<'a> Draining<'a> {
+    fn start(draining: &'a AtomicUsize) -> Self {
+        draining.fetch_add(1, Ordering::SeqCst);
+        Self(draining)
+    }
+}
+
+impl Drop for Draining<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 

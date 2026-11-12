@@ -5,11 +5,7 @@ fn the_latest_block_gift_replaces_the_one_before() {
     let mut instances = placed();
     instances.next_screens(PASS);
     let ask = |instances: &mut Instances, block: [u8; 16]| {
-        instances.shell_call(ShellCall::FocusBlockChild {
-            reply: reply(next_op()),
-            instance: INSTANCE,
-            block,
-        });
+        tell(instances, ShellMessage::FocusBlockChild(block));
     };
     ask(&mut instances, [2; 16]);
     ask(&mut instances, [1; 16]);

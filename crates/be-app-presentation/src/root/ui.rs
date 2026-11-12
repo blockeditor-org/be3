@@ -205,9 +205,8 @@ fn Stage(
 ) -> NodeId {
     let target = create_memo(move || slides.target(selected.get()));
     let ratio = create_signal(DEFAULT_RATIO);
-    let report = move |state: ChildState| {
-        let aspect = state.aspect_ratio.unwrap_or(DEFAULT_RATIO);
-        ratio.set(aspect);
+    let report = move |_state: ChildState| {
+        let aspect = DEFAULT_RATIO;
         if report_size {
             editor.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * aspect, SLIDE_HEIGHT)));
         }
@@ -612,9 +611,6 @@ fn SlideTile(
                             editor={editor}
                             block={target}
                             mode=ChildMode::Preview
-                            on_state={move |state: ChildState| {
-                                ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
-                            }}
                         >|handle: ChildBlockHandle|
                             <SlideStatus state={handle.state} />
                         </ChildBlock>

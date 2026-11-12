@@ -6,7 +6,7 @@ use be_sdk_api::{
         BLOCKS_CREATE_BLOCK, BlocksCreateBlockArgs, HOST_SERVICES_READ_PLAIN_FILE,
         HostServicesReadPlainFileArgs,
     },
-    BlockLocation, MetadataEntries, OpenBlock,
+    BlockLocation, MetadataEntries, OpenBlock, OpeningKind,
     ops::{Connection, Incoming, OpId, Outcome, Side, decode, encode},
 };
 use be_type_text::TextContent;
@@ -42,19 +42,21 @@ fn opened(runtime: &mut Runtime, guest: &mut Connection) -> OpId {
         1,
     );
     let wire = runtime.backend.wire_mut();
-    wire.open(Opening::Block(OpenBlock {
+    wire.open(be_sdk_api::Opening {
         instance: INSTANCE,
         editor: [0; 16],
-        block_id: [0; 16],
-        block_type: [0; 16],
-        view_block: None,
         account_id: [4; 16],
         organization_id: [5; 16],
         client_id: [6; 16],
-        editable: true,
-        page_origin: String::new(),
-        host_palette: false,
-    }));
+        kind: OpeningKind::Block(OpenBlock {
+            block_id: [0; 16],
+            block_type: [0; 16],
+            view_block: None,
+            editable: true,
+            page_origin: String::new(),
+            host_palette: false,
+        }),
+    });
     match carry(wire.take_outbound(), guest).as_slice() {
         [Incoming::Started(started)] => started.op,
         heard => panic!("the app heard {heard:?} rather than its editor opening"),

@@ -7,19 +7,26 @@ use beui_layer_drive::Reply;
 
 use crate::{Unanswered, launch, request};
 
-/// What a program was started with, to start it again.
-struct Started {
-    program: String,
-    arguments: Vec<String>,
-    size: String,
-    libraries: Option<String>,
-    space: bool,
-    render: bool,
-}
-
+/// How beui-layer-drive's `close` answers once the window closed.
+const CLOSED: &str = "The window closed.";
 const CLOSING: Duration = Duration::from_secs(60);
 const LOG_TAIL: usize = 40;
 const PANIC_LINES: usize = 12;
+
+/// What [`Driven::start`] starts.
+#[derive(Clone, Debug, Default)]
+pub struct Start {
+    pub program: String,
+    pub arguments: Vec<String>,
+    /// The headless window's size, `WIDTHxHEIGHT[@SCALE]`.
+    pub size: String,
+    /// `LD_LIBRARY_PATH` for the program.
+    pub libraries: Option<String>,
+    pub space: bool,
+    pub render: bool,
+    /// Set in the program's environment on top of what `be-drive run` sets.
+    pub environment: Vec<(String, String)>,
+}
 
 /// A program started headless for a test, with fresh data in a directory of its own and its
 /// clock pinned, as `be-drive run` starts one: crates/be-host-tests drives be-host through it.
@@ -28,23 +35,17 @@ const PANIC_LINES: usize = 12;
 /// them, so `paint` works and `shot` does not, and neither does anything that is a texture
 /// (space's 3D view, block previews).
 pub struct Driven {
-    started: Started,
     child: Option<Child>,
     dir: PathBuf,
     socket: PathBuf,
     log: PathBuf,
     timeout: Duration,
+    start: Start,
+    starts: u32,
 }
 
 impl Driven {
-    pub fn start(
-        program: &str,
-        arguments: &[&str],
-        size: &str,
-        libraries: Option<String>,
-        space: bool,
-        render: bool,
-    ) -> Result<Self, String> {
+    pub fn start(start: Start) -> Result<Self, String> {
         static STARTED: AtomicU32 = AtomicU32::new(0);
         let dir = Path::new("/tmp").join(format!(
             "be3-{}-{}",
@@ -55,33 +56,26 @@ impl Driven {
         std::fs::create_dir_all(&dir)
             .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
         let log = dir.join("app.log");
-        let started = Started {
-            program: program.to_owned(),
-            arguments: arguments
-                .iter()
-                .map(|argument| (*argument).to_owned())
-                .collect(),
-            size: size.to_owned(),
-            libraries,
-            space,
-            render,
-        };
-        let child = launch_with(&started, true, &dir, &log)?;
+        let child = launch::start(&start, true, &dir, &log)?;
         Ok(Self {
-            started,
             child: Some(child),
             socket: dir.join("drive.sock"),
             dir,
             log,
             timeout: crate::TIMEOUT,
+            start,
+            starts: 1,
         })
     }
 
-    /// Closes the program cleanly and starts it again on the data it left, as a person quitting
-    /// and opening it again does.
+    /// Closes the program as [`Driven::close`] does, failing unless it exits cleanly, and
+    /// starts it again on the data it kept, as a person quitting and opening it again. The log
+    /// starts over in a file of its own, so the one before stays beside it.
     pub fn restart(&mut self) -> Result<(), String> {
-        self.stop()?;
-        self.child = Some(launch_with(&self.started, false, &self.dir, &self.log)?);
+        self.close_child()?;
+        self.starts += 1;
+        self.log = self.dir.join(format!("app.{}.log", self.starts));
+        self.child = Some(launch::start(&self.start, false, &self.dir, &self.log)?);
         Ok(())
     }
 
@@ -100,14 +94,20 @@ impl Driven {
 
     /// Asks the program to close and fails unless it exits cleanly within [`CLOSING`].
     pub fn close(mut self) -> Result<(), String> {
-        self.stop()
+        self.close_child()
     }
 
-    fn stop(&mut self) -> Result<(), String> {
+    fn close_child(&mut self) -> Result<(), String> {
         let Some(child) = self.child.take() else {
             return Ok(());
         };
         let closed = match request(&self.socket, &["close".to_owned()], self.timeout) {
+            Ok(Reply::Text(text)) if !text.starts_with(CLOSED) => {
+                launch::kill(child.id());
+                Err(format!(
+                    "the program stayed open when asked to close (to ask about unsaved changes?), and changed:\n{text}"
+                ))
+            }
             Ok(_) | Err(Unanswered::Closed) => launch::wait_for_exit(child, CLOSING),
             Err(Unanswered::Failed(error)) => {
                 launch::kill(child.id());
@@ -116,20 +116,6 @@ impl Driven {
         };
         closed.map_err(|error| format!("{error}\n\n{}", self.log_report()))
     }
-}
-
-fn launch_with(started: &Started, fresh: bool, dir: &Path, log: &Path) -> Result<Child, String> {
-    launch::start(
-        &started.program,
-        started.arguments.clone(),
-        &started.size,
-        started.libraries.clone(),
-        started.space,
-        started.render,
-        fresh,
-        dir,
-        log,
-    )
 }
 
 pub fn log_report(log: &str) -> String {

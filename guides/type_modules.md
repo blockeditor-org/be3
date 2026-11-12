@@ -65,7 +65,13 @@ options (`with`, `uses`, `copy`, `default`, `inline`, `lenient`, `ordered`,
 It generates, per interface, the types, and:
 - for the guest, `guest::<import>` functions returning `Pending<T>` or
   `Stream<T>`, and a `Guest` trait per export taking `&self` (not statics, so
-  tests can run many modules on one thread);
+  tests can run many modules on one thread) whose methods return
+  `be_wasm_ops::guest::LocalFuture<T>`, a boxed future. An `impl Future`
+  returned from a trait method gets synthesized associated types, which
+  rustc's parallel front end (`-Zthreads`) numbers nondeterministically, so
+  callers in other crates failed to compile (an ICE, or a wrong type). The same
+  holds for any hand-written trait used across crates: return a boxed future
+  from its methods, not `impl Future`;
 - for the host, `embed::<import>::Call` (one case per function, accepted with
   a `Reply` or `Producer`) and a world-wide `embed::Call`, so a host that
   serves every import matches once.
@@ -173,8 +179,8 @@ host owes a replica (the WIT documents each call):
 
 ### Parts named by hash
 
-An operation can carry a part by its ref instead of its bytes: chat closing a
-segment, the search index's writer adding one, an edit too large to relay.
+An operation can carry a part by its ref instead of its bytes: the search index's
+writer adding one, an edit too large to relay.
 The sender calls `put-part(bytes)`, which seals the bytes under the block's
 current key, uploads them and has the server hold them for the block
 (`hold-objects` with `hold.until-committed`), and answers the `part-ref`
@@ -185,8 +191,11 @@ block's journal holds no entries (an uncommitted operation may still name the
 part). A type's part is put by an editor: `EditorMirror::put_part`
 (`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
 the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
-replica to put a part of its own (chat's owner closing a segment with no
-editor attached); the replica puts only an oversized operation's bytes. The
+replica to put a part of its own; the replica puts only an oversized operation's
+bytes. (Chat closes a segment without one: the operation carries the segment's
+bytes, which every replica keeps in memory, as it holds the operation, until the content is dropped or
+reloaded from a save; there is no hook yet that turns them into a saved part, so a replica
+holds a closed segment's bytes once per clone, plans/chat.md.) The
 block must be on the server: a block made offline, or one whose replica has
 not joined yet, is refused.
 
@@ -197,7 +206,7 @@ downloading its nodes, never its chunks: its top object to learn its key, and
 the rest to list the commit's objects. That needs the server, so an owner
 offline cannot seal a commit reusing a part it never fetched. A type that only
 keeps the part (the search index) never reads it. A type that can rebuild the
-bytes (chat) puts a hash of them in the operation, rebuilds them on applying it
+bytes from what it has puts a hash of them in the operation, rebuilds them on applying it
 and keeps them when they match, answering reads of the part from
 `BlockContent::reused_bytes`; when its encoding differs (another build) it
 keeps nothing and reads go to `read-part`. Such a type loads only its first
@@ -213,6 +222,15 @@ Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
 flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
+
+### Whole bytes
+
+`type-info.whole-bytes` (`BlockContent::WHOLE_BYTES`, true unless a type says otherwise) says the
+stored form read whole decodes to the content, so the host copies such a block through its
+bytes: Duplicate, export, `be` transfer, version control's re-listing, a revision's preview or
+restore. A type that loads only its first part and keeps parts its first part cannot rebuild (chat's
+closed segments) sets it false, and the host refuses those paths for a block that has parts after
+its first (`has_later_parts`).
 
 ### Merging by parts
 
@@ -235,13 +253,27 @@ only parts of the sides (`Scope::admits`); a merge that reused any other, or
 whose reads failed (offline, a missing key), is not written: the read failure
 comes back as the `ClientError`.
 
-The in-session merges of a replica (a rejected seal, a head written offline)
-still call the synchronous `Merge::merge3` on the values it loaded, so a type
-that loads only its first part writes `merge3` over what it holds: a part
-unloaded on a side is settled by refs where they settle it (a side holding the
-base's part gives way) and otherwise kept as ours with a conflict, never read.
-Its `merge_parts` must agree wherever `merge3` decides without a conflict
-(`Sections` shares one function, `by_refs`, between them).
+The in-session merges of a replica (a rejected seal, a head written offline, a resume that
+finds the head moved) go the same way for a type that registered `merge_parts`: the replica
+(`be-sdk-type-guest/src/replica.rs`, `Wait::Merging`) polls `MergeParts::merge_parts` itself, and
+each part the merge reads goes to the host as `Effect::ReadPart` (`read-part` with the replica as
+its parent, which fetches a part the device lacks from the server). The merge waits while it is
+read, and never resolves without its parts: a read that fails is asked again (three tries). A
+merge that still cannot have a part is dropped, so the replica's jobs go on, reported once
+(`error`), and the owner tries it again as a `Job::Reconcile` on a timer (5 s, doubling to a
+minute; a replica that stops owning the session drops the timer), for as long as it fails: a
+`merge_parts` error that always recurs (a corrupt part) is retried for ever at the ceiling. Until
+it resolves the owner makes no due seal (it would publish on the old base and be rejected), and
+a seal asked for (`Seal` once or rekey) is answered without publishing; the work stays unsealed
+in the journal. While a merge waits, the replica's jobs (an
+editor's edit, a peer's operation, a close) queue behind it and then land on its result.
+`merge_parts` must await only the `PartReader` reads it asks for: a merge that waits for anything
+else is reported and dropped, since nothing would wake it. A type without `merge_parts` merges at
+once with `Merge::merge3` on the values it loaded, so one that loads only its first part writes
+`merge3` over what it holds (`Sections` settles a part unloaded on a side by refs where they
+settle it, and otherwise keeps ours with a conflict, never read). `merge_parts` must agree with
+`merge3` wherever `merge3` decides without a conflict (`Sections` shares one function, `by_refs`,
+between them; chat's `merge3` is the union that `merge_parts` then settles by reading).
 
 **`read-part` under a stateless request.** A call a module makes while serving
 a stateless request has that request as its parent (`ops::guest::request()`
@@ -355,6 +387,72 @@ rebase. The rules an agent most needs:
   owner a `Kept`, which the owner keeps in history; the follower stays
   responsible for each stash until the owner answers `Saved`, resending it
   after a takeover.
+
+## Announcements
+
+An edit made on this device can tell the block's members who are not connected
+about itself once the server holds it (chat: each message it sends). The type
+names what it tells with `LiveEdit::announcements`, asked as the edit is made,
+of content that holds it: `be_block::Announcement`'s text, the accounts it
+mentions, a `key` naming what it announces (chat: the message), unique in the
+block and the same when the edit is made again, and `several`, the text for
+several sent together with `{count}` for how many (chat: "{count} new
+messages"). The notification is tied to the edit, never to an editor or a
+replica:
+
+- The replica keeps the announcements with the edit in its lacking list
+  (guides/blocks/apps.md, "Sending"), whether an editor follows or not (with
+  none, the list is only kept: nothing is told). An owner hands them to the
+  host with the `append` holding the edit (`announced`, by sequence; a seal
+  appends what it sequenced first), and from there the host keeps them
+  durably, the text sealed under the block's key, in the refs database
+  (`be-block-client/src/refs/announcements.rs`): beside the journal entry,
+  then, when `rebase-journal` starts the journal from a commit this device
+  sealed (one of the last 16 its replicas published or kept, which `Replicas`
+  remembers per block, or one in its outbox), beside that commit while the
+  outbox keeps it. A rebase from anyone else's commit drops them: the edit
+  never reached the server.
+- The host sends one once the server holds its edit: the append answered, or
+  the commit published or settled by the drain (`Peer::settle`), so it goes
+  with no replica or type module open, and after a restart. A commit the
+  server refuses drops what it announces, and so does setting the block's
+  commits aside (`move_to_unsent`) or giving one up (`abandon`): a message
+  shown "Not sent" tells nobody (sent again, it is a new edit). Forgetting a
+  block, or losing access to it, forgets its announcements.
+- A follower's edit is the owner's to append, but the notification must come
+  from its author's account, so the follower's replica hands the host its
+  announcements with `announce` once the owner accepts the edit (the server
+  holds it then). They live in the replica until then, as the edit does.
+- `Peer::send_announcements` sends what is held, after an append the server
+  took, a rebase, an `announce` and at the end of each outbox drain; it sends
+  nothing while one drains, so what a drain publishes goes together. It marks
+  each sent before it calls `notify`, putting them back only when the server
+  cannot be reached, so a crash costs a notification rather than repeating
+  one. What waits together on one block is one notification: the text of one,
+  or the newest's `several`, mentioning everyone they mention. The server
+  allows `MAX_NOTIFICATIONS_PER_BLOCK` a minute per account and block, and one
+  it refuses is dropped, never reported: it was about then.
+- A key is announced once: one held, kept with a commit or sent is not kept
+  again (the host remembers the last 256 sent per block), so an edit a host
+  replays into a restarted replica (guides/blocks/host.md), which announces it
+  again, is not sent again, and a replayed journal entry announces nothing.
+  One still waiting in the journal is replaced by the edit made again.
+
+What is not covered: a follower that closes or restarts before the owner
+accepts its edit tells nobody (the edit is lost too); a host that crashes
+before sealing and whose restarted replica opens as a follower and takes the
+session over drops what its journal entries announced (the takeover rebases
+from the old base); and an owner whose append the server took but whose answer
+was lost to a disconnect, after which another device took the session over,
+never sends it (the server holds the edit, but no commit of this device does).
+
+Tests: be-host-stack's `a_chat_message_*` (through `Peer::notify`, the server's
+recipient selection and a Web Push service on loopback whose device key is the
+P-256 generator, so a test opens each push and checks its text) and chat's
+editor tests over be-sdk-test's store. That store keeps announcements as a
+simpler host: one device, so every rebase is on its own commit; every
+announced key remembered, with no cap; and announcements of a refused kept
+commit dropped by block.
 
 ## Editors are endpoints
 

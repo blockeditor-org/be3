@@ -772,10 +772,6 @@ pub(crate) fn copy_selection(state: State) {
     }
 }
 
-pub(crate) fn select_all(state: State) {
-    state.select_all();
-}
-
 fn precedes(items: &[SelectionItem], left: &Caret, right: &Caret) -> bool {
     State::order(items, left) < State::order(items, right)
 }

@@ -18,11 +18,10 @@ fn a_block_gift_for_a_block_the_host_refused_to_make_never_starts() {
             owner_only: false,
         },
     );
-    instances.shell_call(ShellCall::FocusBlockChild {
-        reply: reply(next_op()),
-        instance: INSTANCE,
-        block: refused.into_bytes(),
-    });
+    tell(
+        &mut instances,
+        ShellMessage::FocusBlockChild(refused.into_bytes()),
+    );
     assert!(
         !instances.child_focus_pending(INSTANCE),
         "no child will show a block the host would not make, so the keys typed are not held"

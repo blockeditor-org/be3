@@ -15,9 +15,9 @@ fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {
                     variant=ButtonVariant::Primary
                     on_click={move || added.set(true)}
                 />
-                <ShowKeepAlive condition={added}>
+                <Show keep_alive=true condition={added}>
                     <Text>"Added"</Text>
-                </ShowKeepAlive>
+                </Show>
             </List>
         }
     });

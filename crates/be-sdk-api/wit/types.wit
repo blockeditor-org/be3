@@ -486,7 +486,7 @@ interface types {
         dock-tab(dock-tab-path),
         picker(picker-child),
         /// A form renaming a block: the host runs it in the editor whose
-        /// manifest accepts `rename` (opened with `opening.rename`), which an
+        /// manifest accepts `rename` (opened with `opening-kind.rename`), which an
         /// editor places in a view it anchored. The form says it is done with
         /// `close-dialog`, which arrives as the child's `child-status.dialog`.
         rename(block-id),
@@ -792,14 +792,9 @@ interface types {
     }
 
     record open-block {
-        instance: editor-instance-id,
-        editor: editor-id,
         block-id: block-id,
         block-type: block-type-id,
         view-block: option<block-id>,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
         editable: bool,
         /// The origin of the web page the host runs in (`https://be3.example`),
         /// empty where the host is not a web page. On the web `fetch` is the
@@ -807,69 +802,60 @@ interface types {
         page-origin: string,
         /// The host draws the command palette, listing the actions every
         /// instance describes: the editor's frame keeps none of its own and
-        /// asks the host for it with `shell.open-palette`.
+        /// asks the host for it with `shell-message.open-palette`.
         host-palette: bool,
     }
 
     record open-creation {
-        instance: editor-instance-id,
-        editor: editor-id,
         template: string,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
     }
 
     record open-artifact {
-        instance: editor-instance-id,
-        editor: editor-id,
         block-id: block-id,
         block-type: block-type-id,
         /// The block the artifact is made from.
         source: block-id,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
         data: list<u8>,
     }
 
     /// A picker another editor placed as a child, which answers with
-    /// `shell.picked`.
+    /// `shell-message.picked`.
     record open-picker {
-        instance: editor-instance-id,
-        editor: editor-id,
         filter: block-filter,
         parent: block-location,
         /// Placed in a view attached to an edge: the picker draws itself as
         /// a sheet, laid out for touch.
         sheet: bool,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
     }
 
     /// A form renaming a block another editor placed as a child
     /// (`child-content.rename`).
     record open-rename {
-        instance: editor-instance-id,
-        editor: editor-id,
         block-id: block-id,
         /// Placed in a view attached to an edge: the form draws itself as a
         /// sheet.
         sheet: bool,
-        account-id: account-id,
-        organization-id: organization-id,
-        client-id: installation-id,
     }
 
     /// How an editor instance opens: on a block, as a creation dialog, on an
     /// artifact's settings, as a picker, or as a form renaming a block.
-    variant opening {
+    variant opening-kind {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
         picker(open-picker),
         rename(open-rename),
+    }
+
+    /// An editor instance opening: which instance, which editor, who opens it
+    /// and how.
+    record opening {
+        instance: editor-instance-id,
+        editor: editor-id,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+        kind: opening-kind,
     }
 
     // Docking across apps. A docked view declares its own tree; the
@@ -993,7 +979,7 @@ interface types {
         /// returns to. False for a tab whose closing can lose work, such as
         /// a program's window: Back then returns from it and leaves it open.
         back-closes: bool,
-        /// The menu of the tab's view (`shell.menu` of that view), which the
+        /// The menu of the tab's view (`shell-message.menu` of that view), which the
         /// root shows on the tab's bar. The host fills it in as it splices a
         /// declaration; a declaring instance leaves it empty. A pick reaches
         /// the owner as its `menu-pick` of that view.

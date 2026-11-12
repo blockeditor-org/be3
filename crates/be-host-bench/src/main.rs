@@ -331,14 +331,12 @@ struct Host {
 
 impl Host {
     fn start(settings: &Settings) -> Result<Self, String> {
-        let driven = Driven::start(
-            &settings.program,
-            &[],
-            SIZE,
-            settings.libraries.clone(),
-            false,
-            false,
-        )?;
+        let driven = Driven::start(be_tool_drive::Start {
+            program: settings.program.clone(),
+            size: SIZE.to_owned(),
+            libraries: settings.libraries.clone(),
+            ..be_tool_drive::Start::default()
+        })?;
         Ok(Self {
             driven: Some(driven),
         })

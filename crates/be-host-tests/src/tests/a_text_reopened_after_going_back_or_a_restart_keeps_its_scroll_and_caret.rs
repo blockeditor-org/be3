@@ -83,7 +83,7 @@ fn a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret() {
     let typed = top_line(&mut host);
 
     back(&mut host);
-    host.restart("Pane \"Files\"");
+    host.restart();
     host.run(&["resize", "390x800"]);
     host.wait("TreeItem \"Line 1\"");
     reopen(&mut host);

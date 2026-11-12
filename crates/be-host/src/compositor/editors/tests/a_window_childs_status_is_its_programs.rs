@@ -6,7 +6,6 @@ fn a_window_childs_status_is_its_programs() {
         child: ChildId(7),
         available: true,
         intrinsic: None,
-        aspect_ratio: None,
         active: false,
         interaction: be_sdk_api::InteractionMode::Live,
         capabilities: be_sdk_api::EditorCapabilities::default(),

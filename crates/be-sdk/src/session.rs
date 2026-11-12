@@ -99,7 +99,7 @@ impl ClientSession {
                 }
             }
             (State::Running, Delivery::Open(opening)) => {
-                let instance = opening.instance();
+                let instance = opening.instance;
                 match self.instances.insert(instance) {
                     true => Ok(()),
                     false => Err(format!("editor instance {} was opened twice", instance.0)),

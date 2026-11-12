@@ -13,7 +13,9 @@ Rust on both sides is generated from it into this crate. The world imports:
 - `blocks` (`blocks.wit`): the blocks an editor reads and changes, its replicas,
   the graph, history, heads, artifact states and version control;
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
-  the shell around it, its menus, children, audio, web views and creations;
+  the shell around it, its menus, children, audio, web views and creations.
+  Everything one way is a `shell-message` in one `tell`, sent once a pass in
+  a fixed order by kind within the pass;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
   waits for, files, revisions, access and staged data;
 - `network` (`network.wit`): the app's only network, its fetches and the links
@@ -46,11 +48,15 @@ uuid is its 16 bytes and a hash its 32, each under the alias of what it names
 out is an alias named `<thing>-id` (`screen-id`, `child-id`, `web-view-id`).
 
 It exports `app` (`app.wit`): `resource editor`, one open editor instance,
-whose methods are what the host says to that instance and whose drop closes it;
+whose methods are what the host says to that instance and whose drop closes it:
+what happens around the editor, one way (`editor-event`: menu picks, child
+bars, focus, resizes, drags, dialogs), is a list in one `hear`, and the
+methods besides it (creating, regenerating, replacing, rendering) are the
+calls that answer;
 the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
 `block-command` changes the block (undo, redo, its artifact, unlink, delete,
-move, place, restore), and `shell.act` with a `shell-command` asks the host
+move, place, restore), and `shell-message.act` with a `shell-command` asks the host
 around it (share, leave, close the editor). Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
@@ -566,7 +572,7 @@ declares the tab it was placed in (for the root, from the declaration it hears
 while it hosts it, `dock-hold.hosted`, and after it stops, `placing`, until it
 places the child in the tab's body again or lets go, `released`), requesting its frame at its last size without drawing it; a tab closes
 when its owner stops declaring it. Every view has its own menu: an instance
-sends `shell.menu` for a view, and a pick from it, wherever it was shown,
+sends `shell-message.menu` for a view, and a pick from it, wherever it was shown,
 arrives as its `menu-pick` of that view. The host gives the root each
 spliced tab's menu as that `dock-tab`'s `menu` (a declaring instance leaves it
 empty), whatever level the tab's owner is at; the root shows it on the tab's
@@ -705,7 +711,7 @@ lays the view out, draws its card and beak if it has one, and places the child
 in it, whose own pixels appear one frame after the view. That is how an
 instance asks for a block (the picker, below), renames one
 (`child-content.rename`, run in the editor whose manifest accepts `rename`,
-opened as `opening.rename`, which says it is done with `close-dialog`,
+opened as `opening-kind.rename`, which says it is done with `close-dialog`,
 arriving as the child's `child-status.dialog`) and shows the host's menu
 (`host-panel.menu`, which the host draws and reports done the same way,
 its size as the child's intrinsic size). The instance marks the view
@@ -939,12 +945,12 @@ view (above) hung from the control that asked, placing the child sized to its
 content (`child-placement.fit`, below) with the room the card may take and
 sizing the card around the size the picker reports, or in one attached to the
 bottom edge of its bounds filling them for touch; it frames the child with its card and beak while the
-picker says it shows a card (`shell.show-card`), and a press outside the view
+picker says it shows a card (`shell-message.show-card`), and a press outside the view
 answers the pick with none. The host runs the child in
 the editor whose manifest accepts `pick` (the workspace's `picker`), opened as
-`opening::picker`; that editor reads the block graph for itself, so the
+`opening-kind.picker`; that editor reads the block graph for itself, so the
 instance that asked never sees what the picker browses. The picker answers once with
-`shell.picked`: the block chosen or created and whether it was an existing
+`shell-message.picked`: the block chosen or created and whether it was an existing
 block linked rather than a new one, none when the user cancelled, or why the
 block could not be made. The answer reaches the instance that placed the child
 as that child's `child-status.picked`, and the instance then removes the
@@ -1032,7 +1038,7 @@ in a frame its placer is asked only once the child's layout commit has
 landed, and the placer then lays its card out around the size the child took
 and paints once. A placer that wants another size changes `fit`, which
 configures the child, and the child shows that size from the next frame.
-`shell.intrinsic-size` stays for children placed at a size their placer
+`shell-message.intrinsic-size` stays for children placed at a size their placer
 chooses, such as cards on a canvas, which only take the size as a hint.
 
 Input reaches an app through its `input` watch, which the app pulls,

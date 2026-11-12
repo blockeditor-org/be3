@@ -1,7 +1,9 @@
 use super::*;
 
+mod a_call_the_app_does_not_wait_on_is_answered_with_the_next_frame_sent;
 mod a_frame_sent_to_a_replica_is_answered_once_the_host_takes_it_in;
 mod a_replica_relay_waits_for_the_editors_credit_and_drops_nothing;
 mod a_watch_of_an_extension_the_manifest_does_not_grant_is_denied;
 mod closing_an_editor_ends_its_watches;
 mod closing_the_last_watch_of_a_kind_unwatches_it;
+mod events_reach_the_editor_in_one_hear_before_a_call_that_answers;

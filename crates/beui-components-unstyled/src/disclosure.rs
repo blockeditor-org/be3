@@ -50,12 +50,12 @@ pub fn Disclosure(
                     open,
                 })
             }</unstyled::Button>
-            <ShowKeepAlive condition={open}>
+            <Show keep_alive=true condition={open}>
                 <List spacing>
                     <Frame />
                     {children}
                 </List>
-            </ShowKeepAlive>
+            </Show>
         </List>
     }
 }

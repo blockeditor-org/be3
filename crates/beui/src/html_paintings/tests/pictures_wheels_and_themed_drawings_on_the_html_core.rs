@@ -42,7 +42,7 @@ fn pictures_wheels_and_themed_drawings_on_the_html_core() {
                             <Drawing draw size={Some(crate::vec2(100.0, 70.0))} />
                         </List>
                         <ColorWheel value={paint} />
-                        <OklchColorWheel value={paint} />
+                        <ColorWheel model=WheelModel::Oklch value={paint} />
                     </List>
                 </Frame>
             </Root>

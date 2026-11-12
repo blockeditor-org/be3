@@ -113,20 +113,22 @@ Notes on particular calls:
   restoring" bookmark first (`Replicas::bookmark`); a follower, which cannot
   seal, stashes it and publishes the restore as a merge with it, whose parents
   history never prunes.
-- `notify(block, text, mentions)` tells the block's members who have no
-  connection open, on their other devices (guides/blocks/server.md,
-  "Notifications"). The host takes it only with Edit on the block, cuts `text`
-  to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the block's
-  key with the organization, the block, the sender and the time, so the server reads none of it; the device
-  that shows it names the sender (whom the server vouches for) and the block
-  itself. `mentions` names the accounts the text mentions, which a member whose
-  mode is `mentions` is told for. It is answered at once, and dropped when the
-  host is offline; it goes out unordered with the save carrying what it is
-  about. `NotifyModesWatch` follows the account's mode for every block, and
-  `set_notify_mode` changes one; the workspace's block menu offers them
-  (Notifications: All, Mentions only, Off), showing a change until the host
-  answers and going back if it refuses. `BeuiTest::take_notifications`
-  records what an editor sent.
+- Notifications to a block's members who have no connection open
+  (guides/blocks/server.md, "Notifications") are not an editor's to send: an
+  edit announces itself. The block type names what each edit made on this
+  device tells them (`LiveEdit::announcements`: chat's sends tell the message's
+  body, mentioning the author of the message it replies to), and the host
+  sends it once the server holds the edit, whether an editor or replica is open
+  then or not (guides/type_modules.md, "Announcements"). The host cuts the
+  text to `be_block_client::MAX_NOTIFICATION_TEXT` and seals it under the
+  block's key with the organization, the block, the sender and the time, so
+  the server reads none of it; the device that shows it names the sender (whom
+  the server vouches for) and the block itself. A member whose mode is
+  `mentions` is told only of what mentions them. `NotifyModesWatch` follows
+  the account's mode for every block, and `set_notify_mode` changes one; the
+  workspace's block menu offers them (Notifications: All, Mentions only, Off),
+  showing a change until the host answers and going back if it refuses.
+  `BeuiTest::take_announced` records what the editor's edits announced.
 - `set_push_device(on)` turns pushes to this device on or off and `PushDeviceWatch` follows it
   (none on a host that cannot receive them, which is every host but the web build); turning
   them on asks for the person's permission, so call it from their press. The settings list's
@@ -196,7 +198,7 @@ by be-host). The frame menu's Rename anchors at `Editor::frame_anchor`.
 When `open-block.host-palette` is set the host draws the command palette from
 the actions every instance describes (guides/apps/editor.md, Actions and the
 palette). An editor asks for it with `EditorHost::open_palette(PaletteMode)`
-(`shell.open-palette`): `actions` for the instance's actions and its
+(`shell-message.open-palette`): `actions` for the instance's actions and its
 ancestors', `blocks` for blocks to open.
 
 ## Watches and host calls
@@ -236,11 +238,14 @@ If an editor needs something the host has, add it to the `be3:app` world in
 `crates/be-sdk-api/wit` (`PROTOCOL.md` there lists the interfaces; how WIT is
 written and travels is in guides/type_modules.md, Operations and WIT). An app's
 request goes in the import that fits (`host`, `blocks`, `shell`,
-`host-services`, `network`); a host request to an app goes in `app.wit`, as a method of
-the `editor` resource when it concerns one instance. Every function is an
-`async func`: one the app only tells the host returns nothing and is
-`.detach()`ed; a followed value is a resource whose `next` the host answers
-with each change.
+`host-services`, `network`); a host request to an app goes in `app.wit`. When it
+concerns one instance and nothing answers it, it is a variant of `editor-event`
+(host: `Wire::call` queues it with `Wire::hear`, and the host sends the queue as
+one `editor.hear` before any call that is not an event; guest: `OpenEditor::hear_one`);
+only a request that answers is a method of the `editor` resource. What the app
+only tells the host is a `shell-message` in one `shell.tell`, not a function of
+its own. Every function is an `async func`; a followed value is a resource whose
+`next` the host answers with each change.
 
 - App side: exports are served in `crates/be-sdk/src/wire.rs` as `Delivery`s
   the runtime takes in order; imports are called directly under the editor's
