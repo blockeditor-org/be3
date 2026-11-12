@@ -109,6 +109,7 @@ APPS = {
     "the_host_opens_its_files_and_closes_cleanly": [],
     "the_host_palette_lists_a_text_on_a_canvas_before_the_canvas": ["infinite-canvas", "text"],
     "the_host_palette_lists_the_desktops_window_keys": ["desktop"],
+    "the_volume_level_over_a_fullscreen_window_shows_only_its_card": ["desktop"],
     "the_inspector_chord_in_the_more_blocks_search_inspects_the_workspace": [],
     "the_inspector_opens_in_the_focused_app_over_its_view_and_keeps_its_children": [],
     "the_members_dialog_lists_an_organizations_members_and_their_roles": [],
