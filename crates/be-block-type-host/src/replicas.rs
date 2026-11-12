@@ -658,7 +658,7 @@ impl<H: Host> Replicas<H> {
             self.modules.load(module).await;
         }
         if types::kinds_revision() != before {
-            H::wake();
+            H::kinds_changed();
         }
         types::kind_of(content_type)
     }

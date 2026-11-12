@@ -16,7 +16,10 @@ pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
 
 pub(crate) struct SettingsSync<R> {
     blocks: Layers,
-    seen: Option<Vec<(Uuid, u64)>>,
+    /// Whether a layer's block changed since its content was read (`heard`).
+    due: bool,
+    /// The revision of each layer block's content as last read, which the outboxes send at.
+    revisions: std::collections::HashMap<Uuid, u64>,
     contents: Option<LayerContents<R>>,
     applied: Option<R>,
     outboxes: [Outbox<R>; 2],
@@ -168,7 +171,8 @@ impl<R> Default for SettingsSync<R> {
     fn default() -> Self {
         Self {
             blocks: Layers::default(),
-            seen: None,
+            due: true,
+            revisions: std::collections::HashMap::new(),
             contents: None,
             applied: None,
             outboxes: [Outbox::default(), Outbox::default()],
@@ -209,7 +213,8 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
             }
         }
         self.blocks = layers;
-        self.seen = None;
+        self.due = true;
+        self.revisions.clear();
         self.contents = None;
     }
 
@@ -217,44 +222,61 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.contents.clone().unwrap_or_default()
     }
 
+    /// Notes what the host stack changed: a layer block that changed is read again at the next
+    /// `sync`.
+    pub(crate) fn heard(&mut self, changes: &be_host_stack::Changes) {
+        if LAYERS
+            .into_iter()
+            .filter_map(|layer| self.blocks.block(layer))
+            .any(|block| changes.block(block))
+        {
+            self.due = true;
+        }
+    }
+
     pub(crate) fn sync(&mut self, store: &HostStateStore) {
         let blocks = self.blocks;
         if blocks.top().is_none() {
             return;
         }
-        let mut revisions = Vec::with_capacity(2);
+        let mut read = Vec::with_capacity(2);
+        if std::mem::take(&mut self.due) {
+            for layer in LAYERS {
+                let Some(block) = blocks.block(layer) else {
+                    continue;
+                };
+                be_host_stack::hold(block, R::CONTENT_TYPE);
+                // One not loaded yet is read when it arrives, which the stack tells of.
+                let Some(content) = be_host_stack::content(block) else {
+                    return;
+                };
+                self.revisions.insert(block, content.revision);
+                read.push((layer, block, content));
+            }
+        }
         for layer in LAYERS {
             let Some(block) = blocks.block(layer) else {
                 continue;
             };
-            be_host_stack::hold(block, R::CONTENT_TYPE);
-            let Some(revision) = be_host_stack::content_revision(block) else {
+            let Some(&revision) = self.revisions.get(&block) else {
                 return;
             };
-            revisions.push((block, revision));
             let own = self.layers().own(layer);
             Self::write(block, self.outboxes[slot(layer)].send(revision, &own));
         }
-        if self.seen.as_ref() == Some(&revisions) {
+        if read.is_empty() {
             return;
         }
         let mut contents = LayerContents::default();
-        for layer in LAYERS {
-            let Some(block) = blocks.block(layer) else {
-                continue;
-            };
-            let Some(content) = be_host_stack::content(block)
-                .and_then(|content| Document::<R>::decode(content.bytes()).ok())
-                .map(|content| content.root())
-            else {
+        for (layer, block, content) in read {
+            let Ok(decoded) = Document::<R>::decode(content.bytes()) else {
                 return;
             };
-            let revision = be_host_stack::content_revision(block).unwrap_or(0);
-            let (content, resend) = self.outboxes[slot(layer)].overlay(revision, content);
+            let (decoded, resend) =
+                self.outboxes[slot(layer)].overlay(content.revision, decoded.root());
             Self::write(block, resend);
-            contents.set(layer, content);
+            contents.set(layer, decoded);
         }
-        self.seen = Some(revisions);
         let settings = contents.layered();
         self.contents = Some(contents);
         self.receive(store, settings);
@@ -303,7 +325,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.applied = Some(settings);
         for layer in LAYERS {
             if let Some(block) = self.blocks.block(layer)
-                && let Some(revision) = be_host_stack::content_revision(block)
+                && let Some(&revision) = self.revisions.get(&block)
             {
                 let own = self.layers().own(layer);
                 Self::write(block, self.outboxes[slot(layer)].send(revision, &own));

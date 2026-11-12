@@ -29,6 +29,10 @@ impl be_block_type_host::Host for Shared {
         be_host_base::host::wake();
     }
 
+    fn kinds_changed() {
+        crate::changes::stale();
+    }
+
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
         super::worker::record(shared, error);
     }
@@ -164,7 +168,7 @@ impl be_block_type_host::Host for Shared {
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.conflicts.entry(block).or_default().push(conflict);
-        held.stale_revision += 1;
+        crate::changes::stale();
         held.progressed += 1;
         held.touch(block);
     }

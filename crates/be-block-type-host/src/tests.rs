@@ -36,6 +36,8 @@ impl Host for Quiet {
 
     fn wake() {}
 
+    fn kinds_changed() {}
+
     fn record(_: &Arc<Mutex<Self>>, error: ClientError) {
         eprintln!("{error}");
     }

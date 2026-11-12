@@ -26,6 +26,7 @@ mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
 mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
 mod a_chat_message_sent_with_two_editors_open_notifies_once;
 mod a_chat_message_told_before_a_restart_is_not_told_again;
+mod a_checkout_no_longer_shown_lets_go_of_what_its_status_read;
 mod a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting;
 mod a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
@@ -698,6 +699,15 @@ struct Versioned {
     checkout: Uuid,
 }
 
+/// Shows a versioned block's status, as an editor watching it would, each block as its own
+/// owner.
+fn show_version(block: Uuid, content_type: Uuid) {
+    want_versions(
+        Owner::Editor(block.as_u64_pair().0),
+        vec![(block, content_type)],
+    );
+}
+
 fn start_versioning(text: &str) -> Versioned {
     wait_until("loaded the graph", |shared| {
         shared.graph.ready(super::graph::Query::Roots)
@@ -734,7 +744,7 @@ fn start_versioning(text: &str) -> Versioned {
         Some(be_block::RepositoryContent::default().encode()),
         false,
     );
-    version_since(repository, be_block::RepositoryContent::CONTENT_TYPE, None);
+    show_version(repository, be_block::RepositoryContent::CONTENT_TYPE);
     version(
         repository,
         be_sdk_api::VersionCommand::Adopt {

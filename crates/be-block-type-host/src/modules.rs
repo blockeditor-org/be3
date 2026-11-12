@@ -88,7 +88,7 @@ pub fn register(kind: Kind) {
     KINDS.fetch_add(1, Ordering::Relaxed);
 }
 
-pub fn kinds_revision() -> u64 {
+pub(crate) fn kinds_revision() -> u64 {
     KINDS.load(Ordering::Relaxed)
 }
 

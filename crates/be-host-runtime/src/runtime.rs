@@ -1893,12 +1893,10 @@ pub fn poll() {
             }
         }
     }
-    let touched = be_host_stack::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {
             runtime.contain(|runtime| {
-                runtime.instances.touch(&touched);
                 runtime.detect_error();
                 runtime.taking_in = true;
                 runtime.pump();

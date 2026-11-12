@@ -14,7 +14,7 @@ pub mod replicas;
 pub use be_sdk_type_api::{Plain, PlainFile};
 pub use modules::{
     Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Source, Under, in_process, is_known, kind_of,
-    kinds_revision, plain_of, started, tag_of,
+    plain_of, started, tag_of,
 };
 pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Replicas, Searched};
 
@@ -31,6 +31,10 @@ pub trait Host: Sized + 'static {
     fn spawn(task: impl Future<Output = ()> + 'static);
 
     fn wake();
+
+    /// A module registered content types this host can now read: blocks of those types may stop
+    /// being stale.
+    fn kinds_changed();
 
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError);
 

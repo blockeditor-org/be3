@@ -33,7 +33,10 @@ struct State {
     control: Option<InputControl>,
     filter: Option<Rc<RefCell<Filter>>>,
     chosen: Option<Uuid>,
-    seen: Option<u64>,
+    /// Whether the chosen block changed since it was read.
+    due: bool,
+    /// What the host stack changed, which says when the chosen block did.
+    changes: be_host_stack::ChangeWatch,
     loader: Loader,
     fetched: Fetched,
     window: Option<Window>,
@@ -153,7 +156,7 @@ pub fn configure(settings: &InputSettings) {
             return false;
         }
         state.chosen = chosen;
-        state.seen = None;
+        state.due = true;
         chosen.is_none()
     });
     if cleared {
@@ -250,20 +253,19 @@ fn capture() {
 }
 
 fn read_chosen() {
+    let changes = STATE.with_borrow(|state| state.changes.take());
     let Some(block) = STATE.with_borrow(|state| state.chosen) else {
         return;
     };
-    be_host_stack::hold(block, InputRemapper::CONTENT_TYPE);
-    let Some(revision) = be_host_stack::content_revision(block) else {
-        return;
-    };
-    if STATE.with_borrow(|state| state.seen == Some(revision)) {
+    let due = STATE.with_borrow_mut(|state| std::mem::take(&mut state.due) || changes.block(block));
+    if !due {
         return;
     }
+    be_host_stack::hold(block, InputRemapper::CONTENT_TYPE);
+    // One not loaded yet is read when it arrives, which the stack tells of.
     let Some(content) = be_host_stack::content(block) else {
         return;
     };
-    STATE.with_borrow_mut(|state| state.seen = Some(revision));
     let wanted = Document::<InputRemapper>::decode(content.bytes())
         .ok()
         .and_then(|content| {
