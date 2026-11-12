@@ -1597,6 +1597,7 @@ async fn drain_outbox(
                 .iter()
                 .filter_map(|outcome| match outcome {
                     be_block_client::Drained::Refused { block, .. }
+                    | be_block_client::Drained::SetAside { block, .. }
                     | be_block_client::Drained::Unsent { block } => Some(*block),
                     _ => None,
                 })
@@ -1644,8 +1645,20 @@ async fn drain_outbox(
                                 .relist(be_block_protocol::Listing::Children(*from));
                         }
                     }
-                    be_block_client::Drained::Refused { block, .. } => {
+                    be_block_client::Drained::Refused {
+                        block,
+                        restored: true,
+                        ..
+                    } => {
                         shown_as_refused(peer, shared, *block);
+                    }
+                    // Shown among the unsent edits; it leaves the files with what was made in it.
+                    be_block_client::Drained::SetAside { block, .. } => {
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .graph
+                            .forget(*block);
                     }
                     _ => {}
                 }
@@ -1659,7 +1672,16 @@ async fn drain_outbox(
                     be_block_client::Drained::Diverged { block, remote, .. } => {
                         diverged.push((block, remote));
                     }
-                    be_block_client::Drained::Refused { block, code } => {
+                    be_block_client::Drained::SetAside { block, refused } => {
+                        let named = named_block(peer, block);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .sync_error = Some(format!(
+                            "the server refused to make {named} ({refused}): it waits among the unsent edits"
+                        ));
+                    }
+                    be_block_client::Drained::Refused { block, code, .. } => {
                         let named = named_block(peer, block);
                         record_sync(
                             shared,
@@ -1689,26 +1711,18 @@ async fn drain_outbox(
     (diverged, published)
 }
 
-/// After the server refused what this device made of `block`, the graph shows it as the server
-/// has it again: a refused move or definition as the summary the drain put back
-/// (`Peer::unchanged`), in the listings of both the place the device showed and the server's.
-/// A refused creation was set aside, shown among the unsent edits: it leaves the graph.
+/// After the server refused a move or a definition of `block`, the graph shows it as the server
+/// has it again (the summary the drain put back, `Peer::unchanged`), in the listings of both the
+/// place the device showed and the server's.
 fn shown_as_refused(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
-    let set_aside = peer
-        .unsent()
-        .iter()
-        .any(|unsent| unsent.block == block && unsent.refused.is_some());
-    let summary = peer.known_summary(block);
+    let Some(summary) = peer.known_summary(block) else {
+        return;
+    };
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let shown = held.graph.get(block).and_then(|node| node.parent);
-    match summary {
-        Some(summary) if !set_aside => {
-            let parent = summary.parent;
-            held.graph.put(node_of(peer, &summary), summary.revision);
-            held.graph.relist_around(block, parent);
-        }
-        _ => held.graph.forget(block),
-    }
+    let parent = summary.parent;
+    held.graph.put(node_of(peer, &summary), summary.revision);
+    held.graph.relist_around(block, parent);
     if let Some(shown) = shown {
         held.graph
             .relist(be_block_protocol::Listing::Children(shown));
@@ -2795,9 +2809,12 @@ async fn apply(
             true
         }
         Command::Unsent { block, restore } => {
-            let done = match restore {
-                true => peer.restore_unsent(block),
-                false => peer.discard_unsent(block),
+            let (done, restored) = match restore {
+                true => match peer.restore_unsent(block) {
+                    Ok(restored) => (Ok(!restored.is_empty()), restored),
+                    Err(error) => (Err(error), Vec::new()),
+                },
+                false => (peer.discard_unsent(block), Vec::new()),
             };
             if restore {
                 tasks.sync(peer, shared);
@@ -2806,14 +2823,16 @@ async fn apply(
             if let Err(error) = done {
                 held.error = Some(error.to_string());
             }
-            // A creation set aside left the graph (`shown_as_refused`): restored, it is back.
-            if restore
-                && peer.creating(block)
-                && let Some(summary) = peer.known_summary(block)
-            {
-                let parent = summary.parent;
-                held.graph.put(node_of(peer, &summary), summary.revision);
-                held.graph.relist_around(block, parent);
+            // A creation set aside left the graph (`Drained::SetAside`): restored, it is back,
+            // with what was made in it.
+            for block in restored {
+                if peer.creating(block)
+                    && let Some(summary) = peer.known_summary(block)
+                {
+                    let parent = summary.parent;
+                    held.graph.put(node_of(peer, &summary), summary.revision);
+                    held.graph.relist_around(block, parent);
+                }
             }
             held.unsent = peer.unsent();
             held.stale_revision += 1;

@@ -30,9 +30,9 @@ async fn a_creation_the_server_refuses_is_set_aside_and_nothing_waits_behind_it(
 
     let drained = owner.drain(|_| false).await.unwrap();
     assert!(
-        drained.contains(&Drained::Refused {
+        drained.contains(&Drained::SetAside {
             block,
-            code: ErrorCode::InvalidRequest
+            refused: ErrorCode::InvalidRequest.to_string()
         }),
         "{drained:?}"
     );

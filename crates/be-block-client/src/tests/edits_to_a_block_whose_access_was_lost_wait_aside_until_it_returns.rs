@@ -68,7 +68,7 @@ async fn edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns() {
         .unwrap();
     offline.summary(note).await.unwrap();
     assert!(offline.unsent()[0].offerable);
-    assert!(offline.restore_unsent(note).unwrap());
+    assert!(!offline.restore_unsent(note).unwrap().is_empty());
     assert!(offline.unsent().is_empty());
     let drained = offline.drain(|_| false).await.unwrap();
     assert_eq!(

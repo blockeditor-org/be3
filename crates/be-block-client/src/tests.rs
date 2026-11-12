@@ -38,6 +38,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_deleted_after_its_folder_was_listed_is_listed_only_as_deleted_offline;
 mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
+mod a_block_the_server_refused_to_make_is_not_listed_offline;
 mod a_block_made_offline_takes_the_access_the_server_will_give_it;
 mod a_block_moved_out_of_a_listed_folder_is_listed_where_it_went_offline;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
@@ -110,6 +111,7 @@ mod swapping_ids_replaces_every_written_form_of_each;
 mod two_peers_of_one_account_read_each_others_blocks;
 mod what_a_policy_governs_waits_while_the_server_cannot_read_it;
 mod what_is_in_force_at_a_block_not_sent_yet_is_answered_from_this_device;
+mod what_is_made_in_a_block_the_server_refused_waits_aside_with_it;
 
 struct Harness {
     server: Running,

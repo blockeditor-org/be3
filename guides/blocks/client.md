@@ -233,9 +233,11 @@ sends it. `Peer::write` does both.
   `UnsentBlock::offerable` says the summary allows editing again.
   A create refused for any other reason (over a quota, too large) is set aside
   the same way, so nothing waits behind it, with the code it was refused with
-  (`UnsentBlock::refused`): the host shows it, and an organization's lost-access
-  policy never deletes it. A refused move or define puts back the summary the
-  server has (`unchanged`).
+  (`UnsentBlock::refused`, `Drained::SetAside`): the host shows it, an
+  organization's lost-access policy never deletes it, and cached listings leave
+  it out. What is made in it is set aside with its refusal, and restoring it
+  restores them. A refused move or define puts back the summary the server has
+  (`unchanged`, `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.
 

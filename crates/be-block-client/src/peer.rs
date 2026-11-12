@@ -213,7 +213,7 @@ impl<'a> Write<'a> {
 /// `Diverged` stays in the outbox for the replica host to merge. `Refused` drops a move or
 /// define, and keeps a create or publish with the rest of that block waiting for the next
 /// drain; `Failed` is kept likewise.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Drained {
     Created {
         block: Uuid,
@@ -238,9 +238,18 @@ pub enum Drained {
     Defined {
         block: Uuid,
     },
+    /// The server refused a change. With `restored`, it was a move or a definition, and the
+    /// block's summary is the server's again (`unchanged`); otherwise a publish.
     Refused {
         block: Uuid,
         code: ErrorCode,
+        restored: bool,
+    },
+    /// The server refused to make the block, or one it was made under: what this device made
+    /// of it is set aside among the unsent (`UnsentBlock::refused`).
+    SetAside {
+        block: Uuid,
+        refused: String,
     },
     Failed {
         block: Uuid,

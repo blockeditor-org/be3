@@ -53,7 +53,8 @@ async fn a_move_refused_to_an_editor_drops_only_the_move() {
         [
             Drained::Refused {
                 block: note,
-                code: ErrorCode::PermissionDenied
+                code: ErrorCode::PermissionDenied,
+                restored: true
             },
             Drained::Published {
                 block: note,

@@ -793,7 +793,14 @@ impl Refs {
         let at = state.listed_at.get(&listing).copied().unwrap_or_default();
         let empty = HashSet::new();
         let there = state.placed.get(&parent).unwrap_or(&empty);
-        let shown = |summary: &&BlockSummary| summary.access.can_know_exists();
+        // A block the server refused to make is kept only for its unsent row, not listed.
+        let shown = |summary: &&BlockSummary| {
+            summary.access.can_know_exists()
+                && !state
+                    .unsent
+                    .get(&summary.id)
+                    .is_some_and(|unsent| unsent.refused.is_some())
+        };
         let mut placed: Vec<BlockSummary> = listed
             .iter()
             .filter(|id| there.contains(id))
@@ -1348,6 +1355,21 @@ impl Refs {
         }
         self.write(rows)?;
         Ok(true)
+    }
+
+    pub fn is_unsent(&self, block: Uuid) -> bool {
+        self.state.lock().unwrap().unsent.contains_key(&block)
+    }
+
+    /// The code the server refused `block` with, when what this device made of it was set aside
+    /// for that (`Unsent::refused`).
+    pub fn refused(&self, block: Uuid) -> Option<String> {
+        self.state
+            .lock()
+            .unwrap()
+            .unsent
+            .get(&block)
+            .and_then(|unsent| unsent.refused.clone())
     }
 
     pub fn unsent(&self) -> Vec<(Uuid, Unsent)> {

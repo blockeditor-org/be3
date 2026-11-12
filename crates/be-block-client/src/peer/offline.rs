@@ -24,7 +24,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Whether what this device made of the block is set aside (`unsent`).
     pub fn is_unsent(&self, block: Uuid) -> bool {
-        self.refs.unsent().iter().any(|(held, _)| *held == block)
+        self.refs.is_unsent(block)
     }
 
     /// Whether the block's creation waits in the outbox: the server does not know the block yet.
@@ -327,7 +327,11 @@ impl<S: ObjectStore> Peer<S> {
                     if let Some(commit) = publishing {
                         self.refs.commits_refused(block, &HashSet::from([commit]))?;
                     }
-                    Drained::Refused { block, code }
+                    Drained::Refused {
+                        block,
+                        code,
+                        restored: false,
+                    }
                 }
                 Err(_) => {
                     stopped.insert(block);
@@ -350,6 +354,7 @@ impl<S: ObjectStore> Peer<S> {
                 | Drained::Moved { .. }
                 | Drained::Defined { .. }
                 | Drained::Refused { .. }
+                | Drained::SetAside { .. }
                 | Drained::Failed { .. } => {}
             }
             outcomes.push(outcome);
@@ -468,6 +473,14 @@ impl<S: ObjectStore> Peer<S> {
         creation: Creation,
     ) -> Result<Drained, ClientError> {
         let block = creation.block;
+        // Made under a block the server refused to make: it cannot be made either, and waits
+        // set aside with it, restored with it (`restore_unsent`).
+        if let BlockParent::Block(parent) = creation.parent
+            && let Some(refused) = self.refs.refused(parent)
+        {
+            self.move_to_unsent(block, Some(refused.clone()))?;
+            return Ok(Drained::SetAside { block, refused });
+        }
         let response = crate::ask(client::blocks::create_block(
             &self.connection(),
             block,
@@ -497,8 +510,9 @@ impl<S: ObjectStore> Peer<S> {
             // device made of it is set aside, to be restored or discarded, so nothing waits
             // behind a creation that never goes.
             Err(ClientError::Refused(code, _)) => {
-                self.move_to_unsent(block, Some(code))?;
-                Ok(Drained::Refused { block, code })
+                let refused = code.to_string();
+                self.move_to_unsent(block, Some(refused.clone()))?;
+                Ok(Drained::SetAside { block, refused })
             }
             Err(error) => Err(error),
         }
@@ -523,7 +537,11 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
                 self.unchanged(block).await;
-                Ok(Drained::Refused { block, code })
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: true,
+                })
             }
             Err(error) => Err(error),
         }
@@ -566,7 +584,11 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
                 self.unchanged(block).await;
-                Ok(Drained::Refused { block, code })
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: true,
+                })
             }
             Err(error) => Err(error),
         }
@@ -637,7 +659,11 @@ impl<S: ObjectStore> Peer<S> {
             Some((_, Op::Move(_) | Op::Define(_))) => {
                 self.refs.remove(&[sequence])?;
                 self.unchanged(block).await;
-                Ok(Drained::Refused { block, code })
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: true,
+                })
             }
             Some((_, Op::Publish(_))) | None => Err(ClientError::Refused(
                 code,
@@ -679,18 +705,10 @@ impl<S: ObjectStore> Peer<S> {
     /// Sets what this device keeps of `block` aside: what its commits announce is never sent
     /// (a message shown "Not sent" tells nobody, and one sent again tells as a new one).
     /// With `refused`, the server refused it with that code; otherwise this account lost access.
-    pub fn move_to_unsent(
-        &self,
-        block: Uuid,
-        refused: Option<ErrorCode>,
-    ) -> Result<bool, ClientError> {
+    pub fn move_to_unsent(&self, block: Uuid, refused: Option<String>) -> Result<bool, ClientError> {
         let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
         self.refs.commits_refused(block, &commits)?;
-        Ok(self.refs.move_to_unsent(
-            block,
-            now_milliseconds(),
-            refused.map(|code| code.to_string()),
-        )?)
+        Ok(self.refs.move_to_unsent(block, now_milliseconds(), refused)?)
     }
 
     fn lose_access(&self, block: Uuid) -> Result<Drained, ClientError> {
@@ -729,8 +747,27 @@ impl<S: ObjectStore> Peer<S> {
             .collect()
     }
 
-    pub fn restore_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
-        Ok(self.refs.restore_unsent(block)?)
+    /// Puts what was set aside of `block` back in the outbox, with what was made under it and
+    /// set aside for its refusal: the blocks restored, none when nothing was set aside.
+    pub fn restore_unsent(&self, block: Uuid) -> Result<Vec<Uuid>, ClientError> {
+        if !self.refs.restore_unsent(block)? {
+            return Ok(Vec::new());
+        }
+        let mut restored = vec![block];
+        let mut next = 0;
+        while let Some(parent) = restored.get(next).copied() {
+            next += 1;
+            for (child, unsent) in self.refs.unsent() {
+                let under = self
+                    .refs
+                    .summary(child)
+                    .is_some_and(|summary| summary.parent == Some(BlockParent::Block(parent)));
+                if under && unsent.refused.is_some() && self.refs.restore_unsent(child)? {
+                    restored.push(child);
+                }
+            }
+        }
+        Ok(restored)
     }
 
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {

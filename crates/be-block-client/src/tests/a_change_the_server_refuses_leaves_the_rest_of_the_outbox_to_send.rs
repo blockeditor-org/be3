@@ -65,9 +65,9 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
     harness.reconnect(&offline, member.token()).await;
     let drained = offline.drain(|_| false).await.unwrap();
     assert!(
-        drained.contains(&Drained::Refused {
+        drained.contains(&Drained::SetAside {
             block: another,
-            code: ErrorCode::PolicyRefused
+            refused: ErrorCode::PolicyRefused.to_string()
         }),
         "{drained:?}"
     );

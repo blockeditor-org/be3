@@ -36,7 +36,8 @@ async fn a_definition_the_server_refuses_leaves_the_block_as_the_server_has_it()
     assert!(
         drained.contains(&Drained::Refused {
             block,
-            code: ErrorCode::InvalidRequest
+            code: ErrorCode::InvalidRequest,
+            restored: true
         }),
         "{drained:?}"
     );
