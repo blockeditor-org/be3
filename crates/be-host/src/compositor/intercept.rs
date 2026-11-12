@@ -1,6 +1,7 @@
 use std::cell::Cell;
 
 use be_sdk_api::{EditorInstanceId, ViewId};
+use beui::KeyPhase;
 use beui::reactive::*;
 use beui::{KeyChord, KeyEvent, KeyInput, Modifiers};
 
@@ -14,7 +15,7 @@ pub(super) fn intercept_keys(
     let held = store(Cell::new(Modifiers::NONE));
     let allowed =
         move || allowed() && !be_host_runtime::view_has_keyboard(&app_id.value(), instance, region);
-    on_global_key(move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
         let press = match event.input {
             KeyInput::Tap(key) => {
                 let asked = chords.with_untracked(|chords| {

@@ -6,6 +6,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Key;
+use beui_view::types::KeyPhase;
 use beui_view::types::Placement;
 use beui_view::types::Pos2;
 use beui_view::types::icons::Glyph;
@@ -67,7 +68,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         },
     };
     let overlay = NodeRef::new();
-    on_global_key(move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
         if event.held() {
             return true;
         }

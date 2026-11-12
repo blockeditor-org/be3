@@ -95,7 +95,7 @@ window for everything but media keys.
 `on_shortcut(handler)` is a tree capture listener at the registering component,
 seeing every press before the focused control; a command the palette should list is an
 action at that node with `.capture()` instead (the dock's Ctrl+Tab, which works from a text
-input in a pane but not past a dialog; guides/beui/docking.md). `on_global_key(handler)` is a
+input in a pane but not past a dialog; guides/beui/docking.md). `on_key(KeyAt::Window, KeyPhase::Capture, handler)` is a
 window capture listener, handed a `KeyEvent` with the target's kind (typing,
 program). `held_modifiers()` is a signal of the modifiers held; hold-and-release
 shortcuts (a switcher) are built from these two.
@@ -153,7 +153,7 @@ take a key from a focused program (the desktop's Super+F and media keys); only
 chords with Ctrl, Alt or Super, or media keys, are offered over a program. A
 window capture Ctrl chord is so taken from every program, a Wayland window's
 own shortcuts included; a key the program should keep is a window capture
-`on_global_key` that answers `false` when `KeyEvent::target.program` says so
+`on_key(KeyAt::Window, KeyPhase::Capture, ..)` listener that answers `false` when `KeyEvent::target.program` says so
 (be-host's Ctrl+Shift+P opens its palette over app views but leaves it to a
 focused Wayland window). With
 `inhibits_shortcuts` (a remote desktop, a VM) only `.at(KeyAt::Host).capture()`
