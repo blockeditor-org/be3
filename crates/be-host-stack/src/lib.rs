@@ -841,6 +841,14 @@ pub fn backgrounded() {
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
+/// Makes this stack's `wait_until` move its manual clock on to the moment the stack waits on to
+/// reconnect after a connection failed, as a real clock would have: a manual clock never gets
+/// there on its own, so a first connect that failed would leave every wait to run out.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub fn drive_reconnects() {
+    with_shared_mut(|shared| shared.drives_reconnects = true);
+}
+
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
 /// `WAIT_LIMIT`.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
@@ -858,11 +866,21 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         if let Some(value) = read(&held) {
             return value;
         }
+        if held.drives_reconnects
+            && let Some((clock, at)) = &held.reconnect
+            && let now = clock.now()
+            && *at > now
+        {
+            clock.advance(*at - now);
+        }
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
             let state = format!(
-                "connected: {}, reached the server: {}, error: {:?}",
-                held.connected, held.reached, held.error
+                "connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}",
+                held.connected,
+                held.reached,
+                held.error,
+                held.reconnect.is_some()
             );
             drop(held);
             panic!(

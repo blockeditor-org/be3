@@ -477,6 +477,12 @@ pub struct Shared {
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
+    /// The clock and the moment the stack waits on to try the server again, while it does.
+    #[cfg(any(test, feature = "testing"))]
+    pub reconnect: Option<(be_block_client::Clock, Duration)>,
+    /// Whether a test's waits move a manual clock on to that moment (`drive_reconnects`).
+    #[cfg(any(test, feature = "testing"))]
+    pub drives_reconnects: bool,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
@@ -650,6 +656,16 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     changed.notify_all();
 }
 
+/// Notes the moment the stack next tries the server, for a test's wait to move a manual clock to
+/// (`drive_reconnects`); `None` once it has connected.
+#[cfg(any(test, feature = "testing"))]
+fn reconnecting_at(shared: &Arc<Mutex<Shared>>, at: Option<(be_block_client::Clock, Duration)>) {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reconnect = at;
+}
+
 fn forget_what_is_not_kept(peer: &Peer<Store>) {
     let _ = peer.forget_offline(|workspace| crate::offline_choice::choice(workspace).keep);
 }
@@ -702,10 +718,15 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
             }
             Err(error) => fail(shared, error),
         }
-        changed.notify_all();
-        be_host_base::host::wake();
         let delay = reconnect_delay(failures, jitter());
         failures = failures.saturating_add(1);
+        #[cfg(any(test, feature = "testing"))]
+        reconnecting_at(
+            shared,
+            Some((config.clock.clone(), config.clock.now() + delay)),
+        );
+        changed.notify_all();
+        be_host_base::host::wake();
         let waited = config.clock.sleep(delay);
         let nudge = std::pin::pin!(nudged.changed());
         if let Either::Right((Err(_), _)) = select(waited, nudge).await {
@@ -1174,6 +1195,12 @@ impl Session<'_> {
             failures => reconnect_delay(failures - 1, jitter()),
         };
         self.line = Line::down(self.config, failures, delay);
+        #[cfg(any(test, feature = "testing"))]
+        reconnecting_at(
+            self.shared,
+            (!delay.is_zero())
+                .then(|| (self.config.clock.clone(), self.config.clock.now() + delay)),
+        );
         self.rejoin = false;
         if was_up {
             self.replicas.disconnected();
@@ -1196,6 +1223,10 @@ impl Session<'_> {
             }
             held.reached = true;
             held.error = None;
+            #[cfg(any(test, feature = "testing"))]
+            {
+                held.reconnect = None;
+            }
         }
         self.changed.notify_all();
         be_host_base::host::wake();
