@@ -95,6 +95,7 @@ impl Registration {
                 plain: Plain::None,
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
+                whole_bytes: C::WHOLE_BYTES,
             },
             open: open::<C, NoHistory>,
             plain: open::<C, NoHistory>,

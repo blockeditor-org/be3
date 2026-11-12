@@ -25,6 +25,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-commit:be-block-commit",
                 "//crates/be-sdk-test:be-sdk-test",
             ],
             "test_features": [],

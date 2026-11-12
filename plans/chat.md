@@ -168,8 +168,8 @@ edited (the journal, guides/blocks/client.md). Steps 1a to 1d have landed.
   merge never conflicts and reads no part (a merge runs on one device and only
   its result is applied): a segment both sides closed is one; entries that differ
   stay, each with its own part (matched by the whole entry), and can overlap,
-  which loses nothing and costs storage. The editor shows a message once, in the
-  first segment it reads. Closing is not undone by a later merge, but once one
+  which loses nothing and costs storage. The editor shows each message once, in its place
+  (`ChatContent::weave`). Closing is not undone by a later merge, but once one
   side has added an entry nothing compacts the overlap until a rewrite exists. Edits, deletions and
   reactions are kept by message id whether the message is recent or not, so an
   offline edit to a message that moved into a segment merges clean and stays in

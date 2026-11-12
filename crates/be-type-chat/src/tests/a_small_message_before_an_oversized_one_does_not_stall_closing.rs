@@ -9,7 +9,7 @@ fn a_small_message_before_an_oversized_one_does_not_stall_closing() {
     let rest: Vec<&str> = (0..200).map(|_| rest.as_str()).collect();
     chat = sent(&chat, ADA, &rest);
     let mut closes = 0;
-    while let Some(closing) = chat.closing(&[]) {
+    while let Some(closing) = chat.closing() {
         chat.apply(&closing);
         closes += 1;
         assert!(closes < 10);

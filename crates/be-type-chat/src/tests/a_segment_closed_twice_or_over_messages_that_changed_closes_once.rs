@@ -3,9 +3,7 @@ use super::*;
 #[test]
 fn a_segment_closed_twice_or_over_messages_that_changed_closes_once() {
     let chat = long(120);
-    let closing = chat
-        .closing(&[])
-        .expect("a chat this long closes a segment");
+    let closing = chat.closing().expect("a chat this long closes a segment");
 
     // Two editors propose the same close: the second finds the messages already gone.
     let mut once = chat.clone();
@@ -25,20 +23,7 @@ fn a_segment_closed_twice_or_over_messages_that_changed_closes_once() {
         "the segment holds a message that is gone here, so it does not close"
     );
     assert!(
-        deleted.closing(&[]).is_some(),
+        deleted.closing().is_some(),
         "the oldest messages that are left close instead"
-    );
-
-    // What is not confirmed yet stays out of a segment.
-    let newest = chat.messages().last().copied().expect("messages");
-    let lacking: Vec<_> = chat
-        .messages()
-        .into_iter()
-        .take(1)
-        .chain([newest])
-        .collect();
-    assert!(
-        chat.closing(&lacking).is_none(),
-        "the oldest message is not held by the server, so nothing closes before it"
     );
 }

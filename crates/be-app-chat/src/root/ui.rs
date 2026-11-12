@@ -199,7 +199,7 @@ pub fn Chat(editor: Editor) -> NodeId {
         if !visible || unconfirmed {
             return;
         }
-        if let Ok(Some(closing)) = chat.read(|content| content.closing(&[])) {
+        if let Ok(Some(closing)) = chat.read(|content| content.closing()) {
             untrack(|| chat.operate(closing));
         }
     });
@@ -344,8 +344,9 @@ pub fn Chat(editor: Editor) -> NodeId {
 #[derive(Clone, Copy)]
 struct Older {
     chat: Chat,
-    /// The segments read so far, each by its first message, with its messages.
-    read: Signal<Vec<(ObjectId, Vec<(ObjectId, Message)>)>>,
+    /// The segments read so far, each as its index entry names it (two that overlap can open at
+    /// the same message), with the messages its part holds.
+    read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>>,
     segments: ReadSignal<Vec<Segment>>,
     rows: KeyedStore<ObjectId, Row>,
     reading: Signal<bool>,
@@ -360,7 +361,7 @@ struct Older {
 impl Older {
     fn new(chat: Chat, me: Uuid) -> Self {
         let segments = chat.project(|content: &ChatContent| content.segments());
-        let read: Signal<Vec<(ObjectId, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
+        let read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
         let rows = KeyedStore::new();
         let older = Self {
             chat,
@@ -371,13 +372,7 @@ impl Older {
             failed: create_signal(false),
             at_start: create_signal(false),
             remaining: create_memo(move || {
-                segments.with(|segments| {
-                    read.with(|read| {
-                        segments
-                            .iter()
-                            .any(|segment| !read.iter().any(|(first, _)| *first == segment.first))
-                    })
-                })
+                segments.with(|segments| read.with(|read| unread_segment(segments, read).is_some()))
             }),
         };
         // Reaching the start of the chat reads the next older segment.
@@ -392,13 +387,13 @@ impl Older {
             let (segments, read) = (segments.get(), read.get());
             let rows_now = chat
                 .read(|content| {
-                    let messages = segments
+                    // Segments closed apart can overlap: a message shows once, in its place.
+                    let read_in_order: Vec<&[(ObjectId, Message)]> = segments
                         .iter()
-                        .filter_map(|segment| {
-                            read.iter().find(|(first, _)| *first == segment.first)
-                        })
-                        .flat_map(|(_, messages)| messages.iter().cloned())
+                        .filter_map(|segment| read.iter().find(|(read, _)| read == segment))
+                        .map(|(_, messages)| messages.as_slice())
                         .collect();
+                    let messages = ChatContent::weave(&read_in_order);
                     row_list(content, &content.shown_of(messages), me)
                 })
                 .unwrap_or_default();
@@ -414,25 +409,19 @@ impl Older {
         }
         let read = self.read.get_untracked();
         let segments = self.segments.get_untracked();
-        let Some(index) = segments
-            .iter()
-            .rposition(|segment| !read.iter().any(|(first, _)| *first == segment.first))
-        else {
+        let Some(index) = unread_segment(&segments, &read) else {
             return;
         };
-        self.read_segment_at(segments[index].first, true);
+        self.read_segment_at(&segments[index], true);
     }
 
-    /// Reads the segment that opens at `first`, by the range the header held now gives it. The
+    /// Reads `segment`, by the range the header held now gives it. The
     /// replica's header can differ from this one's while the chat is busy, which moves the range
     /// and fails the check against the index; the read is tried once more then.
-    fn read_segment_at(&self, first: ObjectId, retry: bool) {
+    fn read_segment_at(&self, segment: &Segment, retry: bool) {
         let live = self.chat.live();
         let Ok(Some((index, range))) = self.chat.read(|content| {
-            let index = content
-                .segments()
-                .iter()
-                .position(|segment| segment.first == first)?;
+            let index = content.segments().iter().position(|held| held == segment)?;
             Some((index, content.segment_ranges().get(index).cloned()?))
         }) else {
             return;
@@ -440,6 +429,7 @@ impl Older {
         self.reading.set(true);
         self.failed.set(false);
         let this = *self;
+        let segment = segment.clone();
         live.read_range(
             range.start,
             range.end.saturating_sub(range.start),
@@ -454,20 +444,10 @@ impl Older {
                     Some(messages) => {
                         this.reading.set(false);
                         let mut read = this.read.get_untracked();
-                        // Segments closed apart can overlap (a merge keeps both); a message
-                        // shows once, in the segment read first.
-                        let held: std::collections::HashSet<ObjectId> = read
-                            .iter()
-                            .flat_map(|(_, held)| held.iter().map(|(id, _)| *id))
-                            .collect();
-                        let messages = messages
-                            .into_iter()
-                            .filter(|(id, _)| !held.contains(id))
-                            .collect();
-                        read.push((first, messages));
+                        read.push((segment, messages));
                         this.read.set(read);
                     }
-                    None if retry => this.read_segment_at(first, false),
+                    None if retry => this.read_segment_at(&segment, false),
                     None => {
                         this.reading.set(false);
                         this.failed.set(true);
@@ -476,6 +456,14 @@ impl Older {
             },
         );
     }
+}
+
+/// The newest segment of `segments` not in `read`: segments are told apart by their whole index
+/// entry, since two closed apart can open at the same message.
+pub(crate) fn unread_segment<T>(segments: &[Segment], read: &[(Segment, T)]) -> Option<usize> {
+    segments
+        .iter()
+        .rposition(|segment| !read.iter().any(|(read, _)| read == segment))
 }
 
 /// The rows of `shown` messages, each with its replied-to message and who signed it.

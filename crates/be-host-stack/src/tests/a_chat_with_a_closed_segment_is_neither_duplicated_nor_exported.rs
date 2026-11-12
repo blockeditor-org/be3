@@ -17,9 +17,7 @@ fn a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported() {
         let (_, send) = chat.send(block, Message::new(author, index, body.clone()));
         chat.apply(&send.into());
     }
-    let closing = chat
-        .closing(&[])
-        .expect("a chat this long closes a segment");
+    let closing = chat.closing().expect("a chat this long closes a segment");
     chat.apply(&closing);
     assert_eq!(chat.segments().len(), 1);
 

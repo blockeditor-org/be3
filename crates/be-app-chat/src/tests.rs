@@ -27,6 +27,7 @@ mod a_revision_preview_verifies_what_the_chat_signed;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
 mod reading_on_one_device_clears_the_count_on_another;
+mod two_closed_segments_that_overlap_show_each_message_once;
 
 const ME: Uuid = Uuid::from_u128(0x5a1d_0000_0000_4000_8000_0000_0000_0001);
 const ROSA: Uuid = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
@@ -87,6 +88,10 @@ impl Harness {
             let send = signed_by(&content, *author, Message::new(*author, time, *body));
             content.apply(&send.into());
         }
+        Self::open(content, trusted, shown)
+    }
+
+    fn open(content: ChatContent, trusted: &[(Uuid, Signer)], shown: Uuid) -> Self {
         let mut harness = Self {
             editor: match shown == CHAT {
                 true => BeuiTest::new(OwnedEditor::new(host(), shown)),

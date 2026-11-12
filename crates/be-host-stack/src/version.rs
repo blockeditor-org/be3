@@ -2014,7 +2014,7 @@ async fn relist(
         .replicas
         .kind(content_type)
         .await
-        .is_some_and(|kind| kind.first_part)
+        .is_some_and(|kind| !kind.whole_bytes)
         && super::worker::has_later_parts(context.peer, parent)
             .await
             .map_err(failed)?

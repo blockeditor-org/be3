@@ -20,6 +20,7 @@ mod an_edit_made_offline_to_a_message_deleted_elsewhere_stays_deleted;
 mod deleting_a_message_removes_it_with_its_edit_and_reactions;
 mod edits_and_reactions_made_offline_on_both_sides_are_kept_by_message;
 mod merging_saved_sides_with_differing_closes_keeps_each_segments_own_part;
+mod segments_read_back_that_overlap_weave_into_one_run_in_order;
 mod the_same_edit_or_reaction_made_on_two_devices_keeps_the_later_without_a_conflict;
 mod two_closed_chats_merge_by_parts_without_reading_a_segment;
 mod two_closes_made_apart_merge_into_one_segment_without_a_conflict;
@@ -80,9 +81,7 @@ fn long(count: usize) -> ChatContent {
 
 /// `chat` with its oldest messages closed into a segment.
 fn closed(chat: &ChatContent) -> ChatContent {
-    let closing = chat
-        .closing(&[])
-        .expect("a chat this long closes a segment");
+    let closing = chat.closing().expect("a chat this long closes a segment");
     let mut chat = chat.clone();
     chat.apply(&closing);
     chat

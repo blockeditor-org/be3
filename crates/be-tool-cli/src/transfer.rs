@@ -42,7 +42,7 @@ impl<S: ObjectStore> Tracker<S> {
             let summary = read.summary.clone();
             // A type that loads its first part keeps more after it (chat's closed segments); a
             // transfer carries bytes, so it would drop them: refuse until it carries parts.
-            if be_block_type_host::kind_of(entry.block_type).is_some_and(|kind| kind.first_part)
+            if be_block_type_host::kind_of(entry.block_type).is_some_and(|kind| !kind.whole_bytes)
                 && read
                     .stored
                     .as_ref()

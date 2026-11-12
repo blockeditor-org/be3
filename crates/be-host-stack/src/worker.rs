@@ -2440,7 +2440,7 @@ async fn apply(
             if replicas
                 .kind(content_type)
                 .await
-                .is_some_and(|kind| kind.first_part)
+                .is_some_and(|kind| !kind.whole_bytes)
                 && has_later_parts(peer, from).await.unwrap_or(false)
             {
                 record(
@@ -2919,7 +2919,7 @@ async fn export(
         if replicas
             .kind(block.block_type)
             .await
-            .is_some_and(|kind| kind.first_part)
+            .is_some_and(|kind| !kind.whole_bytes)
             && has_later_parts(peer, block.id).await?
         {
             return Err(ClientError::Encoding(

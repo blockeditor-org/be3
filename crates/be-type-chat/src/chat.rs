@@ -653,11 +653,11 @@ impl ChatContent {
             .collect()
     }
 
-    /// The oldest recent messages as a segment to close, when the recent ones pass a size and the
-    /// messages in `lacking` (the server does not hold them yet) are left out: the operation that
-    /// closes them. At least `segment::SMALLEST` bytes of messages close at once, and at least
+    /// The oldest recent messages as a segment to close, when the recent ones pass a size: the
+    /// operation that closes them (an editor proposes it only while nothing of its device is
+    /// unconfirmed, plans/chat.md). At least `segment::SMALLEST` bytes of messages close at once, and at least
     /// `segment::KEPT_RECENT` stay recent.
-    pub fn closing(&self, lacking: &[ObjectId]) -> Option<ChatOp> {
+    pub fn closing(&self) -> Option<ChatOp> {
         let recent: Vec<(ObjectId, Message)> = self
             .messages()
             .into_iter()
@@ -676,10 +676,7 @@ impl ChatContent {
         // Whether the next message would pass the largest segment: what was taken closes alone
         // then, even under the smallest, so a large message never stalls closing.
         let mut next_too_large = false;
-        for (index, size) in sizes.iter().enumerate() {
-            if lacking.contains(&recent[index].0) {
-                break;
-            }
+        for size in &sizes {
             if count > 0 && taken + size > segment::LARGEST {
                 next_too_large = true;
                 break;
@@ -772,6 +769,30 @@ impl ChatContent {
             .collect()
     }
 
+    /// The messages of segments read back (each in the order of its part), as one run of messages
+    /// in order, each once: segments closed apart can overlap, and an unseen message goes after
+    /// the message before it in its own segment (or before the first of its segment already
+    /// there), so the run keeps every segment's order.
+    pub fn weave(segments: &[&[(ObjectId, Message)]]) -> Vec<(ObjectId, Message)> {
+        let mut run: Vec<(ObjectId, Message)> = Vec::new();
+        for segment in segments {
+            let mut place = segment
+                .iter()
+                .find_map(|(id, _)| run.iter().position(|(held, _)| held == id))
+                .unwrap_or(run.len());
+            for (id, message) in *segment {
+                match run.iter().position(|(held, _)| held == id) {
+                    Some(at) => place = at + 1,
+                    None => {
+                        run.insert(place, (*id, message.clone()));
+                        place += 1;
+                    }
+                }
+            }
+        }
+        run
+    }
+
     /// Whether `message` may be in a closed segment, rather than recent or unknown here.
     pub fn may_be_closed(&self, message: ObjectId) -> bool {
         self.segments()
@@ -790,6 +811,9 @@ impl BlockContent for ChatContent {
     const CONTENT_TYPE: Uuid = ChatHeader::CONTENT_TYPE;
 
     const LOADS: Loads = Loads::FirstPart;
+
+    /// `encode` is the header: the closed segments are parts after it.
+    const WHOLE_BYTES: bool = false;
 
     fn schema() -> String {
         format!("chat 1\n{}", ChatHeader::kind().describe())
@@ -999,7 +1023,8 @@ impl Merge for ChatContent {
             .map(|segment| {
                 [ours, theirs, base]
                     .into_iter()
-                    .find_map(|side| side.held_of(segment))
+                    .filter_map(|side| side.held_of(segment))
+                    .find(|held| **held != Held::Absent)
                     .cloned()
                     .unwrap_or(Held::Absent)
             })

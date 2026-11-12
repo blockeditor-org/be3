@@ -7,7 +7,7 @@ use super::*;
 #[test]
 fn a_close_whose_index_entry_does_not_match_its_bytes_is_ignored() {
     let chat = long(120);
-    let crate::ChatOp::Close(closing) = chat.closing(&[]).expect("closes") else {
+    let crate::ChatOp::Close(closing) = chat.closing().expect("closes") else {
         panic!("a close");
     };
     let mut ok = chat.clone();

@@ -290,7 +290,7 @@ async fn perform(
     if replicas
         .kind(summary.content_type)
         .await
-        .is_some_and(|kind| kind.first_part)
+        .is_some_and(|kind| !kind.whole_bytes)
     {
         let first = peer
             .load_first_part(&saved.manifest)
