@@ -506,6 +506,9 @@ pub struct Shared {
     pub touched: be_lib_stable_hash::HashSet<Uuid>,
     pub pending: usize,
     pub typing: bool,
+    /// While the host holds the modules' clock, when their soonest timer comes due on it
+    /// (`Modules::held_due`): what a stopped clock must reach for that work to happen.
+    pub modules_due: Option<std::time::Instant>,
     pub uploading: usize,
     pub listing_revisions: usize,
     pub importing: usize,
@@ -1108,14 +1111,21 @@ impl Session<'_> {
                     }
                 }
             }
+            // The steps since the pump waited on modules, and what those said meanwhile is
+            // only in the replicas' changes.
+            moved |= self.replicas.take_changed();
             moved |= report(peer, shared);
             let typing = !self.replicas.modules.settled();
-            let was_typing = std::mem::replace(
-                &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
-                typing,
-            );
+            let due = self.replicas.modules.held_due();
+            let (was_typing, was_due) = {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                (
+                    std::mem::replace(&mut held.typing, typing),
+                    std::mem::replace(&mut held.modules_due, due),
+                )
+            };
             self.changed.notify_all();
-            if moved || was_typing != typing {
+            if moved || was_typing != typing || was_due != due {
                 be_host_base::host::wake();
             }
         }
@@ -2382,6 +2392,8 @@ async fn apply(
         }
         Command::HoldClock(at) => {
             replicas.modules.hold_clock(at);
+            // A clock moved on may have reached timers that are now due.
+            replicas.modules.tick_due();
             false
         }
         Command::ChangeChild {

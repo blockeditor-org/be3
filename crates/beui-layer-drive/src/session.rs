@@ -491,6 +491,10 @@ struct Session {
     /// work on threads of their own) before the next, and what a pause runs does not depend on
     /// how fast they are.
     quiet: bool,
+    /// While `synced` waits on a stopped clock: when the program's own timers for keeping in
+    /// step next come due on it (`Program::in_step_due`), which the clock is moved to once the
+    /// program is quiet.
+    in_step_due: Option<Instant>,
     unhurried: bool,
     focused: bool,
     picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
@@ -515,6 +519,7 @@ impl Session {
             grabbed: Vec::new(),
             clock_stopped: false,
             quiet: true,
+            in_step_due: None,
             unhurried: false,
             focused: true,
             picks: Vec::new(),
@@ -585,6 +590,20 @@ impl Session {
             && self.quiet
         {
             let step = pause_step(until.saturating_duration_since(context.now()));
+            context.advance_clock(step);
+            return now + step;
+        }
+        // Quiet but out of step, the program waits on its own timers (a save after a quiet
+        // spell, a retry's backoff), which a stopped clock never brings: it moves to the soonest.
+        if let Some(Active {
+            phase: Phase::Syncing,
+            ..
+        }) = &self.active
+            && self.clock_stopped
+            && self.quiet
+            && let Some(due) = self.in_step_due
+        {
+            let step = due.saturating_duration_since(context.now());
             context.advance_clock(step);
             return now + step;
         }
@@ -748,6 +767,11 @@ impl Session {
             Phase::Pausing { .. } if stopped && self.quiet => Some(Duration::ZERO),
             Phase::Pausing { .. } if stopped => None,
             Phase::Pausing { until } => Some(until.saturating_duration_since(now)),
+            Phase::Syncing
+                if stopped && self.quiet && self.in_step_due.is_some_and(|due| due > now) =>
+            {
+                Some(Duration::ZERO)
+            }
             Phase::Reading { .. } => Some(FRAME),
             _ => None,
         }
@@ -785,6 +809,10 @@ impl Session {
                 ..
             }) => frame.program.out_of_step().unwrap_or_default(),
             _ => Vec::new(),
+        };
+        self.in_step_due = match self.clock_stopped && !out_of_step.is_empty() {
+            true => frame.program.in_step_due(),
+            false => None,
         };
         // A wait for the server is no frame owed, so it is only named if `synced` times out.
         let named: Vec<String> = busy.iter().chain(&out_of_step).cloned().collect();

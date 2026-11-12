@@ -552,6 +552,14 @@ impl<H: Host> Replicas<H> {
 
     pub async fn pump(&mut self, ctx: Ctx<'_, H>) -> bool {
         self.drain(ctx).await;
+        self.take_changed()
+    }
+
+    /// Whether what the modules said changed anything since this was last asked. A wait on
+    /// one module's answer (`ask`, a seal, a search read) handles all they say meanwhile, so a
+    /// caller that waited after its `pump` asks this before it settles, or the change goes
+    /// unseen until something else wakes it.
+    pub fn take_changed(&mut self) -> bool {
         std::mem::take(&mut self.changed)
     }
 

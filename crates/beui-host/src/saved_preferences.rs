@@ -74,6 +74,10 @@ impl<A: Program> Program for SavedPreferences<A> {
         self.program.connected()
     }
 
+    fn in_step_due(&self) -> Option<std::time::Instant> {
+        self.program.in_step_due()
+    }
+
     fn environment(&self) -> Vec<(String, String)> {
         self.program.environment()
     }

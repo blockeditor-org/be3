@@ -832,6 +832,12 @@ pub fn unsynced() -> Vec<String> {
         .unwrap_or_else(|| vec!["the block store is not running".to_owned()])
 }
 
+/// While a held clock keeps the type modules' timers from firing, when the soonest comes due
+/// on it (`Shared::modules_due`).
+pub fn modules_due() -> Option<std::time::Instant> {
+    with_shared(|shared| shared.modules_due).flatten()
+}
+
 pub fn seal_owed() {
     if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
         let (done, _) = std::sync::mpsc::channel();

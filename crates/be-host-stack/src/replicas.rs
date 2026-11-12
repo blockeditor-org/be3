@@ -162,24 +162,13 @@ impl be_block_type_host::Host for Shared {
         held.touch(block);
     }
 
-    /// Counts can change while the worker waits on a module for something else (a search read
-    /// drains the status a replica reports): the host is woken here, where they change, so a
-    /// seal owed is never left unseen until something unrelated wakes it.
     fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize, undurable: usize) {
-        let changed = {
-            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            let before = (held.unsealed, held.owing, held.undurable);
-            // A seal moved edits into the outbox, which `waiting` counts only at the next
-            // `report`.
-            held.recounting |= unsealed < held.unsealed;
-            held.unsealed = unsealed;
-            held.owing = owing;
-            held.undurable = undurable;
-            before != (unsealed, owing, undurable)
-        };
-        if changed {
-            be_host_base::host::wake();
-        }
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        // A seal moved edits into the outbox, which `waiting` counts only at the next `report`.
+        held.recounting |= unsealed < held.unsealed;
+        held.unsealed = unsealed;
+        held.owing = owing;
+        held.undurable = undurable;
     }
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool) {

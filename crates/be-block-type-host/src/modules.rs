@@ -697,6 +697,20 @@ impl Modules {
         &self.clock
     }
 
+    /// While the clock is held, the instant on the holder's clock at which the soonest module
+    /// timer comes due (a seal after a quiet spell, a retry's backoff): held, it never comes
+    /// unless the holder moves its clock there.
+    pub fn held_due(&self) -> Option<Instant> {
+        let held = self.held?;
+        let now = self.clock.at(held);
+        self.modules
+            .iter()
+            .filter_map(|module| module.sleeping.as_ref())
+            .map(|(at, _)| Duration::from_millis(*at))
+            .min()
+            .map(|due| held + due.saturating_sub(now))
+    }
+
     pub fn wake_at(&mut self) -> Option<Duration> {
         let now = self.clock.now();
         let mut soonest: Option<Duration> = None;
