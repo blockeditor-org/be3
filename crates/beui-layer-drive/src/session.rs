@@ -1001,7 +1001,10 @@ impl Session {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Syncing(Some(text))
-                    if settled.unsynced.iter().any(|reason| reason.contains(text.as_str())) =>
+                    if settled
+                        .unsynced
+                        .iter()
+                        .any(|reason| reason.contains(text.as_str())) =>
                 {
                     Some(Reply::Text(settled.unsynced.join("\n") + "\n"))
                 }
@@ -1292,8 +1295,10 @@ impl Session {
                 };
                 match frame.program.out_of_step() {
                     Some(_) => Ok(Started::Phase(Phase::Syncing(reason))),
-                    None => Err("this program has nothing outside its window to keep in step with"
-                        .to_owned()),
+                    None => Err(
+                        "this program has nothing outside its window to keep in step with"
+                            .to_owned(),
+                    ),
                 }
             }
             "network" => {
