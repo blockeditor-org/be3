@@ -1,6 +1,7 @@
 use super::*;
 
 mod a_leased_renderer_stops_drawing_once_its_surface_is_revoked;
+mod revoking_a_surface_waits_for_the_draw_in_progress;
 
 struct Window;
 

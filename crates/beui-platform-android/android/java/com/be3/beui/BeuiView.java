@@ -1,11 +1,13 @@
 package com.be3.beui;
 
 import android.app.Activity;
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.DisplayCutout;
 import android.view.KeyEvent;
@@ -16,6 +18,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsAnimation;
+import android.view.WindowInsetsController;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
 import android.view.inputmethod.EditorInfo;
@@ -24,8 +27,10 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public final class BeuiView extends SurfaceView implements SurfaceHolder.Callback2 {
+    private static final long REDRAW_WAIT_SECONDS = 1;
     private static final int TOUCH_START = 0;
     private static final int TOUCH_MOVE = 1;
     private static final int TOUCH_END = 2;
@@ -78,14 +83,15 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         if (!nativeRedrawNeeded(drawingFinished)) drawingFinished.run();
     }
 
-    // Before API 26 Android asks only this, and shows the window when it returns.
+    // Before API 26 Android asks only this, on the UI thread, and shows the window
+    // when it returns. It waits a bounded time: a stale frame beats an ANR.
     @Override
     public void surfaceRedrawNeeded(SurfaceHolder holder) {
         if (Build.VERSION.SDK_INT >= 26) return;
         CountDownLatch drawn = new CountDownLatch(1);
         if (!nativeRedrawNeeded(drawn::countDown)) return;
         try {
-            drawn.await();
+            drawn.await(REDRAW_WAIT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
@@ -101,16 +107,39 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
         if (!focused) {
-            keyboardWhenUnfocused = keyboard && (Build.VERSION.SDK_INT < 30 || keyboardVisible);
+            keyboardWhenUnfocused = keyboard && keyboardUpWhenLocking();
             return;
         }
         reportPreferences(getResources().getConfiguration());
         // Locking the phone hides the keyboard, and nothing else asks for it again.
-        if (keyboard && keyboardWhenUnfocused) {
-            requestFocus();
-            input.showSoftInput(this, 0);
-        }
+        if (keyboard && keyboardWhenUnfocused) post(this::showKeyboard);
         keyboardWhenUnfocused = false;
+    }
+
+    // Whether the keyboard was up as the window lost focus to the lock screen. From
+    // API 30 the insets say whether it was up, so one the person put away stays
+    // away; before, nothing says so, so it comes back only when the screen locked
+    // or went off, not when the notification shade took focus.
+    private boolean keyboardUpWhenLocking() {
+        if (Build.VERSION.SDK_INT >= 30) return keyboardVisible;
+        KeyguardManager keyguard =
+                (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
+        PowerManager power = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        return (keyguard != null && keyguard.isKeyguardLocked())
+                || (power != null && !power.isInteractive());
+    }
+
+    private void showKeyboard() {
+        if (!keyboard) return;
+        requestFocus();
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController controller = getWindowInsetsController();
+            if (controller != null) {
+                controller.show(WindowInsets.Type.ime());
+                return;
+            }
+        }
+        input.showSoftInput(this, 0);
     }
 
     private void reportPreferences(Configuration configuration) {

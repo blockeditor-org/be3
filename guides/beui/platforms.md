@@ -90,6 +90,14 @@ apps in each `DrawFrame`: an unseen app runs its frames without encoding them
 (except previews, which others show as pictures), and when the host is seen
 again it asks each such app for a full frame, which `drawing` waits for.
 
+A window with no surface (minimised to nothing, or an Android surface between
+`surfaceDestroyed` and the next) runs no frames, unless a layer paces them. The
+runner drops the input that arrives meanwhile but keeps what ends something (a
+lift or cancel, a key or button release, focus, the input method's events, a
+cancelled back gesture) for the next frame that runs; a back gesture invoked
+then is dropped, since it would go back from a page nobody saw. What it keeps
+does not count as `has_events`, so a platform does not spin waiting.
+
 ## Input
 
 A platform pushes an `Incoming`: an `Input` in physical pixels, logical pixels
@@ -218,10 +226,10 @@ revokes the surface's `SurfaceLease`, which waits only for a draw in progress,
 never for a frame, and the renderer touches that surface no more. `BeuiView`
 is a `SurfaceHolder.Callback2`, and runs `surfaceRedrawNeededAsync`'s
 `drawingFinished` once a frame is presented on the new surface, so Android never
-shows it blank or stale. While no surface is attached, frames do not run: the
-runner drops input but keeps what ends something (a lift or cancel, a key
-release, focus, the input method's events, a finished back gesture) for the next
-frame that runs.
+shows it blank or stale. `surfaceDestroyed` first waits up to 100 ms for the
+runner to detach, so the swapchain goes before the surface (as EGL wants)
+unless a long frame is running. Before API 26 Android
+waits on `surfaceRedrawNeeded` on its UI thread, for at most a second.
 
 **Soft keyboards** take their room out of the window: on Android the inset
 joins the safe area, following each frame of the keyboard's slide

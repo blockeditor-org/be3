@@ -10,7 +10,7 @@ use std::os::fd::FromRawFd;
 use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -43,6 +43,8 @@ use beui_types::{FilePick, PickedFile};
 use beui_types::{Motion, PreferenceLayer, ThemeKind};
 use beui_types::{Vec2, pos2, vec2};
 use clipboard::Clipboard;
+
+const SURFACE_DETACH_WAIT: Duration = Duration::from_millis(100);
 
 const META_SHIFT_ON: jint = 0x1;
 const META_ALT_ON: jint = 0x2;
@@ -88,7 +90,7 @@ enum Message {
         height: u32,
         density: f32,
     },
-    SurfaceGone,
+    SurfaceGone(SyncSender<()>),
     /// `surfaceRedrawNeededAsync`'s `drawingFinished`, run once a frame is on the
     /// surface.
     RedrawNeeded(Global<JObject<'static>>),
@@ -565,7 +567,22 @@ impl Runner {
                 None => self.frame(),
             }
         }
+        self.drain(receiver);
         self.exit();
+    }
+
+    /// Answers what still waits on the runner once it stops: Android waits on
+    /// each `drawingFinished`, and `surfaceDestroyed` on the detach.
+    fn drain(&mut self, receiver: &Receiver<Message>) {
+        while let Ok(message) = receiver.try_recv() {
+            match message {
+                Message::RedrawNeeded(finished) => self.platform.redraws.push(finished),
+                Message::SurfaceGone(detached) => {
+                    let _ = detached.send(());
+                }
+                _ => {}
+            }
+        }
     }
 
     fn exit(&mut self) {
@@ -609,11 +626,12 @@ impl Runner {
                 height,
                 density,
             } => self.surface(window, lease, width, height, density),
-            Message::SurfaceGone => {
+            Message::SurfaceGone(detached) => {
                 if let Some(rendering) = self.runner.rendering() {
                     rendering.detach();
                 }
                 self.window = None;
+                let _ = detached.send(());
                 self.platform.drawn();
             }
             Message::RedrawNeeded(finished) => {
@@ -718,7 +736,7 @@ impl Runner {
         self.runner.reports().resized(width, height);
         self.redraw = true;
         if !self.runner.started()
-            && let Err(error) = self.start(&window)
+            && let Err(error) = self.start(&window, lease)
         {
             return self.fail(error);
         }
@@ -740,12 +758,20 @@ impl Runner {
         self.window = Some(window);
     }
 
-    fn start(&mut self, window: &NativeWindow) -> Result<(), Box<dyn Error>> {
+    /// Loads the renderers on the first surface, which they probe. A surface
+    /// destroyed before they load waits for the next one.
+    fn start(&mut self, window: &NativeWindow, handed: u64) -> Result<(), Box<dyn Error>> {
+        let lease = shared().lease.clone();
+        let Some(held) = lease.hold(handed) else {
+            return Ok(());
+        };
         let load = self
             .load
             .take()
             .ok_or("the renderers were already loaded")?;
-        let mut loaded = load(Arc::new(SurfaceWindow(window.clone())))?;
+        let loaded = load(Arc::new(SurfaceWindow(window.clone())));
+        drop(held);
+        let mut loaded = loaded?;
         let (leased, attaching) = Leased::new(loaded.renderer, shared().lease.clone());
         loaded.renderer = Box::new(leased);
         self.attaching = Some(attaching);
@@ -1123,7 +1149,13 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceDestroyed<'local>
     _env: EnvUnowned<'local>,
     _: JClass<'local>,
 ) {
-    send(Message::SurfaceGone);
+    // The runner detaches between frames, which destroys the swapchain before the
+    // surface goes, as EGL wants. A long frame cannot hold Android up for it: the
+    // lease then keeps the renderer off the surface from here on.
+    let (detached, released) = mpsc::sync_channel(1);
+    if send(Message::SurfaceGone(detached)) {
+        let _ = released.recv_timeout(SURFACE_DETACH_WAIT);
+    }
     shared().lease.revoke();
 }
 

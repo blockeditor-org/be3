@@ -57,6 +57,7 @@ fn input_that_ends_something_waits_for_the_surface_to_come_back() {
     runner.push(touch(TouchPhase::Cancel));
     runner.push(Input::Focus(false));
     runner.push(Input::Ime(ImeEvent::FinishComposing));
+    runner.push(Input::Back(beui::BackGesture::Invoked));
     runner.frame(&mut Nowhere, SafeArea::default());
     assert!(
         heard.borrow().is_empty(),
@@ -94,5 +95,9 @@ fn input_that_ends_something_waits_for_the_surface_to_come_back() {
     assert!(
         heard.contains(&Event::Ime(ImeEvent::FinishComposing)),
         "{heard:?}"
+    );
+    assert!(
+        !heard.iter().any(|event| matches!(event, Event::Back(_))),
+        "a back gesture invoked over nothing shown does not go back: {heard:?}"
     );
 }

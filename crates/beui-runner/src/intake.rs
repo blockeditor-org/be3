@@ -513,7 +513,8 @@ impl beui_types::input::Queued for Queued {
 }
 
 /// Whether an input ends something the program may be in the middle of: a
-/// press, a drag, a gesture, focus or a composition. While the window has no
+/// press, a drag, a gesture, focus or a composition, short of acting on
+/// what the person cannot see. While the window has no
 /// surface its frames do not run; these wait for the next frame that does, and
 /// everything else is dropped (`Runner::frame`).
 pub(crate) fn ends_something(incoming: &Incoming) -> bool {
@@ -541,7 +542,9 @@ fn input_ends(input: &Input) -> bool {
         Input::PointerButton { pressed, .. } => !pressed,
         Input::Touch { phase, .. } => matches!(phase, TouchPhase::End | TouchPhase::Cancel),
         Input::Pen { phase, .. } => matches!(phase, PenPhase::Up(_) | PenPhase::Gone),
-        Input::Back(gesture) => matches!(gesture, BackGesture::Cancelled | BackGesture::Invoked),
+        // A back gesture invoked while nothing was shown could act on a page the
+        // person never saw it start over, so only a cancel waits.
+        Input::Back(gesture) => matches!(gesture, BackGesture::Cancelled),
         _ => false,
     }
 }
@@ -565,7 +568,7 @@ pub(crate) fn event_ends_something(event: &Event) -> bool {
         Event::PointerButton { pressed, .. } => !pressed,
         Event::Touch { phase, .. } => matches!(phase, TouchPhase::End | TouchPhase::Cancel),
         Event::Pen { phase, .. } => matches!(phase, PenPhase::Up(_) | PenPhase::Gone),
-        Event::Back(gesture) => matches!(gesture, BackGesture::Cancelled | BackGesture::Invoked),
+        Event::Back(gesture) => matches!(gesture, BackGesture::Cancelled),
         _ => false,
     }
 }

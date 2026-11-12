@@ -697,6 +697,9 @@ impl Wire {
     }
 
     pub(super) fn take_outbound(&mut self) -> Vec<Vec<u8>> {
+        // Acks never wait long: every frame the host asks for, and shutting
+        // down, sends the app something. Nothing in the app waits on them; they
+        // only close the ops it left open.
         if self.connection.has_outbound() {
             for ack in self.acks.drain(..) {
                 ack.send(&mut self.connection, &());

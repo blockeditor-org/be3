@@ -190,7 +190,13 @@ impl Rendering {
 /// Lets another thread take the window's surface away from a renderer running on
 /// the platform's thread, as Android's `surfaceDestroyed` does: the surface must
 /// be out of use when it returns. `revoke` waits only for a draw in progress,
-/// never for a whole frame, so a long step of the program cannot hold it up.
+/// never for a whole frame, so a long step of the program cannot hold it up. A
+/// draw in progress may itself be waiting for the swapchain's next image, so
+/// `revoke` can wait about a display refresh.
+///
+/// The renderer is detached later, on the platform's thread, so its swapchain
+/// can outlive the surface; a platform whose graphics API minds that (EGL)
+/// waits briefly for the detach before it revokes.
 ///
 /// Each surface the platform is handed is a lease, numbered by `current` on the
 /// thread that hands it over and given to `Leased::attaching` before the renderer
@@ -215,6 +221,13 @@ impl SurfaceLease {
     /// Ends the current surface's lease. Returns once nothing draws to it.
     pub fn revoke(&self) {
         *self.lock() += 1;
+    }
+
+    /// Keeps the surface of lease `handed` from being revoked while the guard
+    /// lives, as while renderers load and probe it; `None` once it has been.
+    pub fn hold(&self, handed: u64) -> Option<std::sync::MutexGuard<'_, u64>> {
+        let current = self.lock();
+        (*current == handed).then_some(current)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, u64> {
@@ -283,11 +296,10 @@ impl Renderer for Leased {
         self.inner.provide(setup);
     }
 
+    /// Recovering may make a surface from the window, so it waits for a surface
+    /// to be attached.
     fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
-        match self.held {
-            Some(_) => self.with_surface(Ok(false), |inner| inner.recover()),
-            None => self.inner.recover(),
-        }
+        self.with_surface(Ok(false), |inner| inner.recover())
     }
 
     fn attach(

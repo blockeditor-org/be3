@@ -1,10 +1,9 @@
 use super::*;
 use crate::unstyled::{TextArea, TextAreaState};
 use beui_text_editor_core::TextBuffer;
+use beui_core::base::text::CARET_BLINKS_FOR;
 use std::sync::Arc;
 
-/// `CARET_BLINKS_FOR`: ten blinks.
-const BLINKS_FOR: Duration = Duration::from_millis(530 * 2 * 10);
 
 #[test]
 fn a_caret_stops_blinking_a_while_after_it_last_moved() {
@@ -37,7 +36,7 @@ fn a_caret_stops_blinking_a_while_after_it_last_moved() {
         "half a blink later the caret is hidden"
     );
 
-    harness.advance(BLINKS_FOR - BLINK);
+    harness.advance(CARET_BLINKS_FOR - BLINK);
     let still = harness.frame(Vec::new());
     assert_eq!(
         still.repaint_after,
