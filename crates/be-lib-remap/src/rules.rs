@@ -58,6 +58,15 @@ pub enum Action {
     Steps { steps: Vec<Step>, blind: bool },
 }
 
+impl Action {
+    /// Sends nothing (`send = ""` in the TOML): what is pressed is kept from
+    /// the program, which disables it.
+    pub const NOTHING: Self = Self::Steps {
+        steps: Vec::new(),
+        blind: true,
+    };
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum Step {
     Tap { chord: Chord, hold_ms: u32 },
