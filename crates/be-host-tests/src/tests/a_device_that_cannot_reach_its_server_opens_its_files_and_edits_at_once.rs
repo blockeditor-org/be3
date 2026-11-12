@@ -3,7 +3,6 @@ use super::*;
 /// A device whose network drops what it sends, from the moment it starts, opens from what it
 /// keeps: My files and the document it had open, which takes edits.
 #[test]
-#[ignore = "restarted offline, the device lists My files but does not reopen the text tab it had open (plans/text_app_on_android.md, item 4)"]
 fn a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once() {
     let server = Server::start();
     let dev = server.account("Dev");
