@@ -629,6 +629,9 @@ impl Shared {
         if self.draining {
             reasons.push("the block store sends the edits it kept".to_owned());
         }
+        if self.listing_revisions > 0 {
+            reasons.push("the block store asks the server for a block's revisions".to_owned());
+        }
         if self.recounting {
             reasons.push("the block store has yet to count what waits to be sent".to_owned());
         }
@@ -639,8 +642,8 @@ impl Shared {
         reasons
     }
 
-    pub fn busy(&self) -> Vec<&'static str> {
-        [
+    pub fn busy(&self) -> Vec<String> {
+        let mut reasons: Vec<String> = [
             (
                 self.pending > 0,
                 "the block store has commands to carry out",
@@ -1349,6 +1352,10 @@ impl Session<'_> {
         self.changed.notify_all();
         be_host_base::host::wake();
     }
+}
+
+fn step(shared: &Arc<Mutex<Shared>>, step: Option<&'static str>) {
+    shared.lock().unwrap_or_else(PoisonError::into_inner).step = step;
 }
 
 /// The device has asked for everything it missed while away (`Shared::arriving`).

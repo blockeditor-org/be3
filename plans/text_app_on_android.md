@@ -85,8 +85,7 @@ not noticed lasts until the connection's ping goes unanswered, about 35 s (`PING
    it shows Files at once (`resume_organization`); the blank window seen here was probably the
    `:dev` embedded server blocked by the same rule. What is left: My files is empty and the
    document that was open is not reopened, because My files' cached listing is from before the
-   device's own new block (the gap `a_device_restarted_offline_still_lists_a_block_it_made`
-   holds). `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored
+   device's own new block (the gap fix/offline-my-files works on). `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored
    until then.
 5. **The files pane, and every command, wait on one that needs the server.** Going back on a phone
    runs a `SetParent`, which waits on the server in the block store's loop; every command queued
