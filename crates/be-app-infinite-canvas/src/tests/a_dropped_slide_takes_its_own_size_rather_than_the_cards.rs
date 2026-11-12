@@ -35,7 +35,6 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
                 width: 960.0,
                 height: 540.0,
             }),
-            aspect_ratio: None,
             active: false,
             interaction: InteractionMode::Live,
             capabilities: EditorCapabilities::default(),

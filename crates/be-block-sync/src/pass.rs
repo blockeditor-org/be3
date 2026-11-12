@@ -1334,11 +1334,12 @@ impl<S: ObjectStore> Pass<'_, S> {
         let peer = self.peer;
         let mut results = futures_util::stream::iter(
             gone.into_iter()
-                .map(|id| async move { (id, peer.delete(id).await) }),
+                .map(|id| async move { (id, peer.set_parent(id, BlockParent::Detached).await) }),
         )
         .buffer_unordered(IN_FLIGHT);
         while let Some((id, outcome)) = results.next().await {
             match outcome {
+                Ok(()) if !self.peer.is_attached() => self.report.queued += 1,
                 Ok(()) => self.report.deleted += 1,
                 Err(error) => {
                     self.report.problems.push(format!(

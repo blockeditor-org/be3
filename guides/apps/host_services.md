@@ -198,7 +198,7 @@ by be-host). The frame menu's Rename anchors at `Editor::frame_anchor`.
 When `open-block.host-palette` is set the host draws the command palette from
 the actions every instance describes (guides/apps/editor.md, Actions and the
 palette). An editor asks for it with `EditorHost::open_palette(PaletteMode)`
-(`shell.open-palette`): `actions` for the instance's actions and its
+(`shell-message.open-palette`): `actions` for the instance's actions and its
 ancestors', `blocks` for blocks to open.
 
 ## Watches and host calls
@@ -238,11 +238,14 @@ If an editor needs something the host has, add it to the `be3:app` world in
 `crates/be-sdk-api/wit` (`PROTOCOL.md` there lists the interfaces; how WIT is
 written and travels is in guides/type_modules.md, Operations and WIT). An app's
 request goes in the import that fits (`host`, `blocks`, `shell`,
-`host-services`, `network`); a host request to an app goes in `app.wit`, as a method of
-the `editor` resource when it concerns one instance. Every function is an
-`async func`: one the app only tells the host returns nothing and is
-`.detach()`ed; a followed value is a resource whose `next` the host answers
-with each change.
+`host-services`, `network`); a host request to an app goes in `app.wit`. When it
+concerns one instance and nothing answers it, it is a variant of `editor-event`
+(host: `Wire::call` queues it with `Wire::hear`, and the host sends the queue as
+one `editor.hear` before any call that is not an event; guest: `OpenEditor::hear_one`);
+only a request that answers is a method of the `editor` resource. What the app
+only tells the host is a `shell-message` in one `shell.tell`, not a function of
+its own. Every function is an `async func`; a followed value is a resource whose
+`next` the host answers with each change.
 
 - App side: exports are served in `crates/be-sdk/src/wire.rs` as `Delivery`s
   the runtime takes in order; imports are called directly under the editor's

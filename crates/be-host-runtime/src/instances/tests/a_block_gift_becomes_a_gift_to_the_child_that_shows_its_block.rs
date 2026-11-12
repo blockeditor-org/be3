@@ -4,11 +4,7 @@ use super::*;
 fn a_block_gift_becomes_a_gift_to_the_child_that_shows_its_block() {
     let mut instances = placed();
     instances.next_screens(PASS);
-    instances.shell_call(ShellCall::FocusBlockChild {
-        reply: reply(next_op()),
-        instance: INSTANCE,
-        block: [1; 16],
-    });
+    tell(&mut instances, ShellMessage::FocusBlockChild([1; 16]));
     instances.settle_block_focus();
     assert!(
         instances.child_focus_pending(INSTANCE),

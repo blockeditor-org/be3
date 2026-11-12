@@ -125,7 +125,6 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         child: placement.child,
         available: true,
         intrinsic: None,
-        aspect_ratio: None,
         active: false,
         interaction: InteractionMode::Live,
         capabilities: EditorCapabilities::default(),

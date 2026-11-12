@@ -1949,11 +1949,6 @@ impl<S: ObjectStore> Peer<S> {
         self.listed(Listing::References(block)).await
     }
 
-    pub async fn delete(&self, block: Uuid) -> Result<(), ClientError> {
-        client::blocks::delete_block(&self.connection(), block).await??;
-        Ok(())
-    }
-
     pub async fn collect_detached(&self) -> Result<Vec<Uuid>, ClientError> {
         Ok(client::blocks::collect_detached(&self.connection())
             .await??

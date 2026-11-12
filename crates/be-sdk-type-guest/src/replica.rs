@@ -98,6 +98,9 @@ pub(crate) struct Opened {
     pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
     pub(crate) refused_commits: Vec<CommitId>,
     pub(crate) from_file: Option<FromFileFn>,
+    /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
+    /// merges by parts.
+    pub(crate) parts_merge: Option<std::rc::Rc<dyn std::any::Any>>,
     pub(crate) now: u64,
 }
 
@@ -378,7 +381,66 @@ enum AfterStash<C> {
     Keep,
 }
 
+/// A type's merge by parts, over the three contents, reading what it needs with the reader.
+pub(crate) type PartsMerge<C> =
+    fn(
+        C,
+        C,
+        C,
+        be_block::PartReader,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<MergeResult<C>, String>>>>;
+
+/// The part reads an asynchronous merge asked for, and what answered them.
+#[derive(Default)]
+struct MergeReads {
+    next: u64,
+    asked: Vec<(u64, PartRef, u64, u64)>,
+    answered: BTreeMap<u64, Result<Vec<u8>, String>>,
+    /// The waker each pending read was last polled with: a combinator that polls only the
+    /// children woken needs it woken when the answer comes.
+    wakers: BTreeMap<u64, std::task::Waker>,
+}
+
+/// A part read of a merge that is out: the merge's own id for it, and how often it was tried.
+struct MergeRead {
+    id: u64,
+    part: PartRef,
+    offset: u64,
+    length: u64,
+    tries: u8,
+}
+
+/// What a merge goes on to do once it has merged.
+enum MergeThen<C> {
+    /// The head moved to `to` while this replica had work the server lacks: ours is what it
+    /// confirmed.
+    FastForward { to: CommitId },
+    Resume {
+        base: Option<CommitId>,
+        ours: CommitId,
+        theirs: CommitId,
+        unsealed: bool,
+        ours_content: C,
+    },
+}
+
+/// How often a part read of a merge is tried before the merge gives up and reports it.
+const MERGE_READ_TRIES: u8 = 3;
+
+/// How long a merge that could not read its parts waits to be tried again, doubling up to the
+/// ceiling.
+const MERGE_RETRY_INTERVAL: u64 = 5_000;
+const MERGE_RETRY_CEILING: u64 = 60_000;
+
 enum Wait<C> {
+    /// A merge by parts, polled again as the parts it asked for arrive: it never resolves
+    /// without them.
+    Merging {
+        merge: std::pin::Pin<Box<dyn std::future::Future<Output = Result<MergeResult<C>, String>>>>,
+        reads: std::rc::Rc<std::cell::RefCell<MergeReads>>,
+        reading: BTreeMap<Token, MergeRead>,
+        then: MergeThen<C>,
+    },
     Reads {
         slots: Vec<Slot<C>>,
         then: Then,
@@ -413,6 +475,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     client: ClientId,
     tag: SessionTag,
     from_file: Option<FromFileFn>,
+    parts_merge: Option<PartsMerge<C>>,
     state: SessionState,
     role: Role,
     confirmed: C,
@@ -453,6 +516,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     append_at: Option<u64>,
     /// When a follower puts again the part of an operation whose put failed.
     put_retry_at: Option<u64>,
+    /// When a merge that could not read its parts is tried again, and how often it failed since
+    /// one resolved.
+    merge_retry_at: Option<u64>,
+    merge_failures: u8,
     appended_bytes: usize,
     applied_ops: Vec<SessionOp>,
     restarting: bool,
@@ -576,6 +643,13 @@ where
             self.put_retry_at = None;
             self.flush();
         }
+        if self.merge_retry_at.is_some_and(|at| self.now >= at) {
+            self.merge_retry_at = None;
+            // The owner reconciles; a follower leaves that to the owner.
+            if self.is_owner() {
+                self.jobs.push_back(Job::Reconcile);
+            }
+        }
         let due = self.commit_at().is_some_and(|at| self.now >= at);
         if due && !self.sealing {
             self.sealing = true;
@@ -598,6 +672,7 @@ where
         seal.into_iter()
             .chain(self.append_at)
             .chain(self.put_retry_at)
+            .chain(self.merge_retry_at)
             .chain(self.catch_up_at)
             .chain(self.read_retry.values().copied())
             .chain(self.beat_at())
@@ -633,6 +708,11 @@ where
             client: opened.client,
             tag: opened.tag,
             from_file: opened.from_file,
+            parts_merge: opened.parts_merge.as_ref().and_then(|merge| {
+                let merge = merge.downcast_ref::<PartsMerge<C>>().copied();
+                debug_assert!(merge.is_some(), "a merge by parts of another content type");
+                merge
+            }),
             state: opened.session,
             role: Role::Follower(Follower::new(opened.client)),
             projected: Settling::new(empty.clone(), Vec::new()),
@@ -672,6 +752,8 @@ where
             unappended: Vec::new(),
             append_at: None,
             put_retry_at: None,
+            merge_retry_at: None,
+            merge_failures: 0,
             appended_bytes: 0,
             applied_ops: Vec::new(),
             restarting: false,
@@ -1104,6 +1186,11 @@ where
     /// When the owner commits what it owes: after a quiet spell, at most `COMMIT_INTERVAL`
     /// after it started owing, or at once when the journal grew past `JOURNAL_BYTES`.
     fn commit_at(&self) -> Option<u64> {
+        // No due seal while a merge cannot read its parts: it would publish on the old base and be
+        // rejected at each tick until the merge's timer fires. The work stays in the journal.
+        if self.merge_failures > 0 {
+            return None;
+        }
         let since = self.owes_since?;
         if self.appended_bytes >= JOURNAL_BYTES {
             return Some(since);
@@ -1542,26 +1629,8 @@ where
             Then::FastForwardMerge { to } => {
                 let ancestor = next();
                 let theirs = next();
-                match C::merge3(&ancestor, &self.confirmed, &theirs) {
-                    MergeResult::Clean(value) => {
-                        let content = self.written(&value);
-                        self.publish(Some(to), None, content, AfterPublish::Merged { value });
-                    }
-                    MergeResult::Conflicted { value, conflicts } => {
-                        let content = self.written(&self.confirmed);
-                        let base = self.base;
-                        self.stash(
-                            base,
-                            content,
-                            AfterStash::Merge {
-                                value,
-                                expected: to,
-                                base,
-                                count: conflicts,
-                            },
-                        );
-                    }
-                }
+                let ours = self.confirmed.clone();
+                self.merging(MergeThen::FastForward { to }, ancestor, ours, theirs);
             }
             Then::Merge {
                 base,
@@ -1575,8 +1644,209 @@ where
                     false => next(),
                 };
                 let theirs_content = next();
-                let (value, conflicts) = match C::merge3(&ancestor, &ours_content, &theirs_content)
-                {
+                self.merging(
+                    MergeThen::Resume {
+                        base,
+                        ours,
+                        theirs,
+                        unsealed,
+                        ours_content: ours_content.clone(),
+                    },
+                    ancestor,
+                    ours_content,
+                    theirs_content,
+                );
+            }
+        }
+    }
+
+    /// Merges three contents: with the type's merge by parts when it has one, which waits while
+    /// the parts it needs are read (and never resolves without them), otherwise at once.
+    fn merging(&mut self, then: MergeThen<C>, base: C, ours: C, theirs: C) {
+        let Some(merge) = self.parts_merge else {
+            let result = C::merge3(&base, &ours, &theirs);
+            return self.merged(then, result);
+        };
+        let reads = std::rc::Rc::new(std::cell::RefCell::new(MergeReads::default()));
+        let reader = {
+            let reads = std::rc::Rc::clone(&reads);
+            be_block::PartReader::new(move |part, offset, length| {
+                let id = {
+                    let mut asked = reads.borrow_mut();
+                    asked.next += 1;
+                    let id = asked.next;
+                    asked.asked.push((id, part, offset, length));
+                    id
+                };
+                let reads = std::rc::Rc::clone(&reads);
+                Box::pin(std::future::poll_fn(move |context| {
+                    let mut reads = reads.borrow_mut();
+                    match reads.answered.remove(&id) {
+                        Some(answer) => {
+                            reads.wakers.remove(&id);
+                            std::task::Poll::Ready(answer)
+                        }
+                        None => {
+                            reads.wakers.insert(id, context.waker().clone());
+                            std::task::Poll::Pending
+                        }
+                    }
+                }))
+            })
+        };
+        self.waiting = Some(Wait::Merging {
+            merge: merge(base, ours, theirs, reader),
+            reads,
+            reading: BTreeMap::new(),
+            then,
+        });
+        self.poll_merge();
+    }
+
+    /// Polls the merge out, asking the host for the parts it asked for since.
+    fn poll_merge(&mut self) {
+        let Some(Wait::Merging {
+            mut merge,
+            reads,
+            mut reading,
+            then,
+        }) = self.waiting.take()
+        else {
+            return;
+        };
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        match merge.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(Ok(result)) => {
+                self.merge_failures = 0;
+                self.merge_retry_at = None;
+                self.merged(then, result)
+            }
+            std::task::Poll::Ready(Err(error)) => self.merge_failed(error),
+            std::task::Poll::Pending => {
+                let asked = std::mem::take(&mut reads.borrow_mut().asked);
+                if asked.is_empty() && reading.is_empty() {
+                    // It waits for something that is not a part read, which nothing here will
+                    // answer: report it rather than wait for ever, with the jobs behind it.
+                    return self.error(
+                        "a merge by parts waited for something other than a part read".to_owned(),
+                    );
+                }
+                for (id, part, offset, length) in asked {
+                    let read = MergeRead {
+                        id,
+                        part,
+                        offset,
+                        length,
+                        tries: 1,
+                    };
+                    self.ask_part(&mut reading, read);
+                }
+                self.waiting = Some(Wait::Merging {
+                    merge,
+                    reads,
+                    reading,
+                    then,
+                });
+            }
+        }
+    }
+
+    fn ask_part(&mut self, reading: &mut BTreeMap<Token, MergeRead>, read: MergeRead) {
+        let token = self.token();
+        self.out.push(Effect::ReadPart {
+            replica: self.id,
+            token,
+            part: read.part,
+            offset: read.offset,
+            length: read.length,
+        });
+        reading.insert(token, read);
+    }
+
+    /// A merge that could not have its parts is dropped, so the replica goes on, and tried again
+    /// on a timer that doubles up to a ceiling (a `Job::Reconcile`): it resolves only with its
+    /// parts. The failure is reported once, not at each try.
+    fn merge_failed(&mut self, error: String) {
+        if self.merge_failures == 0 {
+            self.error(error);
+        }
+        let wait = (MERGE_RETRY_INTERVAL << self.merge_failures.min(4)).min(MERGE_RETRY_CEILING);
+        self.merge_failures = self.merge_failures.saturating_add(1);
+        self.merge_retry_at = Some(self.now + wait);
+    }
+
+    /// A part the merge asked for was read, or could not be: a read that failed is tried again,
+    /// and the merge that cannot have it is reported rather than resolved without it.
+    fn answer_merge_read(&mut self, token: Token, result: &Result<Vec<u8>, String>) -> bool {
+        let Some(Wait::Merging { reading, .. }) = &mut self.waiting else {
+            return false;
+        };
+        let Some(read) = reading.remove(&token) else {
+            return false;
+        };
+        if result.is_err() && read.tries < MERGE_READ_TRIES {
+            let again = MergeRead {
+                tries: read.tries + 1,
+                ..read
+            };
+            let token = self.token();
+            self.out.push(Effect::ReadPart {
+                replica: self.id,
+                token,
+                part: again.part,
+                offset: again.offset,
+                length: again.length,
+            });
+            if let Some(Wait::Merging { reading, .. }) = &mut self.waiting {
+                reading.insert(token, again);
+            }
+            return true;
+        }
+        if let Some(Wait::Merging { reads, .. }) = &self.waiting {
+            let waker = {
+                let mut reads = reads.borrow_mut();
+                reads.answered.insert(read.id, result.clone());
+                reads.wakers.remove(&read.id)
+            };
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        }
+        self.poll_merge();
+        true
+    }
+
+    /// What a finished merge goes on to do.
+    fn merged(&mut self, then: MergeThen<C>, result: MergeResult<C>) {
+        match then {
+            MergeThen::FastForward { to } => match result {
+                MergeResult::Clean(value) => {
+                    let content = self.written(&value);
+                    self.publish(Some(to), None, content, AfterPublish::Merged { value });
+                }
+                MergeResult::Conflicted { value, conflicts } => {
+                    let content = self.written(&self.confirmed);
+                    let base = self.base;
+                    self.stash(
+                        base,
+                        content,
+                        AfterStash::Merge {
+                            value,
+                            expected: to,
+                            base,
+                            count: conflicts,
+                        },
+                    );
+                }
+            },
+            MergeThen::Resume {
+                base,
+                ours,
+                theirs,
+                unsealed,
+                ours_content,
+            } => {
+                let (value, conflicts) = match result {
                     MergeResult::Clean(value) => (value, None),
                     MergeResult::Conflicted { value, conflicts } => (value, Some(conflicts)),
                 };
@@ -1659,6 +1929,13 @@ where
             Err(error) => return self.error(error),
         };
         let unsealed = self.has_unsealed_work();
+        // A resume that needs no merge settles any merge that was failing.
+        if !matches!(resume, Resume::Merge { .. })
+            && (!unsealed || !matches!(resume, Resume::FastForward { .. }))
+        {
+            self.merge_failures = 0;
+            self.merge_retry_at = None;
+        }
         match resume {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => {}
             Resume::FastForward { to } if !unsealed => {
@@ -1916,17 +2193,16 @@ where
 
     fn rejected(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
         match then {
-            AfterPublish::Seal { retry: true, reply } => {
+            AfterPublish::Seal { retry: true, reply } if self.merge_failures == 0 => {
                 self.jobs.push_front(Job::Seal {
                     sealing: Sealing::Once,
                     reply,
                 });
                 self.jobs.push_front(Job::Reconcile);
             }
-            AfterPublish::Seal {
-                retry: false,
-                reply,
-            } => {
+            // A rejected seal does not retry the merge at once while one could not read its parts:
+            // that waits for its timer, and the work stays unsealed meanwhile.
+            AfterPublish::Seal { reply, .. } => {
                 self.sealing = false;
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
@@ -2406,6 +2682,9 @@ where
     }
 
     fn answer_part_read(&mut self, token: Token, result: Result<Vec<u8>, String>) {
+        if self.answer_merge_read(token, &result) {
+            return;
+        }
         if let Some(part) = self.reading.remove(&token) {
             return self.answer_payload(part, result);
         }
@@ -3173,6 +3452,9 @@ where
                 self.catch_up_failures = 0;
                 self.resends = 0;
                 self.catch_up_at = None;
+                // A merge that was failing is the new owner's to do.
+                self.merge_failures = 0;
+                self.merge_retry_at = None;
                 // What it held back while a part was put it now submits.
                 return self.sequence_held();
             }

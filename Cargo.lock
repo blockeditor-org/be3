@@ -823,6 +823,7 @@ dependencies = [
 name = "be-app-chat"
 version = "0.1.0"
 dependencies = [
+ "be-block-commit",
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-chat",
@@ -1668,9 +1669,13 @@ dependencies = [
 name = "be-host-tests"
 version = "0.1.0"
 dependencies = [
+ "be-block-fault-relay",
+ "be-server",
  "be-tool-drive",
  "beui-layer-drive",
  "beui-paint-snapshot",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -2523,6 +2528,7 @@ dependencies = [
  "be-block-model",
  "be-block-store",
  "be-sdk-type-guest",
+ "postcard",
  "serde",
  "serde_bytes",
  "sha2 0.10.9",

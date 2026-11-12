@@ -90,17 +90,13 @@ pub(crate) fn answer_in(
     }
 }
 
-/// An announcement as the type module sent it, its mentions parsed back to accounts.
+/// An announcement as the type module sent it.
 fn announcement(sent: be_sdk_type_api::Announcement) -> be_block::Announcement {
     be_block::Announcement {
         key: sent.key,
         text: sent.text,
         several: sent.several,
-        mentions: sent
-            .mentions
-            .iter()
-            .filter_map(|mention| Uuid::parse_str(mention).ok())
-            .collect(),
+        mentions: sent.mentions,
     }
 }
 

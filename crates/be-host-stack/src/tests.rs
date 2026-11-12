@@ -24,6 +24,7 @@ mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_d
 mod a_chat_message_sent_with_two_editors_open_notifies_once;
 mod a_chat_message_told_before_a_restart_is_not_told_again;
 mod a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting;
+mod a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_child_reordered_in_a_folder_is_listed_in_its_new_place;
@@ -33,6 +34,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_duplicated_block_carries_what_its_source_held;
+mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
@@ -46,6 +48,7 @@ mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_picked_file_becomes_a_block_of_the_type_that_claims_it;
+mod a_reconnected_session_hears_the_edits_of_what_it_versions;
 mod a_restore_on_a_follower_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
@@ -1144,7 +1147,7 @@ impl ChatRoom {
                 block,
                 be_type_chat::Message::new(member.account(), 1, format!("{name} is in")),
             );
-            chat.apply(&said);
+            chat.apply(&be_type_chat::ChatOp::Edit(said));
             joined.push((*name, *mode, *connected, member));
         }
         create(
@@ -1218,7 +1221,7 @@ impl ChatRoom {
         });
         let message = be_type_chat::Message::new(self.me, 2, body).replying_to(quoted);
         let (_, edit) = content.send(self.block, message);
-        editor.operate(edit);
+        editor.operate(be_type_chat::ChatOp::Edit(edit));
     }
 
     /// The next push: whom it went to, its urgency and the text it carries, opened as the

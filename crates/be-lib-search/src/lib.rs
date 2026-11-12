@@ -140,12 +140,13 @@ impl std::error::Error for Error {}
 /// Where the index's parts are read from.
 pub trait Parts {
     /// The bytes of `part` in `range`; an end past the part's end reads to
-    /// its end.
-    fn read(
-        &self,
-        part: &PartName,
+    /// its end. Boxed, as a future returned from a trait method in another crate must be
+    /// (guides/type_modules.md, "The generator").
+    fn read<'a>(
+        &'a self,
+        part: &'a PartName,
         range: Range<u64>,
-    ) -> impl Future<Output = Result<Vec<u8>, Error>>;
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>>;
 }
 
 /// Parts held in memory, as a test or a type module that loaded them has.
@@ -163,14 +164,20 @@ impl MemoryParts {
 }
 
 impl Parts for MemoryParts {
-    async fn read(&self, part: &PartName, range: Range<u64>) -> Result<Vec<u8>, Error> {
-        let bytes = self
-            .parts
-            .get(part)
-            .ok_or_else(|| Error::Read(format!("no part {part:?}")))?;
-        let end = (range.end.min(bytes.len() as u64)) as usize;
-        let start = (range.start as usize).min(end);
-        Ok(bytes[start..end].to_vec())
+    fn read<'a>(
+        &'a self,
+        part: &'a PartName,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, Error>> + 'a>> {
+        Box::pin(async move {
+            let bytes = self
+                .parts
+                .get(part)
+                .ok_or_else(|| Error::Read(format!("no part {part:?}")))?;
+            let end = (range.end.min(bytes.len() as u64)) as usize;
+            let start = (range.start as usize).min(end);
+            Ok(bytes[start..end].to_vec())
+        })
     }
 }
 

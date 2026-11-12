@@ -645,10 +645,6 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         }
     }
 
-    fn aspect_ratio(&mut self) -> Option<f32> {
-        A::aspect_ratio()
-    }
-
     fn presence_visible(&mut self, visible: bool) {
         if let Some(editor) = &self.parts.views.borrow().editor {
             editor.report_presence_visible(visible);

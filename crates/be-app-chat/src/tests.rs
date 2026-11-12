@@ -2,7 +2,7 @@ use be_sdk_beui::be_block::{Edit, LiveEdit, ObjectId};
 use be_sdk_beui::beui::vec2;
 use be_sdk_beui::{EditorHost, OwnedEditor, Signer};
 use be_sdk_test::BeuiTest;
-use be_type_chat::{ChatContent, Message, Signature};
+use be_type_chat::{ChatContent, ChatOp, Message, Signature};
 use uuid::Uuid;
 
 use std::time::Duration;
@@ -12,6 +12,8 @@ use crate::root::ChatRoot;
 mod a_conversation_shows_each_message_with_its_author_and_time;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_request;
+mod a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed;
 mod a_message_kept_offline_is_sent_once_the_drain_publishes_it_while_the_chat_is_closed;
 mod a_message_kept_offline_tells_the_other_members_even_when_the_chat_is_closed_as_it_drains;
 mod a_message_kept_offline_tells_the_other_members_only_once_it_reaches_the_server;
@@ -31,6 +33,7 @@ mod an_edited_message_tells_nobody_again_and_a_sent_again_one_tells_once;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
 mod reading_on_one_device_clears_the_count_on_another;
+mod two_closed_segments_that_overlap_show_each_message_once;
 
 const ME: Uuid = Uuid::from_u128(0x5a1d_0000_0000_4000_8000_0000_0000_0001);
 const ROSA: Uuid = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
@@ -89,8 +92,17 @@ impl Harness {
         for (index, (author, body)) in messages.iter().enumerate() {
             let time = MORNING + index as i64 * 3 * MINUTE;
             let send = signed_by(&content, *author, Message::new(*author, time, *body));
-            content.apply(&send);
+            content.apply(&send.into());
         }
+        Self::open(content, trusted, shown, false)
+    }
+
+    /// The editor of a chat whose closed segments are saved as parts, which it reads by range.
+    fn holding_parts(content: ChatContent) -> Self {
+        Self::open(content, &[], CHAT, true)
+    }
+
+    fn open(content: ChatContent, trusted: &[(Uuid, Signer)], shown: Uuid, parts: bool) -> Self {
         let mut harness = Self {
             editor: match shown == CHAT {
                 true => BeuiTest::new(OwnedEditor::new(host(), shown)),
@@ -104,7 +116,10 @@ impl Harness {
             .editor
             .store()
             .register(be_type_chat::registrations());
-        harness.editor.hold(None, content);
+        match parts {
+            true => harness.editor.hold_parts(None, content),
+            false => harness.editor.hold(None, content),
+        }
         harness.editor.set_size(vec2(480.0, 560.0));
         harness.editor.presence_visible(true);
         harness.run();
@@ -128,7 +143,8 @@ impl Harness {
     }
 
     fn arrive(&mut self, operation: Edit) {
-        self.editor.edit::<ChatContent>(None, &operation);
+        self.editor
+            .edit::<ChatContent>(None, &ChatOp::Edit(operation));
         self.run();
     }
 

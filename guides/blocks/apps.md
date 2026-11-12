@@ -74,7 +74,10 @@ answers `ToEditor::PartPut { token, result }` with its ref, for an operation
 to name (guides/type_modules.md, "Parts named by hash"). Offsets are into the whole stored form.
 A blob editor uses `ContentProjection::payload()` instead, a signal of the
 payload that reads it once per snapshot (so a header edit reads nothing) and
-holds what a host-made snapshot already carried.
+holds what a host-made snapshot already carried. Chat's editor reads a closed
+segment by the range its index gives (`ChatContent::segment_ranges`, from the
+header it holds: a snapshot's `length` goes stale as segments close) and checks
+the bytes against the index (`read_segment`).
 
 ### Sending
 

@@ -65,7 +65,13 @@ options (`with`, `uses`, `copy`, `default`, `inline`, `lenient`, `ordered`,
 It generates, per interface, the types, and:
 - for the guest, `guest::<import>` functions returning `Pending<T>` or
   `Stream<T>`, and a `Guest` trait per export taking `&self` (not statics, so
-  tests can run many modules on one thread);
+  tests can run many modules on one thread) whose methods return
+  `be_wasm_ops::guest::LocalFuture<T>`, a boxed future. An `impl Future`
+  returned from a trait method gets synthesized associated types, which
+  rustc's parallel front end (`-Zthreads`) numbers nondeterministically, so
+  callers in other crates failed to compile (an ICE, or a wrong type). The same
+  holds for any hand-written trait used across crates: return a boxed future
+  from its methods, not `impl Future`;
 - for the host, `embed::<import>::Call` (one case per function, accepted with
   a `Reply` or `Producer`) and a world-wide `embed::Call`, so a host that
   serves every import matches once.
@@ -173,8 +179,8 @@ host owes a replica (the WIT documents each call):
 
 ### Parts named by hash
 
-An operation can carry a part by its ref instead of its bytes: chat closing a
-segment, the search index's writer adding one, an edit too large to relay.
+An operation can carry a part by its ref instead of its bytes: the search index's
+writer adding one, an edit too large to relay.
 The sender calls `put-part(bytes)`, which seals the bytes under the block's
 current key, uploads them and has the server hold them for the block
 (`hold-objects` with `hold.until-committed`), and answers the `part-ref`
@@ -185,8 +191,11 @@ block's journal holds no entries (an uncommitted operation may still name the
 part). A type's part is put by an editor: `EditorMirror::put_part`
 (`FromEditor::PutPart`, answered `ToEditor::PartPut` under its token), which
 the replica turns into its `Effect::PutPart`. `LiveEdit` has no hook for a
-replica to put a part of its own (chat's owner closing a segment with no
-editor attached); the replica puts only an oversized operation's bytes. The
+replica to put a part of its own; the replica puts only an oversized operation's
+bytes. (Chat closes a segment without one: the operation carries the segment's
+bytes, which every replica keeps in memory, as it holds the operation, until the content is dropped or
+reloaded from a save; there is no hook yet that turns them into a saved part, so a replica
+holds a closed segment's bytes once per clone, plans/chat.md.) The
 block must be on the server: a block made offline, or one whose replica has
 not joined yet, is refused.
 
@@ -197,7 +206,7 @@ downloading its nodes, never its chunks: its top object to learn its key, and
 the rest to list the commit's objects. That needs the server, so an owner
 offline cannot seal a commit reusing a part it never fetched. A type that only
 keeps the part (the search index) never reads it. A type that can rebuild the
-bytes (chat) puts a hash of them in the operation, rebuilds them on applying it
+bytes from what it has puts a hash of them in the operation, rebuilds them on applying it
 and keeps them when they match, answering reads of the part from
 `BlockContent::reused_bytes`; when its encoding differs (another build) it
 keeps nothing and reads go to `read-part`. Such a type loads only its first
@@ -213,6 +222,15 @@ Tests:
 `be-sdk-type-guest/src/tests/an_operation_adds_a_part_by_its_hash.rs` (the
 flow), be-host-stack's `a_part_an_editor_puts_is_held_for_its_block_once_the_server_has_it`
 and be-server's `a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes`.
+
+### Whole bytes
+
+`type-info.whole-bytes` (`BlockContent::WHOLE_BYTES`, true unless a type says otherwise) says the
+stored form read whole decodes to the content, so the host copies such a block through its
+bytes: Duplicate, export, `be` transfer, version control's re-listing, a revision's preview or
+restore. A type that loads only its first part and keeps parts its first part cannot rebuild (chat's
+closed segments) sets it false, and the host refuses those paths for a block that has parts after
+its first (`has_later_parts`).
 
 ### Merging by parts
 
@@ -235,13 +253,27 @@ only parts of the sides (`Scope::admits`); a merge that reused any other, or
 whose reads failed (offline, a missing key), is not written: the read failure
 comes back as the `ClientError`.
 
-The in-session merges of a replica (a rejected seal, a head written offline)
-still call the synchronous `Merge::merge3` on the values it loaded, so a type
-that loads only its first part writes `merge3` over what it holds: a part
-unloaded on a side is settled by refs where they settle it (a side holding the
-base's part gives way) and otherwise kept as ours with a conflict, never read.
-Its `merge_parts` must agree wherever `merge3` decides without a conflict
-(`Sections` shares one function, `by_refs`, between them).
+The in-session merges of a replica (a rejected seal, a head written offline, a resume that
+finds the head moved) go the same way for a type that registered `merge_parts`: the replica
+(`be-sdk-type-guest/src/replica.rs`, `Wait::Merging`) polls `MergeParts::merge_parts` itself, and
+each part the merge reads goes to the host as `Effect::ReadPart` (`read-part` with the replica as
+its parent, which fetches a part the device lacks from the server). The merge waits while it is
+read, and never resolves without its parts: a read that fails is asked again (three tries). A
+merge that still cannot have a part is dropped, so the replica's jobs go on, reported once
+(`error`), and the owner tries it again as a `Job::Reconcile` on a timer (5 s, doubling to a
+minute; a replica that stops owning the session drops the timer), for as long as it fails: a
+`merge_parts` error that always recurs (a corrupt part) is retried for ever at the ceiling. Until
+it resolves the owner makes no due seal (it would publish on the old base and be rejected), and
+a seal asked for (`Seal` once or rekey) is answered without publishing; the work stays unsealed
+in the journal. While a merge waits, the replica's jobs (an
+editor's edit, a peer's operation, a close) queue behind it and then land on its result.
+`merge_parts` must await only the `PartReader` reads it asks for: a merge that waits for anything
+else is reported and dropped, since nothing would wake it. A type without `merge_parts` merges at
+once with `Merge::merge3` on the values it loaded, so one that loads only its first part writes
+`merge3` over what it holds (`Sections` settles a part unloaded on a side by refs where they
+settle it, and otherwise keeps ours with a conflict, never read). `merge_parts` must agree with
+`merge3` wherever `merge3` decides without a conflict (`Sections` shares one function, `by_refs`,
+between them; chat's `merge3` is the union that `merge_parts` then settles by reading).
 
 **`read-part` under a stateless request.** A call a module makes while serving
 a stateless request has that request as its parent (`ops::guest::request()`
