@@ -6,7 +6,7 @@ use be_sdk_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use be_sdk_api::guest::{debug::debug, shell};
 use be_sdk_api::ops::guest::{Sender, spawn};
 use be_sdk_api::shell_types::{
-    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
+    ChildMenuChoice, MenuSet, ShellMessage, ViewEnd,
 };
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
@@ -448,13 +448,7 @@ impl EditorSession {
                 debug::simulate_access(block.into_bytes(), access).detach();
             }
         });
-        let mut tell: Vec<ShellMessage> = Vec::new();
-        for (block, command) in self.host.take_shell_commands() {
-            tell.push(ShellMessage::Act(BlockAct {
-                block: block.into_bytes(),
-                command,
-            }));
-        }
+        let mut tell: Vec<ShellMessage> = self.host.take_told();
         self.report_stopped(&mut tell);
         if let Some(accepted) = self.host.take_drag_accepted() {
             tell.push(ShellMessage::DragAccepted(accepted));
@@ -469,24 +463,6 @@ impl EditorSession {
         }
         if let Some(handles) = self.host.take_handles_dismiss() {
             tell.push(ShellMessage::HandlesDismiss(handles));
-        }
-        for answer in self.host.take_dialog_closes() {
-            tell.push(ShellMessage::CloseDialog(answer));
-        }
-        for child in self.host.take_child_dismissals() {
-            tell.push(ShellMessage::DismissChild(child));
-        }
-        for child in self.host.take_child_closes() {
-            tell.push(ShellMessage::CloseChild(child));
-        }
-        for child in self.host.take_keyboard_gifts() {
-            tell.push(ShellMessage::FocusChild(child));
-        }
-        for mode in self.host.take_palette_opens() {
-            tell.push(ShellMessage::OpenPalette(mode));
-        }
-        for block in self.host.take_block_keyboard_gifts() {
-            tell.push(ShellMessage::FocusBlockChild(block.into_bytes()));
         }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
@@ -510,9 +486,6 @@ impl EditorSession {
         }
         if self.host.take_leave_frame() {
             tell.push(ShellMessage::LeaveFrame);
-        }
-        for action in self.host.take_bar_actions() {
-            tell.push(ShellMessage::BarAction(action));
         }
         let menus = self.host.menus();
         if self.sent_menus != menus {
@@ -542,9 +515,6 @@ impl EditorSession {
                 anchor,
             }));
         }
-        for (serial, items) in self.host.take_copies() {
-            tell.push(ShellMessage::Copy(ClipOffer { serial, items }));
-        }
         if self.host.take_paste_request() {
             tell.push(ShellMessage::Paste);
         }
@@ -560,31 +530,13 @@ impl EditorSession {
         for call in self.host.take_acts() {
             crate::asked::asking(Some(instance), call);
         }
-        for commit in self.host.take_child_commits() {
-            tell.push(ShellMessage::CommitChild(ChildCreation {
-                child: commit.child,
-                parent: commit.parent.encode(),
-                name: commit.name,
-            }));
-        }
+        tell.extend(self.host.take_told());
         for command in self.host.take_audio_commands() {
             self.watch_audio();
             tell.push(ShellMessage::PlayAudio(command));
         }
         for (web_view, command) in self.host.take_web_view_commands() {
             self.command_web_view(web_view, command);
-        }
-        for presenting in self.host.take_present_requests() {
-            tell.push(ShellMessage::Present(presenting));
-        }
-        for change in self.host.take_view_changes() {
-            tell.push(ShellMessage::ChangeView(change));
-        }
-        for (block_id, block_type) in self.host.take_block_drags() {
-            tell.push(ShellMessage::DragBlock(DragStart {
-                block_id: block_id.into_bytes(),
-                block_type: block_type.into_bytes(),
-            }));
         }
         if let Some(focused) = self.host.take_focus_report() {
             tell.push(ShellMessage::Focused(be_sdk_api::shell_types::Focus {

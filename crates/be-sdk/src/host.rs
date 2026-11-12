@@ -13,6 +13,7 @@ use crate::network::{Request, Response};
 use crate::state::Subscription;
 use be_lib_geometry::{Pos2, Rect, Vec2};
 use be_sdk_api::OfferedClipItem;
+use be_sdk_api::shell_types::{BlockAct, ChildCreation, ClipOffer, DragStart, ShellMessage};
 use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
@@ -149,13 +150,6 @@ pub struct OpenRequest {
     pub block_type: Uuid,
     pub via: Option<Uuid>,
     pub editor: Option<Uuid>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ChildCommit {
-    pub(crate) child: ChildId,
-    pub(crate) parent: BlockParent,
-    pub(crate) name: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -516,6 +510,9 @@ pub type ClipRender = Rc<dyn Fn(&str, Box<dyn FnOnce(Option<Vec<u8>>)>)>;
 pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
+    /// What this editor tells the shell, in the order it made it (`shell-message`); the frame
+    /// sends them in one `tell`.
+    told: Rc<RefCell<Vec<ShellMessage>>>,
     watches: Rc<RefCell<Watches>>,
     picker: Rc<RefCell<Option<PickerRequest>>>,
     renaming: Rc<Cell<Option<RenameRequest>>>,
@@ -523,7 +520,6 @@ pub struct EditorHost {
     card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     history_requests: Rc<RefCell<Vec<HistoryRequest>>>,
-    child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
@@ -545,9 +541,7 @@ pub struct EditorHost {
     /// Each search watched, with how many watch it.
     watched_searches: Rc<RefCell<std::collections::BTreeMap<crate::Search, usize>>>,
     reported_searches: Rc<RefCell<Option<Vec<crate::Search>>>>,
-    block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
-    shell_commands: Rc<RefCell<Vec<(Uuid, ShellCommand)>>>,
     simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, be_sdk_api::VersionCommand)>>>,
     version_status: Rc<RefCell<Option<be_sdk_api::VersionStatus>>>,
@@ -563,17 +557,10 @@ pub struct EditorHost {
     client_id: Rc<Cell<Uuid>>,
     view_block: Rc<Cell<Option<Uuid>>>,
     view: Rc<Cell<Option<View>>>,
-    view_changes: Rc<RefCell<Vec<ViewChange>>>,
     handles_dismiss: Rc<Cell<bool>>,
     handles_dismiss_changed: Rc<Cell<bool>>,
-    dialog_closes: Rc<RefCell<Vec<DialogAnswer>>>,
     dismiss_requested: Rc<Cell<bool>>,
-    child_dismissals: Rc<RefCell<Vec<ChildId>>>,
-    child_closes: Rc<RefCell<Vec<ChildId>>>,
-    keyboard_gifts: Rc<RefCell<Vec<ChildId>>>,
     host_palette: Rc<Cell<bool>>,
-    palette_opens: Rc<RefCell<Vec<be_sdk_api::PaletteMode>>>,
-    block_keyboard_gifts: Rc<RefCell<Vec<Uuid>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     showing: Rc<Cell<Option<be_sdk_api::View>>>,
     drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
@@ -584,10 +571,8 @@ pub struct EditorHost {
     web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
     presenting: Rc<Cell<bool>>,
-    present_requests: Rc<RefCell<Vec<bool>>>,
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
-    bar_actions: Rc<RefCell<Vec<BarAction>>>,
     menus: Rc<RefCell<std::collections::BTreeMap<ViewId, Vec<MenuEntry>>>>,
     menu_picks: Rc<RefCell<Vec<(ViewId, String)>>>,
     child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
@@ -595,7 +580,6 @@ pub struct EditorHost {
     placed_content: Rc<Cell<Option<Rect>>>,
     frame_anchor: Rc<Cell<Option<Rect>>>,
     spec_anchor: Rc<Cell<Option<Option<Rect>>>>,
-    copies: Rc<RefCell<Vec<(u64, Vec<OfferedClipItem>)>>>,
     held_clip: Rc<RefCell<Option<(u64, ClipRender)>>>,
     next_copy: Rc<Cell<u64>>,
     paste_requested: Rc<Cell<bool>>,
@@ -801,16 +785,12 @@ impl EditorHost {
     }
 
     pub fn commit_child(&self, child: ChildId, parent: BlockParent, name: Option<String>) {
-        self.child_commits.borrow_mut().push(ChildCommit {
+        self.tell(ShellMessage::CommitChild(ChildCreation {
             child,
-            parent,
+            parent: parent.encode(),
             name,
-        });
+        }));
         self.changed();
-    }
-
-    pub(crate) fn take_child_commits(&self) -> Vec<ChildCommit> {
-        std::mem::take(&mut self.child_commits.borrow_mut())
     }
 
     pub fn take_panel_requests(&self) -> Vec<HostPanel> {
@@ -1156,11 +1136,18 @@ impl EditorHost {
     }
 
     fn shell_command(&self, block_id: Uuid, command: ShellCommand) {
-        self.shell_commands.borrow_mut().push((block_id, command));
+        self.tell(ShellMessage::Act(BlockAct {
+            block: block_id.into_bytes(),
+            command,
+        }));
     }
 
-    pub fn take_shell_commands(&self) -> Vec<(Uuid, ShellCommand)> {
-        std::mem::take(&mut self.shell_commands.borrow_mut())
+    pub(crate) fn tell(&self, message: ShellMessage) {
+        self.told.borrow_mut().push(message);
+    }
+
+    pub(crate) fn take_told(&self) -> Vec<ShellMessage> {
+        std::mem::take(&mut self.told.borrow_mut())
     }
 
     pub(crate) fn set_focused_block(&self, focused: FocusedBlock) {
@@ -1169,11 +1156,10 @@ impl EditorHost {
     }
 
     pub fn drag_block(&self, block_id: Uuid, block_type: Uuid) {
-        self.block_drags.borrow_mut().push((block_id, block_type));
-    }
-
-    pub(crate) fn take_block_drags(&self) -> Vec<(Uuid, Uuid)> {
-        std::mem::take(&mut self.block_drags.borrow_mut())
+        self.tell(ShellMessage::DragBlock(DragStart {
+            block_id: block_id.into_bytes(),
+            block_type: block_type.into_bytes(),
+        }));
     }
 
     pub fn share_block(&self, block_id: Uuid) {
@@ -1717,27 +1703,23 @@ impl EditorHost {
     }
 
     pub fn pan_view(&self, delta: Vec2) {
-        self.view_changes.borrow_mut().push(ViewChange::Pan(delta));
+        self.tell(ShellMessage::ChangeView(ViewChange::Pan(delta)));
     }
 
     pub fn zoom_view(&self, factor: f32, anchor: Option<Pos2>) {
-        self.view_changes
-            .borrow_mut()
-            .push(ViewChange::Zoom { factor, anchor });
+        self.tell(ShellMessage::ChangeView(ViewChange::Zoom { factor, anchor }));
     }
 
     pub fn keep_fitted(&self, area: Option<FitArea>) {
-        self.view_changes
-            .borrow_mut()
-            .push(ViewChange::KeepFitted(area));
+        self.tell(ShellMessage::ChangeView(ViewChange::KeepFitted(area)));
     }
 
     pub fn fit_view(&self) {
-        self.view_changes.borrow_mut().push(ViewChange::Fit);
+        self.tell(ShellMessage::ChangeView(ViewChange::Fit));
     }
 
     pub fn pan_drag_view(&self) {
-        self.view_changes.borrow_mut().push(ViewChange::PanDrag);
+        self.tell(ShellMessage::ChangeView(ViewChange::PanDrag));
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
@@ -2148,11 +2130,7 @@ impl EditorHost {
         let serial = self.next_copy.get() + 1;
         self.next_copy.set(serial);
         *self.held_clip.borrow_mut() = Some((serial, render));
-        self.copies.borrow_mut().push((serial, items));
-    }
-
-    pub fn take_copies(&self) -> Vec<(u64, Vec<OfferedClipItem>)> {
-        std::mem::take(&mut self.copies.borrow_mut())
+        self.tell(ShellMessage::Copy(ClipOffer { serial, items }));
     }
 
     /// Renders representation `format` of copy `serial`, answering `None`
@@ -2224,12 +2202,8 @@ impl EditorHost {
     }
 
     pub fn bar_action(&self, action: BarAction) {
-        self.bar_actions.borrow_mut().push(action);
+        self.tell(ShellMessage::BarAction(action));
         self.changed();
-    }
-
-    pub fn take_bar_actions(&self) -> Vec<BarAction> {
-        std::mem::take(&mut self.bar_actions.borrow_mut())
     }
 
     pub fn set_menu(&self, view: ViewId, entries: Vec<MenuEntry>) {
@@ -2321,7 +2295,7 @@ impl EditorHost {
         if self.presenting.get() == presenting {
             return;
         }
-        self.present_requests.borrow_mut().push(presenting);
+        self.tell(ShellMessage::Present(presenting));
     }
 
     pub fn occlude(&self, rect: Rect) {
@@ -2412,19 +2386,19 @@ impl EditorHost {
     }
 
     pub fn close_dialog(&self, answer: DialogAnswer) {
-        self.dialog_closes.borrow_mut().push(answer);
+        self.tell(ShellMessage::CloseDialog(answer));
         self.changed();
     }
 
     pub fn dismiss_child(&self, child: ChildId) {
-        self.child_dismissals.borrow_mut().push(child);
+        self.tell(ShellMessage::DismissChild(child));
         self.changed();
     }
 
     /// The person asked to close this child, as closing its tab. The host closes a program
     /// window and does nothing yet for any other child.
     pub fn close_child(&self, child: ChildId) {
-        self.child_closes.borrow_mut().push(child);
+        self.tell(ShellMessage::CloseChild(child));
         self.changed();
     }
 
@@ -2432,7 +2406,7 @@ impl EditorHost {
     /// this editor's views or their children and no keyboard-taking popover is open, so it
     /// never takes the keyboard from elsewhere.
     pub fn focus_child(&self, child: ChildId) {
-        self.keyboard_gifts.borrow_mut().push(child);
+        self.tell(ShellMessage::FocusChild(child));
         self.changed();
     }
 
@@ -2440,7 +2414,7 @@ impl EditorHost {
     /// places it. Ask in the frame that makes the block, so keys typed while the child loads
     /// wait for it.
     pub fn focus_block_child(&self, block: Uuid) {
-        self.block_keyboard_gifts.borrow_mut().push(block);
+        self.tell(ShellMessage::FocusBlockChild(block.into_bytes()));
         self.changed();
     }
 
@@ -2551,10 +2525,6 @@ impl EditorHost {
         self.drops.borrow_mut().get_mut(&view)?.content.take()
     }
 
-    pub fn take_view_changes(&self) -> Vec<ViewChange> {
-        std::mem::take(&mut self.view_changes.borrow_mut())
-    }
-
     pub(crate) fn set_drag(&self, view: ViewId, dragged: Option<Dragged>) {
         self.drops.borrow_mut().entry(view).or_default().dragged = dragged;
         self.changed();
@@ -2645,26 +2615,10 @@ impl EditorHost {
         self.changed();
     }
 
-    pub(crate) fn take_present_requests(&self) -> Vec<bool> {
-        std::mem::take(&mut self.present_requests.borrow_mut())
-    }
-
     pub(crate) fn take_handles_dismiss(&self) -> Option<bool> {
         self.handles_dismiss_changed
             .take()
             .then(|| self.handles_dismiss.get())
-    }
-
-    pub(crate) fn take_dialog_closes(&self) -> Vec<DialogAnswer> {
-        std::mem::take(&mut self.dialog_closes.borrow_mut())
-    }
-
-    pub(crate) fn take_child_dismissals(&self) -> Vec<ChildId> {
-        std::mem::take(&mut self.child_dismissals.borrow_mut())
-    }
-
-    pub(crate) fn take_child_closes(&self) -> Vec<ChildId> {
-        std::mem::take(&mut self.child_closes.borrow_mut())
     }
 
     /// Whether the host draws the command palette (`open-block.host-palette`), so the frame
@@ -2679,20 +2633,8 @@ impl EditorHost {
 
     /// Asks the host to open its command palette (`shell-message.open-palette`).
     pub fn open_palette(&self, mode: be_sdk_api::PaletteMode) {
-        self.palette_opens.borrow_mut().push(mode);
+        self.tell(ShellMessage::OpenPalette(mode));
         self.changed();
-    }
-
-    pub(crate) fn take_palette_opens(&self) -> Vec<be_sdk_api::PaletteMode> {
-        std::mem::take(&mut self.palette_opens.borrow_mut())
-    }
-
-    pub(crate) fn take_block_keyboard_gifts(&self) -> Vec<Uuid> {
-        std::mem::take(&mut self.block_keyboard_gifts.borrow_mut())
-    }
-
-    pub(crate) fn take_keyboard_gifts(&self) -> Vec<ChildId> {
-        std::mem::take(&mut self.keyboard_gifts.borrow_mut())
     }
 
     pub(crate) fn take_performance(&self) -> Vec<(String, Vec<PerformanceMeasurement>)> {
