@@ -31,10 +31,12 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let session = Session::new(editor);
     let loaded = create_memo(move || session.read(LogicGridEditor::loaded));
     let waiting = create_memo(move || !loaded.get());
+    let scope = NodeRef::new();
+    action_scope(&scope);
     register_keys(session);
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=Space::None>
+        <List @node_ref=&scope spacing=Space::None>
             <Show condition={waiting}>
                 <ListItem grow=1.0>
                     <LoadingPane label="Loading the grid" />
@@ -135,43 +137,41 @@ fn PanelsPane(session: Session) -> NodeId {
 /// The grid's plain keys as actions: what a key does depends on the tool, so each runs the
 /// model's `key`, and the keys that edit are off while the grid is read-only.
 fn register_keys(session: Session) {
-    let editor = session.editor();
-    let editable = editor.editable();
+    let editable = session.editor().editable();
     let selecting = create_memo(move || session.read(|model| model.tool.kind == ToolKind::Select));
     let edits = create_memo(move || !selecting.get() || editable.get());
-    let key = |id: &str, label: &'static str, key: Key, enabled: Memo<bool>| {
-        Action::new(format!("logic-grid.{id}"), label, move || {
-            session.update(|model| model.key(key));
-        })
-        .shortcut(Chord::key(key))
-        .enabled(enabled)
-        .register();
-    };
     let always = create_memo(|| true);
+    let key = |id: &str, label: String, keys: &[Key], enabled: Memo<bool>| {
+        let first = keys[0];
+        let mut action = Action::new(format!("logic-grid.{id}"), label, move || {
+            session.update(|model| model.key(first));
+        })
+        .enabled(enabled);
+        for key in keys {
+            action = action.shortcut(Chord::key(*key));
+        }
+        action.register();
+    };
     Action::new("logic-grid.escape", "Cancel", move || {
         session.update(LogicGridEditor::escape);
     })
     .shortcut(Chord::key(Key::Escape))
     .register();
-    key("delete", "Delete the selection", Key::Delete, edits);
-    key("backspace", "Delete the selection", Key::Backspace, edits);
-    key("rotate-left", "Rotate left", Key::Q, edits);
-    key("rotate-right", "Rotate right", Key::E, edits);
-    key("flip-horizontal", "Flip horizontally", Key::H, edits);
-    key("flip-vertical", "Flip vertically", Key::V, edits);
-    key("scale-down", "Scale down", Key::BracketLeft, always);
-    key("scale-up", "Scale up", Key::BracketRight, always);
-    key(
-        "folder-up",
-        "Up to the parent folder",
-        Key::Backtick,
-        always,
-    );
+    let delete = [Key::Delete, Key::Backspace];
+    key("delete", "Delete the selection".to_owned(), &delete, edits);
+    key("rotate-left", "Rotate left".to_owned(), &[Key::Q], edits);
+    key("rotate-right", "Rotate right".to_owned(), &[Key::E], edits);
+    key("flip-horizontal", "Flip horizontally".to_owned(), &[Key::H], edits);
+    key("flip-vertical", "Flip vertically".to_owned(), &[Key::V], edits);
+    key("scale-down", "Scale down".to_owned(), &[Key::BracketLeft], always);
+    key("scale-up", "Scale up".to_owned(), &[Key::BracketRight], always);
+    key("folder-up", "Up to the parent folder".to_owned(), &[Key::Backtick], always);
     for (index, hotkey) in HOTBAR_KEYS.into_iter().enumerate() {
+        let number = index + 1;
         key(
-            &format!("hotbar.{}", index + 1),
-            "Choose the hotbar slot",
-            hotkey,
+            &format!("hotbar.{number}"),
+            format!("Choose hotbar slot {number}"),
+            &[hotkey],
             always,
         );
     }

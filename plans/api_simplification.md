@@ -182,15 +182,6 @@ host queues settled events per app. The calls stay `local`
 
 ## 12. beui: one form per concept
 
-- One focus ring: styled `Frame` takes `focus=` (drawn as an outline with an
-  offset). It replaces `focus_border()`, `beui_view::reactive::focus_outline()`
-  and the hand-drawn `focus_ring(..)` + accent border copies (`TileButton`,
-  `SwatchButton`, tree, treemap, colour picker); `FocusRing` becomes a `Frame`
-  with `focus`. Paintings change; accept them after looking.
-- Key listeners (left): `on_global_key` and `on_scroll_key` are gone (`on_key`
-  takes a `KeyReveal`). `on_shortcut` users (the logic grid's key table, the
-  demo, tests) should move to actions. Update guides/beui_keyboard.md when
-  they do.
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
   `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
   non-`Copy` values (a callback, a state struct) or read the cell with
