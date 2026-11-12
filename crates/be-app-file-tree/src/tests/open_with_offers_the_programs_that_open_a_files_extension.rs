@@ -21,6 +21,7 @@ fn open_with_offers_the_programs_that_open_a_files_extension() {
             .collect(),
     };
     fixture.test.catalog(Catalog {
+        plain_files: vec![file_type.into_bytes()],
         types: vec![BlockTypeDescriptor {
             block_type: file_type.into_bytes(),
             display_name: "File".to_owned(),
@@ -28,7 +29,6 @@ fn open_with_offers_the_programs_that_open_a_files_extension() {
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
             press: be_sdk_beui::Press::Open,
-            plain_file: true,
         }],
         templates: Vec::new(),
         editors: vec![

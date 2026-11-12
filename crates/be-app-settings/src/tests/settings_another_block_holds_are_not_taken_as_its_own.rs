@@ -16,7 +16,6 @@ fn described(block_type: Uuid, name: &str) -> BlockTypeDescriptor {
         icon_codepoint: String::new(),
         children: Default::default(),
         press: Default::default(),
-        plain_file: false,
     }
 }
 

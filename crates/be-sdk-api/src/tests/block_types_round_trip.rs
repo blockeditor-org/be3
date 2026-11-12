@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn block_types_round_trip() {
     let catalog = Catalog {
+        plain_files: vec![[7; 16]],
         types: vec![BlockTypeDescriptor {
             block_type: [7; 16],
             display_name: "Folder".into(),
@@ -15,7 +16,6 @@ fn block_types_round_trip() {
                 reorder: true,
             },
             press: Press::Zoom,
-            plain_file: true,
         }],
         templates: vec![TemplateDescriptor {
             editor: [7; 16],

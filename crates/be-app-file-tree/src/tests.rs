@@ -291,9 +291,9 @@ fn containers(fixture: &mut Fixture, children: be_sdk_beui::ChildOperations) {
         icon_codepoint: String::new(),
         children,
         press: Press::Zoom,
-        plain_file: false,
     };
     fixture.test.catalog(Catalog {
+        plain_files: Vec::new(),
         types: vec![
             holding(WorkspaceContent::CONTENT_TYPE, "Workspace"),
             holding(FolderContent::CONTENT_TYPE, "Folder"),

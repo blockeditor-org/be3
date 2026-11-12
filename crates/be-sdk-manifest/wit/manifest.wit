@@ -65,7 +65,6 @@ interface types {
         icon-codepoint: string,
         children: child-operations,
         press: press,
-        plain-file: bool,
     }
 
     /// Where a picker lists a template: among every block, among the ones

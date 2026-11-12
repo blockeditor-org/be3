@@ -71,7 +71,8 @@ pub(super) struct Instances {
     announced: HashSet<ScreenId>,
     unannounced_input: Vec<Outbound>,
     block_types: Option<Arc<crate::AppCatalog>>,
-    sent_block_types: Option<u64>,
+    /// The program editors' revision and the type registry's when the catalog was last sent.
+    sent_block_types: Option<(u64, u64)>,
     network: Vec<String>,
     /// Whether the app's manifest sets `block_agents`.
     block_agents: bool,
@@ -2051,14 +2052,27 @@ impl Instances {
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
+        let kinds = be_host_stack::types::kinds_revision();
         if let Some(block_types) = &self.block_types
-            && let Some((programs, program_editors)) =
-                be_host_base::program_editors::listed_since(self.sent_block_types)
+            && let Some((programs, program_editors)) = be_host_base::program_editors::listed_since(
+                self.sent_block_types
+                    .filter(|(_, sent)| *sent == kinds)
+                    .map(|(programs, _)| programs),
+            )
         {
-            self.sent_block_types = Some(programs);
+            self.sent_block_types = Some((programs, kinds));
             let debug_templates = block_types.debug_templates.clone();
             let mut block_types = block_types.catalog.clone();
             block_types.editors.extend(program_editors);
+            block_types.plain_files = block_types
+                .types
+                .iter()
+                .map(|descriptor| descriptor.block_type)
+                .filter(|block_type| {
+                    be_host_stack::types::plain_of(Uuid::from_bytes(*block_type))
+                        == be_host_stack::types::Plain::File
+                })
+                .collect();
             opened.push(Outbound::App(AppCall::BlockTypes(block_types)));
             opened.push(Outbound::App(AppCall::DebugTemplates(debug_templates)));
         }

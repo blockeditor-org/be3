@@ -171,6 +171,7 @@ impl EditorRegistry {
             })
             .collect();
         let catalog = be_sdk_api::Catalog {
+            plain_files: Vec::new(),
             types: {
                 let mut types: Vec<_> = registry.types.values().cloned().collect();
                 types.sort_by_key(|descriptor| descriptor.block_type);

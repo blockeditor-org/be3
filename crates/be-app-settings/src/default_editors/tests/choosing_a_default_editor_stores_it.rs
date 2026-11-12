@@ -14,6 +14,7 @@ fn choosing_a_default_editor_stores_it() {
     let mut editor = BeuiTest::<DefaultEditorsRoot>::editing(Uuid::from_u128(4));
     editor.hold(None, EditorSettingsContent::default());
     editor.catalog(Catalog {
+        plain_files: Vec::new(),
         types: vec![BlockTypeDescriptor {
             block_type: block_type.into_bytes(),
             display_name: "Note".to_owned(),
@@ -21,7 +22,6 @@ fn choosing_a_default_editor_stores_it() {
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
             press: be_sdk_beui::Press::Open,
-            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![

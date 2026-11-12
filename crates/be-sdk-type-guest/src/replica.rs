@@ -470,7 +470,6 @@ enum Wait<C> {
 #[derive(Default)]
 struct Reported {
     status: Option<Status>,
-    history: Option<UndoState>,
 }
 
 pub(crate) struct Replica<C: LiveEdit, H> {
@@ -3034,6 +3033,12 @@ where
     }
 
     fn report(&mut self) {
+        let undo = (self.loaded && !self.released).then(|| UndoState {
+            can_undo: self.history.can_undo(),
+            can_redo: self.history.can_redo(),
+            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
+            lost_edits: self.lost_edits,
+        });
         let status = Status {
             head: self.base,
             owner: self.is_owner(),
@@ -3046,6 +3051,7 @@ where
             incompatible: self.incompatible,
             diverged: self.diverged,
             unreadable: self.unreadable.clone(),
+            undo,
         };
         self.owes_since = match status.owes_seal {
             true => self.owes_since.or(Some(self.now)),
@@ -3060,19 +3066,6 @@ where
         }
         if !self.loaded || self.released {
             return;
-        }
-        let history = UndoState {
-            can_undo: self.history.can_undo(),
-            can_redo: self.history.can_redo(),
-            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
-            lost_edits: self.lost_edits,
-        };
-        if self.reported.history.as_ref() != Some(&history) {
-            self.reported.history = Some(history.clone());
-            self.out.push(Effect::History {
-                replica: self.id,
-                history,
-            });
         }
         if std::mem::take(&mut self.described) {
             self.out.push(Effect::Described {

@@ -48,7 +48,7 @@ and the refs database.
 watches the block, constructs the `replica` with the head, answers its calls
 with the real primitives (`Peer::seal` then `publish_sealed`, `Peer::stash`,
 resume, the lease, relays sealed with the block key, `sleep-until`) and keeps
-what it reports (`report-status`, `described`, `history`, `conflict`).
+what it reports (`report-status`, which carries the undo state too, `described`, `conflict`).
 
 A module runs on its own thread natively, in a web worker on the web
 (`WebGuest`), and in process in unit tests (`InProcess`); the worker never

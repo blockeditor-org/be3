@@ -37,7 +37,6 @@ fn a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip() {
         icon_codepoint: ICON_SHAPES.as_str().to_owned(),
         children: ChildOperations::default(),
         press: Press::Open,
-        plain_file: false,
     }]);
     host.set_blocks(BlockQuery::References(block), infos.clone());
     test.run();

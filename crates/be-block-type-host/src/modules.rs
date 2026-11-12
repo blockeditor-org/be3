@@ -560,39 +560,7 @@ impl Modules {
             })
             .filter(|info| !self.described.contains(&info.content_type))
             .collect();
-        let blanks = self
-            .ask_all(
-                module,
-                types
-                    .iter()
-                    .map(|info| {
-                        let content_type = info.content_type;
-                        move |connection: &mut Connection| replicas::blank(connection, content_type)
-                    })
-                    .collect(),
-            )
-            .await;
-        let mut blank = Vec::new();
-        for (info, reply) in types.into_iter().zip(blanks) {
-            if let Ok(Ok(bytes)) = reply {
-                blank.push((info, bytes));
-            }
-        }
-        let described = self
-            .ask_all(
-                module,
-                blank
-                    .iter()
-                    .map(|(info, bytes)| {
-                        let (content_type, bytes) = (info.content_type, bytes.clone());
-                        move |connection: &mut Connection| {
-                            replicas::describe(connection, content_type, bytes, Uuid::nil())
-                        }
-                    })
-                    .collect(),
-            )
-            .await;
-        for ((info, blank), described) in blank.into_iter().zip(described) {
+        for info in types {
             self.routes.insert(info.content_type, module);
             self.described.insert(info.content_type);
             register(Kind {
@@ -603,11 +571,8 @@ impl Modules {
                 first_part: info.first_part,
                 merges_parts: info.merges_parts,
                 whole_bytes: info.whole_bytes,
-                blank,
-                described: match described {
-                    Ok(Ok(description)) => description,
-                    _ => Description::default(),
-                },
+                blank: info.blank,
+                described: info.blank_description,
             });
         }
     }
@@ -1020,13 +985,6 @@ impl Modules {
             Ok(replayed) => Some(replayed),
             Err(_) => bytes,
         }
-    }
-
-    pub async fn blank(&mut self, content_type: Uuid) -> Result<Vec<u8>, String> {
-        self.ask_type(content_type, |connection| {
-            replicas::blank(connection, content_type)
-        })
-        .await
     }
 
     pub async fn merge3(

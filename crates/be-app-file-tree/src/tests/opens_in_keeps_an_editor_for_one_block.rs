@@ -20,6 +20,7 @@ fn opens_in_keeps_an_editor_for_one_block() {
         extensions: Vec::new(),
     };
     fixture.test.catalog(Catalog {
+        plain_files: Vec::new(),
         types: vec![BlockTypeDescriptor {
             block_type: block_type.into_bytes(),
             display_name: "Tasks".to_owned(),
@@ -27,7 +28,6 @@ fn opens_in_keeps_an_editor_for_one_block() {
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
             press: be_sdk_beui::Press::Open,
-            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![edits(list, "List"), edits(board, "Board")],

@@ -5,19 +5,13 @@ use be_block::{
     TagsContent,
 };
 use be_sdk_api::{BlockTypeDescriptor, ChildOperations, Press};
-use be_sdk_type_guest::{Module as TypeModule, Serving};
+#[cfg(test)]
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use uuid::Uuid;
 
 pub use be_block_type_host::Source;
 pub(super) use be_block_type_host::{Modules, in_process};
-pub use be_block_type_host::{is_known, kind_of};
-
-pub struct HostTypes(Serving);
-
-fn host_types() -> TypeModule {
-    TypeModule::new(be_sdk_type_host::registrations())
-}
+pub use be_block_type_host::{Plain, is_known, kind_of, kinds_revision, plain_of};
 
 fn described(content_type: Uuid, name: &str, icon: &str, color: [u8; 3]) -> BlockTypeDescriptor {
     BlockTypeDescriptor {
@@ -27,7 +21,6 @@ fn described(content_type: Uuid, name: &str, icon: &str, color: [u8; 3]) -> Bloc
         icon_codepoint: icon.to_owned(),
         children: ChildOperations::default(),
         press: Press::Open,
-        plain_file: false,
     }
 }
 
@@ -98,35 +91,19 @@ pub fn host_block_types() -> Vec<BlockTypeDescriptor> {
 pub fn provided(content_type: Uuid) -> bool {
     #[cfg(feature = "testing")]
     if let Some(types) = crate::testing::in_process() {
-        return host_types().knows(content_type) || (types.knows)(content_type);
+        return be_sdk_type_host::block_types().knows(content_type) || (types.knows)(content_type);
     }
     crate::discovery::block_type(content_type).is_some()
 }
 
 #[cfg(test)]
 pub fn provided(content_type: Uuid) -> bool {
-    host_types().knows(content_type) || be_type_bundle::knows(content_type)
-}
-
-impl Guest for HostTypes {
-    fn start(_: Waker, _: &mut Vec<Vec<u8>>) -> Result<Self, String> {
-        Ok(Self(Serving::new(host_types())))
-    }
-
-    fn step(
-        &mut self,
-        inbound: Vec<Vec<u8>>,
-        _: bool,
-        outbound: &mut Vec<Vec<u8>>,
-    ) -> Result<Flow, String> {
-        self.0.step(inbound, outbound);
-        Ok(Flow::Running)
-    }
+    be_sdk_type_host::block_types().knows(content_type) || be_type_bundle::knows(content_type)
 }
 
 #[cfg(not(test))]
 pub(super) async fn sources() -> Vec<Source> {
-    let mut sources = vec![in_process::<HostTypes>("host-types")];
+    let mut sources = vec![in_process::<be_sdk_type_host::BlockTypes>("host-types")];
     #[cfg(feature = "testing")]
     if let Some(types) = crate::testing::in_process() {
         sources.extend((types.sources)());
@@ -151,7 +128,7 @@ pub(super) async fn sources() -> Vec<Source> {
 
 #[cfg(test)]
 pub(super) async fn sources() -> Vec<Source> {
-    let mut sources = vec![in_process::<HostTypes>("host-types")];
+    let mut sources = vec![in_process::<be_sdk_type_host::BlockTypes>("host-types")];
     sources.extend(be_type_bundle::sources().into_iter().map(
         |source| match source.name.as_str() {
             "be3.counter" => be_type_bundle::in_process::<Crashing>(

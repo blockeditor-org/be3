@@ -27,8 +27,7 @@
       "icon": "\ue0cc",
       "color": [203, 91, 125],
       "children": {"replace": true},
-      "module": "text_block_types.wasm",
-      "plain_file": true
+      "module": "text_block_types.wasm"
     }
   },
   "entry_point": "text_block.wasm"

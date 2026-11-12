@@ -850,6 +850,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
         self.catalog(Catalog {
+            plain_files: Vec::new(),
             types: descriptors,
             templates: Vec::new(),
             editors: Vec::new(),

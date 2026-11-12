@@ -10,6 +10,7 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
     let mut fixture = editor();
     let text = Uuid::from_u128(0x7465_7874);
     fixture.test.catalog(Catalog {
+        plain_files: vec![text.into_bytes()],
         types: vec![BlockTypeDescriptor {
             block_type: text.into_bytes(),
             display_name: "Text".to_owned(),
@@ -17,7 +18,6 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
             icon_codepoint: String::new(),
             children: be_sdk_beui::ChildOperations::default(),
             press: Press::Open,
-            plain_file: true,
         }],
         templates: Vec::new(),
         editors: Vec::new(),

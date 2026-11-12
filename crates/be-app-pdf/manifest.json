@@ -33,8 +33,7 @@
       "display_name": "PDF",
       "icon": "\ue329",
       "color": [65, 145, 210],
-      "module": "pdf_types.wasm",
-      "plain_file": true
+      "module": "pdf_types.wasm"
     }
   },
   "entry_point": "pdf.wasm"

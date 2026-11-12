@@ -192,7 +192,7 @@ that offers blocks saved before the change for reset
 `id` is the `CONTENT_TYPE`; `display_name`, `icon` (a Lucide codepoint) and
 `color` are what every label, the add menu and the file tree show, whichever
 editor opens the block. The `be_sdk_manifest` types document the rest
-(`children`, `press`, `exported_whole`, `plain_file`). Every type names its
+(`children`, `press`, `exported_whole`). Every type names its
 module, and all of an app's types name the same one: the host runs one
 instance per app. Then give the editor's `app()` in its BUCK file
 `types = "//crates/be-type-my-block:module"`, which stages the module beside

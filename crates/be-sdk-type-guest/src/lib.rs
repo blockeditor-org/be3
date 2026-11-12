@@ -70,7 +70,6 @@ pub struct Registration {
     info: TypeInfo,
     open: fn(Opened) -> Box<dyn AnyReplica>,
     plain: fn(Opened) -> Box<dyn AnyReplica>,
-    blank: fn() -> Vec<u8>,
     merge: MergeFn,
     merge_parts: Option<MergePartsFn>,
     /// The replica's merge by parts, a `replica::PartsMerge` of the type's content.
@@ -98,10 +97,11 @@ impl Registration {
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
                 whole_bytes: C::WHOLE_BYTES,
+                blank: C::default().encode(),
+                blank_description: describe(&C::default(), Uuid::nil()),
             },
             open: open::<C, NoHistory>,
             plain: open::<C, NoHistory>,
-            blank: || C::default().encode(),
             merge: merge::<C>,
             merge_parts: None,
             replica_merge: None,
@@ -310,7 +310,6 @@ pub(crate) fn be_child(change: ChildChange) -> be_block::ChildChange {
 
 pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
     Description {
-        name: content.name(),
         derived: be_block::derived_metadata(content),
         references: content.references_in(organization),
     }
@@ -791,9 +790,6 @@ impl Module {
                 replica,
                 description,
             } => ops::with_parent(replica, || host::described(description)).detach(),
-            Effect::History { replica, history } => {
-                ops::with_parent(replica, || host::history(history)).detach();
-            }
             Effect::Conflict {
                 replica,
                 ours,
@@ -852,13 +848,6 @@ impl replicas::Guest for Module {
             });
         }
         Box::pin(ready(self.types()))
-    }
-
-    fn blank(&self, content_type: Uuid) -> LocalFuture<Result<Vec<u8>, Failure>> {
-        Box::pin(ready(
-            self.with_kind(content_type, |kind| (kind.blank)())
-                .ok_or(Failure::UnknownType),
-        ))
     }
 
     fn merge3(

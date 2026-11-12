@@ -56,6 +56,7 @@ pub trait Host: Sized + 'static {
 
     fn released(shared: &Arc<Mutex<Self>>, block: Uuid);
 
+    /// Also when only `status.undo` changed.
     fn status(shared: &Arc<Mutex<Self>>, block: Uuid, status: &Status);
 
     fn described(
@@ -64,8 +65,6 @@ pub trait Host: Sized + 'static {
         references: Vec<Uuid>,
         description: Description,
     );
-
-    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, history: be_sdk_type_api::UndoState);
 
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict);
 

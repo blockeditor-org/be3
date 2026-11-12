@@ -11,8 +11,6 @@ mod a_declared_module_starts_only_when_its_type_is_first_needed;
 mod a_module_that_says_hello_while_another_is_asked_is_still_registered;
 
 const START: &str = "be3:block-type/replicas@0.1.0#start";
-const BLANK: &str = "be3:block-type/replicas@0.1.0#blank";
-const DESCRIBE: &str = "be3:block-type/replicas@0.1.0#describe";
 
 fn types(content_type: Uuid) -> Vec<TypeInfo> {
     vec![TypeInfo {
@@ -24,6 +22,8 @@ fn types(content_type: Uuid) -> Vec<TypeInfo> {
         first_part: false,
         merges_parts: false,
         whole_bytes: true,
+        blank: Vec::new(),
+        blank_description: Description::default(),
     }]
 }
 
@@ -51,10 +51,6 @@ impl Answering {
             let method = started.method;
             let outcome = if method == method_id(START) {
                 Outcome::returned(&types(self.content_type))
-            } else if method == method_id(BLANK) {
-                Outcome::returned(&Ok::<Vec<u8>, Failure>(Vec::new()))
-            } else if method == method_id(DESCRIBE) {
-                Outcome::returned(&Ok::<Description, Failure>(Description::default()))
             } else {
                 Outcome::Err(OpError::Unsupported)
             };

@@ -32,8 +32,7 @@
       "display_name": "Image",
       "icon": "\ue0f6",
       "color": [64, 155, 173],
-      "module": "image_block_types.wasm",
-      "plain_file": true
+      "module": "image_block_types.wasm"
     }
   },
   "entry_point": "image_block.wasm"

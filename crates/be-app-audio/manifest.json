@@ -24,8 +24,7 @@
       "display_name": "Audio",
       "icon": "\ue31a",
       "color": [65, 145, 210],
-      "module": "audio_block_types.wasm",
-      "plain_file": true
+      "module": "audio_block_types.wasm"
     }
   },
   "entry_point": "audio_block.wasm"
