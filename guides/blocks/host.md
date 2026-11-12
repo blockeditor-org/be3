@@ -67,8 +67,9 @@ caller after `WAIT_LIMIT` without the stack saying anything (or `WAIT_CAP` in
 all) instead of waiting forever: tests share one stack in turn, so one endless
 wait would hang the whole target. A busy machine slows the stack without
 silencing it, so the limit counts silence, not time. On a manual clock, a
-wait also moves the clock on to the stack's next reconnect once the test
-called `drive_reconnects` (be-host-testing's `Harness::connect` does). Commit times and an
+wait also moves a manual clock on to the stack's next reconnect (and all the
+stack's time with it), so a failed connect never strands on a clock nobody
+moves. Commit times and an
 embedded server's history follow `be_block_commit::now_milliseconds`, which a
 test pins with `pin_now` to step history a minute at a time (be-host pins it to
 its wall clock while that is pinned, so `drive pause` moves it).

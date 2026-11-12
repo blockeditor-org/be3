@@ -31,6 +31,11 @@ impl Clock {
         Self(Kind::Manual(Arc::default()))
     }
 
+    /// Whether this clock only moves when `advance` moves it.
+    pub fn is_manual(&self) -> bool {
+        matches!(self.0, Kind::Manual(_))
+    }
+
     pub fn same(&self, other: &Clock) -> bool {
         match (&self.0, &other.0) {
             (Kind::Real, Kind::Real) => true,

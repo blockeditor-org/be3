@@ -6,7 +6,6 @@ fn a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand()
     let address = harness.address();
     harness.stop_server();
     harness.connect();
-    crate::drive_reconnects();
     crate::wait_until(|shared: &Shared| {
         (!shared.connected && shared.reconnect.is_some()).then_some(())
     });

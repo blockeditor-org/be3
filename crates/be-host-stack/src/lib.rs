@@ -848,14 +848,6 @@ pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(600);
 
-/// Makes this stack's `wait_until` move its manual clock on to the moment the stack waits on to
-/// reconnect after a connection failed, as a real clock would have: a manual clock never gets
-/// there on its own, so a first connect that failed would leave every wait to run out.
-#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
-pub fn drive_reconnects() {
-    with_shared_mut(|shared| shared.drives_reconnects = true);
-}
-
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
 /// `WAIT_LIMIT` of silence from the stack, or `WAIT_CAP` in all.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
@@ -874,12 +866,18 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         if let Some(value) = read(&held) {
             return value;
         }
-        if held.drives_reconnects
-            && let Some((clock, at)) = &held.reconnect
-            && let now = clock.now()
-            && *at > now
-        {
-            clock.advance(*at - now);
+        // A manual clock never reaches the moment the stack waits on to try the server again, so
+        // the wait moves it there, as a real clock would have got there: all of the stack's time
+        // moves on with it. The lock is let go first, for the stack to run on.
+        let reconnect = held
+            .reconnect
+            .clone()
+            .filter(|(clock, at)| clock.is_manual() && *at > clock.now());
+        if let Some((clock, at)) = reconnect {
+            drop(held);
+            clock.advance(at - clock.now());
+            held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            continue;
         }
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {

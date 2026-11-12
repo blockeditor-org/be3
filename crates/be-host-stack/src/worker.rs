@@ -477,12 +477,11 @@ pub struct Shared {
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
-    /// The clock and the moment the stack waits on to try the server again, while it does.
+    /// The clock and the moment the stack waits on to try the server again. `None` while it is
+    /// connected and while an attempt to connect is in flight, so a wait that moves a manual
+    /// clock on to it (`wait_until`) never moves it under an attempt.
     #[cfg(any(test, feature = "testing"))]
     pub reconnect: Option<(be_block_client::Clock, Duration)>,
-    /// Whether a test's waits move a manual clock on to that moment (`drive_reconnects`).
-    #[cfg(any(test, feature = "testing"))]
-    pub drives_reconnects: bool,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
     pub reached: bool,
@@ -657,7 +656,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
 }
 
 /// Notes the moment the stack next tries the server, for a test's wait to move a manual clock to
-/// (`drive_reconnects`); `None` once it has connected.
+/// (`Shared::reconnect`); `None` once it tries.
 #[cfg(any(test, feature = "testing"))]
 fn reconnecting_at(shared: &Arc<Mutex<Shared>>, at: Option<(be_block_client::Clock, Duration)>) {
     shared
@@ -706,6 +705,8 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
 ) -> Option<(Arc<Peer<Store>>, Option<Opened>)> {
     let mut failures = 0;
     loop {
+        #[cfg(any(test, feature = "testing"))]
+        reconnecting_at(shared, None);
         match make_store().and_then(|store| Ok((store, super::refs(config)?))) {
             Ok((store, refs)) => {
                 match unless_stopped(connect(config, store, refs), nudged).await? {
@@ -939,6 +940,8 @@ impl Session<'_> {
                 Woken::Nudged => {
                     if let Line::Down { failures, .. } = self.line {
                         self.line = Line::down(self.config, failures, Duration::ZERO);
+                        #[cfg(any(test, feature = "testing"))]
+                        reconnecting_at(shared, None);
                     }
                     false
                 }
@@ -947,6 +950,8 @@ impl Session<'_> {
                     true
                 }
                 Woken::Reached(Ok(link)) => {
+                    #[cfg(any(test, feature = "testing"))]
+                    reconnecting_at(shared, None);
                     shared
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)
@@ -1190,7 +1195,6 @@ impl Session<'_> {
     fn depart(&mut self, failures: u32) {
         let was_up = self.line.is_up();
         let delay = match failures {
-            0 if was_up => Duration::ZERO,
             0 => Duration::ZERO,
             failures => reconnect_delay(failures - 1, jitter()),
         };

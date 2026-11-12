@@ -74,7 +74,6 @@ impl Harness {
             data_dir: self.directory.join("objects"),
             clock: be_block_client::Clock::manual(),
         });
-        be_host_stack::drive_reconnects();
     }
 }
 
