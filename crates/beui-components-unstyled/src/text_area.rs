@@ -64,6 +64,9 @@ pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
+/// How much shorter a view must get, in points, before the caret is kept in sight: less is
+/// layout rounding, not a keyboard or a bar.
+const SHRINK_TO_REVEAL: f32 = 1.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -510,15 +513,20 @@ impl Surface {
         }
     }
 
-    /// The view got shorter (a keyboard or a bar came up under it) while focused: a caret that was in
+    /// The view got shorter by more than rounding (a keyboard or a bar came up under it) while focused: a caret that was in
     /// sight stays in sight. One already scrolled away is left there.
     fn keep_caret_in_sight(&self, position: ScrollPosition, was: f32) {
-        if self.single_line || position.viewport >= was || !self.focused.get_untracked() {
+        if self.single_line
+            || position.viewport >= was - SHRINK_TO_REVEAL
+            || !self.focused.get_untracked()
+        {
             return;
         }
         let Some((rect, _)) = self.caret_in_content() else {
             return;
         };
+        // "Was in sight" is judged at the offset as it is now (already clamped to the shorter
+        // view, so it can only have moved up) over the old view's height.
         let top = position.clamped();
         if rect.max.y >= top && rect.min.y <= top + was {
             self.state.reveal_cursor();

@@ -90,9 +90,9 @@ toolbar as a `DockBar` lent to the slide canvas's pane.
 When the host gives the keyboard to a child, every instance above it hears
 which of its children it went into (`ChildBlock`'s `on_focus`): a press inside
 a child never reaches the placer. A `ChildBlock` or `Subregion` in a dock tab
-shows that tab when it hears this (`DockTabControl::content_focused`, so a dock that stops
-showing the tab hands the keyboard to the tab shown in its place, as for focus in its own panel), and one in an empty pane's view focuses that
-pane, so a press in a child (a joined dock's tab body or empty pane included)
+shows that tab when it hears this (`DockTabControl::content_focused`, so a dock that
+stops showing the tab hands the keyboard to the one shown in its place), and one in
+an empty pane's view focuses that pane, so a press in a child (a joined dock's tab body or empty pane included)
 focuses what holds it and brings its window in front; `on_focus` is for
 anything more. A child that takes a press without the
 keyboard (one being presented) brings nothing forward. The other way,

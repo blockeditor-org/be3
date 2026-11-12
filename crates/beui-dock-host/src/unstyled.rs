@@ -1973,6 +1973,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     };
     dock.start_lifting();
     dock.bring_forward_when_shown();
+    dock.forget_content_keyboard_when_taken();
     api.fill(DockApi(dock));
     let area = NodeRef::new();
     tab_actions(dock, area);
@@ -2979,6 +2980,7 @@ fn EmptyPane(dock: State, leaf: LeafId) -> NodeId {
     provide_context(DockPaneControl::new(
         leaf,
         Callback::new(move |leaf: LeafId| {
+            dock.content_keyboard.set(None);
             if dock.state.with_untracked(|state| state.focused_leaf()) != Some(leaf) {
                 dock.edit(|state| state.focus(leaf));
             }
