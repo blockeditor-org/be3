@@ -94,6 +94,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
             owner: Some(path(&[], 1)),
             placement: moved.clone(),
             hidden: false,
+            pane: None,
         }],
         Vec::new(),
     );
@@ -148,6 +149,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         }],
         vec![DockCover {
             tab: path(&[], 1),
@@ -165,6 +167,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
                 align: DockAlign::Center
             }),
             hidden: false,
+            pane: None,
         }],
         "it hears where its bar is, owned by its own tab"
     );
@@ -183,6 +186,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
             owner: Some(path(&[], 1)),
             placement: moved.clone(),
             hidden: false,
+            pane: None,
         }],
         "its placer keeps its hidden bar where it was"
     );

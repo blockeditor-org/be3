@@ -1409,6 +1409,7 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
                     },
                     placement: placement_to_api(bar.placement),
                     hidden: bar.hidden,
+                    pane: bar.pane.and_then(path),
                 })
             })
             .collect(),
@@ -1491,6 +1492,7 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
                     },
                     placement: placement_from_api(&bar.placement),
                     hidden: bar.hidden,
+                    pane: bar.pane.as_ref().and_then(&mut *tab),
                 })
             })
             .collect(),

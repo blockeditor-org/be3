@@ -5,13 +5,6 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
-## 2. Docking
-
-- **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,
-  joined groups) dropped across layers only reorders within its own layer.
-  Done: it can be dropped on any edge of any joined layer's pane, shown by a
-  dock test.
-
 ## 3. Anchored views
 
 - **Children over anchored views on the web.** A child placed in an anchored

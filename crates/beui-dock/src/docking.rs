@@ -745,6 +745,7 @@ impl<K: DockKey> DockingLayout<K> {
                     owner,
                     placement: *placement,
                     hidden: false,
+                    pane: None,
                 });
             }
         }
@@ -950,6 +951,7 @@ impl<K: DockKey> DockingLayout<K> {
                 owner: Some(owner),
                 placement: declared.placement,
                 hidden: false,
+                pane: None,
             });
         }
         for window in &spec.windows {

@@ -163,6 +163,7 @@ impl Mapping<'_> {
                         },
                         placement: bar.placement.clone(),
                         hidden: bar.hidden,
+                        pane: bar.pane.as_ref().and_then(|pane| (self.tab)(pane)),
                     })
                 })
                 .collect(),
@@ -468,6 +469,7 @@ impl DockHosted {
                     },
                     placement: bar.placement.clone(),
                     hidden: bar.hidden,
+                    pane: bar.pane.as_ref().and_then(path),
                 })
             })
             .collect();
@@ -510,6 +512,7 @@ impl DockHosted {
                     bar: tab,
                     placement: bar.placement.clone(),
                     hidden: bar.hidden,
+                    pane: bar.pane.as_ref().and_then(|pane| pane.within(child)),
                 })
             })
             .collect();

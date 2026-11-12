@@ -9,7 +9,9 @@ fn bar(bar: u64, owner: u64) -> DockSpecBar {
         owner: Some(TabId::new(owner)),
         placement: TOP,
         hidden: false,
+        pane: None,
     }
+    pane: None,
 }
 
 fn tabs(ids: &[u64]) -> Vec<TabId> {

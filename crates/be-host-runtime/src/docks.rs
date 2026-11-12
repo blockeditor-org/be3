@@ -801,6 +801,7 @@ impl Docks {
                     placement: parked
                         .map_or_else(|| bar.placement.clone(), |(placement, _)| placement.clone()),
                     hidden: parked.is_some_and(|(_, hidden)| *hidden),
+                    pane: None,
                 }
             })
             .collect();

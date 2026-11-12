@@ -383,17 +383,41 @@ impl State {
 
     fn bar_areas(&self, bar: TabId) -> Option<(Rect, Rect)> {
         let state = self.state.get_untracked();
-        let (body, pane) = match state.is_dock_bar(bar) {
-            true => (self.dock_body, self.dock_pane),
-            false => {
-                let tab = state.bar_tab(bar)?;
-                let leaf = state.find(tab)?.leaf;
-                if !state.is_shown(tab, DockMode::Tiled) {
-                    return None;
-                }
-                *self.bodies.value().borrow().get(&leaf)?
-            }
-        };
+        match state.is_dock_bar(bar) {
+            true => self.areas(self.dock_body, self.dock_pane),
+            false => self.pane_areas(state.bar_tab(bar)?),
+        }
+    }
+
+    /// The body and pane rects of the pane showing `tab`.
+    fn pane_areas(&self, tab: TabId) -> Option<(Rect, Rect)> {
+        let state = self.state.get_untracked();
+        let leaf = state.find(tab)?.leaf;
+        if !state.is_shown(tab, DockMode::Tiled) {
+            return None;
+        }
+        let (body, pane) = *self.bodies.value().borrow().get(&leaf)?;
+        self.areas(body, pane)
+    }
+
+    /// Where a bar carried to `pos` would land: on the dock for its own bars, else on whichever
+    /// of the panes it may show on (`DockState::bar_panes`) holds the point, its own first.
+    fn pane_at(&self, bar: TabId, pos: Pos2) -> Option<(Option<TabId>, Rect, Rect)> {
+        let state = self.state.get_untracked();
+        if state.is_dock_bar(bar) {
+            let (body, pane) = self.bar_areas(bar)?;
+            return pane.contains(pos).then_some((None, body, pane));
+        }
+        let own = state.bar_tab(bar);
+        own.into_iter()
+            .chain(state.bar_panes(bar).into_iter().filter(|tab| Some(*tab) != own))
+            .find_map(|tab| {
+                let (body, pane) = self.pane_areas(tab)?;
+                pane.contains(pos).then_some((Some(tab), body, pane))
+            })
+    }
+
+    fn areas(&self, body: NodeRef, pane: NodeRef) -> Option<(Rect, Rect)> {
         let body = measure(body.try_get()?).get_untracked()?.rect;
         let pane = pane
             .try_get()
@@ -402,20 +426,33 @@ impl State {
         Some((body, pane))
     }
 
-    fn stacked_on(&self, bar: TabId, placement: DockBarPlacement) -> Vec<(TabId, Rect)> {
+    fn stacked_on(
+        &self,
+        bar: TabId,
+        pane: Option<TabId>,
+        placement: DockBarPlacement,
+    ) -> Vec<(TabId, Rect)> {
         let state = self.state.get_untracked();
-        state
-            .bars_with(bar)
-            .into_iter()
+        let held = match pane {
+            Some(tab) => state.pane_bars(tab),
+            None => state.bars_with(bar),
+        };
+        held.into_iter()
             .filter(|other| *other != bar && state.bar_placement(*other) == Some(placement))
             .filter_map(|other| Some((other, self.bar_panel_rect(other)?)))
             .collect()
     }
 
-    fn band_align(&self, bar: TabId, edge: DockEdge, pos: Pos2) -> Option<DockAlign> {
+    fn band_align(
+        &self,
+        bar: TabId,
+        pane: Option<TabId>,
+        edge: DockEdge,
+        pos: Pos2,
+    ) -> Option<DockAlign> {
         let at = along_of(edge, pos);
         DockAlign::ALL.into_iter().find(|align| {
-            let lined = self.stacked_on(bar, DockBarPlacement::Beside(edge, *align));
+            let lined = self.stacked_on(bar, pane, DockBarPlacement::Beside(edge, *align));
             let start = lined
                 .iter()
                 .map(|(_, rect)| along_start(edge, *rect))
@@ -430,30 +467,36 @@ impl State {
         })
     }
 
-    fn band_slot(&self, bar: TabId, placement: DockBarPlacement, pos: Pos2) -> usize {
+    fn band_slot(
+        &self,
+        bar: TabId,
+        pane: Option<TabId>,
+        placement: DockBarPlacement,
+        pos: Pos2,
+    ) -> usize {
         let edge = placement.edge();
         let at = along_of(edge, pos);
-        let own = self.layer_of(bar);
-        self.stacked_on(bar, placement)
+        self.stacked_on(bar, pane, placement)
             .iter()
             .filter(|(other, rect)| {
-                self.layer_of(*other) == own
+                self.same_layer(bar, *other)
                     && (along_start(edge, *rect) + along_end(edge, *rect)) / 2.0 < at
             })
             .count()
     }
 
-    fn layer_of(&self, bar: TabId) -> usize {
+    /// Whether two bars belong to one layer: a drop slots a bar only among its own owner's bars,
+    /// as `DockState::place_bar_at` counts them.
+    fn same_layer(&self, bar: TabId, other: TabId) -> bool {
         self.state
-            .with_untracked(|state| state.bar_depth(bar))
-            .unwrap_or(0)
+            .with_untracked(|state| state.bar_owner(bar) == state.bar_owner(other))
     }
 
     pub(super) fn resolve_bar(
         &self,
         point: DragPoint,
         bar: TabId,
-    ) -> Option<(DockBarPlacement, usize)> {
+    ) -> Option<BarPlace> {
         let current = self
             .state
             .with_untracked(|state| state.bar_placement(bar))?;
@@ -461,23 +504,24 @@ impl State {
             return None;
         }
         let (grab, size) = self.bar_grab.get();
-        if let Some((body, pane)) = self
-            .bar_areas(bar)
-            .filter(|(_, pane)| pane.contains(point.pos))
-        {
+        if let Some((on, body, pane)) = self.pane_at(bar, point.pos) {
             let (edge, distance) = nearest_edge(pane, point.pos);
             let beside = reach(pane, body, edge);
             let band = band(body);
             if distance < self.dock_reach(edge, beside, size) {
                 let align = self
-                    .band_align(bar, edge, point.pos)
+                    .band_align(bar, on, edge, point.pos)
                     .unwrap_or_else(|| along_third(body, edge, point.pos));
                 let placement = DockBarPlacement::Beside(edge, align);
-                return Some((placement, self.band_slot(bar, placement, point.pos)));
+                return Some(BarPlace {
+                    placement,
+                    slot: self.band_slot(bar, on, placement, point.pos),
+                    pane: on,
+                });
             }
             let align = along_third(body, edge, point.pos);
             let placement = DockBarPlacement::Over(edge, align);
-            let stacked = self.stacked_on(bar, placement);
+            let stacked = self.stacked_on(bar, on, placement);
             let over_far = stacked
                 .iter()
                 .map(|(_, rect)| reach_far(pane, *rect, edge))
@@ -485,25 +529,29 @@ impl State {
             if distance >= (beside + band * 2.0).max(over_far + band) {
                 return None;
             }
-            let own = self.layer_of(bar);
             let slot = stacked
                 .iter()
                 .filter(|(other, rect)| {
-                    self.layer_of(*other) == own && centre_reach(pane, *rect, edge) < distance
+                    self.same_layer(bar, *other) && centre_reach(pane, *rect, edge) < distance
                 })
                 .count();
-            return Some((placement, slot));
+            return Some(BarPlace {
+                placement,
+                slot,
+                pane: on,
+            });
         }
         let dock = self.rect.get_untracked();
         let origin = point.pos - dock.min.to_vec2() - grab;
         let origin = self.clamped_origin(Rect::from_min_size(origin, size), dock.size());
-        Some((
-            DockBarPlacement::Window {
+        Some(BarPlace {
+            placement: DockBarPlacement::Window {
                 edge: current.edge(),
                 origin,
             },
-            0,
-        ))
+            slot: 0,
+            pane: None,
+        })
     }
 
     /// How near `edge` the pointer docks a carried bar of `size` in its band, `beside` deep: half a
@@ -515,7 +563,7 @@ impl State {
         let lift = self.lifting.lift.get_untracked();
         let docked = lift
             .and_then(|lift| lift.target)
-            .is_some_and(|(placement, _)| placement.is_beside() && placement.edge() == edge);
+            .is_some_and(|target| target.placement.is_beside() && target.placement.edge() == edge);
         if docked {
             return depth * DOCK_HOLD;
         }
@@ -542,32 +590,36 @@ impl State {
         let point = self.at_home(point);
         let lifted = self.lifting.lifts(bar);
         let resolved = self.resolve_bar(point, bar);
-        let docks = resolved.is_some_and(|(placement, _)| placement.is_beside());
+        let docks = resolved.is_some_and(|target| target.placement.is_beside());
         let target = lifted
             .then(|| self.thrown(bar, point))
             .flatten()
             .filter(|_| !docks)
             .or(resolved)
             .or_else(|| self.float_near(bar, point));
-        let Some((placement, slot)) = target.or_else(|| {
+        let Some(target) = target.or_else(|| {
             let state = self.state.get_untracked();
-            Some((state.bar_placement(bar)?, state.bar_slot(bar)))
+            Some(BarPlace {
+                placement: state.bar_placement(bar)?,
+                slot: state.bar_slot(bar),
+                pane: None,
+            })
         }) else {
             self.end_lift();
             return;
         };
-        if placement.is_window() {
-            self.place_bar(bar, placement);
+        if target.placement.is_window() {
+            self.place_bar(bar, target.placement);
             self.end_lift();
             return;
         }
         let dock = *self;
         self.edit(|state| {
-            state.place_bar_at(bar, placement, slot);
+            target.apply(state, bar);
             dock.share_placement(state, bar);
         });
         if lifted {
-            self.settle_lift(placement, slot);
+            self.settle_lift(target);
         }
     }
 
@@ -662,7 +714,11 @@ impl State {
         let Some(placement) = state.bar_placement(bar) else {
             return;
         };
-        let target = (!placement.is_window()).then(|| (placement, state.bar_slot(bar)));
+        let target = (!placement.is_window()).then(|| BarPlace {
+            placement,
+            slot: state.bar_slot(bar),
+            pane: None,
+        });
         let floated = match placement {
             DockBarPlacement::Over(edge, _) => self
                 .bar_areas(bar)
@@ -711,9 +767,11 @@ impl State {
         }
         let target = self
             .resolve_bar(point, lift.bar)
-            .filter(|(placement, _)| !placement.is_window());
+            .filter(|target| !target.placement.is_window());
         let still_over = |edge: DockEdge| {
-            target.is_some_and(|(placement, _)| !placement.is_beside() && placement.edge() == edge)
+            target.is_some_and(|target| {
+                !target.placement.is_beside() && target.placement.edge() == edge
+            })
         };
         if lift.floated.is_some_and(|(edge, _)| !still_over(edge)) {
             self.lifting.lift.set(Some(Lift {
@@ -742,7 +800,7 @@ impl State {
         }
     }
 
-    fn retarget(&self, target: Option<(DockBarPlacement, usize)>) {
+    fn retarget(&self, target: Option<BarPlace>) {
         let lifting = self.lifting;
         let Some(lift) = lifting.lift.get_untracked() else {
             return;
@@ -778,15 +836,18 @@ impl State {
         lifting.lift.set(Some(Lift { target, ..lift }));
     }
 
-    fn settle_lift(&self, placement: DockBarPlacement, slot: usize) {
+    fn settle_lift(&self, target: BarPlace) {
         let lifting = self.lifting;
         {
             let flight = lifting.flight.value();
             let mut flight = flight.borrow_mut();
             let mut speed = flight.velocity.get();
             // A bar held in a band moved only along it, whatever the pointer did across it.
-            if let Some((DockBarPlacement::Beside(edge, _), _)) =
-                lifting.lift.get_untracked().and_then(|lift| lift.target)
+            if let Some(DockBarPlacement::Beside(edge, _)) = lifting
+                .lift
+                .get_untracked()
+                .and_then(|lift| lift.target)
+                .map(|target| target.placement)
             {
                 match edge.direction() {
                     Direction::Horizontal => speed.y = 0.0,
@@ -795,7 +856,7 @@ impl State {
             }
             flight.speed = speed;
         }
-        self.retarget(Some((placement, slot)));
+        self.retarget(Some(target));
         lifting.lift.update(|lift| {
             if let Some(lift) = lift {
                 lift.settling = true;
@@ -836,11 +897,10 @@ impl State {
         }
     }
 
-    fn thrown(&self, bar: TabId, point: DragPoint) -> Option<(DockBarPlacement, usize)> {
+    fn thrown(&self, bar: TabId, point: DragPoint) -> Option<BarPlace> {
         let velocity = self.lifting.flight.value().borrow().velocity.get();
-        let (body, pane) = self.bar_areas(bar)?;
+        let (on, body, pane) = self.pane_at(bar, point.pos)?;
         let thrown = point.window == self.home()
-            && pane.contains(point.pos)
             && motion().animates()
             && velocity.length() >= THROW_SPEED;
         if !thrown {
@@ -860,32 +920,36 @@ impl State {
             (false, _, false) => DockEdge::Top,
         };
         let hit = point.pos + velocity * across.min(down);
-        Some(self.floating_at(bar, edge, along_third(body, edge, hit)))
+        Some(self.floating_at(bar, on, edge, along_third(body, edge, hit)))
     }
 
-    fn float_near(&self, bar: TabId, point: DragPoint) -> Option<(DockBarPlacement, usize)> {
-        let (body, pane) = self.bar_areas(bar)?;
-        if point.window != self.home() || !pane.contains(point.pos) {
+    fn float_near(&self, bar: TabId, point: DragPoint) -> Option<BarPlace> {
+        if point.window != self.home() {
             return None;
         }
+        let (on, body, pane) = self.pane_at(bar, point.pos)?;
         let (edge, _) = nearest_edge(pane, point.pos);
-        Some(self.floating_at(bar, edge, along_third(body, edge, point.pos)))
+        Some(self.floating_at(bar, on, edge, along_third(body, edge, point.pos)))
     }
 
     fn floating_at(
         &self,
         bar: TabId,
+        pane: Option<TabId>,
         edge: DockEdge,
         align: DockAlign,
-    ) -> (DockBarPlacement, usize) {
+    ) -> BarPlace {
         let placement = DockBarPlacement::Over(edge, align);
-        let own = self.layer_of(bar);
         let slot = self
-            .stacked_on(bar, placement)
+            .stacked_on(bar, pane, placement)
             .iter()
-            .filter(|(other, _)| self.layer_of(*other) == own)
+            .filter(|(other, _)| self.same_layer(bar, *other))
             .count();
-        (placement, slot)
+        BarPlace {
+            placement,
+            slot,
+            pane,
+        }
     }
 
     fn lift_goal(&self, lift: Lift, flight: &Flight) -> Option<Pos2> {
@@ -899,8 +963,8 @@ impl State {
             flight.grab.y.clamp(0.0, size.y.max(0.0)),
         );
         let free = flight.pointer - grab;
-        Some(match lift.target {
-            Some((DockBarPlacement::Beside(edge, _), _)) => {
+        Some(match lift.target.map(|target| target.placement) {
+            Some(DockBarPlacement::Beside(edge, _)) => {
                 // Until the gap it lands in is measured, the bar keeps its place across the band
                 // rather than following the pointer out of it for a frame.
                 let held = gap.map_or(flight.pos, |gap| gap.min);
@@ -1008,7 +1072,7 @@ pub(super) struct Lift {
     bar: TabId,
     edge: DockEdge,
     from: Option<DockBarPlacement>,
-    target: Option<(DockBarPlacement, usize)>,
+    target: Option<BarPlace>,
     /// The edge a bar grabbed floating floated over, and how far from it the pointer grabbed, until
     /// it is carried away from that edge.
     floated: Option<(DockEdge, f32)>,
@@ -1016,9 +1080,27 @@ pub(super) struct Lift {
     carried: bool,
 }
 
+/// Where a carried bar would land: its placement, its slot among its own layer's bars there, and
+/// for a bar that may show on several panes (`DockState::bar_panes`), the tab whose pane it is.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) struct BarPlace {
+    placement: DockBarPlacement,
+    slot: usize,
+    pane: Option<TabId>,
+}
+
+impl BarPlace {
+    fn apply(self, state: &mut DockState, bar: TabId) {
+        if let Some(pane) = self.pane {
+            state.set_bar_pane(bar, pane);
+        }
+        state.place_bar_at(bar, self.placement, self.slot);
+    }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 struct Gone {
-    place: (DockBarPlacement, usize),
+    place: BarPlace,
     size: Vec2,
 }
 
@@ -1057,7 +1139,7 @@ impl Lifting {
             let lift = lift.get()?;
             let mut state = state.get();
             match lift.target {
-                Some((placement, slot)) => state.place_bar_at(lift.bar, placement, slot),
+                Some(target) => target.apply(&mut state, lift.bar),
                 None => state.set_bar_hidden(lift.bar, true),
             }
             Some(state)
@@ -1066,8 +1148,7 @@ impl Lifting {
             let lift = lift.get()?;
             let gone = gone.get()?;
             let mut state = state.get();
-            let (placement, slot) = gone.place;
-            state.place_bar_at(lift.bar, placement, slot);
+            gone.place.apply(&mut state, lift.bar);
             Some((lift.bar, state))
         });
         Self {
@@ -1095,7 +1176,7 @@ impl Lifting {
     fn looks(&self, bar: TabId) -> Option<DockBarPlacement> {
         let lift = self.lift.get().filter(|lift| lift.bar == bar)?;
         Some(match lift.target {
-            Some((placement, _)) => placement,
+            Some(target) => target.placement,
             None => DockBarPlacement::Window {
                 edge: lift.edge,
                 origin: Pos2::ZERO,
@@ -1955,7 +2036,7 @@ fn DockBarSlot(dock: State, bar: TabId, placement: DockBarPlacement) -> NodeId {
                     lift.bar == bar
                         && lift
                             .target
-                            .is_some_and(|(target, _)| target.same_place(placement))
+                            .is_some_and(|target| target.placement.same_place(placement))
                 })
             })
     });

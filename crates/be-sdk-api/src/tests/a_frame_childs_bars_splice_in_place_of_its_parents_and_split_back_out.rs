@@ -79,6 +79,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
                     align: DockAlign::Center,
                 }),
                 hidden: false,
+                pane: None,
             }],
             outside: Vec::new(),
         },
@@ -113,6 +114,7 @@ fn a_frame_childs_bars_splice_in_place_of_its_parents_and_split_back_out() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         }]
     );
     assert_eq!(

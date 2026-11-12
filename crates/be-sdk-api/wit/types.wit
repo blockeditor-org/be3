@@ -1094,12 +1094,14 @@ interface types {
 
     /// Where a bar of the layout sits now; `owner` as in `dock-bar`.
     /// A `hidden` bar takes no room and is not drawn until it is shown
-    /// again.
+    /// again. A bar of a tab hosting a joined dock shows on the pane of
+    /// that dock holding the tab `pane`, else on its first pane.
     record dock-placed-bar {
         bar: dock-tab-path,
         owner: option<dock-tab-path>,
         placement: dock-bar-placement,
         hidden: bool,
+        pane: option<dock-tab-path>,
     }
 
     /// A pane of the root's outside the declaration's group, by its key, and
