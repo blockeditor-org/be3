@@ -305,6 +305,7 @@ impl Command {
             Command::HoldClock(..) => "hold clock",
             Command::Duplicate { .. } => "duplicate",
             Command::Seed { .. } => "seed",
+
             Command::Replace { .. } => "replace",
             Command::Flush(..) => "flush",
             Command::History { .. } => "history",
@@ -356,6 +357,35 @@ impl Command {
                 | Command::Members(_)
                 | Command::BlockAgent { .. }
         )
+    }
+
+    /// Whether the command reaches only the blocks it names (`needs`), so it may run while the
+    /// lane holds others (`Served`). The rest, which may reach a whole tree (a version command,
+    /// a duplicate, an import), wait for the lane to be empty.
+    fn order_safe(&self) -> bool {
+        #[cfg(any(test, feature = "testing"))]
+        if let Command::Close(_) = self {
+            return true;
+        }
+        matches!(
+            self,
+            Command::Operate(..)
+                | Command::FromEditor { .. }
+                | Command::HoldClock(_)
+                | Command::Attach { .. }
+                | Command::Detach { .. }
+                | Command::Open { .. }
+                | Command::History { .. }
+                | Command::Seed { .. }
+                | Command::Flush(_)
+                | Command::Storage
+                | Command::WatchVersion(_)
+                | Command::DismissPairing(_)
+                | Command::SetNotifyMode { .. }
+                | Command::Push(_)
+                | Command::Create { .. }
+                | Command::Define { .. }
+        ) || self.served()
     }
 
     fn is_quick(&self) -> bool {
@@ -1146,18 +1176,15 @@ impl Session<'_> {
                                 self.uploads.add(blocks);
                                 ran.done();
                             }
-                            command => match self.uploads.defer(command) {
-                                Some(command) if command.served() && peer.is_attached() => {
-                                    ran.served.start(peer, shared, ran.tasks, command);
-                                    ran.done();
+                            command => {
+                                let runs = self
+                                    .uploads
+                                    .defer(command)
+                                    .and_then(|command| ran.served.defer(command));
+                                if let Some(command) = runs {
+                                    applied |= ran.carry_out(command).await;
                                 }
-                                Some(command) => {
-                                    if let Some(command) = ran.served.defer(command) {
-                                        applied |= ran.run(command).await;
-                                    }
-                                }
-                                None => {}
-                            },
+                            }
                         }
                         if quick {
                             next = self.commands.try_recv().ok();
@@ -1232,7 +1259,7 @@ impl Session<'_> {
                     };
                     for command in runnable {
                         step(shared, Some(command.name()));
-                        ran.run(command).await;
+                        ran.carry_out(command).await;
                     }
                     true
                 }
@@ -1870,6 +1897,18 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
 }
 
 impl Ran<'_> {
+    /// Hands a command that needs only the server to the lane while the device is attached
+    /// (`Served`), and carries out any other.
+    async fn carry_out(&mut self, command: Command) -> bool {
+        if command.served() && self.peer.is_attached() {
+            self.served.start(self.peer, self.shared, self.tasks, command);
+            self.done();
+            return false;
+        }
+        // Boxed: the loop awaits this in several places, and `run`'s future is large.
+        Box::pin(self.run(command)).await
+    }
+
     async fn run(&mut self, command: Command) -> bool {
         let command = match self.peer.is_attached() {
             true => Some(command),

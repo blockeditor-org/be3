@@ -1,10 +1,18 @@
-//! The lane of commands that need only the server (`Command::served`): they run in order in tasks
-//! beside the worker's loop, so a server that stopped answering holds up only them, not the
-//! loop and the commands queued in it (guides/blocks/host.md, Commands that need the server).
+//! The lane of server work beside the worker's loop (guides/blocks/host.md, Commands that need
+//! the server): commands that need only the server (`Command::served`) run one at a time in the
+//! order sent, each in a task, so a server that stopped answering holds up only the lane, not
+//! the loop and the edits queued in it.
+//!
+//! Order. A command the loop carries out waits (`defer`) while:
+//! - the lane holds a block it needs (`Command::needs`), until the lane is done with it;
+//! - it is not order-safe (`Command::order_safe`: it may reach blocks it does not name, as a
+//!   version command reaches a whole tree), until the lane is empty;
+//! - a command deferred before it needs one of its blocks, or is not order-safe: so nothing
+//!   overtakes what was sent first.
 
 use std::{
-    cell::RefCell,
-    collections::{HashMap, VecDeque},
+    cell::{Cell, RefCell},
+    collections::{HashMap, HashSet, VecDeque},
     rc::Rc,
     sync::{Arc, PoisonError},
 };
@@ -18,9 +26,11 @@ use super::{Command, Peer, Shared, Store, Tasks};
 pub(super) struct Served {
     /// Held by the command that runs, so they reach the server in the order they were sent.
     lane: Rc<tokio::sync::Mutex<()>>,
+    /// Commands in the lane, running or waiting their turn.
+    in_lane: Rc<Cell<usize>>,
     /// The blocks the lane's commands need, counted, until each command ends.
     holding: Rc<RefCell<HashMap<Uuid, usize>>>,
-    /// Commands for the loop that wait for the lane to be done with a block they need.
+    /// Commands for the loop that wait (see the module's doc).
     deferred: Rc<RefCell<VecDeque<Command>>>,
 }
 
@@ -56,13 +66,15 @@ impl Served {
                 *holding.entry(*block).or_default() += 1;
             }
         }
+        self.in_lane.set(self.in_lane.get() + 1);
         shared
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .serving += 1;
-        let (lane, holding, shared) = (
+        let (lane, holding, in_lane, shared) = (
             Rc::clone(&self.lane),
             Rc::clone(&self.holding),
+            Rc::clone(&self.in_lane),
             Arc::clone(shared),
         );
         tasks.spawn(async move {
@@ -79,6 +91,7 @@ impl Served {
                     }
                 }
             }
+            in_lane.set(in_lane.get() - 1);
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -87,16 +100,21 @@ impl Served {
         });
     }
 
-    /// The command back when nothing it needs is in the lane and nothing deferred before it
-    /// needs it too; otherwise it waits, and `runnable` hands it back once the lane is done.
+    /// The command back when it may run now (see the module's doc); otherwise it waits, and
+    /// `runnable` hands it back once it may.
     pub(super) fn defer(&mut self, command: Command) -> Option<Command> {
-        let needs = command.needs();
-        let behind = self.deferred.borrow().iter().any(|earlier| {
-            earlier
-                .subject()
-                .is_some_and(|subject| needs.contains(&subject))
-        });
-        if !behind && !self.holds(&command) {
+        let behind = {
+            let deferred = self.deferred.borrow();
+            let needs = command.needs();
+            deferred.iter().any(|earlier| {
+                !earlier.order_safe()
+                    || !command.order_safe()
+                    || earlier
+                        .subject()
+                        .is_some_and(|subject| needs.contains(&subject))
+            })
+        };
+        if !behind && !self.waits(&command) {
             return Some(command);
         }
         self.deferred.borrow_mut().push_back(command);
@@ -105,13 +123,17 @@ impl Served {
 
     pub(super) fn runnable(&mut self) -> Vec<Command> {
         let mut runnable = Vec::new();
-        let mut waiting = std::collections::HashSet::new();
+        let mut waiting = HashSet::new();
+        let mut barred = false;
         let deferred = std::mem::take(&mut *self.deferred.borrow_mut());
         for command in deferred {
-            let behind = command.needs().iter().any(|block| waiting.contains(block));
-            match behind || self.holds(&command) {
+            let behind = barred
+                || (!command.order_safe() && !waiting.is_empty())
+                || command.needs().iter().any(|block| waiting.contains(block));
+            match behind || self.waits(&command) {
                 true => {
                     waiting.extend(command.subject());
+                    barred |= !command.order_safe();
                     self.deferred.borrow_mut().push_back(command);
                 }
                 false => runnable.push(command),
@@ -126,7 +148,10 @@ impl Served {
         self.holding.borrow().contains_key(&block)
     }
 
-    fn holds(&self, command: &Command) -> bool {
+    fn waits(&self, command: &Command) -> bool {
+        if !command.order_safe() && self.in_lane.get() > 0 {
+            return true;
+        }
         let holding = self.holding.borrow();
         command
             .needs()

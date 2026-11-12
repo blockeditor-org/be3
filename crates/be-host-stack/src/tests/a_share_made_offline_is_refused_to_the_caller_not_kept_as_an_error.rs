@@ -8,6 +8,7 @@ fn a_share_made_offline_is_refused_to_the_caller_not_kept_as_an_error() {
     harness.connect();
     let block = Uuid::new_v4();
     written(block, "a note");
+    flush_and_send();
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
 
@@ -26,5 +27,12 @@ fn a_share_made_offline_is_refused_to_the_caller_not_kept_as_an_error() {
         let _ = answered.send(left);
     });
     assert!(answer.recv().expect("leaving is answered").is_err());
-    assert_eq!(status().error, None, "a refusal is not the host's error");
+    // What the host does say offline is that it lost its connection, not either refusal.
+    assert!(
+        status()
+            .error
+            .is_none_or(|error| !error.contains("You're offline")),
+        "a refusal is not the host's error: {:?}",
+        status().error
+    );
 }

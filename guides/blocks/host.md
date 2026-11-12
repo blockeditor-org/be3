@@ -163,12 +163,16 @@ block (move, share, list access, read a head, leave, approve pairing, members,
 block agents; `Command::served`) run in a lane beside the loop
 (`worker/served.rs`): one at a time, in the order sent, each in a task, so a
 server that stopped answering holds up only the lane. They count as unsynced,
-not busy (`Shared::serving`). A loop command that needs a block a lane command
-holds waits for it (`Served::defer`), and an open block whose key the lane
-rotates is resealed once that command ends. Commands that also need the open
-blocks (create, duplicate, define, versions, merging a diverged block) still
-wait in the loop, so on a server that stopped answering the commands behind
-one wait until the connection is declared lost.
+not busy (`Shared::serving`). Offline, sharing, leaving and approving a device
+are refused to the caller, who shows it where the person acted; they are not
+kept for later and are not the host's error. Order: a loop command waits while
+the lane holds a block it needs (`Command::needs`); one that is not order-safe
+(`Command::order_safe`: it may reach blocks it does not name, as a version
+command or a duplicate reaches a tree) waits until the lane is empty; and none
+overtakes a command deferred before it. An open block whose key the lane
+rotates is resealed once that command ends. Create, define, duplicate, versions
+and merging still run in the loop, so on a server that stopped answering the
+commands behind one wait until the connection is declared lost.
 
 ## The graph mirror
 
