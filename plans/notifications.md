@@ -23,9 +23,11 @@ host call and the mute menu have landed (guides/blocks/server.md,
   offline, from the key rows the device keeps in its refs database
   (`Peer::cached`, guides/blocks/client.md), refusing one sealed about another
   organization, block or sender, or older than `MAX_NOTIFICATION_AGE_MILLISECONDS`.
-- **The app protocol**: `host-services.notify(block, text, mentions)`, which
-  the host seals (`Peer::notify`); `NotifyModesWatch` and `set-notify-mode`,
-  which the workspace's block menu uses.
+- **Sending**: a block type announces its edits (`LiveEdit::announcements`),
+  which the host keeps with each edit and seals and sends (`Peer::notify`) once
+  the server holds it (guides/type_modules.md, "Announcements"); the app
+  protocol has `NotifyModesWatch` and `set-notify-mode`, which the workspace's
+  block menu uses.
 - The web build's service worker (`crates/be-host/web/sw.js`) caches the host's
   files and handles pushes: it asks an open window to open one (`web/push.js`,
   `be-host/src/web_push.rs`) and shows the answer, or "New message"

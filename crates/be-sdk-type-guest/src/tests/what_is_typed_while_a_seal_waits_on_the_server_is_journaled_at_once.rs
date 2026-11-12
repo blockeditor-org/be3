@@ -2,7 +2,7 @@ use super::*;
 
 /// An owner alone keeps journaling what is typed while its seal waits on a server that does not
 /// answer, so the edit is on the device at once; once the seal lands, the journal starts over
-/// from the commit and still holds what came after it.
+/// from the commit holding what came after it, in one write, so a crash right then keeps it.
 #[test]
 fn what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once() {
     let mut sim = Sim::<ProseContent>::new(1, prose_module);
@@ -34,9 +34,14 @@ fn what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once() {
         !journal.entries.is_empty(),
         "the journal still holds what came after the seal"
     );
-    sim.advance(crate::QUIET_INTERVAL);
-    assert_eq!(prose(&sim.head_content()), "soup and bread");
     sim.crash(0);
     sim.open(0);
-    assert_eq!(prose(&sim.content(0)), "soup and bread");
+    assert_eq!(
+        prose(&sim.content(0)),
+        "soup and bread",
+        "a crash right after the seal is answered keeps what came after it"
+    );
+    sim.attach(0, 1, true);
+    sim.advance(crate::QUIET_INTERVAL);
+    assert_eq!(prose(&sim.head_content()), "soup and bread");
 }

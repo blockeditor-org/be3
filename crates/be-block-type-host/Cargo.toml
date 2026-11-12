@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-wasm-threads = { path = "../be-wasm-threads" }
+be-block = { path = "../be-block" }
 be-block-client = { path = "../be-block-client" }
 be-block-commit = { path = "../be-block-commit" }
 be-block-graph = { path = "../be-block-graph" }
@@ -26,7 +27,6 @@ uuid = { version = "1", features = ["v4"] }
 be-wasm-host = { path = "../be-wasm-host" }
 
 [dev-dependencies]
-be-block = { path = "../be-block" }
 be-block-keys = { path = "../be-block-keys" }
 be-server = { path = "../be-server" }
 be-sdk-type-testing = { path = "../be-sdk-type-testing" }

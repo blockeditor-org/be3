@@ -15,9 +15,9 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
         });
         view! {
             <Element tag="div">
-                <ShowKeepAlive condition={open}>
+                <Show keep_alive=true condition={open}>
                     <Element tag="p" text={text} />
-                </ShowKeepAlive>
+                </Show>
             </Element>
         }
     });
@@ -31,7 +31,7 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
     assert_eq!(
         runs.with(Cell::get),
         1,
-        "a hidden `ShowKeepAlive` runs none of its child's updates"
+        "a hidden kept-alive `Show` runs none of its child's updates"
     );
 
     open.set(true);

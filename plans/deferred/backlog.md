@@ -17,3 +17,9 @@ Items set aside until the user picks them up.
   every later one. No reproduction yet, and a headless machine has no real
   wheel: it needs the backend (winit, DRM and libinput, or the web) and an
   input sequence to replay before it can be fixed.
+
+- **be-host's overflow check flags a child slid or scrolled by its parent.** be-host clips
+  each child view to the clip window its parent reports (`compositor/editors.rs`), and cannot
+  see a translation or scroll inside the parent app's document, so a host painting of a back
+  swipe or a half-scrolled child fails as "cut off by a clip nothing scrolls". Let the parent
+  report that the child's window moves with its content, and exempt it as a pannable canvas is.

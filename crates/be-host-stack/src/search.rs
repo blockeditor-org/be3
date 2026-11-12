@@ -1316,11 +1316,17 @@ fn confirm_names(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &T
 struct PeerParts<'a, S: ObjectStore>(&'a Peer<S>);
 
 impl<S: ObjectStore> AsyncRead for PeerParts<'_, S> {
-    async fn read(&self, part: PartRef, range: Range<u64>) -> Result<Vec<u8>, String> {
-        self.0
-            .read_part(part, range.start, range.end - range.start)
-            .await
-            .map_err(|error| error.to_string())
+    fn read(
+        &self,
+        part: PartRef,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(async move {
+            self.0
+                .read_part(part, range.start, range.end - range.start)
+                .await
+                .map_err(|error| error.to_string())
+        })
     }
 }
 

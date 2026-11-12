@@ -6,7 +6,8 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        byte-range, commit-id, description, journal-base, journal-entry, loaded, undo-state, merging,
+        announced, announcement, byte-range, commit-id, description, journal-base, journal-entry,
+        loaded, undo-state, merging,
         part-ref, recipients, resume, status, written,
     };
 
@@ -42,10 +43,14 @@ interface host {
     /// unchanged save answers `published` with the same head; one sealed on
     /// this device alone, offline or behind others in its outbox, answers
     /// `kept`, and the replica hears `drained` once it reaches the server.
+    /// `sealed-through`, for a seal of the session's owner, is the last sequence number the
+    /// content holds: kept with the commit, so what was journaled past it while the commit was
+    /// on its way replays on top of it when the journal is still on the commit's parent.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
+        sealed-through: option<u64>,
     ) -> result<publish-outcome, string>;
 
     variant publish-outcome {
@@ -70,13 +75,24 @@ interface host {
     /// journal, on the device and on the server, and with `relay` the server
     /// relays each entry to every other participant as `send` to peers would.
     /// True once the server holds the entries; false when only the device
-    /// does (offline, or the server did not take them).
-    append: async func(generation: u64, entries: list<journal-entry>, relay: bool) -> bool;
+    /// does (offline, or the server did not take them). `announcements` are
+    /// those of the edits made on this device among the entries: the host
+    /// keeps them beside the entries and sends them once the server holds
+    /// the entries, or a commit of this device that holds them (`rebase-journal`).
+    append: async func(
+        generation: u64,
+        entries: list<journal-entry>,
+        relay: bool,
+        announcements: list<announced>,
+    ) -> bool;
 
     /// The owner of `generation` starts the journal from `base`: after each
     /// commit, and before its first append when the journal it opened with
-    /// was not its base.
-    rebase-journal: async func(generation: u64, base: journal-base);
+    /// was not its base. `entries` are what it sequenced past the base
+    /// meanwhile, kept with the base in one write. The announcements kept
+    /// beside the entries `base` holds go with its commit when this device
+    /// sealed it, sent once the server holds it; the others are dropped.
+    rebase-journal: async func(generation: u64, base: journal-base, entries: list<journal-entry>);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
     send: async func(to: recipients, bytes: list<u8>);
@@ -92,4 +108,9 @@ interface host {
     conflict: async func(ours: commit-id, theirs: commit-id, count: u32);
 
     error: async func(message: string);
+
+    /// Announcements of edits made on this device that the server already
+    /// holds (a follower's, once the owner accepted them): the host sends each
+    /// it has not sent before.
+    announce: async func(announcements: list<announcement>);
 }

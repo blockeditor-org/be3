@@ -65,7 +65,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
     let spread = create_memo(move || roomy.get().then_some(children));
     let scrolled = create_memo(move || narrow.get().then_some(children));
     view! {
-        <ShowKeepAlive condition={shown}>
+        <Show keep_alive=true condition={shown}>
             <Frame fill=ColorRole::Surface>
                 <List spacing=Space::None>
                     <Show condition={roomy}>
@@ -101,6 +101,6 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
                     <Separator />
                 </List>
             </Frame>
-        </ShowKeepAlive>
+        </Show>
     }
 }

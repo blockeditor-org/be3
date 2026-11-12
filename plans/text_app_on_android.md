@@ -50,29 +50,6 @@ here runs Android. Line numbers are from when this was written. Remove an item w
      back-then-reopen. Decide where it lives so that reopening a document from the files list
      finds it.
 
-## Back gesture
-
-2. **The system back gesture stops working after its first use in a session.** The first
-   `drive back` after launch leaves the document for Files. Every later one, in any document,
-   slides and then snaps back to the document. The dock's Back button (`#dock.back`) still
-   works.
-   - `BackSlide` gets `Invoked`, calls `on_back`, and returns because the tab is still open
-     (`crates/beui-components-unstyled/src/back_slide.rs:121-136`).
-   - `on_back` is `dock.go_back()` (`crates/beui-dock-host/src/unstyled.rs:937-947`), which
-     does not close or leave the tab in this state.
-   - Find why: the dock history (`crates/beui-dock-state/src/history.rs`) or
-     `closes_going_back` are the first suspects.
-3. **The failing back gesture draws the wrong pages.** Step it frame by frame (`drive clock
-   stop`, `drive --no-settle back`, then `pause 16` and `shot` per frame):
-   - the page that slides away is a copy of the Files page (back arrow, "Files" title, the
-     list), not the document;
-   - the page behind it is blank;
-   - next comes a frame of Files with an empty body;
-   - then it jumps back to the document.
-
-   Check that the slide shows the document over the Files preview, including once item 2 is
-   fixed. Add a painting of a mid-gesture frame.
-
 ## Offline-first
 
 Host tests reproduce these with a device of a test's server (guides/testing_a_gui.md, 6):
@@ -100,64 +77,15 @@ What already works, and must keep working:
 - an edit made during a drop came through a reconnect once, with no duplicate, and synced;
 - edits survive `kill -9`, even straight after typing.
 
-## Keyboard
-
-9. **The caret is not revealed when the keyboard opens.** Tap a line near the bottom of a long
-   document, then shrink the window to the keyboard-up height. The caret stays under the
-   keyboard until you type.
-   - The host's `reveal_focus` reveals the focused node, not the caret
-     (`crates/beui-core/src/document.rs:1536-1539`).
-   - TextArea reveals the caret only on edits and keys
-     (`crates/beui-components-unstyled/src/text_area.rs:454-505`).
-
-   Reveal the caret when the viewport shrinks.
-10. **The editor reports the whole text field as the caret to the input method after a
-    resize.** `drive state` says `its caret at 0,-800 size 1170x61905` until the next edit. It
-    should stay the caret's rectangle. Input methods use it to place their UI.
-11. **The keyboard is not shown again on unlock** (from reading the code). If it was up when
-    the phone locked, nothing asks for it again: `View` is only sent from `nativeCreate`, and
-    `show_window` acts only on a change (`crates/beui-platform-android/src/lib.rs:258-274`).
-12. **The layout jumps in one step while the keyboard slides** (from reading the code). There
-    is no `WindowInsetsAnimation` callback, so the clear color can show under the moving
-    keyboard. Follow the inset animation.
-
 ## Lock, unlock and single frames (from reading the code)
 
-13. **Unlocking can show a blank or stale frame.** `BeuiView` implements only
-    `SurfaceHolder.Callback`, and `surfaceChanged` returns before a frame is presented
-    (`crates/beui-platform-android/android/java/com/be3/beui/BeuiView.java:53-60`). Implement
-    `SurfaceHolder.Callback2.surfaceRedrawNeeded` (or `surfaceRedrawNeededAsync`) so Android
-    waits for the first frame on the new surface.
-14. **Input that arrives while there is no surface is thrown away**
-    (`crates/beui-runner/src/lib.rs:542-544`). A late touch cancel, focus loss or IME event
-    can be lost, leaving a stuck press or drag after resume. Keep the events that end
-    something.
-15. **The surface can be destroyed while the renderer still holds it.** `surfaceDestroyed`
-    waits at most 2 s for the runner to let go
-    (`crates/beui-platform-android/src/lib.rs:47, 1078-1086`). A frame that runs longer (a
-    long wasm step) leaves the renderer holding a destroyed surface.
 16. **The window loses 1 px of scroll when the format bar hides.** On `drive blur` (standing
     in for lock), the format bar goes and every line moves up by 1 px (line 279 from y=136 to
     y=135). Keep the scroll anchored to the content.
-
-## Power and frames
-
-17. **The text app runs about three steps for every host frame.**
-    - One fling: 351 window frames, about 1,060 `be3.text` steps (`drive frames`).
-    - Typing: 708 window frames, 683 steps.
-    - Idle with the caret blinking: 17 window frames, 24 steps.
-
-    guides/apps/runtime.md says a runtime is asked at most once per host frame. Find what
-    these steps are (input, layout and present commits, or extra draws) and drop any that
-    draw nothing.
-18. **A focused editor never goes idle.** With the keyboard up, the host ran about 4 frames a
-    second. The caret blink asks for a repaint every 530 ms with no end
-    (`crates/beui-core/src/base/text.rs:29, 752-764`). Two frames per blink is the most it
-    should cost. Consider stopping the blink after a while with no input, as other platforms
-    do.
-
-What already works: a fling decelerates smoothly frame by frame and ends within about 1 s. An
-unfocused editor draws nothing while idle.
+    Not reproduced since: with a 300-line Markdown document at several scroll offsets (from
+    wheel, drag and fling, a heading under the caret, a keyboard-height window), blur moved no
+    line, except within a bar's height of the end, where the view is pinned there. Find the
+    document and offset that show it before fixing.
 
 ## Opening documents
 

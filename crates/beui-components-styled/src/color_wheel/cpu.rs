@@ -5,7 +5,7 @@ use beui_components_unstyled::WheelGeometry;
 use beui_view::reactive::Painter;
 use beui_view::types::{Color, Color32, Hsva, Image, Oklch, Rect, Vec2, pos2};
 
-use super::{Face, Model};
+use super::{Face, WheelModel};
 
 const TIP_CHROMA: f32 = 0.38;
 const GAMUT_LINE_OPACITY: f32 = 0.7;
@@ -51,8 +51,8 @@ fn face_image(face: Face, side: u32, scale: f32) -> Image {
     let line = face.gamut_line * scale;
     let mut pixels = vec![0u8; (side * side * 4) as usize];
     let excess: Vec<f32> = match face.model {
-        Model::Hsv => Vec::new(),
-        Model::Oklch => (0..side * side)
+        WheelModel::Hsv => Vec::new(),
+        WheelModel::Oklch => (0..side * side)
             .map(|index| {
                 let at = pos2((index % side) as f32 + 0.5, (index / side) as f32 + 0.5);
                 let (saturation, value) = triangle_at(corners, at);
@@ -76,8 +76,8 @@ fn face_image(face: Face, side: u32, scale: f32) -> Image {
                 }
                 let (saturation, value) = triangle_at(corners, at);
                 let color = match face.model {
-                    Model::Hsv => Hsva::new(face.hue, saturation, value, 1.0).to_color(),
-                    Model::Oklch => {
+                    WheelModel::Hsv => Hsva::new(face.hue, saturation, value, 1.0).to_color(),
+                    WheelModel::Oklch => {
                         let index = (y * side + x) as usize;
                         let (lightness, chroma) = oklch_at(cusp, saturation, value);
                         let color =
@@ -108,10 +108,10 @@ fn coverage(depth: f32) -> f32 {
     (depth + 0.5).clamp(0.0, 1.0)
 }
 
-fn ring_color(model: Model, hue: f32) -> Color32 {
+fn ring_color(model: WheelModel, hue: f32) -> Color32 {
     match model {
-        Model::Hsv => Hsva::new(hue, 1.0, 1.0, 1.0).to_color(),
-        Model::Oklch => {
+        WheelModel::Hsv => Hsva::new(hue, 1.0, 1.0, 1.0).to_color(),
+        WheelModel::Oklch => {
             let tip = Oklch::cusp(hue);
             Oklch::new(tip.lightness, tip.chroma.min(TIP_CHROMA), hue, 1.0).to_color()
         }

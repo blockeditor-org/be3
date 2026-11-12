@@ -64,6 +64,9 @@ pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
+/// How much shorter a view must get, in points, before the caret is kept in sight: less is
+/// layout rounding, not a keyboard or a bar.
+const SHRINK_TO_REVEAL: f32 = 1.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -470,23 +473,8 @@ impl Surface {
             self.held.value().reveal_attempts.set(0);
             return;
         }
-        let Some(byte) = self.state.caret_indices().first().copied() else {
+        let Some((rect, exact)) = self.caret_in_content() else {
             return;
-        };
-        let canvas = self.canvas_rect();
-        let (rect, exact) = match (self.caret_rect_at(byte), canvas) {
-            (Some(rect), Some(canvas)) => (
-                rect.translate(-canvas.min.to_vec2())
-                    .scaled(self.scale().recip()),
-                true,
-            ),
-            _ => match self.estimated_y(byte) {
-                Some(y) => (
-                    Rect::from_min_size(Pos2::new(0.0, y), Vec2::new(0.0, self.row_estimate())),
-                    false,
-                ),
-                None => return,
-            },
         };
         let mut offset = position.clamped();
         if rect.min.y - REVEAL_MARGIN.y < offset {
@@ -503,6 +491,45 @@ impl Surface {
             self.state.reveal_cursor();
         } else {
             self.held.value().reveal_attempts.set(0);
+        }
+    }
+
+    /// The first caret in the content's points, from the top of the text, and whether that is where
+    /// it was laid out rather than an estimate for a row not built yet.
+    fn caret_in_content(&self) -> Option<(Rect, bool)> {
+        let byte = self.state.caret_indices().first().copied()?;
+        match (self.caret_rect_at(byte), self.canvas_rect()) {
+            (Some(rect), Some(canvas)) => Some((
+                rect.translate(-canvas.min.to_vec2())
+                    .scaled(self.scale().recip()),
+                true,
+            )),
+            _ => self.estimated_y(byte).map(|y| {
+                (
+                    Rect::from_min_size(Pos2::new(0.0, y), Vec2::new(0.0, self.row_estimate())),
+                    false,
+                )
+            }),
+        }
+    }
+
+    /// The view got shorter by more than rounding (a keyboard or a bar came up under it) while focused: a caret that was in
+    /// sight stays in sight. One already scrolled away is left there.
+    fn keep_caret_in_sight(&self, position: ScrollPosition, was: f32) {
+        if self.single_line
+            || position.viewport >= was - SHRINK_TO_REVEAL
+            || !self.focused.get_untracked()
+        {
+            return;
+        }
+        let Some((rect, _)) = self.caret_in_content() else {
+            return;
+        };
+        // "Was in sight" is judged at the offset as it is now (already clamped to the shorter
+        // view, so it can only have moved up) over the old view's height.
+        let top = position.clamped();
+        if rect.max.y >= top && rect.min.y <= top + was {
+            self.state.reveal_cursor();
         }
     }
 
@@ -1555,6 +1582,12 @@ pub fn TextArea(
     create_effect(move || {
         reveals.get();
         revealing.start(Duration::ZERO);
+    });
+    let viewport_was = StoredCell::new(0.0_f32);
+    create_effect(move || {
+        let position = scroll.get();
+        let was = viewport_was.replace(position.viewport);
+        untrack(|| cx.keep_caret_in_sight(position, was));
     });
     let hover_cursor = create_signal(CursorIcon::Text);
     let cursor = create_memo(move || match disabled.get() {

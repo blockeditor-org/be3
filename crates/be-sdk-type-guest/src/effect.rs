@@ -20,6 +20,7 @@ pub(crate) enum Effect {
         expected: Option<CommitId>,
         merging: Option<Merging>,
         content: Written,
+        sealed_through: Option<u64>,
     },
     Stash {
         replica: ReplicaId,
@@ -54,6 +55,11 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         generation: u64,
     },
+    /// Announcements of edits made here that the server already holds.
+    Announce {
+        replica: ReplicaId,
+        announcements: Vec<be_block::Announcement>,
+    },
     ReportClean {
         replica: ReplicaId,
         generation: u64,
@@ -66,11 +72,14 @@ pub(crate) enum Effect {
         relay: bool,
         /// The first sequence number the entries hold, folded ones included.
         from: u64,
+        /// The announcements of the edits made here among the entries, by sequence.
+        announcements: Vec<(u64, be_block::Announcement)>,
     },
     Rebase {
         replica: ReplicaId,
         generation: u64,
         base: JournalBase,
+        entries: Vec<JournalEntry>,
     },
     Release {
         replica: ReplicaId,
