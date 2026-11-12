@@ -3375,7 +3375,11 @@ fn TabMenu(
                     on_click={move || close.call(())}
                 />
                 <Show condition={grouped}>
-                    <MenuItem label="Ungroup" disabled={pinned} on_click={move || ungroup.call(())} />
+                    <MenuItem
+                        label="Ungroup"
+                        disabled={pinned}
+                        on_click={move || ungroup.call(())}
+                    />
                 </Show>
                 <Show condition={offered}>
                     <MenuItem

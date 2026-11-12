@@ -166,14 +166,7 @@ pub fn MenuRows(
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();
     let list = view! {
-        <MenuList
-            items
-            spacing
-            row
-            panel
-            active
-            on_select={Callback::empty()}
-        />
+        <MenuList items spacing row panel active on_select={Callback::empty()} />
     };
     panel.call(list)
 }
