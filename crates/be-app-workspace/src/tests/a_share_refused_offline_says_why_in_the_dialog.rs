@@ -72,5 +72,7 @@ fn a_share_refused_offline_says_why_in_the_dialog() {
         fixture.says(OFFLINE),
         "the dialog where the share was made says why it did not take"
     );
-    fixture.test.snapshot("a_share_refused_offline_says_why_in_the_dialog");
+    fixture
+        .test
+        .snapshot("a_share_refused_offline_says_why_in_the_dialog");
 }
