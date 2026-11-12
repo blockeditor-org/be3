@@ -759,6 +759,11 @@ impl<H: Host> Replicas<H> {
         let (client, session, head, offline, journal) = match joined {
             Ok((client, _, _, true, _)) => {
                 let head = known_head_of(peer, block);
+                if head.is_some() && peer.held_head(block).is_none() {
+                    // Nothing to read: the block opens once the host reconnects, and meanwhile
+                    // takes no edits it could never journal or publish.
+                    return;
+                }
                 (client, offline_session(head), head, true, None)
             }
             Ok(joined) => joined,
