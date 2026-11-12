@@ -24,17 +24,17 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
                     variant=ButtonVariant::Primary
                     on_click={move || pressed.set(true)}
                 />
-                <ShowKeepAlive condition={pressed}>
+                <Show keep_alive=true condition={pressed}>
                     <Text>"Pressed"</Text>
-                </ShowKeepAlive>
+                </Show>
                 <Button
                     label="Then me"
                     variant=ButtonVariant::Primary
                     on_click={move || then.set(true)}
                 />
-                <ShowKeepAlive condition={then}>
+                <Show keep_alive=true condition={then}>
                     <Text>"Then pressed"</Text>
-                </ShowKeepAlive>
+                </Show>
             </styled::List>
         }
     });

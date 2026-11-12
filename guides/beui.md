@@ -29,7 +29,7 @@ those macros' doc comments.
   one `view!`. `view!` builds nodes the moment it runs, so a subtree built into
   a local and used conditionally is in the document either way.
 - Control flow goes in the view: `Show` (builds when true, disposes when
-  false), `ShowKeepAlive` (builds once, pauses while hidden), `Dynamic`,
+  false; with `keep_alive`, builds once and pauses while hidden), `Dynamic`,
   `Keyed` and `ForEach` (one keyed child per item). They build no node of their
   own; they fill a run in their parent's slot.
 - Use a component as a tag: `<Button label="Save" on_click={save} />`. The

@@ -282,11 +282,11 @@ where
     };
     let named_field = view! {
         <List align=Align::Stretch spacing=Space::None>
-            <ShowKeepAlive condition={shown}>
+            <Show keep_alive=true condition={shown}>
                 <ListItem grow=1.0>
                     <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
                 </ListItem>
-            </ShowKeepAlive>
+            </Show>
             <Show condition={editing}>{field()}</Show>
         </List>
     };

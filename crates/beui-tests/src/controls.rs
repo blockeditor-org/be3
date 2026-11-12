@@ -53,14 +53,12 @@ pub fn ChoicesFixture() -> NodeId {
     let mode = create_signal(Some(0_usize));
     let period = create_signal(1_usize);
     let tab = create_signal(0_usize);
-    let color = create_signal(Some(1_usize));
     let report = create_memo(move || {
         format!(
-            "Mode {:?} period {} tab {} color {:?}",
+            "Mode {:?} period {} tab {}",
             mode.get(),
             period.get(),
-            tab.get(),
-            color.get()
+            tab.get()
         )
     });
     view! {
@@ -89,14 +87,6 @@ pub fn ChoicesFixture() -> NodeId {
                     <ChoiceOption label="Details" />
                 }}
                 selected={tab}
-            />
-            <Listbox
-                options={view! {
-                    <ChoiceOption label="Amber" />
-                    <ChoiceOption label="Blue" />
-                    <ChoiceOption label="Green" />
-                }}
-                selected={color}
             />
             <Text>{report}</Text>
         </List>

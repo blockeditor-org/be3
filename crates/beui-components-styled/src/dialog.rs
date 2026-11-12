@@ -251,9 +251,9 @@ fn DialogBodyFace(
                         </List>
                     </Show>
                     {content}
-                    <ShowKeepAlive condition={footed}>
+                    <Show keep_alive=true condition={footed}>
                         <DialogFooter handle id />
-                    </ShowKeepAlive>
+                    </Show>
                 </List>
             </Frame>
         </Frame>
