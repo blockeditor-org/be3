@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use be_block_graph::Access;
+use be_block_protocol::ChangeCursor;
 use be_block_protocol::embed::METHODS;
 
 use super::*;
@@ -309,6 +310,21 @@ impl TestClient {
                 answered(client::blocks::list_history(peer, block).await),
             ),
             (
+                "changed-since",
+                answered(
+                    client::blocks::changed_since(
+                        peer,
+                        block,
+                        ChangeCursor {
+                            changed: 0,
+                            block: Uuid::max(),
+                        },
+                        10,
+                    )
+                    .await,
+                ),
+            ),
+            (
                 "collect-detached",
                 answered(client::blocks::collect_detached(peer).await),
             ),
@@ -603,6 +619,7 @@ async fn every_call_states_who_may_make_it() {
         "read-contents",
         "set-parent",
         "list-history",
+        "changed-since",
         "list-access",
         "set-access",
         "rotate",

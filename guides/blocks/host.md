@@ -270,6 +270,19 @@ index and search it locally.
   drops its index and the blocks waiting for it.
   `Searched::complete` is true when nothing this device could index is queued,
   being made or written; an edit on a root it cannot edit is never queued.
+- **Catching up.** When this device is connected and may edit a root whose
+  index is named, `start_catch_ups` asks `Peer::changed_since(root, watermark)`
+  (the index's `Index::watermark`) once per connection: the blocks it lists
+  (commits from devices that never index, imports, blocks moved in) are queued
+  like a sealed block, read from what the call said where the mirror lacks them
+  (`Searching::caught`, a type's module started for them), the blocks that left
+  are masked (`Batch::removed_blocks`, at the time of the catch-up; a block that
+  comes back is stamped after the mask), and the watermark moves with that batch
+  once everything the catch-up queued is indexed. A block listed before its
+  content was published is caught by the next catch-up, which is after the next
+  connection. The host is busy while one is due or running. A search that is
+  shown is shown again whenever the mirror moves, so a hit whose block left what
+  the search is within drops out at once.
 - **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches
   an owner shows and `searched` answers each (`search_revision` counts
   answers). A search runs in a task over the index of every root the account

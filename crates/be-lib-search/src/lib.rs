@@ -213,7 +213,7 @@ pub struct Batch {
     pub removed: Vec<(DocId, Commit)>,
     /// Blocks that left the tree, every document of each.
     pub removed_blocks: Vec<(Vec<u8>, Commit)>,
-    /// The graph revision the index has now seen every change up to.
+    /// The sequence of changes (`changed-since`) the index has now seen every change up to.
     pub watermark: Option<u64>,
 }
 
@@ -342,6 +342,11 @@ impl Index {
     pub async fn entries_of(&self, parts: &impl Parts, block: &[u8]) -> Result<Vec<Entry>, Error> {
         let mut table = table::Edit::new(&self.table);
         table.entries_of(parts, block).await
+    }
+
+    /// The newest commit a block was removed from the index at, if it was.
+    pub fn removed_at(&self, block: &[u8]) -> Option<Commit> {
+        self.block_removed_at(block)
     }
 
     fn block_removed_at(&self, block: &[u8]) -> Option<Commit> {

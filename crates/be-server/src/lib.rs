@@ -1,5 +1,6 @@
 mod address;
 mod browser_auth;
+mod changes;
 mod client;
 pub mod mail;
 mod portal;
