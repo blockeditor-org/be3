@@ -5,6 +5,8 @@ use be_sdk_api::ops::{
     guest::{Executor, Serve},
 };
 
+use be_sdk_api::app::EditorEvent;
+
 use super::*;
 
 const FIRST: EditorInstanceId = EditorInstanceId(3);
@@ -73,7 +75,7 @@ fn events_reach_the_editor_in_one_hear_before_a_call_that_answers() {
     calls.borrow_mut().clear();
 
     // Alone, each kind of call is one call of its own method.
-    wire.call(FIRST, EditorCall::Presence(true));
+    wire.event(FIRST, EditorEvent::Presence(true));
     wire.flush_hearing();
     exchange(&mut wire, &guest);
     wire.call(FIRST, render(1));
@@ -85,10 +87,10 @@ fn events_reach_the_editor_in_one_hear_before_a_call_that_answers() {
 
     // Events of one editor around another's go as runs, and a call that answers
     // comes after the events queued before it.
-    wire.call(FIRST, EditorCall::Presence(true));
-    wire.call(FIRST, EditorCall::SetEditable(false));
-    wire.call(SECOND, EditorCall::Presence(false));
-    wire.call(FIRST, EditorCall::Dismiss);
+    wire.event(FIRST, EditorEvent::Presence(true));
+    wire.event(FIRST, EditorEvent::SetEditable(false));
+    wire.event(SECOND, EditorEvent::Presence(false));
+    wire.event(FIRST, EditorEvent::Dismiss);
     wire.call(FIRST, render(2));
     wire.flush_hearing();
     exchange(&mut wire, &guest);

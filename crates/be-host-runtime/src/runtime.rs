@@ -19,6 +19,7 @@ use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use uuid::Uuid;
 
 use be_host_base::host;
+use be_sdk_api::app::{ChildBarPress, EditorEvent, MenuChoice};
 
 use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
@@ -647,20 +648,19 @@ impl Runtime {
                 .into_iter()
                 .map(|(owner, view, id, anchor)| {
                     self.instances.note_menu_pick(owner);
-                    Outbound::Editor(owner, EditorCall::MenuPick { view, id, anchor })
+                    Outbound::Event(
+                        owner,
+                        EditorEvent::MenuPick(MenuChoice { view, id, anchor }),
+                    )
                 }),
         );
         messages.extend(
             super::docks::take_bars(&self.app.identity.id)
                 .into_iter()
-                .map(|(placer, view, child, action)| {
-                    Outbound::Editor(
+                .map(|(placer, _, child, action)| {
+                    Outbound::Event(
                         placer,
-                        EditorCall::ChildBar {
-                            view,
-                            child,
-                            action,
-                        },
+                        EditorEvent::ChildBar(ChildBarPress { child, action }),
                     )
                 }),
         );
@@ -1648,33 +1648,22 @@ impl HostFrame {
 pub fn report_child_bars(
     app_id: &str,
     instance: EditorInstanceId,
-    region: ViewId,
     actions: Vec<(be_sdk_api::ChildId, be_sdk_api::BarAction)>,
 ) {
     if actions.is_empty() {
         return;
     }
     with(app_id, |runtime| {
-        let messages = runtime
-            .instances
-            .child_bar_actions(instance, region, actions);
+        let messages = runtime.instances.child_bar_actions(instance, actions);
         runtime.send(messages);
     });
 }
 
-pub fn report_child_focus(
-    app_id: &str,
-    instance: EditorInstanceId,
-    region: ViewId,
-    child: be_sdk_api::ChildId,
-) {
+pub fn report_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
     with(app_id, |runtime| {
-        runtime.send(vec![Outbound::Editor(
+        runtime.send(vec![Outbound::Event(
             instance,
-            EditorCall::ChildFocused {
-                view: region,
-                child,
-            },
+            EditorEvent::ChildFocused(child),
         )]);
     });
 }

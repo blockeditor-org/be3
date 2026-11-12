@@ -1,11 +1,11 @@
+use be_sdk_api::app::EditorEvent;
 use be_sdk_api::clipboard::{Blocks, ClipFormat as _, formats};
 use be_sdk_api::{
-    AudioStatus, BarAction, BlockIdRole, BlockLocation, Catalog, ChildId, ChildStatus,
-    EditorInstanceId, Failure, Fonts, Hello, InputBatch, LayoutCommit, Opening, PickedBlock,
-    Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, ViewId, WebViewEvent,
-    WebViewId,
+    AudioStatus, BlockIdRole, BlockLocation, Catalog, ChildStatus, EditorInstanceId, Failure,
+    Fonts, Hello, InputBatch, LayoutCommit, Opening, PickedBlock, Preferences, ScreenId,
+    ScreenLayout, ScreenRequest, WebViewEvent, WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    shell_types::{BlockAct, ChildCreation, ClipOffer, DragOver, DragStart, Focus, ShellMessage},
+    shell_types::{BlockAct, ChildCreation, ClipOffer, DragStart, Focus, ShellMessage},
 };
 use uuid::Uuid;
 
@@ -13,6 +13,8 @@ use uuid::Uuid;
 pub(super) enum Outbound {
     Open(Box<Opening>),
     Close(EditorInstanceId),
+    /// What happened around an editor (`editor.hear`): queued and sent in order.
+    Event(EditorInstanceId, EditorEvent),
     Editor(EditorInstanceId, EditorCall),
     App(AppCall),
 }
@@ -46,32 +48,6 @@ pub(super) enum AppCall {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum EditorCall {
-    MenuPick {
-        view: ViewId,
-        id: String,
-        anchor: Option<beui::Rect>,
-    },
-    Dismiss,
-    ChildBar {
-        view: ViewId,
-        child: ChildId,
-        action: BarAction,
-    },
-    ChildFocused {
-        view: ViewId,
-        child: ChildId,
-    },
-    SetEditable(bool),
-    ViewChanged {
-        view: Rect,
-        scale: f32,
-    },
-    PresentingChanged(bool),
-    Presence(bool),
-    FocusChanged(Focus),
-    Resized(Size),
-    DragOver(DragOver),
-    DragLeft,
     ChildStatuses(Vec<ChildStatus>),
     Watched {
         open: be_sdk_api::ops::MethodId,
@@ -82,7 +58,6 @@ pub(super) enum EditorCall {
         web_view: WebViewId,
         event: WebViewEvent,
     },
-    ArtifactSettings(Vec<u8>),
     CommitCreation,
     RegenerateArtifact(Vec<u8>),
     ReplaceChild {
@@ -94,10 +69,6 @@ pub(super) enum EditorCall {
         request_id: u64,
         serial: u64,
         format: String,
-    },
-    ShowDialog {
-        block: [u8; 16],
-        dialog: be_sdk_api::ShellDialog,
     },
     Dock(be_sdk_api::DockUpdate),
 }
@@ -126,7 +97,9 @@ impl Outbound {
     pub(super) fn instance(&self) -> Option<EditorInstanceId> {
         match self {
             Self::Open(opening) => Some(opening.instance),
-            Self::Close(instance) | Self::Editor(instance, _) => Some(*instance),
+            Self::Close(instance) | Self::Event(instance, _) | Self::Editor(instance, _) => {
+                Some(*instance)
+            }
             Self::App(_) => None,
         }
     }
@@ -226,10 +199,10 @@ impl BlockIds for Outbound {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         match self {
             Self::Open(opening) => opening.visit_block_ids(visit),
-            Self::Editor(instance, EditorCall::FocusChanged(focus)) => {
+            Self::Event(instance, EditorEvent::FocusChanged(focus)) => {
                 focus_ids(*instance, focus, visit);
             }
-            Self::Editor(instance, EditorCall::DragOver(drag)) => {
+            Self::Event(instance, EditorEvent::Drag(Some(drag))) => {
                 for item in &mut drag.items {
                     visit_blocks(*instance, &item.format, &mut item.data, visit);
                 }
@@ -238,7 +211,7 @@ impl BlockIds for Outbound {
                 visit(*instance, BlockIdRole::Existing, old);
                 visit(*instance, BlockIdRole::Existing, new);
             }
-            Self::Close(_) | Self::Editor(..) | Self::App(_) => {}
+            Self::Close(_) | Self::Event(..) | Self::Editor(..) | Self::App(_) => {}
         }
     }
 }
