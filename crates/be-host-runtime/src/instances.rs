@@ -1,4 +1,5 @@
 use be_lib_stable_hash::{HashMap, HashSet};
+use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::{
     AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
@@ -1826,9 +1827,9 @@ impl Instances {
             return Vec::new();
         }
         entry.reported_size = Some(size);
-        vec![Outbound::Editor(
+        vec![Outbound::Event(
             instance,
-            EditorCall::Resized(Size {
+            EditorEvent::Resized(Size {
                 width: size.x,
                 height: size.y,
             }),
@@ -1869,9 +1870,9 @@ impl Instances {
         }
         self.note_menu_pick(instance);
         let view = entry_menu_holds(self, instance).unwrap_or(ViewId::MAIN);
-        vec![Outbound::Editor(
+        vec![Outbound::Event(
             instance,
-            EditorCall::MenuPick { view, id, anchor },
+            EditorEvent::MenuPick(MenuChoice { view, id, anchor }),
         )]
     }
 
@@ -1942,9 +1943,9 @@ impl Instances {
         if !entry.opened {
             return Vec::new();
         }
-        vec![Outbound::Editor(
+        vec![Outbound::Event(
             instance,
-            EditorCall::ArtifactSettings(data.to_vec()),
+            EditorEvent::ArtifactSettings(data.to_vec()),
         )]
     }
 
@@ -2184,7 +2185,7 @@ impl Instances {
                 let visible = presence_wanted(instance);
                 if visible && entry.presence_visible != Some(true) {
                     entry.presence_visible = Some(true);
-                    opened.push(Outbound::Editor(instance, EditorCall::Presence(visible)));
+                    opened.push(Outbound::Event(instance, EditorEvent::Presence(visible)));
                 }
             }
             opened.append(&mut entry.deferred);
@@ -2199,9 +2200,9 @@ impl Instances {
                 let editable = be_host_stack::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
-                    opened.push(Outbound::Editor(
+                    opened.push(Outbound::Event(
                         instance,
-                        EditorCall::SetEditable(editable),
+                        EditorEvent::SetEditable(editable),
                     ));
                 }
             }
@@ -2236,9 +2237,9 @@ impl Instances {
                     }
                     None => (None, [0; 16]),
                 };
-                opened.push(Outbound::Editor(
+                opened.push(Outbound::Event(
                     instance,
-                    EditorCall::FocusChanged(be_sdk_api::shell_types::Focus {
+                    EditorEvent::FocusChanged(be_sdk_api::shell_types::Focus {
                         block_id,
                         block_type,
                         editor: focus.editor.map(Uuid::into_bytes),
@@ -2249,9 +2250,9 @@ impl Instances {
             let presenting = entry.presenting || entry.presented;
             if presenting != entry.reported_presenting {
                 entry.reported_presenting = presenting;
-                opened.push(Outbound::Editor(
+                opened.push(Outbound::Event(
                     instance,
-                    EditorCall::PresentingChanged(presenting),
+                    EditorEvent::PresentingChanged(presenting),
                 ));
             }
             let mut reported = Vec::new();
@@ -2265,12 +2266,12 @@ impl Instances {
             if entry.view != entry.reported_view {
                 entry.reported_view = entry.view;
                 if let Some(view) = entry.view {
-                    opened.push(Outbound::Editor(
+                    opened.push(Outbound::Event(
                         instance,
-                        EditorCall::ViewChanged {
+                        EditorEvent::ViewChanged(ViewFrame {
                             view: view.rect,
                             scale: view.scale,
-                        },
+                        }),
                     ));
                 }
             }
@@ -2284,7 +2285,7 @@ impl Instances {
             matches!(
                 message,
                 Outbound::App(AppCall::Screens(_))
-                    | Outbound::Editor(_, EditorCall::ViewChanged { .. })
+                    | Outbound::Event(_, EditorEvent::ViewChanged(_))
             )
         });
         if !configures {
@@ -2307,13 +2308,13 @@ impl Instances {
                         }
                     }
                 }
-                Outbound::Editor(instance, EditorCall::ViewChanged { view, scale }) => {
+                Outbound::Event(instance, EditorEvent::ViewChanged(frame)) => {
                     if let Some(entry) = self.entries.get_mut(instance) {
                         entry.views.push(
                             serial,
                             EditorView {
-                                rect: *view,
-                                scale: *scale,
+                                rect: frame.view,
+                                scale: frame.scale,
                             },
                         );
                     }
@@ -2431,21 +2432,21 @@ impl Instances {
                 if event.dropped {
                     entry.drag_accepted = false;
                 }
-                vec![Outbound::Editor(
+                vec![Outbound::Event(
                     instance,
-                    EditorCall::DragOver(be_sdk_api::shell_types::DragOver {
+                    EditorEvent::Drag(Some(be_sdk_api::shell_types::DragOver {
                         view: region,
                         pos: event.position,
                         items: event.items,
                         action: event.action,
                         dropped: event.dropped,
-                    }),
+                    })),
                 )]
             }
             None if screen.dragging == Some(kind) => {
                 screen.dragging = None;
                 entry.drag_accepted = false;
-                vec![Outbound::Editor(instance, EditorCall::DragLeft)]
+                vec![Outbound::Event(instance, EditorEvent::Drag(None))]
             }
             None => Vec::new(),
         }
@@ -3132,7 +3133,7 @@ impl Instances {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Outbound::Editor(instance, EditorCall::Dismiss)]
+        vec![Outbound::Event(instance, EditorEvent::Dismiss)]
     }
 
     pub(super) fn commit_creation(&self, instance: EditorInstanceId) -> Vec<Outbound> {
@@ -3409,25 +3410,20 @@ impl Instances {
             return Vec::new();
         }
         entry.presence_visible = Some(visible);
-        vec![Outbound::Editor(instance, EditorCall::Presence(visible))]
+        vec![Outbound::Event(instance, EditorEvent::Presence(visible))]
     }
 
     pub(super) fn child_bar_actions(
         &mut self,
         instance: EditorInstanceId,
-        region: ViewId,
         actions: Vec<(ChildId, be_sdk_api::BarAction)>,
     ) -> Vec<Outbound> {
         actions
             .into_iter()
             .map(|(child, action)| {
-                Outbound::Editor(
+                Outbound::Event(
                     instance,
-                    EditorCall::ChildBar {
-                        view: region,
-                        child,
-                        action,
-                    },
+                    EditorEvent::ChildBar(ChildBarPress { child, action }),
                 )
             })
             .collect()
@@ -4066,9 +4062,9 @@ impl Instances {
             return Vec::new();
         }
         let block = self.local(instance, block.into_bytes());
-        vec![Outbound::Editor(
+        vec![Outbound::Event(
             instance,
-            EditorCall::ShowDialog { block, dialog },
+            EditorEvent::ShowDialog(DialogRequest { block, dialog }),
         )]
     }
 

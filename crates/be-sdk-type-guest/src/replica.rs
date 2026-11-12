@@ -114,6 +114,10 @@ pub(crate) trait AnyReplica {
 
     fn wake_at(&self) -> Option<u64>;
 
+    /// The soonest of `wake_at`'s timers that keep the block in step with the server: not a
+    /// heartbeat or a read's retry.
+    fn in_step_at(&self) -> Option<u64>;
+
     fn released(&self) -> bool;
 
     /// What the server lacks of the edits made here, for the block's next replica.
@@ -683,6 +687,19 @@ where
             .chain(self.catch_up_at)
             .chain(self.read_retry.values().copied())
             .chain(self.beat_at())
+            .min()
+    }
+
+    fn in_step_at(&self) -> Option<u64> {
+        let seal = match self.sealing {
+            true => None,
+            false => self.commit_at(),
+        };
+        seal.into_iter()
+            .chain(self.append_at)
+            .chain(self.put_retry_at)
+            .chain(self.merge_retry_at)
+            .chain(self.catch_up_at)
             .min()
     }
 

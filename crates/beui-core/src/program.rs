@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::context::Context;
 use beui_types::Event;
@@ -63,6 +63,14 @@ pub trait Program: std::any::Any {
     /// Whether the program is connected to what it keeps in step with outside its window:
     /// `None` for a program with nothing outside. drive's `offline` waits until it is not.
     fn connected(&self) -> Option<bool> {
+        None
+    }
+
+    /// While the frame clock is stopped, when the soonest of the program's own timers for
+    /// keeping in step comes due on it (a save after a quiet spell, a retry's backoff), which
+    /// cannot happen until the clock gets there: drive's `synced` moves a stopped clock to it
+    /// once the program is quiet but still out of step.
+    fn in_step_due(&self) -> Option<Instant> {
         None
     }
 
