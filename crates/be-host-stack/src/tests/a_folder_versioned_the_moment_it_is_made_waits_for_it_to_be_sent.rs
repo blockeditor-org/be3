@@ -48,8 +48,13 @@ fn a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent() {
     );
     let error = crate::wait_until(|shared| {
         version_status(shared, repository)
-            .filter(|status| !status.busy && (!status.branches.is_empty() || status.error.is_some()))
+            .filter(|status| {
+                !status.busy && (!status.branches.is_empty() || status.error.is_some())
+            })
             .map(|status| status.error.clone())
     });
-    assert_eq!(error, None, "the folder was versioned once the server had it");
+    assert_eq!(
+        error, None,
+        "the folder was versioned once the server had it"
+    );
 }

@@ -1625,7 +1625,9 @@ async fn drain_outbox(
                     }
                     be_block_client::Drained::Created { block }
                     | be_block_client::Drained::Moved { block } => {
-                        let parent = peer.known_summary(*block).and_then(|summary| summary.parent);
+                        let parent = peer
+                            .known_summary(*block)
+                            .and_then(|summary| summary.parent);
                         shared
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)

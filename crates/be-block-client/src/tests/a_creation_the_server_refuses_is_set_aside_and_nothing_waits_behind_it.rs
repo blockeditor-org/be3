@@ -36,7 +36,10 @@ async fn a_creation_the_server_refuses_is_set_aside_and_nothing_waits_behind_it(
         }),
         "{drained:?}"
     );
-    assert!(!owner.creating(block), "the refused creation no longer waits");
+    assert!(
+        !owner.creating(block),
+        "the refused creation no longer waits"
+    );
     assert_eq!(
         owner.pending().operations,
         0,

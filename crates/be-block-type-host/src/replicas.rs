@@ -2084,9 +2084,7 @@ impl<H: Host> Replicas<H> {
         let replicas: Vec<ReplicaId> = self
             .open
             .iter()
-            .filter(|(_, open)| {
-                !self.uncreated.contains(&open.block) || !peer.creating(open.block)
-            })
+            .filter(|(_, open)| !self.uncreated.contains(&open.block) || !peer.creating(open.block))
             .map(|(replica, _)| *replica)
             .collect();
         for replica in replicas {
