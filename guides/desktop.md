@@ -94,7 +94,7 @@ and gives it the keyboard; `fullscreen` toggles the tab's full screen, whose sta
 `child-placement.fullscreen`; `rung` flashes the chip; `notice` replaces the tab's title while set
 (the Windows host uses it to say how to get back; Linux sets none); `menu-asked` opens the tab menu;
 a count up of `minimized` hides the tab's dock window; `intrinsic` is the size the program picked,
-which only a dialog's card follows. A new window's dock window opens at the listing's `size` (or a
+which only a dialog's card follows (a new card opens at the listing's `size` until the status is first heard, so it never shows or configures its program at a placeholder size first). A new window's dock window opens at the listing's `size` (or a
 default size when there is none), snapped to fill its area when the listing says `maximized`, so
 the program is never told another size first; a window
 filling a placeholder takes the placeholder's place and size (`program::cascaded`).
