@@ -36,11 +36,17 @@ A command names a target, then a verb that depends on what the target is:
 
 ```text
 be ls                                   workspaces and what is shared with this account, with short ids
+                                        and which it may write in (`writable` with --json)
 be Issues rows Status!=Done Project=Launch
 be BE-7K3Q2M                            a row by id: its fields and page
 be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Steps..."
-be Issues row BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
-be Issues row BE-7K3Q2M page edit       its page in $EDITOR, merged with changes since
+be Issues row BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND"
+be BE-7K3Q2M page append "Fixed in #412."
+                                        a row's page is a text block target: cat, write,
+                                        append, edit, info...; writing makes it
+be BE-7K3Q2M page edit                  its page in $EDITOR, merged with changes since
+be Issues option Status Shipped closed=yes
+                                        change a choice, adding it if there is none
 be Issues schema                        columns and options
 be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
 be Issues import issues.csv             Linear's export, or any CSV

@@ -1123,7 +1123,6 @@ impl<S: ObjectStore> Tracker<S> {
         field: &str,
         option: &str,
         settings: &[Assignment],
-        adding: bool,
     ) -> Result<(), String> {
         let loaded = self.load(database).await?;
         let schema = loaded
@@ -1154,13 +1153,9 @@ impl<S: ObjectStore> Tracker<S> {
             return Err(format!("name an option of {}", field.name));
         }
         let mut edits = Vec::new();
-        let id = match (named(option), adding) {
-            (Ok(id), false) => id,
-            (Err(error), false) => return Err(error),
-            (Ok(_), true) => {
-                return Err(format!("{} already has {}", field.name, option.trim()));
-            }
-            (Err(_), true) => {
+        let id = match named(option) {
+            Ok(id) => id,
+            Err(_) => {
                 let (id, add) = DatabaseSchema::add_enum_option(field.id, option.trim());
                 edits.push(add);
                 id

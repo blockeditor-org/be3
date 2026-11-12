@@ -243,12 +243,6 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
 - `HostTest` (`be-host-tests/src/lib.rs`): `start`, `start_desktop`,
   `start_in_space`, `start_drawing_previews` and `start_with` become
   `start(Options)`.
-- `be` CLI (`be-tool-cli/src/cli.rs`): a row's page is a text block target.
-  `be ROW page` resolves to it, made on first write, and the text verbs
-  (`cat`, `write`, `append`, `edit`) work on it; remove the copied `page`
-  verbs and `set --body/--append`. Keep `new … --body`. `add-option` merges
-  into `option`. `workspaces` becomes `ls`, whose `--json` carries
-  `writable`. Update guides/tracker.md.
 - `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
   become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
   WIT `launch`) goes; a typed line is wrapped as the platform's shell command

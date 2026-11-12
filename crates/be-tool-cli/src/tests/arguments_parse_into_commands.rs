@@ -21,14 +21,10 @@ fn arguments_parse_into_commands() {
         "set",
         "Status=Done",
         "Blocked by+=BE-ABCDEF",
-        "--append",
-        "-",
     ])
     .unwrap();
-    assert_eq!(
-        changed.options.body,
-        Some(Body::Append("from stdin".into()))
-    );
+    let appended = parse(&["BE-7K3Q2M", "page", "append", "-"]).unwrap();
+    assert_eq!(appended.arguments, ["append", "from stdin"]);
     let assignments: Vec<Assignment> = changed
         .arguments
         .iter()

@@ -16,10 +16,20 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         "{top}"
     );
     assert!(!top.contains("settings"), "{top}");
-    let workspaces = run(&tracker, "workspaces").await.unwrap();
     assert!(
-        workspaces.contains("may write") && workspaces.ends_with("Tracker"),
-        "{workspaces}"
+        top.lines()
+            .any(|line| line.contains("may write") && line.contains("Tracker")),
+        "{top}"
+    );
+    let listed: serde_json::Value =
+        serde_json::from_str(&run(&tracker, "ls --json").await.unwrap()).unwrap();
+    assert!(
+        listed
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["name"] == "Tracker" && entry["writable"] == true),
+        "{listed}"
     );
     let root = run(&tracker, "Tracker ls").await.unwrap();
     let line = root.lines().find(|line| line.contains("Issues")).unwrap();
@@ -48,6 +58,12 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
     .unwrap();
     let pages = run(&tracker, "Issues ls").await.unwrap();
     assert!(pages.contains("1 row pages"), "{pages}");
+    let info = run(&tracker, &format!("{id} page info")).await.unwrap();
+    assert!(info.contains("kind text"), "a row's page is a text block target: {info}");
+    let refused = run(&tracker, &format!("{id} set --body Replaced."))
+        .await
+        .expect_err("set changes fields only");
+    assert!(refused.contains("page write"), "{refused}");
     let database = tracker.find_database("Issues").await.unwrap();
     let shown = tracker.show(database, &id).await.unwrap();
     let page = tracker.entry(shown.page.unwrap()).await.unwrap().short;
@@ -63,6 +79,14 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
             .await
             .unwrap(),
         "Steps to reproduce.\nMore."
+    );
+    run(&tracker, &format!("{id} page append _Seen_twice."))
+        .await
+        .unwrap();
+    let text = run(&tracker, &format!("{id} page")).await.unwrap();
+    assert!(
+        text.contains("Steps to reproduce.") && text.ends_with("Seen twice."),
+        "{text}"
     );
     let wrong = run(&tracker, &format!("{page} rows")).await.unwrap_err();
     assert!(wrong.contains("is a text"), "{wrong}");
