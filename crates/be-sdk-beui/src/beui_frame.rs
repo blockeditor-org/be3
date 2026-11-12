@@ -405,7 +405,7 @@ fn frame_actions(
     state: ReadSignal<BarState>,
     live: Memo<bool>,
     closable: Memo<bool>,
-    on_exit: ClickCallback,
+    on_exit: Callback<()>,
 ) -> FrameActions {
     let id = editor.block_id();
     let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
@@ -447,7 +447,7 @@ fn frame_actions(
         })
         .glyph(ICON_INFO)
         .register(),
-        close: Action::new("editor.close", "Close", move || on_exit.call())
+        close: Action::new("editor.close", "Close", move || on_exit.call(()))
             .glyph(ICON_X)
             .enabled(closable)
             .register(),
@@ -462,7 +462,7 @@ pub(crate) fn FrameMenu(
     published: Rc<RefCell<Vec<MenuNode>>>,
     listed: Signal<Vec<MenuNode>>,
     notices: Signal<Vec<Toast>>,
-    on_exit: ClickCallback,
+    on_exit: Callback<()>,
 ) -> NodeId {
     let on_phone = create_memo(move || bar.get().on_phone);
     let shown = create_memo(move || bar.get().shown && !on_phone.get());

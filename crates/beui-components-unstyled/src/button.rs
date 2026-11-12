@@ -49,7 +49,7 @@ pub fn Button(
     #[prop(default = None)] href: Prop<Option<String>>,
     #[prop(default = false)] submit: bool,
     expanded: Option<Prop<bool>>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     on_click_at: Callback<PointerPress>,
     on_press: Callback<PointerPress>,
     on_key: Callback<KeyPress, bool>,
@@ -133,9 +133,9 @@ pub fn Button(
         if let Some(action) = &action {
             action.run();
         }
-        on_click.call();
+        on_click.call(());
         if let Some(form) = form {
-            form.call();
+            form.call(());
         }
     };
     let key_click = click.clone();
@@ -180,9 +180,9 @@ pub fn Button(
         })),
         None => content_node,
     };
-    let (key_active_change, key_click): (Callback<bool>, ClickCallback) = match browser_activates {
-        true => (Callback::empty(), ClickCallback::empty()),
-        false => (key_active.into(), ClickCallback::new(key_click)),
+    let (key_active_change, key_click): (Callback<bool>, Callback<()>) = match browser_activates {
+        true => (Callback::empty(), Callback::empty()),
+        false => (key_active.into(), Callback::new(move |()| key_click())),
     };
 
     view! {

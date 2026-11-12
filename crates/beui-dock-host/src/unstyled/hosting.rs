@@ -507,7 +507,7 @@ impl DockHostLayout {
                 size: create_memo(move || described.with(|described| described.size)),
                 modal: read(|described| described.modal),
                 dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
-                on_close: closable.then(|| ClickCallback::new(move || layout.close(tab))),
+                on_close: closable.then(|| Callback::new(move |()| layout.close(tab))),
                 content: RenderFn::new(move |()| layout.body(tab)),
             };
             (described, parts)

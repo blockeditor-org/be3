@@ -45,11 +45,14 @@ under a request is noticed once an early ping goes unanswered, about 25 s (`ANSW
 `PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
 
 4. **Starting with no connection.** A device of a remote server restarted while it cannot reach
-   it shows Files at once (`resume_organization`); the blank window seen here was probably the
-   `:dev` embedded server blocked by the same rule. What is left: My files is empty and the
-   document that was open is not reopened, because My files' cached listing is from before the
-   device's own new block (the gap fix/offline-my-files works on). `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored
-   until then.
+   it shows Files at once (`resume_organization`) and lists My files with the block it made
+   (fix/offline-my-files); the blank window seen here was probably the `:dev` embedded server
+   blocked by the same rule. What is left: the text tab it had open is not reopened, offline or
+   unreachable alike, though an online restart reopens it. The session's view block opens at
+   the same head either way and neither journal holds anything, yet offline the tab's own view
+   block is never opened and the dock shows "No file open".
+   `a_device_that_cannot_reach_its_server_opens_its_files_and_edits_at_once` is ignored until
+   then.
 5. **The files pane, and every command, wait on one that needs the server.** Going back on a phone
    runs a `SetParent`, which waits on the server in the block store's loop; every command queued
    behind it waits too (the busy reason names the step: "the block store's loop is busy with set

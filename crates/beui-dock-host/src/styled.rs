@@ -199,7 +199,7 @@ fn DockAwayFace(handle: DockAwayHandle) -> NodeId {
                     glyph=ICON_MINIMIZE
                     variant=ButtonVariant::Secondary
                     @test_id="dock.away.leave"
-                    on_click={move || leave.call()}
+                    on_click={move || leave.call(())}
                 />
             </List>
         </Frame>
@@ -378,7 +378,7 @@ fn DockTabChrome(
     noticed: Memo<bool>,
     waiting_test_id: String,
     close_test_id: String,
-    close: ClickCallback,
+    close: Callback<()>,
 ) -> NodeId {
     let fill = tab_fill(selected, hovered, active, dragged, noticed);
     let label = create_memo(move || match (noticed.get(), selected.get()) {
@@ -608,7 +608,7 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
         test_prefix,
         ..
     } = handle;
-    let close = move || close.call();
+    let close = move || close.call(());
     match vertical {
         true => view! {
             <DockSideBar grip tabs title vacant menu closable icons_only close test_prefix />
@@ -627,7 +627,7 @@ fn DockTitleBar(
     vacant: Memo<bool>,
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
-    close: ClickCallback,
+    close: Callback<()>,
     test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
@@ -715,7 +715,7 @@ fn DockSideBar(
     menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     icons_only: Memo<bool>,
-    close: ClickCallback,
+    close: Callback<()>,
     test_prefix: String,
 ) -> NodeId {
     let titled = tabs.is_none();
@@ -856,7 +856,7 @@ pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom, test_prefix: St
 #[component]
 fn DockClose(
     closable: Memo<bool>,
-    close: ClickCallback,
+    close: Callback<()>,
     test_prefix: String,
 ) -> DynamicSegment<ListItem> {
     view! {

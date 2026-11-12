@@ -15,7 +15,7 @@ pub(crate) fn CrashNotice(
     detail: Prop<String>,
     #[prop(default = true)] reloadable: Prop<bool>,
     #[prop(default = "crash-notice".to_owned())] id: String,
-    on_reload: ClickCallback,
+    on_reload: Callback<()>,
 ) -> NodeId {
     let reload_id = format!("{id}.reload");
     let reloadable = create_memo(move || reloadable.get());
@@ -58,9 +58,9 @@ pub(crate) fn StaleNotice(
     detail: Prop<String>,
     #[prop(default = true)] can_try: Prop<bool>,
     #[prop(default = "stale-notice".to_owned())] id: String,
-    on_reset: ClickCallback,
-    on_delete: ClickCallback,
-    on_try: ClickCallback,
+    on_reset: Callback<()>,
+    on_delete: Callback<()>,
+    on_try: Callback<()>,
 ) -> NodeId {
     let (reset_id, delete_id, try_id) = (
         format!("{id}.reset"),

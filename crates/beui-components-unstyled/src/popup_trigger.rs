@@ -27,7 +27,7 @@ pub fn PopupTrigger(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = Node::new(Role::Button))] accessibility: Prop<Node>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     on_focus_change: Callback<bool>,
 ) -> NodeId {
     let accessibility = create_memo(move || {
@@ -49,7 +49,7 @@ pub fn PopupTrigger(
             on_focus_change={on_focus_change}
             on_click={move || match click_opens.get_untracked() {
                 true => open.update(|open| *open = !*open),
-                false => on_click.call(),
+                false => on_click.call(()),
             }}
             content={Render::new(move |button: ButtonHandle| {
                 content.call(PopupTriggerHandle { open, button })

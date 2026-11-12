@@ -49,7 +49,34 @@ pub(crate) struct Pick {
     pub(crate) unfolded_places: HashMap<TreeKey, bool>,
     pub(crate) creating: Option<Creating>,
     pub(crate) importing: Option<u64>,
-    pub(crate) error: Option<String>,
+    pub(crate) error: Option<PickError>,
+}
+
+/// Why the picker made nothing: a failure, or a refusal the person can act on, which reads as
+/// plain text under its own title.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PickError {
+    pub(crate) title: String,
+    pub(crate) message: String,
+    pub(crate) failed: bool,
+}
+
+impl PickError {
+    pub(crate) fn failed(message: impl Into<String>) -> Self {
+        Self {
+            title: "Block picker error".to_owned(),
+            message: message.into(),
+            failed: true,
+        }
+    }
+
+    pub(crate) fn refused(title: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            title: title.into(),
+            message: message.into(),
+            failed: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -224,7 +251,7 @@ impl Pick {
             }
             CreationProgress::Failed(error) => {
                 self.creating = None;
-                self.error = Some(error.clone());
+                self.error = Some(PickError::failed(error.clone()));
                 PickOutcome::Open(Box::new(self))
             }
             CreationProgress::Options { .. } | CreationProgress::Working => {
@@ -244,12 +271,12 @@ impl Pick {
                 self.made(block, block_type, named)
             }
             Ok(Some(_)) => {
-                self.error = Some("The imported block can't be used here.".to_owned());
+                self.error = Some(PickError::failed("The imported block can't be used here."));
                 PickOutcome::Open(Box::new(self))
             }
             Ok(None) => PickOutcome::Open(Box::new(self)),
             Err(error) => {
-                self.error = Some(error.to_string());
+                self.error = Some(PickError::failed(error.to_string()));
                 PickOutcome::Open(Box::new(self))
             }
         }

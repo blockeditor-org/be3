@@ -9,6 +9,9 @@ pub struct Notice {
     pub report: Option<String>,
     /// A link the notice offers to open, from a press of its own (`offer_link`).
     pub link: Option<String>,
+    /// Something the person asked for that was refused for a reason they can act on, not a
+    /// failure (`refuse`): it reads as plain text.
+    pub refusal: bool,
 }
 
 struct Notices {
@@ -26,11 +29,16 @@ fn notices() -> MutexGuard<'static, Notices> {
 }
 
 pub fn report(message: String) {
-    show(message, None, None);
+    show(message, None, None, false);
 }
 
 pub fn report_with(message: String, report: String) {
-    show(message, Some(report), None);
+    show(message, Some(report), None, false);
+}
+
+/// Says why something the person asked for was not done, as a plain notice.
+pub fn refuse(message: String) {
+    show(message, None, None, true);
 }
 
 /// Offers `url` for the person to open with a press, where the browser blocked a tab opened
@@ -40,10 +48,11 @@ pub fn offer_link(url: String) {
         format!("The browser blocked a new tab for {url}."),
         None,
         Some(url),
+        false,
     );
 }
 
-fn show(message: String, report: Option<String>, link: Option<String>) {
+fn show(message: String, report: Option<String>, link: Option<String>, refusal: bool) {
     {
         let mut notices = notices();
         if let Some(notice) = notices
@@ -63,6 +72,7 @@ fn show(message: String, report: Option<String>, link: Option<String>) {
             message,
             report,
             link,
+            refusal,
         });
     }
     crate::host::wake();

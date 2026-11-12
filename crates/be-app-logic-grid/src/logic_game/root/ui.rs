@@ -132,7 +132,7 @@ fn LevelRow(
     challenge: ChallengeId,
     level: Memo<Option<Level>>,
     expanded: Memo<bool>,
-    on_toggle: ClickCallback,
+    on_toggle: Callback<()>,
 ) -> NodeId {
     let completed = create_memo(move || level.get().is_some_and(|level| level.completed));
     let attempts = create_memo(move || {

@@ -278,7 +278,7 @@ fn Location(zoom: Zoom) -> NodeId {
 }
 
 #[component]
-fn Crumb(label: Memo<String>, named: String, on_click: ClickCallback) -> NodeId {
+fn Crumb(label: Memo<String>, named: String, on_click: Callback<()>) -> NodeId {
     view! {
         <unstyled::Button label={label} on_click={on_click} @test_id={named}>|handle|
             <CrumbFace handle />

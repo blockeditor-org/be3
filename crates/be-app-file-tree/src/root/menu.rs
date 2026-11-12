@@ -60,7 +60,7 @@ pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
 }
 
 #[component]
-fn ZoomIn(on_click: ClickCallback) -> MenuItem {
+fn ZoomIn(on_click: Callback<()>) -> MenuItem {
     view! {
         <MenuItem
             label="Zoom in"

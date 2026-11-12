@@ -10,6 +10,7 @@ use be_sdk_api::{
     EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
     View, ViewId,
 };
+use beui::KeyPhase;
 use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
@@ -582,7 +583,7 @@ struct TabContext {
     stack: Memo<Vec<Uuid>>,
     top_bar: Prop<TopBar>,
     portals: Signal<Vec<(Uuid, NodeId)>>,
-    exit: ClickCallback,
+    exit: Callback<()>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -848,7 +849,7 @@ fn ConflictPreview(preview: Uuid) -> NodeId {
 }
 
 fn stop_on_escape(overlay: NodeRef) {
-    on_global_key(move |event: KeyEvent| {
+    on_key(KeyAt::Window, KeyPhase::Capture, move |event: KeyEvent| {
         if event.held() {
             return true;
         }
@@ -958,7 +959,7 @@ fn FrameStack(
         stack
     });
     let portals = create_signal(Vec::<(Uuid, NodeId)>::new());
-    let exit = ClickCallback::new(move || {
+    let exit = Callback::new(move |()| {
         let stack = stack.get_untracked();
         let parent = match stack.len() {
             0 | 1 => block,
@@ -1134,6 +1135,7 @@ enum Resolution {
     NoAccess,
     Missing,
     Locked,
+    OutOfReach,
     Unsupported(Uuid),
     Stale(Uuid, be_host_stack::Stale),
     Ready { region: ViewKey, access: Access },
@@ -1240,6 +1242,9 @@ fn BlockFrameBody(
         if be_host_stack::locked(block) {
             return Resolution::Locked;
         }
+        if be_host_stack::out_of_reach(block) {
+            return Resolution::OutOfReach;
+        }
         if let Some(stale) = be_host_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
@@ -1281,6 +1286,17 @@ fn BlockFrameBody(
                                 .to_owned(),
                             busy: false,
                             icon: Some(beui::icons::ICON_LOCK),
+                        };
+                        view! {
+                            <Notice item />
+                        }
+                    }
+                    Resolution::OutOfReach => {
+                        let item = HostItem::Notice {
+                            text: "Not on this device yet: it opens once you're back online"
+                                .to_owned(),
+                            busy: false,
+                            icon: Some(beui::icons::ICON_CLOUD_OFF),
                         };
                         view! {
                             <Notice item />
@@ -1384,7 +1400,7 @@ fn BlockFrameView(
         create_effect(move || {
             revision.get();
             if be_host_runtime::take_leaving(&app_id.value(), instance) {
-                tab.exit.call();
+                tab.exit.call(());
             }
         });
     }

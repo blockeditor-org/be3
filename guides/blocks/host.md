@@ -129,7 +129,9 @@ its head.
   made-up session (`Open::made_up`): `Publish` becomes `Peer::seal` (a local
   commit in the outbox), `Resume` treats the local head as remote, and
   heartbeats, claims and relays are skipped, and the journal is the device's
-  alone. The same happens while the block
+  alone. It opens on the newest head whose content the device holds
+  (`Peer::held_head`, guides/blocks/client.md), not the server's newest, which
+  it may never have read. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
   flush and stop).
 - **Draining on connect.** The worker drains the outbox in a task

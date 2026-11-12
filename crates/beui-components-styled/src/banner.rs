@@ -18,7 +18,7 @@ pub fn Banner(
     message: Prop<Option<String>>,
     #[prop(default = String::from("banner"))] id: Prop<String>,
     #[prop(default = String::from("Dismiss"))] dismiss_label: Prop<String>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
 ) -> NodeId {
     let message = create_memo(move || message.get());
     let shown = create_memo(move || message.with(Option::is_some));
@@ -43,7 +43,7 @@ fn BannerBar(
     text: Memo<String>,
     id: String,
     dismiss_label: Prop<String>,
-    on_dismiss: ClickCallback,
+    on_dismiss: Callback<()>,
 ) -> NodeId {
     let dismissable = !on_dismiss.is_empty();
     let dismiss_id = format!("{id}.dismiss");

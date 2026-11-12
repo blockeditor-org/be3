@@ -403,7 +403,7 @@ fn RowMenuFace(handle: PopupTriggerHandle, sized: Memo<Metrics>) -> NodeId {
 fn Chevron(
     item: Memo<TreeItem>,
     marked: Memo<bool>,
-    toggle: ClickCallback,
+    toggle: Callback<()>,
     sized: Memo<Metrics>,
     named: String,
 ) -> NodeId {

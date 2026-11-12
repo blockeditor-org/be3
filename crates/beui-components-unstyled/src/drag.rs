@@ -50,7 +50,7 @@ pub fn Draggable<P>(
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = TouchDrags::None)] touch_drags: Prop<TouchDrags>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
     on_drag_change: Callback<bool>,
     on_drop_outside: Callback<DragPoint>,
     on_cancel: Callback<()>,
@@ -132,7 +132,7 @@ where
     let dragged = move |press: PointerPress| moved(DragPoint::of(press));
     let clicked = move |_: PointerPress| {
         if carried.with_untracked(Option::is_none) {
-            on_click.call();
+            on_click.call(());
         }
     };
     let released = move |active: bool| {

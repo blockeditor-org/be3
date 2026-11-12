@@ -120,7 +120,7 @@ pub trait DesktopHost {
 #[component]
 pub fn PlacedWindow(window: HostWindowId, focus: Memo<u64>) -> NodeId {
     let status = create_memo(move || Host::window_status(window));
-    let on_force_close = ClickCallback::new(move || Host::close(window));
+    let on_force_close = Callback::new(move |()| Host::close(window));
     view! {
         <WindowBody status on_force_close>
             <Host::WindowSurface window focus />

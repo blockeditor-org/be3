@@ -270,6 +270,9 @@ pub struct Peer<S: ObjectStore> {
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
     draining: std::sync::atomic::AtomicUsize,
+    /// Commits whose objects the store holds every one of (`holds`). The store never drops an
+    /// object, so a commit found whole stays whole.
+    whole: Mutex<HashSet<CommitId>>,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -365,6 +368,7 @@ impl<S: ObjectStore> Peer<S> {
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
             draining: std::sync::atomic::AtomicUsize::new(0),
+            whole: Mutex::new(HashSet::new()),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -1139,7 +1143,7 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self.refs.observe(&blocks);
                 Ok(blocks)
             }
-            Err(error) if error.is_unreachable() => match self.refs.listing(&listing) {
+            Err(error) if error.is_unreachable() => match self.refs.cached_listing(listing) {
                 Some(blocks) => Ok(self.refs.current(blocks)),
                 None => Err(error),
             },
@@ -1239,7 +1243,9 @@ impl<S: ObjectStore> Peer<S> {
                 let stored = match summary.head {
                     Some(head) => {
                         let commit = self.load_commit(head).await?;
-                        Some(self.load_manifest(&commit.manifest).await?)
+                        let stored = self.load_manifest(&commit.manifest).await?;
+                        self.read_whole(summary.id, head);
+                        Some(stored)
                     }
                     None => None,
                 };
@@ -1254,14 +1260,42 @@ impl<S: ObjectStore> Peer<S> {
         .await
     }
 
+    /// Records that this device has read a block's content at `head` whole, so it can read it
+    /// again offline (`held_head`).
+    pub fn read_whole(&self, block: Uuid, head: CommitId) {
+        if self.holds(head) {
+            let _ = self.refs.hold(block, head);
+        }
+    }
+
+    /// The newest head of a block whose content this device holds whole, for reading it
+    /// offline: its own commit, else what the server last said, else what it last read whole. A
+    /// head the server moved to while this device was not reading the block is not held.
+    pub fn held_head(&self, block: Uuid) -> Option<CommitId> {
+        [
+            self.local_head(block),
+            self.known_remote_head(block),
+            self.refs.summary(block).and_then(|summary| summary.head),
+            self.refs.held(block),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|head| self.holds(*head))
+    }
+
     fn holds(&self, head: CommitId) -> bool {
+        if self.whole.lock().unwrap().contains(&head) {
+            return true;
+        }
         let vault = self.commits.vault();
-        matches!(
+        let whole = matches!(
             self.commits.try_get(head),
-            Ok(Some(commit)) if vault
-                .missing_objects(&commit.manifest, 0, u64::MAX)
-                .is_ok_and(|missing| missing.is_empty())
-        )
+            Ok(Some(commit)) if vault.holds_all(&commit.manifest).unwrap_or(false)
+        );
+        if whole {
+            self.whole.lock().unwrap().insert(head);
+        }
+        whole
     }
 
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {
@@ -1462,7 +1496,7 @@ impl<S: ObjectStore> Peer<S> {
                 chunks,
                 time,
                 pinned,
-                references: listed,
+                references: listed.clone(),
                 metadata: sealed.clone(),
             },
             sealed_through.map(|sealed| sealed.sequence),
@@ -1471,6 +1505,7 @@ impl<S: ObjectStore> Peer<S> {
             && let Some(mut summary) = self.refs.summary(block)
         {
             summary.metadata = sealed;
+            summary.references = listed;
             self.refs.revise(summary)?;
         }
         Ok(Sealed::Sealed(id))

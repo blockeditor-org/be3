@@ -274,7 +274,7 @@ fn WorkspaceBlockTab(shell: Shell, tab: TabId) -> DockEntry<TabId> {
                 <RevisionPreviewBar history tab workspace />
             }}
             preview
-            on_details={move |()| sheet.set(PhoneSheet::Details(tab))}
+            on_details={move || sheet.set(PhoneSheet::Details(tab))}
         />
     }
 }

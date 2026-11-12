@@ -110,7 +110,7 @@ pub fn RowFace(
     #[prop(default = RowTrailing::None)] trailing: Prop<RowTrailing>,
     #[prop(default = None)] depth: Prop<Option<usize>>,
     #[prop(default = None)] expanded: Prop<Option<bool>>,
-    toggle: ClickCallback,
+    toggle: Callback<()>,
     children: Option<Child>,
 ) -> NodeId {
     let disabled = create_memo(move || disabled.get());

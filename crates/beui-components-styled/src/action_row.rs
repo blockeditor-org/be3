@@ -19,7 +19,7 @@ pub fn ActionRow(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] danger: bool,
     action: Option<Action>,
-    on_click: ClickCallback,
+    on_click: Callback<()>,
 ) -> NodeId {
     view! {
         <unstyled::Button
