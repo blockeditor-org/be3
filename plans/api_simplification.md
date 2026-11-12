@@ -29,9 +29,9 @@ them in; `be-sdk-test` has a test of that order. What is left of this step:
 
 `editor.hear` and `editor-event` replaced the 14 one-way methods, and the host
 makes `EditorEvent`s directly (`Outbound::Event`); `EditorCall` keeps only
-what is not an event. What is left: `child-bar` and `child-focused` carry the
-child only; the host's `docks::take_bars` still carries a `ViewId` nothing
-reads.
+what is not an event, and `child-bar` and `child-focused` carry the child
+only. What is left: the host's `docks::take_bars` still carries a `ViewId`
+nothing reads.
 
 ## 4. Block watches are one resource
 

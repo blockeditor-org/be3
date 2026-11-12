@@ -1142,11 +1142,12 @@ impl EditorHost {
         }));
     }
 
+    /// Tells the shell `message`, after what the editor told it before.
     pub(crate) fn tell(&self, message: ShellMessage) {
         self.told.borrow_mut().push(message);
     }
-    /// Takes what the editor told the shell, in the order it told it.
 
+    /// Takes what the editor told the shell, in the order it told it.
     pub fn take_told(&self) -> Vec<ShellMessage> {
         std::mem::take(&mut self.told.borrow_mut())
     }
