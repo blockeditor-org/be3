@@ -13,12 +13,14 @@ takes a push yet.
 
 ## The design left
 
-- **Receiving.** A device names the sender from its contacts and the block from
-  its graph, never from what the sender wrote. Missing a key, it shows a
-  generic "New message" naming nothing. It drops a push it already showed (the
-  server can resend one within `MAX_NOTIFICATION_AGE_MILLISECONDS`), keeping
-  each shown one's block and send time that long. Pressing it opens the block.
-  A device unregisters its endpoint when its account signs out.
+- **Receiving** is built on the web and left for Android. On the web
+  (`be-host/src/web_push.rs`, `web/sw.js`) a device names the sender from its
+  contacts and the block from its graph, never from what the sender wrote, and
+  missing a key shows a generic "New message" naming nothing; it drops a push it
+  already showed (the server can resend one within
+  `MAX_NOTIFICATION_AGE_MILLISECONDS`); pressing one opens the block; and it
+  unregisters its endpoint when its account signs out (`forget_this_device`).
+  Android's receiving service does the same.
 - **The lock screen** shows a notification's text in plaintext, whoever holds
   the device. A setting to show only "New message" there is a follow-up
   (plans/deferred/notifications.md).

@@ -59,11 +59,6 @@ Each step is one PR.
 - **The writer only.** The device whose session seals a commit indexes it
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.
-- **Compaction.** Each batch adds a segment; nothing merges them yet
-  (`Index::compact` exists), and `Index::forget_before` has no caller, so the
-  index's header keeps every block it ever masked. Compact on the device that writes, a few segments
-  at a time, when the count passes a threshold, and call
-  `Index::forget_before` past the index block's history retention.
 - **Edited outside a session.** The indexer seals commits straight into the
   outbox rather than through the index block's replica (`put-part` plus a
   `SetIndex` operation): two devices online at once diverge and merge by parts

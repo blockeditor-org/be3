@@ -88,6 +88,20 @@ impl SearchIndexContent {
         Ok(needs_text)
     }
 
+    /// Merges segments (`Index::compact`), reading what it needs with `read`.
+    pub async fn compact<F: AsyncRead>(&mut self, read: &F, origin: Id) -> Result<(), Error> {
+        let mut index = self.index.clone();
+        let written = index.compact(&self.reader([self], read), origin).await?;
+        *self = Self::rebuilt(index, written, [&*self]);
+        Ok(())
+    }
+
+    /// Forgets retired segments and removed blocks recorded before `watermark`
+    /// (`Index::forget_before`).
+    pub fn forget_before(&mut self, watermark: u64) {
+        self.index.forget_before(watermark);
+    }
+
     /// The best `limit` hits of `query` (`Index::search`).
     pub async fn search<F: AsyncRead>(
         &self,

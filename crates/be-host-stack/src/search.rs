@@ -56,6 +56,9 @@ const SHOWN: usize = 20;
 /// start.
 pub(crate) const MAX_TEXT: usize = 1 << 20;
 
+/// Segments an index holds before the device that writes it compacts it (`Index::compact`).
+const COMPACT_AT: usize = 8;
+
 /// Texts kept for snippets, by document and head, before they are all let go.
 const TEXTS: usize = 256;
 
@@ -950,8 +953,8 @@ async fn text_of(
 
 /// Makes `root`'s index, empty: in a task, beside the worker's loop, offline-first like any
 /// create; `name_indexes` then names it in the root's metadata.
-async fn make_index(
-    peer: &Peer<Store>,
+pub(crate) async fn make_index<S: ObjectStore>(
+    peer: &Peer<S>,
     root: Uuid,
     index: Uuid,
 ) -> Result<(), be_block_client::ClientError> {
@@ -1335,7 +1338,7 @@ impl<S: ObjectStore> AsyncRead for PeerParts<'_, S> {
 /// The head a batch applies to: the newest this device knows, so indexing never waits on the
 /// server; a batch on a head older than the server's meets the newer one as a diverged block and
 /// merges by parts. The server is asked only when the device knows no head.
-async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
+pub(crate) async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
     let known = match peer.pending_commits(index).is_empty() {
         false => peer.local_head(index),
         true => peer
@@ -1348,7 +1351,7 @@ async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId
     peer.newest_head(index).await.ok().flatten()
 }
 
-async fn load<S: ObjectStore>(
+pub(crate) async fn load<S: ObjectStore>(
     peer: &Peer<S>,
     head: CommitId,
 ) -> Result<SearchIndexContent, String> {
@@ -1379,12 +1382,39 @@ pub async fn write<S: ObjectStore>(
         .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch)
         .await
         .map_err(|error| error.to_string())?;
+    if content.index().segment_count() > COMPACT_AT {
+        compact(peer, index, &mut content).await?;
+    }
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
         .described(Vec::new(), be_block::derived_metadata(&content));
     peer.seal(index, write)
         .await
         .map_err(|error| error.to_string())?;
     Ok(true)
+}
+
+/// Merges the index's segments, then forgets the segments and blocks it retired before the
+/// oldest state of the index the server still keeps (be-server's `retention`): no state that
+/// could still be merged in predates them. Offline, it compacts and forgets nothing.
+async fn compact<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    content: &mut SearchIndexContent,
+) -> Result<(), String> {
+    content
+        .compact(&PeerParts(peer), Uuid::new_v4().into_bytes())
+        .await
+        .map_err(|error| error.to_string())?;
+    let Ok(history) = peer.history(index).await else {
+        return Ok(());
+    };
+    let Some(oldest) = history.iter().min_by_key(|entry| entry.time) else {
+        return Ok(());
+    };
+    if let Ok(kept) = load(peer, oldest.commit).await {
+        content.forget_before(kept.index().watermark());
+    }
+    Ok(())
 }
 
 /// A put wins over the entry the index holds for its document only when its commit is the
