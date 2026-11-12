@@ -60,6 +60,22 @@ impl Loader {
         Some(wanted)
     }
 
+    /// Whether this module is on its way.
+    pub(super) fn fetching(&self, app: &str, module: &str) -> bool {
+        self.fetching
+            .as_ref()
+            .is_some_and(|(fetching_app, fetching_module)| {
+                fetching_app == app && fetching_module == module
+            })
+    }
+
+    /// The module could not be fetched or loaded: it is neither running nor on its way, so
+    /// the next change to the remaps fetches it again instead of reconfiguring nothing.
+    pub(super) fn failed(&mut self) {
+        self.loaded = None;
+        self.fetching = None;
+    }
+
     pub(super) fn wanted(&self) -> Option<&Wanted> {
         self.wanted.as_ref()
     }

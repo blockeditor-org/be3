@@ -31,6 +31,15 @@ not shared yet, or, offline, a block this device has never read
 The host runs a bounded number of children as editors and draws the rest as
 previews, so place only the children that are visible.
 
+A block placed in several places at once shares one editor instance, the one
+under the block's own id that the host's own requests (focus, menus, renaming a
+new block) reach, so a shared instance draws one view for all of them. A
+placement that asks for another editor than the one holding the block (a
+settings page in a tab beside the settings list) gets an instance of its own,
+a twin under a key of its own in be-host's `Editors` (`compositor/editors.rs`;
+`Editors::block` maps it back), closed when that placement goes. Previews are
+never twinned.
+
 ## Drawing order
 
 A child is drawn under the app's own surface with its space cut out, so

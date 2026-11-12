@@ -150,6 +150,9 @@ struct Instance {
     actions: HashMap<ViewId, Vec<DescribedAction>>,
     /// Whether the person picked from its frame menu since it last asked for the palette.
     menu_picked: Option<u32>,
+    /// The backdrop its views last reported (`FrameReport::backdrop`), which a view it has not
+    /// reported yet is filled with.
+    backdrop: Option<be_sdk_api::accessibility::Color>,
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     heads: Heads,
@@ -315,6 +318,7 @@ impl Instance {
             reported_editable: None,
             actions: HashMap::default(),
             menu_picked: None,
+            backdrop: None,
             focus_reports: Vec::new(),
             artifact_watch: None,
             heads: Heads::default(),
@@ -2805,8 +2809,11 @@ impl Instances {
             .unwrap_or(ViewId::MAIN)
     }
 
-    pub(super) fn frame_child(&self, instance: EditorInstanceId) -> Option<Uuid> {
-        self.framing(instance).map(|(_, _, block)| block)
+    pub(super) fn frame_child(
+        &self,
+        instance: EditorInstanceId,
+    ) -> Option<(ViewId, ChildId, Uuid)> {
+        self.framing(instance)
     }
 
     fn framing(&self, instance: EditorInstanceId) -> Option<(ViewId, ChildId, Uuid)> {
@@ -3218,13 +3225,13 @@ impl Instances {
                 let anchored = entry
                     .anchored
                     .iter_mut()
-                    .map(|held| (held.view, &mut held.screen));
-                if let Some((view, screen)) = entry
+                    .map(|held| (held.view, &mut held.screen, true));
+                if let Some((view, screen, anchored)) = entry
                     .screens
                     .iter_mut()
-                    .map(|(view, screen)| (*view, screen))
+                    .map(|(view, screen)| (*view, screen, false))
                     .chain(anchored)
-                    .find(|(_, screen)| screen.request.screen == report.screen)
+                    .find(|(_, screen, _)| screen.request.screen == report.screen)
                 {
                     if let Some(actions) = actions.clone() {
                         entry.actions.insert(view, actions);
@@ -3234,12 +3241,22 @@ impl Instances {
                         screen.accessibility.update(tree);
                         changed = true;
                     }
+                    if let (Some(backdrop), false) = (&report.backdrop, anchored) {
+                        entry.backdrop = Some(backdrop.clone());
+                    }
                     changed |= screen.report.as_ref() != Some(&report);
                     screen.report = Some(report.clone());
                 }
             }
         }
         changed
+    }
+
+    pub(super) fn backdrop(
+        &self,
+        instance: EditorInstanceId,
+    ) -> Option<&be_sdk_api::accessibility::Color> {
+        self.entries.get(&instance)?.backdrop.as_ref()
     }
 
     pub(super) fn frame_report(

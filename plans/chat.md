@@ -32,8 +32,6 @@ counts are built (guides/chat.md). What is left:
   unsent edit is lost too; and an owner whose append the server took but whose
   answer a disconnect lost, after which another device took the session over,
   never tells it.
-- **Segments held in memory.** A hook that turns a closed segment's bytes into
-  the saved part, so a replica stops holding them until it reloads.
 - **Copying parts.** Duplicate, export, `be` transfer, version control's
   re-listing of a parent and revision preview or restore refuse a chat with
   closed segments until a copy of parts exists.
