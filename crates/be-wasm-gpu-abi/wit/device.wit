@@ -793,10 +793,11 @@ interface device {
     );
     submit: func(command-buffers: list<command-buffer>);
     /// Settles the maps and submitted work the gpu is done with, and answers
-    /// what settled. Waiting blocks until the work submitted so far is done
-    /// where the host can block (natively), and is the same as not waiting in
-    /// a browser, where they settle on their own. The host wakes the app when
-    /// anything settles or the device is lost.
+    /// what settled. Waiting blocks, where the host can block (natively),
+    /// until every map and work-done ticket asked for so far has settled; in
+    /// a browser, where they settle on their own, it is the same as not
+    /// waiting. The host wakes the app when anything settles or the device is
+    /// lost.
     poll: func(wait: bool) -> settled;
     /// Asks to be told when the gpu has done the work submitted so far, and
     /// answers a ticket a later `poll` lists in `work-done`.

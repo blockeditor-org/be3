@@ -54,12 +54,15 @@ impl Held {
         self.tickets
     }
 
-    /// Forgets the buffer's map: a map still pending settles as failed.
-    fn forget(&mut self, buffer: u32) {
-        if let Some(State::Pending(ticket)) = self.states.remove(&buffer) {
-            self.pending -= 1;
-            self.maps.push((ticket, false));
-        }
+    /// Forgets the buffer's map: a map still pending settles as failed, and answers whether
+    /// one did.
+    fn forget(&mut self, buffer: u32) -> bool {
+        let Some(State::Pending(ticket)) = self.states.remove(&buffer) else {
+            return false;
+        };
+        self.pending -= 1;
+        self.maps.push((ticket, false));
+        true
     }
 }
 
@@ -162,7 +165,7 @@ impl Settling {
         let mut held = self.shared.held();
         let buffers: Vec<u32> = held.states.keys().copied().collect();
         for buffer in buffers {
-            held.forget(buffer);
+            let _ = held.forget(buffer);
         }
     }
 
@@ -267,7 +270,10 @@ impl Settling {
     }
 
     pub(crate) fn forget(&mut self, buffer: u32) {
-        self.shared.held().forget(buffer);
+        let forgot = self.shared.held().forget(buffer);
+        if forgot {
+            self.wake();
+        }
     }
 
     /// Polls the device, waiting for the work submitted so far when `wait` is set. wgpu runs a

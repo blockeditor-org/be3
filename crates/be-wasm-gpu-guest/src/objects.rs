@@ -133,6 +133,7 @@ fn settle_work(done: Vec<u64>) {
     if done.is_empty() {
         return;
     }
+    let done: HashSet<u64> = done.into_iter().collect();
     let done: Vec<Work> = WORK.with(|work| {
         let mut work = work.borrow_mut();
         let (finished, waiting) = work.drain(..).partition(|work| done.contains(&work.ticket));

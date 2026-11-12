@@ -81,6 +81,7 @@ impl Caller for Guest {
 }
 
 mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
+mod a_map_cut_short_settles_failed_once_and_never_settles_a_later_one;
 mod a_compute_pass_is_recorded_on_its_encoder;
 mod a_configured_surface_alternates_between_two_textures;
 mod a_configured_surface_keeps_its_texture_until_its_size_changes;
