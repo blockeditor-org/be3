@@ -799,9 +799,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 .then(|| callback_signature(ty))
                 .transpose()?;
             let inner_ty = generic_inner(ty, "Option");
-            let is_optional_click_callback = inner_ty
-                .as_ref()
-                .is_some_and(is_unit_callback);
+            let is_optional_click_callback = inner_ty.as_ref().is_some_and(is_unit_callback);
             let optional_callback_signature = inner_ty
                 .as_ref()
                 .filter(|inner| is_named_type(inner, "Callback"))

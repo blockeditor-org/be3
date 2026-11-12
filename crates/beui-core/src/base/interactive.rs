@@ -12,7 +12,7 @@ use beui_types::{Pos2, Rect, Vec2};
 
 use crate::document::Document;
 use crate::node::{Element, NodeOf, Rects};
-use beui_tree::callback::{Callback};
+use beui_tree::callback::Callback;
 use beui_types::NodeId;
 
 pub struct InteractiveNode {

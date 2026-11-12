@@ -242,9 +242,8 @@ pub fn TextInput(
             />
         };
         let clear = Callback::new(move |()| value.set(String::new()));
-        let copy = Callback::new(move |()| {
-            beui_view::reactive::copy(Clip::text(value.get_untracked()))
-        });
+        let copy =
+            Callback::new(move |()| beui_view::reactive::copy(Clip::text(value.get_untracked())));
         return match content {
             Some(build) => build.call(TextInputHandle {
                 field,

@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use beui_tree::reactive::{Callback};
+use beui_tree::reactive::Callback;
 use beui_types::input::{ImeEvent, KeyPress, PointerInput, PointerPress, WheelInput};
 use beui_types::region::{Area, Claim};
 use beui_types::{ClipItem, Pos2, SoftKeyboard, Vec2};

@@ -9,7 +9,7 @@ use beui_types::{Rect, Vec2};
 use crate::current::with_document;
 use crate::document::Document;
 use crate::node::{Element, FocusChild, NodeOf, Rects};
-use beui_tree::callback::{Callback};
+use beui_tree::callback::Callback;
 use beui_types::NodeId;
 use std::ops::Range;
 
