@@ -32,5 +32,9 @@ fn a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits() {
         crate::wait_until(|shared| Some(shared.error.clone())).is_none(),
         "the refused block's replica tried to join a session the server does not have"
     );
-    assert_eq!(count_of(block), Some(2), "what was made of it is still shown");
+    assert_eq!(
+        count_of(block),
+        Some(2),
+        "what was made of it is still shown"
+    );
 }

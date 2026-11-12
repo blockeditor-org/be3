@@ -1640,7 +1640,8 @@ async fn drain_outbox(
                         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                         held.graph.relist_around(*block, parent);
                         if let Some(from) = from {
-                            held.graph.relist(be_block_protocol::Listing::Children(*from));
+                            held.graph
+                                .relist(be_block_protocol::Listing::Children(*from));
                         }
                     }
                     be_block_client::Drained::Refused { block, .. } => {
@@ -1709,7 +1710,8 @@ fn shown_as_refused(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid
         _ => held.graph.forget(block),
     }
     if let Some(shown) = shown {
-        held.graph.relist(be_block_protocol::Listing::Children(shown));
+        held.graph
+            .relist(be_block_protocol::Listing::Children(shown));
     }
 }
 
