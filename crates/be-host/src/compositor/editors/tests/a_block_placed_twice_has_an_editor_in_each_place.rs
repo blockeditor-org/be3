@@ -19,6 +19,7 @@ fn a_block_placed_twice_has_an_editor_in_each_place() {
     let (block, workspace) = (Uuid::new_v4(), Uuid::new_v4());
     let panel = (workspace, ViewId::MAIN, ChildId(1));
     let tab = (workspace, ViewId::MAIN, ChildId(2));
+    let handed = (workspace, ViewId::MAIN, ChildId(3));
     let opened = |key: Uuid| {
         editors.with(|open| {
             open.get(&key).map(|editor| {
@@ -33,15 +34,34 @@ fn a_block_placed_twice_has_an_editor_in_each_place() {
         in_panel, block,
         "the first place a block is shown keeps its own id"
     );
+    let panel_instance = opened(block).unwrap().2;
+
+    assert_eq!(
+        editors.place(handed, block, block_type, None, None),
+        block,
+        "another place naming no editor shares the block's own editor"
+    );
+    assert_eq!(
+        editors.place(handed, block, block_type, None, Some(list)),
+        block,
+        "and so does one naming the editor already open"
+    );
+    assert_eq!(opened(block).unwrap().2, panel_instance);
+    editors.unplace(handed);
+    assert_eq!(
+        opened(block).unwrap().2,
+        panel_instance,
+        "a sharing place going leaves the editor alone"
+    );
+
     let in_tab = editors.place(tab, block, block_type, None, Some(devices));
     assert_ne!(
         in_tab, block,
-        "a second place showing the block has a key of its own"
+        "a place asking for another editor has a key of its own"
     );
     assert_eq!(editors.block(in_tab), block);
     assert_eq!(editors.parent_of(in_tab), Some(workspace));
-
-    let (panel_shows, panel_editor, panel_instance) = opened(in_panel).unwrap();
+    let (panel_shows, panel_editor, _) = opened(in_panel).unwrap();
     let (tab_shows, tab_editor, tab_instance) = opened(in_tab).unwrap();
     assert_eq!(
         (panel_shows, tab_shows),
@@ -55,48 +75,31 @@ fn a_block_placed_twice_has_an_editor_in_each_place() {
     );
     assert_ne!(
         panel_instance, tab_instance,
-        "each place runs an instance of its own, so each has its own frame at its own size"
+        "each runs an instance of its own"
     );
-
     assert_eq!(
         editors.place(tab, block, block_type, None, Some(devices)),
         in_tab,
         "placing again keeps the place's editor"
     );
     assert_eq!(opened(in_tab).unwrap().2, tab_instance);
-    assert_eq!(editors.place(panel, block, block_type, None, None), block);
-    assert_eq!(opened(in_panel).unwrap().2, panel_instance);
 
     editors.unplace(tab);
-    assert!(
-        opened(in_tab).is_none(),
-        "the second place's editor goes with it"
-    );
-    assert_eq!(opened(in_panel).unwrap().2, panel_instance);
+    assert!(opened(in_tab).is_none(), "the twin goes with its place");
+    assert_eq!(opened(block).unwrap().2, panel_instance);
 
-    let in_tab = editors.place(tab, block, block_type, None, Some(devices));
-    let tab_instance = opened(in_tab).unwrap().2;
     editors.unplace(panel);
     assert_eq!(
-        opened(block).map(|(_, editor, instance)| (editor, instance)),
-        Some((Some(devices), tab_instance)),
-        "when the place holding the block's own id goes, the one left takes it with its editor"
+        opened(block).unwrap().2,
+        panel_instance,
+        "the block's own editor outlives its places, as the host's requests reach it"
     );
-    assert!(opened(in_tab).is_none());
-    assert_eq!(editors.parent_of(block), Some(workspace));
     assert_eq!(
         editors.place(tab, block, block_type, None, Some(devices)),
         block,
-        "and is placed under it from then on"
+        "a block no place holds is the next place's to hold, in the editor it asks for"
     );
-    assert_eq!(opened(block).unwrap().2, tab_instance);
-
-    editors.unplace(tab);
-    assert_eq!(
-        editors.place(panel, block, block_type, None, None),
-        block,
-        "a block no place holds is the next place's to hold"
-    );
+    assert_eq!(opened(block).unwrap().1, Some(devices));
 
     drop(editors);
 }

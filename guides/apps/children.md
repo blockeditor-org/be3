@@ -31,15 +31,14 @@ not shared yet, or, offline, a block this device has never read
 The host runs a bounded number of children as editors and draws the rest as
 previews, so place only the children that are visible.
 
-A block placed in several places at once (the settings list in a side panel and
-one of its pages in a tab) gets an editor instance in each, so each has its own
-frame at its own size and may name its own editor. In be-host's `Editors`
-(`compositor/editors.rs`) the first placement holds the block's own id, which
-the host's own requests reach, and any other its placer still places at once is
-a twin under a key of its own (`Editors::block` maps it back), closed when that
-placement goes. A child handed to a new child id takes the id over rather than
-twinning, and when the holder goes a twin left takes the id with its editor. Previews are not twinned: they share the editor under
-the block's own id, drawn once as Preview says.
+A block placed in several places at once shares one editor instance, the one
+under the block's own id that the host's own requests (focus, menus, renaming a
+new block) reach, so a shared instance draws one view for all of them. A
+placement that asks for another editor than the one holding the block (a
+settings page in a tab beside the settings list) gets an instance of its own,
+a twin under a key of its own in be-host's `Editors` (`compositor/editors.rs`;
+`Editors::block` maps it back), closed when that placement goes. Previews are
+never twinned.
 
 ## Drawing order
 

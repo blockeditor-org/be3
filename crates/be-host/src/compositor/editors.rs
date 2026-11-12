@@ -54,10 +54,9 @@ pub(crate) type CreationKey = (Uuid, View, ChildId);
 type PlaceKey = (Uuid, ViewId, ChildId);
 
 /// The keys placed children have in `open`. The first placement of a block holds the block's
-/// own id, which the host's own requests (focus, menus, `ensure_editor`) reach it by. Any
-/// other placement of the same block at once is a twin: an editor instance of its own under
-/// a key of its own, so each place has its own frame at its own size (and its own editor, as
-/// a settings page beside the settings list does), dropped when that placement goes.
+/// own id, and every other one shares its editor there, unless it asks for another editor:
+/// then it is a twin, an instance of its own under a key of its own, so a settings page in a
+/// tab and the settings list beside it each keep their editor at their own size.
 #[derive(Default)]
 struct Shown {
     claims: HashMap<Uuid, PlaceKey>,
@@ -247,10 +246,11 @@ impl Editors {
         self.open_as(id, id, block_type, view_block, editor);
     }
 
-    /// Opens `id` for the child `place` shows and returns its key in `open`: the block's own
-    /// id, or a twin's while another placement its placer still places holds it. A holder its
-    /// placer has let go of (a child handed to a new child id, whose old one has not cleaned up
-    /// yet) gives the block's own id to `place` rather than making it a twin.
+    /// Opens `id` for the child `place` shows and returns its key in `open`. Every placement
+    /// of a block shares the editor under the block's own id, the one the host's own requests
+    /// (focus, menus, `ensure_editor`, renaming a new block) reach, except one asking for
+    /// another editor than the placement holding that id has: that one is a twin, an instance
+    /// of its own under a key of its own, closed when it goes.
     fn place(
         &self,
         place: PlaceKey,
@@ -260,13 +260,26 @@ impl Editors {
         editor: Option<Uuid>,
     ) -> Uuid {
         let state = self.0.value();
-        let holder = state.shown.borrow().claims.get(&id).copied();
-        let rival = holder.filter(|holder| *holder != place && self.still_placed(*holder));
+        let registry = self.registry();
+        let opened = crate::editors::Opened {
+            id,
+            block_type,
+            view_block,
+        };
+        let wanted = editor.filter(|editor| registry.edits(*editor, opened));
+        let held_by_other = state
+            .shown
+            .borrow()
+            .claims
+            .get(&id)
+            .is_some_and(|holder| *holder != place);
+        let held_editor = self.with(|open| open.get(&id).and_then(AppEditor::editor_id));
+        let twinned = held_by_other && wanted.is_some_and(|wanted| held_editor != Some(wanted));
         let (key, left) = {
             let mut shown = state.shown.borrow_mut();
             let held = shown.places.get(&place).copied();
-            let key = match rival {
-                Some(_) => match held {
+            let key = match twinned {
+                true => match held {
                     Some(twin) if shown.twins.get(&twin) == Some(&id) => twin,
                     _ => {
                         shown.next_twin += 1;
@@ -275,11 +288,10 @@ impl Editors {
                         twin
                     }
                 },
-                None => {
-                    if let Some(stale) = holder.filter(|holder| *holder != place) {
-                        shown.places.remove(&stale);
+                false => {
+                    if !held_by_other {
+                        shown.claims.insert(id, place);
                     }
-                    shown.claims.insert(id, place);
                     id
                 }
             };
@@ -297,20 +309,8 @@ impl Editors {
         key
     }
 
-    /// Whether the placer of `place` still places it, as of what its app last sent. A placer
-    /// the host runs no editor for (a picker or a creation) is taken at its word.
-    fn still_placed(&self, (parent, view, child): PlaceKey) -> bool {
-        let Some(placer) = self.handle(parent) else {
-            return true;
-        };
-        let Some(app_id) = placer.app_id() else {
-            return true;
-        };
-        be_host_runtime::places(app_id, placer.instance, view, child)
-    }
-
-    /// The child `place` shows is gone: a twin it held closes, and the block it held goes to
-    /// one of its twins, if any, or to the next placement.
+    /// The child `place` shows is gone: a twin it held closes, and the block it held is free
+    /// for the next placement to hold.
     fn unplace(&self, place: PlaceKey) {
         let state = self.0.value();
         let held = state.shown.borrow_mut().places.remove(&place);
@@ -321,42 +321,17 @@ impl Editors {
 
     fn release(&self, place: PlaceKey, key: Uuid) {
         let state = self.0.value();
-        let (twin, promoted) = {
+        let twin = {
             let mut shown = state.shown.borrow_mut();
-            let mut promoted = None;
             if shown.claims.get(&key) == Some(&place) {
                 shown.claims.remove(&key);
-                let heir = shown
-                    .places
-                    .iter()
-                    .filter(|(_, held)| shown.twins.get(*held) == Some(&key))
-                    .map(|(place, held)| (*place, *held))
-                    .min_by_key(|(_, twin)| *twin);
-                if let Some((heir, twin)) = heir {
-                    shown.twins.remove(&twin);
-                    shown.claims.insert(key, heir);
-                    shown.places.insert(heir, key);
-                    promoted = Some(twin);
-                }
             }
-            (shown.twins.remove(&key).is_some(), promoted)
+            shown.twins.remove(&key).is_some()
         };
         if twin {
             state.parents.borrow_mut().remove(&key);
             let closed = self.with(|open| open.remove(&key));
             drop(closed);
-            be_host_base::host::changed();
-        }
-        if let Some(twin) = promoted {
-            let parent = state.parents.borrow_mut().remove(&twin);
-            if let Some(parent) = parent {
-                state.parents.borrow_mut().insert(key, parent);
-            }
-            let replaced = self.with(|open| {
-                let editor = open.remove(&twin)?;
-                open.insert(key, editor)
-            });
-            drop(replaced);
             be_host_base::host::changed();
         }
     }

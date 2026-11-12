@@ -2808,24 +2808,6 @@ impl Instances {
             .unwrap_or(ViewId::MAIN)
     }
 
-    pub(super) fn places(&self, instance: EditorInstanceId, view: ViewId, child: ChildId) -> bool {
-        let Some(entry) = self.entries.get(&instance) else {
-            return false;
-        };
-        let holds = |screen: &Screen| {
-            screen
-                .children
-                .children
-                .iter()
-                .any(|placed| placed.child == child)
-        };
-        entry.screens.get(&view).is_some_and(holds)
-            || entry
-                .anchored
-                .iter()
-                .any(|held| held.root == view && holds(&held.screen))
-    }
-
     pub(super) fn frame_child(
         &self,
         instance: EditorInstanceId,
