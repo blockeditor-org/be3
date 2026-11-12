@@ -68,16 +68,6 @@ host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
 whether `set-parent` and the existing `move-command`/`reorder-command` are one
 thing, and keep one.
 
-## 6. Openings share one header
-
-`open-block`, `open-creation`, `open-artifact`, `open-picker` and
-`open-rename` (`be-sdk-api/wit/types.wit`) each repeat `instance`, `editor`,
-`account-id`, `organization-id` and `client-id`. Make one
-`record opening { instance, editor, account-id, organization-id, client-id,
-kind: opening-kind }`, where each `opening-kind` case holds only its own
-fields. This removes `Opening::instance` (`be-sdk-api/src/opening.rs`) and the
-five-arm match in `be-sdk/src/screens.rs` that pulls the shared fields out.
-
 ## 7. The host's per-instance queues are one pushed stream
 
 `be-host-runtime/src/runtime.rs` has 19 `take_*` functions that be-host polls
