@@ -2804,8 +2804,11 @@ impl Instances {
             .unwrap_or(ViewId::MAIN)
     }
 
-    pub(super) fn frame_child(&self, instance: EditorInstanceId) -> Option<Uuid> {
-        self.framing(instance).map(|(_, _, block)| block)
+    pub(super) fn frame_child(
+        &self,
+        instance: EditorInstanceId,
+    ) -> Option<(ViewId, ChildId, Uuid)> {
+        self.framing(instance)
     }
 
     fn framing(&self, instance: EditorInstanceId) -> Option<(ViewId, ChildId, Uuid)> {

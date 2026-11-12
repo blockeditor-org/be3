@@ -57,6 +57,7 @@ APPS = {
     "a_second_finger_turns_a_pen_stroke_into_a_pinch": ["infinite-canvas"],
     "a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions": ["desktop", "infinite-canvas"],
     "a_setting_opens_from_the_settings_tab_beside_the_files": ["settings"],
+    "a_settings_page_and_the_settings_list_show_the_same_block_side_by_side": ["settings"],
     "a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar": ["infinite-canvas", "presentation", "text"],
     "a_slides_preview_catches_up_with_quick_changes_after_a_pause": ["infinite-canvas", "presentation", "text"],
     "a_tab_keeps_its_view_through_a_resize": ["example-pan-zoom"],

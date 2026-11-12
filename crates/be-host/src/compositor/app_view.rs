@@ -288,12 +288,16 @@ pub(crate) fn AppView(
     let any = super::any();
     let presenting = create_memo(move || {
         any.get();
-        block.is_some_and(|block| {
+        block.is_some() && {
+            let app_id = app_id.value();
             super::editors::editors().with(|open| {
-                open.get(&block)
-                    .is_some_and(crate::editors::AppEditor::presenting_now)
+                open.values().any(|editor| {
+                    editor.instance() == instance
+                        && editor.app().is_some_and(|app| app.identity.id == *app_id)
+                        && editor.presenting_now()
+                })
             })
-        })
+        }
     });
     provide_context(Presented(create_memo(move || {
         presented.get() || presenting.get()
@@ -464,7 +468,7 @@ pub(crate) fn AppView(
         revision.get();
         let actions = be_host_runtime::take_view_actions(&app_id.value(), instance);
         if !actions.is_empty() {
-            let from = super::editors::editors().block_of(&app_id.value(), instance);
+            let from = super::editors::editors().key_of(&app_id.value(), instance);
             for action in actions {
                 super::act(from, action);
             }
