@@ -44,7 +44,7 @@ pub use be_wasm_dylink::library_file_name;
 pub use be_wasm_gpu_host::Imports;
 pub use gauge::memories;
 pub use interrupt::Interrupter;
-pub use precompile::{precompile, precompile_to};
+pub use precompile::{LARGEST_FUNCTION, oversized, precompile, precompile_to};
 pub use state::{Connect, State};
 
 pub const PRECOMPILED_EXTENSION: &str = "cwasm";

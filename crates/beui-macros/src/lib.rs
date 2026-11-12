@@ -1252,7 +1252,12 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         #(#required_impls)*
 
         impl #all_generics #builder_all #where_clause {
+            // Never inlined: a component runs once, so the call costs nothing,
+            // and inlined, a view's every component merged into one function,
+            // which in beui-demo grew past the 1 MiB of machine code Windows on
+            // ARM64 can describe (guides/app_libraries.md, Function size).
             #[track_caller]
+            #[inline(never)]
             pub fn build(self) #output #build_where {
                 let with_built = self.with_built;
                 #(#field_lets)*

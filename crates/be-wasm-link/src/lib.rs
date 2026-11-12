@@ -3,6 +3,7 @@ pub mod inputs;
 pub mod map;
 pub mod module;
 pub mod object;
+pub mod relocations;
 pub mod tls;
 
 use std::{
@@ -702,7 +703,7 @@ fn link_linked(
         let _ = std::fs::remove_file(path);
     }
     let thread_locals = thread_locals?;
-    let bytes = without_unused_sections(&read(&out)?)?;
+    let bytes = relocations::with_split_relocations(&without_unused_sections(&read(&out)?)?)?;
     unresolved(&bytes, &name, &closure)?;
     let bytes = module::with_short_symbols(&bytes)?;
     let needs: Vec<&str> = closure

@@ -88,6 +88,55 @@ pub fn precompile_to(
     write_precompiled(&Engines::new(target, quick)?, wasm, artifact)
 }
 
+/// The most machine code one compiled function may hold. Windows on ARM64's
+/// unwind information gives a function's length in 18 bits of 4-byte words,
+/// and Cranelift panics compiling for it past that, so every precompile, for
+/// whichever target, refuses a module with a function past it and names it.
+/// Other targets' code is no larger than ARM64's, so the Linux and Android
+/// ARM64 precompiles, which build beside Windows', name what grew.
+pub const LARGEST_FUNCTION: u64 = 1 << 20;
+
+/// The functions in a precompiled module, an ELF object with a symbol for each
+/// function wasmtime compiled (its `debug_symbols`, on by default), with more
+/// than `limit` bytes of code, largest first.
+pub fn oversized(compiled: &[u8], limit: u64) -> Result<Vec<(String, u64)>, String> {
+    let malformed = || "the precompiled module is not the ELF object wasmtime writes".to_owned();
+    let bytes = |at: usize, length: usize| compiled.get(at..at + length).ok_or_else(malformed);
+    let u16_at = |at| Ok::<_, String>(u16::from_le_bytes(bytes(at, 2)?.try_into().unwrap()));
+    let u32_at = |at| Ok::<_, String>(u32::from_le_bytes(bytes(at, 4)?.try_into().unwrap()));
+    let u64_at = |at| Ok::<_, String>(u64::from_le_bytes(bytes(at, 8)?.try_into().unwrap()));
+    if bytes(0, 6)? != b"\x7fELF\x02\x01" {
+        return Err(malformed());
+    }
+    let headers = u64_at(0x28)? as usize;
+    let header_size = u16_at(0x3a)? as usize;
+    let header = |index: usize| headers + index * header_size;
+    let mut found = Vec::new();
+    for index in 0..u16_at(0x3c)? as usize {
+        const SYMBOL_TABLE: u32 = 2;
+        if u32_at(header(index) + 4)? != SYMBOL_TABLE {
+            continue;
+        }
+        let symbols = u64_at(header(index) + 24)? as usize;
+        let length = u64_at(header(index) + 32)? as usize;
+        let names = u64_at(header(u32_at(header(index) + 40)? as usize) + 24)? as usize;
+        for symbol in (symbols..symbols + length).step_by(24) {
+            let size = u64_at(symbol + 16)?;
+            if size <= limit {
+                continue;
+            }
+            let start = names + u32_at(symbol)? as usize;
+            let name = compiled
+                .get(start..)
+                .and_then(|rest| rest.split(|byte| *byte == 0).next())
+                .ok_or_else(malformed)?;
+            found.push((String::from_utf8_lossy(name).into_owned(), size));
+        }
+    }
+    found.sort_by(|a, b| b.1.cmp(&a.1));
+    Ok(found)
+}
+
 fn precompile_file(engines: &Engines, wasm: &Path) -> Result<(), String> {
     write_precompiled(engines, wasm, &wasm.with_extension(PRECOMPILED_EXTENSION))
 }
@@ -99,6 +148,19 @@ fn write_precompiled(engines: &Engines, wasm: &Path, artifact: &Path) -> Result<
         .for_module(&bytes)
         .precompile_module(&bytes)
         .map_err(|error| format!("{} could not be compiled: {error}", wasm.display()))?;
+    let oversized = oversized(&compiled, LARGEST_FUNCTION)?;
+    if !oversized.is_empty() {
+        let listed: Vec<String> = oversized
+            .iter()
+            .map(|(name, size)| format!("  {size} bytes: {name}"))
+            .collect();
+        return Err(format!(
+            "{} compiles to functions of more than {LARGEST_FUNCTION} bytes, which Windows on ARM64 \
+             cannot unwind (guides/app_libraries.md, Function size):\n{}",
+            wasm.display(),
+            listed.join("\n")
+        ));
+    }
     let partial = artifact.with_extension(format!("{PRECOMPILED_EXTENSION}.partial"));
     std::fs::write(&partial, compiled)
         .map_err(|error| format!("{} could not be written: {error}", partial.display()))?;

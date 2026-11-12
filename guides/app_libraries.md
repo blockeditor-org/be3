@@ -122,6 +122,30 @@ be-wasm-host), so later apps compile only themselves. In a browser each worker
 compiles with `WebAssembly.compileStreaming`, which lets the browser cache it;
 the server must serve `.wasm` as `application/wasm` for that.
 
+## Function size
+
+Windows on ARM64's unwind information gives a function's length in 18 bits of
+4-byte words, so wasmtime cannot compile a function of more than 1 MiB of
+machine code for it: Cranelift panics ("function too large"). Every
+precompile, for every target, refuses a module with such a function and names
+it (`LARGEST_FUNCTION` in `crates/be-wasm-host/src/precompile.rs`, read from
+the symbols of the compiled object); code for other targets is no larger, so
+the deploy's Linux and Android ARM64 precompiles name what Windows' would
+refuse. What grew past it, and what keeps it down:
+
+- wasm-ld writes a store for each pointer in a position-independent module's
+  data into one function, `__wasm_apply_data_relocs` (1.5 MB of wasm in beui's
+  library). The linker splits it into functions of at most 64 KB that it calls
+  in order (`crates/be-wasm-link/src/relocations.rs`).
+- A component builder's `build` is `#[inline(never)]` (beui-macros): inlined,
+  a view's whole tree of components merged into one closure (925 KB of wasm in
+  the beui gallery).
+- wasmtime compiles a module's element segments, one table store for each
+  function whose address is taken (mostly vtables), into the module's
+  `module_start` function, about 60 bytes of ARM64 code an entry: 962 KB in
+  beui's release library. Past the limit, wasmtime must emit it as a loop or
+  split it; nothing here can.
+
 ## The raw app interface
 
 An app needs no Rust and no library: a standalone app is one plain wasm module
