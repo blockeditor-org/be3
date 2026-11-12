@@ -652,11 +652,18 @@ impl ModuleRunner {
         let id = region.id();
         let window = self.windows.get(&id).copied();
         let output = self.runner.output();
+        let report = self.views.take_report(id);
+        let overlays: Vec<Rect> = report
+            .floating_painted
+            .iter()
+            .filter(|rect| !report.marks_painted.contains(rect))
+            .copied()
+            .collect();
         let mut backdrop = None;
         if let Some(output) = window.and_then(|window| output?.window(window)) {
             let surface = surfaces.of(id);
             let by = surface.visible * ratio;
-            note(surface, output, by);
+            note(surface, output, by, &overlays);
             backdrop = opaque(output.window.appearance.clear_color);
         }
         let held = self.escaped.entry(id).or_default();
@@ -669,7 +676,6 @@ impl ModuleRunner {
             None => held.clear(),
         }
         let anchored = escaped::report(held, region.view.id, ratio);
-        let report = self.views.take_report(id);
         let backdrop = backdrop.filter(|_| !report.shows_through);
         let to_region = |rect: Rect| rect.scaled(ratio.recip());
         let fitted = report

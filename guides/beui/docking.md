@@ -60,7 +60,8 @@ covers, its windows and the window manager, the switch.
 **Reconciling.** The declared tabs are the whole set: a tab the code stops declaring is closed, one
 it starts declaring is placed (beside the tab declared before it, else the nearest open declared
 tab, else a declared window, else a window of its own). Closing is a request: `on_close` gives the
-tab a close button, and the tab goes only when the caller stops declaring it. Two traps follow:
+tab a close button (the tab's only pointing-hand cursor), a pane or window whose every tab has one
+gets a close button on its bar too, even with a single tab, and the tab goes only when the caller stops declaring it. Two traps follow:
 
 - A tab whose declaration disappears for a moment (a `Show` that flips, a `ForEach` rebuilt from new
   keys) is closed and loses its place, history and panel. Keep each tab's declaration in one stable

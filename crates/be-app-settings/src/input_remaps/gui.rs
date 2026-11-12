@@ -3,10 +3,10 @@ use be_lib_remap::edit::{
 };
 use be_lib_remap::text;
 use be_sdk_beui::Editor;
-use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_PENCIL, ICON_PLUS, ICON_TRASH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::{NodeId, NodeRef};
 
 use super::picker::{KeyPicker, Picked, Picking, Target};
 use super::programs::{ProgramDialog, Scope, Scoping};
@@ -38,6 +38,8 @@ pub(super) struct Edits {
     /// The rule shown with its editor, by group and rule.
     pub(super) open: Signal<Option<(usize, usize)>>,
     pub(super) picking: Signal<Option<Picking>>,
+    /// The control the picker was opened from, which it points at.
+    pub(super) opener: NodeRef,
     pub(super) scoping: Signal<Option<Scoping>>,
 }
 
@@ -65,7 +67,11 @@ impl Edits {
         self.change.call(Change::Rule(group, rule, edit));
     }
 
-    pub(super) fn pick(self, group: usize, rule: usize, target: Target) {
+    /// Opens the picker for a key, pointing at `from`, the control that asked.
+    pub(super) fn pick(self, from: NodeRef, group: usize, rule: usize, target: Target) {
+        if let Some(from) = from.try_get() {
+            self.opener.fill(from);
+        }
         self.picking.set(Some(Picking {
             group,
             rule,
@@ -145,6 +151,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
     let problem = create_signal(None::<String>);
     let open = create_signal(None::<(usize, usize)>);
     let picking = create_signal(None::<Picking>);
+    let opener = NodeRef::new();
     let scoping = create_signal(None::<Scoping>);
     let change = Callback::new(move |change: Change| {
         let Ok(mut editing) = Editing::parse(&draft.get_untracked()) else {
@@ -209,6 +216,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
         read_only: shared.read_only,
         open,
         picking,
+        opener,
         scoping,
     };
     let groups = create_memo(move || (0..outline.with(Vec::len)).collect::<Vec<usize>>());
@@ -231,6 +239,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
     });
     let warned = create_memo(move || !message.get().is_empty());
     let adding_off = create_memo(move || shared.read_only.get() || blocked.get());
+    let add_first = NodeRef::new();
     let current = Callback::new(move |group: usize| {
         let outline =
             outline.with_untracked(|outline| outline.get(group).cloned().unwrap_or_default());
@@ -267,8 +276,12 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
                             label="Add remap"
                             glyph={Some(ICON_PLUS)}
                             disabled={adding_off}
+                            @node_ref={&add_first}
                             @test_id={"input-remaps.add-rule"}
-                            on_click={move || change.call(Change::AddRule(None))}
+                            on_click={move || {
+                                opener.fill(add_first.get());
+                                change.call(Change::AddRule(None));
+                            }}
                         />
                     </SettingsRow>
                 </SettingsSection>
@@ -291,7 +304,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
                     />
                 </SettingsRow>
             </SettingsSection>
-            <KeyPicker editor={editor} picking={picking} choose={choose} />
+            <KeyPicker editor={editor} picking={picking} opener={opener} choose={choose} />
             <ProgramDialog editor={editor} scoping={scoping} current={current} apply={apply} />
         </List>
     }
@@ -330,6 +343,7 @@ fn GroupSection(edits: Edits, group: usize) -> NodeId {
         (0..outline.with(|outline| outline.rules.len())).collect::<Vec<usize>>()
     });
     let empty = create_memo(move || rules.with(Vec::is_empty));
+    let add = NodeRef::new();
     view! {
         <SettingsSection title={title} description={scope}>
             <Show condition={empty}>
@@ -346,8 +360,12 @@ fn GroupSection(edits: Edits, group: usize) -> NodeId {
                     label="Add remap"
                     glyph={Some(ICON_PLUS)}
                     disabled={edits.read_only}
+                    @node_ref={&add}
                     @test_id={format!("input-remaps.group.{group}.add-rule")}
-                    on_click={move || edits.change.call(Change::AddRule(Some(group)))}
+                    on_click={move || {
+                        edits.opener.fill(add.get());
+                        edits.change.call(Change::AddRule(Some(group)));
+                    }}
                 />
                 <Button
                     label="Where it applies"

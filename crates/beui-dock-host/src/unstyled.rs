@@ -540,10 +540,17 @@ impl State {
             .and_then(|notice| notice.get())
     }
 
-    fn all_closable(&self, contents: Memo<Vec<TabId>>) -> Memo<bool> {
-        let closable = self.closable;
+    /// Whether a bar offers to close its pane or window: when every tab it shows is closable.
+    fn all_closable(&self, leaves: impl Fn(&DockState) -> Vec<LeafId> + 'static) -> Memo<bool> {
+        let dock = *self;
         create_memo(move || {
-            contents.with(|tabs| !tabs.is_empty() && tabs.iter().all(|tab| closable.call(*tab)))
+            let entries = dock.state.with(|state| {
+                leaves(state)
+                    .into_iter()
+                    .flat_map(|leaf| state.entries(leaf))
+                    .collect::<Vec<_>>()
+            });
+            !entries.is_empty() && entries.iter().all(|entry| dock.entry_closable(*entry))
         })
     }
 
@@ -2795,11 +2802,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     let icons_only = dock.icons_only(Some(leaf));
     let close = Callback::new(move |()| dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
-    let closable = dock.all_closable(contents);
-    let lone_tab = create_memo(move || {
-        !icons_only.get() && state.with(|state| matches!(state.entries(leaf)[..], [Entry::Tab(_)]))
-    });
-    let bar_closable = create_memo(move || closable.get() && !lone_tab.get());
+    let closable = dock.all_closable(move |_| vec![leaf]);
     let claimed = modifier_claims(dock.drag_modifier);
     let resized = modifier_resize(dock, Resized::Docked);
     view! {
@@ -2844,7 +2847,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                         }),
                         title: create_memo(String::new),
                         vacant,
-                        closable: bar_closable,
+                        closable,
                         menu,
                         close,
                         test_prefix: dock.pane_test_id("dock", leaf),
@@ -3133,6 +3136,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         }
                     }}
                     kind=ChoiceKind::Tabs
+                    cursor=CursorIcon::Default
                     direction
                     shrink={create_memo(move || entries.with(Vec::len) == 1)}
                     spacing={dock.tab_spacing}
@@ -3230,10 +3234,7 @@ fn DockTabView(
     let anchored = create_memo(move || {
         state.with(|state| !state.admits(entry, DockDrop::Window { pos: Pos2::ZERO }))
     });
-    let closable = create_memo(move || match host {
-        Some(host) => dock.closable.call(host),
-        None => !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab))),
-    });
+    let closable = create_memo(move || dock.entry_closable(entry));
     let waiting = create_memo(move || tabs.with(|tabs| dock.waiting(tabs)));
     let notice =
         create_memo(move || tabs.with(|tabs| tabs.iter().find_map(|tab| dock.notice(*tab))));
@@ -3841,7 +3842,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
     });
     let menu = dock.leaf_menu(hoisted);
-    let closable = dock.all_closable(contents);
+    let closable = dock.all_closable(move |state| state.leaves(surface));
     let overlay = NodeRef::new();
     dock.stacked.value().borrow_mut().insert(surface, overlay);
     on_cleanup(move || {

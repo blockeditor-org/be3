@@ -75,7 +75,10 @@ pub fn parse(text: &str) -> Result<Vec<Group>, String> {
                 .map(|(number, rule)| {
                     rule_of(rule).map_err(|error| format!("{name}, rule {}: {error}", number + 1))
                 })
-                .collect::<Result<Vec<Rule>, String>>()?;
+                .collect::<Result<Vec<Option<Rule>>, String>>()?
+                .into_iter()
+                .flatten()
+                .collect();
             Ok(Group {
                 name,
                 window,
@@ -85,9 +88,14 @@ pub fn parse(text: &str) -> Result<Vec<Group>, String> {
         .collect()
 }
 
-fn rule_of(rule: TextRule) -> Result<Rule, String> {
+/// A rule, or none while what is pressed is not chosen yet (`on = ""`): an
+/// unfinished rule reads, and does nothing.
+fn rule_of(rule: TextRule) -> Result<Option<Rule>, String> {
     let mut parts: Vec<&str> = rule.on.split('+').map(str::trim).collect();
     let last = parts.pop().unwrap_or_default();
+    if last.is_empty() {
+        return Ok(None);
+    }
     let on = match Wheel::named(last) {
         Some(wheel) => Trigger::Wheel(wheel),
         None => Trigger::Press(source(last)?),
@@ -109,43 +117,56 @@ fn rule_of(rule: TextRule) -> Result<Rule, String> {
             if rule.hold_ms.is_some() {
                 return Err("hold_ms goes with tap, not send".to_owned());
             }
-            Action::Send(chord(&send)?)
+            match chord(&send)? {
+                Some(chord) => Action::Send(chord),
+                None => Action::NOTHING,
+            }
         }
-        (None, Some(tap), None) => Action::Steps {
-            steps: vec![Step::Tap {
-                chord: chord(&tap)?,
-                hold_ms: rule.hold_ms.unwrap_or(0),
-            }],
-            blind: rule.blind,
+        (None, Some(tap), None) => match chord(&tap)? {
+            Some(chord) => Action::Steps {
+                steps: vec![Step::Tap {
+                    chord,
+                    hold_ms: rule.hold_ms.unwrap_or(0),
+                }],
+                blind: rule.blind,
+            },
+            None => Action::NOTHING,
         },
         (None, None, Some(steps)) => {
             if rule.hold_ms.is_some() {
                 return Err("hold_ms goes inside each step".to_owned());
             }
             Action::Steps {
-                steps: steps.into_iter().map(step).collect::<Result<_, _>>()?,
+                steps: steps
+                    .into_iter()
+                    .map(step)
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .flatten()
+                    .collect(),
                 blind: rule.blind,
             }
         }
         (None, None, None) => return Err("it needs one of send, tap or steps".to_owned()),
         _ => return Err("it has more than one of send, tap and steps".to_owned()),
     };
-    Ok(Rule {
+    Ok(Some(Rule {
         on,
         held,
         not_held,
         keep: rule.keep,
         action,
-    })
+    }))
 }
 
-fn step(step: TextStep) -> Result<Step, String> {
+/// A step, or none for a tap of nothing (`tap = ""`).
+fn step(step: TextStep) -> Result<Option<Step>, String> {
     match (step.tap, step.wait_ms) {
-        (Some(tap), None) => Ok(Step::Tap {
-            chord: chord(&tap)?,
+        (Some(tap), None) => Ok(chord(&tap)?.map(|chord| Step::Tap {
+            chord,
             hold_ms: step.hold_ms.unwrap_or(0),
-        }),
-        (None, Some(ms)) if step.hold_ms.is_none() => Ok(Step::Wait { ms }),
+        })),
+        (None, Some(ms)) if step.hold_ms.is_none() => Ok(Some(Step::Wait { ms })),
         _ => Err("each step is either a tap (with an optional hold_ms) or a wait_ms".to_owned()),
     }
 }
@@ -161,12 +182,20 @@ fn held_of(name: &str) -> Result<Held, String> {
     }
 }
 
-fn chord(text: &str) -> Result<Chord, String> {
+/// A chord, or none for nothing (`""`), which disables what is pressed.
+fn chord(text: &str) -> Result<Option<Chord>, String> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
     let mut parts: Vec<&str> = text.split('+').map(str::trim).collect();
-    let key = source(parts.pop().unwrap_or_default())?;
+    let last = parts.pop().unwrap_or_default();
+    if last.is_empty() {
+        return Err(format!("{text:?} holds {} with no key", parts.join("+")));
+    }
+    let key = source(last)?;
     let modifiers = parts
         .into_iter()
         .map(source)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Chord { modifiers, key })
+    Ok(Some(Chord { modifiers, key }))
 }
