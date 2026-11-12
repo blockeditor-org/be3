@@ -611,12 +611,28 @@ impl Refs {
             .unwrap_or_default()
     }
 
+    /// Offline answers, each as of the newest revision this device knows unless it knows a newer
+    /// summary of that block than the copy a listing kept, so that copy never passes for the
+    /// newest.
     pub fn current(&self, mut blocks: Vec<BlockSummary>) -> Vec<BlockSummary> {
         let newest = self.newest_revision();
         for summary in &mut blocks {
-            summary.revision = newest;
+            if !self.knows_newer(summary.id, summary.revision) {
+                summary.revision = newest;
+            }
         }
         blocks
+    }
+
+    /// Whether this device knows a newer summary of the block than one of `revision`.
+    pub fn knows_newer(&self, block: Uuid, revision: u64) -> bool {
+        self.state
+            .lock()
+            .unwrap()
+            .listings
+            .get(&Listing::Block(block))
+            .and_then(|blocks| blocks.first())
+            .is_some_and(|known| known.revision > revision)
     }
 
     pub fn summary(&self, block: Uuid) -> Option<BlockSummary> {

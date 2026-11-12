@@ -560,9 +560,11 @@ impl<S: ObjectStore> Peer<S> {
             self.make_current(summary.id, key);
         }
         let _ = self.refs.observe(std::slice::from_ref(summary));
-        let _ = self
-            .refs
-            .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
+        if self.is_attached() || self.refs.listing(&Listing::Block(summary.id)).is_none() {
+            let _ = self
+                .refs
+                .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
+        }
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
             let _ = self.refs.move_to_unsent(summary.id, now_milliseconds());
         }

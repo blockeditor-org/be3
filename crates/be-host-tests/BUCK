@@ -13,6 +13,7 @@ cargo_package()
 # keep it so for a test whose paintings show every block type, such as the add
 # menu's.
 APPS = {
+    "a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects": ["text"],
     "a_device_restarted_offline_still_lists_a_block_it_made": ["text"],
     "a_device_restarted_offline_still_lists_a_block_another_device_made": ["text"],
     "a_block_made_on_an_offline_device_shows_in_its_files_and_reaches_the_other_once_it_reconnects": ["text"],
