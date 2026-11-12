@@ -128,6 +128,8 @@ pub struct UnsentEdit {
     pub name: Option<String>,
     pub since: i64,
     pub offerable: bool,
+    /// The code the server refused it with, when it did (`UnsentBlock::refused`).
+    pub refused: Option<String>,
 }
 
 pub use types::{host_block_types, is_known, kind_of, provided};
@@ -808,9 +810,11 @@ pub fn unsent() -> Vec<UnsentEdit> {
                 name: shared
                     .graph
                     .get(unsent.block)
-                    .and_then(|node| node.metadata.name()),
+                    .and_then(|node| node.metadata.name())
+                    .or_else(|| unsent.name.clone()),
                 since: unsent.since,
                 offerable: unsent.offerable,
+                refused: unsent.refused.clone(),
             })
             .collect()
     })

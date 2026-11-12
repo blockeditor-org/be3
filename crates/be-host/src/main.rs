@@ -3959,6 +3959,7 @@ impl HostCore {
                         block: unsent.block,
                         name: unsent.name.unwrap_or_else(|| "Untitled".to_owned()),
                         offerable: unsent.offerable,
+                        refused: unsent.refused,
                     })
                     .collect(),
                 discarding: self.discarding_unsent,

@@ -232,6 +232,8 @@ pub enum Drained {
     },
     Moved {
         block: Uuid,
+        /// Where it was before.
+        from: Option<BlockParent>,
     },
     Defined {
         block: Uuid,
@@ -581,7 +583,7 @@ impl<S: ObjectStore> Peer<S> {
             .refs
             .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
-            let _ = self.move_to_unsent(summary.id);
+            let _ = self.move_to_unsent(summary.id, None);
         }
     }
 
@@ -1213,7 +1215,7 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, message)) => {
                 if offline::lost_access(code) && !self.refs.creating(block) {
                     let _ = self.refs.lose_access(block);
-                    let _ = self.move_to_unsent(block);
+                    let _ = self.move_to_unsent(block, None);
                 }
                 Err(ClientError::Refused(code, message))
             }

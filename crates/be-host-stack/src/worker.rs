@@ -1623,8 +1623,7 @@ async fn drain_outbox(
                             .graph
                             .set_head(*block, Some(*head));
                     }
-                    be_block_client::Drained::Created { block }
-                    | be_block_client::Drained::Moved { block } => {
+                    be_block_client::Drained::Created { block } => {
                         let parent = peer
                             .known_summary(*block)
                             .and_then(|summary| summary.parent);
@@ -1633,6 +1632,19 @@ async fn drain_outbox(
                             .unwrap_or_else(PoisonError::into_inner)
                             .graph
                             .relist_around(*block, parent);
+                    }
+                    be_block_client::Drained::Moved { block, from } => {
+                        let parent = peer
+                            .known_summary(*block)
+                            .and_then(|summary| summary.parent);
+                        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                        held.graph.relist_around(*block, parent);
+                        if let Some(from) = from {
+                            held.graph.relist(be_block_protocol::Listing::Children(*from));
+                        }
+                    }
+                    be_block_client::Drained::Refused { block, .. } => {
+                        shown_as_refused(peer, shared, *block);
                     }
                     _ => {}
                 }
@@ -1676,6 +1688,31 @@ async fn drain_outbox(
     (diverged, published)
 }
 
+/// After the server refused what this device made of `block`, the graph shows it as the server
+/// has it again: a refused move or definition as the summary the drain put back
+/// (`Peer::unchanged`), in the listings of both the place the device showed and the server's.
+/// A refused creation was set aside, shown among the unsent edits: it leaves the graph.
+fn shown_as_refused(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    let set_aside = peer
+        .unsent()
+        .iter()
+        .any(|unsent| unsent.block == block && unsent.refused.is_some());
+    let summary = peer.known_summary(block);
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let shown = held.graph.get(block).and_then(|node| node.parent);
+    match summary {
+        Some(summary) if !set_aside => {
+            let parent = summary.parent;
+            held.graph.put(node_of(peer, &summary), summary.revision);
+            held.graph.relist_around(block, parent);
+        }
+        _ => held.graph.forget(block),
+    }
+    if let Some(shown) = shown {
+        held.graph.relist(be_block_protocol::Listing::Children(shown));
+    }
+}
+
 /// A block as a message names it: by its name where this device knows one.
 fn named_block(peer: &Peer<Store>, block: Uuid) -> String {
     match peer
@@ -1710,8 +1747,10 @@ pub(super) fn expired_unsent(
         return Vec::new();
     }
     let grace = i64::try_from(choice.grace.as_millis()).unwrap_or(i64::MAX);
+    // What the server refused is not what losing access does: it is never deleted on a timer.
     unsent
         .iter()
+        .filter(|unsent| unsent.refused.is_none())
         .filter(|unsent| now.saturating_sub(unsent.since) >= grace)
         .map(|unsent| unsent.block)
         .collect()
@@ -2764,6 +2803,15 @@ async fn apply(
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             if let Err(error) = done {
                 held.error = Some(error.to_string());
+            }
+            // A creation set aside left the graph (`shown_as_refused`): restored, it is back.
+            if restore
+                && peer.creating(block)
+                && let Some(summary) = peer.known_summary(block)
+            {
+                let parent = summary.parent;
+                held.graph.put(node_of(peer, &summary), summary.revision);
+                held.graph.relist_around(block, parent);
             }
             held.unsent = peer.unsent();
             held.stale_revision += 1;

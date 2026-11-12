@@ -565,7 +565,7 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
         <Frame>
             <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>
-                    "These edits were made on this device but could not be sent, because you can no longer edit these blocks. They stay here until you restore or discard them. Restore sends them again once you can edit the block."
+                    "These edits were made on this device but could not be sent: you can no longer edit these blocks, or the server refused them. They stay here until you restore or discard them. Restore sends them again."
                 </Text>
                 <Show condition={none}>
                     <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
@@ -580,9 +580,13 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                             .unwrap_or_default()
                     });
                     let name = create_memo(move || row.get().name);
-                    let detail = create_memo(move || match row.get().offerable {
-                        true => "You can edit it again".to_owned(),
-                        false => "You cannot edit it now".to_owned(),
+                    let detail = create_memo(move || {
+                        let row = row.get();
+                        match (row.refused, row.offerable) {
+                            (Some(code), _) => format!("The server refused it ({code})"),
+                            (None, true) => "You can edit it again".to_owned(),
+                            (None, false) => "You cannot edit it now".to_owned(),
+                        }
                     });
                     let blocked = create_memo(move || !row.get().offerable);
                     view! {

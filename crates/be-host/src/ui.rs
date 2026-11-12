@@ -192,6 +192,8 @@ pub(crate) struct UnsentRow {
     pub(crate) block: Uuid,
     pub(crate) name: String,
     pub(crate) offerable: bool,
+    /// The code the server refused it with, when it did, rather than access being lost.
+    pub(crate) refused: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

@@ -2084,7 +2084,9 @@ impl<H: Host> Replicas<H> {
         let replicas: Vec<ReplicaId> = self
             .open
             .iter()
-            .filter(|(_, open)| !self.uncreated.contains(&open.block) || !peer.creating(open.block))
+            .filter(|(_, open)| {
+                !self.uncreated.contains(&open.block) || !waits_creation(peer, open.block)
+            })
             .map(|(replica, _)| *replica)
             .collect();
         for replica in replicas {
@@ -2107,7 +2109,7 @@ impl<H: Host> Replicas<H> {
             .uncreated
             .iter()
             .copied()
-            .filter(|block| !peer.creating(*block))
+            .filter(|block| !waits_creation(peer, *block))
             .collect();
         for block in sent {
             let Some((replica, open)) = self.replica_of(block) else {
@@ -2972,6 +2974,13 @@ impl<H: Host> Replicas<H> {
         let (unsealed, owing, undurable) = self.counts();
         H::counted(shared, unsealed, owing, undurable);
     }
+}
+
+/// Whether the server does not have `block` yet: its creation waits in the outbox, or was
+/// refused and set aside (`Peer::unsent`), where it waits to be restored. Its replica does not
+/// join until it is sent.
+fn waits_creation<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
+    peer.creating(block) || peer.is_unsent(block)
 }
 
 /// Joins `block`'s session, for a replica that shows before it has (`Replicas::open`).

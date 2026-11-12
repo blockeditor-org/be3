@@ -268,6 +268,9 @@ pub(crate) struct Unsent {
     pub head: Option<CommitId>,
     pub since: i64,
     pub ops: Vec<Op>,
+    /// Why it was set aside: the server refused it, with the code it gave (a block it would
+    /// not make, over a quota or too large), or else this account lost access to it.
+    pub refused: Option<String>,
 }
 
 /// Entries set aside because the block's access was refused. Only `Peer::discard_unsent`
@@ -279,6 +282,11 @@ pub struct UnsentBlock {
     pub commits: Vec<CommitId>,
     pub since: i64,
     pub offerable: bool,
+    /// The code the server refused it with, when it was refused rather than this account
+    /// losing access (`Unsent::refused`): what lost access does to it does not apply.
+    pub refused: Option<String>,
+    /// Its name as this device has it.
+    pub name: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -1191,7 +1199,12 @@ impl Refs {
         }
     }
 
-    pub fn move_to_unsent(&self, block: Uuid, since: i64) -> Result<bool, StoreError> {
+    pub fn move_to_unsent(
+        &self,
+        block: Uuid,
+        since: i64,
+        refused: Option<String>,
+    ) -> Result<bool, StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
@@ -1218,9 +1231,11 @@ impl Refs {
                 head,
                 since,
                 ops: Vec::new(),
+                refused: None,
             });
             unsent.head = head.or(unsent.head);
             unsent.ops.extend(ops);
+            unsent.refused = refused;
             rows.push(row(Table::Unsent, block.as_bytes().to_vec(), &*unsent));
         }
         self.write(rows)?;

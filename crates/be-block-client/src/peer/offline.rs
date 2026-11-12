@@ -22,6 +22,11 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.has_pending(block)
     }
 
+    /// Whether what this device made of the block is set aside (`unsent`).
+    pub fn is_unsent(&self, block: Uuid) -> bool {
+        self.refs.unsent().iter().any(|(held, _)| *held == block)
+    }
+
     /// Whether the block's creation waits in the outbox: the server does not know the block yet.
     pub fn creating(&self, block: Uuid) -> bool {
         self.refs.creating(block)
@@ -492,7 +497,7 @@ impl<S: ObjectStore> Peer<S> {
             // device made of it is set aside, to be restored or discarded, so nothing waits
             // behind a creation that never goes.
             Err(ClientError::Refused(code, _)) => {
-                self.move_to_unsent(block)?;
+                self.move_to_unsent(block, Some(code))?;
                 Ok(Drained::Refused { block, code })
             }
             Err(error) => Err(error),
@@ -507,7 +512,10 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self
                     .follow_prefixes(block, moving.from, moving.parent)
                     .await;
-                Ok(Drained::Moved { block })
+                Ok(Drained::Moved {
+                    block,
+                    from: moving.from,
+                })
             }
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
@@ -613,7 +621,7 @@ impl<S: ObjectStore> Peer<S> {
             Err(error) => return Err(error),
         };
         if !summary.access.can_edit() {
-            self.move_to_unsent(block)?;
+            self.move_to_unsent(block, None)?;
             return Ok(Drained::Unsent { block });
         }
         match self
@@ -670,15 +678,24 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Sets what this device keeps of `block` aside: what its commits announce is never sent
     /// (a message shown "Not sent" tells nobody, and one sent again tells as a new one).
-    pub fn move_to_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
+    /// With `refused`, the server refused it with that code; otherwise this account lost access.
+    pub fn move_to_unsent(
+        &self,
+        block: Uuid,
+        refused: Option<ErrorCode>,
+    ) -> Result<bool, ClientError> {
         let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
         self.refs.commits_refused(block, &commits)?;
-        Ok(self.refs.move_to_unsent(block, now_milliseconds())?)
+        Ok(self.refs.move_to_unsent(
+            block,
+            now_milliseconds(),
+            refused.map(|code| code.to_string()),
+        )?)
     }
 
     fn lose_access(&self, block: Uuid) -> Result<Drained, ClientError> {
         self.refs.lose_access(block)?;
-        self.move_to_unsent(block)?;
+        self.move_to_unsent(block, None)?;
         Ok(Drained::Unsent { block })
     }
 
@@ -702,6 +719,12 @@ impl<S: ObjectStore> Peer<S> {
                     .refs
                     .summary(block)
                     .is_some_and(|summary| summary.access.can_edit()),
+                name: self
+                    .refs
+                    .summary(block)
+                    .and_then(|summary| self.metadata(&summary).ok())
+                    .and_then(|metadata| metadata.name()),
+                refused: unsent.refused,
             })
             .collect()
     }

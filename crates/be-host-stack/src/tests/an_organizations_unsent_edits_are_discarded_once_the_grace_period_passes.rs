@@ -13,13 +13,23 @@ fn an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes() {
     let clock = Clock::manual();
     let wall = Wall::new(clock.clone());
     let block = Uuid::from_u128(1);
-    let unsent = [UnsentBlock {
+    let lost = UnsentBlock {
         block,
         head: None,
         commits: Vec::new(),
         since: wall.now(),
         offerable: true,
-    }];
+        refused: None,
+        name: None,
+    };
+    let unsent = [
+        lost.clone(),
+        UnsentBlock {
+            block: Uuid::from_u128(2),
+            refused: Some("OverQuota".to_owned()),
+            ..lost
+        },
+    ];
     let deleting = OfflineChoice {
         keep: true,
         fixed: true,
@@ -37,7 +47,7 @@ fn an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes() {
     assert_eq!(
         expired_unsent(&unsent, true, &deleting, wall.now()),
         vec![block],
-        "and go once it has passed"
+        "and go once it has passed, but not those the server refused: access was not lost"
     );
     assert!(
         expired_unsent(&unsent, false, &deleting, wall.now()).is_empty(),
