@@ -1430,9 +1430,12 @@ async fn drain_outbox(
                         ),
                     ),
                     be_block_client::Drained::Failed { block } => {
-                        shared.lock().unwrap_or_else(PoisonError::into_inner).sync_error = Some(
-                            format!("a change made offline to block {block} could not be sent yet"),
-                        );
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .sync_error = Some(format!(
+                            "a change made offline to block {block} could not be sent yet"
+                        ));
                     }
                     _ => {}
                 }
@@ -3127,7 +3130,8 @@ pub(super) struct Tasks {
     storage: std::rc::Rc<std::cell::RefCell<Option<tokio::sync::oneshot::Sender<()>>>>,
 }
 
-pub(crate) const STORAGE_FAILED: &str = "The server stopped saying how much storage this account uses.";
+pub(crate) const STORAGE_FAILED: &str =
+    "The server stopped saying how much storage this account uses.";
 
 #[derive(Default)]
 struct Outbox {
@@ -3495,7 +3499,10 @@ pub(super) fn record_sync(shared: &Arc<Mutex<Shared>>, error: ClientError) {
     if error.is_unreachable() {
         return;
     }
-    shared.lock().unwrap_or_else(PoisonError::into_inner).sync_error = Some(error.to_string());
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .sync_error = Some(error.to_string());
 }
 
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
