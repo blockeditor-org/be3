@@ -23,10 +23,6 @@ pub fn copy_selection(state: SelectableState) {
     crate::core::selectable::copy_selection(state.0);
 }
 
-pub fn select_all(state: SelectableState) {
-    crate::core::selectable::select_all(state.0);
-}
-
 #[component]
 pub fn Selectable(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,

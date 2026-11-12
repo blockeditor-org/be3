@@ -34,10 +34,6 @@ pub(crate) fn copy_selection(state: State) {
     }
 }
 
-pub(crate) fn select_all(state: State) {
-    state.select_all();
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn selectable(
     api: ComponentRef<SelectableState>,
