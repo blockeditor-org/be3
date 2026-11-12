@@ -169,12 +169,13 @@ pub(crate) fn install() {
     GESTURE.set(Some(gesture));
     WORK_AREAS.set(Some(areas));
     WINDOW_DISPLAY.set(Some(create_signal(None)));
-    let spring = Spring::new();
-    SPRING.set(Some(spring));
+    // The spring animates in the document, which a test of the window manager alone has none of.
+    let spring = beui::native::try_with_document(|_| ()).map(|()| Spring::new());
+    SPRING.set(spring);
     create_effect(move || {
         areas.with(|_| ());
         let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
-        let moving = moving.or_else(|| spring.settling.get());
+        let moving = moving.or_else(|| spring.and_then(|spring| spring.settling.get()));
         let displays = desktop_displays();
         untrack(|| {
             let mut windows = floated.get();
@@ -193,6 +194,8 @@ pub(crate) fn install() {
 #[derive(Clone, Copy)]
 struct Spring {
     band: Stored<RefCell<Band>>,
+    /// Where the window is on the near end of its band, which it comes to rest at.
+    origin: Stored<Cell<Pos2>>,
     /// The window being pulled or springing back.
     settling: Signal<Option<FloatedKey>>,
     animation: Animation,
@@ -202,6 +205,7 @@ impl Spring {
     fn new() -> Self {
         let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
         let settling = create_signal(None::<FloatedKey>);
+        let origin = store(Cell::new(Pos2::ZERO));
         let animation = create_animation(
             move |frame| {
                 let Some(key) = settling.get_untracked() else {
@@ -220,12 +224,13 @@ impl Spring {
                     let limit = |origin: Pos2| {
                         be_sdk_window_stack::reachable(Rect::from_min_size(origin, size), &areas)
                     };
-                    let mut origin = windows[index].rect.min - band.offset;
-                    if !band.step(frame.now, &mut origin, limit, motion().animates()) {
+                    let mut at = origin.value().get();
+                    if !band.step(frame.now, &mut at, limit, motion().animates()) {
                         moving = false;
                         return;
                     }
-                    be_sdk_window_stack::move_in(windows, index, origin + band.offset);
+                    origin.value().set(at);
+                    be_sdk_window_stack::move_in(windows, index, at + band.offset);
                     moving = band.moving();
                 });
                 moving
@@ -240,6 +245,7 @@ impl Spring {
         );
         Self {
             band,
+            origin,
             settling,
             animation,
         }
@@ -278,6 +284,7 @@ impl Spring {
         let areas = areas_of(window);
         let limit =
             be_sdk_window_stack::reachable(Rect::from_min_size(to, window.rect.size()), &areas);
+        self.origin.value().set(limit);
         let band = self.band.value();
         let mut band = band.borrow_mut();
         band.stretch(
@@ -310,7 +317,8 @@ fn areas_of(window: &Floated) -> Vec<(Rect, Rect)> {
 /// The size of the display holding most of `rect`, how far a band stretches.
 fn dimensions_of(rect: Rect) -> Vec2 {
     let displays = desktop_displays();
-    be_sdk_window_stack::home(&displays, rect).map_or(Vec2::splat(1.0), |home| displays[home].size())
+    be_sdk_window_stack::home(&displays, rect)
+        .map_or(Vec2::splat(1.0), |home| displays[home].size())
 }
 
 /// Puts the window where its grip can be reached, and wants it there.
