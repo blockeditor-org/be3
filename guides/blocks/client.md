@@ -206,6 +206,15 @@ first whose objects the store holds whole of the local head, the server's, and
 the head last read whole (`Peer::read_whole`, which `read_contents` and a
 replica's whole load record). A block with none has nothing to read offline.
 
+A push notification (guides/blocks/server.md, "Notifications") opens with
+`be_lib_web_push::open` (the device's own RFC 8291 keys; a browser does this
+itself) to a `be_block_protocol::PushMessage`: organization, block, the sender
+the server vouches for, then the text sealed under the block's data key with
+the organization, block, sender and send time. `Peer::open_notification` opens
+that offline from the cached key rows, with no block load and no type module,
+refusing one sealed about another organization, block or sender, or older than
+`MAX_NOTIFICATION_AGE_MILLISECONDS`.
+
 ## Saving and the outbox
 
 A save is a `be_block_client::Write` in two steps: `Peer::seal` writes the

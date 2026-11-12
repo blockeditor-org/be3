@@ -258,13 +258,14 @@ might become a view over location metadata, as above.
 
 ### Chat
 
-A group chat is a block, designed in `plans/chat.md`: it gets members,
-permissions and history from the core, and links to the documents it talks
-about. Its header holds the recent messages, and every edit, deletion and
-reaction keyed by message id; messages written offline merge with each side's
-run kept whole. The editor sends, replies, edits, reacts and deletes. Still to
-come: sending state, unread counts, segments that keep a long chat loading only
-what is on screen, signed messages and notifications.
+A group chat is a block (guides/chat.md): it gets members, permissions and
+history from the core, and links to the documents it talks about. Its header
+holds the recent messages, and every edit, deletion and reaction keyed by
+message id; older messages close into segments, so a long chat loads only what
+is on screen; messages written offline merge with each side's run kept whole.
+The editor sends, replies, edits, reacts and deletes, shows sending state and
+unread counts, and signs messages; sending notifies members who are away.
+Still to come (plans/chat.md): member names, attachments and arrival times.
 
 ### Presentation
 

@@ -1,6 +1,6 @@
 # Search
 
-Depends on: none for steps 1 and 2; step 3 on plans/search_library.md (more
+Depends on: none for step 1; step 2 on plans/search_library.md (more
 types answering `search-text`).
 
 Full-text search over names and content: what is left of it. Built
@@ -8,62 +8,25 @@ Full-text search over names and content: what is left of it. Built
 access (exactly its root's, checked by the server), indexing on seal into the
 root's index with commits sealed into the outbox and merged by parts, the
 `search-watch` query on the app protocol, the file tree's filter listing hits
-in content, and quick open listing hits. `plans/deferred/daily_driver.md`
+in content, quick open listing hits, and catching up through `changed-since`
+(guides/blocks/server.md, "Changes since"; guides/blocks/host.md, "Catching
+up"). `plans/deferred/daily_driver.md`
 ("Search") asks for the rest before daily use.
 
 ## Order of work
 
 Each step is one PR.
 
-1. **`changed-since` and catching up.** Commits from devices that never index
-   (old builds, `be` without it, a viewer's, another device's that left the
-   session to this one) are found by comparing each document's indexed commit
-   with the block's `head`. The host never lists a whole tree, so add a server
-   call `changed-since(root, sequence)`. Designed in "Step 1, designed" below.
-   The indexer runs it from the index's watermark (`Batch::watermark`) when it
-   opens a root's index and after reconnecting, indexes what is stale, and moves
-   the watermark with each batch, so a long catch-up resumes where it stopped;
-   `Searched::complete` says it is still catching up. Imports
-   (`Peer::queue_import`) are caught up this way too, since no session seals
-   them.
-   - **Leaving the tree.** A block moved out of the tree, deleted to the trash
-     or collected gets its documents masked (`Batch::removed_blocks`) by the
-     device that moved it (it had Manage); its terms leave the head when
-     compaction next merges that segment. Catching up masks what other devices
-     missed. Today a query only drops hits the mirror shows detached or no
-     longer viewable.
-   - Done: a server test of `changed-since` paging; a host-stack test where one
-     device writes with indexing off (`Searching::off`) and another indexes
-     those commits on opening the root's index, resuming after a disconnect
-     mid-catch-up; moving a block out of the tree drops it from results.
-2. **Locations.** Opening a hit opens the block at its document and highlights
+1. **Locations.** Opening a hit opens the block at its document and highlights
    the match where the editor supports a location: `OpenableBlock` (be-host's
    palette), `EditorAction::OpenBlock` and the app protocol's open request
    carry the document key and match, and the file tree's hit rows pass it on.
    Done: a host test opens a hit from quick open and the text shows the match
    selected, with a painting.
-3. **More types**, as they answer `search-text` (plans/search_library.md);
+2. **More types**, as they answer `search-text` (plans/search_library.md);
    the indexer already puts one document per answered key. With them, keep
    each document's `source` and pass the parts the index holds text for as
    `indexed`, so reindexing a large block reads only its changed parts.
-
-## Step 1, built
-
-`changed-since` and catching up are built as described in guides/blocks/server.md
-("Changes since") and guides/blocks/host.md ("Catching up"). What the plan said
-that they do not do, or do differently:
-
-- The watermark is written at the end of a catch-up, once every block it queued
-  is indexed, not with each batch: an interrupted catch-up starts again from the
-  old watermark.
-- Departures (`block_departures`, kept a day) are kept per tree a block left, so a call
-  for one tree names only what left that tree, however often the block moved on. A
-  device that was away longer than a day misses every block that left in between, moved
-  out, trashed or collected, and nothing tells it so.
-- The catch-up runs on connecting, not on a head change, and a viewer's device
-  runs none.
-- `Index::forget_before` has no caller yet, so the index's header keeps every
-  block it ever masked.
 
 ## Left open
 
@@ -98,7 +61,8 @@ that they do not do, or do differently:
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.
 - **Compaction.** Each batch adds a segment; nothing merges them yet
-  (`Index::compact` exists). Compact on the device that writes, a few segments
+  (`Index::compact` exists), and `Index::forget_before` has no caller, so the
+  index's header keeps every block it ever masked. Compact on the device that writes, a few segments
   at a time, when the count passes a threshold, and call
   `Index::forget_before` past the index block's history retention.
 - **Edited outside a session.** The indexer seals commits straight into the

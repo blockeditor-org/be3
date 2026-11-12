@@ -6,7 +6,7 @@ Set aside by the user after three reviews of a built attempt
 (`feat/large-blocks-retention-rekey-2`, not merged): its automatic reseal
 through escrow lets a malicious server get made-up content vouched for, and the
 design needs a decision first. The search index (plans/search.md) and chat
-(plans/chat.md) work without it; they pay for a rotation in full.
+(guides/chat.md) work without it; they pay for a rotation in full.
 
 ## The goal
 

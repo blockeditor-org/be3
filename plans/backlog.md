@@ -98,5 +98,6 @@ when:
   whole app's, and a gift ends even if the editor commits no layout;
 - held keys are released by the child's input-method request only if a frame
   was answered after the focus, so a stale `ime` can't release them early;
-- a unit test covers a block gift turning into a child gift at a layout
-  commit, and ending when no child shows the block.
+- a block gift ends when no child shows the block (a block gift already
+  turns into a child gift at a layout commit, `settle_block_focus`, with unit
+  tests in be-host-runtime's `instances/tests`).

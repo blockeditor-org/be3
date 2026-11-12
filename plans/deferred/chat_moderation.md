@@ -1,6 +1,6 @@
 # Chat: final deletion and a post access level
 
-Depends on: plans/chat.md, plans/authorship.md.
+Depends on: plans/authorship.md.
 
 Set aside until the user picks them up.
 

@@ -195,7 +195,7 @@ replica to put a part of its own; the replica puts only an oversized operation's
 bytes. (Chat closes a segment without one: the operation carries the segment's
 bytes, which every replica keeps in memory, as it holds the operation, until the content is dropped or
 reloaded from a save; there is no hook yet that turns them into a saved part, so a replica
-holds a closed segment's bytes once per clone, plans/chat.md.) The
+holds a closed segment's bytes once per clone, guides/chat.md.) The
 block must be on the server: a block made offline, or one whose replica has
 not joined yet, is refused.
 
