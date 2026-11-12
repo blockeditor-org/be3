@@ -293,7 +293,7 @@ struct State {
     glyphs: Memo<bool>,
     spacing: f32,
     bounds: Memo<Option<Rect>>,
-    on_select: Callback<(Vec<usize>, MenuThen)>,
+    on_select: Callback<MenuThen>,
 }
 
 /// The keyboard of every menu, popup and submenu: one Tab stop, which Tab stays
@@ -317,7 +317,7 @@ pub(crate) fn MenuList(
     #[prop(default = false)] focus_first: bool,
     #[prop(default = false)] pages: bool,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    on_select: Callback<(Vec<usize>, MenuThen)>,
+    on_select: Callback<MenuThen>,
 ) -> NodeId {
     let row = row.expect("menu_list requires a `row` builder");
     let panel = panel.expect("menu_list requires a `panel` builder");
@@ -468,10 +468,7 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
             focus_first=true
             pages={state.pages}
             bounds={state.bounds}
-            on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
-                path.insert(0, index);
-                state.on_select.call((path, then));
-            }}
+            on_select={state.on_select}
         />
     }
 }
@@ -681,7 +678,7 @@ fn MenuTile(
             focused={focused.memo(at)}
             on_focus_change={move |has_focus: bool| lose_focus(state, at, has_focus)}
             content
-            on_click={move || choose(state, vec![index, tile], &chosen)}
+            on_click={move || choose(state, &chosen)}
             on_key={move |press: KeyPress| key(state, at, press)}
         />
     };
@@ -748,7 +745,7 @@ fn MenuRow(
                         return;
                     }
                     if !open_submenu(state, index) {
-                        choose(state, vec![index], &chosen);
+                        choose(state, &chosen);
                     }
                 }}
                 on_key={move |press: KeyPress| key(state, at, press)}
@@ -779,10 +776,7 @@ fn MenuRow(
                                     active={open}
                                     focus_first=true
                                     bounds={state.bounds}
-                                    on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
-                                        path.insert(0, index);
-                                        state.on_select.call((path, then));
-                                    }}
+                                    on_select={state.on_select}
                                 />
                             })
                         }}
@@ -797,11 +791,11 @@ fn MenuRow(
     built
 }
 
-fn choose(state: State, path: Vec<usize>, item: &MenuItem) {
+fn choose(state: State, item: &MenuItem) {
     if item.disabled.get_untracked() {
         return;
     }
-    state.on_select.call((path, item.then));
+    state.on_select.call(item.then);
     if let Some(action) = &item.action {
         action.run();
     }

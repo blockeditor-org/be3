@@ -34,7 +34,6 @@ pub fn MenuButton(
     on_middle_click: Callback<()>,
     on_scroll: Callback<ScrollGesture>,
     #[prop(default = false)] open: Binding<bool>,
-    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let button = NodeRef::new();
     let shown = create_memo(move || open.get());
@@ -111,7 +110,6 @@ pub fn MenuButton(
                 trigger={button}
                 open={shown}
                 on_dismiss={move || open.set(false)}
-                on_select={on_select}
             />
         </List>
     }

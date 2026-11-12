@@ -54,7 +54,6 @@ pub fn ContextMenu(
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
     on_close: Callback<()>,
-    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: Callback<()>,
 ) -> NodeId {
     let open = create_signal(false);
@@ -137,10 +136,7 @@ pub fn ContextMenu(
             more.call(pos2(rect.center().x, rect.bottom()));
         }
     });
-    let choose = Callback::new(move |index: usize| {
-        on_toolbar_close.call(());
-        on_select.call(vec![index]);
-    });
+    let choose = Callback::new(move |_: usize| on_toolbar_close.call(()));
     let items = items.into_run();
     let toolbar_items = items.clone();
     view! {
@@ -185,7 +181,6 @@ pub fn ContextMenu(
                             open.set(false);
                             on_close.call(());
                         }}
-                        on_select={on_select}
                     />
                 </Show>
                 <Show condition={toolbar_open}>|| {

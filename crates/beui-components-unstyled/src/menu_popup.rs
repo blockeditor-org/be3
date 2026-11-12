@@ -86,7 +86,6 @@ pub fn MenuPopup(
     #[prop(default = NodeRef::new())] content: NodeRef,
     trigger: Option<NodeRef>,
     on_dismiss: Callback<()>,
-    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();
@@ -109,8 +108,7 @@ pub fn MenuPopup(
             Prop::Static(SheetWhen::Never),
         ),
     };
-    let choose = Callback::new(move |(path, then): (Vec<usize>, MenuThen)| {
-        on_select.call(path);
+    let choose = Callback::new(move |then: MenuThen| {
         if then == MenuThen::Close {
             on_dismiss.call(());
         }
@@ -164,19 +162,11 @@ pub fn MenuRows(
     items: Run<MenuItem>,
     menu: MenuStyle,
     #[prop(default = false)] active: Prop<bool>,
-    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();
     let list = view! {
-        <MenuList
-            items
-            spacing
-            row
-            panel
-            active
-            on_select={move |(path, _): (Vec<usize>, MenuThen)| on_select.call(path)}
-        />
+        <MenuList items spacing row panel active on_select={Callback::empty()} />
     };
     panel.call(list)
 }
