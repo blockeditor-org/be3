@@ -16,10 +16,6 @@ Rust on both sides is generated from it into this crate. The world imports:
   the shell around it, its menus, children, audio, web views and creations.
   Everything one way is a `shell-message` in one `tell`, sent once a pass in
   a fixed order by kind within the pass;
-- `app` (`app.wit`): what an app offers its host. What happens around an editor
-  one way (`editor-event`: menu picks, child bars, focus, resizes, drags, dialogs)
-  is a list in one `editor.hear`; creating, regenerating, replacing and
-  rendering stay calls that answer;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
   waits for, files, revisions, access and staged data;
 - `network` (`network.wit`): the app's only network, its fetches and the links
@@ -52,7 +48,11 @@ uuid is its 16 bytes and a hash its 32, each under the alias of what it names
 out is an alias named `<thing>-id` (`screen-id`, `child-id`, `web-view-id`).
 
 It exports `app` (`app.wit`): `resource editor`, one open editor instance,
-whose methods are what the host says to that instance and whose drop closes it;
+whose methods are what the host says to that instance and whose drop closes it:
+what happens around the editor, one way (`editor-event`: menu picks, child
+bars, focus, resizes, drags, dialogs), is a list in one `hear`, and the
+methods besides it (creating, regenerating, replacing, rendering) are the
+calls that answer;
 the screens and their configure, `draw`, whose answer is the frame,
 description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
 `block-command` changes the block (undo, redo, its artifact, unlink, delete,

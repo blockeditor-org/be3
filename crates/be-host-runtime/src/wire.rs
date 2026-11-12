@@ -61,7 +61,7 @@ pub(super) struct Wire {
     block_types: Watch<Catalog>,
     debug_templates: Watch<Vec<DebugTemplate>>,
     held: Held,
-    hearing: Vec<(EditorInstanceId, Vec<EditorEvent>)>,
+    hearing: Vec<(EditorInstanceId, EditorEvent)>,
 }
 
 type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
@@ -223,12 +223,23 @@ impl Wire {
         let Some(editor) = self.editors.get(&instance).copied() else {
             return;
         };
-        if matches!(
+        // Whatever is not an event goes after the events queued before it.
+        if !matches!(
             call,
-            EditorCall::CommitCreation
-                | EditorCall::RegenerateArtifact(_)
-                | EditorCall::ReplaceChild { .. }
-                | EditorCall::RenderClip { .. }
+            EditorCall::MenuPick { .. }
+                | EditorCall::Dismiss
+                | EditorCall::ChildBar { .. }
+                | EditorCall::ChildFocused { .. }
+                | EditorCall::SetEditable(_)
+                | EditorCall::ViewChanged { .. }
+                | EditorCall::PresentingChanged(_)
+                | EditorCall::Presence(_)
+                | EditorCall::FocusChanged(_)
+                | EditorCall::Resized(_)
+                | EditorCall::DragOver(_)
+                | EditorCall::DragLeft
+                | EditorCall::ArtifactSettings(_)
+                | EditorCall::ShowDialog { .. }
         ) {
             self.flush_hearing();
         }
@@ -370,21 +381,20 @@ impl Wire {
     }
 
     /// Queues what happened around an editor; `flush_hearing` sends what is
-    /// queued as one call each.
+    /// queued, a call for each run of events of one editor, so the order across
+    /// editors is the order they came.
     fn hear(&mut self, instance: EditorInstanceId, event: EditorEvent) {
-        match self
-            .hearing
-            .iter_mut()
-            .find(|(heard, _)| *heard == instance)
-        {
-            Some((_, events)) => events.push(event),
-            None => self.hearing.push((instance, vec![event])),
-        }
+        self.hearing.push((instance, event));
     }
 
-    /// Sends the events queued for each editor, in the order they came.
+    /// Sends the events queued, in the order they came.
     pub(super) fn flush_hearing(&mut self) {
-        for (instance, events) in std::mem::take(&mut self.hearing) {
+        let mut queued = std::mem::take(&mut self.hearing).into_iter().peekable();
+        while let Some((instance, event)) = queued.next() {
+            let mut events = vec![event];
+            while let Some((_, event)) = queued.next_if(|(next, _)| *next == instance) {
+                events.push(event);
+            }
             if let Some(editor) = self.editors.get(&instance).copied() {
                 editor.hear(&mut self.connection, events);
             }
