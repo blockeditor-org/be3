@@ -4,9 +4,22 @@ Depends on: none.
 
 Items set aside until the user picks them up.
 
+## Block size
+
+- **A text block's reported size grows fast.** long1.md, about 30 KB of Markdown, showed as
+  "Text · 31 KB" in the files list after import and "Text · 154 KB" after a handful of short
+  edits and a few restarts; tiny.md, with about 21 KB pasted in, showed 22 KB. Likely revision
+  history counted in the size, or kept more than it needs to be.
+
 ## beui scrolling
 
 - **First scroll is short on Linux.** The first wheel event scrolls less than
   every later one. No reproduction yet, and a headless machine has no real
   wheel: it needs the backend (winit, DRM and libinput, or the web) and an
   input sequence to replay before it can be fixed.
+
+- **be-host's overflow check flags a child slid or scrolled by its parent.** be-host clips
+  each child view to the clip window its parent reports (`compositor/editors.rs`), and cannot
+  see a translation or scroll inside the parent app's document, so a host painting of a back
+  swipe or a half-scrolled child fails as "cut off by a clip nothing scrolls". Let the parent
+  report that the child's window moves with its content, and exempt it as a pannable canvas is.

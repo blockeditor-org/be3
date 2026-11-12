@@ -20,6 +20,7 @@ pub trait DockTabDriver {
     fn focused(&self, tab: TabId) -> bool;
     fn attention(&self, tab: TabId) -> Option<u64>;
     fn show(&self, tab: TabId);
+    fn content_focused(&self, tab: TabId);
     fn show_notice(&self, tab: TabId, notice: Memo<Option<String>>);
     fn window_size(&self, tab: TabId) -> Option<Vec2>;
     fn resize_window(&self, tab: TabId, size: Vec2);
@@ -168,6 +169,16 @@ impl DockTabControl {
         self.ask(DockRequest::Show(self.tab));
         if let Some(driver) = self.driver() {
             driver.show(self.tab);
+        }
+    }
+
+    /// The keyboard went into a view of the tab's content that this document's focus does not
+    /// see (a child editor's): shows the tab, and lets the dock hand the keyboard on to the tab
+    /// shown in its place, as it does for focus inside the panel.
+    pub fn content_focused(&self) {
+        self.ask(DockRequest::Show(self.tab));
+        if let Some(driver) = self.driver() {
+            driver.content_focused(self.tab);
         }
     }
 
