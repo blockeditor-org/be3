@@ -69,14 +69,11 @@ impl Place {
         let from = byte.saturating_sub(SEARCH);
         let to = (byte + SEARCH).min(bytes.len());
         for (needle, split) in tries {
-            if needle.is_empty() || needle.len() > to - from {
+            if needle.is_empty() {
                 continue;
             }
-            let nearest = bytes[from..to]
-                .windows(needle.len())
-                .enumerate()
-                .filter(|(_, window)| *window == needle)
-                .map(|(at, _)| from + at + split)
+            let nearest = memchr::memmem::find_iter(&bytes[from..to], needle)
+                .map(|at| from + at + split)
                 .min_by_key(|found| found.abs_diff(byte));
             if let Some(found) = nearest {
                 return found;
@@ -197,12 +194,11 @@ pub(crate) fn keep_position(state: State) {
     });
     let scrolled = state.text.scrolled();
     let cursors = state.text.cursors();
-    // Typing moves the caret's byte without changing where it is in the text.
-    let content = state.text.content();
+    // Not on typing alone: each save is an edit to the view block, kept in its history. The
+    // text around the caret finds it again when typing moved it since.
     create_effect(move || {
         scrolled.get();
         cursors.get();
-        content.get();
         untrack(|| saving.start(SAVE_AFTER));
     });
     let visible = editor.presence_visible();

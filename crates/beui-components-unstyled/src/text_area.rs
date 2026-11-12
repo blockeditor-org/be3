@@ -1636,6 +1636,8 @@ pub fn TextArea(
         reveals.get();
         revealing.start(Duration::ZERO);
     });
+    // `rights` changes as rows are laid out (each reports its right edge), so it stands for
+    // "rows laid out": what moves a pending `scroll_to` on once its line's row is built.
     let rights = cx.rights;
     create_effect(move || {
         let position = scroll.get();

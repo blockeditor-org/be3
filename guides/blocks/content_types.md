@@ -184,7 +184,9 @@ field name plus `$kind` (`#[model(kind = "...")]` or the struct's snake-case
 name) and, in a `List`, `$id` (tag 37 UUID; an item stored without one, or
 with a repeated one, gets an id derived from its place and index, so every
 replica agrees on it). A register is its serde form in CBOR, and that same
-CBOR is what registers hold in memory and what `set` sends.
+CBOR is what registers hold in memory and what `set` sends. A `Text` is stored
+as its bytes and reloads as fresh `LOADED` items, so a sequence `Pos` kept
+beyond its session means only a byte offset.
 
 `Document::to_bytes` writes that value split into a tree of `DocumentPart`s,
 each about 16–64 KiB of CBOR (`crates/be-block-model/src/parts.rs`): a CBOR
