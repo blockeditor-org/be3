@@ -1,9 +1,14 @@
 use super::*;
 
 /// A module buck compiled for wasmtime (crates/be-host-runtime/BUCK), which the host loads as it
-/// is rather than compiling it: the base library alone is ten seconds of Cranelift.
+/// is rather than compiling it.
 fn compiled(variable: &str) -> Vec<u8> {
-    let path = std::env::var(variable).unwrap_or_else(|_| panic!("{variable} names a module"));
+    let path = std::env::var(variable).unwrap_or_else(|_| {
+        panic!(
+            "{variable} names a module buck compiled, which crates/be-host-runtime/BUCK sets: \
+             run this test with ./scripts/test, not the harness binary on its own"
+        )
+    });
     std::fs::read(&path).unwrap_or_else(|error| panic!("{path} could not be read: {error}"))
 }
 
