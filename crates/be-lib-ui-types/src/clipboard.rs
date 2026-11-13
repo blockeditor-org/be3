@@ -10,8 +10,10 @@
 //! An item names blocks only in its `refs`, which its data indexes by
 //! position: whoever carries it translates them without decoding the data.
 
+use std::ops::Range;
+
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use uuid::Uuid;
+pub use uuid::Uuid;
 
 pub use crate::types::{ClipBody, ClipItem};
 
@@ -142,37 +144,143 @@ pub enum TextShape {
     Lines,
 }
 
-/// `be3/text-fragment`: one chunk of raw bytes per cursor, which need not be
-/// UTF-8, and their shape.
+/// `be3/text-fragment`: one chunk per cursor, which need not be UTF-8, and
+/// their shape. A rich text's marks travel in its chunks, keyed by `schema`:
+/// a receiver of another schema, or none, takes the bytes alone.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TextFragment {
-    pub chunks: Vec<Vec<u8>>,
+    pub chunks: Vec<TextChunk>,
     pub shape: TextShape,
+    /// The schema the marks' keys belong to (`Schema::name` in
+    /// beui-text-editor-core); `None` when they carry none.
+    pub schema: Option<String>,
+}
+
+/// One cursor's bytes and the marks over them.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TextChunk {
+    pub bytes: Vec<u8>,
+    pub marks: Vec<TextMark>,
+}
+
+/// A mark over `range`, bytes within its chunk. An inline mark styles its
+/// bytes; a block mark starts at the start of a line and gives that line its
+/// props.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TextMark {
+    pub range: Range<usize>,
+    pub block: bool,
+    pub key: String,
+    pub value: MarkValue,
+}
+
+/// A mark's value. A block it names (an embed) travels in the item's refs,
+/// in the order the chunks and their marks list them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MarkValue {
+    Bool(bool),
+    Int(i64),
+    Text(String),
+    Block {
+        #[serde(skip)]
+        id: Uuid,
+    },
 }
 
 impl ClipFormat for TextFragment {
     const FORMAT: &'static str = formats::TEXT_FRAGMENT;
+
+    fn refs(&self) -> Vec<Uuid> {
+        self.blocks().map(|id| *id).collect()
+    }
+
+    /// Also drops marks whose ranges do not fit their chunk: a fragment may
+    /// come from any program.
+    fn set_refs(&mut self, refs: &[Uuid]) -> Option<()> {
+        let mut refs = refs.iter();
+        for id in self.blocks_mut() {
+            *id = *refs.next()?;
+        }
+        refs.next().is_none().then_some(())?;
+        for chunk in &mut self.chunks {
+            let len = chunk.bytes.len();
+            chunk
+                .marks
+                .retain(|mark| mark.range.start <= mark.range.end && mark.range.end <= len);
+        }
+        Some(())
+    }
+}
+
+impl TextChunk {
+    pub fn plain(bytes: impl Into<Vec<u8>>) -> Self {
+        Self {
+            bytes: bytes.into(),
+            marks: Vec::new(),
+        }
+    }
 }
 
 impl TextFragment {
     pub fn chars(text: impl Into<Vec<u8>>) -> Self {
         Self {
-            chunks: vec![text.into()],
+            chunks: vec![TextChunk::plain(text)],
             shape: TextShape::Chars,
+            schema: None,
         }
+    }
+
+    /// Chunks of bytes alone, without marks.
+    pub fn plain(chunks: impl IntoIterator<Item = Vec<u8>>, shape: TextShape) -> Self {
+        Self {
+            chunks: chunks.into_iter().map(TextChunk::plain).collect(),
+            shape,
+            schema: None,
+        }
+    }
+
+    fn blocks(&self) -> impl Iterator<Item = &Uuid> {
+        self.chunks
+            .iter()
+            .flat_map(|chunk| &chunk.marks)
+            .filter_map(|mark| match &mark.value {
+                MarkValue::Block { id } => Some(id),
+                _ => None,
+            })
+    }
+
+    fn blocks_mut(&mut self) -> impl Iterator<Item = &mut Uuid> {
+        self.chunks
+            .iter_mut()
+            .flat_map(|chunk| &mut chunk.marks)
+            .filter_map(|mark| match &mut mark.value {
+                MarkValue::Block { id } => Some(id),
+                _ => None,
+            })
+    }
+
+    /// The chunks joined into one with line breaks, a chunk that ends in one
+    /// needing none, their marks moved along.
+    pub fn joined(&self) -> TextChunk {
+        let mut joined = TextChunk::default();
+        for (index, chunk) in self.chunks.iter().enumerate() {
+            if index > 0 && joined.bytes.last() != Some(&b'\n') {
+                joined.bytes.push(b'\n');
+            }
+            let at = joined.bytes.len();
+            joined.bytes.extend_from_slice(&chunk.bytes);
+            joined.marks.extend(chunk.marks.iter().map(|mark| TextMark {
+                range: mark.range.start.saturating_add(at)..mark.range.end.saturating_add(at),
+                ..mark.clone()
+            }));
+        }
+        joined
     }
 
     /// The chunks joined with line breaks, a chunk that ends in one needing
     /// none.
     pub fn plain_bytes(&self) -> Vec<u8> {
-        let mut joined = Vec::new();
-        for (index, chunk) in self.chunks.iter().enumerate() {
-            if index > 0 && joined.last() != Some(&b'\n') {
-                joined.push(b'\n');
-            }
-            joined.extend_from_slice(chunk);
-        }
-        joined
+        self.joined().bytes
     }
 
     /// `plain_bytes` decoded lossily: the `text/plain` beside the fragment.
@@ -181,12 +289,16 @@ impl TextFragment {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.chunks.iter().all(Vec::is_empty)
+        self.chunks.iter().all(|chunk| chunk.bytes.is_empty())
     }
 
-    /// The fragment and its plain text, richest first.
-    pub fn items(&self) -> Vec<ClipItem> {
-        vec![self.encode(), ClipItem::text(self.plain_text())]
+    /// The fragment, `html` written from its marks when there is one, and its
+    /// plain text, richest first.
+    pub fn items(&self, html: Option<String>) -> Vec<ClipItem> {
+        std::iter::once(self.encode())
+            .chain(html.map(|html| ClipItem::new(formats::HTML, html.into_bytes())))
+            .chain([ClipItem::text(self.plain_text())])
+            .collect()
     }
 
     /// The fragment of `item`: the fragment itself, or plain text as one run
