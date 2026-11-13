@@ -9,8 +9,9 @@ use super::worker::WorkerChannel;
 use crate::presenter::Blit;
 
 const LAYER: &str = "apps";
-/// Where a screen goes that an anchored view painted before it: above the host's canvas, in
-/// the anchored views' layer (overlay.rs), so a child placed in an anchored view shows over it.
+/// Where a screen goes that lies over an anchored view painted before it: above the host's
+/// canvas, in the anchored views' layer (overlay.rs), so a child placed in an anchored view
+/// shows over it (`presenter::lifted`).
 const ABOVE: &str = "layers";
 
 pub struct Placement {
@@ -21,7 +22,7 @@ pub struct Placement {
 }
 
 /// Where a screen shows: `order` is its blit's place in the frame's paint order, and `above`
-/// whether an anchored view's blit came before it.
+/// whether it lies over an anchored view painted before it (`presenter::lifted`).
 pub fn placement(blit: &Blit, order: usize, above: bool, scale: f32) -> Option<Placement> {
     if blit.layer.is_some() {
         return None;
@@ -188,6 +189,8 @@ fn create(channel: &WorkerChannel, surface: u32, above: bool) -> Result<Shown, S
         .map_err(failed)?
         .dyn_into()
         .map_err(|_| "an app screen's canvas could not be made".to_owned())?;
+    // Which kind of canvas this is, for whatever inspects the page (crates/be-host/web-test).
+    let _ = element.set_attribute("data-kind", "screen");
     layer.append_child(&element).map_err(failed)?;
     let id = NEXT.with(|next| {
         let id = next.get();

@@ -47,20 +47,17 @@ async function approve(portal, url, serverLog, invite) {
         await portal.getByRole("link", { name: "Create an account", exact: true }).click();
         if (!invite) throw new Error("Registering needs an invite code, and none was given.");
         await portal.getByLabel("Invite code", { exact: true }).fill(invite);
-        // The form can render again under the typing, so each field is filled until it holds
-        // what was typed.
+        // Filled once: typing that lands before the page hydrates must still reach it.
         const fields = [
             [portal.getByLabel("Display name", { exact: true }), "Dev"],
             [portal.getByLabel("Email", { exact: true }), "dev@localhost"],
             [portal.locator('[name="password"]'), "dev-password"],
             [portal.getByLabel("Confirm password", { exact: true }), "dev-password"],
         ];
-        for (let tries = 0; tries < 5; tries++) {
-            for (const [field, value] of fields) {
-                if ((await field.inputValue()) !== value) await field.fill(value);
-            }
-            const held = await Promise.all(fields.map(async ([field, value]) => (await field.inputValue()) === value));
-            if (held.every(Boolean)) break;
+        for (const [field, value] of fields) await field.fill(value);
+        for (const [field, value] of fields) {
+            const held = await field.inputValue();
+            if (held !== value) throw new Error(`a registration field holds ${JSON.stringify(held)}, not what was typed`);
         }
         await portal.getByRole("button", { name: "Create account", exact: true }).click();
         await portal.getByText("Check your email", { exact: true }).first().waitFor();

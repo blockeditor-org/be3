@@ -2,6 +2,7 @@ use be_sdk_api::{EditorInstanceId, ViewId};
 
 use super::*;
 mod a_frame_published_after_its_damage_was_read_is_redrawn_next;
+mod a_child_over_an_anchored_view_is_lifted_and_a_pane_beside_it_is_not;
 mod a_painting_drawn_at_another_size_is_cropped_rather_than_stretched;
 mod a_view_laid_out_at_a_size_its_frame_was_not_drawn_at_shows_that_frame_unscaled;
 mod an_apps_textures_are_let_go_once_its_layout_no_longer_holds_them;

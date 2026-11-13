@@ -55,7 +55,8 @@ pub fn overlays(
     );
     let (width, height) = (viewport.x * scale, viewport.y * scale);
     // An overlay stacks by its last blit, as a screen in #layers stacks by its own
-    // (canvases::placement), so a child placed in an anchored view shows above it.
+    // (canvases::placement), so a child placed in an anchored view, lifted into #layers
+    // (presenter::lifted), shows above it.
     owners
         .into_iter()
         .map(|owner| {
@@ -129,6 +130,7 @@ pub(super) fn show(
         .dyn_into()
         .map_err(|_| "an app's layer canvas could not be made".to_owned())?;
     let _ = element.set_attribute("style", &overlay.style);
+    let _ = element.set_attribute("data-kind", "overlay");
     layer.append_child(&element).map_err(failed)?;
     let offscreen = element
         .transfer_control_to_offscreen()

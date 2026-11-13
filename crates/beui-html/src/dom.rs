@@ -51,46 +51,45 @@ pub fn hydrate<C: IntoSegment<Node>>(
     container: &web_sys::Node,
     build: impl FnOnce() -> C,
 ) -> Mounted {
+    let typed = typed_fields(container);
     let (root, scope) = build_root(build);
     attach(&root, container.clone());
     claim_children(&root, container);
-    replay_typing(container);
+    for field in typed {
+        if let Ok(event) = web_sys::Event::new("input") {
+            let _ = field.dispatch_event(&event);
+        }
+    }
     Mounted {
         _root: root,
         _scope: scope,
     }
 }
 
-/// Sends `input` to each text field and text area under `container` whose value is
-/// no longer the one the server rendered: typing that landed before its listener.
-fn replay_typing(container: &web_sys::Node) {
-    let Some(container) = container.dyn_ref::<web_sys::Element>() else {
-        return;
-    };
+/// The text fields and text areas under `container` whose value is no longer the one the
+/// server rendered: typing that landed before their listeners. Taken before hydration
+/// touches the page, so nothing hydration sets passes for typing.
+fn typed_fields(container: &web_sys::Node) -> Vec<web_sys::EventTarget> {
     // Through js_sys, which every target that builds this crate has.
-    let Ok(query) = js_sys::Reflect::get(container, &"querySelectorAll".into()) else {
-        return;
-    };
-    let Some(query) = query.dyn_ref::<js_sys::Function>() else {
-        return;
+    let query = js_sys::Reflect::get(container, &"querySelectorAll".into()).ok();
+    let Some(query) = query.as_ref().and_then(|query| query.dyn_ref::<js_sys::Function>()) else {
+        return Vec::new();
     };
     let Ok(fields) = query.call1(container, &"input, textarea".into()) else {
-        return;
+        return Vec::new();
     };
-    let fields = js_sys::Array::from(&fields);
-    for field in fields.iter() {
-        let property = |name: &str| {
-            js_sys::Reflect::get(&field, &name.into())
-                .ok()
-                .and_then(|value| value.as_string())
-        };
-        if property("value") != property("defaultValue")
-            && let Some(field) = field.dyn_ref::<web_sys::EventTarget>()
-            && let Ok(event) = web_sys::Event::new("input")
-        {
-            let _ = field.dispatch_event(&event);
-        }
-    }
+    js_sys::Array::from(&fields)
+        .iter()
+        .filter(|field| {
+            let property = |name: &str| {
+                js_sys::Reflect::get(field, &name.into())
+                    .ok()
+                    .and_then(|value| value.as_string())
+            };
+            property("value") != property("defaultValue")
+        })
+        .filter_map(|field| field.dyn_into::<web_sys::EventTarget>().ok())
+        .collect()
 }
 
 fn build_root<C: IntoSegment<Node>>(build: impl FnOnce() -> C) -> (Node, Scope) {
