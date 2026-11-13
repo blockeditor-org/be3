@@ -1804,7 +1804,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     /// The host tells the editor it was opened at `at` in its block (`editor-event.reveal`).
-    pub fn reveal(&mut self, at: be_sdk_api::SearchLocation) {
+    pub fn open_at(&mut self, at: be_sdk_api::SearchLocation) {
         self.call(|editor, connection| {
             editor.hear(connection, vec![EditorEvent::Reveal(at)]);
         });

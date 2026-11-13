@@ -41,6 +41,7 @@ pub use app::{
 pub use app::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use asked::{Asked, Task};
 pub use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
+pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::accesskit;
 pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
@@ -73,7 +74,6 @@ pub use be_sdk_api::{
     WebViewEvent, WebViewId, WheelTurn, WifiLink, WifiNetwork, WifiRequest, WifiSecurity,
     WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
 };
-pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, PaletteMode, ParentView, Scrim, View,
     ViewAnchor, ViewEdge, ViewId, ViewPlacement, ViewRef,

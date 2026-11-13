@@ -69,9 +69,9 @@ pub use runtime::{
     intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll, present, presenting,
     preview_image, record_pacing, regenerate_artifact, render_clip, replace_child, replace_gpu,
     report_child_details, report_child_focus, report_children, request_painting, resized,
-    restart_app, revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
-    reveal, set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
-    start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
+    restart_app, reveal, revoke_frame_child, running, set_artifact_states, set_focus,
+    set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog, show_history,
+    show_panel, start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
 };
 pub use runtime::{
     child_failed_for_gift, child_up_for_gift, end_gift, forget_keys, route_keys, sent_press,

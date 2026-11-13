@@ -2642,6 +2642,7 @@ impl HostCore {
         if self.shell == Some(id) {
             return;
         }
+        self.reveals.remove(&id);
         be_host_desktop::programs::close(id);
         self.editors.forget_parent(id);
         self.focus_reports.remove(&id);

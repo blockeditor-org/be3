@@ -13,7 +13,6 @@ use crate::root::embeds::{image_embed_directive, parse_embeds};
 use be_type_text::{TextBlock, TextContent};
 
 mod a_link_to_a_block_you_cannot_see_reads_no_access_beside_one_you_can;
-mod a_text_opened_at_a_search_hit_selects_its_words;
 mod a_long_text_fades_at_the_edges_it_scrolls_past_beside_its_scrollbar;
 mod a_paste_soon_after_typing_is_undone_on_its_own;
 mod a_peers_caret_and_selection_are_drawn_in_their_color;
@@ -23,6 +22,7 @@ mod a_reopened_text_opens_scrolled_where_it_was_and_keeps_its_caret;
 mod a_rewrite_refused_while_read_only_leaves_the_text_as_it_was;
 mod a_table_rule_is_drawn_only_where_its_row_has_a_pipe;
 mod a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens;
+mod a_text_opened_at_a_search_hit_selects_its_words;
 mod a_wide_document_is_centered_and_a_wide_table_reaches_into_the_margin;
 mod an_empty_text_given_the_keyboard_takes_the_caret;
 mod checkboxes_and_block_chips_line_up_with_their_text;

@@ -4,7 +4,7 @@ use super::*;
 fn a_text_opened_at_a_search_hit_selects_its_words() {
     let mut editor = editor("Orchard notes\nQuinces ripen late in the autumn");
     editor.presence_visible(true);
-    editor.reveal(be_sdk_beui::SearchLocation {
+    editor.open_at(be_sdk_beui::SearchLocation {
         key: String::new(),
         text: "RIPEN".to_owned(),
     });
@@ -22,7 +22,7 @@ fn a_text_opened_at_a_search_hit_selects_its_words() {
     );
     editor.snapshot("a_text_opened_at_a_search_hit_selects_its_words");
 
-    editor.reveal(be_sdk_beui::SearchLocation {
+    editor.open_at(be_sdk_beui::SearchLocation {
         key: "another document".to_owned(),
         text: "notes".to_owned(),
     });
