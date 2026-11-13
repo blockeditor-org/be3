@@ -42,6 +42,10 @@ interface organizations {
         escrows: list<escrow-key>,
         pinned: list<u8>,
         server: server-account,
+        /// The server's clock when it answered, in milliseconds since the epoch: a client
+        /// stamps its commits no later than it plus a little, so the server takes them
+        /// however fast the client's own clock runs.
+        time: s64,
     }
 
     list-organizations: async func() -> result<list<organization>, error>;

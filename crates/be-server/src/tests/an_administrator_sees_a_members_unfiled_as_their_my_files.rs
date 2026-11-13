@@ -4,7 +4,7 @@ use super::*;
 
 async fn access(client: &mut TestClient, block: Uuid) -> Option<be_block_graph::Access> {
     client
-        .call(|peer| client::blocks::read_block(peer, block))
+        .try_read_block(block)
         .await
         .ok()
         .map(|summary| summary.access)

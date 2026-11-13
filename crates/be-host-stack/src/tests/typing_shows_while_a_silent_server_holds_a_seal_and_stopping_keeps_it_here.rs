@@ -14,7 +14,6 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
 
     let mut sending = harness.relay().count(|method| {
         [
-            be_block_protocol::__args::OBJECTS_MISSING_OBJECTS,
             be_block_protocol::__args::OBJECTS_UPLOAD_URLS,
             be_block_protocol::__args::BLOCKS_PUBLISH,
         ]

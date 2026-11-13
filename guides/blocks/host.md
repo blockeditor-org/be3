@@ -122,7 +122,9 @@ its head.
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
-  with the real session, replaying what happened meanwhile. A seal asked of a
+  with the real session, replaying what happened meanwhile; an editor that made
+  an edit kept for that and has detached since is attached for its edits to be
+  given again (`Open::departed`), or the replica would drop them. A seal asked of a
   joining replica with unconfirmed edits first gives it a session it owns, so
   flush and stop never wait for a join.
 - **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
@@ -347,6 +349,16 @@ index and search it locally.
   head, and drops hits the mirror shows
   detached, unviewable or outside `within`; it lists each hit block
   (`Owner::Search`) and shows a hit only once the mirror holds it.
+- **Opening a hit.** Quick open (`OpenableBlock::at`) and the file tree's hit
+  rows (`EditorHost::open_block_at`) open a hit's block with a
+  `search-location`: its document key and the words its first match covers.
+  be-host keeps it (`reveals::Reveals`) until the editor showing that block
+  is open, a few seconds at most, then sends it `editor-event.reveal`; a later
+  open of the block, or its editor closing, lets go of it. be-sdk hands it on
+  as `Pushed::Reveal` and `EditorHost::take_reveal`. The text app, once its
+  content has loaded and its saved position is back, selects the first place
+  the words occur as whole words, compared as the index folds them
+  (`be_lib_search::fold`); an editor that supports no location ignores it.
 - **Apps** watch a search with `search-watch` (`Editor::search` in
   be-sdk-beui); the file tree's filter lists the hits under "In content", and
   be-host's quick open (`found_blocks` in `compositor/palette.rs`) lists them

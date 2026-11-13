@@ -70,3 +70,17 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   `MERGE_BYTES` (`SearchIndexContent::compact`), so a large index's biggest segments are never
   merged. An idle-time pass (the device idle, on power) could lift the cap. Done: a stack test
   where an index whose tier is over the cap is merged by an idle pass and answers the same.
+
+## 10. Commit times
+
+- **A refused far-future commit is stuck.** A device stamps commits by the
+  server's clock it measured, kept in its refs across restarts
+  (`Peer::server_now`), but one that has never connected stamps by its own
+  clock, and the server refuses a time more than `MAX_COMMIT_AHEAD` ahead
+  (guides/blocks/server.md, limits). Its outbox then holds a commit it cannot
+  send until the server's clock catches up. Re-stamp it instead: when a publish
+  is refused for its time, measure again and rewrite the unsent commit (and any
+  unsent ones on it) with a new time, which changes their ids, so the journal,
+  pending entries and local heads that name them move too. Done: a client test
+  whose first commits are made offline with a clock two hours fast sends them
+  once it connects.
