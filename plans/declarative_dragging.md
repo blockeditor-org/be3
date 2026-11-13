@@ -124,8 +124,9 @@ pub struct DragFrame { pub item: Rect, pub chosen: Option<CandidateId>, pub floa
 ```
 
 Evaluating a spec is pure, `(spec, DragPoint, last frame) -> DragFrame`, so it is tested without a
-core. Stickiness and `Thrown`'s velocity are the only state carried between frames. Styled code
-writes builders (`closest(..).when_far(floating())`); reaches and radii come from tokens. `Free`
+core. Stickiness and `Thrown`'s velocity are the only state carried between frames. The unstyled
+engine takes reaches, radii and throw speeds as values; styled code writes builders
+(`closest(..).when_far(floating())`) that take them from tokens (plans/motion_tokens.md). `Free`
 replaces Dragology's `vary`: every continuous drag in the repo is the pointer minus the grab offset,
 clamped or quantised, so there is no optimiser until a drag needs one.
 
@@ -143,7 +144,20 @@ clamped or quantised, so there is no optimiser until a drag needs one.
   plans/glide_in_unstyled.md), so a list's layout is written once, by the list. Rows of any height,
   wrapped text included, are exact.
 
-`drive`, `Space`, `Driver`, edge scrolling and drops outside every window stay as they are.
+What stays below unstyled, and what changes there:
+
+- **Stays in core:** turning pointer input into presses and drags (thresholds, `touch_drags`, long
+  presses, re-sending a held drag each frame for edge scrolling), `Space` on `Rects`, the
+  `Document::drags` hook, the built-in Escape, `drive`, and the HTML core's window listeners while
+  a drag is carried (`beui-core-html` `drags.rs`). Drops outside every window stay as they are.
+- **`Driver` becomes per pointer:** `track(pointer, point)`, `release(pointer, ..)`, so the core
+  drives one carry per pointer.
+- **`Interactive`'s `drag`** lives on the `beui-view` component, not the core node: at the first
+  drag the core already reports, the component calls `drag` and hands the result to the
+  registered `Driver`. The core gains no logic.
+- **Leaves `beui-types`:** `Take`, `Target`, `DragSource` and their callback aliases are deleted;
+  `EdgeScroller` and `EDGE_BAND`, edge-scroll policy used only by the board and `Scroll`, move to
+  unstyled, with the band from a token (plans/motion_tokens.md).
 
 ### A reorderable list, written directly
 
