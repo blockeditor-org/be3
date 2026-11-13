@@ -34,6 +34,7 @@ fn a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab() {
             DockUpdate::Child(DockDeclaredChild {
                 child: OUTER_CHILD,
                 declaration: Some(declaration("outer", &[(1, "one")])),
+                epoch: 0,
             })
         )]
     );
@@ -59,6 +60,7 @@ fn a_docked_child_stays_open_while_its_placer_hosts_or_declares_its_tab() {
             DockUpdate::Child(DockDeclaredChild {
                 child: OUTER_CHILD,
                 declaration: None,
+                epoch: 0,
             })
         )]
     );

@@ -9,22 +9,6 @@ lands on its own. Step numbers stay as written when a step is done and
 removed. No format is frozen, so wire and WIT changes need no migration. Line
 numbers are from when this plan was written.
 
-## 5. Acting on a block is one call
-
-Today a block is changed through `blocks.act(block, block-command)`,
-`blocks.version(block, version-command)`, the `act` shell message (`block-act`: a
-block and a `shell-command`) and the graph calls `create-block`, `set-parent` and `define`.
-The guest's `GraphCommand` (`be-sdk/src/graph.rs`) is split back into three
-calls by `be-sdk/src/link.rs`.
-
-Add `version(version-command)`, `share`, `leave`, `close-editor`,
-`set-parent(block-location)` and `define(…)` to `block-command`, leaving one
-`blocks.act(block, command)` plus `create-block` (which answers with an id).
-`shell-command` goes. Permission checks stay a match on the command in the one
-host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
-whether `set-parent` and the existing `move-command`/`reorder-command` are one
-thing, and keep one.
-
 ## 9. Block protocol requests that duplicate others
 
 - `read-block` is `list-blocks(listing.block)`: the server implements it as
@@ -64,24 +48,6 @@ thing, and keep one.
   connection, as they already do for `append`.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
-
-## 11. Type modules answer everything at start
-
-- At hello the host calls `blank` and then `describe(blank)` for every type
-  (`be-block-type-host/src/modules.rs`) only to fill `Kind`. Add `blank` and
-  `blank-description` to `type-info` and remove the `blank` export
-  (`be-sdk-type-api/wit/replicas.wit`). Update guides/type_modules.md's list of
-  stateless requests.
-- Remove `description.name`: no host reads it, and `derived` already carries
-  the intrinsic name.
-- Fold `undo-state` into the replica `status` report and remove `history`
-  (`be-sdk-type-api/wit/host.wit`): both are snapshots of one replica that the
-  host stores.
-- Remove the manifest's `plain-file` (`be-sdk-manifest/wit/manifest.wit`): it
-  repeats `type-info.plain`, and a test exists only to keep the two in step.
-  The host fills it from the type registry.
-- `be-sdk-type-host` registers with `Registration::of::<X>().undo::<X>()`;
-  use `be_block_types!` like every other crate.
 
 ## 12. beui: one form per concept
 

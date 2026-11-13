@@ -155,6 +155,9 @@ pub(super) enum Command {
         bytes: Vec<u8>,
     },
     Flush(std::sync::mpsc::Sender<()>),
+    /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
+    /// `Flush`, nothing stays to seal what is edited later.
+    SealOwed,
     History {
         block: Uuid,
         redo: bool,
@@ -309,6 +312,7 @@ impl Command {
 
             Command::Replace { .. } => "replace",
             Command::Flush(..) => "flush",
+            Command::SealOwed => "seal owed",
             Command::History { .. } => "history",
             #[cfg(test)]
             Command::Presence { .. } => "presence",
@@ -379,6 +383,7 @@ impl Command {
                 | Command::History { .. }
                 | Command::Seed { .. }
                 | Command::Flush(_)
+                | Command::SealOwed
                 | Command::Storage
                 | Command::WatchVersion(_)
                 | Command::UnwatchVersion(_)
@@ -461,6 +466,7 @@ impl Command {
             | Command::Import(_)
             | Command::ContentOfFile { .. }
             | Command::Flush(_)
+            | Command::SealOwed
             | Command::ApprovePairing { .. }
             | Command::DismissPairing(_)
             | Command::Contact(_)
@@ -3301,13 +3307,27 @@ async fn apply(
             false
         }
         Command::Flush(done) => {
-            replicas.keep_all(ctx).await;
-            if replicas.take_kept() {
-                tasks.sync(peer, shared);
-            }
+            seal_now(peer, shared, replicas, tasks).await;
             flushes.push(done);
             true
         }
+        Command::SealOwed => {
+            seal_now(peer, shared, replicas, tasks).await;
+            true
+        }
+    }
+}
+
+/// Seals what the open blocks owe now and sends what that kept: a flush does this, then waits.
+async fn seal_now(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    replicas: &mut Replicas,
+    tasks: &Tasks,
+) {
+    replicas.keep_all((peer, shared)).await;
+    if replicas.take_kept() {
+        tasks.sync(peer, shared);
     }
 }
 

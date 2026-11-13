@@ -37,6 +37,15 @@ enum Hosting {
     Placing,
 }
 
+/// Where an instance's own bar was last placed, kept while it is not shown so it comes back
+/// there.
+#[derive(Clone)]
+struct Parked {
+    placement: DockBarPlacement,
+    hidden: bool,
+    pane: Option<DockTabPath>,
+}
+
 #[derive(Default)]
 pub(super) struct Docks {
     apps: HashMap<EditorInstanceId, String>,
@@ -45,11 +54,15 @@ pub(super) struct Docks {
     declared: HashMap<EditorInstanceId, DockDeclaration>,
     hosting: HashMap<(EditorInstanceId, ChildId), Hosting>,
     delivered: HashMap<(EditorInstanceId, ChildId), DockDeclaration>,
+    /// The `epoch` of the last declaration or withdrawal sent for each docked child, from one
+    /// count that only grows, so a child placed again never repeats an earlier one.
+    epochs: HashMap<(EditorInstanceId, ChildId), u64>,
+    epoch: u64,
     hosted: HashMap<EditorInstanceId, DockHosted>,
     docked: HashSet<EditorInstanceId>,
     offscreen: HashSet<EditorInstanceId>,
     framed: HashSet<EditorInstanceId>,
-    parked: HashMap<(EditorInstanceId, u64), (DockBarPlacement, bool)>,
+    parked: HashMap<(EditorInstanceId, u64), Parked>,
     shown_bars: HashSet<(EditorInstanceId, u64)>,
     outbox: Vec<(EditorInstanceId, DockUpdate)>,
     details: Vec<(EditorInstanceId, ChildId)>,
@@ -78,6 +91,7 @@ impl Docks {
         self.hosted.remove(&instance);
         self.hosting.retain(|(root, _), _| *root != instance);
         self.delivered.retain(|(root, _), _| *root != instance);
+        self.epochs.retain(|(root, _), _| *root != instance);
         self.outbox.retain(|(to, _)| *to != instance);
         self.parked.retain(|(held, _), _| *held != instance);
         self.shown_bars.retain(|(held, _)| *held != instance);
@@ -98,6 +112,7 @@ impl Docks {
             self.hosted.remove(&instance);
             self.hosting.retain(|(root, _), _| *root != instance);
             self.delivered.retain(|(root, _), _| *root != instance);
+            self.epochs.retain(|(root, _), _| *root != instance);
             self.outbox.retain(|(to, _)| *to != instance);
         }
         self.refresh();
@@ -187,7 +202,7 @@ impl Docks {
                 }
                 DockMessage::Host(host) => {
                     if self.owns(app, host.child.instance) {
-                        self.host(host.child, host.hold);
+                        self.host(host.child, host.hold, host.seen);
                     }
                 }
                 DockMessage::Close(close) => {
@@ -455,6 +470,7 @@ impl Docks {
                     }
                 }
                 self.hosting.remove(&(placer, child));
+                self.epochs.remove(&(placer, child));
             }
             docked = self.docked_set();
         }
@@ -510,11 +526,13 @@ impl Docks {
             if self.hosting.get(&(root, child)) == Some(&Hosting::Awaited) {
                 self.hosting.remove(&(root, child));
             }
+            let epoch = self.next_epoch(root, child);
             self.send(
                 root,
                 DockUpdate::Child(DockDeclaredChild {
                     child,
                     declaration: None,
+                    epoch,
                 }),
             );
         }
@@ -532,14 +550,22 @@ impl Docks {
             if *hosting == Hosting::Placing {
                 *hosting = Hosting::Awaited;
             }
+            let epoch = self.next_epoch(root, child);
             self.send(
                 root,
                 DockUpdate::Child(DockDeclaredChild {
                     child,
                     declaration: Some(declaration),
+                    epoch,
                 }),
             );
         }
+    }
+
+    fn next_epoch(&mut self, root: EditorInstanceId, child: ChildId) -> u64 {
+        self.epoch += 1;
+        self.epochs.insert((root, child), self.epoch);
+        self.epoch
     }
 
     fn spliced(&self, instance: EditorInstanceId, depth: usize) -> Option<DockDeclaration> {
@@ -557,8 +583,9 @@ impl Docks {
             }
         }
         for bar in &mut declaration.bars {
-            if let Some(placement) = self.returning(instance, &bar.tab) {
-                bar.placement = placement;
+            if let Some(parked) = self.returning(instance, &bar.tab) {
+                bar.placement = parked.placement;
+                bar.pane = parked.pane;
             }
         }
         let kept: HashMap<String, DockBarPlacement> = declaration
@@ -569,7 +596,7 @@ impl Docks {
                 let placement = self.parked.get(&(instance, bar.tab.tab));
                 (
                     bar.key.clone(),
-                    placement.map_or_else(|| bar.placement.clone(), |(held, _)| held.clone()),
+                    placement.map_or_else(|| bar.placement.clone(), |held| held.placement.clone()),
                 )
             })
             .collect();
@@ -610,13 +637,11 @@ impl Docks {
         Some(declaration)
     }
 
-    fn returning(&self, instance: EditorInstanceId, bar: &DockTabPath) -> Option<DockBarPlacement> {
+    fn returning(&self, instance: EditorInstanceId, bar: &DockTabPath) -> Option<Parked> {
         if !bar.is_own() || self.shown_bars.contains(&(instance, bar.tab)) {
             return None;
         }
-        self.parked
-            .get(&(instance, bar.tab))
-            .map(|(placement, _)| placement.clone())
+        self.parked.get(&(instance, bar.tab)).cloned()
     }
 
     fn request(&mut self, asker: EditorInstanceId, request: DockRequest) {
@@ -658,7 +683,7 @@ impl Docks {
         }
     }
 
-    fn host(&mut self, child: DockChild, hold: DockHold) {
+    fn host(&mut self, child: DockChild, hold: DockHold, seen: u64) {
         let DockChild {
             instance: root,
             child,
@@ -674,6 +699,15 @@ impl Docks {
         else {
             return;
         };
+        // Awaited is answered only by a hold sent after the root heard that declaration: one
+        // sent before it says nothing of it, and taking it (a `Placing` while the child was
+        // still placed, say) would leave a child the root is about to host unawaited, dropped
+        // before its answer lands.
+        if self.hosting.get(&(root, child)) == Some(&Hosting::Awaited)
+            && self.epochs.get(&(root, child)).copied().unwrap_or(0) != seen
+        {
+            return;
+        }
         let hosted = match hold {
             DockHold::Hosted(hosted) => {
                 self.hosting.insert((root, child), Hosting::Hosted);
@@ -768,8 +802,14 @@ impl Docks {
         self.shown_bars.retain(|(held, _)| *held != instance);
         for bar in &own.layout.bars {
             self.shown_bars.insert((instance, bar.bar.tab));
-            self.parked
-                .insert((instance, bar.bar.tab), (bar.placement.clone(), bar.hidden));
+            self.parked.insert(
+                (instance, bar.bar.tab),
+                Parked {
+                    placement: bar.placement.clone(),
+                    hidden: bar.hidden,
+                    pane: bar.pane.clone(),
+                },
+            );
         }
         let Some((_, record)) = self.frame_record(instance) else {
             return;
@@ -794,8 +834,9 @@ impl Docks {
                     bar: bar.tab.clone(),
                     owner: bar.owner.clone(),
                     placement: parked
-                        .map_or_else(|| bar.placement.clone(), |(placement, _)| placement.clone()),
-                    hidden: parked.is_some_and(|(_, hidden)| *hidden),
+                        .map_or_else(|| bar.placement.clone(), |held| held.placement.clone()),
+                    hidden: parked.is_some_and(|held| held.hidden),
+                    pane: parked.map_or_else(|| bar.pane.clone(), |held| held.pane.clone()),
                 }
             })
             .collect();

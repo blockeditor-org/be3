@@ -921,11 +921,12 @@ pub fn modules_due() -> Option<std::time::Instant> {
 
 pub fn seal_owed() {
     if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
-        let (done, _) = std::sync::mpsc::channel();
-        send(Command::Flush(done));
+        send(Command::SealOwed);
     }
 }
 
+/// Flushes without waiting, and deliberately keeps the flush's late settle (unlike
+/// `seal_owed`): edits made before the app is really suspended are sealed with it too.
 pub fn backgrounded() {
     let (done, _) = std::sync::mpsc::channel();
     send(Command::Flush(done));

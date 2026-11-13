@@ -15,7 +15,7 @@ fn a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts() {
     assert!(!chat.editor.shown("chat.edit.cancel"));
     assert!(chat.editor.shown("chat.reply.cancel"));
 
-    chat.arrive(chat.content().delete(charger, ROSA, MORNING + MINUTE));
+    chat.arrive(deleted_by(&chat.content(), charger, ROSA, MORNING + MINUTE));
     assert!(
         !chat.editor.shown("chat.reply.cancel"),
         "a reply ends when its message is deleted elsewhere"

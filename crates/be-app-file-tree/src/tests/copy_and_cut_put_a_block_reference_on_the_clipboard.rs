@@ -1,4 +1,3 @@
-use be_sdk_beui::beui::ClipItem;
 use be_sdk_beui::beui::clipboard::{Blocks, formats};
 use be_sdk_beui::{BlockInfo, BlockParent};
 use be_sdk_test::HostCall;
@@ -21,7 +20,7 @@ fn copy_and_cut_put_a_block_reference_on_the_clipboard() {
     let [copied] = &copied[..] else {
         panic!("Copy puts the block on the clipboard once, not {copied:?}");
     };
-    let blocks = ClipItem::new(formats::BLOCKS, copied.clone())
+    let blocks = copied
         .decode::<Blocks>()
         .expect("the block reference decodes");
     let [block] = &blocks.blocks[..] else {

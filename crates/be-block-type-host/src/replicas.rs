@@ -2929,11 +2929,6 @@ impl<H: Host> Replicas<H> {
                 }
                 true
             }
-            Call::History { reply, history } => {
-                self.acknowledge(module, reply);
-                H::history(shared, block, history);
-                true
-            }
             Call::Conflict {
                 reply,
                 ours,

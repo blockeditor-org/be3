@@ -398,6 +398,8 @@ impl Workspace {
     fn show_requested(&self) {
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
+                // An editor never swaps the block of a share dialog the person has open.
+                ShellDialog::Share if self.share.with_untracked(Option::is_some) => {}
                 ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
                 ShellDialog::Close => {
                     let showing: Vec<TabId> = self.tabs.with_untracked(|tabs| {
@@ -496,10 +498,15 @@ impl Workspace {
         self.share.set(None);
     }
 
-    pub(crate) fn share_action(&self, action: ShareAction) {
+    /// Acts in the share dialog that showed `block`; an action meant for another block than the
+    /// one shared now is dropped.
+    pub(crate) fn share_action(&self, block: Uuid, action: ShareAction) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        if share.block != block {
+            return;
+        }
         if let ShareAction::InviteNew = action {
             if share.inviting.is_none() {
                 share.invite_link = None;
@@ -536,7 +543,12 @@ impl Workspace {
 
     fn relist_share(&self) {
         if self.share.with_untracked(Option::is_some) {
-            self.share_action(ShareAction::Refresh);
+            if let Some(block) = self
+                .share
+                .with_untracked(|share| share.as_ref().map(|share| share.block))
+            {
+                self.share_action(block, ShareAction::Refresh);
+            }
         }
     }
 
