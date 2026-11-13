@@ -18,7 +18,7 @@ use crate::picture::Picture;
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
-use crate::tokens::{Padding, Size, Space, use_space};
+use crate::tokens::{Padding, Size, Space};
 use crate::tooltip::Tooltip;
 
 const LIST_HEIGHT: f32 = 360.0;
@@ -136,7 +136,7 @@ pub fn SearchList(
             }}
             list_height
             fill_height
-            spacing={use_space(SPACING).get_untracked()}
+            spacing={SPACING.px()}
             scrollbar={scrollbar_style()}
             accessibility={row_accessibility}
             row

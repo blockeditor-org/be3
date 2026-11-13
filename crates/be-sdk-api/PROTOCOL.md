@@ -14,9 +14,12 @@ Rust on both sides is generated from it into this crate. The world imports:
   the graph, history, heads, artifact states and version control;
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
   the shell around it, its menus, children, audio, web views and creations.
-  Everything one way is a `shell-message` in one `tell`, sent once a pass in
+  Everything one way is a `shell-message` in a `tell`, sent once a pass in
   the order the editor made the messages, then the ones the frame works out
-  from its state (menus, the card, ...) in a fixed order;
+  from its state (menus, the card, ...) in a fixed order; what the editor
+  tells inside the pass's block calls follows in a second `tell`. Where only
+  the latest counts (the focus, whether a drag is taken, a paste asked), a
+  message replaces one of its kind not yet sent;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
   waits for, files, revisions, access and staged data;
 - `network` (`network.wit`): the app's only network, its fetches and the links
@@ -592,9 +595,9 @@ and the host passes it on unchanged; a pick the host routes to a child that
 took the frame over carries `none`, so that child points at its own rect.
 The same rect reaches a view as `frame-spec.anchor`, in the view's points, so
 a dialog opened from a shortcut or the palette points at the tab too.
-A bar action of a docked child whose dock the host spliced (its frame is not
-shown), such as asking for its details, reaches its placer as a `child-bar` as
-if from its frame.
+A docked child whose dock the host spliced (its frame is not shown) asking
+for its details (`details`) reaches its placer as a `child-details`, as if
+from its frame's bar.
 Popping a tab out keeps the root as the placer of its body: the root holds
 the only dock state, so it draws the popped-out window's chrome (its tab
 strip, the grab bar that moves it, the drop targets that dock it again, its

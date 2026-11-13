@@ -237,6 +237,21 @@ impl Gpu {
         self.destroyed || self.settling.lost().is_some()
     }
 
+    /// Why the app's device is lost: destroyed by the app, or lost by the host. None while it
+    /// is not.
+    pub fn lost_info(&self) -> Option<abi::DeviceLostInfo> {
+        if self.destroyed {
+            return Some(abi::DeviceLostInfo {
+                reason: abi::DeviceLostReason::Destroyed,
+                message: "the app destroyed its device".to_owned(),
+            });
+        }
+        self.settling.lost().map(|message| abi::DeviceLostInfo {
+            reason: abi::DeviceLostReason::Unknown,
+            message,
+        })
+    }
+
     fn create<T>(
         &mut self,
         table: fn(&mut Self) -> &mut Table<T>,

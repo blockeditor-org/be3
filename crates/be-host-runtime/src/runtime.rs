@@ -20,7 +20,7 @@ use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use uuid::Uuid;
 
 use be_host_base::host;
-use be_sdk_api::app::{ChildBarPress, EditorEvent, MenuChoice};
+use be_sdk_api::app::{EditorEvent, MenuChoice};
 
 use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
@@ -663,14 +663,9 @@ impl Runtime {
                 }),
         );
         messages.extend(
-            super::docks::take_bars(&self.app.identity.id)
+            super::docks::take_details(&self.app.identity.id)
                 .into_iter()
-                .map(|(placer, _, child, action)| {
-                    Outbound::Event(
-                        placer,
-                        EditorEvent::ChildBar(ChildBarPress { child, action }),
-                    )
-                }),
+                .map(|(placer, child)| Outbound::Event(placer, EditorEvent::ChildDetails(child))),
         );
         self.serve();
         messages.extend(self.instances.configure(&messages).map(Outbound::from));
@@ -1660,17 +1655,14 @@ impl HostFrame {
     }
 }
 
-pub fn report_child_bars(
-    app_id: &str,
-    instance: EditorInstanceId,
-    actions: Vec<(be_sdk_api::ChildId, be_sdk_api::BarAction)>,
-) {
-    if actions.is_empty() {
-        return;
-    }
+/// The child `child` of `instance` asked for its details from a bar the host
+/// does not show; its placer hears it as if from the child's bar.
+pub fn report_child_details(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
     with(app_id, |runtime| {
-        let messages = runtime.instances.child_bar_actions(instance, actions);
-        runtime.send(messages);
+        runtime.send(vec![Outbound::Event(
+            instance,
+            EditorEvent::ChildDetails(child),
+        )]);
     });
 }
 
@@ -2484,11 +2476,9 @@ pub fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewCh
     .unwrap_or_default()
 }
 
-pub fn take_bar_actions(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::BarAction> {
-    with(app_id, |runtime| {
-        runtime.instances.take_bar_actions(instance)
-    })
-    .unwrap_or_default()
+/// Whether `instance` asked for its details since the last call.
+pub fn take_details(app_id: &str, instance: EditorInstanceId) -> bool {
+    with(app_id, |runtime| runtime.instances.take_details(instance)).unwrap_or_default()
 }
 
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {

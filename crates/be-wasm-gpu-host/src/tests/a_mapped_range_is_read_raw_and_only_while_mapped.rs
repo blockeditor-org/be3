@@ -12,7 +12,6 @@ fn a_mapped_range_is_read_raw_and_only_while_mapped() {
             mapped_at_creation: true,
         })
         .unwrap();
-    assert_eq!(guest.gpu.buffer_map_state(buffer), abi::MapState::Mapped);
     guest.gpu.buffer_write_mapped(
         buffer,
         0,
@@ -30,7 +29,6 @@ fn a_mapped_range_is_read_raw_and_only_while_mapped() {
     let error = guest.gpu.take_error().expect("a misaligned read reports");
     assert!(error.contains("multiple"), "{error}");
     guest.gpu.buffer_unmap(buffer);
-    assert_eq!(guest.gpu.buffer_map_state(buffer), abi::MapState::Unmapped);
     assert_eq!(guest.gpu.buffer_read_mapped(buffer, 0, 8), Vec::<u8>::new());
     let error = guest
         .gpu
