@@ -6,7 +6,7 @@ package be3:block-type@0.1.0;
 /// the parts of the `loaded` content the request was handed.
 interface replicas {
     use types.{
-        block-id, change, client-id, commit-id, content-type-id, description, editor-id,
+        account-id, block-id, change, client-id, commit-id, content-type-id, description, editor-id,
         delivery, endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
         search-document, session-state, session-tag, type-info,
     };
@@ -15,6 +15,9 @@ interface replicas {
         block: block-id,
         content-type: content-type-id,
         organization: organization-id,
+        /// The account this device signs in as: what it added is what a restart
+        /// shows as still sending (`server-head`).
+        account: account-id,
         client: client-id,
         tag: session-tag,
         /// The head the host just read; the replica reads it itself.
@@ -32,6 +35,11 @@ interface replicas {
         /// Whether this device keeps commits of the block the server lacks: an
         /// edit an earlier replica kept for one is sending, failed, or held.
         commits-kept: kept-commits,
+        /// The head this device last heard the server hold, none when it never
+        /// heard of one. With commits kept, what `head` adds over it is still
+        /// sending (`LiveEdit::unsent_over`), which a replica of a restarted host
+        /// or module, with no earlier replica's edits to carry, shows so.
+        server-head: option<commit-id>,
         /// Commits of the block the server refused that this device still holds, set
         /// aside in the unsent area. They stay there after the edit that sent them is
         /// let go, so a replica applies the refusal of each commit once.
