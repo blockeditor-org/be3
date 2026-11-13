@@ -531,9 +531,13 @@ impl Document {
 
     pub fn set_frame_translate(&mut self, frame: NodeOf<FrameNode>, translate: Vec2) {
         if self.arena.get_as::<FrameNode>(frame).translate != translate {
-            self.arena
-                .relayout_alone_mut_as::<FrameNode>(frame)
-                .translate = translate;
+            // A translate moves the frame's child within the frame's own rect, so a frame laid
+            // out already lays out again alone; one not yet placed has no rect to do it in.
+            let node = match self.arena.unplaced(frame.id()) {
+                true => self.arena.get_mut_as::<FrameNode>(frame),
+                false => self.arena.relayout_alone_mut_as::<FrameNode>(frame),
+            };
+            node.translate = translate;
         }
     }
 
