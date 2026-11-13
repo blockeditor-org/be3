@@ -711,9 +711,11 @@ async fn index(
                         }
                         held.search.mark_put(put_blocks);
                         held.search.answers.clear();
-                        held.search.reread(needs_text.iter().filter_map(|doc| {
-                            Uuid::from_slice(&doc.block).ok()
-                        }));
+                        held.search.reread(
+                            needs_text
+                                .iter()
+                                .filter_map(|doc| Uuid::from_slice(&doc.block).ok()),
+                        );
                     }
                     // Not on this device yet: made by a command still queued.
                     Ok(None) => held.search.park(index, blocks),
