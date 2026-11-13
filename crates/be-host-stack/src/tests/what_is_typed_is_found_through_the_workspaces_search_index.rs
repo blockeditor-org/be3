@@ -52,8 +52,9 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
 
 #[test]
 fn what_is_typed_is_found_through_the_workspaces_search_index() {
-    let harness = Harness::relayed();
+    let mut harness = Harness::relayed();
     harness.connect();
+    let address = harness.address();
     let workspace = Uuid::new_v4();
     create(
         workspace,
@@ -155,4 +156,20 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("elderberries", &[elderberries]);
     finds("figs", &[bananas]);
     finds("cherries", &[apples]);
+
+    // A server that restarts: what this device indexes meanwhile reaches it once it is back.
+    harness.stop_server();
+    wait_until("noticed the server was gone again", |shared| {
+        !shared.connected
+    });
+    type_text(bananas, 0, "grapes ");
+    flush();
+    finds("grapes", &[bananas]);
+    harness.start_server(&address);
+    retry_now();
+    wait_until("reconnected to the restarted server", |shared| {
+        shared.connected && shared.waiting == 0
+    });
+    finds("grapes", &[bananas]);
+    finds("elderberries", &[elderberries]);
 }

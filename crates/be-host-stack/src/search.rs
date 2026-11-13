@@ -102,6 +102,10 @@ struct Answer {
     shown: Option<Searched>,
     /// The graph's revision when it was shown: it is shown again once the graph moves.
     missing: Option<u64>,
+    /// The graph's revision when it was found without reading every index at the head it is
+    /// kept for (an index that did not load, or a newer head that could not be told apart
+    /// offline): it runs again once the graph moves, as a reconnect does, not every pass.
+    retry: Option<u64>,
 }
 
 /// What `wants_index` was worked out at: the graph revision, the sizes of the sets that decide
@@ -959,8 +963,8 @@ async fn text_of(
 
 /// Makes `root`'s index, empty: in a task, beside the worker's loop, offline-first like any
 /// create; `name_indexes` then names it in the root's metadata.
-async fn make_index(
-    peer: &Peer<Store>,
+pub(crate) async fn make_index<S: ObjectStore>(
+    peer: &Peer<S>,
     root: Uuid,
     index: Uuid,
 ) -> Result<(), be_block_client::ClientError> {
@@ -1439,27 +1443,33 @@ async fn outdate_ancestors<S: ObjectStore>(
 }
 
 /// The best hits of `query` in one index, at its newest head.
-/// The head of `index` a search reads: `head_of`'s, unless `listed`, the head the graph mirror
-/// last heard of, is newer. A watch moves the mirror's head when another device publishes,
-/// before this device fetches anything, while the remote head `head_of` reads moves only when
-/// this device publishes or catches up itself. Whichever descends from the other is the newer;
-/// when neither does, `head_of`'s is read.
+/// The head of `index` a search reads, and whether it is surely the newest this device could
+/// read: `head_of`'s, unless `listed`, the head the graph mirror last heard of, is newer. A
+/// watch moves the mirror's head when another device publishes, before this device fetches
+/// anything, while the remote head `head_of` reads moves only when this device publishes or
+/// catches up itself. Whichever descends from the other is the newer. Two heads where neither
+/// descends from the other have diverged: this device's merge of them is on its way, and until
+/// it lands `head_of`'s, the one this device holds, is read. Telling them apart walks the
+/// listed head's history back to the other's (`Peer::descends` fetches what it lacks), once per
+/// new head: an index's history grows by one commit a batch, and what was fetched is kept.
 async fn search_head<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
     listed: Option<CommitId>,
-) -> Option<CommitId> {
+) -> (Option<CommitId>, bool) {
     let known = head_of(peer, index).await;
     match (listed, known) {
         (Some(listed), Some(known))
             if listed != known && peer.pending_commits(index).is_empty() =>
         {
             match peer.descends(listed, known).await {
-                Ok(true) => Some(listed),
-                _ => Some(known),
+                Ok(true) => (Some(listed), true),
+                Ok(false) => (Some(known), true),
+                // Offline, or the listed head not fetched: read what is held, and again later.
+                Err(_) => (Some(known), false),
             }
         }
-        (listed, known) => known.or(listed),
+        (listed, known) => (known.or(listed), true),
     }
 }
 
@@ -1470,7 +1480,7 @@ pub async fn search_index<S: ObjectStore>(
     query: &Query,
     limit: usize,
 ) -> Result<Vec<be_lib_search::Hit>, String> {
-    let Some(head) = search_head(peer, index, listed).await else {
+    let (Some(head), _) = search_head(peer, index, listed).await else {
         return Ok(Vec::new());
     };
     load(peer, head)
@@ -1540,11 +1550,9 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         followed.extend(indexes.iter().map(|index| GraphQuery::Block(*index)));
         let read = heads(peer, &held.graph, &indexes);
         if held.search.running.contains(&asked)
-            || held
-                .search
-                .answers
-                .get(&asked)
-                .is_some_and(|answer| answer.read == read)
+            || held.search.answers.get(&asked).is_some_and(|answer| {
+                answer.read == read && answer.retry.is_none_or(|at| at == graph)
+            })
         {
             continue;
         }
@@ -1556,7 +1564,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
             .collect();
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         tasks.spawn(async move {
-            let found = run(&peer, &asked, &indexes).await;
+            let (found, exact) = run(&peer, &asked, &indexes).await;
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.search.running.remove(&asked);
             if held.search.wanted().any(|wanted| *wanted == asked) {
@@ -1567,6 +1575,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
                         found,
                         shown: None,
                         missing: None,
+                        retry: (!exact).then_some(graph),
                     },
                 );
             }
@@ -1579,7 +1588,8 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         .flat_map(|answer| answer.found.iter().take(SHOWN).map(|found| found.block))
         .collect();
     followed.extend(hits.into_iter().map(GraphQuery::Block));
-    watch(peer, &mut held.search.watching, &searched);
+    let held = &mut *held;
+    watch(peer, &held.graph, &mut held.search.watching, &searched);
     let mut seen = HashSet::new();
     followed.retain(|query| seen.insert(*query));
     if held.graph.wanted(Owner::Search) != followed.as_slice() {
@@ -1589,14 +1599,21 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
 }
 
 /// Watches the indexes in `read` and lets go of the rest, while the connection is attached.
-/// An index is watched only once this device knows the server holds it: one this device made
-/// and has not sent yet would be refused, and a refused watch is not asked again.
-fn watch(peer: &Peer<Store>, watching: &mut HashSet<Uuid>, read: &HashSet<Uuid>) {
+/// An index is watched only once the server holds it: one this device made and has not sent
+/// yet would be refused, and a refused watch is not asked again. The server holds it when this
+/// device published or caught it up (a remote head it keeps), or when this device holds none of
+/// it and the mirror lists a head, which only the server can have told a device that never
+/// wrote it (a device that only reads, or one new to the account).
+fn watch(peer: &Peer<Store>, graph: &Graph, watching: &mut HashSet<Uuid>, read: &HashSet<Uuid>) {
     let attached = peer.is_attached();
     let read: HashSet<Uuid> = read
         .iter()
         .copied()
-        .filter(|index| peer.known_remote_head(*index).is_some())
+        .filter(|index| {
+            peer.known_remote_head(*index).is_some()
+                || (peer.local_head(*index).is_none()
+                    && graph.get(*index).is_some_and(|node| node.head.is_some()))
+        })
         .collect();
     let read = &read;
     let gone: Vec<Uuid> = watching.difference(read).copied().collect();
@@ -1622,11 +1639,25 @@ async fn run(
     peer: &Peer<Store>,
     asked: &SearchAsk,
     indexes: &[(Uuid, Option<CommitId>)],
-) -> Vec<Found> {
+) -> (Vec<Found>, bool) {
     let query = Query::parse(&asked.text);
     let mut best: HashMap<DocId, (f64, be_lib_search::Commit)> = HashMap::new();
+    let mut exact = true;
     for (index, listed) in indexes {
-        let Ok(hits) = search_index(peer, *index, *listed, &query, HITS).await else {
+        let (head, newest) = search_head(peer, *index, *listed).await;
+        exact &= newest;
+        let Some(head) = head else {
+            continue;
+        };
+        let hits = match load(peer, head).await {
+            Ok(content) => content
+                .search(&PeerParts(peer), &query, HITS)
+                .await
+                .map_err(|error| error.to_string()),
+            Err(error) => Err(error),
+        };
+        let Ok(hits) = hits else {
+            exact = false;
             continue;
         };
         for hit in hits {
@@ -1654,7 +1685,7 @@ async fn run(
             .then(second.commit.cmp(&first.commit))
             .then(first.block.cmp(&second.block))
     });
-    found.into_iter().map(|(_, found)| found).collect()
+    (found.into_iter().map(|(_, found)| found).collect(), exact)
 }
 
 /// Cuts the snippets of every answer not shown yet, from its hits' text, and drops hits the
