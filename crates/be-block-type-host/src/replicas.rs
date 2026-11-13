@@ -731,6 +731,11 @@ impl<H: Host> Replicas<H> {
         Some((ticket, answered))
     }
 
+    /// Whether a module on this device has the type, whether or not it runs.
+    pub fn has_module(&self, content_type: Uuid) -> bool {
+        self.modules.module_of(content_type).is_some()
+    }
+
     pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
         if let Some(module) = self.modules.module_of(content_type) {
             self.modules.load(module).await;
