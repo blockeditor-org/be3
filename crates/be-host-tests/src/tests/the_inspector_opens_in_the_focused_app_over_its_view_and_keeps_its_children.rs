@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_inspector_opens_in_the_focused_app_over_its_view_and_keeps_its_children() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.wait("Pane \"Files\"");
     host.click("Heading \"No file open\"");
     host.key("ctrl+shift+i");

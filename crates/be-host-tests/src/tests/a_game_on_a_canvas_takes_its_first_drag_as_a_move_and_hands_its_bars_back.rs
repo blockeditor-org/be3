@@ -8,7 +8,7 @@ const FIRST_MOVE: &str = "#game.history.0.0";
 
 #[test]
 fn a_game_on_a_canvas_takes_its_first_drag_as_a_move_and_hands_its_bars_back() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.click("#infinite-canvas.dock.block");
     choose_type(&mut host, "Game");

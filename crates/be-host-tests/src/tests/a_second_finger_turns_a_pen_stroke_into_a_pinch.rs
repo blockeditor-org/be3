@@ -4,7 +4,7 @@ const STROKE: &str = "GenericContainer #infinite-canvas.entity.";
 
 #[test]
 fn a_second_finger_turns_a_pen_stroke_into_a_pinch() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.canvas");
     let stage = host.place("#infinite-canvas.canvas");

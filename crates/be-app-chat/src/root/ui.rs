@@ -339,7 +339,7 @@ pub fn Chat(editor: Editor) -> NodeId {
 }
 
 /// The messages of closed segments, read back by range as the person scrolls to the start of
-/// the chat (plans/chat.md, step 1d): the newest segment first, one at a time, each checked
+/// the chat (guides/chat.md, "The editor"): the newest segment first, one at a time, each checked
 /// against the index before it shows.
 #[derive(Clone, Copy)]
 struct Older {

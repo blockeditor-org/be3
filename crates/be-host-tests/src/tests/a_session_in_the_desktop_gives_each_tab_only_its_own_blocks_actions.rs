@@ -5,7 +5,10 @@ const EDITORS_BAR: &str = "#dock.joined:2/editors.";
 
 #[test]
 fn a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions() {
-    let mut host = HostTest::start_desktop();
+    let mut host = HostTest::start(Options {
+        desktop: true,
+        ..Options::default()
+    });
     host.click("#desktop.apps");
     host.click("#desktop.apps.sessions.new");
     host.wait("Pane \"Files\"");

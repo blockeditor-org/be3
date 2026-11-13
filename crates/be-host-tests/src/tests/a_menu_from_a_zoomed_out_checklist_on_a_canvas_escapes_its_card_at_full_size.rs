@@ -5,7 +5,7 @@ const ROW: &str = "MenuItem \"Select All\"";
 
 #[test]
 fn a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Checklist");
     host.wait("#checklist.draft");

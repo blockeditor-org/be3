@@ -1,4 +1,4 @@
-use crate::{HostTest, Server};
+use crate::{HostTest, Options, Server};
 
 mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
