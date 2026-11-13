@@ -15,12 +15,26 @@ counts are built (guides/chat.md). What is left:
   add or show them.
 - **Unread counts outside the editor.** No sidebar or block row shows a chat's
   count yet.
-- **Arrival time.** The server stamps each relayed operation with when it
-  received it, in the relay envelope (commits already have
-  `block_commits.received`), and replicas store that time in the message. A
-  message shows its claimed time; once stamped, if it arrived well after that,
-  it says it was sent offline and when it arrived. A dishonest session owner
-  could alter stored content, which plans/authorship.md accepts.
+- **Arrival time.** The protocol half is built (guides/type_modules.md,
+  "Arrival time"): the owner stamps a follower's operation through
+  `LiveEdit::arrival`, and drops one that claims a stamp. Left for chat: keep the
+  stamp in the message op (`arrival` for `ChatContent`); its inverse operations
+  (undoing a delete, anything else derived from held content) must leave the
+  stamp off, since undo goes through `edit`, which refuses a claimed arrival, so a
+  restored message shows its arrival as unknown. Its `transform` must never copy
+  another operation's arrival stamp into the one it rebases: the owner would take
+  that rebased operation as claiming an arrival. A
+  message shows its claimed time and, once stamped, if it arrived well after
+  that, says it was sent offline and when it arrived. A message without a stamp
+  shows no arrival, never its claimed time. A dishonest session owner could
+  alter stored content, which plans/authorship.md accepts.
+- **The owner's own messages unstamped.** The owner applies its own operation
+  before the server has seen it, so it carries no stamp. Stamping it needs
+  `append` to answer the server time it took the entries at, the same time it
+  stamps their relays with, and a session message (`Stamped`, say) so every
+  replica, and the snapshots and journal the owner hands on, hold the same
+  stamp; otherwise replicas would disagree on content. Done: an owner's message
+  shows when the server took it on every replica, checked by a guest test.
 - **"Not sent" across a restart.** A refused commit's edit no longer shows
   "Not sent" after a host or module restart: `refused-commits` names commits,
   not edits. An `unsent_over` against the refused commit's parent would name

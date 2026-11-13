@@ -1918,6 +1918,7 @@ impl<H: Host> Replicas<H> {
                 from,
                 kind,
                 payload,
+                received,
             } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
@@ -1941,7 +1942,10 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Peer(*from),
                     bytes,
                     at: self.modules.now(),
-                    delivery: Some(be_sdk_type_api::Delivery { kind: *kind }),
+                    delivery: Some(be_sdk_type_api::Delivery {
+                        kind: *kind,
+                        received: *received,
+                    }),
                 };
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining
