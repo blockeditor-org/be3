@@ -81,12 +81,6 @@ Both cores lose their implementations; tests that use the base nodes directly
 (`beui-host/src/tests.rs`, `beui-demo/src/base_pages.rs`) move to the new
 components.
 
-## 15. Host, CLI and test harness
-
-- `drive` (`beui-layer-drive`): `find`, `reveal` and `shown` become
-  `find TARGET [reveal|shown]`, and `gone` becomes `wait not TEXT`. Update
-  guides/running/drive.md.
-
 ## Smaller cleanups found alongside
 
 - `shell-dialog` is defined in `host-services.wit` but used only by `app.wit`;

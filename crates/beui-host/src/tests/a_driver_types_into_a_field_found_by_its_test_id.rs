@@ -31,6 +31,6 @@ fn a_driver_types_into_a_field_found_by_its_test_id() {
         .ask(&["key", "ctrl+a", "Backspace"])
         .expect("the chords are pressed");
     driven
-        .ask(&["gone", "value=\"Ada\""])
+        .ask(&["wait", "not", "value=\"Ada\""])
         .expect("the text is deleted");
 }

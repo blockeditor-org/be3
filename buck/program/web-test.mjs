@@ -6,9 +6,9 @@
 // It serves DIR, and for each script opens DIR's index.html with
 // ?fixture=<the script's file name>, waits for it to settle and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
-// automate(words) (beui-core-html's automate: tree, ids, find, reveal, shown, wait, gone,
+// automate(words) (beui-core-html's automate: tree, ids, find, wait,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
-// place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
+// place `find TARGET reveal` answers (the part of the target that shows, once a scroll that cuts it has
 // revealed it; after a reveal every target of the command is found again, as native drive
 // does), so the browser's own focus, key and text paths run.
 // `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
@@ -190,9 +190,9 @@ async function answer(page, words) {
 
 async function centers(page, targets, timeout) {
     const ratio = await page.evaluate(() => devicePixelRatio);
-    const ask = async (command, target) => {
+    const ask = async (target, mode) => {
         await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
-        return answer(page, [`--timeout=${timeout}`, command, target]);
+        return answer(page, [`--timeout=${timeout}`, "find", target, mode]);
     };
     const places = await shownPlaces(ask, targets, ratio);
     return places.map(({ x, y, width, height }) => ({ x: x + width / 2, y: y + height / 2 }));
