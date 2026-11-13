@@ -189,9 +189,13 @@ fn run_timers(now: Instant) -> bool {
     !due.is_empty()
 }
 
-/// Whether a timer is due by `now`, of those that have not fired in this frame when `unfired`.
-fn timer_left(now: Instant, unfired: bool) -> bool {
+/// Whether a timer is due by `now` for the next frame: one the frame left, or one that started
+/// itself again at zero from its own work (as an animation steps). With the clock stopped, one
+/// that fired in this frame waits for the clock to move instead, as a timer that re-arms at
+/// zero while firing does (`schedule_after`), so a stopped page settles.
+fn timer_left(now: Instant) -> bool {
     let frame = FRAMES.with(Cell::get);
+    let frozen = frozen();
     TIMERS.with(|timers| {
         timers
             .borrow()
@@ -199,7 +203,7 @@ fn timer_left(now: Instant, unfired: bool) -> bool {
             .filter_map(Weak::upgrade)
             .any(|timer| {
                 timer.due.get().is_some_and(|due| due <= now)
-                    && !(unfired && timer.fired_in.get() == frame)
+                    && !(frozen && timer.fired_in.get() == frame)
             })
     })
 }
@@ -287,7 +291,7 @@ pub fn frame() {
         lay_out();
     }
     IN_FRAME.with(|held| held.set(false));
-    if timer_left(now, true) {
+    if timer_left(now) {
         request_frame();
     }
     if !FROZEN.with(Cell::get) {
@@ -331,7 +335,7 @@ pub fn relayout() {
     lay_out();
     IN_FRAME.with(|held| held.set(false));
     // A zero-delay timer it started waits for the next frame, which fires it.
-    if timer_left(now(), false) {
+    if timer_left(now()) {
         request_frame();
     }
 }
