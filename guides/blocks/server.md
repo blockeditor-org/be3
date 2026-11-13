@@ -481,8 +481,10 @@ Each block's journal (guides/blocks/client.md, "The journal") is two tables,
 `block_journals` (tag, generation, base) and `journal_entries`, written by
 `be_server::journal` and deleted with the block. It is kept whether or not
 anyone is in the session, so a crashed owner's edits wait for the next one. An
-`append` is kept only from the current owner of its generation (it is relayed
-either way, as a relay is), refused when the journal is another tag's until
+`append` or a rebase is kept only from the current owner of its generation; from
+any other participant it is answered as done and not kept, since an owner whose
+lease lapsed writes on until the next `Lease` tells it (an append is relayed
+either way, as a relay is). An append is refused when the journal is another tag's until
 the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
 journals while they fit in a quarter of a frame.
 
