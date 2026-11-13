@@ -2,7 +2,6 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use be_block::display_settings::ScreenUse;
-use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_sdk_api::{HostDisplay, ScreenEdge, ScreenEdgeState, ScreenSide};
 use beui_platform_drm::{
     Display, DisplayConfig, DisplayControl, DisplayUse, Displays, EdgeState, Epaper, Monitor,
