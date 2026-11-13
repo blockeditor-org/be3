@@ -12,6 +12,7 @@ use crate::{
     Text, Written,
 };
 
+mod a_put_of_the_text_already_indexed_moves_only_its_commit;
 mod a_put_without_text_survives_a_merge_with_compaction_or_reindexing;
 mod a_query_reads_few_blocks_while_skipping_a_common_term;
 mod a_reindexed_document_no_longer_matches_its_old_words;

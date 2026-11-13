@@ -3,7 +3,8 @@
 The project's issues live in be-host as databases: an Issues database with Relation columns to
 Projects and Milestones, in a workspace shared with the agents that work on them. Agents read
 and change them with `be` (`crates/be-tool-cli`), and GitHub moves rows as pull requests open
-and merge.
+and merge. be-host's search finds an issue by its short id and the text of its text cells: each
+row is a search document (`Database::search_text_in`).
 
 ## Running it
 

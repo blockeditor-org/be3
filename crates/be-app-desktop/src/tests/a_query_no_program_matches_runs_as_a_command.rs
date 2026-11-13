@@ -17,7 +17,15 @@ fn a_query_no_program_matches_runs_as_a_command() {
             .test
             .take_host_calls(be_sdk_test::requested::program)
             .last(),
-        Some(&ProgramAction::Run("weston-simple-shm".to_owned()))
+        Some(&ProgramAction::Exec {
+            command: vec![
+                "sh".to_owned(),
+                "-c".to_owned(),
+                "weston-simple-shm".to_owned()
+            ],
+            launch: None,
+        }),
+        "the typed line runs through the shell the host names"
     );
     assert!(!fixture.test.shown("desktop.apps.panel"));
 }

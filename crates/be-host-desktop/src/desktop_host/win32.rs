@@ -17,12 +17,12 @@ use beui::{
 use crate::programs::ProgramSource;
 use crate::window_body::WindowStatus;
 
-use super::DesktopHost;
 use super::win32_map::{
     self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
 };
 use super::win32_overlay::EntryOverlay;
 use super::win32_shape::Shaping;
+use super::{DesktopHost, DesktopSettings};
 
 const HOST_FOREGROUND_REFUSED: &str =
     "Windows did not let be-host come back to the front. Click be-host's window to use it again.";
@@ -329,8 +329,8 @@ impl DesktopHost for Win32 {
         drop(host);
     }
 
-    fn set_owned(owned: bool) {
-        if owned {
+    fn configure(settings: &DesktopSettings) {
+        if settings.owned {
             spawn();
         }
     }
@@ -408,12 +408,21 @@ impl DesktopHost for Win32 {
         changed();
     }
 
-    fn launch(command: String) -> bool {
-        Self::exec(be_host_win32::command_line::split_arguments(&command), None)
-    }
-
     fn exec(arguments: Vec<String>, launch: Option<u64>) -> bool {
         if !Win32::running() || arguments.is_empty() {
+            return false;
+        }
+        // A line typed to run through the host's shell runs as the Run dialog runs it: its
+        // first word is shell-executed with the rest as parameters, so App Paths, documents
+        // and URLs open as they do there, with no console and the program's own process.
+        let shell = crate::programs::SHELL;
+        let arguments = match arguments.split_at_checked(shell.len()) {
+            Some((head, [line])) if head.iter().eq(shell.iter()) => {
+                be_host_win32::command_line::split_arguments(line)
+            }
+            _ => arguments,
+        };
+        if arguments.is_empty() {
             return false;
         }
         spawn_launch(move || be_host_win32::exec(&arguments, launch));

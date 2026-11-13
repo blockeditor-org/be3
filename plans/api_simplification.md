@@ -9,22 +9,6 @@ lands on its own. Step numbers stay as written when a step is done and
 removed. No format is frozen, so wire and WIT changes need no migration. Line
 numbers are from when this plan was written.
 
-## 8. The stack pushes its changes
-
-`be-host-stack/src/lib.rs` pairs getters with counters be-host polls every
-frame: `content_revision`, `contacts_revision`, `storage_revision`,
-`stale_revision`, `graph_revision`, and `take_touched`. Replace them with one
-change notice the worker posts through the mailbox, carrying what changed
-(`contacts`, `storage`, `stale`, `graph`, and the blocks whose content
-changed), and drop the `seen`/`published` bookkeeping in be-host. Settings
-sync compares content per block (`be-host/src/local_settings.rs`), so the
-content part is a set of blocks.
-
-`Versions` (`be-host-stack/src/version.rs`) also takes a watch for every block a
-status reads and never lets go: blocks that leave a root's subtree and closed
-checkouts stay watched for the life of the connection. Release them when the
-change notice reports what left.
-
 ## 9. Block protocol requests that duplicate others
 
 - `read-block` is `list-blocks(listing.block)`: the server implements it as
@@ -117,12 +101,6 @@ components.
 
 ## 15. Host, CLI and test harness
 
-- `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
-  become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
-  WIT `launch`) goes; a typed line is wrapped as the platform's shell command
-  by the launcher. `DesktopHost`'s `set_owned`, `set_blank_after`,
-  `set_lock_after` and `set_primary_selection` become
-  `configure(DesktopSettings)`; `set_locked` stays, being state.
 - `drive` (`beui-layer-drive`): `find`, `reveal` and `shown` become
   `find TARGET [reveal|shown]`, and `gone` becomes `wait not TEXT`. Update
   guides/running/drive.md.
