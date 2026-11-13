@@ -237,14 +237,21 @@ fn select_where_opened(state: State) {
     });
     let loaded = state.loaded;
     let restored = state.position_restored;
+    let content = state.text.content();
     create_effect(move || {
+        content.get();
         let Some(at) = wanted.get() else {
             return;
         };
+        // The text must be read and in the editor (its snapshot loaded), and its saved position
+        // back; then the place is taken once, found or not, so a later edit never selects it.
         if !loaded.get() || !restored.get() {
             return;
         }
         untrack(|| {
+            if !state.text.loaded() {
+                return;
+            }
             wanted.set(None);
             // A text block is one document: a hit in any other is not this editor's to show.
             if !at.key.is_empty() {
