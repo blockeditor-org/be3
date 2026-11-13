@@ -21,6 +21,10 @@ struct OffsetAnchor {
 pub struct OffsetNode {
     pub direction: Direction,
     pub child: Option<NodeId>,
+    /// The scroll the Offset is steered to: what layout places its content by, and what
+    /// layout may change again after placing it (holding an anchor, revealing a focused node,
+    /// snapping to the end), for the next layout to apply. It is not where the content was
+    /// placed, so code outside the Offset does not read it for that.
     pub offset: f32,
     pub fits: bool,
     pub position: Option<ScrollPosition>,
@@ -34,6 +38,9 @@ pub struct OffsetNode {
     pinned: bool,
     to_end: bool,
     reached_end: Option<u64>,
+    /// The shift the last layout applied to the content (minus `offset`, snapped to the pixel
+    /// grid, in the Offset's own space). Code outside the Offset reads it, in window units,
+    /// through `Document::scrolled_by`.
     translation: Vec2,
     host: Option<NodeId>,
 }
