@@ -229,7 +229,7 @@ workspace's search index is a block with exactly its workspace's access, so anyo
 who can read the workspace can decrypt its index, and the index holds the text of
 every block that was indexed. When a block is moved to another workspace, trashed
 or emptied, its text stays in the old workspace's index (nothing masks it yet,
-plans/search.md, "Left open"): the interface hides it, but a modified client of
+plans/deferred/search.md, "Limits accepted"): the interface hides it, but a modified client of
 anyone who can read the old workspace could read it. Treat a document that was
 once shared in a workspace as read by that workspace's readers, whatever happens to
 it afterwards. The server also learns that a workspace has an index, and its size.

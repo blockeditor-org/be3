@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn pressing_the_files_after_a_text_block_moves_the_focus_to_them() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.click("#text.surface");
     host.wait("MultilineTextInput focused");

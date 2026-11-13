@@ -4,7 +4,7 @@ const DOCKING_MORE: &str = "#dock.joined:2/pages.menu";
 
 #[test]
 fn a_joined_blocks_tabs_carry_its_menu() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_beui_demo(&mut host);
     host.click(DOCKING_MORE);
     host.wait("MenuItem \"File details\"");

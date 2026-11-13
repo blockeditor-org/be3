@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_beui_demo(&mut host);
     let ids = host.run(&["ids"]);
     let grip = ids

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn removing_a_local_account_asks_first_and_names_what_is_lost() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");
     host.click("#host.menu.accounts");
     host.click("#account.options.Dev");

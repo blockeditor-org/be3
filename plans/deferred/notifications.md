@@ -18,3 +18,16 @@ nothing (plans/notifications.md). Decrypting it in the service worker needs:
 A shown notification carries its sender's and block's names and its text in
 plaintext, readable by whoever holds a locked device. A this-device setting
 could show only "New message" there, on the web (sw.js) and on Android.
+
+## AAR dependencies and FCM on Android
+
+Set aside: both need new build infrastructure (Maven and AAR dependencies in
+the buck Android build). UnifiedPush works without them.
+
+1. AAR and Maven dependencies in the buck Android build. Done: an APK builds
+   with one AAR dependency and runs on the emulator.
+2. FCM on Android. Done unattended: the APK builds with the FCM client, which
+   registers only through UnifiedPush without a client config. FCM stays off
+   until the user creates a Firebase project, starts the server with its
+   service account (`--fcm-credentials`) and gives the APK its client config
+   (`google-services.json`).
