@@ -2,16 +2,26 @@ use beui_core::clipboard::{Clip, HeldClip, PasteAnswer};
 use beui_types::ClipItem;
 use beui_types::clipboard::formats;
 
+/// How much base64 the be3 formats may take in a clip's extras: a Parcel holds
+/// strings as UTF-16, and a clip crosses Binder, whose transactions stop near
+/// 1 MB. Formats beyond it stay in the held clip, for pastes in this program.
+const EXTRAS_BUDGET: usize = 256 * 1024;
+
+/// The extras key of the copy's nonce, which tells this program's clip from
+/// another's.
+const NONCE: &str = "be3/copy";
+
 /// The system clipboard. A copy puts its plain text there as the clip's item,
 /// and its be3 formats beside it: each format id among the description's
 /// MIME types, and its `ClipItem::stored` bytes, as base64, in the
-/// description's extras under that id, so another be3 program reads them. The
-/// clip a copy wrote stays held for its other representations while its text
-/// is still on the clipboard. Written without an emulator to run it on: only
-/// its compiling is checked.
+/// description's extras under that id, so another be3 program reads them,
+/// with a nonce of this copy. The clip a copy wrote stays held for its other
+/// representations while the clipboard's nonce is still its own. Written
+/// without an emulator to run it on: only its compiling is checked.
 #[derive(Default)]
 pub struct Clipboard {
     held: HeldClip,
+    nonce: Option<i64>,
 }
 
 impl Clipboard {
@@ -20,19 +30,39 @@ impl Clipboard {
     }
 
     pub fn copy(&mut self, clip: Clip) {
-        let be3 = clip
+        let encoded = clip
             .ready_items()
             .into_iter()
             .filter(|item| formats::is_be3(&item.format))
-            .collect::<Vec<_>>();
-        let _ = android::set(&clip.plain_text().unwrap_or_default(), &be3);
+            .map(|item| {
+                let stored = item.stored();
+                let encoded =
+                    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, stored);
+                (item.format, encoded)
+            });
+        let fitting = beui_types::clip::fitting(encoded, EXTRAS_BUDGET, |(_, encoded)| {
+            encoded.len()
+        });
+        let text = clip.plain_text().unwrap_or_default();
+        let nonce = fresh_nonce();
+        self.nonce = match android::set(&text, &fitting, Some(nonce)) {
+            Ok(()) => Some(nonce),
+            Err(_) => {
+                let _ = android::set(&text, &[], None);
+                None
+            }
+        };
         self.held.copy(clip);
     }
 
     pub fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let now = android::get().ok().flatten();
-        let text = now.as_ref().and_then(|now| now.text.clone());
-        let ours = self.held.wrote(text.as_deref());
+        let ours = match self.nonce {
+            Some(nonce) => now.as_ref().is_some_and(|now| now.nonce == Some(nonce)),
+            None => self
+                .held
+                .wrote(now.as_ref().and_then(|now| now.text.as_deref())),
+        };
         if let Some(clip) = self.held.current(ours) {
             return clip.resolve(wanted, move |item| answer.send(item));
         }
@@ -43,11 +73,23 @@ impl Clipboard {
     }
 }
 
-/// What the system clipboard holds: its text, and the be3 formats another be3
-/// program put in its description's extras.
+/// A nonce no other copy is likely to have drawn: std's randomly seeded
+/// hasher, over a count of this program's copies.
+fn fresh_nonce() -> i64 {
+    use std::hash::{BuildHasher, Hasher};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COPIES: AtomicU64 = AtomicU64::new(0);
+    let mut hasher = std::hash::RandomState::new().build_hasher();
+    hasher.write_u64(COPIES.fetch_add(1, Ordering::Relaxed));
+    hasher.finish() as i64
+}
+
+/// What the system clipboard holds: its text, the be3 formats a be3 program
+/// put in its description's extras, and that copy's nonce.
 struct Held {
     text: Option<String>,
     be3: Vec<(String, String)>,
+    nonce: Option<i64>,
 }
 
 impl Held {
@@ -79,22 +121,33 @@ mod android {
         // unsafe(ffi)
         let vm = unsafe { JavaVM::from_raw(context.vm().cast()) };
         vm.attach_current_thread_for_scope(|env| {
-            // unsafe(ffi)
-            let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
-            let service = env.new_string("clipboard")?;
-            let manager = env
-                .call_method(
-                    &activity,
-                    jni_str!("getSystemService"),
-                    jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
-                    &[JValue::Object(&service)],
-                )?
-                .l()?;
-            run(env, &activity, &manager)
+            // A frame of its own, so the references made here go with it on
+            // the main thread, which stays attached.
+            let ran = env.with_local_frame(32, |env| {
+                // unsafe(ffi)
+                let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
+                let service = env.new_string("clipboard")?;
+                let manager = env
+                    .call_method(
+                        &activity,
+                        jni_str!("getSystemService"),
+                        jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
+                        &[JValue::Object(&service)],
+                    )?
+                    .l()?;
+                run(env, &activity, &manager)
+            });
+            // A Java exception left pending would abort the next JNI call.
+            if ran.is_err() && env.exception_check() {
+                env.exception_clear();
+            }
+            ran
         })
     }
 
-    pub(super) fn set(text: &str, be3: &[beui_types::ClipItem]) -> Result<(), Error> {
+    /// Puts `text` on the clipboard, and with a `nonce`, the be3 formats as
+    /// (format id, base64 of its stored bytes) in the description's extras.
+    pub(super) fn set(text: &str, be3: &[(String, String)], nonce: Option<i64>) -> Result<(), Error> {
         with_manager(|env, _activity, manager| {
             let label = env.new_string("")?;
             let string_class = env.find_class(jni_str!("java/lang/String"))?;
@@ -107,14 +160,10 @@ mod android {
                 jni_sig!("()V"),
                 &[],
             )?;
-            for (index, item) in be3.iter().enumerate() {
-                let format = env.new_string(&item.format)?;
+            for (index, (format, encoded)) in be3.iter().enumerate() {
+                let format = env.new_string(format)?;
                 kinds.set_element(env, 1 + index, &format)?;
-                let encoded = base64::Engine::encode(
-                    &base64::engine::general_purpose::STANDARD,
-                    item.stored(),
-                );
-                let encoded = env.new_string(&encoded)?;
+                let encoded = env.new_string(encoded)?;
                 env.call_method(
                     &extras,
                     jni_str!("putString"),
@@ -122,17 +171,28 @@ mod android {
                     &[JValue::Object(&format), JValue::Object(&encoded)],
                 )?;
             }
+            if let Some(nonce) = nonce {
+                let key = env.new_string(super::NONCE)?;
+                env.call_method(
+                    &extras,
+                    jni_str!("putLong"),
+                    jni_sig!("(Ljava/lang/String;J)V"),
+                    &[JValue::Object(&key), JValue::Long(nonce)],
+                )?;
+            }
             let description = env.new_object(
                 jni_str!("android/content/ClipDescription"),
                 jni_sig!("(Ljava/lang/CharSequence;[Ljava/lang/String;)V"),
                 &[JValue::Object(&label), JValue::Object(&kinds)],
             )?;
-            env.call_method(
-                &description,
-                jni_str!("setExtras"),
-                jni_sig!("(Landroid/os/PersistableBundle;)V"),
-                &[JValue::Object(&extras)],
-            )?;
+            if nonce.is_some() {
+                env.call_method(
+                    &description,
+                    jni_str!("setExtras"),
+                    jni_sig!("(Landroid/os/PersistableBundle;)V"),
+                    &[JValue::Object(&extras)],
+                )?;
+            }
             let text = env.new_string(text)?;
             let item = env.new_object(
                 jni_str!("android/content/ClipData$Item"),
@@ -189,9 +249,11 @@ mod android {
                 )?
                 .l()?;
             if text.is_null() {
+                let (be3, nonce) = extras_of(env, &clip)?;
                 return Ok(Some(super::Held {
                     text: None,
-                    be3: be3_of(env, &clip)?,
+                    be3,
+                    nonce,
                 }));
             }
             let text = env
@@ -203,15 +265,22 @@ mod android {
                 )?
                 .l()?;
             let text = env.cast_local::<JString>(text)?;
+            let (be3, nonce) = extras_of(env, &clip)?;
             Ok(Some(super::Held {
                 text: Some(text.to_string()),
-                be3: be3_of(env, &clip)?,
+                be3,
+                nonce,
             }))
         })
     }
 
-    /// The be3 formats in a clip's description's extras, by format id.
-    fn be3_of(env: &mut Env<'_>, clip: &JObject<'_>) -> Result<Vec<(String, String)>, Error> {
+    /// The be3 formats in a clip's description's extras, by format id, and
+    /// the nonce of the copy that put them there.
+    #[allow(clippy::type_complexity)]
+    fn extras_of(
+        env: &mut Env<'_>,
+        clip: &JObject<'_>,
+    ) -> Result<(Vec<(String, String)>, Option<i64>), Error> {
         let description = env
             .call_method(
                 clip,
@@ -229,8 +298,29 @@ mod android {
             )?
             .l()?;
         if extras.is_null() {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), None));
         }
+        let key = env.new_string(super::NONCE)?;
+        let has_nonce = env
+            .call_method(
+                &extras,
+                jni_str!("containsKey"),
+                jni_sig!("(Ljava/lang/String;)Z"),
+                &[JValue::Object(&key)],
+            )?
+            .z()?;
+        let nonce = match has_nonce {
+            true => Some(
+                env.call_method(
+                    &extras,
+                    jni_str!("getLong"),
+                    jni_sig!("(Ljava/lang/String;)J"),
+                    &[JValue::Object(&key)],
+                )?
+                .j()?,
+            ),
+            false => None,
+        };
         let count = env
             .call_method(
                 &description,
@@ -268,6 +358,6 @@ mod android {
             let encoded = env.cast_local::<JString>(encoded)?;
             be3.push((format, encoded.to_string()));
         }
-        Ok(be3)
+        Ok((be3, nonce))
     }
 }
