@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use be_block::presence::{ChannelKind, PresenceKind};
 use be_block::{EditorViewContent, ViewState};
 use be_lib_geometry::{CanvasView, Pos2, Rect, Vec2};
-use be_sdk_api::{BarAction, ChildContent, FitArea, HostPanel, HostWindowId, WebViewId};
+use be_sdk_api::{ChildContent, FitArea, HostPanel, HostWindowId, WebViewId};
 use uuid::Uuid;
 
 use crate::state::{Callbacks, Subscription};
@@ -638,10 +638,10 @@ impl EditorCore {
     pub fn add_child(
         &self,
         on_state: impl Fn(&ChildState) + 'static,
-        on_bar: impl Fn(BarAction) + 'static,
+        on_details: impl Fn() + 'static,
         on_focus: impl Fn() + 'static,
     ) -> PlacedChild {
-        self.0.children.add(on_state, on_bar, on_focus)
+        self.0.children.add(on_state, on_details, on_focus)
     }
 }
 
