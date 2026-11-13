@@ -1193,7 +1193,9 @@ impl LiveEdit for ChatContent {
             .into_iter()
             .filter(|id| !known.contains(id) && !server.may_be_closed(*id))
             .filter_map(|id| {
-                let message = self.message(id).filter(|message| message.author == account)?;
+                let message = self
+                    .message(id)
+                    .filter(|message| message.author == account)?;
                 Some(ChatOp::Edit(Self::send_as(id, &message)))
             })
             .collect()
