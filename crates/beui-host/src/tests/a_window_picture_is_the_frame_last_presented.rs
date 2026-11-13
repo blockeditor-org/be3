@@ -108,7 +108,9 @@ fn a_window_picture_is_the_frame_last_presented() {
 
     let answered = answered.take();
     assert_eq!(answered.len(), 1, "the asker is answered once");
-    let picture = answered[0].as_ref().expect("a presented window has a picture");
+    let picture = answered[0]
+        .as_ref()
+        .expect("a presented window has a picture");
     assert_eq!((picture.width(), picture.height()), (2, 1));
     assert_eq!(
         picture.pixels()[0],
