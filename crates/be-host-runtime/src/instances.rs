@@ -1,5 +1,6 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
+use be_sdk_api::clipboard::ClipBody;
 use be_sdk_api::{
     AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
@@ -181,7 +182,7 @@ struct Instance {
     next_replacement: u64,
     /// Renders of copied representations asked of the instance, by request:
     /// `None` until it answers.
-    renders: HashMap<u64, Option<Option<Vec<u8>>>>,
+    renders: HashMap<u64, Option<Option<ClipBody>>>,
     next_render: u64,
     leaving: bool,
     content: Option<ContentLink>,
@@ -3479,7 +3480,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         request_id: u64,
-    ) -> Option<Option<Vec<u8>>> {
+    ) -> Option<Option<ClipBody>> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Some(None);
         };
@@ -3575,6 +3576,48 @@ impl Instances {
     pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Vec<ScreenRequest> {
         self.announced = screens.iter().map(|screen| screen.screen).collect();
         screens
+    }
+
+    fn instance_of_screen(&self, id: ScreenId) -> Option<EditorInstanceId> {
+        self.entries.iter().find_map(|(instance, entry)| {
+            entry
+                .screens
+                .values()
+                .any(|screen| screen.request.screen == id)
+                .then_some(*instance)
+        })
+    }
+
+    /// Translates the blocks a paste into a screen names into the ids of the
+    /// instance that owns the screen, as `translate` does for messages that
+    /// name their instance.
+    pub(super) fn translate_pastes(&self, message: &mut Outbound) {
+        let Outbound::App(AppCall::Input(batch)) = message else {
+            return;
+        };
+        let pastes = batch
+            .events
+            .iter_mut()
+            .filter_map(|timed| match &mut timed.input {
+                beui::Input::Paste(item) | beui::Input::PastePiece(item)
+                    if !item.refs.is_empty() =>
+                {
+                    Some(item)
+                }
+                _ => None,
+            });
+        let mut pastes = pastes.peekable();
+        if pastes.peek().is_none() {
+            return;
+        }
+        let Some(instance) = self.instance_of_screen(batch.screen) else {
+            return;
+        };
+        let mut pasted = super::calls::Pasted {
+            instance,
+            items: pastes.collect(),
+        };
+        self.translate(&mut pasted, false);
     }
 
     fn is_screen(&self, id: ScreenId) -> bool {
@@ -3932,9 +3975,9 @@ impl Instances {
             EditorAnswer::Regenerated(outcome) => {
                 entry.artifact.outcome = Some(outcome.map_err(|failure| failure.to_string()))
             }
-            EditorAnswer::Rendered { request_id, data } => {
+            EditorAnswer::Rendered { request_id, body } => {
                 if let Some(pending) = entry.renders.get_mut(&request_id) {
-                    *pending = Some(data);
+                    *pending = Some(body);
                 }
             }
             EditorAnswer::Replaced {

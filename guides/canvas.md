@@ -54,7 +54,9 @@ like any shape (scaling its pixels); only `Resize` changes the pixel count,
 keeping world units per pixel and moving the transform so the pixels stay put.
 A copy is `be3/canvas-items`: the entities in the canvas's JSON, naming the
 canvas they came from, whose content a paste reads for the pixels of raster
-layers (`CanvasState::rasters_from`), so the clip stays small. Beside it go
+layers (`CanvasState::rasters_from`), so the clip stays small. The canvas and
+the blocks the entities show travel in the item's refs, and a paste takes each
+entity's block from there, in order, not from the JSON. Beside it go
 `be3/blocks` for the blocks the entities show, a PNG of the selection rendered
 only when a paste asks for it (`Exporter::render`), and the text of text items.
 A paste of entities that show blocks waits for `paste-blocks`, and leaves out

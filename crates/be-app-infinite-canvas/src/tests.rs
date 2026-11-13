@@ -116,6 +116,7 @@ mod panning_and_zooming_paints_no_entity_again;
 mod panning_paints_no_frame_backdrop_again;
 mod panning_paints_no_grid_dot_again;
 mod panning_paints_no_selection_handle_again;
+mod pasted_canvas_items_show_the_blocks_their_refs_name;
 mod pasting_blocks_places_those_the_host_allows_as_editors;
 mod pasting_puts_the_objects_under_the_pointer;
 mod pen_strokes_are_smooth_curves_at_any_zoom;

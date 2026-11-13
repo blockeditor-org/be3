@@ -6,11 +6,14 @@
 //! Standard formats keep their MIME type and are mapped to each platform's own.
 //! be3 formats are the serde types below, encoded with postcard. They are not
 //! frozen (guides/frozen_formats.md): a format may change like any other shape.
+//!
+//! An item names blocks only in its `refs`, which its data indexes by
+//! position: whoever carries it translates them without decoding the data.
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
-pub use crate::types::ClipItem;
+pub use crate::types::{ClipBody, ClipItem};
 
 pub mod formats {
     /// UTF-8 text.
@@ -31,11 +34,36 @@ pub mod formats {
 }
 
 impl ClipItem {
+    /// An item naming no blocks.
     pub fn new(format: impl Into<String>, data: Vec<u8>) -> Self {
+        Self::of_body(format, ClipBody::from(data))
+    }
+
+    pub fn of_body(format: impl Into<String>, body: ClipBody) -> Self {
         Self {
             format: format.into(),
-            data,
+            data: body.data,
+            refs: body.refs,
         }
+    }
+
+    pub fn into_body(self) -> ClipBody {
+        ClipBody {
+            data: self.data,
+            refs: self.refs,
+        }
+    }
+
+    /// The item as one run of bytes, refs and all, for a system clipboard
+    /// that carries a be3 format as a custom type of its own.
+    pub fn stored(&self) -> Vec<u8> {
+        postcard::to_stdvec(&(&self.refs, &self.data)).expect("a clip item encodes")
+    }
+
+    /// An item of `format` read back from its `stored` bytes.
+    pub fn from_stored(format: impl Into<String>, stored: &[u8]) -> Option<Self> {
+        let (refs, data): (Vec<Uuid>, Vec<u8>) = postcard::from_bytes(stored).ok()?;
+        Some(Self::of_body(format, ClipBody { data, refs }))
     }
 
     pub fn text(text: impl Into<String>) -> Self {
@@ -57,21 +85,49 @@ impl ClipItem {
     }
 }
 
-/// A be3 format: a serde type with its format id.
+impl From<Vec<u8>> for ClipBody {
+    fn from(data: Vec<u8>) -> Self {
+        Self {
+            data,
+            refs: Vec::new(),
+        }
+    }
+}
+
+/// A be3 format: a serde type with its format id. A format naming blocks
+/// leaves their ids out of its serde form (`#[serde(skip)]`) and lists them
+/// in `refs`, in an order its data implies; `set_refs` puts them back.
 pub trait ClipFormat: Serialize + DeserializeOwned {
     const FORMAT: &'static str;
 
+    /// The blocks the value names, in the order `set_refs` takes them.
+    fn refs(&self) -> Vec<Uuid> {
+        Vec::new()
+    }
+
+    /// Puts back the blocks `refs` named into a value just decoded; `None`
+    /// when they do not fit it.
+    fn set_refs(&mut self, refs: &[Uuid]) -> Option<()> {
+        refs.is_empty().then_some(())
+    }
+
     fn encode(&self) -> ClipItem {
-        ClipItem::new(
+        ClipItem::of_body(
             Self::FORMAT,
-            postcard::to_stdvec(self).expect("a clip format encodes"),
+            ClipBody {
+                data: postcard::to_stdvec(self).expect("a clip format encodes"),
+                refs: self.refs(),
+            },
         )
     }
 
     fn decode(item: &ClipItem) -> Option<Self> {
-        (item.format == Self::FORMAT)
-            .then(|| postcard::from_bytes(&item.data).ok())
-            .flatten()
+        if item.format != Self::FORMAT {
+            return None;
+        }
+        let mut value: Self = postcard::from_bytes(&item.data).ok()?;
+        value.set_refs(&item.refs)?;
+        Some(value)
     }
 }
 
@@ -141,9 +197,11 @@ impl TextFragment {
     }
 }
 
-/// One block in `be3/blocks`.
+/// One block in `be3/blocks`. Its id travels in the item's refs, one per
+/// block in order.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClipBlock {
+    #[serde(skip)]
     pub id: Uuid,
     pub organization: Option<Uuid>,
     pub block_type: Uuid,
@@ -159,19 +217,51 @@ pub struct Blocks {
 
 impl ClipFormat for Blocks {
     const FORMAT: &'static str = formats::BLOCKS;
+
+    fn refs(&self) -> Vec<Uuid> {
+        self.blocks.iter().map(|block| block.id).collect()
+    }
+
+    fn set_refs(&mut self, refs: &[Uuid]) -> Option<()> {
+        if refs.len() != self.blocks.len() {
+            return None;
+        }
+        for (block, id) in self.blocks.iter_mut().zip(refs) {
+            block.id = *id;
+        }
+        Some(())
+    }
 }
 
 /// `be3/canvas-items`: canvas entities in the canvas's own encoding, from the
 /// canvas block `canvas`. Raster layers are not embedded: a paste reads their
-/// pixels from `canvas` by entity id.
+/// pixels from `canvas` by entity id. `blocks` are the blocks the entities
+/// show, one per entity that shows one, in order; the canvas reads them from
+/// here, not from `entities`. `canvas` and `blocks` travel in the refs.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasItems {
+    #[serde(skip)]
     pub canvas: Uuid,
+    #[serde(skip)]
+    pub blocks: Vec<Uuid>,
     pub entities: Vec<u8>,
 }
 
 impl ClipFormat for CanvasItems {
     const FORMAT: &'static str = formats::CANVAS_ITEMS;
+
+    fn refs(&self) -> Vec<Uuid> {
+        std::iter::once(self.canvas)
+            .chain(self.blocks.iter().copied())
+            .collect()
+    }
+
+    fn set_refs(&mut self, refs: &[Uuid]) -> Option<()> {
+        let (canvas, blocks) = refs.split_first()?;
+        self.canvas = *canvas;
+        self.blocks = blocks.to_vec();
+        Some(())
+    }
 }
 
 /// One file in `be3/files`.

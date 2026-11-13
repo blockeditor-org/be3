@@ -6,18 +6,18 @@ interface shell-types {
     use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits};
     use types.{block-location, block-pick, child-id, editor-id, palette-mode, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-ask, menu-item-kind, menu-pin, picture, size, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
-    use be3:ui/types@0.1.0.{clip-item, key-chord, pos2, rect, vec2};
+    use be3:ui/types@0.1.0.{clip-body, clip-item, key-chord, pos2, rect, vec2};
 
     /// An action of the bar the host draws above a frame or a child.
     enum bar-action {
         details,
     }
 
-    /// A representation an editor copies: its data, or none when it renders
-    /// it on request.
+    /// A representation an editor copies: its data and the blocks it names,
+    /// or none when it renders it on request.
     record offered-clip-item {
         format: string,
-        data: option<list<u8>>,
+        body: option<clip-body>,
     }
 
     /// How a drop places what is dragged. The host picks it from what is
@@ -250,7 +250,7 @@ interface shell-types {
     }
 
     /// The editor copied: representations of the same content, richest
-    /// first. One without data the editor renders only when a paste asks for
+    /// first. One without a body the editor renders only when a paste asks for
     /// it (`editor.render-clip` with this `serial`); those end with the
     /// instance, while the host keeps the rest as long as the clip.
     record clip-offer {

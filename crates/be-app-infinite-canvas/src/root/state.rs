@@ -51,7 +51,7 @@ struct Pasting {
     entities: Vec<CanvasEntity>,
 }
 
-type RenderAnswer = Box<dyn FnOnce(Option<Vec<u8>>)>;
+use beui::clip::RenderAnswer;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum CommonValue<T> {
@@ -2149,6 +2149,7 @@ impl CanvasState {
         };
         let items = CanvasItems {
             canvas: self.block_id(),
+            blocks: entities.iter().filter_map(|entity| entity.block).collect(),
             entities: encoded,
         };
         let mut clip = Clip::new().with(items.encode());
@@ -2200,7 +2201,13 @@ impl CanvasState {
     /// blocks may be pasted here; the rest are left out.
     fn paste_items(&self, items: CanvasItems) {
         match serde_json::from_slice::<Vec<CanvasEntity>>(&items.entities) {
-            Ok(entities) if !entities.is_empty() => {
+            Ok(mut entities) if !entities.is_empty() => {
+                let mut shown = items.blocks.into_iter();
+                for entity in &mut entities {
+                    if entity.block.is_some() {
+                        entity.block = shown.next();
+                    }
+                }
                 let canvas = items.canvas;
                 let pasting = self.cells.value().pasting;
                 let blocks = entities
