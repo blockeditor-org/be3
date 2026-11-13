@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use be_sdk_api::{
     BlockCommand, EditorInstanceId, Encoded, VersionCommand,
-    blocks::{BlockHistory, OpenRequest},
+    blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest},
     embed::blocks::Call,
     ops::{Connection, OpError, OpId, Outcome, Producer, encode, wire},
 };
@@ -194,37 +194,22 @@ impl Link {
                     self.sent.push(Sent::Frame(id, message));
                 }
             }
-            Call::BlocksWatchNew { resource, query } => self.watch(
-                resource.op(),
-                Subject::Blocks(be_sdk_beui::BlockQuery::decode(query)),
-            ),
-            Call::HistoryWatchNew {
-                resource,
-                block: id,
-            } => {
-                self.watch(resource.op(), Subject::History(block(id)));
-            }
-            Call::HeadWatchNew {
-                resource,
-                block: id,
-            } => {
-                self.watch(resource.op(), Subject::Head(block(id)));
-            }
-            Call::ArtifactWatchNew {
-                resource,
-                block: id,
-            } => {
-                self.watch(resource.op(), Subject::Artifact(block(id)));
+            Call::BlockWatchNew { resource, subject } => {
+                let subject = match subject {
+                    BlockSubject::Blocks(query) => {
+                        Subject::Blocks(be_sdk_beui::BlockQuery::decode(query))
+                    }
+                    BlockSubject::History(id) => Subject::History(block(id)),
+                    BlockSubject::Head(id) => Subject::Head(block(id)),
+                    BlockSubject::Artifact(id) => Subject::Artifact(block(id)),
+                    BlockSubject::Version => Subject::Version,
+                };
+                self.watch(resource.op(), subject);
             }
             Call::SearchWatchNew { resource, .. } => self.watch(resource.op(), Subject::Search),
-            Call::VersionWatchNew { resource } => self.watch(resource.op(), Subject::Version),
             Call::ShowRequestsNew { resource } => self.watch(resource.op(), Subject::Shows),
-            Call::BlocksWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::HistoryWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::HeadWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            Call::BlockWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
             Call::SearchWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::ArtifactWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::VersionWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
             Call::ShowRequestsNext { this, reply } => self.wait(this.op(), reply.into_op()),
         }
     }
@@ -248,13 +233,13 @@ impl Link {
     }
 
     pub(crate) fn offer_history(&mut self, block: Uuid, history: &BlockHistory) {
-        let value = encode(history);
+        let value = encode(&BlockValue::History(*history));
         self.values.insert(Subject::History(block), value.clone());
         self.offer(Subject::History(block), value);
     }
 
     pub(crate) fn offer_version(&mut self, status: &be_sdk_api::VersionStatus) {
-        let value = encode(status);
+        let value = encode(&BlockValue::Version(status.clone()));
         self.values.insert(Subject::Version, value.clone());
         self.offer(Subject::Version, value);
     }
@@ -280,11 +265,16 @@ impl Link {
                 .is_none_or(|producer| producer.send(connection, frame).is_ok())
         });
         for (block, head) in outgoing.heads {
-            self.offer(Subject::Head(block), encode(&head));
+            self.offer(
+                Subject::Head(block),
+                encode(&BlockValue::Head(head.map_err(be_sdk_api::Failure::Failed))),
+            );
         }
         for (query, listed) in outgoing.listings {
-            let listed: Result<Vec<_>, String> = Ok(listed);
-            self.offer(Subject::Blocks(query), encode(&listed));
+            self.offer(
+                Subject::Blocks(query),
+                encode(&BlockValue::Blocks(Ok(listed))),
+            );
         }
         for watch in self.watches.values_mut() {
             if let Some(next) = watch.next.take() {

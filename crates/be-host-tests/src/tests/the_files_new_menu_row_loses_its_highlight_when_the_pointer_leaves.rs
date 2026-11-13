@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_files_new_menu_row_loses_its_highlight_when_the_pointer_leaves() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.new");
     let row = "#file-tree.new-workspace";
     host.wait(row);

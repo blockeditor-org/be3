@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_files_row_menu_escapes_the_files_where_drive_finds_it() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.wait("Tab \"Text\"");
     let (files_x, _, files_width, _) = host.place("#workspace.files");

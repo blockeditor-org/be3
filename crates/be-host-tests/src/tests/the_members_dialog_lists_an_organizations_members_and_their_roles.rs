@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_members_dialog_lists_an_organizations_members_and_their_roles() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");
     host.click("#host.menu.switch-organization");
     host.click("TextInput \"Organization name\"");

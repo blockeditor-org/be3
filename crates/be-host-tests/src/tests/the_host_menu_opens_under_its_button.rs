@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_host_menu_opens_under_its_button() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     let button = "#file-tree.host-menu";
     host.click(button);
     host.wait("#host.menu.status");
