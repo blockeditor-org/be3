@@ -22,6 +22,8 @@ type Receive = Rc<dyn Fn(&mut dyn Any, Box<dyn Any + Send>)>;
 static POSTED: Mutex<Vec<(ThreadId, Letter)>> = Mutex::new(Vec::new());
 /// Told whenever a letter is posted (`wait_for_letter`).
 static POSTED_SIGNAL: Condvar = Condvar::new();
+/// How many letters were ever posted, which `wait_for_letter` waits to see grow.
+static POSTED_COUNT: Mutex<u64> = Mutex::new(0);
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
@@ -88,21 +90,24 @@ impl<T: Send + 'static> Post<T> {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push((self.thread, (self.mailbox, Box::new(value))));
+        *POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner) += 1;
         POSTED_SIGNAL.notify_all();
         wake();
     }
 }
 
-/// Waits until a letter for this thread is posted, up to `limit`, and answers whether one was:
-/// for a test that waits on work another thread answers through a mailbox. It takes no letter;
-/// a desk's `deliver` does.
-pub fn wait_for_letter(limit: Duration) -> bool {
-    let here = thread::current().id();
-    let posted = POSTED.lock().unwrap_or_else(PoisonError::into_inner);
-    let (_posted, waited) = POSTED_SIGNAL
-        .wait_timeout_while(posted, limit, |posted| {
-            !posted.iter().any(|(thread, _)| *thread == here)
-        })
+/// How many letters were ever posted: what a caller hands `wait_for_letter` to wait past.
+pub fn letters_posted() -> u64 {
+    *POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Waits until a letter is posted after `seen` (`letters_posted`), up to `limit`, and answers
+/// whether one was: for a test that waits on work another thread answers through a mailbox.
+/// It takes no letter; a desk's `deliver` does.
+pub fn wait_for_letter(seen: u64, limit: Duration) -> bool {
+    let count = POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner);
+    let (_count, waited) = POSTED_SIGNAL
+        .wait_timeout_while(count, limit, |count| *count == seen)
         .unwrap_or_else(PoisonError::into_inner);
     !waited.timed_out()
 }

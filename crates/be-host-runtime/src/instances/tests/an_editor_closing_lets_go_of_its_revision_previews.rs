@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn an_editor_closing_lets_go_of_its_revision_previews_once_each() {
+fn an_editor_closing_lets_go_of_its_revision_previews() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
     let (block, head) = saved_counter();
@@ -21,6 +21,6 @@ fn an_editor_closing_lets_go_of_its_revision_previews_once_each() {
             .map(|(_, released)| *released)
             .collect::<Vec<_>>(),
         [1, 1],
-        "the open preview and the one still opening are each let go once"
+        "the open preview and the one still opening are each let go"
     );
 }

@@ -256,7 +256,8 @@ fn preview_revision(
     }
 }
 
-/// The previews the stack opened of `block`, each with how many times it was let go.
+/// The previews the stack opened of `block`, each with whether it was let go (1) or not (0):
+/// the stack records only a preview's first release.
 fn previews_of(block: Uuid) -> Vec<(Uuid, usize)> {
     be_host_stack::wait_until(|shared| {
         Some(
@@ -286,12 +287,13 @@ fn answered_until(
 ) -> Vec<(OpId, Outcome)> {
     let mut answers = Vec::new();
     loop {
+        let seen = be_host_base::host::letters_posted();
         answers.extend(instances.take_answers());
         if done(&answers, &previews_of(block)) {
             return answers;
         }
         assert!(
-            be_host_base::host::wait_for_letter(std::time::Duration::from_secs(30)),
+            be_host_base::host::wait_for_letter(seen, std::time::Duration::from_secs(30)),
             "nothing more came back: {answers:?} {:?}",
             previews_of(block)
         );
@@ -662,7 +664,7 @@ mod an_app_makes_an_agent_for_a_block_it_made_only_while_it_sits_alone_in_unfile
 mod an_app_reaches_only_the_hosts_its_manifest_names;
 mod an_app_seeds_only_blocks_it_holds;
 mod an_editor_can_read_and_edit_a_block_it_watches;
-mod an_editor_closing_lets_go_of_its_revision_previews_once_each;
+mod an_editor_closing_lets_go_of_its_revision_previews;
 mod an_editor_is_only_sent_messages_its_app_session_accepts;
 mod an_input_capture_opened_again_is_not_told_the_earlier_chord;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;

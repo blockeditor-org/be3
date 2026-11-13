@@ -29,6 +29,6 @@ fn a_revision_preview_dropped_once_open_is_let_go() {
             .map(|(_, released)| *released)
             .collect::<Vec<_>>(),
         [1],
-        "dropping it lets it go, once"
+        "dropping it, even twice, lets it go"
     );
 }

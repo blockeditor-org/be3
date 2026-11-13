@@ -18,6 +18,6 @@ fn a_revision_preview_dropped_before_it_opens_is_let_go_once_it_opens() {
             .map(|(_, released)| *released)
             .collect::<Vec<_>>(),
         [1],
-        "the preview that opened after the editor let go is let go once"
+        "the preview that opened after the editor let go is let go"
     );
 }

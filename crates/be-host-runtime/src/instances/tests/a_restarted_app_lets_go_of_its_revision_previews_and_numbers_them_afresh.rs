@@ -31,6 +31,6 @@ fn a_restarted_app_lets_go_of_its_revision_previews_and_numbers_them_afresh() {
     assert_eq!(previews.len(), 2, "{previews:?}");
     assert!(
         previews.iter().all(|(_, released)| *released == 1),
-        "ending the new one lets go of it alone, and the old one stays let go once: {previews:?}"
+        "ending the new one lets go of it alone, and the old one stays let go: {previews:?}"
     );
 }
