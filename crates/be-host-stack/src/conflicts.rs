@@ -47,7 +47,7 @@ pub fn dismiss(block: Uuid) {
     stop_comparing();
     super::with_shared_mut(|shared| {
         if shared.conflicts.remove(&block).is_some() {
-            shared.stale_revision += 1;
+            crate::changes::stale();
             shared.touch(block);
         }
     });
@@ -70,7 +70,7 @@ pub fn compare(block: Uuid) {
             theirs: None,
             error: None,
         });
-        shared.stale_revision += 1;
+        crate::changes::stale();
     });
     for (side, commit) in [
         (Side::Ours, conflicted.ours),
@@ -100,7 +100,7 @@ fn previewed(block: Uuid, side: Side, reply: super::revisions::Answered) {
             Side::Theirs => &mut comparison.theirs,
         };
         *slot = Some(shown.clone());
-        shared.stale_revision += 1;
+        crate::changes::stale();
         Some(())
     })
     .flatten()
@@ -115,7 +115,7 @@ pub fn stop_comparing() {
     let Some(comparison) = super::with_shared_mut(|shared| {
         let taken = shared.comparison.take();
         if taken.is_some() {
-            shared.stale_revision += 1;
+            crate::changes::stale();
         }
         taken
     })
@@ -152,7 +152,7 @@ pub fn keep(block: Uuid, side: Side) {
                         .filter(|comparison| comparison.block == block)
                     {
                         comparison.error = Some(error);
-                        shared.stale_revision += 1;
+                        crate::changes::stale();
                     }
                 });
                 be_host_base::host::wake();

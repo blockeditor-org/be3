@@ -2073,23 +2073,28 @@ fn follow_window(
             untrack(|| asks.update(|asks| *asks += 1));
         }
     });
+    let placer = move || {
+        editors
+            .handle(parent)
+            .and_then(|placer| Some((placer.app_id()?.to_owned(), placer.instance)))
+    };
     let asked = create_memo(move || {
-        child.with(|child| child.as_ref().is_some_and(|child| child.focus_asked))
+        placer()
+            .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
     });
     create_effect(move || {
         if !asked.get() || window.get().is_none() {
             return;
         }
         untrack(|| {
-            let Some(placer) = editors.handle(parent) else {
+            let Some((app_id, instance)) = placer() else {
                 return;
             };
-            let Some(app_id) = placer.app_id() else {
-                return;
-            };
-            if be_host_runtime::take_child_focus(app_id, placer.instance, key) {
-                asks.update(|asks| *asks += 1);
-            }
+            // The host gives a window the keyboard itself, and the keys the editor held are
+            // dropped, as the editor no longer has it.
+            super::app_view::gifts::taken(&app_id, instance);
+            be_host_runtime::end_gift(&app_id, instance);
+            asks.update(|asks| *asks += 1);
         });
     });
     let fullscreen = create_memo(move || {

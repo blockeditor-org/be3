@@ -72,6 +72,7 @@ mod a_programs_window_given_a_parent_later_becomes_its_dialog_and_back;
 mod a_programs_window_menu_opens_where_it_asked_and_hides_or_closes_it;
 mod a_programs_window_shows_its_icon_on_its_chip_and_tab;
 mod a_query_no_program_matches_runs_as_a_command;
+mod a_query_runs_as_a_command_only_once_the_host_names_a_shell;
 mod a_restored_desktop_stacks_its_windows_as_they_were_with_the_focused_one_on_top;
 mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_focuses_it;
 mod a_session_opened_over_program_windows_opens_in_front_of_them;
@@ -1057,6 +1058,7 @@ fn programs() -> ProgramCatalog {
     ProgramCatalog {
         listed: true,
         programs,
+        shell: vec!["sh".to_owned(), "-c".to_owned()],
     }
 }
 
@@ -1093,6 +1095,7 @@ fn a_shelf_of_programs() -> ProgramCatalog {
                 icon: None,
             })
             .collect(),
+        shell: vec!["sh".to_owned(), "-c".to_owned()],
     }
 }
 

@@ -7,11 +7,7 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
     let harness = Harness::relayed().on_manual_clock();
     harness.connect();
     let versioned = start_versioning("hello\n");
-    version_since(
-        versioned.checkout,
-        be_block::CheckoutContent::CONTENT_TYPE,
-        None,
-    );
+    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
     wait_until("read the checkout's versions", |shared| {
         settled(shared, versioned.checkout)
             && version_status(shared, versioned.checkout)

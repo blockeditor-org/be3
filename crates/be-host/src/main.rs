@@ -441,11 +441,10 @@ impl beui::native::Program for Shell {
             self.document.open_inspector();
         }
         let view = self.core.view();
-        Host::set_owned(
-            self.core.desktop
-                && view.screen == ui::Screen::Organization
-                && self.core.shell.is_some(),
-        );
+        let owned = self.core.desktop
+            && view.screen == ui::Screen::Organization
+            && self.core.shell.is_some();
+        be_host_desktop::desktop_host::configure(|desktop| desktop.owned = owned);
         let store = self.view;
         compositor::notify();
         beui::native::enter(&mut self.document, || {
@@ -594,16 +593,15 @@ struct HostCore {
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
-    storage_published: Option<u64>,
-    /// The `be_host_stack::notify_modes_revision` the notify modes watch last published.
-    notify_modes_published: Option<u64>,
+    /// What the host stack changed since the last frame.
+    stack_changes: be_host_stack::ChangeWatch,
     /// The `be_host_base::push_device::revision` the push device watch last published.
     push_device_published: Option<u64>,
     /// What a pressed notification's block last waited on (the open organization, how many
-    /// there are, the graph's revision, the changes unsaved), so it is tried again only when
-    /// that changes.
+    /// there are, the changes unsaved), so it is tried again only when that or the graph
+    /// changes.
     #[cfg(target_arch = "wasm32")]
-    pressed_waiting_on: Option<(Option<Uuid>, usize, u64, usize)>,
+    pressed_waiting_on: Option<(Option<Uuid>, usize, usize)>,
     /// The organization this browser's push subscription was last registered for.
     #[cfg(target_arch = "wasm32")]
     push_synced: Option<Uuid>,
@@ -915,8 +913,7 @@ impl HostCore {
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
-            storage_published: None,
-            notify_modes_published: None,
+            stack_changes: be_host_stack::ChangeWatch::new(),
             push_device_published: None,
             #[cfg(target_arch = "wasm32")]
             pressed_waiting_on: None,
@@ -2541,18 +2538,19 @@ impl HostCore {
     /// loaded, or changes are unsaved) is held until the organizations, the graph or the
     /// unsaved changes change, and dropped after `web_push::OPENING_PATIENCE`.
     #[cfg(target_arch = "wasm32")]
-    fn open_pressed_notifications(&mut self) {
+    fn open_pressed_notifications(&mut self, changes: &be_host_stack::Changes) {
         let waiting = |host: &Self| {
             (
                 host.organization
                     .as_ref()
                     .map(|organization| organization.id),
                 host.organizations.len(),
-                be_host_stack::graph_revision(),
                 be_host_stack::status().unsaved,
             )
         };
-        if !web_push::has_openings() || self.pressed_waiting_on == Some(waiting(self)) {
+        if !web_push::has_openings()
+            || (!changes.graph && self.pressed_waiting_on == Some(waiting(self)))
+        {
             return;
         }
         self.pressed_waiting_on = None;
@@ -3287,6 +3285,10 @@ impl HostCore {
             performance::end_frame();
             return;
         }
+        let changes = self.stack_changes.take();
+        self.root_settings.heard(&changes);
+        self.input.heard(&changes);
+        self.display.heard(&changes);
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
@@ -3296,14 +3298,18 @@ impl HostCore {
         });
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
-        self.contacts.publish();
+        if changes.contacts {
+            self.contacts.publish();
+        }
         #[cfg(target_arch = "wasm32")]
         {
-            self.open_pressed_notifications();
+            self.open_pressed_notifications(&changes);
             self.sync_push_subscription();
         }
-        self.publish_storage();
-        self.publish_notify_modes();
+        self.publish_storage(changes.storage);
+        if changes.notify_modes {
+            self.publish_notify_modes();
+        }
         self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
@@ -3407,15 +3413,13 @@ impl HostCore {
     }
 
     /// Follows the account's storage while an editor watches it, and publishes each answer.
-    fn publish_storage(&mut self) {
+    fn publish_storage(&mut self, changed: bool) {
         be_host_stack::watch_storage(be_host_base::watches::watched::<
             be_sdk_api::StorageUsageWatch,
         >());
-        let revision = Some(be_host_stack::storage_revision());
-        if self.storage_published == revision {
+        if !changed {
             return;
         }
-        self.storage_published = revision;
         let usage = be_host_stack::storage_usage().map(|usage| be_sdk_api::AccountStorage {
             held: usage.held,
             pending: usage.pending,
@@ -3424,13 +3428,8 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
     }
 
-    /// Publishes the account's notification modes whenever the host stack read them anew.
+    /// Publishes the account's notification modes, which the host stack read anew.
     fn publish_notify_modes(&mut self) {
-        let revision = Some(be_host_stack::notify_modes_revision());
-        if self.notify_modes_published == revision {
-            return;
-        }
-        self.notify_modes_published = revision;
         let modes = be_host_stack::notify_modes().map(|modes| {
             modes
                 .into_iter()
