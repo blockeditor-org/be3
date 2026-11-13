@@ -72,10 +72,16 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("apples", &[apples]);
     finds("bananas", &[bananas]);
     finds("pea", &[apples]);
-    let index = node(workspace)
-        .and_then(|node| node.metadata.get(&SEARCH_INDEX))
-        .map(|BlockRef(index)| index)
-        .expect("the workspace names its index");
+    // The mirror takes the index's name once its root's metadata is settled, which a search
+    // over the index does not wait for.
+    let index = crate::wait_until(|shared| {
+        shared
+            .graph
+            .get(workspace)?
+            .metadata
+            .get(&SEARCH_INDEX)
+            .map(|BlockRef(index)| index)
+    });
 
     replace(
         apples,
