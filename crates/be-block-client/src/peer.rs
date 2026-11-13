@@ -13,7 +13,7 @@ use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
     HistoryEntry, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
-    PublishOutcome, ReferenceChange, ServerAccount, SessionState, WrappedBy, client,
+    PublishOutcome, ReferenceChange, ServerAccount, WrappedBy, client,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -1214,7 +1214,10 @@ impl<S: ObjectStore> Peer<S> {
         let listed = client::blocks::list_blocks(&self.connection(), Listing::Block(block));
         let response = crate::ask(listed).await.and_then(|listed| {
             listed.blocks.into_iter().next().ok_or_else(|| {
-                ClientError::Refused(ErrorCode::BlockNotFound, format!("block {block} was not listed"))
+                ClientError::Refused(
+                    ErrorCode::BlockNotFound,
+                    format!("block {block} was not listed"),
+                )
             })
         });
         match response {

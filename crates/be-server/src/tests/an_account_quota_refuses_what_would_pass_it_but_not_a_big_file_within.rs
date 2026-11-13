@@ -21,9 +21,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     let big = vec![object(1), object(2)];
     let stored = client.put(big.clone()).await;
     assert!(stored.is_ok(), "two large objects fit: {stored:?}");
-    let held = client
-        .storage_usage().await
-        .unwrap();
+    let held = client.storage_usage().await.unwrap();
     assert_eq!(held.pending, 2 * OBJECT as u64);
     assert_eq!(held.quota, Some(quota));
 
@@ -32,13 +30,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         again.is_ok(),
         "uploading the same objects again costs nothing: {again:?}"
     );
-    assert_eq!(
-        client
-            .storage_usage().await
-            .unwrap()
-            .pending,
-        held.pending
-    );
+    assert_eq!(client.storage_usage().await.unwrap().pending, held.pending);
 
     let over = client.reserve(&[object(3), object(4)]).await;
     assert!(
@@ -54,13 +46,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         vec![Hash::of(&object(3))],
         "a refused upload wrote nothing"
     );
-    assert_eq!(
-        client
-            .storage_usage().await
-            .unwrap()
-            .pending,
-        held.pending
-    );
+    assert_eq!(client.storage_usage().await.unwrap().pending, held.pending);
 
     let block = client.create_block(BlockParent::Root).await;
     let hashes: Vec<Hash> = big.iter().map(|bytes| Hash::of(bytes)).collect();
@@ -68,9 +54,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         .call(|peer| client::objects::hold_objects(peer, block, hashes, Hold::Lasting))
         .await;
     assert!(taken.is_ok(), "{taken:?}");
-    let after = client
-        .storage_usage().await
-        .unwrap();
+    let after = client.storage_usage().await.unwrap();
     assert_eq!(
         (after.held, after.pending),
         (held.pending, 0),

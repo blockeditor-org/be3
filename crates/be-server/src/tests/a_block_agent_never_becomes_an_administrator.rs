@@ -17,8 +17,7 @@ async fn a_block_agent_never_becomes_an_administrator() {
         "an administrator promoted a block's agent: {response:?}"
     );
     let mut agent = harness.second_connection(&token, organization).await;
-    let response = agent
-        .try_read(elsewhere).await;
+    let response = agent.try_read(elsewhere).await;
     assert!(
         refused_as(&response, ErrorCode::BlockNotFound),
         "{response:?}"

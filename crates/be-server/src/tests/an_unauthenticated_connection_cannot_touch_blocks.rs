@@ -33,8 +33,7 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
         "{response:?}"
     );
 
-    let response = stranger
-        .try_read(block).await;
+    let response = stranger.try_read(block).await;
     assert!(
         matches!(response, Err(Error { code, .. }) if code == ErrorCode::NotAuthenticated),
         "{response:?}"

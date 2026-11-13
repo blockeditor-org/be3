@@ -42,9 +42,7 @@ async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
         .iter()
         .map(|hash| author.store.get(*hash).unwrap().unwrap().len() as u64)
         .sum();
-    let usage = creator
-        .storage_usage().await
-        .unwrap();
+    let usage = creator.storage_usage().await.unwrap();
     assert_eq!(
         usage.held, size,
         "a removed agent's block is still charged to whoever created the agent"

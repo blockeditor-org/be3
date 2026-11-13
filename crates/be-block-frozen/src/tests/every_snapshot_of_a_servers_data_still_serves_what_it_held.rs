@@ -680,7 +680,8 @@ async fn check_storage(
     let charged = client::account::storage_changed(&agent)
         .recv()
         .await
-        .ok_or_else(|| "the storage stream ended".to_owned()).unwrap();
+        .ok_or_else(|| "the storage stream ended".to_owned())
+        .unwrap();
     assert_eq!(
         (charged.held, charged.pending),
         (storage.held, storage.pending),

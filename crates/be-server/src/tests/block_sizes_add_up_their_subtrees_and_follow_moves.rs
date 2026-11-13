@@ -66,9 +66,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     let summary = client.read_block(folder).await;
     assert_eq!((summary.size, summary.tree_size), (0, size));
 
-    let usage = client
-        .storage_usage().await
-        .unwrap();
+    let usage = client.storage_usage().await.unwrap();
     assert_eq!(usage.held, size, "the author pays for what its block holds");
     assert_eq!(usage.pending, 0, "a published upload is no longer pending");
     assert_eq!(usage.quota, Some(crate::store::DEFAULT_ACCOUNT_QUOTA));
@@ -111,9 +109,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
         .call(|peer| client::blocks::collect_detached(peer))
         .await;
     assert!(collected.is_ok(), "{collected:?}");
-    let usage = client
-        .storage_usage().await
-        .unwrap();
+    let usage = client.storage_usage().await.unwrap();
     assert_eq!(usage.held, 0, "collecting a block stops charging for it");
 
     harness.stop().await;

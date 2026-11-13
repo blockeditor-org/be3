@@ -296,7 +296,7 @@ enum Heard {
     Changes(Stream<BlockChange>),
     Paired(Stream<PairingMessage>),
     Contacts(Stream<()>),
-    KeyWork(Stream<()>),
+    KeyWork(Stream<be_block_protocol::KeyWork>),
     Watch(Uuid, Stream<BlockEvent>),
     Session(Uuid, Stream<SessionEvent>),
 }

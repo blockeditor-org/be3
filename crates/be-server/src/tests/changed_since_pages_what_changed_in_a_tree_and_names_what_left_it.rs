@@ -206,8 +206,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     }
     assert!(left.contains(&late), "collected between pages: {left:?}");
 
-    let still = owner
-        .try_read(stays).await;
+    let still = owner.try_read(stays).await;
     assert!(still.is_ok(), "a live block was collected: {still:?}");
 
     // A block that left a tree is named to that tree even if it moved on again after: each

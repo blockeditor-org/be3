@@ -44,10 +44,7 @@ pub(super) async fn shared_tree(harness: &Harness) -> SharedTree {
 }
 
 pub(super) async fn held(client: &mut TestClient) -> u64 {
-    client
-        .storage_usage().await
-        .unwrap()
-        .held
+    client.storage_usage().await.unwrap().held
 }
 
 #[tokio::test]

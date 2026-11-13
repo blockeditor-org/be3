@@ -23,9 +23,7 @@ async fn an_upload_is_used_once_and_keeps_its_object_until_collected() {
             .unwrap()
     };
     assert_eq!(uploads(), 0, "publishing used the uploads it held");
-    let usage = client
-        .storage_usage().await
-        .unwrap();
+    let usage = client.storage_usage().await.unwrap();
     assert_eq!(usage.pending, 0);
 
     client.upload(&author.store, &objects).await;

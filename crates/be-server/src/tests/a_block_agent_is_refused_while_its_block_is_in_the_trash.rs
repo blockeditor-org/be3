@@ -70,8 +70,7 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
             .expect("restoring the block failed");
     }
     let mut agent = harness.second_connection(&token, organization).await;
-    let response = agent
-        .try_read(terminal).await;
+    let response = agent.try_read(terminal).await;
     assert!(
         response.is_ok(),
         "a restored block's agent is still refused: {response:?}"

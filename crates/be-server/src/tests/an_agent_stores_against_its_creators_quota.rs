@@ -28,17 +28,13 @@ async fn an_agent_stores_against_its_creators_quota() {
     let upload = b"what the agent wrote".to_vec();
     let stored = agent.put(vec![upload.clone()]).await;
     assert!(stored.is_ok(), "{stored:?}");
-    let usage = creator
-        .storage_usage().await
-        .unwrap();
+    let usage = creator.storage_usage().await.unwrap();
     assert_eq!(
         usage.pending,
         upload.len() as u64,
         "an agent's upload is charged to who created it"
     );
-    let usage = agent
-        .storage_usage().await
-        .unwrap();
+    let usage = agent.storage_usage().await.unwrap();
     assert_eq!(
         usage.pending,
         upload.len() as u64,
@@ -67,9 +63,7 @@ async fn an_agent_stores_against_its_creators_quota() {
         .iter()
         .map(|hash| writer.store.get(*hash).unwrap().unwrap().len() as u64)
         .sum();
-    let usage = creator
-        .storage_usage().await
-        .unwrap();
+    let usage = creator.storage_usage().await.unwrap();
     assert_eq!(
         usage.held, size,
         "an agent's block inside its creator's tree is charged to the creator"

@@ -450,7 +450,7 @@ impl TestClient {
             ),
             (
                 "key-work-changed",
-                Opened::Unit(client::keys::key_work_changed(peer)),
+                Opened::KeyWork(client::keys::key_work_changed(peer)),
             ),
             (
                 "notify-modes-changed",
@@ -463,6 +463,7 @@ impl TestClient {
                 Opened::Paired(stream) => self.opened(stream).await,
                 Opened::Storage(stream) => self.opened(stream).await,
                 Opened::Unit(stream) => self.opened(stream).await,
+                Opened::KeyWork(stream) => self.opened(stream).await,
                 Opened::Watch(stream) => self.opened(stream).await,
             };
             answers.push((name, answer));
@@ -544,6 +545,7 @@ enum Opened {
     Paired(Stream<PairingMessage>),
     Storage(Stream<be_block_protocol::AccountStorage>),
     Unit(Stream<()>),
+    KeyWork(Stream<be_block_protocol::KeyWork>),
     Watch(Stream<BlockEvent>),
 }
 

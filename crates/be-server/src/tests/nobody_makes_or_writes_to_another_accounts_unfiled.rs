@@ -70,8 +70,7 @@ async fn nobody_makes_or_writes_to_another_accounts_unfiled() {
         refused_as(&moved, ErrorCode::BlockNotFound),
         "or move one into it: {moved:?}"
     );
-    let read = other
-        .try_read(filed).await;
+    let read = other.try_read(filed).await;
     assert!(
         refused_as(&read, ErrorCode::BlockNotFound),
         "or read what it holds: {read:?}"

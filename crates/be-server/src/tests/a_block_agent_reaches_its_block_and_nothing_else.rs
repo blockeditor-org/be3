@@ -108,8 +108,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "an agent manages what it makes inside its block, as any author does"
     );
     for block in [elsewhere, under] {
-        let response = agent
-            .try_read(block).await;
+        let response = agent.try_read(block).await;
         assert!(
             refused_as(&response, ErrorCode::BlockNotFound),
             "a block's agent read another block: {response:?}"

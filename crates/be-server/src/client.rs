@@ -745,9 +745,9 @@ impl Client {
         let Ok(work) = self.connection.store.key_work(identity).await else {
             return;
         };
-        let _ = self
-            .streams
-            .send(&mut self.peer.lock(), work, |route| *route == Route::KeyWork);
+        let _ = self.streams.send(&mut self.peer.lock(), work, |route| {
+            *route == Route::KeyWork
+        });
     }
 
     async fn canceled(&mut self, op: OpId) {
