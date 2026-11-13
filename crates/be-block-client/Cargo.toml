@@ -18,6 +18,7 @@ futures-util = "0.3"
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
+sha2 = "0.10"
 # Only the synchronisation primitives are shared with the browser build: they
 # carry no runtime of their own, and the socket and the executor come from
 # transport/ instead.

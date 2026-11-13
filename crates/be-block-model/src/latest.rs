@@ -159,6 +159,16 @@ impl<K: Ord, V> LatestMap<K, V> {
     pub fn next(&self, key: &K, time: u64, origin: Uuid) -> Stamp {
         self.stamp(key).after(time, origin)
     }
+
+    /// Whether `key` was ever written, with a value or without (removed).
+    pub fn written(&self, key: &K) -> bool {
+        self.stamps.contains_key(key)
+    }
+
+    /// Every key ever written, with its value, or none for a key removed since.
+    pub fn written_entries(&self) -> impl Iterator<Item = (&K, Option<&V>)> {
+        self.stamps.keys().map(|key| (key, self.entries.get(key)))
+    }
 }
 
 impl<K, V> Deref for LatestMap<K, V> {
