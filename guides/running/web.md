@@ -65,11 +65,11 @@ runtime (src/guest.js, which runs type modules too), crates/be-host/web/app.js, 
 crates/be-wasm-gpu-shim for the gpu ABI. Nothing an app draws leaves its worker; the page
 hands workers canvases instead (crates/be-host-runtime/src/web):
 
-- Each shown screen is a `<canvas>` in `#apps`, behind the host's canvas `#block`, transferred
+- Each shown screen is a `<canvas>` in `#apps`, behind the host's canvas `#host`, transferred
   as an `OffscreenCanvas` and placed by CSS transform, `clip-path` and `z-index`
   (`web/canvases.rs`); the host's canvas punches a hole where it shows.
 - An app with an anchored view (crates/be-sdk-api/PROTOCOL.md, Anchored views) gets one overlay
-  canvas in `#layers` above `#block`, with `pointer-events: none` (`web/overlay.rs`); input
+  canvas in `#layers` above `#host`, with `pointer-events: none` (`web/overlay.rs`); input
   still lands on the host's canvas, which routes it. Scrims are drawn by the host, below every
   overlay. A screen painted after an anchored view (a child placed in one) goes into `#layers`
   too, stacked with the overlays by paint order, so it shows above the view as it does natively.

@@ -59,7 +59,7 @@ html, body {
     transform-origin: 0 0;
     pointer-events: none;
 }
-#block {
+#host {
     position: relative;
     z-index: 1;
     display: block;
