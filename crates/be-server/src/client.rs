@@ -2311,10 +2311,11 @@ impl Client {
                 block,
                 sealed,
                 mentions,
+                keys,
             } => {
                 let queued = async {
                     prelude?;
-                    connection.notify(block, sealed, mentions).await
+                    connection.notify(block, sealed, mentions, keys).await
                 }
                 .await;
                 self.reply(reply, queued);
@@ -2572,12 +2573,14 @@ impl Connection {
 
     /// Queues a push of `sealed` to each device of every member `notification_recipients`
     /// names who has no connection to the organization open, and drops each endpoint its
-    /// service says is gone.
+    /// service says is gone. One whose `keys` were all told before pushes nothing
+    /// (`ServerStore::tell`).
     async fn notify(
         &self,
         block: Uuid,
         sealed: Vec<u8>,
         mentions: Vec<Uuid>,
+        keys: Vec<be_block_store::Hash>,
     ) -> Result<(), ServerError> {
         let identity = self.identity()?;
         crate::limits::at_most(
@@ -2590,6 +2593,15 @@ impl Connection {
                 "accounts one notification mentions",
                 crate::limits::MAX_MENTIONS,
             ));
+        }
+        if keys.len() > be_block_protocol::MAX_TOLD_KEYS {
+            return Err(crate::limits::too_many(
+                "keys one notification names",
+                be_block_protocol::MAX_TOLD_KEYS,
+            ));
+        }
+        if !keys.is_empty() && !self.store.tell(identity, block, keys).await? {
+            return Ok(());
         }
         if !self.notifications.allow_key(identity.account) {
             return Err(crate::limits::too_many(

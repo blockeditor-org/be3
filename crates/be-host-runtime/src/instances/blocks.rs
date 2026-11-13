@@ -7,6 +7,7 @@ use be_sdk_api::{
 use uuid::Uuid;
 
 use super::{ContentLink, EditorInstanceId, Instance, Instances};
+use crate::{EditorAction, events::InstanceEvent};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Subject {
@@ -181,12 +182,18 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return self.acknowledge(reply, None);
                 };
-                entry.opens.push(super::OpenRequest {
+                let open = super::OpenRequest {
                     id: Uuid::from_bytes(request.block_id),
                     block_type: Uuid::from_bytes(request.block_type),
                     via: request.via.map(Uuid::from_bytes),
                     editor: request.editor.map(Uuid::from_bytes),
-                });
+                };
+                let _ = entry;
+                crate::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::OpenBlock(open)),
+                );
                 self.acknowledge(reply, Some(true))
             }
             Call::Act {
@@ -368,10 +375,14 @@ impl Instances {
                 self.acknowledge(reply, Some(true))
             }
             command => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
+                if !self.entries.contains_key(&instance) {
                     return self.acknowledge(reply, None);
-                };
-                entry.block_commands.push((block, command));
+                }
+                crate::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::Command { id: block, command }),
+                );
                 self.acknowledge(reply, Some(true))
             }
         }
@@ -406,7 +417,11 @@ impl Instances {
             Subject::Blocks(_) => entry.blocks_seen = None,
             Subject::Search(_) => entry.searches_seen = None,
             Subject::Head(block) => entry.heads.watch(block),
-            Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
+            Subject::Artifact(_) => crate::events::emit(
+                &self.app_id,
+                instance,
+                InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
+            ),
             Subject::Version => entry.version_sent = None,
             Subject::History(_) | Subject::Shows => {}
         }
@@ -466,7 +481,11 @@ impl Instances {
                         entry.heads.unwatch(block);
                     }
                 }
-                Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
+                Subject::Artifact(_) => crate::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
+                ),
                 Subject::Search(op) => {
                     entry.searches.remove(&op);
                 }

@@ -1,5 +1,6 @@
 use super::*;
 use be_block::{BlockContent, LiveEdit};
+use be_sdk_api::BlockCommand;
 use be_sdk_api::{
     embed::host_services::Call,
     ops::{OpError, Outcome},
@@ -31,6 +32,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
         panic!("preview opens");
     };
     let mut instances = placed_on(preview, CounterContent::CONTENT_TYPE);
+    let (_mailbox, heard) = hearing();
     let before = be_host_stack::content(block).unwrap().bytes().to_vec();
     for target in [block, preview] {
         assert!(!to_replica(
@@ -60,9 +62,12 @@ fn revision_history_editors_cannot_mutate_any_block() {
                 }
             ));
         }
-        assert_eq!(
-            instances.take_block_command(INSTANCE),
-            None,
+        host::deliver();
+        assert!(
+            !heard.borrow().iter().any(|event| matches!(
+                event,
+                InstanceEvent::Action(crate::EditorAction::Command { .. })
+            )),
             "a preview's acts never reach the host"
         );
         instances.take_answers();
