@@ -1,5 +1,6 @@
 use be_block::{BlockContent, ContentError};
 use be_block_graph::BlockParent;
+use be_block_protocol::Listing;
 use be_block_store::{ChunkerConfig, MemoryStore};
 use be_server::Running;
 use uuid::Uuid;
@@ -14,7 +15,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
         .iter()
         .map(|bytes| be_block_protocol::ObjectLength {
             hash: be_block_store::Hash::of(bytes),
-            length: bytes.len() as u64,
+            length: Some(bytes.len() as u64),
         })
         .collect();
     let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
@@ -23,6 +24,9 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
     ))
     .await?;
     for (url, bytes) in urls.into_iter().zip(objects) {
+        let Some(url) = url else {
+            continue;
+        };
         let headers: Vec<(String, String)> = url
             .headers
             .into_iter()
