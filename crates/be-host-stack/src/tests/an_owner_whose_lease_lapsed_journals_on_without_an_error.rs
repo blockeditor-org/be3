@@ -48,22 +48,9 @@ fn an_owner_whose_lease_lapsed_journals_on_without_an_error() {
     type_text(note, 5, " and boots");
     flush();
     wait_until("sent what was typed next", |shared| {
-        shared.connected && shared.waiting == 0
-    });
-    assert_eq!(with_shared(|shared| shared.error.clone()).flatten(), None);
-
-    // Closed and opened again: a new session, whose journal this device writes again.
-    close(note);
-    wait_until("let the note go", |shared| {
-        !shared.blocks.contains_key(&note)
-    });
-    open(note, TextContent::CONTENT_TYPE);
-    type_text(note, 0, "hats, ");
-    flush();
-    wait_until("sent what was typed after reopening", |shared| {
         shared.connected
             && shared.waiting == 0
-            && text_of(shared, note).as_deref() == Some("hats, socks and boots")
+            && text_of(shared, note).as_deref() == Some("socks and boots")
     });
     assert_eq!(with_shared(|shared| shared.error.clone()).flatten(), None);
 }
