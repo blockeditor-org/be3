@@ -72,7 +72,8 @@ Reading the program:
   a11y TARGET ACTION [VALUE]   do what a screen reader does: click, focus, increment, set VALUE, ...
   wait [not] TEXT|#TEST_ID [over X,Y]   wait until a line of the tree contains TEXT, or the test id
                             is on screen, with its node over the point X,Y if given; with not,
-                            until it is not
+                            until it is not. reveal, shown and not are words of their own: quote a
+                            target that contains them
   env                       NAME=VALUE lines a program needs to show its windows inside the program,
                             such as WAYLAND_DISPLAY; empty when the program hosts no programs
   windows                   the program's windows, each one's number and size

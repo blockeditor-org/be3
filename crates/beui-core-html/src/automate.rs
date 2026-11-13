@@ -4,7 +4,7 @@ use beui_types::drive::Command;
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
-const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET, reveal TARGET (scrolls a target a scroll cuts into view and says where it shows, which is where web-test.mjs puts input, ending in revealed when it scrolled), shown TARGET (says where a target shows, without scrolling), wait TEXT [over TARGET], gone TEXT [over TARGET], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
+const ANSWERS: &str = "the HTML core answers tree, ids, find TARGET [reveal|shown] (reveal scrolls a target a scroll cuts into view and says where it shows, which is where web-test.mjs puts input, ending in revealed when it scrolled; shown says where a target shows, without scrolling), wait [not] TEXT [over TARGET], settle, pause MILLISECONDS, clock stop|run and help; input (click, move, drag, type, key) comes from the browser, as a person's does";
 
 pub type Line = beui_types::drive::Line<Option<crate::node::NodeId>>;
 

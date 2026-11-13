@@ -2,7 +2,7 @@
 //! `drive -` script `src/drive/NAME.drive` (guides/testing_a_gui.md, 7).
 //!
 //! A script uses only commands both cores answer: `settle`, `pause`, `clock stop|run`, `tree`,
-//! `ids`, `find`, `wait`, `gone`, `click` (also `double`, `right`, `middle`), `move`,
+//! `ids`, `find TARGET [reveal|shown]`, `wait [not] TEXT`, `click` (also `double`, `right`, `middle`), `move`,
 //! `down`/`up`, `drag`, `wheel` (a tick is 40 pixels in the browser), `type`, `key`,
 //! `clipboard TEXT` (then `key ctrl+v` pastes it), `back` and `resize WxH`. Text metrics
 //! differ between the cores, so a script names nodes by test id or by text the screen writes

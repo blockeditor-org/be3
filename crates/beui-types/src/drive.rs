@@ -139,6 +139,7 @@ pub fn waited<'a, L: TreeLine>(lines: &'a [L], text: &str, over: Option<Pos2>) -
     })
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Command {
     Tree,
     Ids,
@@ -200,6 +201,9 @@ pub fn parse(command: &str, arguments: &[String]) -> Option<Result<Command, Stri
             }
         }
         "wait" => wait(),
+        "gone" => Err("gone is now `wait not TEXT`".to_owned()),
+        "reveal" => Err("reveal is now `find TARGET reveal`".to_owned()),
+        "shown" => Err("shown is now `find TARGET shown`".to_owned()),
         "settle" => Ok(Command::Settle),
         "help" => Ok(Command::Help),
         "pause" => named("MILLISECONDS").and_then(|milliseconds| {
@@ -216,3 +220,6 @@ pub fn parse(command: &str, arguments: &[String]) -> Option<Result<Command, Stri
         _ => return None,
     })
 }
+
+#[cfg(test)]
+mod tests;

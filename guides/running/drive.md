@@ -98,7 +98,8 @@ beside its `Pane`.
 
 - `ids` lists every test id and where it is, apps included. Test ids are the steadiest names.
 - `find TARGET` says where a target is; `find TARGET reveal` scrolls it into view first, and
-  `find TARGET shown` says where the part of it that shows is.
+  `find TARGET shown` says where the part of it that shows is. `reveal`, `shown` and `not` are
+  words of their own: quote a target that contains them.
 - `hit TARGET` says what a press there would reach, innermost first, and what it would dismiss:
   use it when a press goes to the wrong place. It sees the host's document only.
 - `comps [--internals]` is the host document's component tree, as the inspector's Comp tab.
