@@ -10,6 +10,7 @@ export default async function (test) {
     await drive("click", 'MenuItem "Canvas"');
     await drive("wait", 'Pane "Canvas"');
     // In a browser the field's focus is the page's, which a click gives it.
+    await drive("wait", 'TextInput "Name" value="Canvas"');
     await drive("click", 'TextInput "Name" value="Canvas"');
     await drive("key", "Enter");
     await drive("wait", "not", 'TextInput "Name" value="Canvas"');
