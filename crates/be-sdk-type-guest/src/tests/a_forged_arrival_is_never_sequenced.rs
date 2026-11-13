@@ -19,7 +19,12 @@ fn a_forged_arrival_is_never_sequenced() {
     };
 
     let inline = Payload::Inline(Arrivals::encode_operation(&forged));
-    sim.relay_as(0, follower, RelayKind::Edit, submit(follower, 1_000, inline));
+    sim.relay_as(
+        0,
+        follower,
+        RelayKind::Edit,
+        submit(follower, 1_000, inline),
+    );
     let large = Note {
         stamp: Some(1),
         padding: vec![0; 2 * 1024 * 1024],
@@ -35,18 +40,29 @@ fn a_forged_arrival_is_never_sequenced() {
     let part = Payload::Part(manifest.root.expect("the part has bytes"));
     sim.relay_as(0, follower, RelayKind::Edit, submit(follower, 1_001, part));
     sim.settle();
-    assert_eq!(entries(&mut sim, 0), Vec::<Option<i64>>::new(), "a forged stamp was sequenced");
+    assert_eq!(
+        entries(&mut sim, 0),
+        Vec::<Option<i64>>::new(),
+        "a forged stamp was sequenced"
+    );
     assert!(sim.errors.is_empty(), "{:?}", sim.errors);
 
     sim.operate(1, 1, forged);
     sim.settle();
     assert_eq!(
-        sim.errors.iter().map(|(device, _)| *device).collect::<Vec<_>>(),
+        sim.errors
+            .iter()
+            .map(|(device, _)| *device)
+            .collect::<Vec<_>>(),
         vec![1],
         "the follower's replica took an edit that claims its arrival"
     );
     for device in 0..2 {
-        assert_eq!(entries(&mut sim, device), Vec::<Option<i64>>::new(), "device {device}");
+        assert_eq!(
+            entries(&mut sim, device),
+            Vec::<Option<i64>>::new(),
+            "device {device}"
+        );
     }
 
     sim.operate(1, 1, Note::default());

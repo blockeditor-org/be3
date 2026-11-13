@@ -22,7 +22,11 @@ fn a_stamp_that_would_not_fit_inline_is_left_off() {
     sim.settle();
     let now = sim.now as i64;
     for device in 0..2 {
-        assert_eq!(entries(&mut sim, device), vec![None, Some(now)], "device {device}");
+        assert_eq!(
+            entries(&mut sim, device),
+            vec![None, Some(now)],
+            "device {device}"
+        );
     }
     assert!(sim.errors.is_empty(), "{:?}", sim.errors);
 }

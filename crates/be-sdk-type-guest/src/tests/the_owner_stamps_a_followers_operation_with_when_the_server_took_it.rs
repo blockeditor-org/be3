@@ -19,7 +19,11 @@ fn the_owner_stamps_a_followers_operation_with_when_the_server_took_it() {
     sim.operate(1, 1, Note::default());
     sim.settle();
     for device in 0..2 {
-        assert_eq!(entries(&mut sim, device), vec![None, Some(first)], "device {device}");
+        assert_eq!(
+            entries(&mut sim, device),
+            vec![None, Some(first)],
+            "device {device}"
+        );
     }
 
     sim.open(2);

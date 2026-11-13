@@ -84,7 +84,11 @@ pub(super) fn entries(sim: &mut Sim<Arrivals>, device: usize) -> Vec<Option<i64>
 }
 
 /// A `Submit` from `client` of `payload`, as a forger would send it.
-pub(super) fn submit(client: ClientId, counter: u64, payload: be_block_session::Payload) -> Vec<u8> {
+pub(super) fn submit(
+    client: ClientId,
+    counter: u64,
+    payload: be_block_session::Payload,
+) -> Vec<u8> {
     crate::wire::Wire::Session(be_block_session::SessionMessage::Submit {
         id: be_block_session::OpId { client, counter },
         base: 0,
