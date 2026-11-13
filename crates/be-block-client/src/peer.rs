@@ -1158,9 +1158,32 @@ impl<S: ObjectStore> Peer<S> {
         expected: Option<CommitId>,
     ) -> Result<BlockMetadata, ClientError> {
         match expected {
-            Some(head) => self.metadata_of(head).await,
+            Some(head) => self.base_metadata(block, head).await,
             None => self.metadata_of_summary(&self.summary(block).await?).await,
         }
+    }
+
+    /// The metadata of `head`, a commit `block`'s next commit goes on: from the commit when this
+    /// device holds it, else from the block's summary when that names `head` and nothing sealed
+    /// here since has revised it (its sealed metadata is then the head's own, as its publisher
+    /// sealed it), else fetched. A device that knows a block's head only from its summary can
+    /// seal on it offline.
+    async fn base_metadata(
+        &self,
+        block: Uuid,
+        head: CommitId,
+    ) -> Result<BlockMetadata, ClientError> {
+        if let Some(commit) = self.commits.try_get(head)? {
+            return Ok(BlockMetadata::decode(&commit.metadata)?);
+        }
+        if self.pending_commits(block).is_empty()
+            && let Some(summary) = self.refs.summary(block)
+            && summary.head == Some(head)
+            && let Ok(metadata) = self.open_metadata(&summary)
+        {
+            return Ok(metadata);
+        }
+        self.metadata_of(head).await
     }
 
     pub fn metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
@@ -1622,8 +1645,14 @@ impl<S: ObjectStore> Peer<S> {
             sealed_through,
             ..
         } = write;
+        // The commit it goes on, to tell a write that changes nothing: unknown offline when only
+        // its summary is held, and then the write is sealed all the same.
         let previous = match expected {
-            Some(head) => Some(self.load_commit(head).await?),
+            Some(head) => match self.load_commit(head).await {
+                Ok(previous) => Some(previous),
+                Err(error) if offline::unreachable(&error) => None,
+                Err(error) => return Err(error),
+            },
             None => None,
         };
         let time = now_milliseconds();
