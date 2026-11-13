@@ -1,5 +1,4 @@
 use be_sdk_api::MenuCheck;
-use be_sdk_beui::BarAction;
 use be_sdk_beui::beui::styled::Root;
 use beui::Vec2;
 use beui::icons::ICON_WAND_SPARKLES;
@@ -106,7 +105,7 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
     );
 
     test.pick_menu("editor.details");
-    assert_eq!(test.take_bar_actions(), [BarAction::Details]);
+    assert_eq!(test.take_details(), 1);
 
     let desktop = BeuiTest::<ActionRoot>::new(OwnedEditor::new(
         {

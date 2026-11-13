@@ -6,7 +6,7 @@ use std::{
 
 use be_block_graph::Access;
 use be_sdk_api::{
-    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
+    ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
     EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
     View, ViewId,
 };
@@ -722,7 +722,7 @@ struct TabContext {
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct ChildReporter {
-    bar: Callback<BarAction>,
+    details: Callback<()>,
     focus: Callback<()>,
 }
 
@@ -1503,7 +1503,7 @@ fn BlockFrameView(
     reporter: ChildReporter,
 ) -> NodeId {
     let ChildReporter {
-        bar: on_bar_action,
+        details: on_details,
         focus: on_focus,
     } = reporter;
     provide_context(FocusedWithin(on_focus));
@@ -1533,9 +1533,8 @@ fn BlockFrameView(
     };
     create_effect(move || {
         revision.get();
-        let actions = be_host_runtime::take_bar_actions(&app_id.value(), instance);
-        for action in actions {
-            on_bar_action.call(action);
+        if be_host_runtime::take_details(&app_id.value(), instance) {
+            on_details.call(());
         }
     });
     if let Some(tab) = use_context::<TabContext>() {
@@ -2313,10 +2312,10 @@ fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
 
 fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
-    let on_bar_action = report_to.clone().and_then(|parent| {
+    let on_details = report_to.clone().and_then(|parent| {
         let app_id = parent.app_id()?.to_owned();
-        Some(Callback::new(move |action: BarAction| {
-            be_host_runtime::report_child_bars(&app_id, parent.instance, vec![(key, action)]);
+        Some(Callback::new(move |()| {
+            be_host_runtime::report_child_details(&app_id, parent.instance, key);
         }))
     });
     let app_id = report_to
@@ -2330,7 +2329,7 @@ fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReport
         within.call(());
     });
     ChildReporter {
-        bar: on_bar_action.unwrap_or_default(),
+        details: on_details.unwrap_or_default(),
         focus: on_focus,
     }
 }

@@ -11,7 +11,7 @@ use beui_view::reactive::NodeId;
 use beui_view::types::icons::{ICON_COPY, ICON_X};
 
 use crate::list::List;
-use crate::tokens::{Padding, Size, Space, Stroke, use_space};
+use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_view::reactive::*;
 
 use crate::button::{Button, ButtonSize};
@@ -49,7 +49,7 @@ pub fn TextInput(
 ) -> NodeId {
     let mut style = text_input_style();
     if multiline {
-        style.padding_vertical = use_space(PADDING_VERTICAL);
+        style.padding_vertical = Prop::Static(PADDING_VERTICAL.px());
     }
     let plain = create_memo(move || plain.get());
     let glyph = create_memo(move || glyph.get());
@@ -193,7 +193,7 @@ pub fn text_input_style() -> TextInputStyle {
         placeholder_color: theme.text_muted.into_prop(),
         selection_color: theme.accent_soft.into_prop(),
         caret_color: theme.accent.into_prop(),
-        padding_horizontal: use_space(PADDING_HORIZONTAL),
+        padding_horizontal: Prop::Static(PADDING_HORIZONTAL.px()),
         padding_vertical: Prop::Static(0.0),
         prose: Prop::Static(None),
         geometry: Prop::Static(text_area_geometry()),

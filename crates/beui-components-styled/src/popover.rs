@@ -12,7 +12,6 @@ use beui_components_unstyled::{
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
-use crate::theme::Density;
 use crate::tokens::{Length, Size, Space};
 use beui_view::types::Extent;
 use beui_view::types::Rect;
@@ -93,5 +92,5 @@ pub fn PopoverPanel(
 }
 
 fn at_most(size: Size) -> Length {
-    Length::Extent(Extent::at_most(size.resolve(Density::Compact)))
+    Length::Extent(Extent::at_most(size.px()))
 }
