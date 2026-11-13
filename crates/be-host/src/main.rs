@@ -16,6 +16,7 @@ mod login_session;
 mod members;
 #[cfg(target_os = "linux")]
 mod memory;
+mod reveals;
 mod root_settings;
 mod shell_route;
 mod surfaces;
@@ -650,6 +651,8 @@ struct HostCore {
     programs: be_host_desktop::programs::Programs,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
+    /// Blocks opened at a place, which their editors are told once open (`reveal_opened`).
+    reveals: reveals::Reveals,
     /// The answer to leaving `leaving`, while it is on its way, and why it was refused (offline,
     /// it needs the server), which the leave dialog shows.
     leave_answers: Option<host::Mailbox>,
@@ -962,6 +965,7 @@ impl HostCore {
             programs: be_host_desktop::programs::Programs::default(),
             pending_destructive_action: None,
             leaving: None,
+            reveals: reveals::Reveals::default(),
             leave_answers: None,
             leave_refused: None,
             pairing_answers: HashMap::new(),
@@ -2421,6 +2425,7 @@ impl HostCore {
                     block_type,
                     via: Some(copy.container),
                     editor: None,
+                    at: None,
                 },
             );
         }
@@ -2596,6 +2601,7 @@ impl HostCore {
                     block_type: node.content_type,
                     via: None,
                     editor: None,
+                    at: None,
                 },
             );
         }
@@ -2625,6 +2631,7 @@ impl HostCore {
 
     fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
         self.block_types.insert(open.id, open.block_type);
+        self.reveals.opened(open.id, open.at.clone(), host::now());
         if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
             self.with_editor(handler, |handler| handler.show_block(open));
         }
@@ -2634,6 +2641,7 @@ impl HostCore {
         if self.shell == Some(id) {
             return;
         }
+        self.reveals.closed(id);
         be_host_desktop::programs::close(id);
         self.editors.forget_parent(id);
         self.focus_reports.remove(&id);
@@ -2700,6 +2708,7 @@ impl HostCore {
                         <be_block::SettingsProfileContent as be_block_content::BlockContent>::CONTENT_TYPE,
                     via: None,
                     editor: None,
+                    at: None,
                 },
             );
         }
@@ -2769,6 +2778,22 @@ impl HostCore {
         for (from, action) in compositor::take_actions() {
             self.handle_editor_action(from, action);
         }
+        self.reveal_opened();
+    }
+
+    /// Hands each block opened at a place (a search hit's) that place, once its editor is open.
+    fn reveal_opened(&mut self) {
+        if self.reveals.is_empty() {
+            return;
+        }
+        let editors = self.editors.clone();
+        self.reveals.deliver(host::now(), |block, at| {
+            editors.with(|open| match open.get(&block) {
+                Some(editor) if editor.reveal(at.clone()) => reveals::Delivery::Told,
+                Some(_) => reveals::Delivery::Opening,
+                None => reveals::Delivery::NoEditor,
+            })
+        });
     }
 
     fn focus(&self, shell: Uuid) -> Option<editors::FocusReport> {

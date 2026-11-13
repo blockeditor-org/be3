@@ -17,11 +17,7 @@ use be_sdk_api::{
 use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block_content::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
-use be_sdk_beui::{
-    Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
-    EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
-    ViewChange, WebViewCommand, WebViewId,
-};
+use be_sdk_beui::{Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand, WebViewId};
 use beui::native::Document;
 use beui::{
     Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
@@ -1845,6 +1841,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         });
     }
 
+    /// The host tells the editor it was opened at `at` in its block (`editor-event.reveal`).
+    pub fn open_at(&mut self, at: be_sdk_api::SearchLocation) {
+        self.call(|editor, connection| {
+            editor.hear(connection, vec![EditorEvent::Reveal(at)]);
+        });
+    }
+
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_sent_calls(|sent| match sent {
             Sent::Define(block, key, value) if *key == be_sdk_beui::be_block_content::NAME.id => {
@@ -2037,6 +2040,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 block_type: Uuid::from_bytes(open.block_type),
                 via: open.via.map(Uuid::from_bytes),
                 editor: open.editor.map(Uuid::from_bytes),
+                at: open.at.clone(),
             }),
             _ => None,
         })

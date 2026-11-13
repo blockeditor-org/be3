@@ -187,6 +187,7 @@ impl Instances {
                     block_type: Uuid::from_bytes(request.block_type),
                     via: request.via.map(Uuid::from_bytes),
                     editor: request.editor.map(Uuid::from_bytes),
+                    at: request.at,
                 };
                 let _ = entry;
                 crate::events::emit(
@@ -580,6 +581,7 @@ impl Instances {
             block_type: open.block_type.into_bytes(),
             via: open.via.map(Uuid::into_bytes),
             editor: open.editor.map(Uuid::into_bytes),
+            at: open.at,
         });
         match self.entries.get_mut(&instance) {
             Some(entry) => ShowRequest::queue(&mut entry.shows, request),

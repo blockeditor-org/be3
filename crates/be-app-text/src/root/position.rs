@@ -161,19 +161,26 @@ pub(crate) fn keep_position(state: State) {
         }
         let Some(view) = editor.view_content() else {
             restored.set(true);
+            state.position_restored.set(true);
             return;
         };
-        let Ok(position) = view.read(|held| {
+        let position = match view.read(|held| {
             held.root()
                 .state(POSITION)
                 .and_then(ViewState::value::<Position>)
-        }) else {
-            return;
+        }) {
+            Ok(position) => position,
+            // Not read yet: it is tried again once it is. A place the text was opened at waits
+            // for it, or putting the position back would move the caret off that place.
+            Err(Pending::Loading) => return,
+            // A view that cannot be read holds no position to put back.
+            Err(Pending::Failed(_)) => None,
         };
         restored.set(true);
         if let Some(position) = &position {
             untrack(|| position.restore(state));
         }
+        state.position_restored.set(true);
         *saved.value().borrow_mut() = position;
     });
     let save = move || {

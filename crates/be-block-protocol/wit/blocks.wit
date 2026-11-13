@@ -4,10 +4,12 @@ package be3:server@0.1.0;
 interface objects {
     use types.{block-id, error, hash};
 
-    /// An object to upload: its SHA-256 and its length in bytes.
+    /// An object to upload: its SHA-256 and its length in bytes, or none when
+    /// the caller does not hold it (a part it reuses by its ref alone), which
+    /// asks only whether the server holds it for the caller.
     record object-length {
         hash: hash,
-        length: u64,
+        length: option<u64>,
     }
 
     /// A header a presigned request is sent with, exactly as given.
@@ -23,19 +25,20 @@ interface objects {
         headers: list<header>,
     }
 
-    /// Reserves room for objects, charged to the uploader until a block
-    /// takes them, and answers a URL to upload each one to, in order. An
-    /// object counts as stored only once its bytes arrived. At most
-    /// `be_block_protocol::MAX_OBJECT_URLS` objects a call.
-    upload-urls: async func(objects: list<object-length>) -> result<list<upload-url>, error>;
+    /// A URL to upload each of `objects` to, in order, and none for one the
+    /// caller holds already (it uploaded it, or may read it): room is reserved
+    /// only for the rest, charged to the uploader until a block takes them. An
+    /// object counts as stored only once its bytes arrived. An object with no
+    /// length the caller does not hold refuses the call with
+    /// `object-not-found`, alike whether or not anyone stored it, and nothing
+    /// is reserved. At most `be_block_protocol::MAX_OBJECT_URLS` objects a
+    /// call.
+    upload-urls: async func(objects: list<object-length>) -> result<list<option<upload-url>>, error>;
 
     /// A presigned S3 GET for each object the caller may read, in order, and
     /// none for the rest. At most `be_block_protocol::MAX_OBJECT_URLS` hashes a
     /// call.
     download-urls: async func(hashes: list<hash>) -> result<list<option<string>>, error>;
-
-    /// Which of `hashes` the server lacks.
-    missing-objects: async func(hashes: list<hash>) -> result<list<hash>, error>;
 
     /// How long `hold-objects` keeps objects for a block. Either way the
     /// block's payer is charged for them, and whoever may view the block may
@@ -229,9 +232,6 @@ interface blocks {
     /// at most `limit` blocks of each kind (plans/search.md). Needs View on
     /// `root`.
     changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
-
-    /// One block's summary, which lists it as `listing.block` would.
-    read-block: async func(block: block-id) -> result<block-summary, error>;
 
     /// Summaries of `blocks`, their journals, and the objects of their heads
     /// the caller does not hold, those of the commits in `held` left out.

@@ -4034,13 +4034,9 @@ async fn list(
         futures_util::future::join_all(unlisted.into_iter().map(|listing| peer.unlist(listing)));
     let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
         match *listing {
-            Listing::Children(parent) => peer.children(parent).await,
-            Listing::Deleted => peer.deleted().await,
-            Listing::Shared => peer.shared().await,
-            Listing::Backrefs(block) => peer.backrefs(block).await,
-            Listing::References(block) => peer.referenced(block).await,
+            // A block's own summary answers from the outbox and offline as `summary` does.
             Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
-            Listing::OpenSettings(block) => peer.open_settings(block).await,
+            listing => peer.list(listing).await,
         }
     }));
     let (_, answers) = futures_util::future::join(unlists, lists).await;

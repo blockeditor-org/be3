@@ -7,7 +7,7 @@ async fn what_is_in_force_at_a_block_not_sent_yet_is_answered_from_this_device()
     let harness = Harness::start().await;
     let owner = harness.owner("owner@example.com").await;
     let team = workspace(&owner, "Team").await;
-    owner.open_settings(team).await.unwrap();
+    owner.list(Listing::OpenSettings(team)).await.unwrap();
     let block = Uuid::now_v7();
     owner
         .keep_creation(
@@ -21,11 +21,11 @@ async fn what_is_in_force_at_a_block_not_sent_yet_is_answered_from_this_device()
         .expect("the block is kept here");
 
     owner
-        .open_settings(block)
+        .list(Listing::OpenSettings(block))
         .await
         .expect("the settings above a block the server does not know yet are this device's");
     owner
-        .backrefs(block)
+        .list(Listing::Backrefs(block))
         .await
         .expect("so are the blocks that point at it");
     assert!(

@@ -57,8 +57,9 @@ pub use app::ShellDialog;
 pub use be_wasm_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
-    ConflictSide, SearchHit, SearchResults, StoredHead, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
+    ConflictSide, SearchHit, SearchLocation, SearchResults, StoredHead, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
+    VersionStatus,
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};

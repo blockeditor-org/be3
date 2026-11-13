@@ -538,6 +538,13 @@ impl AppEditor {
         }
     }
 
+    /// Tells the editor where in its block it was opened (a search hit's place); false until
+    /// its instance is open.
+    pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) -> bool {
+        self.app()
+            .is_some_and(|app| be_host_runtime::reveal(&app.identity.id, self.instance, at))
+    }
+
     pub(crate) fn show_history(&self, block: Uuid, commit: Option<[u8; 32]>) {
         if let Some(app) = self.app() {
             be_host_runtime::show_history(&app.identity.id, self.instance, block, commit);
