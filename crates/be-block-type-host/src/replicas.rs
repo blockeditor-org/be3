@@ -416,6 +416,8 @@ struct Open {
     early: Vec<Replayed>,
     unreported: bool,
     reporting: Option<CommitId>,
+    /// Why its last publish failed, if it did: what a host stuck owing a seal names.
+    publish_error: Option<String>,
 }
 
 /// An open block that owes a seal, and what its seal may be waiting on: what a host names when
@@ -423,19 +425,46 @@ struct Open {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Owing {
     pub block: Uuid,
+    pub content_type: Uuid,
+    /// Why its last publish failed, if it did.
+    pub publish_error: Option<String>,
     pub journaled: bool,
+    /// Whether an editor sent it something its module has not reported on yet.
+    pub unreported: bool,
     /// Publishes of it not yet answered.
     pub publishing: usize,
     pub joining: bool,
     pub closing: bool,
 }
 
+impl Owing {
+    fn of(open: &Open) -> Self {
+        Self {
+            block: open.block,
+            content_type: open.content_type,
+            publish_error: open.publish_error.clone(),
+            journaled: open.status.journaled,
+            unreported: open.unreported,
+            publishing: open.publishing,
+            joining: open.joining,
+            closing: open.closing,
+        }
+    }
+}
+
 impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} (journaled: {}, publishes unanswered: {}, joining: {}, closing: {})",
-            self.block, self.journaled, self.publishing, self.joining, self.closing
+            "{} of type {} (journaled: {}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
+            self.block,
+            self.content_type,
+            self.journaled,
+            self.unreported,
+            self.publishing,
+            self.joining,
+            self.closing,
+            self.publish_error
         )
     }
 }
@@ -939,6 +968,7 @@ impl<H: Host> Replicas<H> {
                 early: Vec::new(),
                 unreported: false,
                 reporting: None,
+                publish_error: None,
             },
         );
         if reader {
@@ -1477,6 +1507,7 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
+        open.publish_error = result.as_ref().err().cloned();
         if open.epoch != epoch {
             return;
         }
@@ -3002,7 +3033,7 @@ impl<H: Host> Replicas<H> {
     /// hold edits that are not yet durable: not in the journal on this device (still with the
     /// module, or not yet appended). A journaled edit survives a restart, so it is only waiting
     /// for its commit.
-    pub fn counts(&self) -> (usize, Vec<Owing>, usize) {
+    pub fn counts(&self) -> (usize, Vec<Owing>, Vec<Owing>) {
         let unsealed = self
             .open
             .values()
@@ -3012,19 +3043,14 @@ impl<H: Host> Replicas<H> {
             .open
             .values()
             .filter(|open| open.status.owes_seal)
-            .map(|open| Owing {
-                block: open.block,
-                journaled: open.status.journaled,
-                publishing: open.publishing,
-                joining: open.joining,
-                closing: open.closing,
-            })
+            .map(Owing::of)
             .collect();
         let undurable = self
             .open
             .values()
             .filter(|open| open.unreported || (!open.status.clean && !open.status.journaled))
-            .count();
+            .map(Owing::of)
+            .collect();
         (unsealed, owing, undurable)
     }
 

@@ -80,6 +80,7 @@ mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
+mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
@@ -446,6 +447,10 @@ struct Sim<C: LiveEdit + Clone + Default> {
     parts_put: usize,
     fail_puts: usize,
     fail_reads: usize,
+    /// Publishes answered with an error, as a device's seal fails offline when its block's key
+    /// is not on it; and how many were.
+    fail_publishes: usize,
+    failed_publishes: usize,
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
@@ -513,6 +518,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             parts_put: 0,
             fail_puts: 0,
             fail_reads: 0,
+            fail_publishes: 0,
+            failed_publishes: 0,
             largest_written: 0,
             written: 0,
             journal: None,
@@ -1049,6 +1056,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 content,
                 sealed_through,
             } if !self.stalled => {
+                if self.fail_publishes > 0 {
+                    self.fail_publishes -= 1;
+                    self.failed_publishes += 1;
+                    return self.to(device, |host| {
+                        reply.send(host, &Err("the connection is gone".to_owned()))
+                    });
+                }
                 if expected != self.head {
                     self.rejections += 1;
                     let head = self.head;
