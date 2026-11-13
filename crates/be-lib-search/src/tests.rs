@@ -26,6 +26,7 @@ mod names_rank_first_then_newer_commits;
 mod queries_parse_words_phrases_and_a_last_prefix;
 mod ranked_results_match_a_brute_force_scorer;
 mod removals_of_unseen_documents_survive_a_merge;
+mod two_sides_that_both_compacted_merge_to_the_same_answers;
 
 /// Runs a future that never waits: every read here is from memory.
 pub(crate) fn run<T>(future: impl Future<Output = T>) -> T {
