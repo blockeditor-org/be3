@@ -25,8 +25,12 @@ domain of their own, kept by the server in the clear (it already knows who is
 granted what) and served to anyone who may know the block exists.
 
 - **Root.** The first entry of a block's log names its creator and is signed
-  by them; how a device knows the server did not swap it is Q1. An
-  organization has a root the same way.
+  by them. The log is in the clear, so the server could replace it whole with
+  one rooted at a creator it made up; a device therefore takes the root's hash
+  only from somewhere the server cannot write: making the block itself, a
+  grant a verified contact sealed to it (the hash travels beside the key), or
+  a share link's secret part (plans/share_links.md). Later entries chain from
+  it. Block ids stay random. An organization has a root the same way.
 - **Owner.** Block, new owner account and key, signed by the current owner:
   ownership moves to another member. The owner holds what authorship gives
   today (`Manage` while they can view the parent).
@@ -70,8 +74,9 @@ drop an entry from the middle; a device pins the newest log head it has seen.
    the server claim each acts on (grants, administrators, the subtree a
    rotation or move walks, which block a key row says it is for). Done: the
    list is in this plan, each entry marked with the step that removes it.
-2. **Roots and owners.** Root and owner records, anchored as Q1 decides, and
-   transferring ownership in the shell. Done: a test where a forging server
+2. **Roots and owners.** Root and owner records, the root pinned from the
+   creating device, sealed grants and links, and transferring ownership in
+   the shell. Done: a test where a forging server
    swaps a block's root and the device refuses it; one where ownership moves
    and the old owner can no longer grant.
 3. **Signed grants and administrators.** Records, logs, the server's checks
@@ -106,36 +111,14 @@ granted, which is denial, not reading.
   a server granted View can write
   (decisions/the_server_never_vouches_for_an_identity.md).
 
-## Open questions
+## A new recovery phrase
 
-- **Q1. Anchoring the root.** The log is stored in the clear on the server,
-  which is fine because every record is signed; what the server could do is
-  replace the whole log with one rooted at a creator it made up. Either:
-  - **Pinned**: a device takes the root's hash only from somewhere the server
-    cannot write: making the block itself, a grant a verified contact sealed
-    to it (which carries the hash beside the key), or a share link's secret
-    part. Later entries chain from it. A Join member gets it the same way.
-  - **Derived id**: the block's id is a hash of the creator's key and a nonce,
-    so the id alone proves the root. Anyone who knows only the id can check,
-    including someone who learned it from a reference.
-  Both allow transferring ownership: the root only fixes who owned the block
-  first, and owner records move it from there. Pinned is the recommendation:
-  it keeps ids random, and every way of getting real access already carries a
-  sealed or secret channel the hash can ride in.
-- **Q2. A new recovery phrase.** An account's signing key is derived from its
-  phrase. Someone who suspects their phrase leaked takes a new one; only a
-  device that still holds the old secret can, and it sends each contact a key
-  change, signed with the old key, naming the new one. Records the account
-  signed with the old key must still check (they were real), but whoever stole
-  the old phrase can also sign new records with it. Either:
-  - **Retire**: taking a new phrase appends a retirement entry, signed with the
-    new key and carrying the key change, to the log of every block where the
-    account holds a signed record; that log refuses old-key records after it.
-    Costs one entry per such block.
-  - **Re-sign**: the device re-signs each of the account's live records with
-    the new key, and old-key records stop counting at all. Costs one entry per
-    record, and a block whose records are not re-signed yet loses those
-    grants until they are.
-  Retire is the recommendation. Either way, a device that never sees the
-  retirement still accepts the stolen key, the same withholding as above, and
-  key epochs bound to log heads cover it the same way.
+An account's signing key is derived from its phrase, and someone who thinks
+theirs leaked takes a new one (guides/blocks/keys.md, "Identity, new phrases
+and devices"). Records signed with the old key stay valid, but whoever holds
+the old phrase could sign new ones. So taking a new phrase appends a
+**retirement** entry, signed with the new key and carrying the key change, to
+the log of every block where the account holds a signed record; that log
+refuses old-key records after it. A device that never sees the retirement is
+covered as for a withheld revocation: the rotation that follows names a head
+at or after it.

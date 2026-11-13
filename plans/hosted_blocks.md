@@ -72,8 +72,13 @@ hosted never offers Join.
 - When the host leaves, another editor takes the lease and the joiners
   reconnect to it. The world continues from what is stored, so a host writes
   its state to the block as it goes; only what it held in memory is lost.
-- Banning: a signed **ban record** in the access log (account, block, signer),
-  which the host refuses at the handshake and the server refuses at joining.
+- Banning: a signed **ban record** in the access log (account, block, signer
+  with Edit), which the host refuses at the handshake and the server refuses
+  at joining. Any Edit holder may ban: an editor can write anything to the
+  block and host with its own logic, so a ban never binds editors, only who
+  joins through an honest host or server.
+- The host signs the handshake with its account key too, so the app knows
+  which account is hosting and may show it.
 - Apps: the host side hears a member join (account, level, how its grant was
   checked), its messages, and its leaving, and sends to one member or to
   several; the Join side has an editor with no content frame, only the
@@ -95,7 +100,7 @@ hosted never offers Join.
    forging server that offers its own host key to a Join member, which refuses
    it; and one where a joiner whose grant was revoked is refused.
 4. **Hosting.** Lease handoff and reconnecting, ban records, the app side
-   (Q9 decides where). Done: a test with two editors and two
+   (Q12 decides where). Done: a test with two editors and two
    players where the first host leaves and the second carries on.
 5. **The share dialog.** Labels and lines from the manifest; Join offered only
    for hosted types; who is hosting now. Done: paintings.
@@ -106,18 +111,13 @@ hosted never offers Join.
 
 ## Open questions
 
-- **Q7. The name.** Is "Join" right for the core level, which every type sees
-  under its own label? "Participate" and "Use" are the alternatives.
-- **Q8. Who bans.** Any Edit holder, since any of them may host and must be
-  able to protect the session it runs, or Manage only?
-- **Q9. Where the host's logic runs.** In the block's type module, on the
-  replica that owns the session (it then runs in be-host's worker with no
-  editor open, and in `be BLOCK host` headless on a server, as the terminal's
-  host does), or in the app's editor, which hosts only while it is open?
-- **Q10. Does a joiner learn who hosts.** The host key is enough for the
-  channel, so the host's account can stay hidden from Join members (they learn
-  only "a host is online"), or the host can sign the handshake with its
-  account key so players see who is running the world. Hidden by default?
-- **Q11. Edit holders without the host's logic.** If an editor's build of the
-  type module is older than the host's, should it refuse to host (as terminal
-  hosts require one build), or may the lease go to any editor?
+- **Q12. Where the host's logic runs.** The type module stays as it is for
+  text: storage and basic operations on the world, nothing game-specific. The
+  game's rules (what each player sees, which moves are allowed) live in the
+  app. Either:
+  - **In the editor**: hosting happens while an editor of the block is open on
+    an Edit holder's device, as a game hosted from the window you play in.
+  - **In a host component**: a second entry point of the app with no frame,
+    attached to the replica as an editor is, that be-host starts when this
+    device takes the lease, window or not, and that a headless runner (`be
+    BLOCK host`) can run on a server.

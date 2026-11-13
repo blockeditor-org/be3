@@ -12,9 +12,9 @@ not be able to use a link it relays or stores
 
 - A link is `{server}/#share/{SECRET}`. The secret derives a link key pair
   and, for View and above, a key that opens the block's scope key, sealed with
-  it as pending grants are (`Peer::offer`). If the root is pinned
-  (plans/signed_access.md, Q1), the secret part also carries the hash of the
-  block's log root. The server never sees what follows `#`.
+  it as pending grants are (`Peer::offer`). The secret part also carries
+  the hash of the block's log root, which the opener pins
+  (plans/signed_access.md, "Root"). The server never sees what follows `#`.
 - Making one stores a **link record** in the block's access log
   (plans/signed_access.md): block, level, the link's public key, signed by a
   member with Manage.
