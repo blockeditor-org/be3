@@ -254,6 +254,12 @@ pub struct Searching {
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
+    /// Blocks not indexed yet because their type's module did not run, by type: queued again
+    /// once it runs (`release_unstarted`).
+    unstarted: HashMap<Uuid, BTreeSet<Uuid>>,
+    /// Types a test has the indexer take as not running (`runs`).
+    #[cfg(test)]
+    pub(crate) not_running: HashSet<Uuid>,
     /// Set by a test that writes as a device without an indexer.
     pub off: bool,
 }
@@ -463,6 +469,30 @@ impl Searching {
     #[cfg(test)]
     pub(crate) fn reads_whole(&self, block: Uuid) -> bool {
         self.whole.contains(&block)
+    }
+
+    /// Queues again the blocks whose type's module `runs` now.
+    pub(crate) fn release_unstarted(&mut self, runs: impl Fn(Uuid) -> bool) {
+        #[cfg(test)]
+        let runs = {
+            let not_running = self.not_running.clone();
+            move |content_type: Uuid| runs(content_type) && !not_running.contains(&content_type)
+        };
+        self.unstarted.retain(|content_type, blocks| {
+            if !runs(*content_type) {
+                return true;
+            }
+            self.dirty.extend(std::mem::take(blocks));
+            false
+        });
+    }
+
+    /// The blocks waiting for their type's module (a test's way to see them).
+    #[cfg(test)]
+    pub(crate) fn waits_for_its_type(&self, block: Uuid) -> bool {
+        self.unstarted
+            .values()
+            .any(|blocks| blocks.contains(&block))
     }
 
     /// Takes the queued blocks (a test's way to see what `index` would look at).
@@ -799,6 +829,9 @@ async fn index(
             .filter(|node| node.parent == Some(BlockParent::Root))
             .filter_map(|node| index_of(graph, named, node.id))
             .collect();
+        state
+            .search
+            .release_unstarted(|content_type| crate::kind_of(content_type).is_some());
         state.search.release_parked(
             |index| {
                 peer.local_head(index).is_some()
@@ -904,9 +937,8 @@ async fn index(
                     .unwrap_or_default(),
                 None => Vec::new(),
             };
-            // None: held back (a commit or part that could not be read), so not put.
             match puts_of(peer, shared, replicas, *block, &held, whole).await {
-                Some((puts, removed)) => {
+                Ok((puts, removed)) => {
                     batch.removed.extend(removed);
                     // Failures count the reads in a row that failed.
                     shared
@@ -921,7 +953,24 @@ async fn index(
                     }
                     batch.put.extend(puts);
                 }
-                None => {
+                // Indexed once its type's module runs. A catch-up's block counts as done
+                // meanwhile, so the catch-up settles without it, and keeps what the catch-up
+                // named of it (`caught`), which may be all this device knows of it.
+                Err(Unput::Unstarted(content_type)) => {
+                    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                    if whole {
+                        held.search.whole.insert(*block);
+                    }
+                    held.search
+                        .unstarted
+                        .entry(content_type)
+                        .or_default()
+                        .insert(*block);
+                    if held.search.caught.contains_key(block) {
+                        held.search.mark_put(vec![*block]);
+                    }
+                }
+                Err(Unput::HeldBack) => {
                     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                     if whole {
                         held.search.whole.insert(*block);
@@ -1125,7 +1174,7 @@ async fn puts_of(
     block: Uuid,
     held: &[be_lib_search::Entry],
     whole: bool,
-) -> Option<(Vec<Put>, Vec<(DocId, be_lib_search::Commit)>)> {
+) -> Result<(Vec<Put>, Vec<(DocId, be_lib_search::Commit)>), Unput> {
     let Some((content_type, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match held.graph.get(block) {
@@ -1138,7 +1187,7 @@ async fn puts_of(
         }
     }) else {
         // Gone from the mirror and from what a catch-up named: nothing to index.
-        return Some((Vec::new(), Vec::new()));
+        return Ok((Vec::new(), Vec::new()));
     };
     let caught_head = shared
         .lock()
@@ -1163,12 +1212,12 @@ async fn puts_of(
     };
     let Some(head) = head else {
         // A block no one has written to has nothing to index.
-        return Some((Vec::new(), Vec::new()));
+        return Ok((Vec::new(), Vec::new()));
     };
     // A commit that cannot be fetched now (a connection, a key) is held back: the block is not
     // put, and a catch-up that listed it does not move its watermark past it.
     let Ok(commit) = peer.load_commit(head).await else {
-        return None;
+        return Err(Unput::HeldBack);
     };
     let at = be_lib_search::Commit {
         time: commit.time,
@@ -1187,34 +1236,37 @@ async fn puts_of(
         .search
         .caught
         .contains_key(&block);
-    let known = match from_catch_up {
-        true => replicas.kind(content_type).await.is_some(),
-        false => crate::kind_of(content_type).is_some(),
-    };
+    // A commit is put whole or not at all: the index keeps one entry for a commit, so a name
+    // put without the type's text would keep the text out of it until the block's next
+    // commit, whichever device put it in full later. A type whose module does not run waits
+    // for it.
+    let known = !held_off(shared, content_type)
+        && match from_catch_up {
+            true => replicas.kind(content_type).await.is_some(),
+            false => crate::kind_of(content_type).is_some(),
+        };
+    if !known {
+        return Err(Unput::Unstarted(content_type));
+    }
     let indexed: Vec<[u8; 32]> = held
         .iter()
         .filter(|entry| !whole && !entry.is_removed())
         .filter_map(|entry| entry.source)
         .collect();
-    // Whether the type answered every document: only then is one it no longer answers removed.
-    let (mut documents, answered) = match known {
-        true => {
-            match documents_of(
-                peer,
-                shared,
-                replicas,
-                content_type,
-                &commit,
-                None,
-                &indexed,
-            )
-            .await?
-            {
-                Some(documents) => (documents, true),
-                None => (Vec::new(), false),
-            }
-        }
-        false => (Vec::new(), false),
+    // A type that cannot be asked, or breaks the rules, is held back as a part that could not
+    // be read is: its text is never put in part.
+    let Some(Some(mut documents)) = documents_of(
+        peer,
+        shared,
+        replicas,
+        content_type,
+        &commit,
+        None,
+        &indexed,
+    )
+    .await
+    else {
+        return Err(Unput::HeldBack);
     };
     if !documents.iter().any(|document| document.key.is_empty()) {
         documents.push(be_sdk_type_api::SearchDocument {
@@ -1224,19 +1276,16 @@ async fn puts_of(
             body: Some(String::new()),
         });
     }
-    let removed = match answered {
-        true => {
-            let answers: HashSet<&str> = documents
-                .iter()
-                .map(|document| document.key.as_str())
-                .collect();
-            held.iter()
-                .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
-                .map(|entry| (entry.doc.clone(), at))
-                .collect()
-        }
-        false => Vec::new(),
-    };
+    // The type answered every document, so one it no longer answers is removed.
+    let answers: HashSet<&str> = documents
+        .iter()
+        .map(|document| document.key.as_str())
+        .collect();
+    let removed = held
+        .iter()
+        .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
+        .map(|entry| (entry.doc.clone(), at))
+        .collect();
     let puts = documents
         .into_iter()
         .map(|document| {
@@ -1265,7 +1314,33 @@ async fn puts_of(
             }
         })
         .collect();
-    Some((puts, removed))
+    Ok((puts, removed))
+}
+
+/// Why a block's commit is not put (`puts_of`).
+enum Unput {
+    /// A commit, a part or the type's answer could not be had: not put this time.
+    HeldBack,
+    /// Its type's module does not run on this device yet: queued again once it does
+    /// (`Searching::unstarted`).
+    Unstarted(Uuid),
+}
+
+/// Whether a test has the indexer take `content_type`'s module as not running
+/// (`Searching::not_running`).
+#[cfg(test)]
+fn held_off(shared: &Mutex<Shared>, content_type: Uuid) -> bool {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .not_running
+        .contains(&content_type)
+}
+
+#[cfg(not(test))]
+fn held_off(_: &Mutex<Shared>, _: Uuid) -> bool {
+    false
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
@@ -1282,8 +1357,7 @@ pub(crate) fn capped(mut text: String) -> String {
 
 /// A commit's searchable documents, as its type answers `search-text` (only `keys`, when
 /// some are named; no body for one whose source is in `indexed`, part hashes): `Some(None)`
-/// when the type breaks the rules or cannot be asked, so the block is found by its name alone,
-/// and None when a part could not be read.
+/// when the type breaks the rules or cannot be asked, and None when a part could not be read.
 async fn documents_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
