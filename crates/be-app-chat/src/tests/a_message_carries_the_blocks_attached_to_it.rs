@@ -25,7 +25,10 @@ fn a_message_carries_the_blocks_attached_to_it() {
     })));
     chat.run();
     assert_eq!(
-        chat.editor.store().block(plans).and_then(|info| info.parent),
+        chat.editor
+            .store()
+            .block(plans)
+            .and_then(|info| info.parent),
         Some(BlockParent::Block(CHAT)),
         "the attached block moves into the chat"
     );

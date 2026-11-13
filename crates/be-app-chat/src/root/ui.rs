@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use be_sdk_beui::be_block::be_block_model::BlockRef;
 use be_sdk_beui::be_block::{ObjectId, SettingsLayer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER,
-    ICON_PAPERCLIP, ICON_PENCIL, ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
+    Glyph, ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PAPERCLIP,
+    ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP,
+    ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -15,7 +17,6 @@ use be_sdk_beui::{
     BlockFilter, BlockLink, BlockParent, BlockQuery, ChildTarget, ContentProjection, Editor,
     KeptEdit, LayeredSettings, Signer, utc_offset,
 };
-use be_sdk_beui::be_block::be_block_model::BlockRef;
 use be_type_chat::{
     ChatContent, ChatReads, Message, MessageEdit, ReadPlace, Segment, Shown, Signature,
 };
@@ -299,13 +300,35 @@ pub fn Chat(editor: Editor) -> NodeId {
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         view! {
-            <MessageRow editor chat={chat} me id row={shown} composer unsent block signing attached />
+            <MessageRow
+                editor
+                chat={chat}
+                me
+                id
+                row={shown}
+                composer
+                unsent
+                block
+                signing
+                attached
+            />
         }
     };
     let older_message_rows = move |id: ObjectId| {
         let shown = older.rows.get(&id);
         view! {
-            <MessageRow editor chat={chat} me id row={shown} composer unsent block signing attached />
+            <MessageRow
+                editor
+                chat={chat}
+                me
+                id
+                row={shown}
+                composer
+                unsent
+                block
+                signing
+                attached
+            />
         }
     };
     let has_older = older.remaining;
@@ -867,6 +890,8 @@ fn MessageRow(
 ) -> NodeId {
     let attachment_ids = create_memo(move || row.with(|row| row.attachments.clone()));
     let has_attachments = create_memo(move || attachment_ids.with(|ids| !ids.is_empty()));
+    // A message of attachments alone has no line of text.
+    let has_body = create_memo(move || row.with(|row| !row.body.is_empty()));
     let attachment_chip = move |attachment: Uuid| {
         view! {
             <AttachmentChip
@@ -1152,7 +1177,9 @@ fn MessageRow(
                         <Text style=TextStyle::CAPTION>{quote}</Text>
                     </Frame>
                 </Show>
-                <Text>{body}</Text>
+                <Show condition={has_body}>
+                    <Text>{body}</Text>
+                </Show>
                 <Show condition={has_attachments}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <ForEach keys={attachment_ids} view={attachment_chip} />
