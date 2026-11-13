@@ -13,6 +13,10 @@ up").
 
 ## Left open
 
+- **Opening at the hit, not the first occurrence.** A hit's location carries only the words its
+  first match covers, and the editor selects their first whole-word occurrence, which may not be
+  where the hit was. Send the snippet's surrounding text or an occurrence index with it.
+
 - **A block let go stays stale.** A block whose commit could not be read three times is
   counted as indexed (`MAX_READ_FAILURES`), so a catch-up ends: its entry in the index is
   stale or missing until the block next changes. Answers are filtered by the mirror, so

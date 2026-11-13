@@ -235,20 +235,16 @@ fn select_where_opened(state: State) {
             wanted.set(Some(at));
         }
     });
-    let content = state.text.content();
+    let loaded = state.loaded;
     let restored = state.position_restored;
     create_effect(move || {
-        content.get();
         let Some(at) = wanted.get() else {
             return;
         };
-        if !restored.get() {
+        if !loaded.get() || !restored.get() {
             return;
         }
         untrack(|| {
-            if !state.text.loaded() {
-                return;
-            }
             wanted.set(None);
             // A text block is one document: a hit in any other is not this editor's to show.
             if !at.key.is_empty() {
@@ -262,14 +258,22 @@ fn select_where_opened(state: State) {
     });
 }
 
-/// Where `words` first occur in `text`: as written, else ignoring ASCII case.
+/// Where `words` first occur in `text` as whole words, compared as the search index compares
+/// them (`be_lib_search::fold`: Unicode case and compatibility folded), so a hit on "late" never
+/// selects inside "chocolate".
 pub(crate) fn find_words(text: &[u8], words: &str) -> Option<std::ops::Range<usize>> {
-    let words = words.as_bytes();
-    if words.is_empty() || words.len() > text.len() {
+    let wanted: Vec<String> = be_lib_graphemes::words(words.as_bytes())
+        .map(|range| be_lib_search::fold(&words[range]))
+        .collect();
+    if wanted.is_empty() {
         return None;
     }
-    let at = |same: &dyn Fn(&[u8]) -> bool| text.windows(words.len()).position(same);
-    at(&|window| window == words)
-        .or_else(|| at(&|window| window.eq_ignore_ascii_case(words)))
-        .map(|start| start..start + words.len())
+    let text = std::str::from_utf8(text).ok()?;
+    let found: Vec<std::ops::Range<usize>> = be_lib_graphemes::words(text.as_bytes()).collect();
+    found.windows(wanted.len()).find_map(|run| {
+        run.iter()
+            .zip(&wanted)
+            .all(|(range, wanted)| be_lib_search::fold(&text[range.clone()]) == *wanted)
+            .then(|| run[0].start..run[run.len() - 1].end)
+    })
 }

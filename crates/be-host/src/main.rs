@@ -14,6 +14,7 @@ mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
 mod members;
+mod reveals;
 #[cfg(target_os = "linux")]
 mod memory;
 mod root_settings;
@@ -650,7 +651,7 @@ struct HostCore {
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
     /// Blocks opened at a place, which their editors are told once open (`reveal_opened`).
-    reveals: HashMap<Uuid, be_sdk_api::SearchLocation>,
+    reveals: reveals::Reveals,
     /// The answer to leaving `leaving`, while it is on its way, and why it was refused (offline,
     /// it needs the server), which the leave dialog shows.
     leave_answers: Option<host::Mailbox>,
@@ -963,7 +964,7 @@ impl HostCore {
             programs: be_host_desktop::programs::Programs::default(),
             pending_destructive_action: None,
             leaving: None,
-            reveals: HashMap::new(),
+            reveals: reveals::Reveals::default(),
             leave_answers: None,
             leave_refused: None,
             pairing_answers: HashMap::new(),
@@ -2629,10 +2630,7 @@ impl HostCore {
 
     fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
         self.block_types.insert(open.id, open.block_type);
-        match &open.at {
-            Some(at) => self.reveals.insert(open.id, at.clone()),
-            None => self.reveals.remove(&open.id),
-        };
+        self.reveals.opened(open.id, open.at.clone(), host::now());
         if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
             self.with_editor(handler, |handler| handler.show_block(open));
         }
@@ -2642,7 +2640,7 @@ impl HostCore {
         if self.shell == Some(id) {
             return;
         }
-        self.reveals.remove(&id);
+        self.reveals.closed(id);
         be_host_desktop::programs::close(id);
         self.editors.forget_parent(id);
         self.focus_reports.remove(&id);
@@ -2787,16 +2785,12 @@ impl HostCore {
         if self.reveals.is_empty() {
             return;
         }
-        let reveals = std::mem::take(&mut self.reveals);
-        for (block, at) in reveals {
-            let told = self
-                .editors
+        let editors = self.editors.clone();
+        self.reveals.deliver(host::now(), |block, at| {
+            editors
                 .with(|open| open.get(&block).map(|editor| editor.reveal(at.clone())))
-                .unwrap_or(false);
-            if !told {
-                self.reveals.insert(block, at);
-            }
-        }
+                .unwrap_or(false)
+        });
     }
 
     fn focus(&self, shell: Uuid) -> Option<editors::FocusReport> {

@@ -169,6 +169,9 @@ pub(crate) fn keep_position(state: State) {
                 .state(POSITION)
                 .and_then(ViewState::value::<Position>)
         }) else {
+            // Not read yet: it is tried again once it is, but a place the text was opened at
+            // need not wait for it.
+            state.position_restored.set(true);
             return;
         };
         restored.set(true);
