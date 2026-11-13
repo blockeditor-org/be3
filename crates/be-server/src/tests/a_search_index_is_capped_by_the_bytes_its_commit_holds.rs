@@ -53,7 +53,10 @@ async fn a_search_index_is_capped_by_the_bytes_its_commit_holds() {
 
     // Composed at the probe's time, so the commit object is the probe's size.
     let (first, index_chunks) = author.compose(&shared_text, 0, None);
-    assert_eq!(index_chunks, chunks, "the index holds the document's chunks");
+    assert_eq!(
+        index_chunks, chunks,
+        "the index holds the document's chunks"
+    );
     assert_eq!(
         bytes_of(&author, &author.objects_of(first, &index_chunks)),
         cap
@@ -70,10 +73,7 @@ async fn a_search_index_is_capped_by_the_bytes_its_commit_holds() {
     let refused = client
         .publish(&author, index, grown, grown_chunks, Some(first), now)
         .await;
-    assert!(
-        refused_as(&refused, ErrorCode::OverQuota),
-        "{refused:?}"
-    );
+    assert!(refused_as(&refused, ErrorCode::OverQuota), "{refused:?}");
 
     // What replaces the base's chunks with fewer bytes fits: the dropped ones no longer count.
     let (smaller, smaller_chunks) = author.compose(b"less\n", now, Some(first));

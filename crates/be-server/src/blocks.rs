@@ -772,12 +772,9 @@ impl ServerStore {
                         )
                         .collect();
                     let base_bytes = match expected {
-                        Some(expected) => store.commit_bytes(
-                            database,
-                            identity.organization,
-                            block,
-                            expected,
-                        )?,
+                        Some(expected) => {
+                            store.commit_bytes(database, identity.organization, block, expected)?
+                        }
                         None => 0,
                     };
                     let bytes = base_bytes

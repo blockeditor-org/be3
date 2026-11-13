@@ -1517,7 +1517,12 @@ pub async fn write<S: ObjectStore>(
     let mut content = load(peer, head).await?;
     outdate_ancestors(peer, &content, &mut batch).await?;
     let needs_text = content
-        .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch, latest())
+        .apply(
+            &PeerParts(peer),
+            Uuid::new_v4().into_bytes(),
+            batch,
+            latest(),
+        )
         .await
         .map_err(|error| error.to_string())?;
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
