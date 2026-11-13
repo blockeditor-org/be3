@@ -16,7 +16,7 @@ fn note(text: RichText) -> BeuiTest<CanvasRoot> {
 
 fn pink_pixels(editor: &mut BeuiTest<CanvasRoot>) -> usize {
     palette_runs(editor, "copy as png");
-    let copied = editor.take_copied_images();
+    let copied = editor.take_copied(be_sdk_beui::beui::clipboard::formats::PNG);
     let [png] = copied.as_slice() else {
         panic!("Copy as PNG puts one image on the clipboard");
     };
