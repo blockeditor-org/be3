@@ -17,6 +17,8 @@ use beui::styled::*;
 use beui::{Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
 
+use be_host_runtime::InstanceEvent;
+
 use be_host_desktop::desktop_host::{DesktopHost, Host, PlacedWindow};
 
 use super::app_view::{AppView, ChildView, ViewEditor};
@@ -1166,7 +1168,7 @@ fn frame_menu(editors: &Editors, block: Uuid) -> Vec<be_sdk_api::MenuEntry> {
         .unwrap_or_default()
 }
 
-pub(super) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
+pub(crate) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
     let editors = editors();
     let owner = chrome_owner(&editors, block);
     let anchor = anchor.filter(|_| owner == block);
@@ -1185,7 +1187,7 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     }
 }
 
-mod camera;
+pub(crate) mod camera;
 use camera::{Camera, CameraSpec, CameraView};
 
 #[component]
@@ -1531,20 +1533,16 @@ fn BlockFrameView(
         read_only,
         revision,
     };
-    create_effect(move || {
-        revision.get();
-        if be_host_runtime::take_details(&app_id.value(), instance) {
-            on_details.call(());
-        }
-    });
-    if let Some(tab) = use_context::<TabContext>() {
-        create_effect(move || {
-            revision.get();
-            if be_host_runtime::take_leaving(&app_id.value(), instance) {
+    let tab = use_context::<TabContext>();
+    super::own_frame(&app_id.value(), instance, move |event| match event {
+        InstanceEvent::Details => on_details.call(()),
+        InstanceEvent::Leaving => {
+            if let Some(tab) = tab {
                 tab.exit.call(());
             }
-        });
-    }
+        }
+        _ => {}
+    });
     let fits = create_memo(move || chrome.get() == Chrome::Drawn);
     let zoomable = handle.pan_and_zoom;
     let child_view = child_view(block, View::MAIN);
