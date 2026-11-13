@@ -155,6 +155,9 @@ pub(super) enum Command {
         bytes: Vec<u8>,
     },
     Flush(std::sync::mpsc::Sender<()>),
+    /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
+    /// `Flush`, nothing stays to seal what is edited later.
+    SealOwed,
     History {
         block: Uuid,
         redo: bool,
@@ -308,6 +311,7 @@ impl Command {
 
             Command::Replace { .. } => "replace",
             Command::Flush(..) => "flush",
+            Command::SealOwed => "seal owed",
             Command::History { .. } => "history",
             #[cfg(test)]
             Command::Presence { .. } => "presence",
@@ -377,6 +381,7 @@ impl Command {
                 | Command::History { .. }
                 | Command::Seed { .. }
                 | Command::Flush(_)
+                | Command::SealOwed
                 | Command::Storage
                 | Command::WatchVersion(_)
                 | Command::DismissPairing(_)
@@ -457,6 +462,7 @@ impl Command {
             | Command::Import(_)
             | Command::ContentOfFile { .. }
             | Command::Flush(_)
+            | Command::SealOwed
             | Command::ApprovePairing { .. }
             | Command::DismissPairing(_)
             | Command::Contact(_)
@@ -3245,6 +3251,13 @@ async fn apply(
                 tasks.sync(peer, shared);
             }
             flushes.push(done);
+            true
+        }
+        Command::SealOwed => {
+            replicas.keep_all(ctx).await;
+            if replicas.take_kept() {
+                tasks.sync(peer, shared);
+            }
             true
         }
     }
