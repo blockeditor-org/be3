@@ -12,10 +12,7 @@ fn a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it() {
         screen: ScreenId(0),
         opener,
         placement: be_sdk_api::WindowPlacement::AtPointer,
-        size: Size {
-            width: 200.0,
-            height: 100.0,
-        },
+        size: Vec2 { x: 200.0, y: 100.0 },
         level: be_sdk_api::WindowLevel::Normal,
     });
     let (commit, presented) = rig.draw_and_present();
@@ -64,10 +61,7 @@ fn a_window_is_committed_with_its_own_screen_in_the_frame_that_opens_it() {
     window.screen = open.screen;
     window.view = ViewId(9);
     window.placement = ViewPlacement::Host(be_sdk_api::HostView::Window);
-    window.metrics.logical = Size {
-        width: 200.0,
-        height: 100.0,
-    };
+    window.metrics.logical = Vec2 { x: 200.0, y: 100.0 };
     window.metrics.pixel_width = 400;
     window.metrics.pixel_height = 200;
     rig.requests.push(window);

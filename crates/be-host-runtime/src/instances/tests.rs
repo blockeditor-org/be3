@@ -210,6 +210,96 @@ thread_local! {
         be_sdk_api::ops::Connection::new(be_sdk_api::ops::Side::Host);
 }
 
+/// A counter block with one saved head, for revision previews: the block and that head.
+fn saved_counter() -> (Uuid, [u8; 32]) {
+    use be_block_content::{BlockContent, LiveEdit};
+    let block = Uuid::new_v4();
+    be_host_stack::hold(block, be_type_example_counter::CounterContent::CONTENT_TYPE);
+    be_host_stack::operate(
+        block,
+        be_type_example_counter::CounterContent::encode_operation(
+            &be_type_example_counter::Counter::add(1),
+        ),
+    );
+    be_host_stack::flush_and_send();
+    let head =
+        be_host_stack::wait_until(|shared| shared.graph.get(block).and_then(|node| node.head));
+    (block, *head.hash().as_bytes())
+}
+
+/// The editor opens a `revision-preview` of `block` at `commit` as `preview`, and waits on its
+/// `opened` as `opened` when it names one.
+fn preview_revision(
+    instances: &mut Instances,
+    preview: OpId,
+    opened: Option<OpId>,
+    block: Uuid,
+    commit: [u8; 32],
+) {
+    use be_sdk_api::embed::host_services::Call as Services;
+    instances.serve(crate::wire::Service {
+        instance: INSTANCE,
+        call: Services::RevisionPreviewNew {
+            resource: be_sdk_api::embed::host_services::RevisionPreview(preview),
+            block: block.into_bytes(),
+            commit,
+        },
+    });
+    if let Some(opened) = opened {
+        instances.serve(crate::wire::Service {
+            instance: INSTANCE,
+            call: Services::RevisionPreviewOpened {
+                this: be_sdk_api::embed::host_services::RevisionPreview(preview),
+                reply: reply(opened),
+            },
+        });
+    }
+}
+
+/// The previews the stack opened of `block`, each with whether it was let go (1) or not (0):
+/// the stack records only a preview's first release.
+fn previews_of(block: Uuid) -> Vec<(Uuid, usize)> {
+    be_host_stack::wait_until(|shared| {
+        Some(
+            shared
+                .revision_previews
+                .iter()
+                .filter(|(id, preview)| preview.source == block && preview.root == **id)
+                .map(|(id, _)| {
+                    let released = shared
+                        .released_previews
+                        .iter()
+                        .filter(|gone| *gone == id)
+                        .count();
+                    (*id, released)
+                })
+                .collect(),
+        )
+    })
+}
+
+/// What the instance answers until `done` holds of everything it answered and the previews of
+/// `block`, waiting on what the stack sends back between tries.
+fn answered_until(
+    instances: &mut Instances,
+    block: Uuid,
+    done: impl Fn(&[(OpId, Outcome)], &[(Uuid, usize)]) -> bool,
+) -> Vec<(OpId, Outcome)> {
+    let mut answers = Vec::new();
+    loop {
+        let seen = be_host_base::host::letters_posted();
+        answers.extend(instances.take_answers());
+        if done(&answers, &previews_of(block)) {
+            return answers;
+        }
+        assert!(
+            be_host_base::host::wait_for_letter(seen, std::time::Duration::from_secs(30)),
+            "nothing more came back: {answers:?} {:?}",
+            previews_of(block)
+        );
+    }
+}
+
 fn reply<T, S>(op: OpId) -> be_sdk_api::ops::Reply<T, S> {
     HOST.with(|host| be_sdk_api::ops::Reply::new(host, op))
 }
@@ -551,7 +641,10 @@ mod a_render_still_asked_is_answered_with_nothing_when_its_instance_goes;
 mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_app_hears_its_childrens_statuses_again;
 mod a_restarted_app_is_sent_its_content_and_blocks_again;
+mod a_restarted_app_lets_go_of_its_revision_previews_and_numbers_them_afresh;
 mod a_restarted_app_no_longer_shows_its_views_stopped;
+mod a_revision_preview_dropped_before_it_opens_is_let_go_once_it_opens;
+mod a_revision_preview_dropped_once_open_is_let_go;
 mod a_screen_asked_to_take_the_keyboard_reaches_its_view;
 mod a_stale_input_method_does_not_release_owed_keys;
 mod a_tap_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
@@ -571,6 +664,7 @@ mod an_app_makes_an_agent_for_a_block_it_made_only_while_it_sits_alone_in_unfile
 mod an_app_reaches_only_the_hosts_its_manifest_names;
 mod an_app_seeds_only_blocks_it_holds;
 mod an_editor_can_read_and_edit_a_block_it_watches;
+mod an_editor_closing_lets_go_of_its_revision_previews;
 mod an_editor_is_only_sent_messages_its_app_session_accepts;
 mod an_input_capture_opened_again_is_not_told_the_earlier_chord;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;

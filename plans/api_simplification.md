@@ -48,14 +48,3 @@ numbers are from when this plan was written.
   connection, as they already do for `append`.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
-
-## Smaller cleanups found alongside
-
-- `shell-dialog` is defined in `host-services.wit` but used only by `app.wit`;
-  move it.
-- The app protocol's `size {width, height}` is converted to and from `vec2`
-  in many places; use `be3:ui`'s `vec2`.
-- `preview-revision` and `release-revision` (`host-services.wit`) become a
-  `revision-preview` resource whose drop releases it, like `replica`.
-- be-sdk-beui re-exports `ChildHandle as ChildBlockHandle`; name the type
-  `ChildBlockHandle`.

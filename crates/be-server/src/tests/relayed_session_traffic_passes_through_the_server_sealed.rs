@@ -26,6 +26,7 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
         "the relayed payload carried its plaintext"
     );
 
+    let sent = be_block_commit::now_milliseconds();
     let response = peer
         .relay(block, Some(owner_id), RelayKind::Edit, sealed.clone())
         .await;
@@ -43,11 +44,16 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
         block: on,
         from,
         payload,
+        received,
         ..
     } = relayed
     else {
         panic!("the relay never arrived: {relayed:?}");
     };
+    assert!(
+        (sent..=be_block_commit::now_milliseconds()).contains(&received),
+        "the server stamps a relay with when it took it"
+    );
     assert_eq!(on, block);
     assert_eq!(from, peer_id);
     assert_eq!(payload, sealed);

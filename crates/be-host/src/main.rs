@@ -2570,7 +2570,7 @@ impl HostCore {
                     .find(|organization| organization.id == opening.organization)
                     .cloned();
                 match other {
-                    Some(other) if now.3 == 0 => {
+                    Some(other) if now.2 == 0 => {
                         self.open_organization(other);
                         web_push::hold(opening);
                     }

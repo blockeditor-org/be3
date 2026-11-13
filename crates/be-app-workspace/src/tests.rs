@@ -68,6 +68,7 @@ mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
+mod each_revision_picked_or_left_closes_the_preview_before_it;
 mod escape_closes_the_add_menu_and_only_its_cards_ask_to_be_framed;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
@@ -214,9 +215,9 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
                 status.group = Some(window.program_id).filter(|id| !id.is_empty());
                 status.raised = window.raised;
                 status.fullscreen = window.fullscreen;
-                status.intrinsic = Some(be_sdk_beui::Size {
-                    width: window.size.x,
-                    height: window.size.y,
+                status.intrinsic = Some(be_sdk_beui::Vec2 {
+                    x: window.size.x,
+                    y: window.size.y,
                 });
             });
             reported = true;

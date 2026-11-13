@@ -78,11 +78,17 @@ pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 
 
 const JOURNAL_LIMIT: usize = 1024;
 /// An operation whose bytes pass this goes by the part they were put as (`Payload::Part`).
-const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
+pub(crate) const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 const REPLACE_ATTEMPTS: u8 = 4;
 /// How many commits a follower kept the owner remembers having saved.
 const SAVED_KEPT: usize = 64;
 const DIVERGED: &str = "an edit from a peer running a different version";
+const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
+
+/// Whether `operation` already holds an arrival stamp (`LiveEdit::arrival`).
+fn claims_arrival<C: LiveEdit>(operation: &mut C::Op) -> bool {
+    C::arrival(operation).is_some_and(|slot| slot.is_some())
+}
 
 pub(crate) struct Opened {
     pub(crate) replica: ReplicaId,
@@ -220,6 +226,8 @@ enum Job<C> {
         wire: Option<Wire>,
         /// What the server checked the sender may send.
         kind: RelayKind,
+        /// When the server took it, by its clock.
+        received: Option<i64>,
     },
     Seal {
         sealing: Sealing,
@@ -628,6 +636,7 @@ where
                 from,
                 wire: Wire::decode(&bytes),
                 kind: delivery.map_or(RelayKind::Peer, |delivery| delivery.kind),
+                received: delivery.map(|delivery| delivery.received),
             }),
             Input::Appended {
                 from,
@@ -855,6 +864,7 @@ where
                 from,
                 wire: Some(wire),
                 kind,
+                ..
             } = job
             {
                 let (from, wire) = (*from, wire.clone());
@@ -1388,7 +1398,12 @@ where
         }
         match job {
             Job::Input(input) => self.handle(input),
-            Job::Heard { from, wire, .. } => self.heard(from, wire),
+            Job::Heard {
+                from,
+                wire,
+                received,
+                ..
+            } => self.heard(from, wire, received),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
             Job::Replace {
@@ -1518,11 +1533,11 @@ where
         }
     }
 
-    fn heard(&mut self, from: ClientId, wire: Option<Wire>) {
+    fn heard(&mut self, from: ClientId, wire: Option<Wire>, received: Option<i64>) {
         let Some(wire) = wire else {
             return self.unreadable_message();
         };
-        self.receive(from, wire);
+        self.receive(from, wire, received);
         if self.waiting.is_none() {
             self.flush();
         }
@@ -2591,11 +2606,18 @@ where
         }
     }
 
-    fn edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
+    fn edit(&mut self, mut operation: C::Op, origin: Option<EditorId>) -> bool {
         self.active = true;
         if self.diverged {
             self.error(DIVERGED);
             return false;
+        }
+        // Only the owner stamps an arrival: taken from the editor and shown as it was, so it
+        // is never sent and never waits to be accepted.
+        if claims_arrival::<C>(&mut operation) {
+            self.error(CLAIMED_ARRIVAL);
+            self.reproject();
+            return true;
         }
         self.visible.apply(&operation);
         // Asked as the edit is made, so the host keeps it with the edit from here on.
@@ -3202,7 +3224,7 @@ where
         self.send_wire(owner, &Wire::Session(message));
     }
 
-    fn receive(&mut self, from: ClientId, wire: Wire) {
+    fn receive(&mut self, from: ClientId, wire: Wire, received: Option<i64>) {
         let message = match wire {
             Wire::Session(message) => message,
             Wire::Tag(tag) => {
@@ -3234,16 +3256,38 @@ where
             return;
         }
         match message {
-            SessionMessage::Submit { id, base, payload } => {
+            SessionMessage::Submit {
+                id,
+                base,
+                mut payload,
+            } => {
                 if !self.is_owner() || base < self.replaced_at {
                     return;
                 }
-                let operation = match self.operation(&payload) {
+                let mut operation = match self.operation(&payload) {
                     Some(operation) => operation,
                     // Its part could not be read, which was reported.
                     None if payload.part().is_some() => return,
                     None => return self.unreadable_message(),
                 };
+                // A replica never sends a stamp of its own (`edit`), so one was forged, or the
+                // type pre-stamps: dropped, and reported as an incompatible message.
+                if claims_arrival::<C>(&mut operation) {
+                    return self.unreadable_message();
+                }
+                // An operation that travels as a part keeps no stamp, as one that stamping
+                // would take past what is relayed inline: either would need a new part.
+                if let (Some(received), Payload::Inline(_)) = (received, &payload) {
+                    let mut stamped = operation.clone();
+                    if let Some(slot) = C::arrival(&mut stamped) {
+                        *slot = Some(received);
+                        let bytes = C::encode_operation(&stamped);
+                        if bytes.len() <= LARGEST_RELAYED_OPERATION {
+                            payload = Payload::Inline(bytes);
+                            operation = stamped;
+                        }
+                    }
+                }
                 let Role::Owner(sequencer) = &mut self.role else {
                     return;
                 };

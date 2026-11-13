@@ -106,9 +106,9 @@ fn view_screen(
         placement: view.placement,
         frame: None,
         metrics: ViewportMetrics {
-            logical: Size {
-                width: pixel_width as f32 / scale_factor,
-                height: pixel_height as f32 / scale_factor,
+            logical: Vec2 {
+                x: pixel_width as f32 / scale_factor,
+                y: pixel_height as f32 / scale_factor,
             },
             visible: Pos2::ZERO,
             pixel_width,

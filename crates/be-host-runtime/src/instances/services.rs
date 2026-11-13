@@ -81,9 +81,18 @@ impl<T, E: wire::Encode<Result<T, Failure>>> Answering<Result<T, Failure>, E> {
     }
 }
 
-impl Answering<Result<[u8; 16], Failure>> {
-    fn previewed(self, previewed: Result<Uuid, String>) {
-        self.deliver(Answer::Previewed(previewed.map_err(Failure::Failed)));
+/// A revision preview an editor holds (`revision-preview`): the preview once it opened, and
+/// the editor's `opened` while it waits.
+#[derive(Default)]
+pub(super) struct RevisionPreview {
+    opened: Option<Result<Uuid, Failure>>,
+    asked: Option<Reply<Result<[u8; 16], Failure>>>,
+}
+
+impl RevisionPreview {
+    /// The preview's block, once it opened.
+    pub(super) fn block(&self) -> Option<Uuid> {
+        self.opened.as_ref()?.as_ref().ok().copied()
     }
 }
 
@@ -104,6 +113,31 @@ impl Answering<Result<AccessListing, Failure>> {
 }
 
 impl Instances {
+    /// The editor dropped a revision preview, or gave up on its `opened`: a dropped preview
+    /// closes, and one still opening closes once it opens. Answers whether `op` was either.
+    pub(super) fn preview_ended(&mut self, op: OpId) -> bool {
+        for entry in self.entries.values_mut() {
+            if let Some(preview) = entry.revision_previews.remove(&op) {
+                if let Some(block) = preview.block() {
+                    revisions::release(block);
+                }
+                if let Some(work) = self.services.serving.remove(&op) {
+                    work.aborted.abort();
+                }
+                return true;
+            }
+            let asked = entry
+                .revision_previews
+                .values_mut()
+                .find(|preview| preview.asked.as_ref().map(Reply::op) == Some(op));
+            if let Some(preview) = asked {
+                preview.asked = None;
+                return true;
+            }
+        }
+        false
+    }
+
     fn work(&mut self, instance: EditorInstanceId, op: OpId) -> Aborted {
         let aborted = Aborted::default();
         let work = Work {
@@ -249,18 +283,55 @@ impl Instances {
                     },
                 );
             }
-            Call::PreviewRevision {
-                reply,
+            Call::RevisionPreviewNew {
+                resource,
                 block,
                 commit,
             } => {
-                let answering = self.answering(instance, reply);
+                let op = resource.op();
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return;
+                };
+                entry
+                    .revision_previews
+                    .insert(op, RevisionPreview::default());
+                self.owners.insert(op, instance);
+                self.work(instance, op);
+                let (sender, epoch) = (self.mail.answers.1.clone(), self.epoch);
                 let asked = revisions::Asked::Preview(commit);
                 revisions::request(Uuid::from_bytes(block), asked, move |previewed| {
                     if let revisions::Answered::Previewed(previewed) = previewed {
-                        answering.previewed(previewed);
+                        sender.send(Delivered {
+                            epoch,
+                            instance,
+                            op,
+                            answer: Answer::Previewed(previewed.map_err(Failure::Failed)),
+                        });
                     }
                 });
+            }
+            Call::RevisionPreviewOpened { this, reply } => {
+                let Some(preview) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.revision_previews.get_mut(&this.op()))
+                else {
+                    let canceled = (reply.into_op(), Outcome::Err(OpError::Canceled));
+                    return self.services.answers.push(canceled);
+                };
+                match preview.opened.clone() {
+                    Some(opened) => {
+                        let opened =
+                            opened.map(|preview| self.local(instance, preview.into_bytes()));
+                        self.answer_now(reply, opened);
+                    }
+                    None => {
+                        if let Some(earlier) = preview.asked.replace(reply) {
+                            let canceled = (earlier.into_op(), Outcome::Err(OpError::Canceled));
+                            self.services.answers.push(canceled);
+                        }
+                    }
+                }
             }
             Call::RestoreRevision {
                 reply,
@@ -274,15 +345,6 @@ impl Instances {
                         answering.send_or_fail(restored);
                     }
                 });
-            }
-            Call::ReleaseRevision { reply, preview } => {
-                self.services.answers.push(reply.answer(&()));
-                let preview = Uuid::from_bytes(preview);
-                if let Some(entry) = self.entries.get_mut(&instance)
-                    && entry.revision_previews.remove(&preview)
-                {
-                    revisions::release(preview);
-                }
             }
             Call::PickFile { reply, filter } => {
                 let answering = self.answering(instance, reply);
@@ -622,7 +684,7 @@ impl Instances {
     }
 
     pub fn withdraw(&mut self, op: OpId) {
-        if self.fetch_ended(op) {
+        if self.fetch_ended(op) || self.preview_ended(op) {
             return;
         }
         let Some(work) = self.services.serving.remove(&op) else {
@@ -667,17 +729,25 @@ impl Instances {
         let instance = delivered.instance;
         let outcome = match delivered.answer {
             Answer::Done(outcome) => outcome,
-            Answer::Previewed(Ok(preview)) if !live => {
-                revisions::release(preview);
-                return;
-            }
             Answer::Previewed(previewed) => {
-                if let (Ok(preview), Some(entry)) = (&previewed, self.entries.get_mut(&instance)) {
-                    entry.revision_previews.insert(*preview);
-                }
-                let previewed: Result<[u8; 16], Failure> =
-                    previewed.map(|preview| self.local(instance, preview.into_bytes()));
-                Outcome::returned(&previewed)
+                let held = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.revision_previews.get_mut(&delivered.op))
+                    .filter(|_| live);
+                let Some(held) = held else {
+                    if let Ok(preview) = previewed {
+                        revisions::release(preview);
+                    }
+                    return;
+                };
+                held.opened = Some(previewed.clone());
+                let Some(asked) = held.asked.take() else {
+                    return;
+                };
+                let previewed = previewed.map(|preview| self.local(instance, preview.into_bytes()));
+                self.services.answers.push(asked.answer(&previewed));
+                return;
             }
             Answer::Imported(imported) => {
                 let imported = imported.map(|imported| {

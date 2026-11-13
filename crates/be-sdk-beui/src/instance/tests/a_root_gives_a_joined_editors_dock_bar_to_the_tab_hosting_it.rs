@@ -2,7 +2,7 @@ use super::*;
 use be_sdk_api::{
     DockAlign, DockBar, DockBarEdge, DockBarPlacement, DockDeclaration, DockDeclaredChild,
     DockEdge, DockHold, DockItem, DockItemKind, DockMessage, DockPane, DockTab, DockTabPath,
-    DockTree, DockUpdate, Size,
+    DockTree, DockUpdate, Vec2,
 };
 
 fn declared() -> DockDeclaration {
@@ -50,10 +50,7 @@ fn declared() -> DockDeclaration {
                 edge: DockEdge::Bottom,
                 align: DockAlign::Center,
             }),
-            size: Size {
-                width: 100.0,
-                height: 20.0,
-            },
+            size: Vec2 { x: 100.0, y: 20.0 },
             pane: None,
         }],
     }
