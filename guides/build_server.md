@@ -68,13 +68,15 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
 - **Behind a proxy, through the tunnel.** A cloud session's proxy speaks only HTTP/1.1 and handles about 240 requests
   a second however many connections carry them, and a cache-warm `./scripts/verify` makes about 24,000 calls (two per
   cached action), so with each call its own request it spent about 100 s in that limit. So for nl.be3.pfg.pw the relay
-  runs with `-tunnel` (scripts/internal/re-relay/tunnel.go): HTTP/2 inside one byte stream carried by a long GET for
+  runs with `-tunnels=2` (scripts/internal/re-relay/tunnel.go): HTTP/2 inside a byte stream carried by a long GET for
   what the server sends and POSTs for what the relay sends, each POST carrying everything written while the ones
-  before it were out. Caddy passes `/__be3-tunnel/*` to re-relay's `tunnel-server` (`nl-tunnel.service`), which joins
+  before it were out. One tunnel moves blobs (ByteStream, the batch reads and updates, GetTree) and the other carries
+  the rest, so a small answer never waits behind a download in the one stream a tunnel sends back. Caddy passes `/__be3-tunnel/*` to re-relay's `tunnel-server` (`nl-tunnel.service`), which joins
   each tunnel to NativeLink. HTTP/2's own frames (WINDOW_UPDATE as a download is read, PING, SETTINGS) wait up to
   50 ms and take at most 2 of the 16 POSTs, so a download cannot keep calls waiting for one. Every 30 s each tunnel
   writes its POSTs' count and times, and how long calls waited for one, to `target/re-relay.log`. `BE3_NL_TUNNEL=0`
-  sends each call as its own request instead, to compare.
+  sends each call as its own request instead, and `=1` everything through one tunnel, to compare. The
+  tunnel-server logs, every 30 s, the most bytes that queued behind each GET (`journalctl -u nl-tunnel`).
 - **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
   and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
 - **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB

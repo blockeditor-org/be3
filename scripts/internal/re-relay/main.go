@@ -19,9 +19,11 @@
 // blocks gRPC over HTTP/2 (guides/build_server.md). It is used there with or
 // without a proxy.
 //
-// -tunnel sends every call over HTTP/2 inside a tunnel of a few long HTTP/1.1
-// requests to the upstream's tunnel-server (tunnel.go), for a proxy that
-// handles few requests a second:
+// -tunnels sends every call over HTTP/2 inside tunnels of a few long HTTP/1.1
+// requests each to the upstream's tunnel-server (tunnel.go), for a proxy that
+// handles few requests a second: 1 tunnel for all of them, or 2, one for bulk
+// transfers and one for the rest, so that a small answer never queues behind a
+// download in the one stream a tunnel sends back:
 //
 //	re-relay tunnel-server -listen 127.0.0.1:50070 -upstream 127.0.0.1:50052
 package main
@@ -68,16 +70,16 @@ func main() {
 	logPath := flags.String("log", "", "where a relay ensure starts writes its errors")
 	connections := flags.Int("connections", 128, "at most this many connections to the upstream at once")
 	http1 := flags.Bool("http1", false, "send every call as HTTP/1.1")
-	tunnel := flags.Bool("tunnel", false, "send every call over HTTP/2 through a tunnel to the upstream's tunnel-server")
+	tunnels := flags.Int("tunnels", 0, "send every call over HTTP/2 through this many tunnels to the upstream's tunnel-server (0, 1 or 2)")
 	flags.Parse(os.Args[2:])
 	if *upstream == "" {
 		fail("-upstream is required")
 	}
 	switch os.Args[1] {
 	case "serve":
-		serve(*listen, *upstream, *version, *connections, *http1, *tunnel)
+		serve(*listen, *upstream, *version, *connections, *http1, *tunnels)
 	case "ensure":
-		ensure(*listen, *upstream, *version, *logPath, *connections, *http1, *tunnel)
+		ensure(*listen, *upstream, *version, *logPath, *connections, *http1, *tunnels)
 	case "tunnel-server":
 		serveTunnel(*listen, *upstream)
 	default:
@@ -90,7 +92,7 @@ func fail(format string, args ...any) {
 	os.Exit(1)
 }
 
-func ensure(listen, upstream, version, logPath string, connections int, http1, tunnel bool) {
+func ensure(listen, upstream, version, logPath string, connections int, http1 bool, tunnels int) {
 	local := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 5 * time.Second}
 	base := "http://" + listen + controlPath
 	resp, err := local.Get(base)
@@ -113,7 +115,7 @@ func ensure(listen, upstream, version, logPath string, connections int, http1, t
 		fail("%v", err)
 	}
 	command := exec.Command(self, "serve", "-listen", listen, "-upstream", upstream,
-		"-version", version, "-connections", strconv.Itoa(connections), "-http1="+strconv.FormatBool(http1), "-tunnel="+strconv.FormatBool(tunnel))
+		"-version", version, "-connections", strconv.Itoa(connections), "-http1="+strconv.FormatBool(http1), "-tunnels="+strconv.Itoa(tunnels))
 	detach(command)
 	if logPath != "" {
 		log, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -135,10 +137,9 @@ func ensure(listen, upstream, version, logPath string, connections int, http1, t
 	}
 }
 
-func serve(listen, upstream, version string, connections int, http1, tunnel bool) {
+func serve(listen, upstream, version string, connections int, http1 bool, tunnels int) {
 	// The Authorization header buck2 sends, which a tunnel's own requests carry too.
 	authorization := new(atomic.Pointer[string])
-	var transport http.RoundTripper
 	scheme := "https"
 	plain := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
@@ -152,9 +153,19 @@ func serve(listen, upstream, version string, connections int, http1, tunnel bool
 	if http1 {
 		plain.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 	}
-	transport = plain
-	if tunnel {
-		transport = tunnelTransport(upstream, authorization)
+	transport := func(string) http.RoundTripper { return plain }
+	if tunnels > 0 {
+		calls := tunnelTransport(upstream, authorization)
+		transfers := calls
+		if tunnels > 1 {
+			transfers = tunnelTransport(upstream, authorization)
+		}
+		transport = func(path string) http.RoundTripper {
+			if bulk[path] {
+				return transfers
+			}
+			return calls
+		}
 		scheme = "http"
 	}
 
@@ -181,7 +192,7 @@ func serve(listen, upstream, version string, connections int, http1, tunnel bool
 		if a := r.Header.Get("Authorization"); a != "" {
 			authorization.Store(&a)
 		}
-		relay(transport, scheme, upstream, cache, w, r)
+		relay(transport(r.URL.Path), scheme, upstream, cache, w, r)
 	})
 
 	server.Protocols = new(http.Protocols)
@@ -219,6 +230,15 @@ const attempts = 5
 // whole account of the action, so a repeated one is harmless; only whole
 // messages are passed on, so a cut never leaves half of one.
 const resumes = 24
+
+// The calls that move blobs, which with -tunnels=2 go through a tunnel of their own.
+var bulk = map[string]bool{
+	"/google.bytestream.ByteStream/Read":                                          true,
+	"/google.bytestream.ByteStream/Write":                                         true,
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs":   true,
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs": true,
+	"/build.bazel.remote.execution.v2.ContentAddressableStorage/GetTree":          true,
+}
 
 var resumable = map[string]bool{
 	"/build.bazel.remote.execution.v2.Execution/Execute":       true,

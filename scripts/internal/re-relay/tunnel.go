@@ -507,6 +507,8 @@ type tunnelSession struct {
 	gets      int  // the GET streaming now, by number
 	seen      time.Time
 	streaming bool
+	// Since the last report: bytes sent down, and the most that waited behind the GET to be sent.
+	sent, mostQueued int64
 }
 
 type tunnelServer struct {
@@ -724,7 +726,9 @@ func (t *tunnelServer) down(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		from := position - s.base
+		s.mostQueued = max(s.mostQueued, int64(len(s.down))-from)
 		chunk := append([]byte(nil), s.down[from:min(int64(len(s.down)), from+256<<10)]...)
+		s.sent += int64(len(chunk))
 		s.seen = time.Now()
 		s.mu.Unlock()
 		if _, err := w.Write(chunk); err != nil {
@@ -746,13 +750,18 @@ func (t *tunnelServer) close(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Ends sessions no client has asked anything of for ten minutes.
+// Ends sessions no client has asked anything of for ten minutes, and every 30 s logs what each busy one sent and the
+// most that queued behind its GET: what an answer may wait behind on its way down.
 func (t *tunnelServer) reap() {
-	for range time.Tick(time.Minute) {
+	for range time.Tick(30 * time.Second) {
 		t.mu.Lock()
 		for id, s := range t.sessions {
 			s.mu.Lock()
 			idle := !s.streaming && time.Since(s.seen) > 10*time.Minute
+			if s.sent > 0 {
+				fmt.Fprintf(os.Stderr, "tunnel %s: sent %d bytes, at most %d queued behind the GET\n", id[:8], s.sent, s.mostQueued)
+			}
+			s.sent, s.mostQueued = 0, 0
 			s.mu.Unlock()
 			if idle {
 				delete(t.sessions, id)
