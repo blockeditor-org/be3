@@ -1509,7 +1509,8 @@ impl Versions {
             .insert(block);
     }
 
-    /// Stops computing a block's status; the next `refresh` lets go of what it read.
+    /// Stops computing a block's status. The loop refreshes the statuses each round, so the
+    /// round that runs this command lets go of what the status read (`refresh`).
     pub(super) fn unwatch(shared: &Arc<Mutex<Shared>>, block: Uuid) {
         shared
             .lock()
@@ -1544,9 +1545,12 @@ impl Versions {
         let attached = context.peer.is_attached();
         let connection = context.peer.connection();
         let mut watching = self.watching.lock().unwrap_or_else(PoisonError::into_inner);
+        // Detached, what is watched was watched on a connection that is gone, and the next one
+        // starts from nothing (`reconnected`): only forget it, or the release would come off
+        // another's watch on the next connection.
         watching.retain(|block| {
             let kept = wanted.contains(block);
-            if !kept {
+            if !kept && attached {
                 connection.unwatch(*block);
             }
             kept

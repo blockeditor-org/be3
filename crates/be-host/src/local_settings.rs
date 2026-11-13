@@ -225,6 +225,13 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
     /// Notes what the host stack changed: a layer block that changed is read again at the next
     /// `sync`.
     pub(crate) fn heard(&mut self, changes: &be_host_stack::Changes) {
+        if changes.every_block {
+            // The stack started or stopped: revisions count again from one, so what was sent
+            // is sent again unless the content the stack opens holds it.
+            for outbox in &mut self.outboxes {
+                outbox.sent_at = None;
+            }
+        }
         if LAYERS
             .into_iter()
             .filter_map(|layer| self.blocks.block(layer))
@@ -246,12 +253,17 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
                     continue;
                 };
                 be_host_stack::hold(block, R::CONTENT_TYPE);
-                // One not loaded yet is read when it arrives, which the stack tells of.
+                // One not loaded yet, or let go (the stack stopped), is read when it arrives,
+                // which the stack tells of. Its revisions count again from one then, so nothing
+                // is sent at the one read before.
                 let Some(content) = be_host_stack::content(block) else {
+                    self.revisions.remove(&block);
                     return;
                 };
-                self.revisions.insert(block, content.revision);
                 read.push((layer, block, content));
+            }
+            for (_, block, content) in &read {
+                self.revisions.insert(*block, content.revision);
             }
         }
         for layer in LAYERS {

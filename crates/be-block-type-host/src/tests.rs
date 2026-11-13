@@ -16,12 +16,16 @@ use crate::{Conflict, Host, Replicas, in_process, started};
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
 mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_noted_seal;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
+mod a_module_started_by_an_open_tells_the_host_of_its_kinds;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
 mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
 mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
+
+/// How often a module registered a kind (`Host::kinds_changed`).
+static KINDS_CHANGED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// A host that keeps nothing, for tests of stateless requests.
 #[derive(Default)]
@@ -36,7 +40,9 @@ impl Host for Quiet {
 
     fn wake() {}
 
-    fn kinds_changed() {}
+    fn kinds_changed() {
+        KINDS_CHANGED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
 
     fn record(_: &Arc<Mutex<Self>>, error: ClientError) {
         eprintln!("{error}");

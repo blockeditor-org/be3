@@ -453,6 +453,7 @@ pub type Ctx<'a, H> = (&'a Arc<Peer<<H as Host>::Store>>, &'a Arc<Mutex<H>>);
 
 impl<H: Host> Replicas<H> {
     pub fn new(modules: Modules) -> Self {
+        types::on_kinds_changed(H::kinds_changed);
         let (io, answers) = unbounded_channel();
         Self {
             modules,
@@ -653,12 +654,8 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
-        let before = types::kinds_revision();
         if let Some(module) = self.modules.module_of(content_type) {
             self.modules.load(module).await;
-        }
-        if types::kinds_revision() != before {
-            H::kinds_changed();
         }
         types::kind_of(content_type)
     }

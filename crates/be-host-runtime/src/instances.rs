@@ -3638,6 +3638,10 @@ impl Instances {
         for entry in self.entries.values_mut() {
             entry.blocks_due |= changes.graph;
             entry.searches_due |= changes.search;
+            if changes.every_block {
+                // The stack started anew, and its version statuses count from the start again.
+                entry.version_sent = None;
+            }
             if !entry.stale
                 && (changes.every_block || changes.blocks.iter().any(|block| entry.follows(*block)))
             {

@@ -3,7 +3,7 @@ use std::{
     convert::Infallible,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::AtomicBool,
     },
     time::{Duration, Instant},
 };
@@ -78,18 +78,28 @@ pub fn is_known(content_type: Uuid) -> bool {
             .contains_key(&content_type)
 }
 
-static KINDS: AtomicU64 = AtomicU64::new(0);
+/// What `register` tells: the host's `Host::kinds_changed`, set by `Replicas::new`.
+static KINDS_CHANGED: std::sync::Mutex<Option<fn()>> = std::sync::Mutex::new(None);
 
+pub(crate) fn on_kinds_changed(hook: fn()) {
+    *KINDS_CHANGED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(hook);
+}
+
+/// Registers a content type this host can read, from whichever path its module started on
+/// (asked for, launched eagerly, restarted), and tells the host (`Host::kinds_changed`).
 pub fn register(kind: Kind) {
     REGISTRY
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
-    KINDS.fetch_add(1, Ordering::Relaxed);
-}
-
-pub(crate) fn kinds_revision() -> u64 {
-    KINDS.load(Ordering::Relaxed)
+    let hook = *KINDS_CHANGED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(hook) = hook {
+        hook();
+    }
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;

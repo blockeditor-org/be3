@@ -2,6 +2,11 @@
 //! happens, never polled from the stack's state. Each watcher holds what changed since it last
 //! took it, and the first change after that wakes the host, so it hears once a frame whatever
 //! the number of changes.
+//!
+//! The watchers are a registry rather than letters in the host's mailbox: several consumers
+//! (be-host's core, each app runtime, the compositor, the input remapper) each want every
+//! change, and a mailbox delivers a letter once, to one receiver. It is process-wide, so stacks
+//! that run side by side in tests wake each other's watchers, which only costs a look.
 
 use be_wasm_threads::Mutex;
 use std::sync::{Arc, PoisonError, Weak};
