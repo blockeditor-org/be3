@@ -305,18 +305,6 @@ interface sessions {
         edit,
     }
 
-    /// What a relayed message carries, which the server checks against its
-    /// sender, since it cannot read the sealed payload.
-    enum relay-kind {
-        /// Presence, channel messages and asking to catch up: any participant.
-        peer,
-        /// Operations or session state: only from a participant with edit
-        /// access. Which of them only the owner says is the replicas' to
-        /// check: an owner whose lease lapsed unseen still relays what it
-        /// accepted, which the next owner takes over.
-        edit,
-    }
-
     /// What a session's `join` stream tells.
     variant session-event {
         /// First, once joined.
