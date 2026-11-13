@@ -82,3 +82,7 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   hold, and what it writes never reaches theirs. Done: the loop's `Versions` and the lane's
   share one cache of trees and commits (behind an `Arc`), and a status after a command reads
   nothing the command already read.
+- **A bounded walk to the merge base.** A version command's write of a block that moved
+  (`version.rs`, `merge_over`) finds the two heads' common ancestor by walking all the history
+  the device holds of each, up to four times a write. Done: the walk stops at a depth past
+  which the command falls back to the head it read as the base.

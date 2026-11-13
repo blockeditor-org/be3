@@ -837,6 +837,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
         forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
+        let tasks = Tasks::new();
         let mut session = Session {
             config: &config,
             peer: &peer,
@@ -851,10 +852,16 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             versions: Versions::default(),
             calls: {
                 let (calls, called) = tokio::sync::mpsc::unbounded_channel();
-                (LoopCalls(calls), called)
+                (
+                    LoopCalls {
+                        calls,
+                        tasks: tasks.0.clone(),
+                    },
+                    called,
+                )
             },
             line: Line::down(&config, 0, Duration::ZERO),
-            tasks: Tasks::new(),
+            tasks,
             drained_at: Duration::ZERO,
             versions_due: None,
             version_failures: 0,

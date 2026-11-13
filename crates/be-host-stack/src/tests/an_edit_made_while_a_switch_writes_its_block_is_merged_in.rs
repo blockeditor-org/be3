@@ -11,7 +11,7 @@ fn an_edit_made_while_a_switch_writes_its_block_is_merged_in() {
     harness.connect();
     let versioned = start_versioning("hello\n");
     show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
-    hold(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
+    open(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });
@@ -40,6 +40,11 @@ fn an_edit_made_while_a_switch_writes_its_block_is_merged_in() {
                 .is_some_and(|status| status.log.len() == 2 && status.error.is_none())
     });
 
+    // Closed here, so this device holds no session of it while another device writes it.
+    close(versioned.note);
+    wait_until("closed the note", |shared| {
+        !shared.blocks.contains_key(&versioned.note)
+    });
     let (reached, held) = tokio::sync::oneshot::channel();
     let (go, gone) = tokio::sync::oneshot::channel();
     *crate::version::BEFORE_WRITE
@@ -81,9 +86,10 @@ fn an_edit_made_while_a_switch_writes_its_block_is_merged_in() {
     });
     go.send(()).expect("the switch waits");
 
-    wait_until("finished the switch with the edit merged in", |shared| {
+    wait_until("finished the switch", |shared| {
         settled(shared, versioned.checkout)
-            && text_of(shared, versioned.note).as_deref() == Some("Oh\nhello\n")
+            && version_status(shared, versioned.checkout)
+                .is_some_and(|status| status.error.is_none())
             && shared
                 .graph
                 .get(versioned.note)
@@ -91,4 +97,16 @@ fn an_edit_made_while_a_switch_writes_its_block_is_merged_in() {
                 .as_deref()
                 == Some("Renamed")
     });
+    let text = runtime.block_on(async {
+        let peer = harness.outside_peer().await;
+        peer.open::<be_type_text::TextContent>(versioned.note)
+            .await
+            .expect("the note opens")
+            .map(|content| be_type_text::TextBlock::text(&content))
+    });
+    assert_eq!(
+        text.as_deref(),
+        Some("Oh\nhello\n"),
+        "the line added elsewhere is merged with what the switch wrote"
+    );
 }

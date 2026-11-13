@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::{
     replicas::Replicas,
-    worker::{Shared, Store},
+    worker::{Shared, Store, Tasks},
 };
 
 type Ctx<'a> = (&'a Arc<Peer<Store>>, &'a Arc<Mutex<Shared>>);
@@ -31,9 +31,13 @@ pub(crate) type LoopCall = Box<
     ) -> Pin<Box<dyn Future<Output = ()> + 'a>>,
 >;
 
-/// Hands calls to the worker's loop, which runs each when it next wakes.
+/// Hands calls to the worker's loop, which runs each when it next wakes, and waits on the
+/// outbox's drains as the loop's tasks do.
 #[derive(Clone)]
-pub(crate) struct LoopCalls(pub(crate) UnboundedSender<LoopCall>);
+pub(crate) struct LoopCalls {
+    pub(crate) calls: UnboundedSender<LoopCall>,
+    pub(crate) tasks: Tasks,
+}
 
 impl LoopCalls {
     async fn call<T: 'static>(
@@ -47,7 +51,7 @@ impl LoopCalls {
                 let _ = answer.send(work(replicas, (peer, shared)).await);
             })
         });
-        self.0
+        self.calls
             .send(call)
             .map_err(|_| "The block store stopped.".to_owned())?;
         be_host_base::host::wake();
@@ -165,6 +169,14 @@ impl Reach<'_> {
                     })
                     .await;
             }
+        }
+    }
+
+    /// Waits for what this device made of `block` to be sent: in the lane, through a drain of the
+    /// outbox; in the loop there is nothing to wait on, as nothing there writes a block.
+    pub(crate) async fn sent(&mut self, ctx: Ctx<'_>, block: Uuid) {
+        if let Reach::Loop(calls) = self {
+            calls.tasks.sent(ctx.0, ctx.1, Some(block)).await;
         }
     }
 

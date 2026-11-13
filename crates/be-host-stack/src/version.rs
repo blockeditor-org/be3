@@ -2298,10 +2298,21 @@ async fn publish(
         if let Some(theirs) = expected
             && made_from != expected
         {
-            if let Some(merged) = merge_over(context, block, made_from, &manifest, theirs).await? {
-                (manifest, references, derived) = merged;
+            match merge_over(context, block, made_from, &manifest, theirs).await? {
+                Some(merged) => {
+                    (manifest, references, derived) = merged;
+                    made_from = expected;
+                }
+                None => {
+                    // What this was made from is this device's edit, not sent yet, on top of
+                    // `expected`: what this writes holds it already. Once it is sent, it is the
+                    // head this writes over, so nothing of it is merged in twice.
+                    let ctx = (context.peer, context.shared);
+                    context.replicas.sent(ctx, block).await;
+                    expected = context.peer.remote_head(block).await.map_err(failed)?;
+                    continue;
+                }
             }
-            made_from = expected;
         }
         let held = node_of(
             context.peer,
@@ -2360,8 +2371,7 @@ fn merge_defined(
 
 /// `ours`, made from `block`'s content at `made_from`, merged with its content at `theirs`:
 /// the merge written, its references and derived metadata. `None` when there is nothing to
-/// merge: `theirs` is what `made_from` was built on (an edit of this device not sent yet, which
-/// the outbox merges with what this writes).
+/// merge: `theirs` is what `made_from` was built on, an edit of this device not sent yet.
 async fn merge_over(
     context: &mut Context<'_>,
     block: Uuid,
