@@ -108,4 +108,57 @@ fn the_blocks_a_clip_names_cross_into_a_checkout_by_local_id() {
     let mut drop = dragged(vec![copy]);
     instances.translate(&mut drop, false);
     assert_eq!(drop, dragged(vec![local]));
+
+    let mut offer = ShellCall::Tell {
+        reply: reply(next_op()),
+        instance: INSTANCE,
+        messages: vec![ShellMessage::Copy(be_sdk_api::shell_types::ClipOffer {
+            serial: 1,
+            items: vec![be_sdk_api::OfferedClipItem {
+                format: "be3/any-format".to_owned(),
+                body: Some(ClipBody {
+                    data: vec![1, 2, 3],
+                    refs: vec![local, elsewhere],
+                }),
+            }],
+        })],
+    };
+    instances.translate(&mut offer, true);
+    let ShellCall::Tell { messages, .. } = &offer else {
+        unreachable!()
+    };
+    let [ShellMessage::Copy(offered)] = &messages[..] else {
+        unreachable!()
+    };
+    assert_eq!(
+        offered.items[0].body.as_ref().map(|body| &body.refs[..]),
+        Some(&[copy, elsewhere][..]),
+        "a copy names the real blocks"
+    );
+
+    let outside = placed_on(elsewhere, TextContent::CONTENT_TYPE);
+    let screen = outside
+        .screen_id(INSTANCE, REGION)
+        .expect("the instance has a screen");
+    let pasted = |refs: Vec<Uuid>| {
+        let mut item = ClipItem::new("be3/any-format", vec![1, 2, 3]);
+        item.refs = refs;
+        Outbound::App(AppCall::Input(be_sdk_api::InputBatch {
+            screen,
+            events: vec![be_sdk_api::TimedInput {
+                input: beui::Input::Paste(item),
+                time_micros: None,
+                over: None,
+            }],
+            every_sample: false,
+            dismissed: Vec::new(),
+        }))
+    };
+    let mut paste = pasted(vec![copy, elsewhere]);
+    outside.translate_pastes(&mut paste);
+    assert_eq!(
+        paste,
+        pasted(vec![copy, elsewhere]),
+        "an editor outside any checkout speaks in real ids, which a paste leaves alone"
+    );
 }

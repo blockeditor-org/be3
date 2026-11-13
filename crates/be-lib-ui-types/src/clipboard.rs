@@ -235,9 +235,10 @@ impl ClipFormat for Blocks {
 
 /// `be3/canvas-items`: canvas entities in the canvas's own encoding, from the
 /// canvas block `canvas`. Raster layers are not embedded: a paste reads their
-/// pixels from `canvas` by entity id. `blocks` are the blocks the entities
-/// show, one per entity that shows one, in order; the canvas reads them from
-/// here, not from `entities`. `canvas` and `blocks` travel in the refs.
+/// pixels from `canvas` by entity id. `blocks` are every block the entities
+/// name (shown blocks, component schemas, the blocks and databases component
+/// values name), in the order the canvas walks them; `entities` holds nil in
+/// their place. `canvas` and `blocks` travel in the refs.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasItems {
     #[serde(skip)]

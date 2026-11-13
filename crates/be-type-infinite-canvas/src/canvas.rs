@@ -1460,6 +1460,27 @@ pub fn normalized_entity(mut entity: CanvasEntity) -> CanvasEntity {
 }
 
 impl CanvasEntity {
+    /// Every block the entity names, in one fixed order: the block it shows,
+    /// then each component's schema and the blocks and databases its values
+    /// name. A copy moves these into a clip's refs and a paste back out.
+    pub fn blocks_mut(&mut self) -> Vec<&mut Uuid> {
+        let mut blocks: Vec<&mut Uuid> = self.block.iter_mut().collect();
+        for component in &mut self.components {
+            blocks.push(&mut component.schema_id);
+            for value in component.values.values_mut() {
+                match value {
+                    DatabaseValue::Block(block) => blocks.push(block),
+                    DatabaseValue::Relation(row) => blocks.push(&mut row.database),
+                    DatabaseValue::Links(rows) => {
+                        blocks.extend(rows.iter_mut().map(|row| &mut row.database));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        blocks
+    }
+
     pub fn new(shape: CanvasShape, transform: CanvasTransform) -> Self {
         let id = Uuid::new_v4();
         Self {

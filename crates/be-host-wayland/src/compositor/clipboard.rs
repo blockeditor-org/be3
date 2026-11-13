@@ -12,7 +12,8 @@ use super::Compositor;
 /// Bridges the host's clipboard and the programs'. A program's copy is read at
 /// once, its text and image, and copied in the host, so it outlives the
 /// program. A host copy is offered to programs under the MIME types of every
-/// format it holds; a program asking for one reads it from the host's clip.
+/// format it holds; a program asking for one reads it from the host's clip, a
+/// be3 format as `ClipItem::stored`, its refs with its bytes.
 #[derive(Default)]
 pub(super) struct Clipboard {
     watching: bool,
@@ -126,7 +127,15 @@ impl Clipboard {
             .collect::<Vec<_>>();
         for (format, item) in answered {
             self.reading.remove(&format);
-            let data: Arc<[u8]> = item.map(|item| item.data).unwrap_or_default().into();
+            // A be3 format goes with the blocks it names, as other system
+            // clipboards carry it (`ClipItem::stored`).
+            let data: Arc<[u8]> = item
+                .map(|item| match beui::clipboard::formats::is_be3(&item.format) {
+                    true => item.stored(),
+                    false => item.data,
+                })
+                .unwrap_or_default()
+                .into();
             for (_, fd) in self.asked.extract_if(.., |(asked, _)| *asked == format) {
                 crate::selection::send_data(fd, data.clone());
             }
