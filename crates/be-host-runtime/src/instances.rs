@@ -153,7 +153,7 @@ struct Instance {
     focus_reports: Vec<Focus>,
     artifact_watch: Option<Vec<Uuid>>,
     heads: Heads,
-    revision_previews: HashSet<Uuid>,
+    revision_previews: HashMap<be_sdk_api::ops::OpId, services::RevisionPreview>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
     audio: Option<AudioPlayer>,
@@ -318,7 +318,7 @@ impl Instance {
             focus_reports: Vec::new(),
             artifact_watch: None,
             heads: Heads::default(),
-            revision_previews: HashSet::default(),
+            revision_previews: HashMap::default(),
             drag_accepted: false,
             intrinsic: None,
             audio: None,
@@ -958,8 +958,10 @@ impl Instances {
         for (block, link) in &mut entry.watched {
             link.detach(instance, *block, &shown_on(*block));
         }
-        for preview in &entry.revision_previews {
-            be_host_stack::revisions::release(*preview);
+        for preview in entry.revision_previews.values() {
+            if let Some(block) = preview.block() {
+                be_host_stack::revisions::release(block);
+            }
         }
         entry.opened
     }

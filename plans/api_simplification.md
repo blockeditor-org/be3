@@ -166,7 +166,3 @@ components.
   move it.
 - The app protocol's `size {width, height}` is converted to and from `vec2`
   in many places; use `be3:ui`'s `vec2`.
-- `preview-revision` and `release-revision` (`host-services.wit`) become a
-  `revision-preview` resource whose drop releases it, like `replica`.
-- be-sdk-beui re-exports `ChildHandle as ChildBlockHandle`; name the type
-  `ChildBlockHandle`.

@@ -200,6 +200,13 @@ pub struct StoredHead {
     pub bytes: Vec<u8>,
 }
 
+/// A revision preview the host opened (`EditorHost::preview_revision`): a read-only block
+/// showing a block as it was at a commit. Dropping it closes the preview.
+pub struct RevisionPreview {
+    pub block: Uuid,
+    _held: host_services::RevisionPreview,
+}
+
 pub type HeadRead = Result<Option<StoredHead>, Failure>;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -1810,20 +1817,31 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::list_revisions(block.into_bytes())))
     }
 
-    /// A temporary block id showing `commit`, for a separate read-only editor. The host
-    /// isolates it from live updates and rejects edits from it and its nested editors (which
-    /// show their blocks' current content). Release it with `release_revision`.
-    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<Uuid, Failure>> {
-        Asked::of(self.ask(|| host_services::preview_revision(block.into_bytes(), commit)))
-            .map(|previewed| previewed.map(Uuid::from_bytes))
+    /// A temporary block showing `commit`, for a separate read-only editor. The host isolates
+    /// it from live updates and rejects edits from it and its nested editors (which show their
+    /// blocks' current content). It stays open while the `RevisionPreview` is held.
+    pub fn preview_revision(
+        &self,
+        block: Uuid,
+        commit: [u8; 32],
+    ) -> Asked<Result<RevisionPreview, Failure>> {
+        let held = self.ask(|| host_services::RevisionPreview::new(block.into_bytes(), commit));
+        let opened = held.opened();
+        Asked::from_future(async move {
+            match opened.await {
+                Ok(Ok(block)) => Some(Ok(RevisionPreview {
+                    block: Uuid::from_bytes(block),
+                    _held: held,
+                })),
+                Ok(Err(failure)) => Some(Err(failure)),
+                Err(OpError::Canceled) => None,
+                Err(error) => Some(Err(Failure::from(error))),
+            }
+        })
     }
 
     pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::restore_revision(block.into_bytes(), commit)))
-    }
-
-    pub fn release_revision(&self, preview: Uuid) {
-        self.ask(|| host_services::release_revision(preview.into_bytes()).detach());
     }
 
     pub fn pick_file(&self, filter: FileFilter) -> Asked<FilePick> {

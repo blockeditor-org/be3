@@ -105,9 +105,12 @@ Notes on particular calls:
   `account` verifies (a contact's, `Verified`, unless set).
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
-- A revision preview is a temporary, read-only block id: the host isolates it
-  from live updates and rejects edits from it and its nested editors. Release
-  it with `release_revision`. `list_revisions` marks the head the server read
+- A revision preview is a temporary, read-only block: the host isolates it
+  from live updates and rejects edits from it and its nested editors.
+  `preview_revision` answers a `RevisionPreview` (the `revision-preview`
+  resource) that keeps it open; dropping it closes the preview, and the host
+  closes one that opens after the editor let go. In tests,
+  `take_revision_previews` and `take_closed_previews`. `list_revisions` marks the head the server read
   with the list, and history keeps one state a minute (guides/blocks/server.md).
   Restoring keeps the state it replaced: the owner seals it as a "Before
   restoring" bookmark first (`Replicas::bookmark`); a follower, which cannot

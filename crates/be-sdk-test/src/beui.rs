@@ -27,6 +27,7 @@ use beui::{
     Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
 };
 use beui_host::native::testing::{Target, button_name};
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
 type Delivered = Box<dyn FnOnce(&mut HeadlessApp) -> Result<(), String>>;
@@ -84,6 +85,13 @@ const SCREEN: ScreenId = ScreenId(1);
 /// the host is kept for the `take_*` methods; `clear_calls` drops it. Calls such as
 /// `set_view` queue what be-host would send; setting the same state on the `EditorHost`
 /// directly skips the protocol and is overwritten by the session on the next frame.
+/// A revision preview an editor asked for (`BeuiTest::take_revision_previews`).
+pub struct AskedPreview {
+    pub block: [u8; 16],
+    pub commit: [u8; 32],
+    pub reply: Reply<Result<[u8; 16], be_sdk_api::Failure>>,
+}
+
 pub struct BeuiTest<A: BeuiRoot> {
     app: HeadlessApp,
     kind: Kind,
@@ -142,6 +150,12 @@ pub struct BeuiTest<A: BeuiRoot> {
     exited: bool,
     draft: Vec<u8>,
     requests: Vec<(Option<OpId>, Call)>,
+    /// Each revision preview the editor holds, by its op, with its block and commit.
+    revision_previews: BTreeMap<OpId, ([u8; 16], [u8; 32])>,
+    /// Each preview's `opened` the test has not answered yet.
+    preview_asks: Vec<(OpId, Reply<Result<[u8; 16], be_sdk_api::Failure>>)>,
+    /// The commits of the previews the editor dropped.
+    closed_previews: Vec<[u8; 32]>,
     signatures: crate::signatures::Signatures,
     fetches: crate::fetches::Fetches,
     wakes: Arc<Wakes>,
@@ -445,6 +459,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
             exited: false,
             draft: data,
             requests: Vec::new(),
+            revision_previews: BTreeMap::new(),
+            preview_asks: Vec::new(),
+            closed_previews: Vec::new(),
             signatures,
             fetches: crate::fetches::Fetches::default(),
             wakes,
@@ -1442,6 +1459,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     self.link.ended(op, &self.store, &mut self.connection);
                     continue;
                 }
+                Incoming::Canceled { op } if self.revision_previews.contains_key(&op) => {
+                    if let Some((_, commit)) = self.revision_previews.remove(&op) {
+                        self.closed_previews.push(commit);
+                    }
+                    self.preview_asks.retain(|(preview, _)| *preview != op);
+                    self.connection.complete(op, Outcome::Err(OpError::Canceled));
+                    continue;
+                }
                 Incoming::Canceled { op } if self.fetches.holds(op) => {
                     self.fetches.ended(op, &mut self.connection);
                     continue;
@@ -1525,6 +1550,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             }
                             let author = self.host.account_id();
                             self.link.call(call, &self.store, connection, author);
+                            continue;
+                        }
+                        Some(embed::Call::HostServices(Call::RevisionPreviewNew {
+                            resource,
+                            block,
+                            commit,
+                        })) => {
+                            self.revision_previews.insert(resource.op(), (block, commit));
+                            continue;
+                        }
+                        Some(embed::Call::HostServices(Call::RevisionPreviewOpened {
+                            this,
+                            reply,
+                        })) => {
+                            self.preview_asks.push((this.op(), reply));
                             continue;
                         }
                         Some(embed::Call::HostServices(call)) => {
@@ -1963,6 +2003,28 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .into_iter()
             .map(|(_, call)| call)
             .collect()
+    }
+
+    /// Each revision preview the editor waits to see opened since the last call: its block, its
+    /// commit, and the reply that opens it (`answer` it with the preview's block id).
+    pub fn take_revision_previews(&mut self) -> Vec<AskedPreview> {
+        let previews = &self.revision_previews;
+        std::mem::take(&mut self.preview_asks)
+            .into_iter()
+            .filter_map(|(preview, reply)| {
+                let (block, commit) = *previews.get(&preview)?;
+                Some(AskedPreview {
+                    block,
+                    commit,
+                    reply,
+                })
+            })
+            .collect()
+    }
+
+    /// The commits of the revision previews the editor dropped since the last call.
+    pub fn take_closed_previews(&mut self) -> Vec<[u8; 32]> {
+        std::mem::take(&mut self.closed_previews)
     }
 
     pub fn take_requests_where<T>(&mut self, pick: impl Fn(Call) -> Result<T, Call>) -> Vec<T> {
