@@ -16,6 +16,7 @@ fn a_commit_time_past_the_readers_bound_counts_as_the_oldest() {
             name: format!("Note {n}"),
             body: "the same words".into(),
         }),
+        partial: false,
     };
     // Whoever wrote the index believed every time.
     apply(
