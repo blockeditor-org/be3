@@ -29,21 +29,13 @@ impl ServerKey {
         if let Some(held) = Self::load(connection)? {
             return Ok(held);
         }
-        connection.execute_batch("BEGIN IMMEDIATE")?;
-        let made = Self::load(connection).and_then(|held| match held {
-            Some(held) => Ok(held),
-            None => Self::create(connection),
-        });
-        match made {
-            Ok(made) => {
-                connection.execute_batch("COMMIT")?;
-                Ok(made)
-            }
-            Err(error) => {
-                let _ = connection.execute_batch("ROLLBACK");
-                Err(error)
-            }
-        }
+        let transaction = crate::store::write_transaction(connection)?;
+        let made = match Self::load(&transaction)? {
+            Some(held) => held,
+            None => Self::create(&transaction)?,
+        };
+        transaction.commit()?;
+        Ok(made)
     }
 
     fn load(connection: &Connection) -> Result<Option<Self>, ServerError> {

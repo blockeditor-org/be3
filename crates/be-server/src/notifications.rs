@@ -117,7 +117,7 @@ impl ServerStore {
                 block.to_string(),
                 identity.account.to_string(),
             );
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             let mut new = false;
             for key in &keys {
                 new |= transaction.execute(
@@ -159,7 +159,7 @@ impl ServerStore {
                 identity.account.to_string(),
                 identity.organization.to_string(),
             );
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             transaction.execute(
                 "DELETE FROM push_endpoints
                  WHERE account_id = ?1 AND organization_id = ?2 AND address = ?3",

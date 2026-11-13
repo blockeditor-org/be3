@@ -122,7 +122,7 @@ pub fn append(
     tag: Hash,
     entries: &[JournalEntry],
 ) -> Result<(), ServerError> {
-    let transaction = database.unchecked_transaction()?;
+    let transaction = crate::store::write_transaction(database)?;
     let (org, id) = (organization.to_string(), block.to_string());
     match head(&transaction, organization, block)? {
         None => {
@@ -197,7 +197,7 @@ pub fn rebase(
     base: &JournalBase,
 ) -> Result<(), ServerError> {
     crate::limits::at_most("a journal's base", base.state.len(), MAX_BASE_STATE_BYTES)?;
-    let transaction = database.unchecked_transaction()?;
+    let transaction = crate::store::write_transaction(database)?;
     let (org, id) = (organization.to_string(), block.to_string());
     let before = head(&transaction, organization, block)?;
     if before

@@ -74,7 +74,7 @@ impl ServerStore {
     ) -> Result<String, ServerError> {
         let issuer = issuer.to_owned();
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3)", params![account.to_string(), hash_token(&issuer), now()], |row| row.get(0))?;
             if !valid {
                 return Err(refused(
@@ -236,7 +236,7 @@ impl ServerStore {
         let hash = self.hash(password.into(), address).await?;
         let browser_token = browser_token.to_owned();
         self.with_database(move |store, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3 AND EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?4))", params![account.to_string(), hash_token(&browser_token), now(), previous_hash], |row| row.get(0))?;
             if !valid {
                 return Err(refused("Sign in again to change your password."));
@@ -297,7 +297,7 @@ impl ServerStore {
         let name = name.to_owned();
         let code = code.to_owned();
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             invite_codes::check(&transaction, &invite)?;
             let link = mail_link(
                 &transaction,
@@ -334,7 +334,7 @@ impl ServerStore {
         }
         let previous_hash = self.check_password(account, password, &address).await?;
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             let link = mail_link(
                 &transaction,
                 Pending {
@@ -371,7 +371,7 @@ impl ServerStore {
         let address = passwords::address_key(address);
         let code = code.to_owned();
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             may_send_from(&transaction, "reset", &address)?;
             let account: Option<String> = transaction
                 .query_row(
@@ -436,7 +436,7 @@ impl ServerStore {
         let token = token.to_owned();
         let address = address.to_owned();
         self.with_database(move |store, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = crate::store::write_transaction(database)?;
             let row: Option<(String, String, String, String, String, String, String)> = transaction.query_row("SELECT purpose, account_id, email, display_name, password_hash, device_code, invite_hash FROM account_mail WHERE token_hash = ?1 AND expires > ?2", params![hash_token(&token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?))).optional()?;
             let (purpose, account, email, name, hash, code, invite) = row.ok_or_else(|| {
                 refused("This link is invalid, expired, or already used. Request a new link.")

@@ -60,7 +60,10 @@ pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
 pub fn ensure(connection: &Connection, declared: &str) -> Result<(), SchemaError> {
     let wanted = Connection::open_in_memory()?;
     wanted.execute_batch(declared)?;
-    let transaction = connection.unchecked_transaction()?;
+    // Immediate, so two connections opening one new database at once take turns: a deferred
+    // transaction would read no tables in both, and the second to write would fail at once.
+    let transaction =
+        rusqlite::Transaction::new_unchecked(connection, rusqlite::TransactionBehavior::Immediate)?;
     let existing = objects(&transaction)?;
     let mut problems = Vec::new();
     for (name, object) in objects(&wanted)? {
