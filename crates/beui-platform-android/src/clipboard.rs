@@ -40,9 +40,8 @@ impl Clipboard {
                     base64::Engine::encode(&base64::engine::general_purpose::STANDARD, stored);
                 (item.format, encoded)
             });
-        let fitting = beui_types::clip::fitting(encoded, EXTRAS_BUDGET, |(_, encoded)| {
-            encoded.len()
-        });
+        let fitting =
+            beui_types::clip::fitting(encoded, EXTRAS_BUDGET, |(_, encoded)| encoded.len());
         let text = clip.plain_text().unwrap_or_default();
         let nonce = fresh_nonce();
         self.nonce = match android::set(&text, &fitting, Some(nonce)) {
@@ -81,7 +80,8 @@ fn fresh_nonce() -> i64 {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COPIES: AtomicU64 = AtomicU64::new(0);
     let mut bytes = [0; 8];
-    let read = std::fs::File::open("/dev/urandom").and_then(|mut random| random.read_exact(&mut bytes));
+    let read =
+        std::fs::File::open("/dev/urandom").and_then(|mut random| random.read_exact(&mut bytes));
     if read.is_ok() {
         return i64::from_ne_bytes(bytes);
     }
@@ -154,7 +154,11 @@ mod android {
 
     /// Puts `text` on the clipboard, and with a `nonce`, the be3 formats as
     /// (format id, base64 of its stored bytes) in the description's extras.
-    pub(super) fn set(text: &str, be3: &[(String, String)], nonce: Option<i64>) -> Result<(), Error> {
+    pub(super) fn set(
+        text: &str,
+        be3: &[(String, String)],
+        nonce: Option<i64>,
+    ) -> Result<(), Error> {
         with_manager(|env, _activity, manager| {
             let label = env.new_string("")?;
             let string_class = env.find_class(jni_str!("java/lang/String"))?;
