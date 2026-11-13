@@ -3,8 +3,8 @@
 //! took it, and the first change after that wakes the host, so it hears once a frame whatever
 //! the number of changes.
 
-use std::sync::{Arc, PoisonError, Weak};
 use be_wasm_threads::Mutex;
+use std::sync::{Arc, PoisonError, Weak};
 use uuid::Uuid;
 
 /// What changed since a watcher last heard.
