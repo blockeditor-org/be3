@@ -32,12 +32,27 @@ interface types {
         end: size,
     }
 
+    /// A block's uuid, as its 16 bytes.
+    type block-ref = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+
     /// One representation of content on the clipboard or dragged: a format
-    /// id (`clipboard::formats`) and the data in that format. A clip lists
-    /// several, richest first; a paste brings the one the receiver chose.
+    /// id (`clipboard::formats`), the data in that format and the blocks it
+    /// names. A clip lists several, richest first; a paste brings the one the
+    /// receiver chose.
+    ///
+    /// The data names blocks only by position in `refs`, never by id, so
+    /// whoever carries a clip can translate the ids without knowing its
+    /// format (a host between an app in a checkout and the rest).
     record clip-item {
         format: string,
         data: list<u8>,
+        refs: list<block-ref>,
+    }
+
+    /// The data of a clip item, and the blocks it names (`clip-item`).
+    record clip-body {
+        data: list<u8>,
+        refs: list<block-ref>,
     }
 
     record file-filter {

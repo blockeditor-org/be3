@@ -179,10 +179,11 @@ fn set_image(clipboard: &mut arboard::Clipboard, png: &[u8]) {
     }
 }
 
-/// be3 formats as registered clipboard formats, named by their format id, so
-/// another be3 program reads them; a PNG beside the text arboard wrote, as
-/// `CF_DIB` and the registered `PNG` format other programs read; and the
-/// sequence number that changes with every copy.
+/// be3 formats as registered clipboard formats, named by their format id and
+/// holding their `stored` bytes, refs and all, so another be3 program reads
+/// them; a PNG beside the text arboard wrote, as `CF_DIB` and the registered
+/// `PNG` format other programs read; and the sequence number that changes with
+/// every copy.
 #[cfg(target_os = "windows")]
 mod windows {
     use beui_types::ClipItem;
@@ -213,7 +214,7 @@ mod windows {
         };
         for item in be3 {
             if let Some(format) = clipboard_win::register_format(&item.format) {
-                let _ = clipboard_win::raw::set_without_clear(format.get(), &item.data);
+                let _ = clipboard_win::raw::set_without_clear(format.get(), &item.stored());
             }
         }
         if let Some(png) = png {
@@ -234,7 +235,7 @@ mod windows {
         }
         let mut data = Vec::new();
         clipboard_win::raw::get_vec(id, &mut data).ok()?;
-        Some(ClipItem::new(format, data))
+        ClipItem::from_stored(format, &data)
     }
 }
 

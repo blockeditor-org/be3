@@ -76,6 +76,7 @@ APPS = {
     "choosing_a_scale_draws_the_host_larger": ["settings"],
     "choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there": [],
     "closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace": ["example-beui-gallery"],
+    "closing_a_presentation_while_its_notes_wait_for_the_keyboard_leaves_the_host_settled": ["infinite-canvas", "presentation", "text"],
     "closing_a_tab_shuts_its_editor_down": ["text"],
     "dragging_the_workspace_splitter_draws_the_files_at_their_new_width_in_the_same_frame": [],
     "fit_on_an_active_child_fits_its_content_in_its_view": ["infinite-canvas", "example-pan-zoom"],
