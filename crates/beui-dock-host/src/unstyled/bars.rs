@@ -1075,10 +1075,7 @@ pub(super) struct BarPlace {
 
 impl BarPlace {
     fn apply(self, state: &mut DockState, bar: TabId) {
-        if let Some(pane) = self.pane {
-            state.set_bar_pane(bar, pane);
-        }
-        state.place_bar_at(bar, self.placement, self.slot);
+        state.place_bar_on(bar, self.pane, self.placement, self.slot);
     }
 }
 

@@ -296,14 +296,13 @@ impl DockState {
         panes
     }
 
-    /// Shows a bar on the pane holding `pane`, one of `bar_panes`.
-    pub fn set_bar_pane(&mut self, bar: TabId, pane: TabId) {
-        let Some(owner) = self.bar_owner(bar) else {
-            return;
-        };
-        let kept = self.pane_under(owner, pane).is_some().then_some(pane);
-        if let Some(held) = self.bars.iter_mut().find(|held| held.bar == bar) {
-            held.pane = kept;
+    /// A pane's bars stay with the pane: when `left` leaves its pane, the bars shown there by it
+    /// are shown by `staying`, a tab still in that pane.
+    pub(super) fn repoint_bars(&mut self, left: TabId, staying: TabId) {
+        for held in &mut self.bars {
+            if held.pane == Some(left) {
+                held.pane = Some(staying);
+            }
         }
     }
 
@@ -326,12 +325,24 @@ impl DockState {
             .unwrap_or_default()
     }
 
-    pub fn place_bar_at(&mut self, bar: TabId, placement: DockBarPlacement, slot: usize) {
+    /// Moves a bar to `placement`, `slot` places in among the bars already there. `pane`, one of
+    /// `bar_panes`, moves it to the pane holding that tab (a tab that is none of them, to its
+    /// joined dock's first pane); `None` keeps it on its pane.
+    pub fn place_bar_on(
+        &mut self,
+        bar: TabId,
+        pane: Option<TabId>,
+        placement: DockBarPlacement,
+        slot: usize,
+    ) {
         let Some(from) = self.bars.iter().position(|held| held.bar == bar) else {
             return;
         };
         let mut moved = self.bars.remove(from);
         moved.placement = placement;
+        if let (Some(pane), Some(owner)) = (pane, moved.owner) {
+            moved.pane = self.pane_under(owner, pane).is_some().then_some(pane);
+        }
         let pane = |held: &Bar| self.bar_pane(held).map(|(tab, _)| tab);
         let tab = pane(&moved);
         let siblings: Vec<usize> = self

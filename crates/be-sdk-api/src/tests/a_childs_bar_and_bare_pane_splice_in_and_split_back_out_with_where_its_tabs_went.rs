@@ -19,6 +19,7 @@ fn barred() -> DockDeclaration {
             width: 200.0,
             height: 32.0,
         },
+        pane: None,
     });
     declaration
 }

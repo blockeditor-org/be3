@@ -475,8 +475,8 @@ impl DockState {
             self.add_bar(moved, Some(owner), bar.placement);
             self.set_bar_placement(moved, bar.placement);
             self.set_bar_hidden(moved, bar.hidden);
-            if let Some(pane) = bar.pane.and_then(|pane| (map.tab)(pane)) {
-                self.set_bar_pane(moved, pane);
+            if let Some(held) = self.bars.iter_mut().find(|held| held.bar == moved) {
+                held.pane = bar.pane.and_then(|pane| (map.tab)(pane));
             }
         }
         let unlocked: Vec<DockHome> = from

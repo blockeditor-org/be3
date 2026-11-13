@@ -1186,6 +1186,10 @@ pub(crate) fn declaration_to_api(
                     },
                     placement: placement_to_api(bar.placement),
                     size: size(bar.tab),
+                    pane: match bar.pane {
+                        Some(pane) => Some(path(pane)?),
+                        None => None,
+                    },
                 })
             })
             .collect(),
@@ -1309,6 +1313,7 @@ fn declaration_from_api(
             kind: bar.kind.clone(),
             owner: bar.owner.as_ref().map(|owner| paths.tab(owner)),
             placement: placement_from_api(&bar.placement),
+            pane: bar.pane.as_ref().map(|pane| paths.tab(pane)),
         })
         .collect();
     Some(DockDeclaration {

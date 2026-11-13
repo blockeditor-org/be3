@@ -548,6 +548,9 @@ impl DockBar {
         if let Some(owner) = &self.owner {
             owner.validate()?;
         }
+        if let Some(pane) = &self.pane {
+            pane.validate()?;
+        }
         self.placement.validate()
     }
 }

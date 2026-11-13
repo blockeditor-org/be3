@@ -17,6 +17,7 @@ fn own_bar(tab: u64, key: &str) -> DockBar {
             width: 160.0,
             height: 32.0,
         },
+        pane: None,
     }
 }
 

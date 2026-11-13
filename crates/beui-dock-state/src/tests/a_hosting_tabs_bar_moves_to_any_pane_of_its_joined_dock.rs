@@ -22,7 +22,7 @@ fn a_hosting_tabs_bar_moves_to_any_pane_of_its_joined_dock() {
                 Direction::Horizontal,
                 0.5,
                 pane("joined:2/left", &[10]),
-                pane("joined:2/right", &[11]),
+                pane("joined:2/right", &[11, 12, 13]),
             ),
             Some(TabId::new(10)),
         )
@@ -44,8 +44,7 @@ fn a_hosting_tabs_bar_moves_to_any_pane_of_its_joined_dock() {
         "while a joined tab's own bar stays on its own pane"
     );
 
-    state.set_bar_pane(TabId::new(20), TabId::new(11));
-    state.place_bar_at(TabId::new(20), TOP, 0);
+    state.place_bar_on(TabId::new(20), Some(TabId::new(11)), TOP, 0);
     assert_eq!(state.bar_tab(TabId::new(20)), Some(TabId::new(11)));
     assert_eq!(
         state.pane_bars(TabId::new(11)),
@@ -60,10 +59,30 @@ fn a_hosting_tabs_bar_moves_to_any_pane_of_its_joined_dock() {
         "the pane is saved with the layout"
     );
 
-    state.set_bar_pane(TabId::new(20), TabId::new(1));
+    let left = state.find(TabId::new(10)).expect("the left pane").leaf;
+    state.drop_tab(
+        TabId::new(11),
+        DockDrop::Tab {
+            leaf: left,
+            index: 1,
+        },
+    );
     assert_eq!(
         state.bar_tab(TabId::new(20)),
-        Some(TabId::new(10)),
+        Some(TabId::new(12)),
+        "the bar stays with its pane when the tab it was dropped by moves away"
+    );
+    state.close(TabId::new(12));
+    assert_eq!(
+        state.bar_tab(TabId::new(20)),
+        Some(TabId::new(13)),
+        "or closes"
+    );
+
+    state.place_bar_on(TabId::new(20), Some(TabId::new(1)), TOP, 0);
+    assert_eq!(
+        state.bar_tab(TabId::new(20)),
+        state.active_tab(left),
         "a tab outside its joined dock is no pane for it: it goes back to the first"
     );
 }

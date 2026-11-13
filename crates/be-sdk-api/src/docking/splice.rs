@@ -345,6 +345,7 @@ impl DockDeclaration {
                 tab: bar.tab.clone().through(child),
                 key: prefixed(prefix, &bar.key),
                 owner: Some(owner),
+                pane: bar.pane.clone().map(|pane| pane.through(child)),
                 ..bar.clone()
             })
         }));
@@ -370,6 +371,7 @@ impl DockDeclaration {
                 owner: host
                     .clone()
                     .or_else(|| bar.owner.clone().map(|owner| owner.through(child))),
+                pane: None,
                 ..bar.clone()
             }
         }));

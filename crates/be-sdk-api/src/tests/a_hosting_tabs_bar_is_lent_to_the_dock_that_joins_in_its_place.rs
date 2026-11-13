@@ -17,6 +17,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
             width: 200.0,
             height: 40.0,
         },
+        pane: None,
     };
     let mut spliced = declaration();
     spliced.bars.push(toolbar.clone());

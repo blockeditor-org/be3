@@ -19,6 +19,7 @@ fn bar(tab: u64, key: &str, kind: &str) -> DockBar {
             width: 100.0,
             height: 20.0,
         },
+        pane: None,
     }
 }
 

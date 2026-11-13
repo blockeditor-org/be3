@@ -55,7 +55,7 @@ fn a_dock_bar_belongs_to_the_dock_and_shows_with_every_tab() {
     }
     assert!(!state.is_bar_shown(TabId::new(21), DockMode::Tiled));
 
-    state.place_bar_at(TabId::new(22), BOTTOM, 0);
+    state.place_bar_on(TabId::new(22), None, BOTTOM, 0);
     assert_eq!(
         state.bars_of(None),
         vec![TabId::new(22), TabId::new(20)],

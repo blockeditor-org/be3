@@ -15,6 +15,7 @@ fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
             width: 200.0,
             height: 32.0,
         },
+        pane: None,
     }
 }
 
