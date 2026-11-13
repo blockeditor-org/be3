@@ -70,7 +70,12 @@ pub trait Host: Sized + 'static {
 
     /// How many open replicas have edits not yet committed, which owe a seal (`Owing`), and how
     /// many hold edits not yet durable (`Replicas::counts`).
-    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: Vec<Owing>, undurable: usize);
+    fn counted(
+        shared: &Arc<Mutex<Self>>,
+        unsealed: usize,
+        owing: Vec<Owing>,
+        undurable: Vec<Owing>,
+    );
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool);
 

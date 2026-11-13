@@ -604,6 +604,8 @@ pub struct Shared {
     pub owing: usize,
     /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
     pub owing_blocks: Vec<be_block_type_host::Owing>,
+    /// The blocks `undurable` counts, for `busy` to name.
+    pub undurable_blocks: Vec<be_block_type_host::Owing>,
     /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
     /// host keeps asking.
     pub seals_owed: u64,
@@ -772,10 +774,6 @@ impl Shared {
             (self.typing, "a block type module has yet to settle"),
             (self.uploading > 0, "the block store uploads files"),
             (
-                self.undurable > 0,
-                "the block store keeps edits the device's journal does not hold yet",
-            ),
-            (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
             ),
@@ -783,6 +781,17 @@ impl Shared {
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
         .collect();
+        if self.undurable > 0 {
+            let blocks: Vec<String> = self
+                .undurable_blocks
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            reasons.push(format!(
+                "the block store keeps edits the device's journal does not hold yet, for {}",
+                blocks.join(", ")
+            ));
+        }
         if self.owing > 0 {
             let blocks: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
             reasons.push(format!(
@@ -2295,10 +2304,12 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
-            let owing;
-            (held.unsealed, owing, held.undurable) = self.replicas.counts();
+            let (owing, undurable);
+            (held.unsealed, owing, undurable) = self.replicas.counts();
             held.owing = owing.len();
             held.owing_blocks = owing;
+            held.undurable = undurable.len();
+            held.undurable_blocks = undurable;
             held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
             held.typing = !self.replicas.modules.settled();
