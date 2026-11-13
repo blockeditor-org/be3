@@ -24,7 +24,7 @@ tar xzf /tmp/caddy.tgz -C /tmp caddy; install -m0755 /tmp/caddy /usr/local/bin/c
 install -d /etc/nativelink /etc/caddy /var/lib/nativelink
 install -m0644 nativelink.json5 /etc/nativelink/nativelink.json5
 install -m0644 Caddyfile /etc/caddy/Caddyfile
-# Caddy's token, made once: clients' BE3_BUILD_SERVER_KEY (guides/build_server.md).
+# Caddy's token, made once: clients' BE3_NL_TOKEN (guides/build_server.md).
 if [ ! -s /etc/nl-caddy.env ]; then
   ( umask 077; echo "NL_TUNNEL_TOKEN=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" > /etc/nl-caddy.env )
 fi

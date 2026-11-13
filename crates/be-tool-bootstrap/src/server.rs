@@ -313,14 +313,13 @@ fn key(server: &str) -> Result<String> {
     ))
 }
 
-/// `Authorization: Bearer` with the server's token (BE3_BUILD_SERVER_KEY, `.build-server-key.SERVER` or
-/// ~/.config/be3/build-server-key.SERVER), asking at a terminal; empty when there is none.
+/// `Authorization: Bearer` with nl.be3.pfg.pw's token (BE3_NL_TOKEN, `.nl-token` or ~/.config/be3/nl-token), asking at
+/// a terminal; empty when there is none.
 fn bearer_header(server: &str) -> String {
-    let name = format!("build-server-key.{server}");
     let what = format!("{server} token");
     let saved = Saved {
-        variable: "BE3_BUILD_SERVER_KEY",
-        name: &name,
+        variable: "BE3_NL_TOKEN",
+        name: "nl-token",
         what: &what,
         checkout: Some(repository()),
     };
