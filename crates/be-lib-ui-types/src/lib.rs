@@ -14,9 +14,10 @@ be_wasm_ops_bindgen::generate!({
         "size": usize,
         "range": core::ops::Range<usize>,
         "window-id": crate::window::WindowId,
+        "block-ref": uuid::Uuid,
         "host-placement": crate::window::HostPlacement,
     },
-    copy: ["vec2", "pos2", "rect", "size", "window-id"],
+    copy: ["vec2", "pos2", "rect", "size", "window-id", "block-ref"],
     default: [
         "file-filter", "back-edge", "ime-text", "cursor-icon", "pen", "keystroke",
         "window-requests", "window-role",

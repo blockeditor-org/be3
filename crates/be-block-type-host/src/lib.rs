@@ -14,7 +14,7 @@ pub mod replicas;
 pub use be_sdk_type_api::{Plain, PlainFile};
 pub use modules::{
     Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Source, Under, in_process, is_known, kind_of,
-    kinds_revision, plain_of, started, tag_of,
+    plain_of, started, tag_of,
 };
 pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Replicas, Searched};
 
@@ -56,6 +56,7 @@ pub trait Host: Sized + 'static {
 
     fn released(shared: &Arc<Mutex<Self>>, block: Uuid);
 
+    /// Also when only `status.undo` changed.
     fn status(shared: &Arc<Mutex<Self>>, block: Uuid, status: &Status);
 
     fn described(
@@ -64,8 +65,6 @@ pub trait Host: Sized + 'static {
         references: Vec<Uuid>,
         description: Description,
     );
-
-    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, history: be_sdk_type_api::UndoState);
 
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict);
 

@@ -7,8 +7,8 @@ package be3:block-type@0.1.0;
 interface host {
     use types.{
         announced, announcement, byte-range, commit-id, description, journal-base, journal-entry,
-        loaded, undo-state, merging,
-        part-ref, recipients, resume, status, written,
+        loaded, merging,
+        part-ref, recipients, relay-kind, resume, status, written,
     };
 
     /// The frame clock in milliseconds. The module starts it once; the host
@@ -104,14 +104,12 @@ interface host {
     rebase-journal: async func(generation: u64, base: journal-base, entries: list<journal-entry>);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
-    send: async func(to: recipients, bytes: list<u8>);
+    send: async func(to: recipients, kind: relay-kind, bytes: list<u8>);
 
     report-status: async func(status: status);
 
     /// After the visible content changed, for the graph mirror.
     described: async func(description: description);
-
-    history: async func(history: undo-state);
 
     /// A merge kept both sides.
     conflict: async func(ours: commit-id, theirs: commit-id, count: u32);

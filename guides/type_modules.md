@@ -115,10 +115,12 @@ answered, so a server ignores ones it does not know.
 ## The protocol
 
 The module imports `host` and exports `replicas`. `replicas.start(entropy)`
-comes first: it answers the module's types, and seeds the module's randomness,
-since a pure guest has none.
+comes first: it answers the module's types, each with everything the host
+keeps about it (`type-info`: its schema, plain form, blank content and that
+content's description), and seeds the module's randomness, since a pure guest
+has none.
 
-Stateless requests (`blank`, `merge3`, `merge-parts`, `describe`, `to-file`,
+Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
 `search-text`, `claims`, `apply`) are answered in the step that asks, except
 `merge-parts` and `search-text`, which may read parts first (below, "Merging
 by parts"). `apply` is how a host that publishes commits rather than joining a
@@ -342,7 +344,7 @@ rebase. The rules an agent most needs:
   `replay` does the same for a reader outside the session. A journal by
   another build is not handed over: `opening.lost-edits` says it held edits,
   or that the server marked them lost since the last commit, and the replica
-  reports them lost (`undo-state.lost-edits`).
+  reports them lost (`status.undo.lost-edits`).
 - **Restarts.** At a commit, once session state passes `RESTART_STATE_BYTES`
   (1 MiB) and the content's size, with no gesture open, while alone or past
   `RESTART_CEILING` times the limit, the owner restarts the session
@@ -383,13 +385,25 @@ rebase. The rules an agent most needs:
   lands, the snapshot starts at a head that holds it; before that it still
   names the part, so the follower waits. Giving up is never a divergence, only
   bytes that do not decode are. A follower heeds `Accepted`, `Snapshot`,
-  `Sealed`, `Replaced` and `Resend` from the owner alone and ignores `Submit`,
-  `Catchup` and `Kept` (`not_heeded`), before it reads any part they name,
-  since the server relays what any participant, a viewer included, sends. One
-  from a sender it did not know as the owner is remembered, and it asks to be
-  caught up should that sender become the owner. That the
-  server does not limit `Submit` and the owner's messages to editors and the
-  owner is a known gap (plans/session_message_authority.md). The server holds a
+  `Sealed`, `Replaced`, `Saved` and `Resend` from the owner alone and ignores
+  `Submit`, `Catchup` and `Kept` (`not_heeded`), before it reads any part they
+  name. One from a sender it did not know as the owner is remembered, and it
+  asks to be caught up should that sender become the owner. The server checks
+  the sender too: `send` names a `relay-kind` (`Wire::kind`), `peer` for
+  presence, channel messages, `Catchup` and the tag handshake, `edit` for the
+  rest; the server relays `edit` only from an editor (guides/blocks/server.md)
+  and hands each message on with the kind it checked
+  (`message`'s `delivery`). Since the kind is the sender's label, every replica,
+  owner included, drops a message that asks for more than its stamped kind
+  (`Wire::sent_as`), before it reads any part it names: a viewer's `Submit`
+  labelled as presence is never applied. Which messages only the owner sends
+  stays the replicas' check, not the server's: an owner whose lease lapsed
+  unseen still relays what it accepted, and the next owner takes it over
+  (`inherit_accepted`), but only from a client it knew as an owner
+  (`past_owners`). The owner heeds `Replaced` from any editor (a follower
+  that replaced the content sends it) and `Saved` changes nothing on it. Editors
+  are trusted with the block's content and session; only viewers are kept out.
+  The server holds a
   part for the whole upload grace (a day), and longer while the block's journal holds
   entries, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.
@@ -441,7 +455,10 @@ replica:
   nothing while one drains, so what a drain publishes goes together. It marks
   each sent before it calls `notify`, putting them back only when the server
   cannot be reached, so a crash costs a notification rather than repeating
-  one. What waits together on one block is one notification: the text of one,
+  one. `notify` names their keys, and the server pushes nothing for a call
+  whose keys it has all told before: a device stopped after the server took
+  the call but before it heard the answer sends it again on its next start,
+  and the members hear it at most once. What waits together on one block is one notification: the text of one,
   or the newest's `several`, mentioning everyone they mention. The server
   allows `MAX_NOTIFICATIONS_PER_BLOCK` a minute per account and block, and one
   it refuses is dropped, never reported: it was about then.
@@ -519,7 +536,11 @@ process in tests:
   sleeps. A source that declares its types starts lazily, on the first call
   to it, so a host runs only the modules its blocks use; what a host must
   know without running one (names, icons, `plain_file`) comes from the
-  manifest. `started(sources)` starts all, as `be` and `be sync` do. A
+  manifest, and be-tool-cli's
+  `a_manifest_says_which_of_its_types_have_a_plain_file` holds `plain_file`
+  to the module's `type-info.plain`, which `be` and `be sync` read without
+  manifests (decisions/plain_file_stays_in_the_manifest.md).
+  `started(sources)` starts all, as `be` and `be sync` do. A
   module's types are taken only if its manifest declares them
   (`Source::declaring`).
 - `replicas`: `Replicas<H: Host>`, the replica IO of

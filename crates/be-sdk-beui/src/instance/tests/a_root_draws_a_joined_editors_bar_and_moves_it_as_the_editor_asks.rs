@@ -112,6 +112,7 @@ fn a_root_draws_a_joined_editors_bar_and_moves_it_as_the_editor_asks() {
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
             child,
             declaration: Some(barred()),
+            epoch: 1,
         })]);
     show_docked(&mut session, &[(View::MAIN, 6)], false);
     show_docked(&mut session, &[(View::MAIN, 6)], false);

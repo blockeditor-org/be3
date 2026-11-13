@@ -198,7 +198,7 @@ be-tool-fix-rust-source enforces the layout:
   page and scrolling into view; native's frame-perfect layout.
 - Every feature exists on both. Where HTML cannot do it yet, its body is a
   visible stand-in (an outlined pink box, or an ignored prop) listed in
-  plans/html_core.md.
+  plans/deferred/html_core.md.
 - Colours are `Color`s that may reference declared variables, so a
   server-rendered page and both cores agree; on HTML they become `var(--…)`
   and follow the scheme without a redraw.

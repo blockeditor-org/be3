@@ -29,7 +29,10 @@ fn search_text_reads_only_the_parts_asked_for_and_not_yet_indexed() {
                     Sections::CONTENT_TYPE,
                     &manifest,
                     keys,
-                    &indexed,
+                    &indexed
+                        .iter()
+                        .map(|part| *part.hash().as_bytes())
+                        .collect::<Vec<_>>(),
                 )
                 .await
                 .expect("the type answers")
