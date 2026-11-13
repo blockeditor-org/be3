@@ -34,6 +34,10 @@ fn an_open_at_a_place_that_shows_no_editor_selects_nothing_later() {
         told.push((block, at.clone()));
         true
     });
-    assert_eq!(told, [(block, place)], "an open whose editor is there gets its place");
+    assert_eq!(
+        told,
+        [(block, place)],
+        "an open whose editor is there gets its place"
+    );
     assert!(reveals.is_empty());
 }

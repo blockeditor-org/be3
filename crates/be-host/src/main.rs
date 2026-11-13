@@ -14,9 +14,9 @@ mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
 mod members;
-mod reveals;
 #[cfg(target_os = "linux")]
 mod memory;
+mod reveals;
 mod root_settings;
 mod shell_route;
 mod surfaces;

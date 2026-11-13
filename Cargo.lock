@@ -1081,6 +1081,8 @@ dependencies = [
 name = "be-app-text"
 version = "0.1.0"
 dependencies = [
+ "be-lib-graphemes",
+ "be-lib-search",
  "be-sdk-beui",
  "be-sdk-test",
  "be-sdk-text",

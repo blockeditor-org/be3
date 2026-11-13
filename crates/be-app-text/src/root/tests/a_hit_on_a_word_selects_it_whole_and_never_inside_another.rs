@@ -19,7 +19,10 @@ fn a_hit_on_a_word_selects_it_whole_and_never_inside_another() {
         Some(0.."Café".len()),
         "case folding covers more than ASCII"
     );
-    assert_eq!(crate::root::surface::find_words(text.as_bytes(), "ate"), None);
+    assert_eq!(
+        crate::root::surface::find_words(text.as_bytes(), "ate"),
+        None
+    );
 
     let mut editor = editor(text);
     editor.presence_visible(true);
