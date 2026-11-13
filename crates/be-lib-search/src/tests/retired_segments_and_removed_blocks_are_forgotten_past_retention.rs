@@ -25,7 +25,7 @@ fn retired_segments_and_removed_blocks_are_forgotten_past_retention() {
             ..Batch::default()
         },
     );
-    store.keep(&run(index.compact(&store, id(11), 7, usize::MAX)).unwrap());
+    store.keep(&run(index.compact(&store, id(11), 7, usize::MAX, u64::MAX, |_| 0)).unwrap());
     assert_eq!(index.removed_blocks.len(), 1);
     assert!(!index.retired.is_empty());
 

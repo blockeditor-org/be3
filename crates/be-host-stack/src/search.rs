@@ -1889,14 +1889,27 @@ impl From<be_block_client::ClientError> for Unwritten {
 pub async fn write<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
-    batch: Batch,
+    mut batch: Batch,
 ) -> Result<Option<Vec<DocId>>, Unwritten> {
     let Some(head) = head_of(peer, index).await else {
         return Ok(None);
     };
+    let now = be_block_commit::now_milliseconds();
+    batch.at = now;
+    // Only the first attempt compacts: one on a newer head, after the one tried was let go
+    // of, writes just the batch.
+    let first = std::cell::Cell::new(true);
     on_newer_heads(
         head,
-        |head| write_at(peer, index, head, batch.clone()),
+        |head| {
+            write_at(
+                peer,
+                index,
+                head,
+                batch.clone(),
+                first.replace(false).then_some(now),
+            )
+        },
         || async {
             match peer.pending_commits(index).is_empty() {
                 true => peer.remote_head(index).await.ok().flatten(),
@@ -1937,6 +1950,7 @@ async fn write_at<S: ObjectStore>(
     index: Uuid,
     head: CommitId,
     mut batch: Batch,
+    compact_at: Option<i64>,
 ) -> Result<Vec<DocId>, Unwritten> {
     let commit = peer.load_commit(head).await?;
     let stored = peer.load_first_part(&commit.manifest).await?;
@@ -1958,14 +1972,12 @@ async fn write_at<S: ObjectStore>(
         .await
         .map_err(|error| unwritten(error.to_string()))?;
     // The device that writes a batch compacts a few segments with it, so queries read few.
-    content
-        .compact(
-            &parts,
-            Uuid::new_v4().into_bytes(),
-            be_block_commit::now_milliseconds(),
-        )
-        .await
-        .map_err(|error| unwritten(error.to_string()))?;
+    if let Some(now) = compact_at {
+        content
+            .compact(&parts, Uuid::new_v4().into_bytes(), now)
+            .await
+            .map_err(|error| unwritten(error.to_string()))?;
+    }
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
         .described(Vec::new(), be_block::derived_metadata(&content));
     peer.seal(index, write).await?;

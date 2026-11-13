@@ -36,13 +36,19 @@ impl Held {
     }
 }
 
-/// How long the server keeps an index block's old states (`be_server::retention`), and so how
-/// long a retired segment or a removed block is remembered (`SearchIndexContent::compact`): a
-/// device that writes on an older head than that has been away longer than its index lives.
+/// How long the server keeps an index block's old states (`be_server::retention`).
 pub const SEARCH_INDEX_KEPT: i64 = be_block_commit::retention::DAY;
+
+/// How long a retired segment or a removed block is remembered (`SearchIndexContent::compact`):
+/// several times `SEARCH_INDEX_KEPT`, for a device that comes back after longer than that with
+/// a batch written on an old head, and for clocks that disagree.
+const REMEMBERED: i64 = 7 * SEARCH_INDEX_KEPT;
 
 /// The segment merges one compaction makes at most, so no one batch rewrites the index.
 const MERGES_PER_PASS: usize = 2;
+
+/// The most bytes of parts one merge reads: a larger one waits for a later pass.
+const MERGE_BYTES: u64 = 8 << 20;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct Header {
@@ -96,10 +102,10 @@ impl SearchIndexContent {
         Ok(needs_text)
     }
 
-    /// Compacts a few segments (`Index::compact`, `MERGES_PER_PASS`) and forgets the retired
-    /// segments and removed blocks recorded longer than `SEARCH_INDEX_KEPT` before `now`
-    /// (milliseconds): what the device that writes a batch does with it, so the segments a
-    /// query reads stay few.
+    /// Compacts a few segments (`Index::compact`, `MERGES_PER_PASS`, none reading more than
+    /// `MERGE_BYTES`) and forgets the retired segments and removed blocks recorded longer than
+    /// `REMEMBERED` before `now` (milliseconds): what the device that writes a batch does with
+    /// it, so the segments a query reads stay few.
     pub async fn compact<F: AsyncRead>(
         &mut self,
         read: &F,
@@ -107,10 +113,23 @@ impl SearchIndexContent {
         now: i64,
     ) -> Result<(), Error> {
         let mut index = self.index.clone();
+        let length = |name: &PartName| {
+            self.parts
+                .iter()
+                .find(|(held, _)| held == name)
+                .map_or(0, |(_, part)| part.length())
+        };
         let written = index
-            .compact(&self.reader([self], read), origin, now, MERGES_PER_PASS)
+            .compact(
+                &self.reader([self], read),
+                origin,
+                now,
+                MERGES_PER_PASS,
+                MERGE_BYTES,
+                length,
+            )
             .await?;
-        index.forget_before(now - SEARCH_INDEX_KEPT);
+        index.forget_before(now - REMEMBERED);
         *self = Self::rebuilt(index, written, [&*self]);
         Ok(())
     }

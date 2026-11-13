@@ -20,7 +20,7 @@ fn a_long_run_of_batches_compacted_a_few_merges_at_a_time_stays_few_segments() {
             },
         );
         documents.insert(n, (0, time));
-        store.keep(&run(index.compact(&store, id(10_000 + n), time, 2)).unwrap());
+        store.keep(&run(index.compact(&store, id(10_000 + n), time, 2, u64::MAX, |_| 0)).unwrap());
         most_segments = most_segments.max(index.segment_count());
     }
     // Tiers of four: three segments per power of four documents, and one batch's own.

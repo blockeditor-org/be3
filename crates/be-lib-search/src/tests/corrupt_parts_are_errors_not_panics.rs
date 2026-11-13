@@ -39,10 +39,11 @@ fn exercise(index: &Index, other: &Index, store: &Store) {
             removed: vec![(doc(6), commit(9))],
             removed_blocks: vec![(doc(7).block, commit(9))],
             watermark: None,
+            at: 0,
         },
     ));
     let mut compacted = index.clone();
-    let _ = run(compacted.compact(store, id(91), 0, usize::MAX));
+    let _ = run(compacted.compact(store, id(91), 0, usize::MAX, u64::MAX, |_| 0));
     let _ = run(index.merge(other, store, id(92)));
     let _ = run(other.merge(index, store, id(93)));
 }

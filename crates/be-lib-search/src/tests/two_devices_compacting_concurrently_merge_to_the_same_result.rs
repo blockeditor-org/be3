@@ -34,7 +34,7 @@ fn two_devices_compacting_concurrently_merge_to_the_same_result() {
         );
         expected.insert(n, (0, time));
         expected.insert(n % 40, (1, time));
-        store.keep(&run(a.compact(&store, id(1000 + n), time, 2)).unwrap());
+        store.keep(&run(a.compact(&store, id(1000 + n), time, 2, u64::MAX, |_| 0)).unwrap());
     }
     let mut b = base.clone();
     for n in 200..220u32 {
@@ -52,7 +52,7 @@ fn two_devices_compacting_concurrently_merge_to_the_same_result() {
         );
         expected.insert(n, (0, time));
         expected.remove(&removed);
-        store.keep(&run(b.compact(&store, id(2000 + n), time, 2)).unwrap());
+        store.keep(&run(b.compact(&store, id(2000 + n), time, 2, u64::MAX, |_| 0)).unwrap());
     }
 
     // Merged either way, and compacted again, they answer as one index built from scratch.
@@ -60,7 +60,7 @@ fn two_devices_compacting_concurrently_merge_to_the_same_result() {
     store.keep(&written);
     let (mut ba, written) = run(b.merge(&a, &store, id(3001))).unwrap();
     store.keep(&written);
-    store.keep(&run(ba.compact(&store, id(3002), 300, usize::MAX)).unwrap());
+    store.keep(&run(ba.compact(&store, id(3002), 300, usize::MAX, u64::MAX, |_| 0)).unwrap());
     let mut fresh_store = Store::default();
     let fresh = from_scratch(&expected, &mut fresh_store);
     same_answers((&ab, &store), (&fresh, &fresh_store), 220);

@@ -238,6 +238,10 @@ pub struct Batch {
     pub removed_blocks: Vec<(Vec<u8>, Commit)>,
     /// The sequence of changes (`changed-since`) the index has now seen every change up to.
     pub watermark: Option<u64>,
+    /// When the writing device applies it, on its own clock (milliseconds): a block it removes
+    /// is remembered from then (`Index::forget_before`), whatever its commit's author's clock
+    /// said.
+    pub at: i64,
 }
 
 /// A document table entry: what the index holds for a document.
@@ -419,7 +423,7 @@ impl Index {
             self.removed_blocks.push(RemovedBlock {
                 block: block.clone(),
                 commit,
-                at: commit.time,
+                at: commit.time.max(batch.at),
             });
             for entry in table.entries_of(parts, &block).await? {
                 if entry.commit < commit {
