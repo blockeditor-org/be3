@@ -3,7 +3,7 @@ use be_block_commit::MergeResult;
 use be_block_model::{Edit, ObjectId};
 use uuid::Uuid;
 
-use crate::{ChatContent, Message, MessageEdit};
+use crate::{ChatContent, Message};
 
 mod a_chat_decoded_from_bytes_alone_keeps_its_segments_when_saved_again;
 mod a_close_whose_index_entry_does_not_match_its_bytes_is_ignored;

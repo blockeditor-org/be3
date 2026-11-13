@@ -7,22 +7,23 @@ async fn a_record_found_forged_is_not_asked_about_again() {
     let guest = harness.member(&owner, "guest@example.com").await;
     let other = harness.member(&owner, "other@example.com").await;
     let block = Uuid::new_v4();
-    let forged = other.sign_authored(block, b"hello");
-    let also_forged = other.sign_authored(block, b"hullo");
+    // `other` is no contact of the guest's, so it takes the guest's key from the server.
+    let forged = owner.sign_authored(block, b"hello");
+    let also_forged = owner.sign_authored(block, b"hullo");
     assert_eq!(
-        owner
+        other
             .verify_authored(guest.account(), block, b"hello", &forged)
             .await
             .unwrap(),
         Signer::Bad,
-        "another member cannot sign as the guest"
+        "the owner cannot sign as the guest"
     );
 
     // With the server gone, the record found forged is answered from what this device learned,
     // while one it never asked about needs the server.
     harness.stop().await;
     assert_eq!(
-        owner
+        other
             .verify_authored(guest.account(), block, b"hello", &forged)
             .await
             .unwrap(),
@@ -30,7 +31,7 @@ async fn a_record_found_forged_is_not_asked_about_again() {
         "a forged row shown again costs no round trip"
     );
     assert!(
-        owner
+        other
             .verify_authored(guest.account(), block, b"hullo", &also_forged)
             .await
             .is_err(),

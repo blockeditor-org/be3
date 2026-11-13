@@ -24,16 +24,7 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     );
 
     // Someone with Edit puts the first edit back: it is the latest, and it is one replaced.
-    let replayed = edited(
-        &chat,
-        [chat.put_edit(
-            lunch,
-            &MessageEdit {
-                time: 7,
-                ..once.clone()
-            },
-        )],
-    );
+    let replayed = edited(&chat, [chat.put_edit(lunch, &once)]);
     let shown = replayed
         .edit_of(lunch)
         .expect("the replayed edit is the latest");
