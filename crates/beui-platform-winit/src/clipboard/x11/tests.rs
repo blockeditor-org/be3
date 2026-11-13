@@ -14,14 +14,24 @@ struct Xvfb {
 impl Xvfb {
     fn start() -> Option<Self> {
         let spawned = Command::new("Xvfb")
-            .args(["-displayfd", "1", "-nolisten", "tcp", "-screen", "0", "64x64x24"])
+            .args([
+                "-displayfd",
+                "1",
+                "-nolisten",
+                "tcp",
+                "-screen",
+                "0",
+                "64x64x24",
+            ])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn();
         let mut child = match spawned {
             Ok(child) => child,
             Err(error) => {
-                eprintln!("skipped: Xvfb could not start ({error}); install it with apt install xvfb");
+                eprintln!(
+                    "skipped: Xvfb could not start ({error}); install it with apt install xvfb"
+                );
                 return None;
             }
         };

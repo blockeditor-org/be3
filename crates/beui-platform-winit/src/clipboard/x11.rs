@@ -109,7 +109,11 @@ impl Owner {
         if let Some(png) = png {
             offered.push((atoms.PNG, png.into()));
         }
-        let owner = if offered.is_empty() { NONE } else { self.window };
+        let owner = if offered.is_empty() {
+            NONE
+        } else {
+            self.window
+        };
         *self.offered.lock().unwrap_or_else(PoisonError::into_inner) = offered;
         let _ = self
             .connection
@@ -249,7 +253,13 @@ impl Server {
         let size = u32::try_from(data.len()).unwrap_or(u32::MAX);
         if self
             .connection
-            .change_property32(PropMode::REPLACE, requestor, property, self.atoms.INCR, &[size])
+            .change_property32(
+                PropMode::REPLACE,
+                requestor,
+                property,
+                self.atoms.INCR,
+                &[size],
+            )
             .is_err()
         {
             return false;
