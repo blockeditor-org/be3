@@ -16,6 +16,7 @@ use be_sdk_beui::{BlockInfo, BlockParent};
 
 mod a_blocks_agent_is_made_rotated_and_removed_through_the_host;
 mod a_child_block_hears_what_its_childs_bar_asked_for;
+mod a_pick_from_a_childs_menu_points_at_the_child_in_the_host;
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window;
 mod a_fetched_body_reaches_the_editor_in_the_chunks_it_arrived_in;

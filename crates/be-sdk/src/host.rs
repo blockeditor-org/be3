@@ -945,7 +945,7 @@ impl EditorHost {
         }
         *reported = Some(focused.clone());
         drop(reported);
-        self.tell(ShellMessage::Focused(be_sdk_api::shell_types::Focus {
+        self.tell_latest(ShellMessage::Focused(be_sdk_api::shell_types::Focus {
             block_id: focused.block_id.map(Uuid::into_bytes),
             block_type: focused.block_type.into_bytes(),
             editor: focused.editor.map(Uuid::into_bytes),
@@ -1143,6 +1143,15 @@ impl EditorHost {
     /// Tells the shell `message`, after what the editor told it before.
     pub(crate) fn tell(&self, message: ShellMessage) {
         self.told.borrow_mut().push(message);
+    }
+
+    /// Tells the shell `message` in place of one of its kind still waiting to be sent, where
+    /// only the latest matters (where the focus is, whether a drag is taken, a paste asked).
+    fn tell_latest(&self, message: ShellMessage) {
+        let kind = std::mem::discriminant(&message);
+        let mut told = self.told.borrow_mut();
+        told.retain(|waiting| std::mem::discriminant(waiting) != kind);
+        told.push(message);
     }
 
     /// Takes what the editor told the shell, in the order it told it.
@@ -1749,7 +1758,7 @@ impl EditorHost {
     }
 
     pub fn accept_drag(&self, accepted: bool) {
-        self.tell(ShellMessage::DragAccepted(accepted));
+        self.tell_latest(ShellMessage::DragAccepted(accepted));
     }
 
     pub(crate) fn set_instance(&self, instance: EditorInstanceId) {
@@ -2161,7 +2170,7 @@ impl EditorHost {
     }
 
     pub fn request_paste(&self) {
-        self.tell(ShellMessage::Paste);
+        self.tell_latest(ShellMessage::Paste);
     }
 
     pub fn join_module(&self, module: &crate::Module) {

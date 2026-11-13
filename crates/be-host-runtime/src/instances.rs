@@ -4038,11 +4038,7 @@ impl Instances {
 
     pub(super) fn take_focus_report(&mut self, instance: EditorInstanceId) -> Option<Focus> {
         let entry = self.entries.get_mut(&instance)?;
-        if entry.focus_reports.is_empty() {
-            None
-        } else {
-            Some(entry.focus_reports.remove(0))
-        }
+        std::mem::take(&mut entry.focus_reports).pop()
     }
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {

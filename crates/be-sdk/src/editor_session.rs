@@ -462,6 +462,10 @@ impl EditorSession {
                 debug::simulate_access(block.into_bytes(), access).detach();
             }
         });
+        if self.host.plays_audio() {
+            // Opened before the first command is sent, so its status is not missed.
+            self.watch_audio();
+        }
         let mut tell: Vec<ShellMessage> = self.host.take_told();
         self.report_stopped(&mut tell);
         let intrinsic = self.editor.intrinsic_size();
