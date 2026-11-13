@@ -93,6 +93,11 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
 
     // Offline at the relay, so the stack cannot reconnect before this test lets it: the other
     // device writes the index while it is away.
+    // What it indexed is on the server before it goes: a device cut off mid-publish is
+    // another story (the other device then cannot read the index it left).
+    wait_until("sent what it indexed", |shared| {
+        shared.connected && shared.waiting == 0
+    });
     harness.relay().offline(true);
     wait_until("noticed the server was gone", |shared| !shared.connected);
     type_text(bananas, 0, "figs ");
