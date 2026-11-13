@@ -1460,11 +1460,18 @@ impl<S: ObjectStore> AsyncRead for PeerParts<'_, S> {
 /// server; a batch on a head older than the server's meets the newer one as a diverged block and
 /// merges by parts. The server is asked only when the device knows no head.
 async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
-    let known = match peer.pending_commits(index).is_empty() {
-        false => peer.local_head(index),
-        true => peer
-            .known_remote_head(index)
-            .or_else(|| peer.local_head(index)),
+    // What this device sealed and sent is its local head before the server's word of it moves
+    // the remote head: a batch written then reads the newer, rather than the one it replaced.
+    let local = peer.local_head(index);
+    let known = match (peer.pending_commits(index).is_empty(), local, peer.known_remote_head(index)) {
+        (false, _, _) => local,
+        (true, Some(local), Some(remote)) if local != remote => {
+            match peer.descends(local, remote).await {
+                Ok(true) => Some(local),
+                _ => Some(remote),
+            }
+        }
+        (true, local, remote) => remote.or(local),
     };
     if known.is_some() {
         return known;
