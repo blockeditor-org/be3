@@ -23,6 +23,10 @@ fn an_editor_still_opening_after_patience_still_gets_the_place() {
         told.push((block, at.clone()));
         Delivery::Told
     });
-    assert_eq!(told, [(block, place)], "the editor gets its place once open");
+    assert_eq!(
+        told,
+        [(block, place)],
+        "the editor gets its place once open"
+    );
     assert!(reveals.is_empty());
 }
