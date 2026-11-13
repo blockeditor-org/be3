@@ -25,10 +25,6 @@ Fixed items are removed as they land.
 The typed clipboard is in (guides/beui/platforms.md, Clipboard and paste;
 guides/apps/host_services.md, Copying and cutting blocks). Left of it:
 
-- **macOS.** The same. Done: macOS writes them as custom pasteboard types and
-  knows another program copied by the pasteboard's change count. No Mac is
-  available, so this is written blind: done when it compiles for macOS and
-  shares its logic with tested code where it can.
 - **A copy too large for Android's clipboard.** Plain text beyond about
   450 KB (a Parcel holds it as UTF-16, under Binder's ~1 MB) makes
   `setPrimaryClip` throw, and the copy is lost without a word
