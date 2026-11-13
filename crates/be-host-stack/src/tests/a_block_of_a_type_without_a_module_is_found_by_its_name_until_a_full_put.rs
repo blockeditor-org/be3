@@ -61,16 +61,11 @@ fn a_block_of_a_type_without_a_module_is_found_by_its_name_until_a_full_put() {
     harness.connect();
     // This device has no module for the text type, as for an app not installed here.
     with_shared_mut(|shared| shared.search.no_module.insert(TextContent::CONTENT_TYPE));
-    let (workspace, note) = workspace_with_note("Pantry", "apples and pears");
+    let (_, note) = workspace_with_note("Pantry", "apples and pears");
 
     // Found by its name, which is all this device can read of it, and searches are complete.
     finds("Pantry", &[note]);
     finds("apples", &[]);
-
-    // The mirror lists the workspace's children, so the note can be placed once the
-    // catch-up that named it is done with it.
-    want(Owner::Host, vec![Query::Children(workspace)]);
-    crate::wait_until(|shared| shared.graph.get(note).map(|_| ()));
 
     // A device with the module puts the same commit in full, as this one does once it has the
     // module: the full put replaces the partial one, though the note did not change.

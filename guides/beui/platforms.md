@@ -170,13 +170,14 @@ while it is still the clipboard's, so lazy representations and be3 formats
 survive where the system clipboard cannot carry them. Windows knows by the
 clipboard's sequence number and carries be3 formats as registered formats; the
 web writes them as `web ` types where `ClipboardItem.supports` says so
-(Chromium) and reads them from the async clipboard; Android lists them among
-the clip's description's MIME types and keeps them, base64, in its extras,
-with a nonce of the copy that tells its clip from another's, and leaves out
-what would overrun 256 KB there (`clip::fitting`), which stays in the held clip
-(`beui-platform-android/src/clipboard.rs`, written without an emulator: only
-its compiling is checked); all three hold an item's `ClipItem::stored` bytes,
-refs and all. Elsewhere the plain text on the clipboard is compared with the text
+(Chromium) and reads them from the async clipboard; X11 offers them as targets
+of its selection and reads them from another program's; Android lists them
+among the clip's description's MIME types and keeps them, base64, in its
+extras, with a nonce of the copy that tells its clip from another's, and
+leaves out what would overrun 256 KB there (`clip::fitting`), which stays in
+the held clip (`beui-platform-android/src/clipboard.rs`, written without an
+emulator: only its compiling is checked); all four hold an item's
+`ClipItem::stored` bytes, refs and all. Elsewhere the plain text on the clipboard is compared with the text
 written, as beui's HTML core does too (`page::copy` and `page::held`): a
 `paste` event on a node answers from the held clip when its text matches. On
 the system clipboard a platform puts the plain text and the PNG together where
