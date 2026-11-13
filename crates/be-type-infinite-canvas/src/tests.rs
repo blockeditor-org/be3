@@ -8,6 +8,7 @@ use crate::{
     CanvasShape, CanvasTransform, InfiniteCanvasOperation,
 };
 
+mod a_canvas_answers_the_text_of_its_items_as_one_document;
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
 mod a_canvas_profile_is_kept_but_never_undone;
 mod a_component_added_to_one_entity_on_both_sides_is_kept_once;

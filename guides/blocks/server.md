@@ -445,9 +445,23 @@ escrow keys per organization (refused as `OverQuota`); and per connection,
 sessions, listings and streams. Names, metadata (held in the graph and sent in
 every summary), sealed blobs, pairing messages and relayed session messages
 have byte limits (refused as `InvalidRequest`). A relay is shared by every
-participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one client that has left the
-session (or never joined) is dropped without an error: it is best-effort, and the
-sender cannot know the other left.
+participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
+client that has left the session (or never joined) is dropped without an error:
+it is best-effort, and the sender cannot know the other left. The server cannot
+read a relay, so each names its `relay-kind`: `peer` (presence, channel messages,
+asking to catch up) needs view access, and `edit` (operations and session state)
+edit access (`rule`).
+Whether the sender holds the lease is not checked: an owner whose lease lapsed
+unseen still relays what it accepted, which the next owner takes over from a
+client it knew as an owner. Editors are trusted with the block's content and
+session; replicas keep owner-only messages to the owner (guides/type_modules.md).
+The server stamps what it checked on what it delivers (`relayed.kind`; an
+`append`'s entries are `edit`), and receivers drop a message that asks for more,
+since the label is the sender's. An owner that lost edit access hands the lease
+on at its next heartbeat (`Lease::demote`), which also covers a grant or revoke
+racing a join. The lease goes only to a participant with edit access when it
+joined (`Lease::join`), so a session of viewers alone has no owner, and a viewer's
+claim is refused.
 
 The session registry (`sessions.rs`) indexes leases by client, so leaving them
 all on a disconnect costs what that client joined, and remembers an empty

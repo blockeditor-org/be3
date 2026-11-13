@@ -75,7 +75,7 @@ them.
 ## Files opened in programs
 
 Under `--desktop` a program with a `.desktop` entry is an editor of every block whose type has a
-plain-file form (guides/type_modules.md) and whose file name has an extension the entry's
+plain-file form (its manifest's `plain_file`, guides/type_modules.md) and whose file name has an extension the entry's
 `MimeType` names. So an EPUB file block opens in KOReader as a tab of whichever shell opened it.
 MIME types become extensions through shared-mime-info's globs (be-host-wayland's `MimeGlobs`).
 

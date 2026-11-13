@@ -1202,9 +1202,9 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
-    let counted = store(Cell::new(false));
+    let counted = StoredCell::new(false);
     let count = move || {
-        if counted.with(Cell::get) {
+        if counted.get() {
             return;
         }
         let shown = editors().with(|open| match open.get_mut(&block) {
@@ -1214,7 +1214,7 @@ fn BlockFrame(
             }
             None => false,
         });
-        counted.with(|counted| counted.set(shown));
+        counted.set(shown);
     };
     count();
     create_effect(move || {
@@ -1222,7 +1222,7 @@ fn BlockFrame(
         count();
     });
     on_cleanup(move || {
-        if counted.with(Cell::get) {
+        if counted.get() {
             editors().with(|open| {
                 if let Some(editor) = open.get_mut(&block) {
                     editor.shown(false);
@@ -2073,23 +2073,28 @@ fn follow_window(
             untrack(|| asks.update(|asks| *asks += 1));
         }
     });
+    let placer = move || {
+        editors
+            .handle(parent)
+            .and_then(|placer| Some((placer.app_id()?.to_owned(), placer.instance)))
+    };
     let asked = create_memo(move || {
-        child.with(|child| child.as_ref().is_some_and(|child| child.focus_asked))
+        placer()
+            .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
     });
     create_effect(move || {
         if !asked.get() || window.get().is_none() {
             return;
         }
         untrack(|| {
-            let Some(placer) = editors.handle(parent) else {
+            let Some((app_id, instance)) = placer() else {
                 return;
             };
-            let Some(app_id) = placer.app_id() else {
-                return;
-            };
-            if be_host_runtime::take_child_focus(app_id, placer.instance, key) {
-                asks.update(|asks| *asks += 1);
-            }
+            // The host gives a window the keyboard itself, and the keys the editor held are
+            // dropped, as the editor no longer has it.
+            super::app_view::gifts::taken(&app_id, instance);
+            be_host_runtime::end_gift(&app_id, instance);
+            asks.update(|asks| *asks += 1);
         });
     });
     let fullscreen = create_memo(move || {

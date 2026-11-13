@@ -14,6 +14,7 @@ winit = "=0.31.0-beta.3"
 
 [target.'cfg(all(unix, not(any(target_os = "android", target_os = "macos", target_os = "ios"))))'.dependencies]
 accesskit_unix = "0.22.1"
+x11rb = "0.13"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 accesskit_windows = "0.34.0"

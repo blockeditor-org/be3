@@ -218,6 +218,9 @@ pub async fn run<S: ObjectStore>(
     tracker: &Tracker<S>,
     invocation: &Invocation,
 ) -> Result<Outcome, String> {
+    if invocation.options.new && invocation.verb != "option" {
+        return Err("--new goes with option: `be DATABASE option FIELD OPTION --new`".to_owned());
+    }
     let Some(target) = &invocation.target else {
         if invocation.verb == "sync" {
             return sync(tracker, None, invocation).await;
@@ -679,6 +682,14 @@ async fn row_verb<S: ObjectStore>(
                 [] => ("", &[][..]),
                 [verb, arguments @ ..] => (verb.as_str(), arguments),
             };
+            if !matches!(
+                verb,
+                "" | "cat" | "write" | "append" | "edit" | "info" | "download"
+            ) {
+                return Err(format!(
+                    "a row's page takes cat, write, append, edit, info and download, not {verb}"
+                ));
+            }
             let writing = matches!(verb, "write" | "append" | "edit");
             let page_id = match tracker.page_of(database, code, writing).await? {
                 Some(page) => page,

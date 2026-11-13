@@ -498,7 +498,7 @@ impl TestClient {
         ));
         answers.push((
             "session-relay",
-            answered(session.relay(None, sealed()).await),
+            answered(session.relay(None, RelayKind::Peer, sealed()).await),
         ));
         answers.push((
             "session-append",

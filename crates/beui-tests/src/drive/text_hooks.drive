@@ -3,3 +3,12 @@
 clock stop
 click '#text_hooks.read'
 wait 'value="Texts Alpha,Beta row 3 at Some(60.0)"'
+
+# A text's selection hooks: the highlight is a CSS highlight over the bytes, and each
+# handle is a caret handle in the text's decoration; both go when cleared.
+click '#text_hooks.select'
+#web highlighted world
+#web elements .beui-caret-handle 2
+click '#text_hooks.clear'
+#web highlighted none
+#web elements .beui-caret-handle 0

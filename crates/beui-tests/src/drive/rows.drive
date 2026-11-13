@@ -3,7 +3,7 @@
 clock stop
 wait 'Alert "Saving failed"'
 click '#banner.dismiss'
-gone 'Alert "Saving failed"'
+wait not 'Alert "Saving failed"'
 click 'Button "Wi-Fi"'
 wait 'value="Chose Wi-Fi"'
 click 'Button "Sign out"'

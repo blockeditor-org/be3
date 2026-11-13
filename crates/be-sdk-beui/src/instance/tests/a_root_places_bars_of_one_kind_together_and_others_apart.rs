@@ -19,6 +19,7 @@ fn bar(tab: u64, key: &str, kind: &str) -> DockBar {
             width: 100.0,
             height: 20.0,
         },
+        pane: None,
     }
 }
 
@@ -77,6 +78,7 @@ fn a_root_places_bars_of_one_kind_together_and_others_apart() {
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
             child,
             declaration: Some(barred()),
+            epoch: 1,
         })]);
     show_docked(&mut session, &[(View::MAIN, 6)], false);
     show_docked(&mut session, &[(View::MAIN, 6)], false);

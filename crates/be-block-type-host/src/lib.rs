@@ -14,9 +14,9 @@ pub mod replicas;
 pub use be_sdk_type_api::{Plain, PlainFile};
 pub use modules::{
     Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Source, Under, in_process, is_known, kind_of,
-    kinds_revision, plain_of, started, tag_of,
+    plain_of, started, tag_of,
 };
-pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Replicas, Searched};
+pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Owing, Replicas, Searched};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Conflict {
@@ -56,6 +56,7 @@ pub trait Host: Sized + 'static {
 
     fn released(shared: &Arc<Mutex<Self>>, block: Uuid);
 
+    /// Also when only `status.undo` changed.
     fn status(shared: &Arc<Mutex<Self>>, block: Uuid, status: &Status);
 
     fn described(
@@ -65,11 +66,11 @@ pub trait Host: Sized + 'static {
         description: Description,
     );
 
-    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, history: be_sdk_type_api::UndoState);
-
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict);
 
-    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize, undurable: usize);
+    /// How many open replicas have edits not yet committed, which owe a seal (`Owing`), and how
+    /// many hold edits not yet durable (`Replicas::counts`).
+    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: Vec<Owing>, undurable: usize);
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool);
 }

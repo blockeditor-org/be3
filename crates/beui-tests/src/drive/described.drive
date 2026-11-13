@@ -2,8 +2,8 @@
 # description is the node's on both cores, and stays so when the inner one's
 # changes.
 wait 'Group "Outer"'
-gone 'Group "Inner 0"'
+wait not 'Group "Inner 0"'
 click '#described.rename'
 wait '"Renamed 1"'
 wait 'Group "Outer"'
-gone 'Group "Inner 1"'
+wait not 'Group "Inner 1"'

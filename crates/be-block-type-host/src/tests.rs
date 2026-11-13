@@ -76,11 +76,9 @@ impl Host for Quiet {
 
     fn described(_: &Arc<Mutex<Self>>, _: Uuid, _: Vec<Uuid>, _: Description) {}
 
-    fn history(_: &Arc<Mutex<Self>>, _: Uuid, _: be_sdk_type_api::UndoState) {}
-
     fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
-    fn counted(_: &Arc<Mutex<Self>>, _: usize, _: usize, _: usize) {}
+    fn counted(_: &Arc<Mutex<Self>>, _: usize, _: Vec<crate::Owing>, _: usize) {}
 
     fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }

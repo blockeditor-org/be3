@@ -13,7 +13,7 @@ use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
     HistoryEntry, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
-    PublishOutcome, ReferenceChange, ServerAccount, SessionState, WrappedBy, client,
+    PublishOutcome, ReferenceChange, RelayKind, ServerAccount, SessionState, WrappedBy, client,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -284,6 +284,10 @@ pub struct Peer<S: ObjectStore> {
     /// Commits whose objects the store holds every one of (`holds`). The store never drops an
     /// object, so a commit found whole stays whole.
     whole: Mutex<HashSet<CommitId>>,
+    /// Records `verify_authored` found forged after asking the server, by account, block and
+    /// a hash of the bytes and signature, for the connection that answered: asked again, they
+    /// cost no round trip until the device reconnects (`authorship::Forged`).
+    forged: Mutex<authorship::Forged>,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -380,6 +384,7 @@ impl<S: ObjectStore> Peer<S> {
             tried: Mutex::new(HashSet::new()),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
+            forged: Mutex::new(authorship::Forged::default()),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -2266,11 +2271,12 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
         to: Option<ClientId>,
+        kind: RelayKind,
         payload: &[u8],
     ) -> Result<Answer<()>, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = self.commits.vault().seal(key, payload)?;
-        Ok(self.connection().relay(block, to, sealed))
+        Ok(self.connection().relay(block, to, kind, sealed))
     }
 
     pub fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
