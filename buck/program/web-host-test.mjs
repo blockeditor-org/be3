@@ -18,7 +18,7 @@
 // The test fails by throwing. The browser is BE3_CHROME when set, else Playwright's Chromium.
 // It draws with WebGL on SwiftShader, as `web-dev --webgl` does.
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -145,8 +145,11 @@ try {
     });
     await session.send("ServiceWorker.enable");
 
+    const invite = execFileSync(server, ["invite-code", "create", "--data-dir", join(directory, "server")], {
+        encoding: "utf8",
+    }).trim();
     await page.goto(`${origin}/?dev-workspace&automation`);
-    await signIn(page, serverLog, TIMEOUT);
+    await signIn(page, serverLog, invite, TIMEOUT);
 
     const drive = async (...words) => {
         const { text, error } = await page.evaluate(

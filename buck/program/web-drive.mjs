@@ -102,7 +102,7 @@ const number = (index) => {
 };
 switch (command) {
     case "dev-sign-in":
-        await signIn(page, rest[0], timeout);
+        await signIn(page, rest[0], rest[1], timeout);
         break;
 
     default:
