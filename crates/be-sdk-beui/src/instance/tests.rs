@@ -280,7 +280,7 @@ fn BarProbe() -> beui::NodeId {
     BAR.with(|held| held.set(bar));
     let vertical =
         create_memo(move || bar.is_some_and(|bar| bar.direction() == beui::Direction::Vertical));
-    let length = |length: f32| beui::styled::Length::Vec2(beui::styled::Vec2::Custom(length));
+    let length = |length: f32| beui::styled::Length::Size(beui::styled::Size::Custom(length));
     let width = create_memo(move || length(if vertical.get() { 24.0 } else { 120.0 }));
     let height = create_memo(move || length(if vertical.get() { 120.0 } else { 24.0 }));
     view! {

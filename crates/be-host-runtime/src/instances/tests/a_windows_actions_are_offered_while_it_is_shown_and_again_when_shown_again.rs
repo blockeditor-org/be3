@@ -25,10 +25,7 @@ fn a_windows_actions_are_offered_while_it_is_shown_and_again_when_shown_again() 
             view: ViewId::MAIN,
         },
         placement: be_sdk_api::WindowPlacement::AtPointer,
-        size: Vec2 {
-            x: 200.0,
-            y: 100.0,
-        },
+        size: Vec2 { x: 200.0, y: 100.0 },
         level: be_sdk_api::WindowLevel::Normal,
     };
     instances.adopt_window(&open, &layout);

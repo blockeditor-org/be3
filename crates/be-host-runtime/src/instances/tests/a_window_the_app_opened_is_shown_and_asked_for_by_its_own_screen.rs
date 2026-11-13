@@ -25,10 +25,7 @@ fn a_window_the_app_opened_is_shown_and_asked_for_by_its_own_screen() {
             view: ViewId::MAIN,
         },
         placement: be_sdk_api::WindowPlacement::AtPointer,
-        size: Vec2 {
-            x: 200.0,
-            y: 100.0,
-        },
+        size: Vec2 { x: 200.0, y: 100.0 },
         level: be_sdk_api::WindowLevel::Normal,
     };
     instances.adopt_window(&open, &layout);
