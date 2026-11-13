@@ -9,22 +9,6 @@ lands on its own. Step numbers stay as written when a step is done and
 removed. No format is frozen, so wire and WIT changes need no migration. Line
 numbers are from when this plan was written.
 
-## 5. Acting on a block is one call
-
-Today a block is changed through `blocks.act(block, block-command)`,
-`blocks.version(block, version-command)`, the `act` shell message (`block-act`: a
-block and a `shell-command`) and the graph calls `create-block`, `set-parent` and `define`.
-The guest's `GraphCommand` (`be-sdk/src/graph.rs`) is split back into three
-calls by `be-sdk/src/link.rs`.
-
-Add `version(version-command)`, `share`, `leave`, `close-editor`,
-`set-parent(block-location)` and `define(…)` to `block-command`, leaving one
-`blocks.act(block, command)` plus `create-block` (which answers with an id).
-`shell-command` goes. Permission checks stay a match on the command in the one
-host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
-whether `set-parent` and the existing `move-command`/`reorder-command` are one
-thing, and keep one.
-
 ## 9. Block protocol requests that duplicate others
 
 - `read-block` is `list-blocks(listing.block)`: the server implements it as

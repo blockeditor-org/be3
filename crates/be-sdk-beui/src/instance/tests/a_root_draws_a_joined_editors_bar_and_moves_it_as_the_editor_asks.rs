@@ -56,6 +56,7 @@ fn barred() -> DockDeclaration {
                 width: 100.0,
                 height: 20.0,
             },
+            pane: None,
         }],
     }
 }

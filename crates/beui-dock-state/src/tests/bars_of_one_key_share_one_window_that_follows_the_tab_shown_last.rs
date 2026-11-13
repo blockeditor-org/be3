@@ -17,6 +17,7 @@ fn bars_of_one_key_share_one_window_that_follows_the_tab_shown_last() {
         owner: Some(TabId::new(owner)),
         placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
         hidden: false,
+        pane: None,
     };
     let declared = DockSpec {
         bars: vec![bar(20, 1), bar(21, 2), bar(22, 1)],
