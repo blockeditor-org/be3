@@ -14,28 +14,10 @@ execution_platform(
     remote_execution_properties = worker_properties(),
 )
 
-# The same workers for an action that needs most of one's memory, which asks
-# for it with buck/constraints:large_memory: be-host's fat LTO link peaks at
-# 10 GB, and a worker has 16 and runs 16 actions at once, so two such links on
-# one worker were killed. memory_kb is a NativeLink `minimum` property: a worker
-# advertises what it has (worker-direct.json5) and the scheduler takes each
-# running action's request off it, so a worker runs one of these at a time.
-# Actions that do not ask are not counted (guides/build_server.md, Scheduling).
-LARGE_MEMORY = worker_properties() | {"memory_kb": str(12 * 1024 * 1024)}
-
-execution_platform(
-    name = "large_memory",
-    constraints = ["root//buck/constraints:large_memory"],
-    cpu_configuration = "prelude//cpu:x86_64",
-    os_configuration = "prelude//os:linux",
-    remote_execution_properties = LARGE_MEMORY,
-)
-
 execution_platforms(
     name = "execution_platforms",
     platforms = [
         ":default",
-        ":large_memory",
     ],
 )
 
@@ -52,21 +34,10 @@ execution_platform(
     remote_execution_properties = worker_properties(),
 )
 
-execution_platform(
-    name = "large_memory_local",
-    constraints = ["root//buck/constraints:large_memory"],
-    cpu_configuration = "prelude//cpu:x86_64",
-    label = ":large_memory",
-    os_configuration = "prelude//os:linux",
-    remote = False,
-    remote_execution_properties = LARGE_MEMORY,
-)
-
 execution_platforms(
     name = "execution_platforms_local",
     platforms = [
         ":default_local",
-        ":large_memory_local",
     ],
 )
 

@@ -95,10 +95,6 @@
         supported_platform_properties: {
           OSFamily: "exact",
           "container-image": "exact",
-          // The memory an action sets aside on its worker, in KiB: each worker advertises what it has
-          // (worker-direct.json5), and the scheduler takes a running action's request off it. Only be-host's LTO link
-          // asks (buck/platforms:large_memory); an action that does not is not counted.
-          memory_kb: "minimum",
         },
       },
     },

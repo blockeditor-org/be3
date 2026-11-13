@@ -81,9 +81,6 @@
         platform_properties: {
           OSFamily: { values: ["Linux"] },
           "container-image": { values: ["docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549"] },
-          // The memory actions may set aside (server.json5): the VM's, less 2 GiB for the worker and the actions
-          // that ask for none. A large worker's 16 GB leaves room for one be-host LTO link (buck/platforms:large_memory).
-          memory_kb: { query_cmd: "/usr/bin/awk '/MemTotal/ { print $2 - 2097152 }' /proc/meminfo" },
         },
       },
     },
