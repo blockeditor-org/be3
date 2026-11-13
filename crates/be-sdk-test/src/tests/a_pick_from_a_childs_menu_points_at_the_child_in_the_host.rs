@@ -1,5 +1,5 @@
-use beui::styled::Root;
 use beui::pos2;
+use beui::styled::Root;
 
 use super::*;
 
@@ -13,7 +13,12 @@ impl BeuiRoot for PickRoot {
         view! {
             <Root>
                 <Frame width=Size::Popover height={Size::Custom(180.0)}>
-                    <ChildBlock editor={editor} block={target} mode=ChildMode::Live own_frame=true />
+                    <ChildBlock
+                        editor={editor}
+                        block={target}
+                        mode=ChildMode::Live
+                        own_frame=true
+                    />
                 </Frame>
             </Root>
         }
@@ -25,9 +30,12 @@ fn a_pick_from_a_childs_menu_points_at_the_child_in_the_host() {
     let origin = pos2(100.0, 40.0);
     let mut test = BeuiTest::<PickRoot>::editing(Uuid::new_v4()).at_host_origin(origin);
     let placement = test.children()[0].clone();
-    let anchor = placement.anchor.expect("a child placed in a frame has an anchor");
+    let anchor = placement
+        .anchor
+        .expect("a child placed in a frame has an anchor");
 
-    test.host().pick_child_menu(placement.child, "rename".to_owned());
+    test.host()
+        .pick_child_menu(placement.child, "rename".to_owned());
     test.run();
 
     let picks = test.take_child_menu_picks();
