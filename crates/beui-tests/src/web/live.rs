@@ -441,13 +441,17 @@ fn hydrating_a_form() -> Checked {
     // Only what was typed is replayed: the email field, untouched, hears no input.
     let heard = std::rc::Rc::new(std::cell::Cell::new(0));
     let count = std::rc::Rc::clone(&heard);
-    let listener = wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || count.set(count.get() + 1));
+    let listener =
+        wasm_bindgen::closure::Closure::<dyn FnMut()>::new(move || count.set(count.get() + 1));
     before[1]
         .add_event_listener_with_callback("input", listener.as_ref().unchecked_ref())
         .map_err(|_| "listening to the email field".to_owned())?;
     beui::html::hydrate("hydrated-form", sign_in)?;
     expect(heard.get() == 0, || {
-        format!("hydration sent the untouched email field {} input events", heard.get())
+        format!(
+            "hydration sent the untouched email field {} input events",
+            heard.get()
+        )
     })?;
     let text = host.text_content().unwrap_or_default();
     expect(text.contains("Password typed before hydration"), || {

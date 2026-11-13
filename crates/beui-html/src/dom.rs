@@ -72,7 +72,10 @@ pub fn hydrate<C: IntoSegment<Node>>(
 fn typed_fields(container: &web_sys::Node) -> Vec<web_sys::EventTarget> {
     // Through js_sys, which every target that builds this crate has.
     let query = js_sys::Reflect::get(container, &"querySelectorAll".into()).ok();
-    let Some(query) = query.as_ref().and_then(|query| query.dyn_ref::<js_sys::Function>()) else {
+    let Some(query) = query
+        .as_ref()
+        .and_then(|query| query.dyn_ref::<js_sys::Function>())
+    else {
         return Vec::new();
     };
     let Ok(fields) = query.call1(container, &"input, textarea".into()) else {
