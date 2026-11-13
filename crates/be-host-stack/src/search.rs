@@ -1389,7 +1389,11 @@ fn settle_indexes(
                 Ok(None) => {}
                 // Settled again on the next pass.
                 Err(Unwritten::Moved(_)) => {
-                    held.search.settle.entry(index).or_default().insert(0, settle);
+                    held.search
+                        .settle
+                        .entry(index)
+                        .or_default()
+                        .insert(0, settle);
                 }
                 Err(Unwritten::Failed(error)) => {
                     held.error = Some(format!("Indexing for search failed: {error}"))

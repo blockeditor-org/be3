@@ -683,8 +683,6 @@ impl Refs {
         self.write(rows)
     }
 
-
-
     pub fn remote(&self, block: Uuid) -> Option<CommitId> {
         self.state.lock().unwrap().remotes.get(&block).copied()
     }
@@ -699,7 +697,6 @@ impl Refs {
         }
         self.write(vec![row(Table::Held, block.as_bytes().to_vec(), &head)])
     }
-
 
     /// Keeps a summary unless this device already has a newer one of the block.
     fn put(state: &mut State, summary: &BlockSummary, rows: &mut Vec<Row>) {
