@@ -7,7 +7,7 @@ use beui_types::clipboard::formats;
 
 #[test]
 fn a_paste_of_the_text_this_page_copied_answers_the_rest_of_its_clip() {
-    let blocks = "be3/blocks";
+    let blocks = formats::BLOCKS;
     copy(
         &beui_types::Clip::new()
             .with(ClipItem::new(blocks, b"rich".to_vec()))
@@ -42,4 +42,11 @@ fn a_paste_of_the_text_this_page_copied_answers_the_rest_of_its_clip() {
         .expect("the clip answers a be3 format");
     assert_eq!(pasted.format, blocks);
     assert_eq!(pasted.data, b"rendered");
+
+    copy(&beui_types::Clip::new().with(ClipItem::new(blocks, b"rich".to_vec())));
+    assert!(
+        held(Some("")).is_some(),
+        "a clip without text cleared the clipboard's text, and an empty paste is still its"
+    );
+    assert!(held(None).is_some(), "as is a paste with no text at all");
 }

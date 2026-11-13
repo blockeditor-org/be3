@@ -556,6 +556,17 @@ mod web {
             })
     }
 
+    fn deliver(on_paste: Callback<ClipItem>, pasted: Pasted) {
+        match pasted {
+            Pasted::Now(item) => on_paste.call(item),
+            Pasted::File(format, file) => read_file(file, move |data| {
+                on_paste.call(ClipItem::new(format, data));
+                beui_reactive::flush();
+            }),
+        }
+        beui_reactive::flush();
+    }
+
     fn read_file(file: web_sys::File, done: impl FnOnce(Vec<u8>) + 'static) {
         let Ok(reader) = web_sys::FileReader::new() else {
             return;
@@ -1014,31 +1025,29 @@ mod web {
                     clip.formats()
                         .any(|format| taken.iter().any(|t| t == format))
                 });
+                // Read while the event lasts: a held clip whose every
+                // representation fails to render falls back to it.
+                let transferred = pasted(&data, &taken);
+                let on_paste = held.handlers.on_paste;
                 if let Some(clip) = ours {
                     handled(&event, true);
-                    let on_paste = held.handlers.on_paste;
-                    clip.resolve(&taken, move |item| {
-                        if let Some(item) = item {
+                    return clip.resolve(&taken, move |item| match item {
+                        Some(item) => {
                             on_paste.call(item);
                             beui_reactive::flush();
                         }
+                        None => {
+                            if let Some(transferred) = transferred {
+                                deliver(on_paste, transferred);
+                            }
+                        }
                     });
-                    return;
                 }
-                let Some(clip) = pasted(&data, &taken) else {
+                let Some(transferred) = transferred else {
                     return;
                 };
                 handled(&event, true);
-                match clip {
-                    Pasted::Now(item) => held.handlers.on_paste.call(item),
-                    Pasted::File(format, file) => {
-                        let on_paste = held.handlers.on_paste;
-                        read_file(file, move |data| {
-                            on_paste.call(ClipItem::new(format, data));
-                            beui_reactive::flush();
-                        });
-                    }
-                }
+                deliver(on_paste, transferred);
             }),
         ));
         listeners

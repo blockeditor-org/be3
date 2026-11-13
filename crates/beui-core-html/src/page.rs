@@ -135,12 +135,15 @@ pub fn use_font_revision() -> ReadSignal<u64> {
     signals().font_revision.read_only()
 }
 
-/// Writes the clip's plain text to the system clipboard and keeps the clip,
-/// so a paste in this page answers its other representations (be3 formats,
-/// lazy ones) from it while the clipboard's text is still what it wrote.
+/// Writes the clip's plain text to the system clipboard (empty when it has
+/// none, so another program's text does not stay to drop it) and keeps the
+/// clip, so a paste in this page answers its other representations (be3
+/// formats, lazy ones) from it while the clipboard's text is still what it
+/// wrote.
 pub fn copy(clip: &beui_types::Clip) {
     #[cfg(target_arch = "wasm32")]
-    if let (Some(window), Some(text)) = (crate::dom::window(), clip.plain_text()) {
+    if let Some(window) = crate::dom::window() {
+        let text = clip.plain_text().unwrap_or_default();
         let _ = window.navigator().clipboard().write_text(&text);
     }
     HELD.with(|held| held.borrow_mut().copy(clip.clone()));
