@@ -2,6 +2,7 @@ mod changes;
 mod core;
 mod document;
 mod highlighter;
+pub mod html;
 mod rich;
 pub mod schema;
 

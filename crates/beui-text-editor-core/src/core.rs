@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, ops::Range, sync::Arc};
 
 use be_lib_graphemes::{WordClass, is_grapheme_boundary, word_around, word_classes};
-pub use be_lib_ui_types::clipboard::{TextFragment, TextShape};
+pub use be_lib_ui_types::clipboard::{MarkValue, TextChunk, TextFragment, TextMark, TextShape};
 use serde::{Deserialize, Serialize};
 use similar::{Algorithm, DiffTag, capture_diff_slices};
 
@@ -1903,6 +1903,8 @@ impl Core {
             return TextFragment::default();
         };
         let document = DocumentView::new(&*read);
+        let schema = self.schema();
+        let formats = schema.name().and(read.formats());
         let mut chunks = Vec::new();
         let mut lines = true;
         let mut replacements = Vec::new();
@@ -1920,7 +1922,10 @@ impl Core {
             if selected_line && right == document.len() && bytes.last() != Some(&b'\n') {
                 bytes.push(b'\n');
             }
-            chunks.push(bytes);
+            let marks = formats.as_deref().map_or_else(Vec::new, |formats| {
+                rich::copied_marks(formats, &*schema, left..right)
+            });
+            chunks.push(TextChunk { bytes, marks });
             if mode == CopyMode::Cut {
                 replacements.push((Position::at(&document, left), right - left, Vec::new()));
             }
@@ -1944,28 +1949,35 @@ impl Core {
                 true => TextShape::Lines,
                 false => TextShape::Chars,
             },
+            schema: formats.and(schema.name().map(str::to_owned)),
         }
     }
 
     /// Pastes a fragment: one chunk per cursor when the counts match, the
     /// whole fragment at every cursor otherwise. `Lines` go at the start of a
     /// cursor's line, above it, and leave a cursor without a selection where
-    /// it was.
+    /// it was. A rich text keeps the marks of a fragment of its own schema,
+    /// and only those: the pasted text inherits none from around it.
     fn paste(&mut self, fragment: &TextFragment) {
         let history_cursors = self.cursor_positions.clone();
         let Some(read) = self.document.read() else {
             return;
         };
+        let schema = self.schema();
+        let marked = read.formats().is_some()
+            && fragment.schema.is_some()
+            && fragment.schema.as_deref() == schema.name();
         let document = DocumentView::new(&*read);
         let lines = fragment.shape == TextShape::Lines;
-        let whole = || fragment.plain_bytes();
         let chunks = match fragment.chunks.len() == self.cursor_positions.len() {
             true => fragment.chunks.clone(),
-            false => vec![whole(); self.cursor_positions.len()],
+            false => vec![fragment.joined(); self.cursor_positions.len()],
         };
         let mut replacements = Vec::new();
+        let mut marks = Vec::new();
         let mut move_to_result = Vec::new();
-        for (cursor, bytes) in self.cursor_positions.iter().zip(chunks) {
+        for (cursor, TextChunk { bytes, marks: held }) in self.cursor_positions.iter().zip(chunks) {
+            marks.push(held);
             let range = resolve_selection(&document, cursor.pos);
             let above = range.left == range.right && lines;
             let left = match above {
@@ -1978,8 +1990,9 @@ impl Core {
         }
         drop(document);
         drop(read);
-        let positions = self.apply_replacements(
+        let positions = self.apply_marked_replacements(
             replacements,
+            marked.then_some(marks),
             UndoClassification::AlwaysSplit,
             history_cursors,
         );
@@ -2044,6 +2057,18 @@ impl Core {
         classification: UndoClassification,
         history_cursors: Vec<CursorPosition>,
     ) -> Vec<Position> {
+        self.apply_marked_replacements(replacements, None, classification, history_cursors)
+    }
+
+    /// Replacements with `marks` over each inserted text in place of those it
+    /// would inherit, when there are any.
+    fn apply_marked_replacements(
+        &mut self,
+        replacements: Vec<(Position, usize, Vec<u8>)>,
+        marks: Option<Vec<Vec<TextMark>>>,
+        classification: UndoClassification,
+        history_cursors: Vec<CursorPosition>,
+    ) -> Vec<Position> {
         if replacements.is_empty() {
             return Vec::new();
         }
@@ -2053,13 +2078,19 @@ impl Core {
         let schema = self.schema();
         self.document.edit(history_cursors, &mut |transaction| {
             result_positions.clear();
-            for (position, delete_len, insert) in &replacements {
+            for (at, (position, delete_len, insert)) in replacements.iter().enumerate() {
                 let index = position.resolve(transaction.document());
-                let typed = typing
-                    .as_ref()
-                    .filter(|(at, _)| at.resolve(transaction.document()) == index)
-                    .map(|(_, marks)| marks.clone());
+                let typed = match &marks {
+                    Some(_) => Some(MarkSet::default()),
+                    None => typing
+                        .as_ref()
+                        .filter(|(at, _)| at.resolve(transaction.document()) == index)
+                        .map(|(_, marks)| marks.clone()),
+                };
                 rich::replace(transaction, &*schema, index, *delete_len, insert, typed);
+                if let Some(marks) = marks.as_ref().and_then(|marks| marks.get(at)) {
+                    rich::paste_marks(transaction, &*schema, index..index + insert.len(), marks);
+                }
                 result_positions.push(Position::at(transaction.document(), index + insert.len()));
             }
         });

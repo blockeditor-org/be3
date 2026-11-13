@@ -1146,7 +1146,8 @@ fn release(cx: &Context, active: bool) {
 }
 
 /// A paste: an image to `on_image_paste`; text as a fragment, whose shape the
-/// core places, and of which a single line keeps the first line.
+/// core places, and of which a single line keeps the first line; `text/html`
+/// as the fragment the schema reads from it.
 fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
     if cx.locked.get_untracked() {
         return;
@@ -1157,7 +1158,14 @@ fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
             data: pasted.data,
         });
     }
-    let Some(fragment) = TextFragment::of(&pasted) else {
+    let fragment = match pasted.format.as_str() {
+        formats::HTML => cx
+            .state
+            .schema()
+            .from_html(&String::from_utf8_lossy(&pasted.data)),
+        _ => TextFragment::of(&pasted),
+    };
+    let Some(fragment) = fragment else {
         return;
     };
     if cx.single_line {
@@ -1763,10 +1771,13 @@ fn Editing(field: Field) -> NodeId {
         pastes_images,
         on_image_paste,
     } = field;
+    let reads_html = cx.state.schema().from_html("").is_some();
     let pastes = [formats::PNG]
         .into_iter()
         .filter(|_| pastes_images)
-        .chain([formats::TEXT_FRAGMENT, formats::TEXT])
+        .chain([formats::TEXT_FRAGMENT])
+        .chain([formats::HTML].into_iter().filter(|_| reads_html))
+        .chain([formats::TEXT])
         .map(str::to_owned)
         .collect::<Vec<_>>();
     let focused = cx.focused;
