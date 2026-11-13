@@ -1,7 +1,6 @@
 pub mod canvas;
 pub mod drawing;
 pub mod frame;
-pub mod glide;
 pub mod grid;
 pub mod interactive;
 pub mod layers;
