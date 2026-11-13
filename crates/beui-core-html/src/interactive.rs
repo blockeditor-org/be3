@@ -211,7 +211,7 @@ mod web {
             let stamp = event.time_stamp();
             if event.type_() == "pointerdown" && event.button() == 0 && *counted != Some(stamp) {
                 *counted = Some(stamp);
-                counter.count(pos, crate::frame::now());
+                counter.count(pos, beui_types::WindowId::MAIN, crate::frame::now());
             }
             counter.clicks().max(1)
         })
