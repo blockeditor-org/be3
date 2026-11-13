@@ -19,10 +19,9 @@ fn finds(text: &str, blocks: &[Uuid]) {
     });
 }
 
-#[test]
-fn a_block_indexed_before_its_type_runs_is_found_by_its_text_once_it_does() {
-    let harness = Harness::start();
-    harness.connect();
+/// A workspace with a text note in it, made with `text` and named `name`, not opened: the
+/// workspace and the note.
+fn workspace_with_note(name: &str, text: &str) -> (Uuid, Uuid) {
     let workspace = Uuid::new_v4();
     create(
         workspace,
@@ -35,17 +34,13 @@ fn a_block_indexed_before_its_type_runs_is_found_by_its_text_once_it_does() {
     wait_until("knew the folder's type", |_| {
         is_known(WorkspaceContent::CONTENT_TYPE)
     });
-    // The indexer takes the text type's module as not running, as on a device that has not
-    // started it yet: nothing it could start reads the note's text.
-    with_shared_mut(|shared| shared.search.not_running.insert(TextContent::CONTENT_TYPE));
-
     let note = Uuid::new_v4();
     create(
         note,
         TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named("Pantry"),
-        Some(TextBlock::of("apples and pears").encode()),
+        be_block::BlockMetadata::named(name),
+        Some(TextBlock::of(text).encode()),
         false,
     );
     assert_eq!(
@@ -57,14 +52,33 @@ fn a_block_indexed_before_its_type_runs_is_found_by_its_text_once_it_does() {
         Some(true)
     );
     flush();
-    // Not put by its name alone: a later put of the same commit with its text would be
-    // skipped as no newer.
-    crate::wait_until(|shared| shared.search.waits_for_its_type(note).then_some(()));
-    finds("Pantry", &[]);
+    (workspace, note)
+}
 
-    // Once its module runs the note is indexed whole, though it did not change.
+#[test]
+fn a_block_indexed_before_its_type_runs_is_found_by_its_text_once_it_does() {
+    let harness = Harness::start();
+    harness.connect();
+    // The text type's module does not start for the indexer, as one that fails to load.
+    with_shared_mut(|shared| shared.search.not_running.insert(TextContent::CONTENT_TYPE));
+    let (_, note) = workspace_with_note("Pantry", "apples and pears");
+
+    // Not put by its name alone, which would keep its text out of the index for this commit,
+    // and searches say they are not complete while it waits.
+    crate::wait_until(|shared| shared.search.waits_for_its_type(note).then_some(()));
+    let ask = SearchAsk {
+        text: "Pantry".to_owned(),
+        within: None,
+    };
+    want_searches(Owner::Host, vec![ask.clone()]);
+    crate::wait_until(|shared| {
+        let answer = shared.search.answer(&ask)?;
+        (!answer.complete && answer.hits.is_empty()).then_some(())
+    });
+
+    // Once its module runs, as when a text block is opened, the unchanged note is indexed
+    // whole.
     with_shared_mut(|shared| shared.search.not_running.remove(&TextContent::CONTENT_TYPE));
-    // Opening another text block starts the module.
     let other = Uuid::new_v4();
     create(
         other,

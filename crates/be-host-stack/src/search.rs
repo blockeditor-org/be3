@@ -254,12 +254,15 @@ pub struct Searching {
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
-    /// Blocks not indexed yet because their type's module did not run, by type: queued again
-    /// once it runs (`release_unstarted`).
+    /// Blocks not indexed yet because their type's module did not start, by type: queued again
+    /// once it runs (`release_unstarted`). Searches are not complete meanwhile (`indexed`).
     unstarted: HashMap<Uuid, BTreeSet<Uuid>>,
-    /// Types a test has the indexer take as not running (`runs`).
+    /// Types whose module a test has fail to start (`held_off`).
     #[cfg(test)]
     pub(crate) not_running: HashSet<Uuid>,
+    /// Types a test has no module for on this device (`has_module`).
+    #[cfg(test)]
+    pub(crate) no_module: HashSet<Uuid>,
     /// Set by a test that writes as a device without an indexer.
     pub off: bool,
 }
@@ -366,6 +369,7 @@ impl Searching {
             && self.parked.is_empty()
             && self.moving.is_empty()
             && self.failing.is_empty()
+            && self.unstarted.is_empty()
             && self.creating.is_empty()
     }
 
@@ -1227,24 +1231,29 @@ async fn puts_of(
         .ok()
         .and_then(|metadata| metadata.name())
         .unwrap_or_default();
-    // Only a module already running is asked: starting one would hold up the worker's loop.
-    // A block a catch-up named may be of a type this device has not run yet: its module is
-    // started once, which is worth it to index what other devices wrote.
-    let from_catch_up = shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .search
-        .caught
-        .contains_key(&block);
-    // A commit is put whole or not at all: the index keeps one entry for a commit, so a name
-    // put without the type's text would keep the text out of it until the block's next
-    // commit, whichever device put it in full later. A type whose module does not run waits
-    // for it.
-    let known = !held_off(shared, content_type)
-        && match from_catch_up {
-            true => replicas.kind(content_type).await.is_some(),
-            false => crate::kind_of(content_type).is_some(),
+    // A type no module on this device has (an app not installed here) is put by its name
+    // alone, marked partial: a device that has the module puts the same commit in full, which
+    // replaces it (`Put::partial`).
+    if !has_module(shared, replicas, content_type) {
+        let put = Put {
+            doc: DocId {
+                block: block.as_bytes().to_vec(),
+                key: String::new(),
+            },
+            commit: at,
+            source: None,
+            text: Some(Text {
+                name,
+                body: String::new(),
+            }),
+            partial: true,
         };
+        return Ok((vec![put], Vec::new()));
+    }
+    // Its module is started if it is not running, as for a block opened, to read the text.
+    // One that does not start waits for it: the block is not put by its name alone, which
+    // would keep its text out of the index until its next commit.
+    let known = !held_off(shared, content_type) && replicas.kind(content_type).await.is_some();
     if !known {
         return Err(Unput::Unstarted(content_type));
     }
@@ -1311,6 +1320,7 @@ async fn puts_of(
                     .source
                     .map(|source| *be_block_store::PartRef::from(source).hash().as_bytes()),
                 text,
+                partial: false,
             }
         })
         .collect();
@@ -1321,9 +1331,26 @@ async fn puts_of(
 enum Unput {
     /// A commit, a part or the type's answer could not be had: not put this time.
     HeldBack,
-    /// Its type's module does not run on this device yet: queued again once it does
-    /// (`Searching::unstarted`).
+    /// Its type's module would not start: queued again once it runs (`Searching::unstarted`).
     Unstarted(Uuid),
+}
+
+/// Whether this device has a module for `content_type`, running or not; a test can say it has
+/// none (`Searching::no_module`).
+fn has_module(shared: &Mutex<Shared>, replicas: &Replicas, content_type: Uuid) -> bool {
+    #[cfg(test)]
+    if shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .no_module
+        .contains(&content_type)
+    {
+        return false;
+    }
+    #[cfg(not(test))]
+    let _ = shared;
+    replicas.has_module(content_type)
 }
 
 /// Whether a test has the indexer take `content_type`'s module as not running
