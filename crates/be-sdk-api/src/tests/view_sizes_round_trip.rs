@@ -6,16 +6,16 @@ fn view_sizes_round_trip() {
         sizes: vec![
             ViewSize {
                 screen: ScreenId(1),
-                logical: Size {
-                    width: 400.0,
-                    height: 24.5,
+                logical: Vec2 {
+                    x: 400.0,
+                    y: 24.5,
                 },
             },
             ViewSize {
                 screen: ScreenId(2),
-                logical: Size {
-                    width: 200.0,
-                    height: 300.0,
+                logical: Vec2 {
+                    x: 200.0,
+                    y: 300.0,
                 },
             },
         ],

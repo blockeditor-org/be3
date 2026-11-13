@@ -5,7 +5,7 @@ use be_sdk_api::{
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
     DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View, ViewAnchor,
+    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Vec2, Stopped, View, ViewAnchor,
     ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
@@ -1832,9 +1832,9 @@ impl Instances {
         entry.reported_size = Some(size);
         vec![Outbound::Event(
             instance,
-            EditorEvent::Resized(Size {
-                width: size.x,
-                height: size.y,
+            EditorEvent::Resized(Vec2 {
+                x: size.x,
+                y: size.y,
             }),
         )]
     }
@@ -2888,9 +2888,9 @@ impl Instances {
                 view: region,
                 child: status.child,
                 available: status.available,
-                intrinsic: status.intrinsic.map(|size| Size {
-                    width: size.x,
-                    height: size.y,
+                intrinsic: status.intrinsic.map(|size| Vec2 {
+                    x: size.x,
+                    y: size.y,
                 }),
                 active: status.active,
                 interaction: status.interaction,

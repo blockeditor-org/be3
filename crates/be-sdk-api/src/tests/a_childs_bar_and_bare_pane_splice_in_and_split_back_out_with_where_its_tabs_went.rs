@@ -15,9 +15,9 @@ fn barred() -> DockDeclaration {
             edge: DockEdge::Top,
             align: DockAlign::Center,
         }),
-        size: Size {
-            width: 200.0,
-            height: 32.0,
+        size: Vec2 {
+            x: 200.0,
+            y: 32.0,
         },
     });
     declaration

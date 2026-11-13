@@ -43,7 +43,7 @@ use be_lib_geometry::{Rect, pos2, vec2};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, EditorInstanceId,
     HelloAccepted, HostTransform, LayoutCommit, OpenBlock, Opening, OpeningKind, ParentView,
-    ScreenId, ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
+    ScreenId, ScreenRequest, Vec2, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
     ViewAnchor, ViewId, ViewPlacement, ViewRef, ViewportMetrics,
 };
 use uuid::Uuid;
@@ -253,9 +253,9 @@ impl Rig {
             placement: ViewPlacement::Parent(ParentView::Main),
             frame: None,
             metrics: ViewportMetrics {
-                logical: Size {
-                    width: 100.0,
-                    height: 80.0,
+                logical: Vec2 {
+                    x: 100.0,
+                    y: 80.0,
                 },
                 visible: be_sdk_api::Pos2::ZERO,
                 pixel_width: 200,

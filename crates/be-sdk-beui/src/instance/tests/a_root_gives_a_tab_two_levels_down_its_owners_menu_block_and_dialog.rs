@@ -2,7 +2,7 @@ use super::*;
 use be_sdk_api::{
     ChildContent, ChildId, DockDeclaration, DockDeclaredChild, DockDialog, DockItem, DockItemKind,
     DockMessage, DockPane, DockTab, DockTabPath, DockTree, DockUpdate, MenuCheck, MenuCommand,
-    MenuEntry, MenuPin, Size, dock_prefix,
+    MenuEntry, MenuPin, Vec2, dock_prefix,
 };
 use beui::reactive::{menu_action, untrack};
 
@@ -76,9 +76,9 @@ fn a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog() {
         parent: DockTabPath::own(7),
         title: "Deep dialog".to_owned(),
         glyph: String::new(),
-        size: Size {
-            width: 160.0,
-            height: 90.0,
+        size: Vec2 {
+            x: 160.0,
+            y: 90.0,
         },
         modal: false,
         dismiss_on_outside_press: false,

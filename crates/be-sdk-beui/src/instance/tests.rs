@@ -57,9 +57,9 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             view: ViewId::MAIN,
             placement: ViewPlacement::Parent(ParentView::Main),
             metrics: ViewportMetrics {
-                logical: be_sdk_api::Size {
-                    width: 800.0,
-                    height: 600.0,
+                logical: be_sdk_api::Vec2 {
+                    x: 800.0,
+                    y: 600.0,
                 },
                 visible: be_sdk_api::Pos2::ZERO,
                 pixel_width: 800,
@@ -102,9 +102,9 @@ fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, Scre
         view: shown.id,
         placement: shown.placement,
         metrics: ViewportMetrics {
-            logical: be_sdk_api::Size {
-                width: width as f32,
-                height: 600.0,
+            logical: be_sdk_api::Vec2 {
+                x: width as f32,
+                y: 600.0,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: width,
@@ -283,7 +283,7 @@ fn BarProbe() -> beui::NodeId {
     BAR.with(|held| held.set(bar));
     let vertical =
         create_memo(move || bar.is_some_and(|bar| bar.direction() == beui::Direction::Vertical));
-    let length = |length: f32| beui::styled::Length::Size(beui::styled::Size::Custom(length));
+    let length = |length: f32| beui::styled::Length::Vec2(beui::styled::Vec2::Custom(length));
     let width = create_memo(move || length(if vertical.get() { 24.0 } else { 120.0 }));
     let height = create_memo(move || length(if vertical.get() { 120.0 } else { 24.0 }));
     view! {

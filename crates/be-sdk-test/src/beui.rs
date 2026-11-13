@@ -510,9 +510,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let shown = self.view();
         let raster = self.raster.unwrap_or(self.scale_factor);
         let metrics = ViewportMetrics {
-            logical: be_sdk_api::Size {
-                width: self.size.x,
-                height: self.size.y,
+            logical: be_sdk_api::Vec2 {
+                x: self.size.x,
+                y: self.size.y,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: (self.size.x * raster).round() as u32,
@@ -989,9 +989,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn resize(&mut self, size: Vec2) {
-        let size = be_sdk_api::Size {
-            width: size.x,
-            height: size.y,
+        let size = be_sdk_api::Vec2 {
+            x: size.x,
+            y: size.y,
         };
         self.call(|editor, connection| {
             editor.hear(connection, vec![EditorEvent::Resized(size)]);
@@ -1770,9 +1770,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 view,
                 child: placement.child,
                 available: true,
-                intrinsic: shown.then_some(be_sdk_api::Size {
-                    width: intrinsic.x,
-                    height: intrinsic.y,
+                intrinsic: shown.then_some(be_sdk_api::Vec2 {
+                    x: intrinsic.x,
+                    y: intrinsic.y,
                 }),
                 active: false,
                 interaction: be_sdk_beui::InteractionMode::Live,

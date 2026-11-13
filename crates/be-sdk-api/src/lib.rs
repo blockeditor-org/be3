@@ -28,7 +28,7 @@ be_wasm_ops_bindgen::generate!({
         "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "view-id",
     ],
     default: [
-        "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
+        "frame-chrome", "top-bar", "frame-spec", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
@@ -59,12 +59,13 @@ pub use blocks::{
     ConflictSide, SearchHit, SearchResults, StoredHead, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
+pub use app::ShellDialog;
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{
-    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, ShellDialog,
-    Signer, TerminalHostBe, TerminalHostDownload, TerminalHostSource,
+    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, Signer,
+    TerminalHostBe, TerminalHostDownload, TerminalHostSource,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
@@ -79,7 +80,7 @@ pub use types::{
     FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
     LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, OpeningKind,
     Picture, PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect,
     SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };

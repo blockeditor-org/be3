@@ -1,4 +1,4 @@
-use be_sdk_api::{Size, ViewRef, WindowOpen, WindowOver};
+use be_sdk_api::{Vec2, ViewRef, WindowOpen, WindowOver};
 
 use super::*;
 
@@ -16,9 +16,9 @@ fn open(window: u64, opener: View, at: Pos2) -> WindowRequest {
         screen: be_sdk_api::ScreenId::opened(window),
         opener,
         placement: WindowPlacement::Over(WindowOver { view: opener, at }),
-        size: Size {
-            width: 100.0,
-            height: 50.0,
+        size: Vec2 {
+            x: 100.0,
+            y: 50.0,
         },
         level: be_sdk_api::WindowLevel::Normal,
     })

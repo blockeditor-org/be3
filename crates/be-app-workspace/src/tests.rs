@@ -216,9 +216,9 @@ impl<A: be_sdk_beui::BeuiRoot> Fixture<A> {
                 status.group = Some(window.program_id).filter(|id| !id.is_empty());
                 status.raised = window.raised;
                 status.fullscreen = window.fullscreen;
-                status.intrinsic = Some(be_sdk_beui::Size {
-                    width: window.size.x,
-                    height: window.size.y,
+                status.intrinsic = Some(be_sdk_beui::Vec2 {
+                    x: window.size.x,
+                    y: window.size.y,
                 });
             });
             reported = true;

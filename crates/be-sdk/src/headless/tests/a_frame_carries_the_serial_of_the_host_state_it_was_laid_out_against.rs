@@ -1,6 +1,6 @@
 use be_sdk_api::{
     EditorInstanceId, HelloAccepted, LayoutCommit, OpenBlock, Opening, OpeningKind, ParentView,
-    ScreenId, ScreenRequest, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement,
+    ScreenId, ScreenRequest, Vec2, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement,
     ViewRef, ViewportMetrics,
 };
 use uuid::Uuid;
@@ -56,9 +56,9 @@ fn configure(app: &mut HeadlessApp, height: f32, serial: u64) {
         placement: ViewPlacement::Parent(ParentView::Main),
         frame: None,
         metrics: ViewportMetrics {
-            logical: Size {
-                width: 100.0,
-                height,
+            logical: Vec2 {
+                x: 100.0,
+                y: height,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: 100,

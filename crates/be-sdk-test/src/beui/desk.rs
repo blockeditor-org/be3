@@ -198,9 +198,9 @@ impl Desk {
 
     fn requests(&self, frame: Option<be_sdk_api::FrameSpec>) -> Vec<ScreenRequest> {
         let metrics = |size: Vec2, scale: f32| ViewportMetrics {
-            logical: be_sdk_api::Size {
-                width: size.x,
-                height: size.y,
+            logical: be_sdk_api::Vec2 {
+                x: size.x,
+                y: size.y,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: (size.x * scale).round() as u32,

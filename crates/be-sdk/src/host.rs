@@ -24,7 +24,7 @@ use be_sdk_api::{
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
     HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellDialog, Signer, Size, TerminalHostBe,
+    PerformanceMeasurement, Revision, ShellDialog, Signer, Vec2, TerminalHostBe,
     ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
@@ -2405,13 +2405,13 @@ impl EditorHost {
                 corner_radius: corner_radius.max(0.0),
                 layer,
                 mode,
-                intrinsic: intrinsic.map(|size| Size {
-                    width: size.x.max(0.0),
-                    height: size.y.max(0.0),
+                intrinsic: intrinsic.map(|size| Vec2 {
+                    x: size.x.max(0.0),
+                    y: size.y.max(0.0),
                 }),
-                fit: fit.map(|size| Size {
-                    width: size.x.max(0.0),
-                    height: size.y.max(0.0),
+                fit: fit.map(|size| Vec2 {
+                    x: size.x.max(0.0),
+                    y: size.y.max(0.0),
                 }),
                 rotation,
                 opacity: opacity.clamp(0.0, 1.0),

@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_api::{
     DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlacement, DockDragStage, DockEdge, Pos2,
-    Size,
+    Vec2,
 };
 
 #[test]
@@ -17,9 +17,9 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
-        size: Size {
-            width: 160.0,
-            height: 32.0,
+        size: Vec2 {
+            x: 160.0,
+            y: 32.0,
         },
     });
     docks.heard("inner", vec![declare(INNER, Some(inner))]);

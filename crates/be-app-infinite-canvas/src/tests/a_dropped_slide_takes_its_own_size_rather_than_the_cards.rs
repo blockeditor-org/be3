@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_beui::be_block::BlockContent;
 use be_sdk_beui::beui::Pos2;
-use be_sdk_beui::{ChildStatus, EditorCapabilities, InteractionMode, ResizeMode, Size, ViewId};
+use be_sdk_beui::{ChildStatus, EditorCapabilities, InteractionMode, ResizeMode, Vec2, ViewId};
 
 #[test]
 fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
@@ -31,9 +31,9 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
             view: ViewId::MAIN,
             child: placement.child,
             available: true,
-            intrinsic: Some(Size {
-                width: 960.0,
-                height: 540.0,
+            intrinsic: Some(Vec2 {
+                x: 960.0,
+                y: 540.0,
             }),
             active: false,
             interaction: InteractionMode::Live,

@@ -4,7 +4,7 @@ package be3:app@0.1.0;
 /// actions of its bar and the children it places.
 interface shell-types {
     use be3:manifest/types@0.1.0.{interaction-mode, editor-capabilities, resize-mode, block-type-descriptor, template-category, edits};
-    use types.{block-location, block-pick, child-id, editor-id, palette-mode, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-ask, menu-item-kind, menu-pin, picture, size, view-id, web-view-id};
+    use types.{block-location, block-pick, child-id, editor-id, palette-mode, editor-instance-id, menu-check, menu-command, menu-heading, menu-item, menu-ask, menu-item-kind, menu-pin, picture, view-id, web-view-id};
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use be3:ui/types@0.1.0.{clip-item, key-chord, pos2, rect, vec2};
 
@@ -114,7 +114,7 @@ interface shell-types {
         view: view-id,
         child: child-id,
         available: bool,
-        intrinsic: option<size>,
+        intrinsic: option<vec2>,
         active: bool,
         interaction: interaction-mode,
         capabilities: editor-capabilities,
@@ -281,7 +281,7 @@ interface shell-types {
         /// placer that chooses the child's size, such as a canvas card. A child
         /// placed sized to its content (`child-placement.fit`) reports the size it
         /// took as its view's `view-size` instead, and the host ignores this.
-        intrinsic-size(option<size>),
+        intrinsic-size(option<vec2>),
         /// The editor asks to leave the frame it is shown in.
         leave-frame,
         view-stopped(view-end),
