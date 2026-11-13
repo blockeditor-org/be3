@@ -445,6 +445,7 @@ impl Module {
                 replica,
                 content_type: opening.content_type,
                 organization: opening.organization,
+                account: opening.account,
                 client: opening.client,
                 tag: opening.tag,
                 head: opening.head,

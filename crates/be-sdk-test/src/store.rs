@@ -573,6 +573,7 @@ impl Inner {
                 block,
                 content_type,
                 organization,
+                account: self.own.unwrap_or_default(),
                 client: THIS_DEVICE,
                 tag: TAG,
                 head,

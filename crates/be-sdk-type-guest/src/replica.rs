@@ -99,6 +99,7 @@ pub(crate) struct Opened {
     pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
     pub(crate) refused_commits: Vec<CommitId>,
     pub(crate) server_head: Option<CommitId>,
+    pub(crate) account: Uuid,
     pub(crate) from_file: Option<FromFileFn>,
     /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
     /// merges by parts.
@@ -593,6 +594,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// The server's head as this device last heard it, read beside `base` on opening when
     /// commits are kept (`opening.server-head`), until the content's own is loaded.
     server_head: Option<Option<CommitId>>,
+    /// The account this device signs in as (`opening.account`): what it added is what a
+    /// restart shows as still sending.
+    account: Uuid,
     out: Vec<Effect>,
 }
 
@@ -832,6 +836,7 @@ where
             server_head: (opened.commits_kept == be_sdk_type_api::KeptCommits::Outbox
                 && opened.server_head != opened.head)
                 .then_some(opened.server_head),
+            account: opened.account,
             out: Vec::new(),
         }
     }
@@ -1617,11 +1622,11 @@ where
                     // over the server's head is still sending, unless an earlier replica's
                     // edits were carried, which say so themselves.
                     let unsent: Vec<Vec<u8>> = loaded
-                        .unsent_over(&next())
+                        .unsent_over(&next(), self.account)
                         .iter()
                         .map(C::encode_operation)
                         .collect();
-                    self.lacking.kept_unsent(unsent);
+                    self.lacking.kept_unsent(unsent, self.base);
                 }
                 self.load(loaded)
             }

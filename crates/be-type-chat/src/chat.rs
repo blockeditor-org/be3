@@ -1179,9 +1179,11 @@ fn lines(shown: Vec<Shown>) -> String {
 impl LiveEdit for ChatContent {
     type Op = ChatOp;
 
-    /// The recent messages `server` has not seen, each as the edit that sent it
-    /// (`ChatContent::sent_in` maps it back), so they show as sending after a restart.
-    fn unsent_over(&self, server: &Self) -> Vec<ChatOp> {
+    /// The recent messages of `account` that `server` has not seen, each as the edit that sent
+    /// it (`ChatContent::sent_in` maps it back), so they show as sending after a restart. One
+    /// the server's index may hold in a closed segment is taken as seen: a Bloom false positive
+    /// shows an unsent message as sent, never a sent one as sending.
+    fn unsent_over(&self, server: &Self, account: Uuid) -> Vec<ChatOp> {
         let known: std::collections::HashSet<ObjectId> = server
             .messages()
             .into_iter()
@@ -1190,7 +1192,10 @@ impl LiveEdit for ChatContent {
         self.messages()
             .into_iter()
             .filter(|id| !known.contains(id) && !server.may_be_closed(*id))
-            .filter_map(|id| Some(ChatOp::Edit(Self::send_as(id, &self.message(id)?))))
+            .filter_map(|id| {
+                let message = self.message(id).filter(|message| message.author == account)?;
+                Some(ChatOp::Edit(Self::send_as(id, &message)))
+            })
             .collect()
     }
 

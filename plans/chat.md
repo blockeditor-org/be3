@@ -21,6 +21,10 @@ counts are built (guides/chat.md). What is left:
   message shows its claimed time; once stamped, if it arrived well after that,
   it says it was sent offline and when it arrived. A dishonest session owner
   could alter stored content, which plans/authorship.md accepts.
+- **"Not sent" across a restart.** A refused commit's edit no longer shows
+  "Not sent" after a host or module restart: `refused-commits` names commits,
+  not edits. An `unsent_over` against the refused commit's parent would name
+  them.
 - **A `drive` command that cuts the server**, so a host test can cover
   sending state through be-host.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a

@@ -381,6 +381,7 @@ fn opening(
         block: BLOCK,
         content_type: Uuid::nil(),
         organization: ORGANIZATION,
+        account: Uuid::nil(),
         client,
         tag: TAG,
         head,
