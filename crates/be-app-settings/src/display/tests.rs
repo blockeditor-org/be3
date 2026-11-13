@@ -1,14 +1,9 @@
 use be_sdk_beui::be_block::display_settings::{DisplayMode, Rotation, ScreenOff};
-use be_sdk_beui::be_block::{
-    DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent, SettingsProfile,
-    SettingsProfileContent, ThemeKind,
-};
+use be_sdk_beui::be_block::{DisplaySettings, DisplaySettingsContent, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, ThemeKind};
+use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, Modifiers, NodeId, Vec2};
-use be_sdk_beui::{
-    BlockInfo, BlockParent, DesktopBarWatch, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor,
-    PowerAvailability, PowerWatch,
-};
+use be_sdk_beui::{BlockInfo, BlockParent, DesktopBarWatch, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor, PowerAvailability, PowerWatch};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 

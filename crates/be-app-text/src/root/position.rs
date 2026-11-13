@@ -9,7 +9,7 @@
 use std::cell::RefCell;
 use std::time::Duration;
 
-use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_block_content::ViewState;
 use beui::reactive::*;
 use beui::styled::ScrollAnchor;
 use beui_text_editor_core::EditorCommand;

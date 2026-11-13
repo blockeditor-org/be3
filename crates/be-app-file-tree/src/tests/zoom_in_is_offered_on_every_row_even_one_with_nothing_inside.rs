@@ -1,7 +1,5 @@
-use be_sdk_beui::be_block::BlockContent;
-use be_sdk_beui::{
-    BlockInfo, BlockParent, BlockQuery, BlockTypeDescriptor, Catalog, ChildOperations, Press,
-};
+use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, BlockTypeDescriptor, Catalog, ChildOperations, Press};
 use be_type_workspace::{FolderContent, WorkspaceContent};
 
 use super::*;

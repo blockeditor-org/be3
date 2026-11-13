@@ -36,11 +36,11 @@ async fn a_rename_on_disk_moves_the_same_block() {
     let elsewhere = harness.checkout("elsewhere");
     sync(&peer, &elsewhere, code).await;
     peer.define(note.id, |metadata| {
-        metadata.insert(&be_block::NAME, &"moved.md".to_owned());
+        metadata.insert(&be_block_content::NAME, &"moved.md".to_owned());
     })
     .await
     .unwrap();
-    relist(&peer, inner.id, be_block::ChildChange::Delete(note.id)).await;
+    relist(&peer, inner.id, be_block_content::ChildChange::Delete(note.id)).await;
     list_in(&peer, code, note.id).await;
     peer.set_parent(note.id, BlockParent::Block(code))
         .await

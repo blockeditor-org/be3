@@ -1,4 +1,4 @@
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_sdk_type_guest::api::{Change, FileChange, PlainFile, guest::exports::replicas::Guest};
 
 use super::*;

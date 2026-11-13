@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{INTRINSIC_NAME, NAME};
+use be_block_content::{INTRINSIC_NAME, NAME};
 
 #[test]
 fn both_sides_naming_a_block_is_a_name_conflict_and_derived_names_are_not() {

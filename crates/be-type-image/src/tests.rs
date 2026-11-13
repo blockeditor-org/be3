@@ -1,4 +1,4 @@
-use be_block::{BlockContent, LiveEdit, Merge};
+use be_block_content::{BlockContent, LiveEdit, Merge};
 use be_block_commit::MergeResult;
 use be_sdk_type_guest::api::{Change, FileChange, PlainFile, guest::exports::replicas::Guest};
 

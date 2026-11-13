@@ -1,8 +1,7 @@
 use be_sdk_beui::be_block::profile::RECENTS;
-use be_sdk_beui::be_block::{
-    BlockContent, BlockMetadata, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR, WORKSPACE_TYPE,
-};
-use be_sdk_beui::be_block::{EditorView, EditorViewContent, ViewState};
+use be_sdk_beui::be_block::{Home, PREFERRED_EDITOR, Recents, WORKSPACE_TYPE};
+use be_sdk_beui::be_block_content::{BlockContent, BlockMetadata, VIEW_EDITOR};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState};
 use be_type_settings::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -17,11 +16,7 @@ use be_sdk_beui::beui::icons::{Glyph, ICON_APP_WINDOW, ICON_MONITOR};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
-use be_sdk_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
-    Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode,
-    NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
-};
+use be_sdk_beui::{AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode, NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch};
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
 

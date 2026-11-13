@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON, MAX_NAME_BYTES};
+use be_sdk_beui::be_block_content::metadata::{ICON, ICON_COLOR, MATERIAL_ICON, MAX_NAME_BYTES};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{ALL, ICON_SEARCH, named};

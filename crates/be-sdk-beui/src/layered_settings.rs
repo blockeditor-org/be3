@@ -1,7 +1,6 @@
-use be_block::be_block_model::Document;
-use be_block::{
-    BlockContent, Layered, LiveEdit, Resolution, Setting, SettingsLayer, SettingsSource,
-};
+use be_block_content::be_block_model::Document;
+use be_block::{Resolution, SettingsSource};
+use be_block_content::{BlockContent, Layered, LiveEdit, Setting, SettingsLayer};
 use beui::NodeId;
 use beui::icons::{ICON_PIN, ICON_PIN_OFF, ICON_ROTATE_CCW};
 use beui::reactive::*;
@@ -67,7 +66,7 @@ fn settings_loaded(editor: &Editor) -> bool {
 impl<R> LayeredSettings<R>
 where
     R: Layered + PartialEq + 'static,
-    Document<R>: LiveEdit<Op = be_block::Edit> + BlockContent + Clone + Default,
+    Document<R>: LiveEdit<Op = be_block_content::Edit> + BlockContent + Clone + Default,
 {
     pub fn this_device(editor: Editor) -> Self {
         Self::new(editor, false)

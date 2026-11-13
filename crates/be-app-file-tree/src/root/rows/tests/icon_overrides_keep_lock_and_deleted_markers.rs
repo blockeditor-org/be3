@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::metadata::{ICON, ICON_COLOR};
+use be_sdk_beui::be_block_content::metadata::{ICON, ICON_COLOR};
 use be_sdk_beui::beui::icons::{ICON_FILE_TEXT, ICON_LOCK, ICON_STAR, ICON_TRASH};
 
 use super::*;

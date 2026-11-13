@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use be_block::display_settings::DisplayMode;
-use be_block::{DisplaySettings, SettingsLayer};
+use be_block::DisplaySettings;
+use be_block_content::SettingsLayer;
 
 use crate::local_settings::{LayerContents, LayerEdit, LocalSettings};
 use be_host_base::host_state::{HostStateError, HostStateStore};

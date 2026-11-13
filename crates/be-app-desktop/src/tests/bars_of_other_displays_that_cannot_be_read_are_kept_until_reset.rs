@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_block_content::ViewState;
 use be_sdk_beui::beui::pos2;
 
 use super::*;

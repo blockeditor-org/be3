@@ -2,8 +2,8 @@ use beui::dock::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::{EditorViewContent, ViewState};
+use be_block_content::presence::{ChannelKind, PresenceKind};
+use be_block_content::{EditorViewContent, ViewState};
 use be_sdk_api::{
     BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
 };
@@ -402,14 +402,14 @@ impl Editor {
 
     pub fn block_content<C>(&self) -> ContentProjection<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         self.projection(None)
     }
 
     pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         if block == self.block_id() {
             return self.block_content();
@@ -458,20 +458,20 @@ impl Editor {
 
     pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> crate::RelatedContent<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         crate::RelatedContent::new(*self, block)
     }
 
-    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+    pub fn seed_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C) {
         self.state().core.host().seed_content(block, content);
     }
 
-    pub fn replace_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+    pub fn replace_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C) {
         self.state().core.host().replace_content(block, content);
     }
 
-    pub fn create_child<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
+    pub fn create_child<C: be_block_content::BlockContent>(&self, content: &C) -> Uuid {
         self.state().core.create_child(content)
     }
 
@@ -515,7 +515,7 @@ impl Editor {
 
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         let projection = self.projection_of(block);
         wait_for(move || {
@@ -530,7 +530,7 @@ impl Editor {
 
     fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         let state = self.state();
         let cached = state
@@ -682,7 +682,7 @@ impl Editor {
             .map(|(id, _, title)| match &base {
                 Some(base) if !base.is_empty() && !organization.is_nil() => format!(
                     "{title} {}",
-                    be_block::block_url::block_url(base, organization, *id)
+                    be_block_content::block_url::block_url(base, organization, *id)
                 ),
                 _ => title.clone(),
             })
@@ -1432,7 +1432,7 @@ impl crate::root_settings::SettingsGraph for Editor {
             block_type,
             Some(content),
             parent,
-            be_block::BlockMetadata::default(),
+            be_block_content::BlockMetadata::default(),
             owner_only,
         )
     }
@@ -1443,12 +1443,12 @@ impl crate::root_settings::SettingsGraph for Editor {
             .ok()
     }
 
-    fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
+    fn edit_settings(&self, block: Uuid, edit: be_block_content::Edit) {
         self.content_of::<be_block::SettingsContent>(block)
             .operate(edit);
     }
 
-    fn edit_settings_profile(&self, block: Uuid, edit: be_block::Edit) {
+    fn edit_settings_profile(&self, block: Uuid, edit: be_block_content::Edit) {
         self.content_of::<be_block::SettingsProfileContent>(block)
             .operate(edit);
     }

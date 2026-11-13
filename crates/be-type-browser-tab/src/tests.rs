@@ -1,4 +1,4 @@
-use be_block::{BlockContent, LiveEdit, Merge};
+use be_block_content::{BlockContent, LiveEdit, Merge};
 use be_block_commit::MergeResult;
 
 use crate::{BrowserTabContent, HistoryItem};

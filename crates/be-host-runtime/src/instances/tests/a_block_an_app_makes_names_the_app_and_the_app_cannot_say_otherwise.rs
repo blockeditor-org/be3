@@ -14,8 +14,8 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);
     instances.set_app_id("example.maker".to_owned());
 
-    let mut claimed = be_block::BlockMetadata::default();
-    claimed.insert(&be_block::CREATED_BY, &"someone.else".to_owned());
+    let mut claimed = be_block_content::BlockMetadata::default();
+    claimed.insert(&be_block_content::CREATED_BY, &"someone.else".to_owned());
     call(
         &mut instances,
         Call::CreateBlock {
@@ -32,7 +32,7 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
 
     let global = be_host_stack::wait_until(|shared| shared.graph.get(made).map(|_| made));
     let created_by =
-        || be_host_stack::node(global).and_then(|node| node.metadata.get(&be_block::CREATED_BY));
+        || be_host_stack::node(global).and_then(|node| node.metadata.get(&be_block_content::CREATED_BY));
     assert_eq!(
         created_by().as_deref(),
         Some("example.maker"),
@@ -44,8 +44,8 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
             reply: reply(next_op()),
             block: made.into_bytes(),
             command: be_sdk_api::BlockCommand::Define {
-                key: be_block::CREATED_BY.id.into_bytes(),
-                value: claimed.defined.get(&be_block::CREATED_BY.id).cloned(),
+                key: be_block_content::CREATED_BY.id.into_bytes(),
+                value: claimed.defined.get(&be_block_content::CREATED_BY.id).cloned(),
             },
         },
     );

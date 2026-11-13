@@ -2,7 +2,8 @@ use super::*;
 use uuid::Uuid;
 
 use be_block::version_control::{masked, scope_mask};
-use be_block::{BlockContent, BlockMetadata, CheckoutContent};
+use be_block::CheckoutContent;
+use be_block_content::{BlockContent, BlockMetadata};
 use be_block_graph::BlockParent;
 use be_sdk_api::{BlockInfo, BlockLocation, BlockQuery};
 use be_type_text::TextContent;
@@ -45,7 +46,7 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         BlockParent::Block(checkout),
         {
             let mut metadata = BlockMetadata::default();
-            metadata.insert(&be_block::LOCAL_ID, &local);
+            metadata.insert(&be_block_content::LOCAL_ID, &local);
             metadata
         },
         None,

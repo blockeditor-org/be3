@@ -14,10 +14,7 @@ use be_lib_search::{Batch, DocId, Error, Id, Index, PartName, Parts, Written};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
-    Stored,
-};
+use be_block_content::{BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef, Stored};
 
 /// A part of the index: its bytes, written here and not saved yet, or the saved part a save
 /// reuses.

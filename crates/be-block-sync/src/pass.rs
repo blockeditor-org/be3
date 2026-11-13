@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use be_block::{BlockMetadata, EXECUTABLE, Entries, NAME};
+use be_block_content::{BlockMetadata, EXECUTABLE, Entries, NAME};
 use be_block_client::transfer::Saved;
 use be_block_client::{Peer, Saved as Published, Write};
 use be_block_commit::CommitId;

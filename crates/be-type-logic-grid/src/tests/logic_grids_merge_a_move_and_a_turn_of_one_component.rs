@@ -1,5 +1,5 @@
 use crate::logic_grid::{LogicGridContent, LogicGridOperation};
-use be_block::Merge;
+use be_block_content::Merge;
 use be_block_commit::MergeResult;
 use logicgame::grid::{Component, ComponentId, ComponentKind, ComponentOrientation, Point, Scale};
 

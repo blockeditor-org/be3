@@ -349,7 +349,7 @@ impl Instances {
                     }
                     match picked {
                         Ok(Some(file))
-                            if be_block::plain::extension(&file.name)
+                            if be_block_content::plain::extension(&file.name)
                                 == be_block_client::transfer::EXTENSION =>
                         {
                             answering.imported(imported(be_host_stack::import(

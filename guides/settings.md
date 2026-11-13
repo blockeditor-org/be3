@@ -25,7 +25,7 @@ alone.
 
 ## Kinds and resolution
 
-A kind implements `be_block::Layered`; its `FOLLOWS`, `RULE` and `VISIBILITY` constants decide
+A kind implements `be_block_content::Layered`; its `FOLLOWS`, `RULE` and `VISIBILITY` constants decide
 whether the block layer applies, whether it locks, and who reads it. Find the kinds by grepping
 for `impl Layered`; most are in be-block (`workspace_settings.rs` for prefixes, tags and Home).
 Default editors have no block layer; a block keeps its own preferred editor in

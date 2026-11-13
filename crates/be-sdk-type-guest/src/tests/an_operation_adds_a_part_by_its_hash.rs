@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{ContentError, Merge, Part, PartRef};
+use be_block_content::{ContentError, Merge, Part, PartRef};
 use be_block_commit::MergeResult;
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +45,7 @@ fn encoded_elsewhere(recipe: &[u8]) -> Vec<u8> {
 
 impl BlockContent for Shelf {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7368_656c_662d_6669_7874_7572_6500_0001);
-    const LOADS: be_block::Loads = be_block::Loads::FirstPart;
+    const LOADS: be_block_content::Loads = be_block_content::Loads::FirstPart;
 
     fn encode(&self) -> Vec<u8> {
         postcard::to_stdvec(&(self.segments.len() as u32)).unwrap()
@@ -66,7 +66,7 @@ impl BlockContent for Shelf {
         })
     }
 
-    fn from_stored(stored: &be_block::Stored) -> Result<Self, ContentError> {
+    fn from_stored(stored: &be_block_content::Stored) -> Result<Self, ContentError> {
         let mut shelf = Self::decode(&stored.bytes)?;
         let saved = stored
             .root

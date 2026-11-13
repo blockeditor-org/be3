@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",
@@ -32,6 +33,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",
@@ -46,6 +48,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",
@@ -60,6 +63,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",
@@ -74,6 +78,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",
@@ -88,6 +93,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",
@@ -102,6 +108,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",
@@ -116,6 +123,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-store:be-block-store",
                 "//crates/be-block:be-block",
                 "//third-party/rust:serde-1.0.228",

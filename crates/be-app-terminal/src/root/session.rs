@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use be_sdk_beui::be_block::ObjectId;
-use be_sdk_beui::be_block::be_block_model::{FieldRef, List};
+use be_sdk_beui::be_block_content::ObjectId;
+use be_sdk_beui::be_block_content::be_block_model::{FieldRef, List};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor};
 use be_sdk_terminal::{Fit, Lines, TerminalInput};

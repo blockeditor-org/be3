@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::transfer::{self, Saved, renumber};
-use be_block::{ARTIFACT, Artifact, BlockMetadata};
+use be_block_content::{ARTIFACT, Artifact, BlockMetadata};
 
 #[tokio::test]
 async fn an_exported_artifact_imports_pointing_to_its_imported_source() {

@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::input_settings::RemapperChoice;
-use crate::settings::Layered;
+use be_block_content::layered::Layered;
 use crate::{InputRemapper, InputRemapperContent};
 
 #[test]

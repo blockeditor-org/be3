@@ -1,13 +1,13 @@
 use super::*;
 
-use be_block::LiveEdit;
+use be_block_content::LiveEdit;
 use be_sdk_type_guest::editor::EditorOperation;
 use be_type_example_counter::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
     be_host_stack::wait_until(|shared| {
         let held = shared.blocks.get(&block)?;
-        let counter = <CounterContent as be_block::BlockContent>::decode(held.bytes()).ok()?;
+        let counter = <CounterContent as be_block_content::BlockContent>::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
     });
 }
@@ -30,7 +30,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         block,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

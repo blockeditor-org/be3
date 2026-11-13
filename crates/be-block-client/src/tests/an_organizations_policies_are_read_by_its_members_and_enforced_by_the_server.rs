@@ -1,11 +1,10 @@
-use be_block::{
-    OrganizationPolicies, OrganizationPoliciesContent, Root, Settings, SettingsContent, WhoMay,
-};
+use be_block::{OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent, WhoMay};
+use be_block_content::Root;
 use be_block_protocol::{ErrorCode, client};
 
 use super::*;
 
-pub(super) async fn set_policies(admin: &Peer<MemoryStore>, edits: &[be_block::Edit]) -> Uuid {
+pub(super) async fn set_policies(admin: &Peer<MemoryStore>, edits: &[be_block_content::Edit]) -> Uuid {
     let settings = admin.organization_settings();
     let block = admin
         .create_with_id::<OrganizationPoliciesContent>(Uuid::now_v7(), BlockParent::Block(settings))
@@ -86,7 +85,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             Uuid::now_v7(),
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Another"),
+            &be_block_content::BlockMetadata::named("Another"),
             false,
         )
         .await
@@ -97,7 +96,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             Uuid::now_v7(),
             Uuid::from_u128(0xf01d),
             BlockParent::Root,
-            &be_block::BlockMetadata::named("A folder at the top"),
+            &be_block_content::BlockMetadata::named("A folder at the top"),
             false,
         )
         .await
@@ -112,7 +111,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             be_block::my_files(member.organization(), Uuid::from_u128(0xfeed)),
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Not mine"),
+            &be_block_content::BlockMetadata::named("Not mine"),
             false,
         )
         .await;
@@ -122,7 +121,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             be_block::my_files(member.organization(), admin.account()),
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Not mine"),
+            &be_block_content::BlockMetadata::named("Not mine"),
             false,
         )
         .await

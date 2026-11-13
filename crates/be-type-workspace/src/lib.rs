@@ -6,7 +6,7 @@ pub use file::{AnyFile, FileContent, FileHeader};
 pub use folder::{Folder, FolderContent, FolderEntry};
 pub use workspace::{Workspace, WorkspaceContent};
 
-use be_block::plain::media_type_of;
+use be_block_content::plain::media_type_of;
 use be_sdk_type_guest::BlobFile;
 
 impl BlobFile for AnyFile {
@@ -29,7 +29,7 @@ impl BlobFile for AnyFile {
 }
 
 be_sdk_type_guest::be_block_types![
-    be_block::EditorViewContent,
+    be_block_content::EditorViewContent,
     FileContent { file },
     FolderContent { directory },
     WorkspaceContent { root },

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_type_checklist::{Checklist, ChecklistContent};
 use be_type_example_counter::{Counter, CounterContent};
 use uuid::Uuid;
@@ -743,7 +743,7 @@ fn start_versioning(text: &str) -> Versioned {
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Notes"),
+        be_block_content::BlockMetadata::named("Notes"),
         Some(listing.encode()),
         false,
     );
@@ -751,7 +751,7 @@ fn start_versioning(text: &str) -> Versioned {
         note,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::named("Note"),
+        be_block_content::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
@@ -759,7 +759,7 @@ fn start_versioning(text: &str) -> Versioned {
         repository,
         be_block::RepositoryContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("History"),
+        be_block_content::BlockMetadata::named("History"),
         Some(be_block::RepositoryContent::default().encode()),
         false,
     );
@@ -930,7 +930,7 @@ fn written(block: Uuid, text: &str) {
         block,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Plan"),
+        be_block_content::BlockMetadata::named("Plan"),
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
@@ -1030,8 +1030,8 @@ impl Device {
                 .expect("the other device makes its index");
             peer.define(workspace, |metadata| {
                 metadata.insert(
-                    &be_block::SEARCH_INDEX,
-                    &be_block::be_block_model::BlockRef(index),
+                    &be_block_content::SEARCH_INDEX,
+                    &be_block_content::be_block_model::BlockRef(index),
                 );
             })
             .await
@@ -1317,7 +1317,7 @@ impl ChatRoom {
             block,
             be_type_chat::ChatContent::CONTENT_TYPE,
             be_block_graph::BlockParent::Root,
-            be_block::BlockMetadata::named("Lunch"),
+            be_block_content::BlockMetadata::named("Lunch"),
             Some(chat.encode()),
             false,
         );

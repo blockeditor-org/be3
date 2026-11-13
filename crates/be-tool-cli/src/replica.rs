@@ -4,7 +4,7 @@ use std::sync::{Arc, PoisonError};
 use be_wasm_threads::Mutex;
 use std::time::Instant;
 
-use be_block::LiveEdit;
+use be_block_content::LiveEdit;
 use be_block_client::Event;
 use be_block_client::{ClientError, Peer};
 use be_block_commit::CommitId;

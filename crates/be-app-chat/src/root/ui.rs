@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use be_sdk_beui::be_block::{ObjectId, SettingsLayer};
+use be_sdk_beui::be_block_content::{ObjectId, SettingsLayer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};

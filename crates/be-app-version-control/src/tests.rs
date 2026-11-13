@@ -1,12 +1,7 @@
-use be_sdk_beui::be_block::LiveEdit;
-use be_sdk_beui::be_block::{
-    Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent,
-};
+use be_sdk_beui::be_block_content::LiveEdit;
+use be_sdk_beui::be_block::{Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent};
 use be_sdk_beui::beui::Vec2;
-use be_sdk_beui::{
-    BeuiRoot, BlockCommand, ConflictSide, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id,
-};
+use be_sdk_beui::{BeuiRoot, BlockCommand, ConflictSide, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
@@ -24,7 +19,7 @@ mod checking_a_branch_out_asks_the_host;
 
 const TEXT: Uuid = Uuid::from_u128(0x7465_7874);
 
-fn editor<A: BeuiRoot, C: LiveEdit + be_sdk_beui::be_block::Merge + Clone + Default>(
+fn editor<A: BeuiRoot, C: LiveEdit + be_sdk_beui::be_block_content::Merge + Clone + Default>(
     content: C,
     status: VersionStatus,
 ) -> BeuiTest<A> {

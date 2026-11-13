@@ -5,10 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use be_block::{
-    BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
-    SearchDocument, Stored,
-};
+use be_block_content::{BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef, SearchDocument, Stored};
 use be_block_commit::MergeResult;
 use be_sdk_type_api::PlainFile;
 use serde::{Deserialize, Serialize};

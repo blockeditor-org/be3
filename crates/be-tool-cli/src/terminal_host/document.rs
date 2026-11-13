@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
-use be_block::LiveEdit;
-use be_block::be_block_model::{Anchor, Change, Field, FieldRef, List};
-use be_block::{Edit, ObjectId};
+use be_block_content::LiveEdit;
+use be_block_content::be_block_model::{Anchor, Change, Field, FieldRef, List};
+use be_block_content::{Edit, ObjectId};
 use be_type_terminal::{
     HISTORY_LINES, Terminal, TerminalContent, TerminalLine, TerminalShell, TerminalStyle,
 };
@@ -134,7 +134,7 @@ fn set_line(changes: &mut Vec<Change>, id: ObjectId, old: &TerminalLine, new: &T
     }
 }
 
-fn set<F: Field + PartialEq + be_block::be_block_model::Register>(
+fn set<F: Field + PartialEq + be_block_content::be_block_model::Register>(
     document: &TerminalContent,
     changes: &mut Vec<Change>,
     field: FieldRef<Terminal, F>,

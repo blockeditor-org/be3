@@ -2,14 +2,12 @@ use be_sdk_beui::be_block::input_settings::{
     InputDevice, MAX_POINTER_SPEED, MAX_REPEAT_DELAY, MAX_REPEAT_RATE, MIN_POINTER_SPEED,
     MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerField, PointerSetting, PointerSettings, PointerSpeed,
 };
-use be_sdk_beui::be_block::{InputSettings, Setting};
+use be_sdk_beui::be_block::InputSettings;
+use be_sdk_beui::be_block_content::Setting;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
-use be_sdk_beui::{
-    ChangesToast, DisplaysWatch, Editor, HostDisplay, HostInputDevice, InputDevicesWatch,
-    InputReachWatch, LayeredSettings, LayeredSettingsRow, SettingHandle,
-};
+use be_sdk_beui::{ChangesToast, DisplaysWatch, Editor, HostDisplay, HostInputDevice, InputDevicesWatch, InputReachWatch, LayeredSettings, LayeredSettingsRow, SettingHandle};
 
 use super::remapper::RemapperSetting;
 use beui::Extent;

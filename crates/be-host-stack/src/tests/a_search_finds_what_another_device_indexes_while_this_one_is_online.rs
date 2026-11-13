@@ -1,5 +1,5 @@
 use super::*;
-use be_block::{ChildChange, SEARCH_INDEX, be_block_model::BlockRef};
+use be_block_content::{ChildChange, SEARCH_INDEX, be_block_model::BlockRef};
 use be_type_text::{TextBlock, TextContent};
 use be_type_workspace::WorkspaceContent;
 
@@ -31,7 +31,7 @@ fn a_search_finds_what_another_device_indexes_while_this_one_is_online() {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Team"),
+        be_block_content::BlockMetadata::named("Team"),
         None,
         false,
     );
@@ -43,7 +43,7 @@ fn a_search_finds_what_another_device_indexes_while_this_one_is_online() {
         apples,
         TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named("Note"),
+        be_block_content::BlockMetadata::named("Note"),
         Some(TextBlock::of("").encode()),
         false,
     );

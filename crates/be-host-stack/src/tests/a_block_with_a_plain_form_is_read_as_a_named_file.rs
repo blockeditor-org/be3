@@ -13,8 +13,8 @@ fn a_block_with_a_plain_form_is_read_as_a_named_file() {
     let harness = Harness::start();
     harness.connect();
     let notes = Uuid::new_v4();
-    let mut named = be_block::BlockMetadata::default();
-    named.insert(&be_block::NAME, &"Trip notes".to_owned());
+    let mut named = be_block_content::BlockMetadata::default();
+    named.insert(&be_block_content::NAME, &"Trip notes".to_owned());
     create(
         notes,
         be_type_text::TextContent::CONTENT_TYPE,
@@ -33,7 +33,7 @@ fn a_block_with_a_plain_form_is_read_as_a_named_file() {
         photo,
         be_type_image::ImageContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         Some(be_type_image::ImageFile::from_file("beach.jpg", vec![0xff, 0xd8, 0xff]).encode()),
         false,
     );
@@ -51,7 +51,7 @@ fn a_block_with_a_plain_form_is_read_as_a_named_file() {
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

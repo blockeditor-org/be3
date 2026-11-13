@@ -6,12 +6,8 @@ use std::{
 
 use be_wasm_threads::Mutex;
 
-use be_block::{
-    BlockContent, BlockMetadata, Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,
-    Root,
-    be_block_model::{Document, Model},
-    version_control::{Action, Kept, Operation, View, masked, scope_mask},
-};
+use be_block::{Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository, version_control::{Action, Kept, Operation, View, masked, scope_mask}};
+use be_block_content::{BlockContent, BlockMetadata, Root, be_block_model::{Document, Model}};
 use be_block_client::{ClientError, Peer, Saved, Write};
 use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
 use be_block_graph::BlockParent;
@@ -328,13 +324,13 @@ fn scope(checkout: Uuid) -> Scope {
 
 fn stripped(metadata: &BlockMetadata) -> BlockMetadata {
     let mut metadata = metadata.clone();
-    metadata.remove(&be_block::LOCAL_ID);
+    metadata.remove(&be_block_content::LOCAL_ID);
     metadata
 }
 
 fn tagged(metadata: &BlockMetadata, block: Uuid, local: Uuid) -> BlockMetadata {
     let mut metadata = metadata.clone();
-    metadata.put(&be_block::LOCAL_ID, (block != local).then_some(&local));
+    metadata.put(&be_block_content::LOCAL_ID, (block != local).then_some(&local));
     metadata
 }
 
@@ -842,7 +838,7 @@ impl Versions {
         relist(
             context,
             node.parent.ok_or_else(unplaced)?,
-            be_block::ChildChange::Replace {
+            be_block_content::ChildChange::Replace {
                 old: root,
                 new: checkout,
             },
@@ -892,7 +888,7 @@ impl Versions {
             ..Checkout::default()
         };
         save_new(context, checkout, &state).await?;
-        relist(context, parent, be_block::ChildChange::Add(checkout)).await?;
+        relist(context, parent, be_block_content::ChildChange::Add(checkout)).await?;
         self.operate(
             context,
             repository,
@@ -1392,7 +1388,7 @@ impl Versions {
         relist(
             context,
             node.parent.ok_or_else(unplaced)?,
-            be_block::ChildChange::Add(fork),
+            be_block_content::ChildChange::Add(fork),
         )
         .await?;
         Ok(fork)
@@ -2063,7 +2059,7 @@ async fn change<R: Root + Model + Default>(
 async fn relist(
     context: &mut Context<'_>,
     parent: BlockParent,
-    change: be_block::ChildChange,
+    change: be_block_content::ChildChange,
 ) -> Result<(), String> {
     let BlockParent::Block(parent) = parent else {
         return Ok(());
@@ -2353,7 +2349,7 @@ async fn merge_content(
     context: &mut Context<'_>,
     checkout: Uuid,
     merge: &be_block_vcs::ContentMerge,
-) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
+) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block_content::Entries>, bool), String> {
     let merged = context
         .replicas
         .merge(

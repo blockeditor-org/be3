@@ -1,9 +1,8 @@
 use be_sdk_beui::BlockParent;
-use be_sdk_beui::be_block::BlockMetadata;
-use be_sdk_beui::be_block::EditorViewContent;
-use be_sdk_beui::be_block::{
-    BlockContent, Settings, SettingsContent, VIEW_EDITOR, WORKSPACE_EDITOR,
-};
+use be_sdk_beui::be_block_content::BlockMetadata;
+use be_sdk_beui::be_block_content::EditorViewContent;
+use be_sdk_beui::be_block::{Settings, SettingsContent, WORKSPACE_EDITOR};
+use be_sdk_beui::be_block_content::{BlockContent, VIEW_EDITOR};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::root_settings::RootSettings;
 use be_sdk_shell::Workspace;

@@ -50,7 +50,7 @@ async fn a_device_that_starts_offline_reads_and_lists_what_it_saved() {
         [team]
     );
     let names = offline.metadata(&roots[0]).unwrap();
-    assert_eq!(names, be_block::BlockMetadata::named("Team"));
+    assert_eq!(names, be_block_content::BlockMetadata::named("Team"));
     let inside = offline.children(BlockParent::Block(team)).await.unwrap();
     assert_eq!(
         inside.iter().map(|block| block.id).collect::<Vec<_>>(),

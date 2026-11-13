@@ -1,4 +1,4 @@
-use be_block::{LiveEdit, Merge, Undo};
+use be_block_content::{LiveEdit, Merge, Undo};
 use be_block_commit::MergeResult;
 use be_block_model::ObjectId;
 

@@ -1,4 +1,4 @@
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_block_client::Write;
 use be_type_chat::{ChatContent, Message};
 

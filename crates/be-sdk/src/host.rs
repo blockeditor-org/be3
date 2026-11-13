@@ -51,11 +51,11 @@ pub struct HostContent {
 }
 
 impl HostContent {
-    pub fn of<C: be_block::LiveEdit>(content: &C) -> Self {
+    pub fn of<C: be_block_content::LiveEdit>(content: &C) -> Self {
         let bytes = content.encode();
         let length = match C::LOADS {
-            be_block::Loads::Whole => bytes.len() as u64,
-            be_block::Loads::FirstPart => content.parts().length(),
+            be_block_content::Loads::Whole => bytes.len() as u64,
+            be_block_content::Loads::FirstPart => content.parts().length(),
         };
         Self {
             content_type: C::CONTENT_TYPE,
@@ -1532,21 +1532,21 @@ impl EditorHost {
 
     pub fn content_of<C>(&self, block: Uuid) -> crate::LiveContent<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         self.watch_content(block, C::CONTENT_TYPE);
         crate::LiveContent::new(self.clone(), Some(block))
     }
 
-    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+    pub fn seed_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C) {
         self.write_content(block, content, false);
     }
 
-    pub fn replace_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+    pub fn replace_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C) {
         self.write_content(block, content, true);
     }
 
-    fn write_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C, replace: bool) {
+    fn write_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C, replace: bool) {
         self.seed_bytes(block, C::CONTENT_TYPE, content.encode(), replace);
     }
 

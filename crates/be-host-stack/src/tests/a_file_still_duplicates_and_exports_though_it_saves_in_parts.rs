@@ -1,4 +1,4 @@
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_block_client::Write;
 use be_type_workspace::{FileContent, FileHeader};
 

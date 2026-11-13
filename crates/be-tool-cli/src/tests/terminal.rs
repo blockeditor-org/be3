@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use be_block::ObjectId;
-use be_block::presence::{ChannelKind, PresenceKind};
+use be_block_content::ObjectId;
+use be_block_content::presence::{ChannelKind, PresenceKind};
 use be_block_client::Peer;
 use be_block_store::FileStore;
 use be_type_terminal::{

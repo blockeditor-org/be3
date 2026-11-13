@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
-use be_block::{Landed, LiveEdit, Merge, Settling};
+use be_block_content::{Landed, LiveEdit, Merge, Settling};
 use be_block_commit::{CommitId, MergeResult};
 use be_block_protocol::{ClientId, SessionState};
 use be_block_session::{
@@ -147,7 +147,7 @@ pub(crate) enum Input {
     },
     Read {
         token: Token,
-        result: Result<be_block::Stored, String>,
+        result: Result<be_block_content::Stored, String>,
     },
     PartRead {
         token: Token,
@@ -155,7 +155,7 @@ pub(crate) enum Input {
     },
     PartPut {
         token: Token,
-        result: Result<be_block::PartRef, String>,
+        result: Result<be_block_content::PartRef, String>,
     },
     Resumed {
         token: Token,
@@ -396,7 +396,7 @@ pub(crate) type PartsMerge<C> =
         C,
         C,
         C,
-        be_block::PartReader,
+        be_block_content::PartReader,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<MergeResult<C>, String>>>>;
 
 /// The part reads an asynchronous merge asked for, and what answered them.
@@ -1502,11 +1502,11 @@ where
             }
             Input::Change { id, change } => self.change(id, change),
             Input::Content { id } => match C::LOADS {
-                be_block::Loads::Whole => {
+                be_block_content::Loads::Whole => {
                     let bytes = self.visible.encode();
                     self.reply(id, Answer::Content(bytes));
                 }
-                be_block::Loads::FirstPart => self.read_range(Reader::Content(id), 0, u64::MAX),
+                be_block_content::Loads::FirstPart => self.read_range(Reader::Content(id), 0, u64::MAX),
             },
             Input::Seal { id, force } => self.jobs.push_front(Job::Seal {
                 sealing: match force {
@@ -1558,7 +1558,7 @@ where
                         replica: self.id,
                         token,
                         commit,
-                        first_part: C::LOADS == be_block::Loads::FirstPart,
+                        first_part: C::LOADS == be_block_content::Loads::FirstPart,
                     });
                     Slot::Waiting(token)
                 }
@@ -1569,7 +1569,7 @@ where
         self.finish_reads();
     }
 
-    fn answer_read(&mut self, token: Token, result: Result<be_block::Stored, String>) {
+    fn answer_read(&mut self, token: Token, result: Result<be_block_content::Stored, String>) {
         let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {
             return;
         };
@@ -1742,7 +1742,7 @@ where
         let reads = std::rc::Rc::new(std::cell::RefCell::new(MergeReads::default()));
         let reader = {
             let reads = std::rc::Rc::clone(&reads);
-            be_block::PartReader::new(move |part, offset, length| {
+            be_block_content::PartReader::new(move |part, offset, length| {
                 let id = {
                     let mut asked = reads.borrow_mut();
                     asked.next += 1;
@@ -2757,7 +2757,7 @@ where
         }
     }
 
-    fn answer_part_put(&mut self, put: Token, result: Result<be_block::PartRef, String>) {
+    fn answer_part_put(&mut self, put: Token, result: Result<be_block_content::PartRef, String>) {
         match self.puts.remove(&put) {
             Some(Putting::Editor { editor, token }) => {
                 self.tell_editor(editor, &ToEditor::PartPut { token, result });
@@ -2779,7 +2779,7 @@ where
         while let Some(part) = leaves.pop() {
             let start = at;
             let stop = start + part.length();
-            if let be_block::Part::Node { parts, .. } = part {
+            if let be_block_content::Part::Node { parts, .. } = part {
                 if stop > offset && start < end {
                     leaves.extend(parts.iter().rev());
                 } else {
@@ -2794,12 +2794,12 @@ where
             let from = offset.max(start) - start;
             let to = end.min(stop) - start;
             match part {
-                be_block::Part::Bytes(bytes) => {
+                be_block_content::Part::Bytes(bytes) => {
                     let from = usize::try_from(from).unwrap_or(usize::MAX);
                     let to = usize::try_from(to).unwrap_or(usize::MAX);
                     planned.push(Err(bytes[from..to].to_vec()));
                 }
-                be_block::Part::Reused(part) => {
+                be_block_content::Part::Reused(part) => {
                     let held = self.visible.reused_bytes(*part);
                     let span = usize::try_from(from).ok().zip(usize::try_from(to).ok());
                     match held
@@ -2811,7 +2811,7 @@ where
                         None => planned.push(Ok((*part, from, to - from))),
                     }
                 }
-                be_block::Part::Node { .. } => {}
+                be_block_content::Part::Node { .. } => {}
             }
         }
         drop(parts);
@@ -2969,8 +2969,8 @@ where
         let settled = self.projected.settled();
         let bytes = settled.encode();
         let length = match C::LOADS {
-            be_block::Loads::Whole => bytes.len() as u64,
-            be_block::Loads::FirstPart => settled.parts().length(),
+            be_block_content::Loads::Whole => bytes.len() as u64,
+            be_block_content::Loads::FirstPart => settled.parts().length(),
         };
         let snapshot = Snapshot {
             content_type: self.content_type,

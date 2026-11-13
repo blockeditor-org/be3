@@ -5,7 +5,7 @@ fn saved(id: Uuid, parent: Option<usize>) -> Saved {
         id,
         block_type: Uuid::nil(),
         parent,
-        metadata: be_block::BlockMetadata::default(),
+        metadata: be_block_content::BlockMetadata::default(),
         references: Vec::new(),
         content: None,
     }

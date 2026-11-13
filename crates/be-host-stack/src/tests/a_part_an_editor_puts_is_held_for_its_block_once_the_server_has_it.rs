@@ -7,7 +7,7 @@ fn put(
     editor: &mut Editor<TextContent>,
     token: u64,
     bytes: &[u8],
-) -> Result<be_block::PartRef, String> {
+) -> Result<be_block_content::PartRef, String> {
     editor.send(FromEditor::PutPart {
         token,
         bytes: bytes.to_vec(),

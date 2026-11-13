@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_CHEVRONS_UP_DOWN, ICON_PLUS};
 use be_sdk_beui::beui::reactive::*;

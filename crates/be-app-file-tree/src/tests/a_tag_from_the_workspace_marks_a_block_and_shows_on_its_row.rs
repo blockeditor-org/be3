@@ -1,7 +1,6 @@
-use be_sdk_beui::be_block::be_block_model::{BlockRef, from_cbor};
-use be_sdk_beui::be_block::{
-    BlockContent, TAG_COLOR, TAG_DEFINITIONS, TAGGED, TagColor, Tags, TagsContent,
-};
+use be_sdk_beui::be_block_content::be_block_model::{BlockRef, from_cbor};
+use be_sdk_beui::be_block::{TAG_COLOR, TAG_DEFINITIONS, TAGGED, TagColor, Tags, TagsContent};
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;
@@ -22,7 +21,7 @@ fn a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row() {
         info.set_name(name);
         info.metadata.derived.insert(
             TAG_COLOR.id,
-            be_sdk_beui::be_block::be_block_model::to_cbor(&color),
+            be_sdk_beui::be_block_content::be_block_model::to_cbor(&color),
         );
         fixture.host.set_blocks(BlockQuery::Block(id), vec![info]);
     };

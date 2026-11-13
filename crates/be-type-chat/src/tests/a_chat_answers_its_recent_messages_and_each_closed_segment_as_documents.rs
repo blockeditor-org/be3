@@ -27,7 +27,7 @@ fn a_chat_answers_its_recent_messages_and_each_closed_segment_as_documents() {
     let reads = Rc::new(Cell::new(0));
     let reader = || {
         let (vault, reads) = (Rc::clone(&vault), Rc::clone(&reads));
-        be_block::PartReader::new(move |part, offset, length| {
+        be_block_content::PartReader::new(move |part, offset, length| {
             reads.set(reads.get() + 1);
             let read = vault
                 .read_part(part, offset, length)
@@ -35,10 +35,10 @@ fn a_chat_answers_its_recent_messages_and_each_closed_segment_as_documents() {
             Box::pin(async move { read })
         })
     };
-    let search = |chat: &ChatContent, keys: Option<&[&str]>, indexed: &[be_block::PartRef]| {
+    let search = |chat: &ChatContent, keys: Option<&[&str]>, indexed: &[be_block_content::PartRef]| {
         let keys: Option<HashSet<String>> =
             keys.map(|keys| keys.iter().map(|key| (*key).to_owned()).collect());
-        let indexed: HashSet<be_block::PartRef> = indexed.iter().copied().collect();
+        let indexed: HashSet<be_block_content::PartRef> = indexed.iter().copied().collect();
         pollster::block_on(chat.search_text(keys.as_ref(), &indexed, reader()))
             .expect("a chat answers its search text")
     };

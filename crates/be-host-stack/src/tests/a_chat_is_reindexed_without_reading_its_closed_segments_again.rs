@@ -1,5 +1,5 @@
 use super::*;
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_type_chat::{ChatContent, Message};
 use be_type_workspace::WorkspaceContent;
 
@@ -32,7 +32,7 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Team"),
+        be_block_content::BlockMetadata::named("Team"),
         None,
         false,
     );
@@ -44,7 +44,7 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
         chat,
         ChatContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named("Lunch"),
+        be_block_content::BlockMetadata::named("Lunch"),
         Some(ChatContent::default().encode()),
         false,
     );
@@ -100,8 +100,8 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
     // and before it wrote: its put without text is one the index has no text for, so the
     // index asks for it, and the chat is queued to be read whole again, parts and all.
     let index = node(workspace)
-        .and_then(|node| node.metadata.get(&be_block::SEARCH_INDEX))
-        .map(|be_block::be_block_model::BlockRef(index)| index)
+        .and_then(|node| node.metadata.get(&be_block_content::SEARCH_INDEX))
+        .map(|be_block_content::be_block_model::BlockRef(index)| index)
         .expect("the workspace names its index");
     // This writes the index as another device's indexer would, so this device's starts nothing
     // meanwhile and finishes what it was writing: a batch of its own between the two writes

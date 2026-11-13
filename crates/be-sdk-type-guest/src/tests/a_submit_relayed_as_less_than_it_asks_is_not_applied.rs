@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{ContentError, Merge};
+use be_block_content::{ContentError, Merge};
 use be_block_commit::MergeResult;
 use be_block_session::{OpId, Payload, SessionMessage};
 use serde::{Deserialize, Serialize};

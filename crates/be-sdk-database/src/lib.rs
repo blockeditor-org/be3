@@ -1,7 +1,7 @@
 use beui::Overflow;
 use std::collections::BTreeMap;
 
-use be_sdk_beui::be_block;
+use be_sdk_beui::be_block_content;
 pub use be_sdk_ui_database::ValueLabels;
 use be_sdk_ui_database::{DatabaseValueChange, block_reference_text, field_type_label};
 use be_type_database::database::{
@@ -761,7 +761,7 @@ pub fn watch_inverses(
             .unwrap_or_default()
             .into_iter()
             .filter(|info| {
-                info.block_type == <DatabaseSchemaContent as be_block::BlockContent>::CONTENT_TYPE
+                info.block_type == <DatabaseSchemaContent as be_block_content::BlockContent>::CONTENT_TYPE
                     && info.access.can_view()
             })
             .filter_map(|info| match info.parent {
@@ -803,7 +803,7 @@ fn settled<C>(
     content: be_sdk_beui::ContentProjection<C>,
 ) -> Memo<bool>
 where
-    C: be_block::LiveEdit + Clone + Default,
+    C: be_block_content::LiveEdit + Clone + Default,
 {
     let found = editor.blocks().watch(be_sdk_beui::BlockQuery::Block(block));
     create_memo(move || {
@@ -821,7 +821,7 @@ fn source_inverses(
 ) -> ReadSignal<Option<Vec<Inverse>>> {
     let content = editor.content_of::<DatabaseContent>(source);
     let content_settled = settled(editor, source, content);
-    let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
+    let schema_id = content.field(be_block_content::ObjectId::ROOT, Database::SCHEMA);
     let found = create_signal(None);
     create_binding(move || {
         if !content_settled.get() {
@@ -834,7 +834,7 @@ fn source_inverses(
         let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
         let schema_settled = settled(editor, schema, schema_content);
         let schema = schema_content.project(|schema| schema.root());
-        let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
+        let rows = content.objects(be_block_content::ObjectId::ROOT, Database::ROWS);
         create_binding(move || {
             if schema_settled.get() {
                 let all = rows.with(|rows| {
@@ -933,7 +933,7 @@ pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>)
 fn row_titles(editor: be_sdk_beui::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
     let content = editor.content_of::<DatabaseContent>(database);
     let content_settled = settled(editor, database, content);
-    let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
+    let schema_id = content.field(be_block_content::ObjectId::ROOT, Database::SCHEMA);
     let titles = create_signal(None);
     create_binding(move || {
         if !content_settled.get() {
@@ -951,8 +951,8 @@ fn row_titles(editor: be_sdk_beui::Editor, database: Uuid) -> ReadSignal<Option<
                 Some((_, title)) => title.get(),
                 None => None,
             };
-            let prefix = content.field(be_block::ObjectId::ROOT, Database::PREFIX);
-            let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
+            let prefix = content.field(be_block_content::ObjectId::ROOT, Database::PREFIX);
+            let rows = content.objects(be_block_content::ObjectId::ROOT, Database::ROWS);
             create_binding(move || {
                 let prefix = prefix.get();
                 let projected = rows.with(|rows| {

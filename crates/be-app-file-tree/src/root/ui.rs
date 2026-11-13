@@ -2,7 +2,8 @@ use beui::Overflow;
 use std::collections::HashSet;
 
 use be_sdk_beui::BlockParent;
-use be_sdk_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
+use be_sdk_beui::be_block::{WORKSPACE_TYPE, settings::Settings};
+use be_sdk_beui::be_block_content::{BlockMetadata, Root};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::clipboard::formats;
 use be_sdk_beui::beui::icons::{

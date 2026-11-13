@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 
-use be_block::{BlockMetadata, Definition, Entries};
+use be_block_content::{BlockMetadata, Definition, Entries};
 use be_sdk_api::{AccessLevel, BlockLocation};
 use uuid::Uuid;
 
@@ -145,7 +145,7 @@ impl BlockInfo {
 
     pub fn file_name(&self) -> Option<String> {
         self.metadata
-            .get(&be_block::INTRINSIC_NAME)
+            .get(&be_block_content::INTRINSIC_NAME)
             .filter(|name| !name.is_empty())
             .or_else(|| self.name())
     }
@@ -163,32 +163,32 @@ impl BlockInfo {
     }
 
     pub fn set_name(&mut self, name: impl Into<String>) {
-        self.metadata.insert(&be_block::NAME, &name.into());
+        self.metadata.insert(&be_block_content::NAME, &name.into());
     }
 
     pub fn set_intrinsic_name(&mut self, name: impl Into<String>) {
         self.metadata
-            .insert(&be_block::INTRINSIC_NAME, &name.into());
+            .insert(&be_block_content::INTRINSIC_NAME, &name.into());
     }
 
-    pub fn set_thumbhash(&mut self, thumbhash: &be_block::Thumbhash) {
-        self.metadata.insert(&be_block::THUMBHASH, thumbhash);
+    pub fn set_thumbhash(&mut self, thumbhash: &be_block_content::Thumbhash) {
+        self.metadata.insert(&be_block_content::THUMBHASH, thumbhash);
     }
 
     pub fn named_by_hand(&self) -> bool {
         self.metadata.named_by_hand()
     }
 
-    pub fn artifact(&self) -> Option<be_block::Artifact> {
-        self.metadata.get(&be_block::ARTIFACT)
+    pub fn artifact(&self) -> Option<be_block_content::Artifact> {
+        self.metadata.get(&be_block_content::ARTIFACT)
     }
 
-    pub fn thumbhash(&self) -> Option<be_block::Thumbhash> {
-        self.metadata.get(&be_block::THUMBHASH)
+    pub fn thumbhash(&self) -> Option<be_block_content::Thumbhash> {
+        self.metadata.get(&be_block_content::THUMBHASH)
     }
 
     pub fn is_artifact(&self) -> bool {
-        self.metadata.contains(&be_block::ARTIFACT)
+        self.metadata.contains(&be_block_content::ARTIFACT)
     }
 
     pub fn label(&self, types: &dyn be_sdk_ui::BlockTypes) -> be_sdk_ui::BlockLabel {
@@ -479,7 +479,7 @@ impl BlockGraph {
         self.account.get()
     }
 
-    pub fn create<C: be_block::BlockContent>(&self, content: &C, parent: BlockParent) -> Uuid {
+    pub fn create<C: be_block_content::BlockContent>(&self, content: &C, parent: BlockParent) -> Uuid {
         self.create_with(
             C::CONTENT_TYPE,
             Some(content.encode()),
@@ -488,7 +488,7 @@ impl BlockGraph {
         )
     }
 
-    pub fn create_named<C: be_block::BlockContent>(
+    pub fn create_named<C: be_block_content::BlockContent>(
         &self,
         content: &C,
         parent: BlockParent,
@@ -502,16 +502,16 @@ impl BlockGraph {
         )
     }
 
-    pub fn create_artifact<C: be_block::BlockContent>(
+    pub fn create_artifact<C: be_block_content::BlockContent>(
         &self,
         content: &C,
         parent: BlockParent,
         name: Option<String>,
-        artifact: be_block::Artifact,
+        artifact: be_block_content::Artifact,
     ) -> Uuid {
         let mut metadata = BlockMetadata::default();
-        metadata.put(&be_block::NAME, name.as_ref());
-        metadata.insert(&be_block::ARTIFACT, &artifact);
+        metadata.put(&be_block_content::NAME, name.as_ref());
+        metadata.insert(&be_block_content::ARTIFACT, &artifact);
         self.create_with(C::CONTENT_TYPE, Some(content.encode()), parent, metadata)
     }
 
@@ -555,7 +555,7 @@ impl BlockGraph {
     }
 
     pub fn set_name(&self, id: Uuid, name: Option<String>) {
-        self.define(id, be_block::NAME.definition(name.as_ref()));
+        self.define(id, be_block_content::NAME.definition(name.as_ref()));
     }
 
     pub fn define(&self, id: Uuid, (key, value): Definition) {

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_block_client::{ClientError, Credentials, Peer, PeerConfig};
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;

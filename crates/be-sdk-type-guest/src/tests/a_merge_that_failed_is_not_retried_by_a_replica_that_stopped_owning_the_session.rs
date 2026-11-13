@@ -16,7 +16,7 @@ fn a_merge_that_failed_is_not_retried_by_a_replica_that_stopped_owning_the_sessi
         .write(
             SEALING,
             Uuid::nil(),
-            be_block::Part::from(&b"a closed segment"[..]),
+            be_block_content::Part::from(&b"a closed segment"[..]),
         )
         .unwrap()
         .root

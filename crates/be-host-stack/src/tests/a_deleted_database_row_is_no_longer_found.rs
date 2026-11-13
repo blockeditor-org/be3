@@ -1,5 +1,5 @@
 use super::*;
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_type_database::database::{Database, DatabaseContent, DatabaseValue};
 use be_type_workspace::WorkspaceContent;
 
@@ -28,7 +28,7 @@ fn a_deleted_database_row_is_no_longer_found() {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Team"),
+        be_block_content::BlockMetadata::named("Team"),
         None,
         false,
     );
@@ -48,7 +48,7 @@ fn a_deleted_database_row_is_no_longer_found() {
         block,
         DatabaseContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named("Chores"),
+        be_block_content::BlockMetadata::named("Chores"),
         Some(database.encode()),
         false,
     );

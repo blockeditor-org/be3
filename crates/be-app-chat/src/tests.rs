@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{Edit, LiveEdit, ObjectId};
+use be_sdk_beui::be_block_content::{Edit, LiveEdit, ObjectId};
 use be_sdk_beui::beui::vec2;
 use be_sdk_beui::{EditorHost, OwnedEditor, Signer};
 use be_sdk_test::BeuiTest;

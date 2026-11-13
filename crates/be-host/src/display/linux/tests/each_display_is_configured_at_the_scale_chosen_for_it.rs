@@ -1,4 +1,5 @@
-use be_block::{DisplaySettingsContent, Layered};
+use be_block::DisplaySettingsContent;
+use be_block_content::Layered;
 
 use super::*;
 

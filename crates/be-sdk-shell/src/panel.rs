@@ -7,10 +7,7 @@ use be_sdk_beui::beui::icons::{ICON_CLOUD_OFF, ICON_LOCK};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use be_sdk_beui::{
-    ArtifactState, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget, Editor,
-    TopBar,
-};
+use be_sdk_beui::{ArtifactState, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget, Editor, TopBar};
 use uuid::Uuid;
 
 use super::artifact::ArtifactBar;
@@ -217,7 +214,7 @@ pub(crate) fn BlockPanel(
     });
     let session = untrack(|| workspace.tab(tab)).is_some_and(|item| {
         item.block_type
-            == <be_sdk_beui::be_block::EditorViewContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE
+            == <be_sdk_beui::be_block_content::EditorViewContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE
     });
     let preview = create_memo(move || preview.get());
     let previewing = create_memo(move || preview.get().is_some());
@@ -367,7 +364,7 @@ fn DockedBlockTab(
             let watched = RefCell::new(Watched::default());
             create_effect(move || owned.set(read_owner_info(&workspace, block, &watched)));
             let session = untrack(|| workspace.known_type(block)) == Some(
-                <be_sdk_beui::be_block::EditorViewContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+                <be_sdk_beui::be_block_content::EditorViewContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
             );
             (owned.read_only(), session)
         }

@@ -1,9 +1,4 @@
-use be_block::{
-    CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
-    InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent,
-    PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent,
-    TagsContent, search_index::SearchIndexContent,
-};
+use be_block::{CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent, InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent, PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent, TagsContent, search_index::SearchIndexContent};
 
 be_sdk_type_guest::be_block_types![
     DisplaySettingsContent,

@@ -1,4 +1,4 @@
-use be_block::{BlockContent, ContentError};
+use be_block_content::{BlockContent, ContentError};
 use be_block_graph::BlockParent;
 use be_block_store::{ChunkerConfig, MemoryStore};
 use be_server::Running;
@@ -285,7 +285,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         Uuid::now_v7(),
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
-        &be_block::BlockMetadata::named(name),
+        &be_block_content::BlockMetadata::named(name),
         false,
     )
     .await
@@ -298,7 +298,7 @@ async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
         be_block::my_files(peer.organization(), peer.account()),
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
-        &be_block::BlockMetadata::named("My files"),
+        &be_block_content::BlockMetadata::named("My files"),
         false,
     )
     .await
@@ -351,7 +351,7 @@ async fn note(owner: &Peer<MemoryStore>) -> Uuid {
             Uuid::now_v7(),
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Notes"),
+            &be_block_content::BlockMetadata::named("Notes"),
             false,
         )
         .await

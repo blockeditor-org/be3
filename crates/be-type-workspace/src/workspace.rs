@@ -2,7 +2,7 @@ use be_block_model::{Document, Edit, List, Model};
 use uuid::Uuid;
 
 use crate::folder::{self, FolderEntry};
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 #[model(kind = "workspace")]
@@ -29,7 +29,7 @@ impl Workspace {
 }
 
 impl Root for Workspace {
-    const CONTENT_TYPE: Uuid = be_block::WORKSPACE_TYPE;
+    const CONTENT_TYPE: Uuid = be_block_graph::WORKSPACE_TYPE;
 
     fn references(&self) -> Vec<Uuid> {
         self.blocks()

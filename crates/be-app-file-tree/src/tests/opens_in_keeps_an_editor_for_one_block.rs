@@ -1,8 +1,6 @@
 use be_sdk_beui::be_block::PREFERRED_EDITOR;
-use be_sdk_beui::be_block::be_block_model::from_cbor;
-use be_sdk_beui::{
-    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor,
-};
+use be_sdk_beui::be_block_content::be_block_model::from_cbor;
+use be_sdk_beui::{BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
 
 use super::*;
 

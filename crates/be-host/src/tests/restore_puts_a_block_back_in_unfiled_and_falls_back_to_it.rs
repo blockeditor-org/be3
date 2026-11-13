@@ -3,7 +3,7 @@ use super::*;
 const UNFILED: Uuid = Uuid::from_u128(0xf11e);
 const FOLDER: Uuid = Uuid::from_u128(0xf01d);
 
-fn restored(parent: Option<BlockParent>, deleted_from: Option<be_block::DeletedFrom>) -> RestoreTo {
+fn restored(parent: Option<BlockParent>, deleted_from: Option<be_block_content::DeletedFrom>) -> RestoreTo {
     restore_to(
         &Restoring {
             parent,
@@ -21,7 +21,7 @@ fn restore_puts_a_block_back_in_unfiled_and_falls_back_to_it() {
     assert_eq!(
         restored(
             Some(BlockParent::Detached),
-            Some(be_block::DeletedFrom::Block(UNFILED))
+            Some(be_block_content::DeletedFrom::Block(UNFILED))
         ),
         RestoreTo::Unfiled(UNFILED),
         "a block deleted from Unfiled goes back there, though Unfiled lists nothing"
@@ -34,7 +34,7 @@ fn restore_puts_a_block_back_in_unfiled_and_falls_back_to_it() {
     assert_eq!(
         restored(
             Some(BlockParent::Detached),
-            Some(be_block::DeletedFrom::Root)
+            Some(be_block_content::DeletedFrom::Root)
         ),
         RestoreTo::Unfiled(UNFILED),
         "so does a block that may not stand at the top"

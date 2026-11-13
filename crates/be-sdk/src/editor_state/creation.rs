@@ -39,11 +39,11 @@ impl CreationCore {
         &self.0.template
     }
 
-    pub fn create<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
+    pub fn create<C: be_block_content::BlockContent>(&self, content: &C) -> Uuid {
         self.graph().create(content, BlockParent::Detached)
     }
 
-    pub fn seed_content<C: be_block::BlockContent>(&self, block: Uuid, content: &C) {
+    pub fn seed_content<C: be_block_content::BlockContent>(&self, block: Uuid, content: &C) {
         self.0.host.seed_content(block, content);
     }
 

@@ -31,7 +31,7 @@ fn plain_text_takes_no_formats() {
     assert!(
         sent.iter()
             .flat_map(|edit| &edit.0)
-            .all(|change| matches!(change, be_block::be_block_model::Change::Text { .. })),
+            .all(|change| matches!(change, be_block_content::be_block_model::Change::Text { .. })),
         "only the typing is sent: {sent:?}"
     );
 }

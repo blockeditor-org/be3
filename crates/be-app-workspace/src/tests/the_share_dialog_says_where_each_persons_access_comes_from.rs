@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockInfo, ShellDialog};
 use be_sdk_test::HostCall;
 use be_type_workspace::FolderContent;

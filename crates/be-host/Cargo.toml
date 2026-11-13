@@ -42,6 +42,7 @@ exported = true
 # The block stack. The app is a peer of it on every platform: be-block-client's socket
 # and executor come from its own transport/.
 be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
 be-block-keys = { path = "../be-block-keys" }
 be-block-graph = { path = "../be-block-graph" }

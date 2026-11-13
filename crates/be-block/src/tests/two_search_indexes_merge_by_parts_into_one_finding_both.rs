@@ -8,7 +8,7 @@ use be_block_commit::MergeResult;
 use be_lib_search::{Batch, Commit, DocId, Put, Query, Text};
 
 use crate::search_index::SearchIndexContent;
-use crate::{BlockContent, MergeParts, PartReader};
+use be_block_content::{BlockContent, MergeParts, PartReader};
 
 /// Runs a future that never waits: every part here is held in memory.
 fn run<T>(future: impl Future<Output = T>) -> T {

@@ -2,9 +2,9 @@ use be_block_model::{Change, Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::Root;
-use crate::setting::Setting;
-use crate::settings::Layered;
+use be_block_content::Root;
+use be_block_content::setting::Setting;
+use be_block_content::layered::Layered;
 pub use be_lib_ui_preferences::{
     InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings,
     PointerSpeed,

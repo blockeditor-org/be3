@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use be_block::{MY_FILES, NAME, ROW_PREFIX};
+use be_block_content::{MY_FILES, NAME, ROW_PREFIX};
 use be_block_client::ask;
 use be_block_client::{Connection, contacts};
 use be_block_keys::{InviteCode, RecoveryPhrase};

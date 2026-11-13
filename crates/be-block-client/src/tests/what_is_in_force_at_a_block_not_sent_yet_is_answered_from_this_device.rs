@@ -14,7 +14,7 @@ async fn what_is_in_force_at_a_block_not_sent_yet_is_answered_from_this_device()
             block,
             TextContent::CONTENT_TYPE,
             BlockParent::Block(team),
-            &be_block::BlockMetadata::named("Plan"),
+            &be_block_content::BlockMetadata::named("Plan"),
             false,
         )
         .await

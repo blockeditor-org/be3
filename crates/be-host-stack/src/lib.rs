@@ -177,7 +177,7 @@ pub fn staleness(block: Uuid) -> Option<Stale> {
     if let Some(error) = shared.unreadable.get(&block) {
         return Some(Stale::Unreadable(error.clone()));
     }
-    let stamped = node.metadata.get(&be_block::SCHEMA)?;
+    let stamped = node.metadata.get(&be_block_content::SCHEMA)?;
     (stamped != kind.schema).then_some(Stale::Reshaped)
 }
 
@@ -418,7 +418,7 @@ pub fn hold(block: Uuid, content_type: Uuid) {
 pub fn change_child(
     block: Uuid,
     content_type: Uuid,
-    change: be_block::ChildChange,
+    change: be_block_content::ChildChange,
 ) -> Option<bool> {
     if !is_known(content_type) {
         return None;
@@ -434,14 +434,14 @@ pub fn change_child(
     Some(true)
 }
 
-fn api_child(change: be_block::ChildChange) -> be_sdk_type_api::ChildChange {
+fn api_child(change: be_block_content::ChildChange) -> be_sdk_type_api::ChildChange {
     match change {
-        be_block::ChildChange::Add(child) => be_sdk_type_api::ChildChange::Add(child),
-        be_block::ChildChange::Delete(child) => be_sdk_type_api::ChildChange::Delete(child),
-        be_block::ChildChange::Replace { old, new } => {
+        be_block_content::ChildChange::Add(child) => be_sdk_type_api::ChildChange::Add(child),
+        be_block_content::ChildChange::Delete(child) => be_sdk_type_api::ChildChange::Delete(child),
+        be_block_content::ChildChange::Replace { old, new } => {
             be_sdk_type_api::ChildChange::Replace(be_sdk_type_api::ReplaceChild { old, new })
         }
-        be_block::ChildChange::Reorder { block, after } => {
+        be_block_content::ChildChange::Reorder { block, after } => {
             be_sdk_type_api::ChildChange::Reorder(be_sdk_type_api::ReorderChild { block, after })
         }
     }
@@ -507,8 +507,8 @@ pub fn version_since(block: Uuid, sent: Option<u64>) -> Option<(u64, be_sdk_api:
 }
 
 pub fn is_versioned(content_type: Uuid) -> bool {
-    content_type == <be_block::Checkout as be_block::Root>::CONTENT_TYPE
-        || content_type == <be_block::Repository as be_block::Root>::CONTENT_TYPE
+    content_type == <be_block::Checkout as be_block_content::Root>::CONTENT_TYPE
+        || content_type == <be_block::Repository as be_block_content::Root>::CONTENT_TYPE
 }
 
 pub fn operate(block: Uuid, operation: Vec<u8>) {
@@ -644,7 +644,7 @@ pub fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     }
     let to = Uuid::now_v7();
     let mut metadata = source.metadata.clone();
-    metadata.remove(&be_block::ARTIFACT);
+    metadata.remove(&be_block_content::ARTIFACT);
     let references = source.contents();
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
@@ -728,7 +728,7 @@ pub fn content(block: Uuid) -> Option<Content> {
     with_shared(|shared| shared_content(shared, block).cloned())?
 }
 
-pub fn describe_block(block: Uuid) -> Option<be_block::Entries> {
+pub fn describe_block(block: Uuid) -> Option<be_block_content::Entries> {
     with_shared(|shared| {
         shared
             .described
@@ -1108,7 +1108,7 @@ pub fn made_by_app_in_unfiled(block: Uuid, app_id: &str) -> bool {
         graph.get(block).is_some_and(|node| {
             node.parent == Some(be_block_graph::BlockParent::Block(unfiled))
                 && node.author == Some(account)
-                && node.metadata.get(&be_block::CREATED_BY).as_deref() == Some(app_id)
+                && node.metadata.get(&be_block_content::CREATED_BY).as_deref() == Some(app_id)
         }) && !graph.has_children(block)
     })
     .unwrap_or(false)
@@ -1242,12 +1242,12 @@ pub fn create(
     block: Uuid,
     content_type: Uuid,
     parent: be_block_graph::BlockParent,
-    mut metadata: be_block::BlockMetadata,
+    mut metadata: be_block_content::BlockMetadata,
     content: Option<Vec<u8>>,
     owner_only: bool,
 ) {
     if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
-        metadata.insert(&be_block::NAME, &name);
+        metadata.insert(&be_block_content::NAME, &name);
     }
     if metadata.derived.is_empty()
         && content.is_none()
@@ -1304,24 +1304,24 @@ pub fn set_parent(block: Uuid, parent: be_block_graph::BlockParent) {
         return;
     }
     if let Some(node) = node
-        && !node.metadata.contains(&be_block::VIEW_EDITOR)
+        && !node.metadata.contains(&be_block_content::VIEW_EDITOR)
         && node.access.can_edit()
     {
         let from = match (node.parent, parent) {
             (Some(be_block_graph::BlockParent::Root), be_block_graph::BlockParent::Detached) => {
-                Some(be_block::DeletedFrom::Root)
+                Some(be_block_content::DeletedFrom::Root)
             }
             (
                 Some(be_block_graph::BlockParent::Block(old)),
                 be_block_graph::BlockParent::Detached,
-            ) => Some(be_block::DeletedFrom::Block(old)),
+            ) => Some(be_block_content::DeletedFrom::Block(old)),
             _ => None,
         };
         let restored = parent != be_block_graph::BlockParent::Detached;
-        if from.is_some() || (restored && node.metadata.contains(&be_block::DELETED_FROM)) {
+        if from.is_some() || (restored && node.metadata.contains(&be_block_content::DELETED_FROM)) {
             define(
                 block,
-                vec![be_block::DELETED_FROM.definition(from.as_ref())],
+                vec![be_block_content::DELETED_FROM.definition(from.as_ref())],
             );
         }
     }
@@ -1341,7 +1341,7 @@ pub fn set_parent(block: Uuid, parent: be_block_graph::BlockParent) {
     send(Command::SetParent { block, parent });
 }
 
-pub fn define(block: Uuid, changes: Vec<be_block::Definition>) {
+pub fn define(block: Uuid, changes: Vec<be_block_content::Definition>) {
     let Some(metadata) = node(block).map(|node| node.metadata) else {
         return;
     };
@@ -1361,10 +1361,10 @@ pub fn define(block: Uuid, changes: Vec<be_block::Definition>) {
 }
 
 pub fn set_name(block: Uuid, name: Option<String>) {
-    define(block, vec![be_block::NAME.definition(name.as_ref())]);
+    define(block, vec![be_block_content::NAME.definition(name.as_ref())]);
 }
 
-pub fn describe_implicitly(block: Uuid, derived: be_block::Entries) {
+pub fn describe_implicitly(block: Uuid, derived: be_block_content::Entries) {
     with_shared_mut(|shared| shared.graph.derive(block, derived));
 }
 
@@ -1604,10 +1604,10 @@ pub fn import(
 ) -> Result<(Uuid, Uuid), String> {
     let mut blocks = be_block_client::transfer::renumber(be_block_client::transfer::decode(bytes)?);
     for block in &mut blocks {
-        block.metadata.remove(&be_block::CREATED_BY);
+        block.metadata.remove(&be_block_content::CREATED_BY);
         if block.parent.is_none() {
             block.metadata.put(
-                &be_block::CREATED_BY,
+                &be_block_content::CREATED_BY,
                 created_by.map(str::to_owned).as_ref(),
             );
         }
@@ -1663,9 +1663,9 @@ pub fn import_file(
         reply(Err("Sign in to import files.".to_owned()));
         return;
     }
-    let mut metadata = be_block::BlockMetadata::named(&name);
+    let mut metadata = be_block_content::BlockMetadata::named(&name);
     metadata.put(
-        &be_block::CREATED_BY,
+        &be_block_content::CREATED_BY,
         created_by.map(str::to_owned).as_ref(),
     );
     send(Command::ContentOfFile {

@@ -1,7 +1,7 @@
 use be_block_model::{Bytes, Document, Edit, Model, ObjectId};
 use uuid::Uuid;
 
-use crate::Root;
+use be_block_content::Root;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct InputRemapper {

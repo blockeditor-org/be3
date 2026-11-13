@@ -1,7 +1,7 @@
 use be_type_workspace::FolderContent;
 use std::{fmt::Display, path::PathBuf};
 
-use be_block::{BlockContent, BlockMetadata};
+use be_block_content::{BlockContent, BlockMetadata};
 use be_block_client::{Credentials, Peer, PeerConfig};
 use be_block_frozen::scene;
 use be_block_graph::BlockParent;

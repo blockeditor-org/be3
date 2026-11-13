@@ -1,0 +1,17 @@
+[package]
+name = "be-block-content"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-model = { path = "../be-block-model" }
+be-block-store = { path = "../be-block-store", default-features = false }
+memchr = "2"
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true

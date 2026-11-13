@@ -1,17 +1,13 @@
-use be_sdk_beui::{
-    BeuiRoot, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, OwnedEditor,
-};
+use be_sdk_beui::{BeuiRoot, ChildBlock, ChildBlockHandle, ChildContent, ChildMode, ChildState, ChildTarget, Editor, EditorHost, OwnedEditor};
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
 use uuid::Uuid;
 
 use crate::BeuiTest;
-use be_sdk_beui::be_block::{DisplaySettings, Root as _};
-use be_sdk_beui::be_block::{
-    DisplaySettingsContent, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
-};
+use be_sdk_beui::be_block::DisplaySettings;
+use be_sdk_beui::be_block_content::Root as _;
+use be_sdk_beui::be_block::{DisplaySettingsContent, Settings, SettingsContent, SettingsProfile, SettingsProfileContent};
 use be_sdk_beui::{BlockInfo, BlockParent};
 
 mod a_blocks_agent_is_made_rotated_and_removed_through_the_host;

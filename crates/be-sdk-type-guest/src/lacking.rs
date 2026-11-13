@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use be_block::Announcement;
+use be_block_content::Announcement;
 use be_block_commit::CommitId;
 use be_sdk_type_api::{EditorId, KeptCommits};
 

@@ -1,5 +1,6 @@
-use be_sdk_beui::be_block::be_block_model::BlockRef;
-use be_sdk_beui::be_block::{ANYONE_INSIDE, SETTINGS, WORKSPACE_TYPE};
+use be_sdk_beui::be_block_content::be_block_model::BlockRef;
+use be_sdk_beui::be_block::{ANYONE_INSIDE, WORKSPACE_TYPE};
+use be_sdk_beui::be_block_content::SETTINGS;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockTypeDescriptor, Failure};

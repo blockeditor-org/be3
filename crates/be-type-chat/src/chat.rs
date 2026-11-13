@@ -1,7 +1,4 @@
-use be_block::{
-    BlockContent, BlockMetadata, ChildChange, ContentError, LiveEdit, Loads, Merge, MergeParts,
-    Part, PartReader, PartRef, Root, Stored, Undo,
-};
+use be_block_content::{BlockContent, BlockMetadata, ChildChange, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef, Root, Stored, Undo};
 use be_block_commit::MergeResult;
 use std::collections::BTreeMap;
 
@@ -1078,15 +1075,15 @@ impl BlockContent for ChatContent {
         keys: Option<&std::collections::HashSet<String>>,
         indexed: &std::collections::HashSet<PartRef>,
         parts: PartReader,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>>
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>>
     {
         let asked = |key: &str| keys.is_none_or(|keys| keys.contains(key));
         let mut documents = Vec::new();
         if asked(RECENT) {
-            documents.push(be_block::SearchDocument {
+            documents.push(be_block_content::SearchDocument {
                 key: RECENT.to_owned(),
                 body: Some(lines(self.shown())),
-                ..be_block::SearchDocument::default()
+                ..be_block_content::SearchDocument::default()
             });
         }
         let changed: Vec<ObjectId> = self
@@ -1107,10 +1104,10 @@ impl BlockContent for ChatContent {
                 _ => None,
             };
             if source.is_some_and(|source| indexed.contains(&source)) {
-                documents.push(be_block::SearchDocument {
+                documents.push(be_block_content::SearchDocument {
                     key,
                     source,
-                    ..be_block::SearchDocument::default()
+                    ..be_block_content::SearchDocument::default()
                 });
                 continue;
             }
@@ -1126,10 +1123,10 @@ impl BlockContent for ChatContent {
                 }
             };
             reads.push((documents.len(), segment, source, read));
-            documents.push(be_block::SearchDocument {
+            documents.push(be_block_content::SearchDocument {
                 key,
                 source,
-                ..be_block::SearchDocument::default()
+                ..be_block_content::SearchDocument::default()
             });
         }
         let this = self.clone();
@@ -1190,7 +1187,7 @@ impl LiveEdit for ChatContent {
     /// the server holds it: its body, naming the author of the message it replies to, whom a
     /// member who wants only mentions is told for. Keyed by the message, so a send made again
     /// (a replica restarted with the edit) tells once.
-    fn announcements(&self, operation: &ChatOp) -> Vec<be_block::Announcement> {
+    fn announcements(&self, operation: &ChatOp) -> Vec<be_block_content::Announcement> {
         Self::sent_in(operation)
             .into_iter()
             .filter_map(|id| {
@@ -1201,7 +1198,7 @@ impl LiveEdit for ChatContent {
                     .map(|quoted| quoted.author)
                     .into_iter()
                     .collect();
-                Some(be_block::Announcement {
+                Some(be_block_content::Announcement {
                     key: id.to_string(),
                     text: self.body(id)?,
                     several: "{count} new messages".to_owned(),

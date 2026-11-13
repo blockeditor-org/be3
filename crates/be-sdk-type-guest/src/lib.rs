@@ -5,9 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use be_block::{
-    BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History,
-};
+use be_block_content::{BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History};
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
     Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
@@ -54,10 +52,10 @@ type MergePartsFn = fn(
 type SearchTextFn = fn(
     Loaded,
     Option<Vec<String>>,
-    Vec<be_block::PartRef>,
+    Vec<be_block_content::PartRef>,
     PartReader,
 ) -> std::pin::Pin<
-    Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>,
+    Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>,
 >;
 
 type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>;
@@ -94,7 +92,7 @@ impl Registration {
             info: TypeInfo {
                 content_type: C::CONTENT_TYPE,
                 frozen: C::FROZEN,
-                schema: be_block::schema_fingerprint::<C>(),
+                schema: be_block_content::schema_fingerprint::<C>(),
                 undo: false,
                 plain: Plain::None,
                 first_part: C::LOADS == Loads::FirstPart,
@@ -237,16 +235,16 @@ fn replica_merge<C: MergeParts + Default>(
 fn search_text<C: BlockContent>(
     content: Loaded,
     keys: Option<Vec<String>>,
-    indexed: Vec<be_block::PartRef>,
+    indexed: Vec<be_block_content::PartRef>,
     parts: PartReader,
-) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>> {
+) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>> {
     Box::pin(async move {
         let stored = content
             .into_stored()
             .ok_or_else(|| "the host loaded parts that form no tree".to_owned())?;
         let content = C::from_stored(&stored).map_err(|error| error.to_string())?;
         let keys: Option<HashSet<String>> = keys.map(|keys| keys.into_iter().collect());
-        let indexed: HashSet<be_block::PartRef> = indexed.into_iter().collect();
+        let indexed: HashSet<be_block_content::PartRef> = indexed.into_iter().collect();
         content.search_text(keys.as_ref(), &indexed, parts).await
     })
 }
@@ -260,7 +258,7 @@ pub(crate) fn written<C: BlockContent>(content: &C, organization: Uuid) -> Writt
         bytes,
         parts,
         references: content.references_in(organization),
-        derived: be_block::derived_metadata(content),
+        derived: be_block_content::derived_metadata(content),
     }
 }
 
@@ -302,22 +300,22 @@ fn child<C: LiveEdit + Default>(
     Ok(Some(content.encode()))
 }
 
-pub(crate) fn be_child(change: ChildChange) -> be_block::ChildChange {
+pub(crate) fn be_child(change: ChildChange) -> be_block_content::ChildChange {
     match change {
-        ChildChange::Add(block) => be_block::ChildChange::Add(block),
-        ChildChange::Delete(block) => be_block::ChildChange::Delete(block),
+        ChildChange::Add(block) => be_block_content::ChildChange::Add(block),
+        ChildChange::Delete(block) => be_block_content::ChildChange::Delete(block),
         ChildChange::Replace(ReplaceChild { old, new }) => {
-            be_block::ChildChange::Replace { old, new }
+            be_block_content::ChildChange::Replace { old, new }
         }
         ChildChange::Reorder(ReorderChild { block, after }) => {
-            be_block::ChildChange::Reorder { block, after }
+            be_block_content::ChildChange::Reorder { block, after }
         }
     }
 }
 
 pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
     Description {
-        derived: be_block::derived_metadata(content),
+        derived: be_block_content::derived_metadata(content),
         references: content.references_in(organization),
     }
 }
@@ -729,7 +727,7 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::put_part(bytes));
                 self.answer_later(replica, pending, move |result| Input::PartPut {
                     token,
-                    result: result.and_then(|put| put).map(be_block::PartRef::from),
+                    result: result.and_then(|put| put).map(be_block_content::PartRef::from),
                 });
             }
             Effect::Resume {
@@ -967,7 +965,7 @@ impl replicas::Guest for Module {
         indexed: Vec<PartRef>,
     ) -> LocalFuture<Result<Vec<SearchDocument>, Failure>> {
         let search = self.with_kind(content_type, |kind| kind.search_text);
-        let indexed = indexed.into_iter().map(be_block::PartRef::from).collect();
+        let indexed = indexed.into_iter().map(be_block_content::PartRef::from).collect();
         Box::pin(async move {
             let search = search.ok_or(Failure::UnknownType)?;
             let documents = search(content, keys, indexed, request_parts())
@@ -1217,7 +1215,7 @@ macro_rules! be_block_types {
 }
 
 /// An announcement as the host interface carries it.
-fn announcement(made: be_block::Announcement) -> be_sdk_type_api::Announcement {
+fn announcement(made: be_block_content::Announcement) -> be_sdk_type_api::Announcement {
     be_sdk_type_api::Announcement {
         key: made.key,
         text: made.text,

@@ -1,6 +1,6 @@
 use super::*;
 use crate::EditorBlock;
-use be_block::BlockContent as _;
+use be_block_content::BlockContent as _;
 use be_sdk_api::Input;
 use be_sdk_api::embed::blocks::{self as wire, Call};
 use be_sdk_api::ops::OpId;

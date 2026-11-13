@@ -2,8 +2,8 @@ use std::cell::Cell;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use be_block::be_block_model::{Document, Field, FieldRef, List, Model};
-use be_block::{LiveEdit, ObjectId, Root, Touched};
+use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model};
+use be_block_content::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk::LackingEdit;
 use be_sdk::{EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
 use beui::reactive::*;
@@ -278,7 +278,7 @@ impl std::ops::Deref for Payload {
     }
 }
 
-impl<K: be_block::BlobKind> ContentProjection<be_block::Blob<K>> {
+impl<K: be_block_content::BlobKind> ContentProjection<be_block_content::Blob<K>> {
     /// The payload, which a kind that loads only its header (`BlobKind::LOADS`) leaves in the
     /// store: read by range once the first snapshot arrives, and again with each new one (a
     /// replacement), never on a header edit.
@@ -302,7 +302,7 @@ impl<K: be_block::BlobKind> ContentProjection<be_block::Blob<K>> {
             }
             fetched.set(Some(snapshot));
             let (start, held) = live.visible(|blob| {
-                let start = be_block::encode_streamed(blob.header(), &[]).len() as u64;
+                let start = be_block_content::encode_streamed(blob.header(), &[]).len() as u64;
                 let whole = start + blob.data().len() as u64 == length;
                 (start, whole.then(|| Payload(blob.data().into())))
             });

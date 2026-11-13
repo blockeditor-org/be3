@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_api::{
     Failure, StoredHead,
     blocks::{BlockSubject, BlockValue},
@@ -51,7 +51,7 @@ fn an_instance_watching_a_blocks_head_is_sent_its_stored_bytes() {
         block,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

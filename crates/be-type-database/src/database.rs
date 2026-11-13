@@ -4,7 +4,7 @@ use be_block_model::{Anchor, BlockRef, Change, Document, Edit, Item, List, Map, 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 
 const ROWS: Uuid = Uuid::from_u128(0x7a1c_52e0_9b4d_4f36_8d2a_6c1e_0f93_b5d7);
 
@@ -527,7 +527,7 @@ impl Root for Database {
     /// (`String`) cells, one per line, in the order of their field ids (the schema that orders
     /// and names the fields is another block). Other cells are not indexed. A tracker's issues
     /// are rows and answer the same way.
-    fn search_text_in(document: &Document<Self>) -> Vec<be_block::SearchDocument> {
+    fn search_text_in(document: &Document<Self>) -> Vec<be_block_content::SearchDocument> {
         let database = document.root();
         database
             .rows
@@ -541,7 +541,7 @@ impl Root for Database {
                         _ => None,
                     })
                     .collect();
-                be_block::SearchDocument {
+                be_block_content::SearchDocument {
                     key: row.id.as_uuid().to_string(),
                     source: None,
                     name: Some(database.short_id(row.id)),
@@ -602,9 +602,9 @@ impl Root for Database {
         )
     }
 
-    fn describe(&self, metadata: &mut be_block::BlockMetadata) {
+    fn describe(&self, metadata: &mut be_block_content::BlockMetadata) {
         metadata.insert(
-            &be_block::metadata::ROW_PREFIX,
+            &be_block_content::metadata::ROW_PREFIX,
             &self.prefix.trim().to_owned(),
         );
     }
@@ -613,9 +613,9 @@ impl Root for Database {
         None
     }
 
-    fn describe_in(document: &Document<Self>, metadata: &mut be_block::BlockMetadata) {
+    fn describe_in(document: &Document<Self>, metadata: &mut be_block_content::BlockMetadata) {
         let prefix = document.field(ObjectId::ROOT, Self::PREFIX);
-        metadata.insert(&be_block::metadata::ROW_PREFIX, &prefix.trim().to_owned());
+        metadata.insert(&be_block_content::metadata::ROW_PREFIX, &prefix.trim().to_owned());
     }
 
     fn references(&self) -> Vec<Uuid> {

@@ -1,6 +1,6 @@
 use be_sdk_beui::PeerPresence;
-use be_sdk_beui::be_block::block_url::block_url;
-use be_sdk_beui::be_block::presence::{PresenceColor, PresenceKind};
+use be_sdk_beui::be_block_content::block_url::block_url;
+use be_sdk_beui::be_block_content::presence::{PresenceColor, PresenceKind};
 use be_sdk_beui::beui::Modifiers;
 use be_sdk_beui::{EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;

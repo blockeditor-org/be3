@@ -14,7 +14,7 @@ fn a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent() {
         repository,
         be_block::RepositoryContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("History"),
+        be_block_content::BlockMetadata::named("History"),
         Some(be_block::RepositoryContent::default().encode()),
         false,
     );
@@ -28,7 +28,7 @@ fn a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent() {
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Notes"),
+        be_block_content::BlockMetadata::named("Notes"),
         Some(listing.encode()),
         false,
     );
@@ -36,7 +36,7 @@ fn a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent() {
         note,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::named("Note"),
+        be_block_content::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of("hello\n").encode()),
         false,
     );

@@ -2,7 +2,7 @@ use be_type_workspace::WorkspaceContent;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use be_block::{BlockContent, BlockMetadata};
+use be_block_content::{BlockContent, BlockMetadata};
 use be_block_client::{Credentials, Peer, PeerConfig};
 use be_block_graph::BlockParent;
 use be_block_store::FileStore;
