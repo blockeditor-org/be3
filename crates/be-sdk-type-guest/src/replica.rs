@@ -439,12 +439,12 @@ const MERGE_READ_TRIES: u8 = 3;
 /// How long a merge that could not read its parts waits to be tried again, doubling up to the
 /// ceiling.
 const MERGE_RETRY_INTERVAL: u64 = 5_000;
+const MERGE_RETRY_CEILING: u64 = 60_000;
 
 /// How long an owner whose seal failed (its block's key not on this device while offline, say)
 /// waits before it seals again, doubling up to `SEAL_RETRY_CEILING`.
 const SEAL_RETRY_INTERVAL: u64 = 5_000;
 const SEAL_RETRY_CEILING: u64 = 60_000;
-const MERGE_RETRY_CEILING: u64 = 60_000;
 
 enum Wait<C> {
     /// A merge by parts, polled again as the parts it asked for arrive: it never resolves
@@ -1480,7 +1480,9 @@ where
                 resynchronize,
             } => {
                 self.adopt(session);
-                // A new lease (the device reconnected, say) is a new chance for a failed seal.
+                // A new lease is a new chance for a failed seal. Reconnecting always gives one: the
+                // host rejoins every open block's session (`Replicas::reconnect`) and leases it
+                // again.
                 self.seal_failures = 0;
                 self.seal_retry_at = None;
                 if resynchronize && let Role::Follower(_) = &self.role {
@@ -1833,12 +1835,11 @@ where
         reading.insert(token, read);
     }
 
-    /// A merge that could not have its parts is dropped, so the replica goes on, and tried again
-    /// on a timer that doubles up to a ceiling (a `Job::Reconcile`): it resolves only with its
-    /// parts. The failure is reported once, not at each try.
     /// A seal that failed leaves the work unsealed, journaled, and is tried again on a timer that
     /// doubles up to a ceiling: until then the replica owes no seal (`seal_would_settle`), or a
-    /// host that seals what is owed on every frame would fail it on every frame.
+    /// host that seals what is owed on every frame would fail it on every frame. Once the time
+    /// passes, `seal_retry_at` stays set until a seal settles or fails again: `commit_at` makes
+    /// the retry due, and `sealing` keeps a second one from starting while it is on its way.
     fn seal_failed(&mut self) {
         let wait = (SEAL_RETRY_INTERVAL << self.seal_failures.min(4)).min(SEAL_RETRY_CEILING);
         self.seal_failures = self.seal_failures.saturating_add(1);
@@ -1847,6 +1848,9 @@ where
         self.append_unappended();
     }
 
+    /// A merge that could not have its parts is dropped, so the replica goes on, and tried again
+    /// on a timer that doubles up to a ceiling (a `Job::Reconcile`): it resolves only with its
+    /// parts. The failure is reported once, not at each try.
     fn merge_failed(&mut self, error: String) {
         if self.merge_failures == 0 {
             self.error(error);
