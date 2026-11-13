@@ -29,8 +29,9 @@
 //! comes first: the clock bounds a gift to an editor that commits no layout at all. Nothing is
 //! counted before the child is up, as making the block, placing the child and starting its app
 //! (a download and compile on a cold start) can take any time. A new ask replaces the gift and
-//! carries its keys, owed to a child or not, to the new one. A gift whose instance or app goes
-//! ends with it.
+//! carries its keys, owed to a child or not, to the new one; keys carried from the first child
+//! go back to the placer's view, like any it held, if the new gift ends with `Keys::Return`. A
+//! gift whose instance or app goes ends with it.
 
 use std::time::Duration;
 
@@ -249,6 +250,9 @@ impl Instances {
             return;
         };
         let gift = match entry.gift.take() {
+            // Asked again for what it already gives (a dock giving the same tab the keyboard
+            // again): its count goes on, as the child's view, already up, says so only once.
+            Some(held) if held.pending() && held.to == to => held,
             Some(mut held) => {
                 held.to = to.clone();
                 held.stage = Stage::Pending;
