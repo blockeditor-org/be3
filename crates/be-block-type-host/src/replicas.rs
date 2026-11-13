@@ -418,6 +418,28 @@ struct Open {
     reporting: Option<CommitId>,
 }
 
+/// An open block that owes a seal, and what its seal may be waiting on: what a host names when
+/// it stays busy sealing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Owing {
+    pub block: Uuid,
+    pub journaled: bool,
+    /// Publishes of it not yet answered.
+    pub publishing: usize,
+    pub joining: bool,
+    pub closing: bool,
+}
+
+impl std::fmt::Display for Owing {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} (journaled: {}, publishes unanswered: {}, joining: {}, closing: {})",
+            self.block, self.journaled, self.publishing, self.joining, self.closing
+        )
+    }
+}
+
 /// How many commits sealed here `Replicas` remembers per block.
 const SEALED_REMEMBERED: usize = 16;
 
@@ -2959,7 +2981,7 @@ impl<H: Host> Replicas<H> {
     /// hold edits that are not yet durable: not in the journal on this device (still with the
     /// module, or not yet appended). A journaled edit survives a restart, so it is only waiting
     /// for its commit.
-    pub fn counts(&self) -> (usize, usize, usize) {
+    pub fn counts(&self) -> (usize, Vec<Owing>, usize) {
         let unsealed = self
             .open
             .values()
@@ -2969,7 +2991,14 @@ impl<H: Host> Replicas<H> {
             .open
             .values()
             .filter(|open| open.status.owes_seal)
-            .count();
+            .map(|open| Owing {
+                block: open.block,
+                journaled: open.status.journaled,
+                publishing: open.publishing,
+                joining: open.joining,
+                closing: open.closing,
+            })
+            .collect();
         let undurable = self
             .open
             .values()
