@@ -26,7 +26,6 @@ pub(crate) struct Contacts {
     error: Option<String>,
     connected: Option<String>,
     replies: (Mailbox, Post<Reply>),
-    published: Option<(Option<(Uuid, Uuid)>, u64)>,
 }
 
 impl Default for Contacts {
@@ -43,7 +42,6 @@ impl Default for Contacts {
             replies: crate::desk().mailbox(|core: &mut crate::HostCore, reply| {
                 core.contacts.replied(reply);
             }),
-            published: None,
         }
     }
 }
@@ -133,15 +131,8 @@ impl Contacts {
         }
     }
 
+    /// Publishes the contacts, which the host stack changed.
     pub(crate) fn publish(&mut self) {
-        let seen = Some((
-            be_host_stack::identity(),
-            be_host_stack::contacts_revision(),
-        ));
-        if self.published == seen {
-            return;
-        }
-        self.published = seen;
         let contacts: Vec<be_sdk_api::HostContact> = be_host_stack::contacts()
             .into_iter()
             .map(|contact| be_sdk_api::HostContact {

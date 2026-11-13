@@ -202,6 +202,15 @@ access, references, unsealed `BlockMetadata`, `locked` (no key opens it) and
 the server's `size` and `tree_size`. The host never lists the whole
 organization.
 
+The stack tells the host what changed rather than being polled: it pushes a
+`Changes` notice (the graph, contacts, storage, stale blocks, search answers,
+notification modes, and the blocks whose content changed) into every
+`ChangeWatch` (`be-host-stack/src/changes.rs`) as it happens, merged until the
+watcher takes it, and the first change after a take wakes the host; a new
+watch, and every watch when the stack starts or stops, hears everything.
+be-host's core, each app runtime's instances, the compositor and the input
+remapper each keep one, take it once a frame, and read again only what it names.
+
 The account's storage against its quota is not in the graph: while an editor
 watches `StorageUsageWatch`, be-host turns on `be_host_stack::watch_storage`,
 which follows the server's `account.storage-changed` stream (opened again on
@@ -210,7 +219,7 @@ sets the stack's error.
 
 Everything asks the mirror through `Query` (`Roots`, `Detached`, `Shared`,
 `Children`, `References`, `Backrefs`, `Parents`, `Block`, `Subtree`), and
-`be_host_stack::graph_revision` says when to ask again. Askers declare what
+asks again when a change notice says the graph changed. Askers declare what
 they want with `be_host_stack::want(owner, queries)` (`Owner::Editor` per app
 instance, `Owner::Open` for open blocks' parents, `Owner::Host`,
 `Owner::Version`).
@@ -325,8 +334,8 @@ index and search it locally.
   shown is shown again whenever the mirror moves, so a hit whose block left what
   the search is within drops out at once.
 - **Searching.** `be_host_stack::want_searches(owner, asks)` names the searches
-  an owner shows and `searched` answers each (`search_revision` counts
-  answers). A search runs in a task over the index of every root the account
+  an owner shows and `searched` answers each (a change notice says when one
+  changed). A search runs in a task over the index of every root the account
   views in the mirror (or of `within`'s root), reading only the parts it needs
   with `Peer::read_part`, and again whenever one of those indexes' heads moves.
   The loop then cuts the shown hits' snippets (`Query::snippet`) from their
