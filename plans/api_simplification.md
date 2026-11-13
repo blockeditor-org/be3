@@ -33,24 +33,6 @@ what is not an event, and `child-bar` and `child-focused` carry the child
 only. What is left: the host's `docks::take_bars` still carries a `ViewId`
 nothing reads.
 
-## 4. Block watches are one resource
-
-`blocks.wit` has `blocks-watch(query)`, `history-watch(block)`,
-`head-watch(block)`, `artifact-watch(block)` and `version-watch()`. The host
-already merges them into one `Subject` enum
-(`be-host-runtime/src/instances/blocks.rs`).
-
-Replace them with:
-
-```wit
-variant block-subject { blocks(block-query), history(block-id), head(block-id), artifact(block-id), version }
-resource block-watch { constructor(subject: block-subject); next: async func() -> block-value; }
-```
-
-The guest's copied `watch_X` / `take_X_watch` / reconcile blocks
-(`be-sdk/src/link.rs`, `be-sdk/src/host.rs`) become one, which checks that a
-value matches its subject. `show-requests` stays separate: it is a queue.
-
 ## 5. Acting on a block is one call
 
 Today a block is changed through `blocks.act(block, block-command)`,
@@ -142,24 +124,6 @@ change notice reports what left.
   connection, as they already do for `append`.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
-
-## 10. GPU: one poll answers everything that settled
-
-The gpu interface (`be-wasm-gpu-abi/wit/device.wit`) mirrors WebGPU and wgpu's
-custom backend one to one, and keeps doing so: render bundle encoders, per
-encoder debug markers and typed `create-*` calls stay as WebGPU has them.
-
-What WebGPU expresses as promises (`mapAsync`, `onSubmittedWorkDone`,
-`device.lost`) is polled across the boundary today: `objects::settle`
-(`be-wasm-gpu-guest/src/objects.rs`) calls `poll`, then `map-state` per
-pending buffer, `submitted-work-done` per ticket, and `device-lost`. That is
-plumbing under the promises, not WebGPU's shape. Make `map-async` return a
-ticket as `on-submitted-work-done` does, and have
-`poll: func(wait: bool) -> settled` return
-`record settled { maps: list<tuple<u64, bool>>, work-done: list<u64>, lost: option<device-lost-info> }`.
-Remove `map-state` and its enum, `submitted-work-done` and `device-lost`. The
-host queues settled events per app. The calls stay `local`
-(decisions/guest_calls_are_async_ops_except_local_ones.md).
 
 ## 11. Type modules answer everything at start
 
