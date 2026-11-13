@@ -21,6 +21,8 @@ execution_platform(
 # advertises what it has (worker-direct.json5) and the scheduler takes each
 # running action's request off it, so a worker runs one of these at a time.
 # Actions that do not ask are not counted (guides/build_server.md, Scheduling).
+# Its constraint is part of the exec configuration, so the link's proc macros and
+# toolchain are configured once more for it; they run on any worker.
 LARGE_MEMORY = worker_properties() | {"memory_kb": str(12 * 1024 * 1024)}
 
 execution_platform(
