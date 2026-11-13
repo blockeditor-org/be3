@@ -35,24 +35,27 @@ export default async function (test) {
     await drive("wait", 'Pane "Text"');
     await drive("pause", "500");
 
-    const stacked = await test.page.evaluate(() =>
-        [...document.querySelectorAll("#layers canvas")]
-            .filter((canvas) => getComputedStyle(canvas).visibility !== "hidden")
-            .map((canvas) => ({
-                screen: canvas.style.transform !== "",
-                z: Number(getComputedStyle(canvas).zIndex) || 0,
-            })),
-    );
-    const screens = stacked.filter((canvas) => canvas.screen);
-    const overlays = stacked.filter((canvas) => !canvas.screen);
-    if (screens.length === 0) {
-        throw new Error(`the child's screen is not in #layers: ${JSON.stringify(stacked)}`);
+    // The child's screen stacks in #layers above the popover's overlay, as the host places them
+    // from its last frame: waited for, with what the page held last on failure.
+    const stacking = () => {
+        const shown = (kind) =>
+            [...document.querySelectorAll(`#layers canvas[data-kind="${kind}"]`)]
+                .filter((canvas) => getComputedStyle(canvas).visibility !== "hidden")
+                .map((canvas) => Number(getComputedStyle(canvas).zIndex) || 0);
+        const screens = shown("screen");
+        const overlays = shown("overlay");
+        const above = screens.length > 0 && overlays.length > 0 && Math.max(...screens) > Math.max(...overlays);
+        return { above, screens, overlays, apps: document.querySelectorAll('#apps canvas[data-kind="screen"]').length };
+    };
+    try {
+        await test.page.waitForFunction(`(${stacking})().above`, null, { timeout: 30000 });
+    } catch {
+        const last = await test.page.evaluate(`(${stacking})()`);
+        throw new Error(`the child's screen did not stack above the popover: ${JSON.stringify(last)}`);
     }
-    if (overlays.length === 0) {
-        throw new Error(`the popover has no overlay in #layers: ${JSON.stringify(stacked)}`);
-    }
-    const top = Math.max(...overlays.map((canvas) => canvas.z));
-    if (!screens.some((canvas) => canvas.z > top)) {
-        throw new Error(`the child's screen is not above the popover: ${JSON.stringify(stacked)}`);
+    // The Debug view's own screen, painted before the popover, stays under the host's canvas.
+    const held = await test.page.evaluate(`(${stacking})()`);
+    if (held.apps === 0) {
+        throw new Error(`no screen stayed in #apps under the host's canvas: ${JSON.stringify(held)}`);
     }
 }

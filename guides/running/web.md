@@ -134,6 +134,14 @@ survives a reload. Traps that shape this code:
     and subscription-change events.
 - The host closes its tab when it exits, unless the page is already leaving.
 
+`web_host_test` (buck/program/drive.bzl) tests the whole page: `//crates/be-host:web-host-test`
+serves `:web` through caddy with a fresh be-server behind it, signs dev@localhost in through the
+portal (buck/program/web-sign-in.mjs, which registers it first), sizes the page by resizing it
+(the host takes its window's size from a resize, as `drive size` gives it), waits for the
+workspace, and hands a script in crates/be-host/web-test/ `drive(...)`, answered like `drive` by
+the page's `automate`, with the Playwright page beside it. A failure prints the host's tree and
+the ends of the server's and caddy's logs.
+
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the
 instance's be-server (or Playwright's `context.setOffline(true)`), type with
 `page.keyboard.type`, `page.reload()` with a `dialog` handler that accepts the `beforeunload`
