@@ -53,17 +53,11 @@ fn revision_history_follows_the_active_file_and_previews_it() {
     fixture.settle();
     let request = fixture
         .test
-        .take_requests()
+        .take_revision_previews()
         .into_iter()
-        .find_map(|call| match call {
-            HostCall::PreviewRevision {
-                reply,
-                commit: [1, ..],
-                ..
-            } => Some(reply),
-            _ => None,
-        })
-        .expect("selecting asks for a preview");
+        .find(|asked| asked.commit == [1; 32])
+        .expect("selecting asks for a preview")
+        .reply;
     let preview = Uuid::new_v4();
     fixture.test.answer(request, Ok(preview.into_bytes()));
     fixture.settle();

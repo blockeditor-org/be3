@@ -125,11 +125,6 @@ interface types {
         anchored,
     }
 
-    record size {
-        width: f32,
-        height: f32,
-    }
-
     /// A picture as rows of rgba pixels, `width * height * 4` bytes.
     record picture {
         width: u32,
@@ -237,7 +232,7 @@ interface types {
     }
 
     record viewport-metrics {
-        logical: size,
+        logical: vec2,
         visible: pos2,
         pixel-width: u32,
         pixel-height: u32,
@@ -347,7 +342,7 @@ interface types {
 
     record view-size {
         screen: screen-id,
-        logical: size,
+        logical: vec2,
     }
 
     record press-claim {
@@ -505,13 +500,13 @@ interface types {
         corner-radius: f32,
         layer: child-layer,
         mode: child-mode,
-        intrinsic: option<size>,
+        intrinsic: option<vec2>,
         /// Places the child sized to its content, taking at most this much
         /// room in the view's points: the host asks the child's view for this
         /// room, the child takes the smaller of it and its content and says
         /// how much it took, and the host shows it from `rect`'s top-left,
         /// clipped to `rect`.
-        fit: option<size>,
+        fit: option<vec2>,
         rotation: f32,
         opacity: f32,
         follows-view: bool,
@@ -720,7 +715,7 @@ interface types {
         screen: screen-id,
         opener: view-ref,
         placement: window-placement,
-        size: size,
+        size: vec2,
         level: window-level,
     }
 
@@ -742,7 +737,7 @@ interface types {
 
     record window-resize {
         view: view-id,
-        size: size,
+        size: vec2,
     }
 
     /// Moves an open window, keeping its size, to where `placement` says, as
@@ -999,7 +994,7 @@ interface types {
         parent: dock-tab-path,
         title: string,
         glyph: string,
-        size: size,
+        size: vec2,
         modal: bool,
         dismiss-on-outside-press: bool,
         closable: bool,
@@ -1067,7 +1062,7 @@ interface types {
         kind: string,
         owner: option<dock-tab-path>,
         placement: dock-bar-placement,
-        size: size,
+        size: vec2,
         pane: option<dock-tab-path>,
     }
 

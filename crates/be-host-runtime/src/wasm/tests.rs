@@ -118,9 +118,9 @@ fn screens() -> Vec<ScreenRequest> {
         placement: ViewPlacement::Parent(ParentView::Main),
         frame: None,
         metrics: ViewportMetrics {
-            logical: be_sdk_api::Size {
-                width: WIDTH as f32,
-                height: HEIGHT as f32,
+            logical: be_sdk_api::Vec2 {
+                x: WIDTH as f32,
+                y: HEIGHT as f32,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: WIDTH,

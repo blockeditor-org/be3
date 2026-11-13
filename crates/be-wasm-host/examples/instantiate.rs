@@ -167,9 +167,9 @@ fn opening(editor: [u8; 16]) -> Opening {
 
 fn metrics() -> ViewportMetrics {
     ViewportMetrics {
-        logical: be_sdk_api::Size {
-            width: WIDTH as f32,
-            height: HEIGHT as f32,
+        logical: be_sdk_api::Vec2 {
+            x: WIDTH as f32,
+            y: HEIGHT as f32,
         },
         visible: be_sdk_api::Pos2::ZERO,
         pixel_width: WIDTH,

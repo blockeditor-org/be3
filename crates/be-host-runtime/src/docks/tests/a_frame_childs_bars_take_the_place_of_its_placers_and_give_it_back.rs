@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_api::{
     DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlacement, DockCover, DockDragStage,
-    DockEdge, Pos2, Rect, Size,
+    DockEdge, Pos2, Rect, Vec2,
 };
 
 const FRAMER: EditorInstanceId = EditorInstanceId(4);
@@ -15,10 +15,7 @@ fn bar(tab: u64, owner: u64, placement: DockBarPlacement) -> DockBar {
         kind: "canvas/tools".to_owned(),
         owner: Some(path(&[], owner)),
         placement,
-        size: Size {
-            width: 160.0,
-            height: 32.0,
-        },
+        size: Vec2 { x: 160.0, y: 32.0 },
         pane: None,
     }
 }
