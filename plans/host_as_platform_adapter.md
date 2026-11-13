@@ -5,8 +5,7 @@ Depends on: plans/local_accounts.md.
 be-host shrinks to what is the platform: windows and input, the GPU, the wasm engine and OS
 services. Everything with a UI moves into wasm guests: a root guest the host calls synchronously,
 which is the app, and below it the shell and apps as today. The block stack moves into the root
-guest, and the host knows nothing of it. Items marked **(ask)** need a decision from the user;
-Open questions, at the end, lists them.
+guest, and the host knows nothing of it.
 
 Why:
 
@@ -42,8 +41,9 @@ rather than becoming the root itself.
 - The platform adapters: winit, DRM, Android and the web page, with window state, input
   normalization, clipboard and IME. They use the types the beui platforms already use
   (`WindowRequests`, `WindowReports`, the input vocabulary), but no widgets, text or fonts.
-- A wgpu device every guest draws on, as apps do today, the GPU proxy (`be-wasm-gpu-host`) and a pass that
-  composites the layer list (below).
+- A wgpu device every guest draws on, as apps do today, the GPU proxy (`be-wasm-gpu-host`) and
+  the pass that composites the layer list (below).
+- Routing input between surfaces (Input, below).
 - The wasm engine, the linker (`be-wasm-link`) and the sandbox service (below).
 - Capabilities guests are granted:
   - files in the data directory, and the lock that keeps a second be-host off it
@@ -102,7 +102,7 @@ What moves into the compositor:
   dialogs, toasts and the debug panels.
 - be-host-accounts-ui.
 - be-host-runtime's orchestration, as a guest library: pacing, settle, restarts and grafting the
-  accessibility trees. How much of input routing moves depends on open question 1.
+  accessibility trees. Routing between surfaces stays in the host (Input, below).
 - beui's inspector and drive layer.
 
 ## The layer list
@@ -117,21 +117,71 @@ whether it is shown. The surfaces are:
 - surfaces the host owns, such as program windows;
 - later, web documents (iframes).
 
-A layer may instead carry a 3D pose, as a quad or a cylinder. Only Space uses that, for headset
-composition layers.
-
-- **Native:** a wgpu pass draws the layers. OS compositor planes may take this over later.
+- **Native:** a wgpu pass draws the layers. It is a crate of its own, below beui, which Space
+  uses too (Space and headsets). OS compositor planes may take it over later.
 - **Web:** the page applies the list as CSS to the canvases it already places
   (`be-host-runtime/src/web/canvases.rs` and `overlay.rs`). A child's `OffscreenCanvas` goes to
   its worker when it is spawned, and the root guest names it only by handle.
-- **The root guest arranges child surfaces and never reads their pixels.** On the web it cannot,
-  since each worker has its own GPU device, so the rule holds everywhere. Nothing in the host
-  blurs; an app that wants a blurred backdrop draws one from its own content.
+- **The compositor arranges app surfaces and never reads their pixels.** On the web it cannot,
+  since each app worker has its own GPU device. Space, natively, is the one exception (Space and
+  headsets). Nothing in the host blurs; an app that wants a blurred backdrop draws one from its
+  own content.
 - **Damage:** each surface reports damage rectangles and layers keep stable ids. The host
   transforms each surface's damage and adds layers that moved, for e-paper's `FB_DAMAGE_CLIPS`.
 - **OS windows:** the root guest opens, sizes and closes them (one per display, dock tabs floated
   out, popups that escape their window) with `WindowRequests`, and the host answers with
   `WindowReports`.
+
+## Input
+
+The host routes every event to the surface it is for, from areas the root guest declares, as
+beui routes inside a document today (decisions/beui_hit_areas_are_declared.md;
+guides/beui_keyboard.md, One input path). It is one way for every surface, and the web forces it:
+a parent can neither intercept nor deliver again an event inside a cross-origin iframe, so a
+future iframe web app gets the real events the user started, which the browser grants rights from
+(fullscreen, the clipboard, playing sound), rather than copies relayed through `postMessage`.
+
+Each layer declares, beside its placement:
+
+- its hit area: the whole surface, a region, or nowhere;
+- its gesture area: where its placer's camera takes wheel, pinch and pan-drag first;
+- whether it captures presses, as a scrim or a popup does, for the compositor to dismiss;
+- whether a press focuses it (popups and the on-screen keyboard never take the focus);
+- its placer, so a gesture reaches the right camera.
+
+The host applies the rules beui applies to its forwarding catchers today:
+
+- **Pointer:** one hit test against the last committed layer list, so a surface that moved this
+  frame is hit where it was, as in a browser. Gesture claims go outermost first, as the camera's
+  do now (guides/pan_and_zoom.md, Gestures): a pinch with one finger on a canvas and one on an
+  editor placed on it zooms the canvas. A press captures the pointer for its surface until every
+  button lifts. Hover and the cursor shape follow the surface under the pointer.
+- **Touch:** a finger that lands for a gesture an outer claim takes, such as a pinch begun on an
+  app, cancels the earlier fingers in the app and gives them all to the claimant.
+- **Keys** go to the focused surface, except the chords the compositor declares
+  (`WindowRequests::intercepted_keys` today), which go to it first. A press focuses the surface it
+  lands on unless its layer says otherwise, and the compositor can move the focus (Tab leaving an
+  app's last field, the palette closing).
+- **IME:** the focused surface reports its field's area, which the host transforms by its layer.
+- **Pointer lock** is granted only to the focused surface, and released when it loses the focus.
+- **Accessibility actions** reach a surface by node id.
+- **drive** presses at the window, so its input takes the same path.
+- **Handing over a press:** the surface holding one may hand it to its placer (`pan_drag()`). The
+  host cancels it in that surface and sends the rest to the compositor.
+- **Drag and drop** between surfaces is a session the host owns: the source starts it with its
+  payload, and the host sends drag-over events to the surface under the pointer and the drop to
+  the one under the release.
+
+The **forwarding router** is these rules, given a hit test, as a crate below beui. The host hands
+it a 2D test over the layer list, and Space a ray test (Space and headsets). An app that places
+children and wants to route to them itself can use it too. Input a guest forwards is marked as
+not started by the user. beui-core's routing inside a document stays its own.
+
+On the web, a focused cross-origin iframe keeps its keys, so the compositor's chords reach it only
+once the user presses outside it, as in a browser. An iframe placed in a pan-and-zoom editor sits
+under a shield the host lays over it: gestures and taps on it go to the canvas until a tap
+activates it, which lifts the shield, and a press outside puts the shield back. An iframe that
+posts its gestures back to the host could feel closer to native, but that is not planned.
 
 ## The sandbox API
 
@@ -175,9 +225,28 @@ Other users:
     meets a panel in a compute pass that reads the same buffer, so both the beam's angle and its
     length are current.
   - Deciding which panel a press goes to uses last frame's pose.
-- **Headset swapchains:** their images are textures on the host's device. A panel's composition
-  layer names an app's surface, and the host copies that surface into the panel's swapchain
-  itself, so the layered panels never pass through the root guest.
+
+## Space and headsets
+
+Space (`beui-layer-space`) moves into a guest of its own. While it is on, it is the root and calls
+the compositor inline. Neither the compositor nor any app knows about VR.
+
+- **Windows:** Space serves the compositor the same window interface the host serves, as its beui
+  `Layer` does today (`WindowHosting::Any`): each window the compositor opens becomes a panel, and
+  a dock tab popped out becomes a panel rather than an OS window. The simulator is one real
+  window.
+- **Pixels:** Space composites each window's layer list into its panel's texture itself, with the
+  same compositing crate the host uses, and only for windows with damage. It runs on the host's
+  device, so it reads app surfaces natively; WebXR, where it could not, is not planned. A panel
+  the headset shows as a composition layer is composited straight into that layer's swapchain
+  image.
+- **Input:** Space takes all input, ray-tests its panels for a window and a point, then runs the
+  forwarding router with a 2D test over that window's layer list.
+- **The host's part:** OpenXR, as beui-layer-xr without its `Layer` wrapper: the frame loop and
+  poses, swapchains, and submitting the quad, cylinder and projection layers Space describes.
+- **Not planned:** drawing some of a window's layers apart in 3D, such as a popup in front of its
+  panel. Compositing per window keeps that possible. It would cost a draw per eye for each
+  separated layer, under a budget Space keeps, and a ray test against each.
 
 ## The block stack in the root guest
 
@@ -245,31 +314,13 @@ Each step lands on its own.
 
 1. The sandbox API for modules from bytes. Move the remapper onto it.
 2. Spawning staged apps. A test guest embeds one editor without the host's compositor.
-3. The layer list and how native and the web realize it, with the host's current UI as its only
-   producer, so nothing changes visibly.
+3. The layer list, the compositing crate and the forwarding router, and how native and the web
+   realize them, with the host's current UI as their only producer, so nothing changes visibly.
 4. The synchronous root entry with deadlines. The compositor takes over `src/compositor`,
    `src/ui`, the camera and the orchestration.
 5. The block stack in the root guest, behind capabilities.
-6. Space and the XR capability as above, with late latching.
+6. Space as a guest, and the host's OpenXR part, with late latching.
 7. Strip the host: drop beui's widgets, text and fonts, the block stack, be-server and audio
    decoding. Update guides/apps/runtime.md, guides/desktop.md, guides/running/web.md,
    guides/running/drive.md, guides/beui/space.md, guides/pan_and_zoom.md and
    guides/testing_a_gui.md.
-
-## Open questions
-
-1. **(ask)** **Who routes input.** The direction is that the host routes every event to the
-   surface it is for, so that a future iframe web app gets real events the user started, which
-   the browser grants rights from (fullscreen, the clipboard, playing sound), rather than events
-   relayed through `postMessage`. Since some surfaces need the host to route, the host would
-   route for all of them, one way for every surface. What needs working out:
-   - What the root guest declares in its layer list for the host to hit-test: each layer's input
-     region, and which layers take no input.
-   - Gestures the compositor claims ahead of the surface under them: wheel, pinch and pan-drag go
-     to the outermost view's camera today (guides/pan_and_zoom.md, Gestures), and a press on a
-     scrim dismisses.
-   - Handing a pointer from an app to the compositor mid-press: `pan_drag()`, and a drag that
-     leaves an app to drop elsewhere.
-   - Focus, capture, the keyboard and IME: which surface has them, and how the compositor moves
-     them, for its own keys (Escape stops a presentation) and the command palette.
-   - Pointer lock, the cursor shape, and hover across surfaces.
