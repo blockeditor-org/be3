@@ -193,10 +193,10 @@ fn pasted_value(schema: &dyn Schema, key: &str, value: &MarkValue) -> Option<Val
 }
 
 /// `at` within `inserted`, moved back to the start of its character when the
-/// bytes are UTF-8, so a mark never splits one.
-fn char_boundary(inserted: &[u8], at: usize) -> usize {
+/// bytes are `utf8`, so a mark never splits one.
+fn char_boundary(inserted: &[u8], utf8: bool, at: usize) -> usize {
     let mut at = at.min(inserted.len());
-    if std::str::from_utf8(inserted).is_ok() {
+    if utf8 {
         while at > 0 && at < inserted.len() && inserted[at] & 0xc0 == 0x80 {
             at -= 1;
         }
@@ -214,12 +214,13 @@ pub(super) fn paste_marks(
     inserted: &[u8],
     marks: &[TextMark],
 ) {
+    let utf8 = std::str::from_utf8(inserted).is_ok();
     for mark in marks {
         let Some(value) = pasted_value(schema, &mark.key, &mark.value) else {
             continue;
         };
-        let start = at + char_boundary(inserted, mark.range.start);
-        let end = at + char_boundary(inserted, mark.range.end);
+        let start = at + char_boundary(inserted, utf8, mark.range.start);
+        let end = at + char_boundary(inserted, utf8, mark.range.end);
         let key = Name::new(&mark.key);
         if mark.block {
             let line_start =
