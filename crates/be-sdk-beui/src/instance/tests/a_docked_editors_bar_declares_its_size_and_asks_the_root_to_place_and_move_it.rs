@@ -45,6 +45,7 @@ fn hosted(bar: u64, placement: DockBarPlacement) -> DockUpdate {
                     owner: Some(stage.clone()),
                     placement,
                     hidden: false,
+                    pane: None,
                 }],
                 outside: Vec::new(),
             },

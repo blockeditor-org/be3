@@ -1048,8 +1048,8 @@ fn BrowserScroll(
         </Frame>
     };
     let scroller = store(RefCell::new(None::<HtmlNode>));
-    let pinned = store(Cell::new(true));
-    let placed = store(Cell::new(false));
+    let pinned = StoredCell::new(true);
+    let placed = StoredCell::new(false);
     let horizontal = move || direction.get_untracked() == Direction::Horizontal;
     let names = move || match horizontal() {
         true => ("scrollLeft", "scrollWidth", "clientWidth"),
@@ -1084,7 +1084,7 @@ fn BrowserScroll(
     let scrolled = move || {
         refresh();
         if let Some(position) = reported.get_untracked() {
-            pinned.with(|pinned| pinned.set(position.offset >= position.max_offset() - END_SLACK));
+            pinned.set(position.offset >= position.max_offset() - END_SLACK);
         }
     };
     let bare = scrollbar.bar.is_none();
@@ -1156,35 +1156,35 @@ fn BrowserScroll(
         if shown.get_untracked().is_none() {
             return;
         }
-        if !placed.with(|placed| placed.replace(true)) {
+        if !placed.replace(true) {
             scroll_to(offset.get_untracked());
         }
-        if follow_end.get_untracked() && pinned.with(Cell::get) {
+        if follow_end.get_untracked() && pinned.get() {
             scroll_to(f32::MAX);
         }
         refresh();
     });
     create_effect(move || {
         let offset = offset.get();
-        if placed.with(Cell::get) {
+        if placed.get() {
             scroll_to(offset);
             refresh();
         }
     });
     let viewport = NodeRef::new();
-    let speed = store(Cell::new(0.0_f32));
-    let edge_offset = store(Cell::new(None::<f32>));
-    let ticked = store(Cell::new(now()));
+    let speed = StoredCell::new(0.0_f32);
+    let edge_offset = StoredCell::new(None::<f32>);
+    let ticked = StoredCell::new(now());
     let edging = create_timer(move || {
-        let speed = speed.with(Cell::get);
+        let speed = speed.get();
         let position = reported.get_untracked()?;
         if speed == 0.0 {
             return None;
         }
-        let elapsed = now().saturating_duration_since(ticked.with(|ticked| ticked.replace(now())));
-        let from = edge_offset.with(Cell::get).unwrap_or(position.offset);
+        let elapsed = now().saturating_duration_since(ticked.replace(now()));
+        let from = edge_offset.get().unwrap_or(position.offset);
         let to = (from + speed * elapsed.as_secs_f32()).clamp(0.0, position.max_offset());
-        edge_offset.with(|offset| offset.set(Some(to)));
+        edge_offset.set(Some(to));
         scroll_to(to);
         scrolled();
         drag_board().retrack();
@@ -1196,13 +1196,13 @@ fn BrowserScroll(
         move || reported.get_untracked(),
         move |reach: Option<f32>| {
             let now_speed = reach.map_or(0.0, autoscroll_speed);
-            speed.with(|speed| speed.set(now_speed));
+            speed.set(now_speed);
             if now_speed == 0.0 {
                 edging.stop();
-                edge_offset.with(|offset| offset.set(None));
+                edge_offset.set(None);
             } else if !edging.running() {
-                ticked.with(|ticked| ticked.set(now()));
-                edge_offset.with(|offset| offset.set(None));
+                ticked.set(now());
+                edge_offset.set(None);
                 edging.start(Duration::ZERO);
             }
         },
@@ -1220,7 +1220,7 @@ fn BrowserScroll(
     api.fill(ScrollApi(
         motion,
         Callback::new(move |()| {
-            pinned.with(|pinned| pinned.set(true));
+            pinned.set(true);
             scroll_to(f32::MAX);
             refresh();
         }),

@@ -122,6 +122,7 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
         crate::search::search_index(
             peer.as_ref(),
             index,
+            None,
             &be_lib_search::Query::parse("quinces"),
             10,
         )

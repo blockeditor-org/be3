@@ -81,7 +81,7 @@ const answer = async (words) => {
 const place = async (target) => {
     const ratio = await page.evaluate(() => devicePixelRatio);
     try {
-        const [found] = await shownPlaces((command, target) => answer([command, target]), [target], ratio);
+        const [found] = await shownPlaces((target, mode) => answer(["find", target, mode]), [target], ratio);
         return found;
     } catch (error) {
         if (!(error instanceof Failure)) throw error;

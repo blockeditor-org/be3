@@ -78,7 +78,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
 /// A plain run is `buck2 test`, which runs each test where its rule says, from
 /// the cache when a worker passed it before, and keeps every test's output in
 /// its event log, where the console shows only a failure's: each is printed
-/// from there. A run_apart crate's :test is its parts, each `:test-<file>`
+/// from there. A run_apart crate's :test is its parts, one a test file,
 /// whose test contains NAME. libtest takes every filter as one more to match,
 /// so NAME goes to each test, and a part names its own test with --exact
 /// (cargo_test in buck/cargo/defs.bzl), which NAME, a part of that name, does
@@ -187,9 +187,11 @@ fn results(events: &Path) -> Result<Vec<TestResult>> {
 }
 
 /// A run_apart crate's :test as its parts whose test's name contains NAME,
-/// every one without a NAME, as buck/cargo/defs.bzl makes them: one
-/// `:test-<file>` for each file under src/tests/, whose test is
-/// tests::<file>::<file>. None for any other target, or when no part matches.
+/// every one without a NAME, as buck/cargo/defs.bzl makes them: one part for
+/// each test file, `:test-<file>` for src/tests/<file>.rs, whose test is
+/// tests::<file>::<file>, and `:test-graph-tests-<file>` for
+/// src/graph/tests/<file>.rs, whose test is graph::tests::<file>::<file>. None
+/// for any other target, or when no part matches.
 fn parts(target: &str, name: &str) -> Option<Vec<String>> {
     let krate = target.strip_prefix("//")?.strip_suffix(":test")?;
     let directory = repository().join(krate);
@@ -197,16 +199,49 @@ fn parts(target: &str, name: &str) -> Option<Vec<String>> {
     if !rules.lines().any(|line| line.trim() == "run_apart = True,") {
         return None;
     }
-    let mut parts: Vec<String> = std::fs::read_dir(directory.join("src/tests"))
-        .ok()?
-        .flatten()
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter_map(|file| file.strip_suffix(".rs").map(str::to_owned))
-        .filter(|part| name.is_empty() || format!("tests::{part}::{part}").contains(name))
-        .map(|part| format!("//{krate}:test-{part}"))
+    let mut files = Vec::new();
+    test_files(&directory.join("src"), &mut Vec::new(), &mut files);
+    let mut parts: Vec<String> = files
+        .into_iter()
+        .filter(|module| {
+            let file = module.last().map_or("", String::as_str);
+            name.is_empty() || format!("{}::{file}", module.join("::")).contains(name)
+        })
+        .map(|module| {
+            let part = match module.first().map(String::as_str) {
+                Some("tests") => module[1..].join("-"),
+                _ => module.join("-"),
+            };
+            format!("//{krate}:test-{part}")
+        })
         .collect();
     parts.sort();
     (!parts.is_empty()).then_some(parts)
+}
+
+/// Every `.rs` file in a `tests` directory under `directory`, as its module path: the
+/// directories down from src/ and the file's stem.
+fn test_files(directory: &Path, module: &mut Vec<String>, files: &mut Vec<Vec<String>>) {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let Ok(file) = entry.file_name().into_string() else {
+            continue;
+        };
+        let path = entry.path();
+        if path.is_dir() {
+            module.push(file);
+            test_files(&path, module, files);
+            module.pop();
+        } else if module.last().is_some_and(|last| last == "tests")
+            && let Some(stem) = file.strip_suffix(".rs")
+        {
+            let mut found = module.clone();
+            found.push(stem.to_owned());
+            files.push(found);
+        }
+    }
 }
 
 /// --update runs each test as an action through buck/dev/test.bxl, which keeps

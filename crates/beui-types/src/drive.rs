@@ -139,6 +139,7 @@ pub fn waited<'a, L: TreeLine>(lines: &'a [L], text: &str, over: Option<Pos2>) -
     })
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Command {
     Tree,
     Ids,
@@ -163,7 +164,11 @@ pub fn parse(command: &str, arguments: &[String]) -> Option<Result<Command, Stri
             false => Ok(arguments.join(" ")),
         }
     };
-    let wait = |present: bool| -> Result<Command, String> {
+    let wait = || -> Result<Command, String> {
+        let (present, arguments) = match arguments {
+            [not, rest @ ..] if not == "not" => (false, rest),
+            arguments => (true, arguments),
+        };
         let (text, over) = match arguments {
             [text @ .., over, at] if !text.is_empty() && over == "over" => (text, Some(at.clone())),
             text => (text, None),
@@ -180,11 +185,25 @@ pub fn parse(command: &str, arguments: &[String]) -> Option<Result<Command, Stri
     Some(match command {
         "tree" => Ok(Command::Tree),
         "ids" => Ok(Command::Ids),
-        "find" => named("a TARGET").map(Command::Find),
-        "reveal" => named("a TARGET").map(Command::Reveal),
-        "shown" => named("a TARGET").map(Command::Shown),
-        "wait" => wait(true),
-        "gone" => wait(false),
+        "find" => {
+            let (made, target): (fn(String) -> Command, _) = match arguments {
+                [target @ .., last] if !target.is_empty() && last == "reveal" => {
+                    (Command::Reveal, target)
+                }
+                [target @ .., last] if !target.is_empty() && last == "shown" => {
+                    (Command::Shown, target)
+                }
+                target => (Command::Find, target),
+            };
+            match target.is_empty() {
+                true => Err("find needs a TARGET".to_owned()),
+                false => Ok(made(target.join(" "))),
+            }
+        }
+        "wait" => wait(),
+        "gone" => Err("gone is now `wait not TEXT`".to_owned()),
+        "reveal" => Err("reveal is now `find TARGET reveal`".to_owned()),
+        "shown" => Err("shown is now `find TARGET shown`".to_owned()),
         "settle" => Ok(Command::Settle),
         "help" => Ok(Command::Help),
         "pause" => named("MILLISECONDS").and_then(|milliseconds| {
@@ -201,3 +220,6 @@ pub fn parse(command: &str, arguments: &[String]) -> Option<Result<Command, Stri
         _ => return None,
     })
 }
+
+#[cfg(test)]
+mod tests;

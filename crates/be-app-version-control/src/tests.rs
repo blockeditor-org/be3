@@ -4,8 +4,8 @@ use be_sdk_beui::be_block::{
 };
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{
-    BeuiRoot, ConflictSide, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
-    VersionCommit, VersionOperation, VersionStatus, short_id,
+    BeuiRoot, BlockCommand, ConflictSide, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id,
 };
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;

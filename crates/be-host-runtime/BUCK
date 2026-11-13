@@ -38,8 +38,14 @@ precompiled_module(
     precompiler = "//crates/be-sdk-test-runner:precompiler",
 )
 
+# Each test file runs as a process of its own (run_apart): the host stack is one
+# per process (`be_host_stack::stack()`), and a test that drives editors, with
+# or without be_host_testing's Harness, wants listings on it as the same
+# editor instance as another test's, so in one process they changed each
+# other's wants.
 cargo_test(
     env = test_environment,
+    run_apart = True,
     run_env = {
         "BASE_LIBRARY_CWASM": "$(location :base-library-compiled)",
         "TRIANGLE_CWASM": "$(location :triangle-compiled)",
