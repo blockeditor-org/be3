@@ -734,10 +734,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
     let open = create_memo(move || leaving.with(Option::is_some));
     let title = create_memo(move || {
         leaving.with(|leaving| match leaving {
-            Some(leaving) => format!(
-                "Leave \u{201c}{}\u{201d}?",
-                be_block::quoted_name(&leaving.name)
-            ),
+            Some(leaving) => format!("Leave {}?", be_block::quoted_name(&leaving.name)),
             None => String::new(),
         })
     });
@@ -746,7 +743,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             leaving.with(|leaving| leaving.as_ref().and_then(|leaving| leaving.within.clone()));
         let from = match within {
             Some(within) => format!(
-                "You will no longer see it, in \u{201c}{}\u{201d}, or anything inside it",
+                "You will no longer see it, in {}, or anything inside it",
                 be_block::quoted_name(&within)
             ),
             None => "You will no longer see it or anything inside it".to_owned(),

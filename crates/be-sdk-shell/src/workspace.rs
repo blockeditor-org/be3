@@ -508,7 +508,9 @@ impl Workspace {
             share.block, block,
             "a share action reached another block's share"
         );
+        // An action for a block the dialog no longer shows closes it, rather than act on either.
         if share.block != block {
+            self.close_dialog();
             return;
         }
         if let ShareAction::InviteNew = action {

@@ -196,10 +196,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     .info(block)
                     .map(|info| workspace.label(info.id, info.block_type).name)
                     .unwrap_or_default();
-                format!(
-                    "Share \u{201c}{}\u{201d}",
-                    be_sdk_beui::be_block::quoted_name(&name)
-                )
+                format!("Share {}", be_sdk_beui::be_block::quoted_name(&name))
             })
             .unwrap_or_default()
     });

@@ -324,8 +324,9 @@ graph; a second `leave` while one is asked is ignored, and the confirm leaves
 only the block the dialog named. A `share` while the shell's share dialog is
 open is ignored, and that dialog's actions touch only the block it shows. Both
 dialogs quote a name through `be_block::quoted_name`, which drops control and
-format characters, straightens curly quotes and shortens it, so no name can
-pass for the dialog's own words. None of them is answered either.
+format characters, straightens every quotation mark and lookalike, caps runs
+of combining marks, shortens it on a grapheme boundary and isolates it for
+bidi, so no name can pass for the dialog's own words. None of them is answered either.
 
 An instance may ask the host to tell it about the dynamic artifacts of the
 blocks it names, which the host answers with, and repeats whenever any of it

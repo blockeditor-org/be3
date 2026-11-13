@@ -1,3 +1,4 @@
+use icu_properties::{CodePointMapData, props::GeneralCategory};
 use std::{collections::BTreeMap, fmt, marker::PhantomData};
 
 use be_block_model::{BlockRef, Stored, from_cbor, to_cbor};
@@ -386,102 +387,83 @@ fn read_entries(entries: Stored) -> Option<Entries> {
 /// The longest name a dialog quotes, in characters, before it ends it with an ellipsis.
 const MAX_QUOTED_NAME: usize = 60;
 
-/// A block's name as a dialog quotes it inside its own curly quotes: without control or format
-/// characters (newlines, bidi overrides, zero-width marks), its whitespace collapsed, curly
-/// quotes made straight so a name cannot close the dialog's quote and fake what follows, and
-/// cut at `MAX_QUOTED_NAME` characters.
-pub fn quoted_name(name: &str) -> String {
-    let cleaned: String = name
-        .chars()
-        .filter_map(|c| match c {
-            c if c.is_whitespace() => Some(' '),
-            c if c.is_control() || is_format(c) => None,
-            '\u{201c}'
-            | '\u{201d}'
-            | '\u{201e}'
-            | '\u{201f}'
-            | '\u{00ab}'
-            | '\u{00bb}'
-            | '\u{2033}'
-            | '\u{2036}'
-            | '\u{275d}'
-            | '\u{275e}'
-            | '\u{301d}'..='\u{301f}'
-            | '\u{ff02}' => Some('"'),
-            '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}' | '\u{2032}' | '\u{2035}'
-            | '\u{2039}' | '\u{203a}' | '\u{275b}' | '\u{275c}' | '\u{ff07}' => Some('\''),
-            c => Some(c),
-        })
-        .collect();
-    let cleaned = cap_combining(&cleaned);
-    let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
-    match collapsed.chars().count() > MAX_QUOTED_NAME {
-        true => {
-            let kept: String = collapsed.chars().take(MAX_QUOTED_NAME - 1).collect();
-            format!("{}\u{2026}", kept.trim_end())
-        }
-        false => collapsed,
-    }
-}
-
-/// The most combining marks a quoted name keeps on one character: enough for any script, too
-/// few to stack marks over the dialog's own words.
+/// The most combining marks a quoted name keeps on one character: enough for the scripts that
+/// stack two (Vietnamese, Thai), too few to stack marks over the dialog's own words.
 const MAX_COMBINING: usize = 2;
 
-/// `name` with each run of combining marks cut to `MAX_COMBINING`.
-fn cap_combining(name: &str) -> String {
-    let mut run = 0;
-    name.chars()
-        .filter(|c| match is_combining(*c) {
-            true => {
-                run += 1;
-                run <= MAX_COMBINING
-            }
-            false => {
-                run = 0;
-                true
+/// A block's name as a dialog shows it inside its words: in curly quotes, isolated for bidi
+/// (FSI…PDI), so a right-to-left name cannot carry the quotes or the words around it across
+/// itself. The name loses control and format characters (newlines, bidi overrides, zero-width
+/// marks), blank-looking letters become spaces, whitespace collapses, every quotation mark and
+/// lookalike is made straight so a name cannot close the dialog's quote and fake what follows,
+/// runs of combining marks are cut to `MAX_COMBINING`, and it is cut at `MAX_QUOTED_NAME`
+/// characters on a grapheme boundary.
+pub fn quoted_name(name: &str) -> String {
+    format!("\u{201c}\u{2068}{}\u{2069}\u{201d}", plain_name(name))
+}
+
+/// `quoted_name`'s name, before it is quoted and isolated.
+fn plain_name(name: &str) -> String {
+    let mut combining = 0;
+    let cleaned: String = name
+        .chars()
+        .filter_map(|c| {
+            let category = CodePointMapData::<GeneralCategory>::new().get(c);
+            let marks = matches!(
+                category,
+                GeneralCategory::NonspacingMark | GeneralCategory::EnclosingMark
+            );
+            combining = if marks { combining + 1 } else { 0 };
+            match c {
+                _ if marks => (combining <= MAX_COMBINING).then_some(c),
+                c if c.is_whitespace() || is_blank_letter(c) => Some(' '),
+                _ if matches!(
+                    category,
+                    GeneralCategory::Control
+                        | GeneralCategory::Format
+                        | GeneralCategory::LineSeparator
+                        | GeneralCategory::ParagraphSeparator
+                ) =>
+                {
+                    None
+                }
+                c => Some(straight_quote(c).unwrap_or(c)),
             }
         })
-        .collect()
+        .collect();
+    let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let Some((cut, _)) = collapsed.char_indices().nth(MAX_QUOTED_NAME - 1) else {
+        return collapsed;
+    };
+    if collapsed[cut..].chars().count() == 1 {
+        return collapsed;
+    }
+    let bytes = collapsed.as_bytes();
+    let cut = (0..=cut)
+        .rev()
+        .find(|at| collapsed.is_char_boundary(*at) && be_lib_graphemes::is_grapheme_boundary(bytes, *at))
+        .unwrap_or(0);
+    format!("{}\u{2026}", collapsed[..cut].trim_end())
 }
 
-/// The blocks of combining marks (Combining Diacritical Marks and their Extended, Supplement,
-/// for Symbols and Half Marks blocks), which is where stacked marks come from.
-fn is_combining(c: char) -> bool {
-    matches!(
-        c,
-        '\u{0300}'..='\u{036f}'
-            | '\u{1ab0}'..='\u{1aff}'
-            | '\u{1dc0}'..='\u{1dff}'
-            | '\u{20d0}'..='\u{20ff}'
-            | '\u{fe20}'..='\u{fe2f}'
-    )
+/// Letters that draw as nothing (Hangul fillers, the blank Braille pattern), which a name could
+/// use to look like spaces that collapsing does not see.
+fn is_blank_letter(c: char) -> bool {
+    matches!(c, '\u{115f}' | '\u{1160}' | '\u{2800}' | '\u{3164}' | '\u{ffa0}')
 }
 
-/// Unicode's format characters (general category Cf), as of Unicode 15.1.
-fn is_format(c: char) -> bool {
-    matches!(
-        c,
-        '\u{00ad}'
-            | '\u{0600}'..='\u{0605}'
-            | '\u{061c}'
-            | '\u{06dd}'
-            | '\u{070f}'
-            | '\u{0890}'..='\u{0891}'
-            | '\u{08e2}'
-            | '\u{180e}'
-            | '\u{200b}'..='\u{200f}'
-            | '\u{202a}'..='\u{202e}'
-            | '\u{2060}'..='\u{2064}'
-            | '\u{2066}'..='\u{206f}'
-            | '\u{feff}'
-            | '\u{fff9}'..='\u{fffb}'
-            | '\u{110bd}'
-            | '\u{110cd}'
-            | '\u{13430}'..='\u{1343f}'
-            | '\u{1bca0}'..='\u{1bca3}'
-            | '\u{1d173}'..='\u{1d17a}'
-            | '\u{e0001}'
-            | '\u{e0020}'..='\u{e007f}'
-    )
+/// The straight quote a quotation mark (Unicode's Quotation_Mark property) or a lookalike reads
+/// as.
+fn straight_quote(c: char) -> Option<char> {
+    match c {
+        '\u{00ab}' | '\u{00bb}' | '\u{02ba}' | '\u{02ee}' | '\u{05f4}' | '\u{201c}'..='\u{201f}'
+        | '\u{2033}' | '\u{2036}' | '\u{2e42}' | '\u{3003}' | '\u{300e}' | '\u{300f}'
+        | '\u{301d}'..='\u{301f}' | '\u{275d}' | '\u{275e}' | '\u{275f}' | '\u{2760}'
+        | '\u{fe43}' | '\u{fe44}' | '\u{ff02}' | '\u{1f676}'..='\u{1f678}' => Some('"'),
+        '\u{02bb}' | '\u{02bc}' | '\u{055a}' | '\u{05f3}' | '\u{2018}'..='\u{201b}'
+        | '\u{2032}' | '\u{2035}' | '\u{2039}' | '\u{203a}' | '\u{275b}' | '\u{275c}'
+        | '\u{300c}' | '\u{300d}' | '\u{fe41}' | '\u{fe42}' | '\u{ff07}' | '\u{ff62}'
+        | '\u{ff63}' => Some('\''),
+        _ => None,
+    }
 }
