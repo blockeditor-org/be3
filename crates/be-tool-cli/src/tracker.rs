@@ -1218,9 +1218,10 @@ impl<S: ObjectStore> Tracker<S> {
                 },
                 "name" if value.is_empty() => return Err("an option needs a name".to_owned()),
                 "name" => {
-                    let clash = field.enum_options.iter().any(|other| {
-                        other.id != id && other.name.eq_ignore_ascii_case(value)
-                    });
+                    let clash = field
+                        .enum_options
+                        .iter()
+                        .any(|other| other.id != id && other.name.eq_ignore_ascii_case(value));
                     if clash {
                         return Err(format!("{} already has {value}", field.name));
                     }
