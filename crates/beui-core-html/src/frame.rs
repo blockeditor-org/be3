@@ -193,10 +193,14 @@ fn run_timers(now: Instant) -> bool {
 fn timer_left(now: Instant, unfired: bool) -> bool {
     let frame = FRAMES.with(Cell::get);
     TIMERS.with(|timers| {
-        timers.borrow().iter().filter_map(Weak::upgrade).any(|timer| {
-            timer.due.get().is_some_and(|due| due <= now)
-                && !(unfired && timer.fired_in.get() == frame)
-        })
+        timers
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .any(|timer| {
+                timer.due.get().is_some_and(|due| due <= now)
+                    && !(unfired && timer.fired_in.get() == frame)
+            })
     })
 }
 
