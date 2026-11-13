@@ -224,7 +224,10 @@ counts and records nothing: `upload-urls` did before it signed.
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
-  `Rejected` with the head to merge against. It carries what changed since the
+  `Rejected` with the head to merge against. A head moves only to a commit that
+  descends from it: a publish lists the expected head among its parents, and a
+  first commit lists none, or it is refused (`InvalidRequest`). A merge's other
+  parent may be a commit the server never held, carried in. It carries what changed since the
   expected head: an `ObjectChange` (objects added and removed; the server
   lists the commit's objects in `commit_objects` from the expected head's) and
   a `ReferenceChange` (references removed, and added at their index in the new
