@@ -67,10 +67,13 @@ interface types {
         /// The stored form read whole decodes to the content (`be_block::BlockContent::WHOLE_BYTES`),
         /// so a copy of its bytes loses nothing.
         whole-bytes: bool,
+        /// The type's default content (`Default`), encoded.
+        blank: list<u8>,
+        /// `blank` described, with no organization.
+        blank-description: description,
     }
 
     record description {
-        name: option<string>,
         derived: entries,
         references: list<block-id>,
     }
@@ -164,6 +167,8 @@ interface types {
         incompatible: bool,
         diverged: bool,
         unreadable: option<string>,
+        /// None until the replica has loaded, and once it was released.
+        undo: option<undo-state>,
     }
 
     variant endpoint {
@@ -187,6 +192,9 @@ interface types {
         /// What the server checked its sender may send: the replica drops a
         /// message that asks for more (`Wire::kind`).
         kind: relay-kind,
+        /// When the server took it, in milliseconds since the Unix epoch by
+        /// its clock, which the sender cannot claim.
+        received: s64,
     }
 
     variant recipients {

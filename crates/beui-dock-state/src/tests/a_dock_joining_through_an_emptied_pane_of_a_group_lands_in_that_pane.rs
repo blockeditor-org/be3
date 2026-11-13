@@ -35,6 +35,7 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
         owner: Some(TabId::new(11)),
         placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
         hidden: false,
+        pane: None,
     }];
     let mut state = DockState::from_spec(&DockSpec {
         focus: Some(TabId::new(11)),
@@ -71,12 +72,14 @@ fn a_dock_joining_through_an_emptied_pane_of_a_group_lands_in_that_pane() {
             owner: Some(TabId::new(12)),
             placement: DockBarPlacement::Beside(DockEdge::Top, DockAlign::Center),
             hidden: false,
+            pane: None,
         },
         DockSpecBar {
             bar: TabId::new(21),
             owner: Some(TabId::new(12)),
             placement: DockBarPlacement::Over(DockEdge::Bottom, DockAlign::Center),
             hidden: false,
+            pane: None,
         },
     ];
     state.reconcile(&joining);

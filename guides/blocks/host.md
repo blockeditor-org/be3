@@ -11,8 +11,8 @@ The host's peer names no content type. Every type runs in a type module
 (guides/type_modules.md): an app's own, named by its manifest's `block_types`,
 staged beside the app as `NAME.wasm` with its `.cwasm` and `NAME.sha256` (the
 tag of its sessions), one instance per app; and the host's own types
-(`be_sdk_type_host::registrations()`: settings, repository, checkout), run in
-process (`be_host_stack::types::HostTypes`).
+(`be_sdk_type_host`'s `be_block_types!`: settings, repository, checkout), run
+in process as its `BlockTypes`.
 
 A type's name, icon, color, child edits and press come from the declaring
 manifest (or `be_host_stack::host_block_types`), held by discovery
@@ -48,7 +48,7 @@ and the refs database.
 watches the block, constructs the `replica` with the head, answers its calls
 with the real primitives (`Peer::seal` then `publish_sealed`, `Peer::stash`,
 resume, the lease, relays sealed with the block key, `sleep-until`) and keeps
-what it reports (`report-status`, `described`, `history`, `conflict`).
+what it reports (`report-status`, which carries the undo state too, `described`, `conflict`).
 
 A module runs on its own thread natively, in a web worker on the web
 (`WebGuest`), and in process in unit tests (`InProcess`); the worker never
@@ -174,8 +174,8 @@ outbox adds or moves (`Peer::listed`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
 owns and joins (`Replicas::created`). A command that needs the server to know a
 block waits first for a drain to send what this device made of it
-(`Tasks::sent`; an export or a version command waits for the whole outbox, since
-it reads a tree).
+(`Tasks::sent`; an export, and a version command in the lane, waits for the
+whole outbox, since it reads a tree).
 
 **Commands that need the server.** Those that need only the server and no open
 block (share, list access, read a head, leave, approve pairing, members, block
@@ -189,10 +189,14 @@ the lane holds a block it needs (`Command::needs`); one that is not order-safe
 (`Command::order_safe`: it may reach blocks it does not name, as a version
 command or an import reaches a tree) waits until the lane is empty; and none
 overtakes a command deferred before it. An open block whose key the lane
-rotates is resealed once that command ends. Version commands and merging still
-run in the loop: they interleave server reads with the open replicas (sealing
-them, checking content out into them), so on a server that stopped answering
-the commands behind one wait until the connection is declared lost.
+rotates is resealed once that command ends. A version command (merging
+included) is split: the loop seals the open replicas, and the rest runs in the
+lane (`Served::version`), which waits for the outbox to be sent and then reads
+and writes the server between steps, reaching the replicas and type modules
+through the loop (`version::Reach`, `LoopCalls`: describing, applying and
+merging content, moving an open replica to a head it published), so a server
+that stopped answering holds up only the lane. A merge reads its sides from the
+server in the lane first, so the loop finds them on the device.
 
 ## The graph mirror
 
@@ -397,6 +401,11 @@ says `children.reorder`. `be_host_stack::duplicate`
 copies what the source's replica shows (or its head) into a new id before
 anything opens the copy. `be_host_stack::hold` keeps a block open for the host
 (settings, the shell's session).
+
+A block being placed counts as held by its parent (`Graph::placing`) until the parent's
+references take it in. Should they drop it again while it still names the parent, it reads as
+deleted: the mirror notes it (`Graph::take_dropped`) and the worker logs it with what it knows
+of the parent (`Shared::log_dropped`), which a host test's failure shows in the app's log.
 
 ## Undo
 

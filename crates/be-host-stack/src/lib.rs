@@ -919,13 +919,29 @@ pub fn modules_due() -> Option<std::time::Instant> {
     with_shared(|shared| shared.modules_due).flatten()
 }
 
-pub fn seal_owed() {
-    if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
-        let (done, _) = std::sync::mpsc::channel();
-        send(Command::Flush(done));
+/// Holds this stack's outbox from draining while `hold`; letting go starts a drain.
+#[cfg(test)]
+pub(crate) fn hold_drains(hold: bool) {
+    with_shared_mut(|shared| shared.hold_drains = hold);
+    if !hold {
+        send(Command::Sync);
     }
 }
 
+/// Holds this stack's next version command's write of a block (`version::HeldWrite`).
+#[cfg(test)]
+pub(crate) fn hold_next_version_write(held: version::HeldWrite) {
+    with_shared_mut(|shared| shared.before_write = Some(held));
+}
+
+pub fn seal_owed() {
+    if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
+        send(Command::SealOwed);
+    }
+}
+
+/// Flushes without waiting, and deliberately keeps the flush's late settle (unlike
+/// `seal_owed`): edits made before the app is really suspended are sealed with it too.
 pub fn backgrounded() {
     let (done, _) = std::sync::mpsc::channel();
     send(Command::Flush(done));
@@ -981,7 +997,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         if left.is_zero() {
             let state = format!(
                 "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
-                 commands not run: {}, edits owed: {}, not yet durable: {}, draining the outbox: {}\n  \
+                 commands not run: {}, edits owed: {} {:?} (sealed what was owed {} time(s)), asking the modules for {:?}, not yet durable: {}, draining the outbox: {}\n  \
                  listings loading: {}, listings failed: {}\n  \
                  progressed: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
                 held.connected,
@@ -990,6 +1006,12 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.reconnect.is_some(),
                 held.pending,
                 held.owing,
+                held.owing_blocks
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+                held.seals_owed,
+                held.asking,
                 held.undurable,
                 held.draining,
                 held.graph.fetching(),
@@ -1037,6 +1059,14 @@ pub fn fail_listings(query: Query, error: &str) {
             shared.graph.failed(listing, error.to_owned());
         }
     });
+}
+
+/// Queues `blocks` to be indexed again, read whole (`Search::reread`), and wakes the worker to
+/// do it: a test's stand-in for an index that asks for text it lacks.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub fn reread_search(blocks: impl IntoIterator<Item = Uuid>) {
+    with_shared_mut(|shared| shared.search.reread(blocks));
+    send(Command::Sync);
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]

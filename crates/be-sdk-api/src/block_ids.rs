@@ -93,7 +93,7 @@ impl crate::embed::host_services::Call {
     pub fn visit_block_ids(&mut self, visit: &mut impl FnMut(&mut [u8; 16])) {
         match self {
             Self::ListRevisions { block, .. }
-            | Self::PreviewRevision { block, .. }
+            | Self::RevisionPreviewNew { block, .. }
             | Self::RestoreRevision { block, .. }
             | Self::ExportBlock { block, .. }
             | Self::ReadPlainFile { block, .. }
@@ -102,7 +102,6 @@ impl crate::embed::host_services::Call {
             | Self::MakeContactLink { block, .. }
             | Self::CreateBlockAgent { block, .. }
             | Self::SetNotifyMode { block, .. } => visit(block),
-            Self::ReleaseRevision { preview, .. } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
             Self::CutBlocks { blocks, holder, .. } => {
                 blocks.iter_mut().for_each(&mut *visit);
@@ -117,6 +116,7 @@ impl crate::embed::host_services::Call {
                 location(parent, visit);
             }
             Self::PickFile { .. }
+            | Self::RevisionPreviewOpened { .. }
             | Self::SaveFile { .. }
             | Self::RotateAgentToken { .. }
             | Self::RemoveAgent { .. }
@@ -222,7 +222,17 @@ impl BlockCommand {
                 }
             }
             Self::Place { parent, .. } => visit(BlockIdRole::Existing, parent),
-            Self::Undo | Self::Redo | Self::History(_) | Self::Artifact { .. } | Self::Restore => {}
+            Self::Version(command) => command.visit_block_ids(visit),
+            Self::SetParent(parent) => parent.visit_block_ids(visit),
+            Self::Undo
+            | Self::Redo
+            | Self::History(_)
+            | Self::Artifact { .. }
+            | Self::Restore
+            | Self::Share
+            | Self::Leave
+            | Self::CloseEditor
+            | Self::Define { .. } => {}
         }
     }
 }
@@ -255,18 +265,10 @@ impl crate::embed::blocks::Call {
                 parent.visit_block_ids(visit);
                 visit(BlockIdRole::Created, block);
             }
-            Self::SetParent { block, parent, .. } => {
-                visit(existing, block);
-                parent.visit_block_ids(visit);
+            Self::WriteContent { block, .. } | Self::ReplicaNew { block, .. } => {
+                visit(existing, block)
             }
-            Self::Define { block, .. }
-            | Self::WriteContent { block, .. }
-            | Self::ReplicaNew { block, .. } => visit(existing, block),
             Self::Act { block, command, .. } => {
-                visit(existing, block);
-                command.visit_block_ids(visit);
-            }
-            Self::Version { block, command, .. } => {
                 visit(existing, block);
                 command.visit_block_ids(visit);
             }
@@ -296,11 +298,8 @@ impl crate::embed::blocks::Call {
         matches!(
             self,
             Self::CreateBlock { .. }
-                | Self::SetParent { .. }
-                | Self::Define { .. }
                 | Self::WriteContent { .. }
                 | Self::Act { .. }
-                | Self::Version { .. }
                 | Self::OpenBlock { .. }
         )
     }

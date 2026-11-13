@@ -7,13 +7,12 @@ pub(crate) mod drawing;
 pub(crate) mod escape;
 pub(crate) mod files;
 pub(crate) mod frame;
-pub(crate) mod glide;
 pub(crate) mod grid;
 pub(crate) mod interactive;
 pub(crate) mod layers;
 pub(crate) mod list;
 pub(crate) mod measure {
-    pub(crate) use beui_core_html::measure::{TextGeometry, measure, measure_text};
+    pub(crate) use beui_core_html::measure::{TextGeometry, measure, measure_text, scrolled_by};
 }
 pub(crate) mod nodes;
 pub(crate) mod offset;

@@ -16,16 +16,14 @@ use be_sdk_api::OfferedClipItem;
 use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
-use be_sdk_api::shell_types::{
-    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, DragStart, ShellMessage,
-};
+use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, DragStart, ShellMessage};
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BlockAgent,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
     HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Signer, Size, TerminalHostBe,
-    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    PerformanceMeasurement, Revision, ShellDialog, Signer, TerminalHostBe, ViewChange, ViewId,
+    ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -198,6 +196,13 @@ pub struct StoredHead {
     pub commit: [u8; 32],
     pub content_type: Uuid,
     pub bytes: Vec<u8>,
+}
+
+/// A revision preview the host opened (`EditorHost::preview_revision`): a read-only block
+/// showing a block as it was at a commit. Dropping it closes the preview.
+pub struct RevisionPreview {
+    pub block: Uuid,
+    _held: host_services::RevisionPreview,
 }
 
 pub type HeadRead = Result<Option<StoredHead>, Failure>;
@@ -505,7 +510,7 @@ struct Watches {
 }
 
 /// Renders a representation of a copy on request (`EditorHost::copy`).
-pub type ClipRender = Rc<dyn Fn(&str, Box<dyn FnOnce(Option<Vec<u8>>)>)>;
+pub type ClipRender = Rc<dyn Fn(&str, Box<dyn FnOnce(Option<be_sdk_api::clipboard::ClipBody>)>)>;
 
 #[derive(Clone, Default)]
 pub struct EditorHost {
@@ -541,9 +546,7 @@ pub struct EditorHost {
     /// Each search watched, with how many watch it.
     watched_searches: Rc<RefCell<std::collections::BTreeMap<crate::Search, usize>>>,
     reported_searches: Rc<RefCell<Option<Vec<crate::Search>>>>,
-    block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
-    version_commands: Rc<RefCell<Vec<(Uuid, be_sdk_api::VersionCommand)>>>,
     version_status: Rc<RefCell<Option<be_sdk_api::VersionStatus>>>,
     version_watched: Rc<Cell<bool>>,
     shows_watched: Rc<Cell<bool>>,
@@ -1061,15 +1064,11 @@ impl EditorHost {
     }
 
     pub fn undo(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Undo));
+        self.command(block_id, BlockCommand::Undo);
     }
 
     pub fn redo(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Redo));
+        self.command(block_id, BlockCommand::Redo);
     }
 
     pub fn set_artifact(&self, block_id: Uuid, state: Option<ArtifactState>) {
@@ -1091,13 +1090,11 @@ impl EditorHost {
     }
 
     fn artifact_command(&self, block_id: Uuid, action: ArtifactAction) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Artifact { action }));
+        self.command(block_id, BlockCommand::Artifact { action });
     }
 
     pub fn close_editor(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::CloseEditor);
+        self.command(block_id, BlockCommand::CloseEditor);
     }
 
     pub fn simulate_access(&self, block_id: Uuid, access: AccessLevel) {
@@ -1108,11 +1105,13 @@ impl EditorHost {
         std::mem::take(&mut self.simulated_access.borrow_mut())
     }
 
-    fn shell_command(&self, block_id: Uuid, command: ShellCommand) {
-        self.tell(ShellMessage::Act(BlockAct {
-            block: block_id.into_bytes(),
+    /// Asks the host to act on a block (`blocks.act`), after everything the editor asked of
+    /// the graph before, which goes in the same queue.
+    fn command(&self, block_id: Uuid, command: BlockCommand) {
+        self.graph.push(crate::GraphCommand::Act {
+            id: block_id,
             command,
-        }));
+        });
     }
 
     /// Tells the shell `message`, after what the editor told it before.
@@ -1148,43 +1147,39 @@ impl EditorHost {
     }
 
     pub fn share_block(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::Share);
+        self.command(block_id, BlockCommand::Share);
     }
 
     pub fn leave_block(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::Leave);
+        self.command(block_id, BlockCommand::Leave);
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Unlink {
                 container: container.into_bytes(),
             },
-        ));
+        );
     }
 
     /// Asks the host to show the block's version history, at `commit` when named.
     pub fn show_history(&self, block_id: Uuid, commit: Option<[u8; 32]>) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::History(commit)));
+        self.command(block_id, BlockCommand::History(commit));
     }
 
     pub fn restore_block(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Restore));
+        self.command(block_id, BlockCommand::Restore);
     }
 
     pub fn delete_block(&self, block_id: Uuid, block_type: Uuid, source: BlockParent) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Delete {
                 block_type: block_type.into_bytes(),
                 source: source.encode(),
             },
-        ));
+        );
     }
 
     pub fn move_block(
@@ -1195,7 +1190,7 @@ impl EditorHost {
         destination: Uuid,
         is_reference: bool,
     ) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Move {
                 block_type: block_type.into_bytes(),
@@ -1203,36 +1198,32 @@ impl EditorHost {
                 destination: destination.into_bytes(),
                 is_reference,
             },
-        ));
+        );
     }
 
     pub fn reorder_block(&self, block_id: Uuid, parent: Uuid, after: Option<Uuid>) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Reorder {
                 parent: parent.into_bytes(),
                 after: after.map(Uuid::into_bytes),
             },
-        ));
+        );
     }
 
     pub fn place_block(&self, block_id: Uuid, block_type: Uuid, parent: Uuid, linked: bool) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Place {
                 block_type: block_type.into_bytes(),
                 parent: parent.into_bytes(),
                 linked,
             },
-        ));
+        );
     }
 
     pub fn version(&self, block_id: Uuid, command: be_sdk_api::VersionCommand) {
-        self.version_commands.borrow_mut().push((block_id, command));
-    }
-
-    pub fn take_version_commands(&self) -> Vec<(Uuid, be_sdk_api::VersionCommand)> {
-        std::mem::take(&mut self.version_commands.borrow_mut())
+        self.command(block_id, BlockCommand::Version(command));
     }
 
     pub fn set_version_status(&self, status: be_sdk_api::VersionStatus) {
@@ -1248,13 +1239,15 @@ impl EditorHost {
 
     /// Everything the editor watches through `block-watch`, once it changed since the last
     /// call.
-    pub(crate) fn take_block_subjects(&self) -> Option<Vec<crate::link::Subject>> {
+    pub(crate) fn take_block_subjects(
+        &self,
+    ) -> Option<std::collections::BTreeSet<crate::link::Subject>> {
         use crate::link::Subject;
         let graph = self.graph.take_watch_changed();
         if !(self.subjects_changed.replace(false) || graph) {
             return None;
         }
-        let mut subjects: Vec<Subject> = self
+        let mut subjects: std::collections::BTreeSet<Subject> = self
             .graph
             .watched()
             .into_iter()
@@ -1282,7 +1275,7 @@ impl EditorHost {
                 .map(Subject::Artifact),
         );
         if self.version_watched.get() {
-            subjects.push(Subject::Version);
+            subjects.insert(Subject::Version);
         }
         Some(subjects)
     }
@@ -1293,10 +1286,6 @@ impl EditorHost {
 
     pub fn version_known(&self) -> bool {
         self.version_status.borrow().is_some()
-    }
-
-    pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
-        std::mem::take(&mut self.block_commands.borrow_mut())
     }
 
     pub fn block_types_known(&self) -> bool {
@@ -1815,20 +1804,34 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::list_revisions(block.into_bytes())))
     }
 
-    /// A temporary block id showing `commit`, for a separate read-only editor. The host
-    /// isolates it from live updates and rejects edits from it and its nested editors (which
-    /// show their blocks' current content). Release it with `release_revision`.
-    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<Uuid, Failure>> {
-        Asked::of(self.ask(|| host_services::preview_revision(block.into_bytes(), commit)))
-            .map(|previewed| previewed.map(Uuid::from_bytes))
+    /// A temporary block showing `commit`, for a separate read-only editor. The host isolates
+    /// it from live updates and rejects edits from it and its nested editors (which show their
+    /// blocks' current content). It stays open while the `RevisionPreview` is held.
+    pub fn preview_revision(
+        &self,
+        block: Uuid,
+        commit: [u8; 32],
+    ) -> Asked<Result<RevisionPreview, Failure>> {
+        let held = self.ask(|| host_services::RevisionPreview::new(block.into_bytes(), commit));
+        let opened = held.opened();
+        Asked::from_future(async move {
+            match opened.await {
+                Ok(Ok(block)) => Some(Ok(RevisionPreview {
+                    block: Uuid::from_bytes(block),
+                    _held: held,
+                })),
+                Ok(Err(failure)) => Some(Err(failure)),
+                // Canceled means the editor or the app is going away (the host ended the wait
+                // or the resource with it): no one is left to tell, so the ask answers nothing,
+                // as `Asked` does for every canceled call.
+                Err(OpError::Canceled) => None,
+                Err(error) => Some(Err(Failure::from(error))),
+            }
+        })
     }
 
     pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::restore_revision(block.into_bytes(), commit)))
-    }
-
-    pub fn release_revision(&self, preview: Uuid) {
-        self.ask(|| host_services::release_revision(preview.into_bytes()).detach());
     }
 
     pub fn pick_file(&self, filter: FileFilter) -> Asked<FilePick> {
@@ -2058,6 +2061,9 @@ impl EditorHost {
             match head.await {
                 Ok(Ok(head)) => Some(Ok(Response::new(head, fetch))),
                 Ok(Err(failure)) => Some(Err(failure)),
+                // Canceled means the editor or the app is going away (the host ended the wait
+                // or the resource with it): no one is left to tell, so the ask answers nothing,
+                // as `Asked` does for every canceled call.
                 Err(OpError::Canceled) => None,
                 Err(error) => Some(Err(Failure::from(error))),
             }
@@ -2175,7 +2181,12 @@ impl EditorHost {
 
     /// Renders representation `format` of copy `serial`, answering `None`
     /// once the editor copied again.
-    pub fn render_clip(&self, serial: u64, format: &str, answer: Box<dyn FnOnce(Option<Vec<u8>>)>) {
+    pub fn render_clip(
+        &self,
+        serial: u64,
+        format: &str,
+        answer: Box<dyn FnOnce(Option<be_sdk_api::clipboard::ClipBody>)>,
+    ) {
         let render = match &*self.held_clip.borrow() {
             Some((held, render)) if *held == serial => render.clone(),
             _ => return answer(None),
@@ -2392,13 +2403,13 @@ impl EditorHost {
                 corner_radius: corner_radius.max(0.0),
                 layer,
                 mode,
-                intrinsic: intrinsic.map(|size| Size {
-                    width: size.x.max(0.0),
-                    height: size.y.max(0.0),
+                intrinsic: intrinsic.map(|size| Vec2 {
+                    x: size.x.max(0.0),
+                    y: size.y.max(0.0),
                 }),
-                fit: fit.map(|size| Size {
-                    width: size.x.max(0.0),
-                    height: size.y.max(0.0),
+                fit: fit.map(|size| Vec2 {
+                    x: size.x.max(0.0),
+                    y: size.y.max(0.0),
                 }),
                 rotation,
                 opacity: opacity.clamp(0.0, 1.0),

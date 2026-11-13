@@ -220,12 +220,23 @@ references mute it or list it last, and pickers never offer it.
 again, or for a detached block puts it back where `DELETED_FROM` metadata says
 (recorded by `be_host_stack::set_parent`), else into the account's Unfiled.
 
-**Graph commands.** `create-block(block, block-type, parent, defined,
-content, owner-only)`, `set-parent` and `define` are sync calls with no answer:
-the app picks a new block's id, so it can use the block before the host has
-seen it. The host takes them only when the account may edit the block and the
-parent. `owner-only` makes a block only the account reads (guides/settings.md,
-Owner only).
+**Acting on a block.** Everything an app asks the host to do with an existing
+block is one call, `blocks.act(block, block-command)`: undo and redo, history,
+artifact, unlink, delete, move, reorder, place, restore, version control
+(`version`, for the editor's own block), `share`, `leave`, `close-editor`,
+`set-parent` and `define`. be-host-runtime's `Instances::act` matches on the
+command: it checks and does `version`, `set-parent` and `define` itself and
+hands the rest to be-host (`EditorAction::Command`). `move` takes a block out of
+one container's content and into another's through their editors, and sets its
+parent unless it moves a link; `set-parent` only sets the graph parent of a
+block the app already holds in content of its own, so the two stay apart.
+
+**Making a block.** `create-block(block, block-type, parent, defined, content,
+owner-only)` makes one with the id the app picked, so it can use the block
+before the host has seen it; be-sdk sends it, `set-parent` and `define` in the
+order the app made them (`GraphCommand`). The host takes them only when the
+account may edit the block and the parent. `owner-only` makes a block only the
+account reads (guides/settings.md, Owner only).
 
 ## Presence
 

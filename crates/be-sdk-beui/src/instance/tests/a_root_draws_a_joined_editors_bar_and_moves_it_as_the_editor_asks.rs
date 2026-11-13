@@ -3,7 +3,7 @@ use be_sdk_api::{
     ChildContent, ChildId, DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlace,
     DockBarPlacement, DockChildRequest, DockDeclaration, DockDeclaredChild, DockDragStage,
     DockEdge, DockItem, DockItemKind, DockMessage, DockPane, DockRequest, DockTab, DockTabPath,
-    DockTree, DockUpdate, Pos2, Rect, Size,
+    DockTree, DockUpdate, Pos2, Rect, Vec2,
 };
 use beui::dock::{DockAlign as Align, DockBarPlacement as Placement, DockEdge as Edge};
 
@@ -52,10 +52,8 @@ fn barred() -> DockDeclaration {
                 edge: DockEdge::Top,
                 align: DockAlign::Center,
             }),
-            size: Size {
-                width: 100.0,
-                height: 20.0,
-            },
+            size: Vec2 { x: 100.0, y: 20.0 },
+            pane: None,
         }],
     }
 }

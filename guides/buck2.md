@@ -97,13 +97,14 @@ rebuilds nothing else:
 
 - **buck2 itself**, the release pinned in `scripts/internal/pins`, in `target/tools/`. A `buck2`
   on `PATH` is not used, since each carries its own prelude.
-- **The build server's** hosts and key in `target/build-server.buckconfig`, which `.buckconfig`
-  includes if it exists (guides/build_server.md). `.buckconfig.local` is only ever a person's,
-  such as a local build's (guides/running/local_buck2.md).
+- **The build server's** address and key, or this machine's settings for a local build, in
+  `target/build-server.buckconfig`, which `.buckconfig` includes if it exists
+  (guides/build_server.md). `.buckconfig.local` is only ever a person's
+  (guides/running/local_buck2.md).
 - **An HTTPS proxy relay.** buck2's remote execution client never reads `HTTPS_PROXY`, so when it
   is set `./scripts/buck` builds `scripts/internal/re-relay` with Go (1.24+) and runs two relays
-  on ports picked from the checkout's path; errors go to `target/re-relay.log`. The `nativelink`
-  server always goes through them, with `-http1` (guides/build_server.md). A relay remembers which blobs the
+  on ports picked from the checkout's path, which carry every call through nl.be3.pfg.pw's tunnel
+  (guides/build_server.md); errors go to `target/re-relay.log`. A relay remembers which blobs the
   server holds and answers `FindMissingBlobs` about them itself, and holds back a caller asking
   about a blob another is uploading, so a slow link carries each blob once (`cas.go`).
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a
@@ -204,8 +205,13 @@ again while every passing one still comes from the cache.
 - **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
   read and write only their crate's `snapshots/`, so one crate's paintings leave others cached.
   **Native tests that paint** are `cargo_test(paints = True, run_env = ...)` and work the same way.
-  `run_apart = True` (crates/be-host-tests) makes each test file a `be_test` of its own,
-  `:test-<file>`, so a failing test loses only its own paintings (guides/testing_a_gui.md).
+  `run_apart = True` (crates/be-host-tests, crates/be-host-stack) makes each test file a
+  `be_test` of its own, so a failing test loses only its own paintings (guides/testing_a_gui.md)
+  and tests that share a process-wide state run side by side as processes of their own:
+  `:test-<file>` for src/tests/<file>.rs and `:test-graph-tests-<file>` for
+  src/graph/tests/<file>.rs. A part runs the one test named after its file with `--exact`, and
+  fails (the launcher's `--one-test`) unless that ran exactly one test, so each such file holds
+  one test of its own name, as `./scripts/verify`'s split leaves it.
 - Tests that draw (beui-renderer-wgpu, be-host-wayland, beui-platform-drm, ...) use lavapipe from
   `buck/sysroot:amd64-test` (`amd64-xr` adds Monado). The workers replace `LD_LIBRARY_PATH`, so a
   test's `env` that names it reaches the test through the launcher's `--library-path`.

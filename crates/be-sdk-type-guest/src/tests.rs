@@ -55,6 +55,7 @@ mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
 mod a_followers_paste_too_large_to_relay_lands_once_over_the_owners_unsealed_edits_and_undoes_alone;
 mod a_followers_put_that_failed_is_tried_again;
 mod a_followers_stash_kept_offline_by_the_new_owner_keeps_lacking_until_the_outbox_drains;
+mod a_forged_arrival_is_never_sequenced;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
@@ -81,9 +82,11 @@ mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
+mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
+mod a_stamp_that_would_not_fit_inline_is_left_off;
 mod a_submit_relayed_as_less_than_it_asks_is_not_applied;
 mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
@@ -98,8 +101,10 @@ mod an_owner_that_cannot_read_a_followers_part_has_it_sent_again;
 mod an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod an_owner_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
+mod an_owner_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
 mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod an_owners_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
+mod arrivals;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
@@ -109,6 +114,7 @@ mod followers_keep_what_the_owner_typed_while_its_seal_was_out;
 mod messages_piled_behind_an_unreadable_part_make_a_follower_catch_up;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod the_owner_stamps_a_followers_operation_with_when_the_server_took_it;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_oversized_edits_in_a_row_land_in_order;
 mod two_quick_edits_folded_into_one_append_are_both_held_by_it;
@@ -446,6 +452,10 @@ struct Sim<C: LiveEdit + Clone + Default> {
     parts_put: usize,
     fail_puts: usize,
     fail_reads: usize,
+    /// Publishes answered with an error, as a device's seal fails offline when its block's key
+    /// is not on it; and how many were.
+    fail_publishes: usize,
+    failed_publishes: usize,
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
@@ -513,6 +523,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             parts_put: 0,
             fail_puts: 0,
             fail_reads: 0,
+            fail_publishes: 0,
+            failed_publishes: 0,
             largest_written: 0,
             written: 0,
             journal: None,
@@ -1049,6 +1061,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 content,
                 sealed_through,
             } if !self.stalled => {
+                if self.fail_publishes > 0 {
+                    self.fail_publishes -= 1;
+                    self.failed_publishes += 1;
+                    return self.to(device, |host| {
+                        reply.send(host, &Err("the connection is gone".to_owned()))
+                    });
+                }
                 if expected != self.head {
                     self.rejections += 1;
                     let head = self.head;
@@ -1260,16 +1279,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::ReportStatus { reply, status } => {
                 self.to(device, |host| reply.send(host, &()));
+                if let Some(undo) = &status.undo {
+                    self.devices[device].history = (undo.can_undo, undo.can_redo);
+                    self.devices[device].undo = undo.clone();
+                }
                 self.devices[device].status = status;
             }
             Call::Described { reply, description } => {
                 self.to(device, |host| reply.send(host, &()));
                 self.devices[device].described = Some(description);
-            }
-            Call::History { reply, history } => {
-                self.to(device, |host| reply.send(host, &()));
-                self.devices[device].history = (history.can_undo, history.can_redo);
-                self.devices[device].undo = history;
             }
             Call::Conflict {
                 reply,
@@ -1311,7 +1329,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             return;
         }
         let now = self.now;
-        let delivery = Some(Delivery { kind });
+        let delivery = Some(Delivery {
+            kind,
+            received: now as i64,
+        });
         self.with_replica(to, |replica, host| {
             replica.message(host, Endpoint::Peer(from), bytes, now, delivery)
         });

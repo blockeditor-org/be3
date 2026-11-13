@@ -8,23 +8,23 @@
 // left out: the one in its headers when it had nothing else to say, and OK
 // when its body arrived whole.
 //
-//	re-relay serve  -listen 127.0.0.1:18980 -upstream reapih-p5cvniii97l8a.iad4.namespaced.app
-//	re-relay ensure -listen 127.0.0.1:18980 -upstream reapih-p5cvniii97l8a.iad4.namespaced.app -version <hash> -log <path>
+//	re-relay serve  -listen 127.0.0.1:18980 -upstream nl.be3.pfg.pw
+//	re-relay ensure -listen 127.0.0.1:18980 -upstream nl.be3.pfg.pw -version <hash> -log <path>
 //
 // ensure returns once a relay of that version is listening, starting one in
 // the background if there is none, and replacing one of another version.
 //
-// -http1 sends every call as HTTP/1.1, for an upstream whose front carries
-// gRPC only that way: the NativeLink build server on boat, whose hosted port
-// blocks gRPC over HTTP/2 (guides/build_server.md). It is used there with or
-// without a proxy.
+// -tunnel sends every call over HTTP/2 inside a tunnel of a few long HTTP/1.1
+// requests to the upstream's tunnel-server (tunnel.go), for a proxy that
+// handles few requests a second:
+//
+//	re-relay tunnel-server -listen 127.0.0.1:50070 -upstream 127.0.0.1:50052
 package main
 
 import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"flag"
 	"fmt"
@@ -35,6 +35,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -52,7 +53,7 @@ var hopByHop = map[string]bool{
 
 func main() {
 	if len(os.Args) < 2 {
-		fail("usage: re-relay serve|ensure [flags]")
+		fail("usage: re-relay serve|ensure|tunnel-server|tunnel-probe [flags]")
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 	listen := flags.String("listen", "127.0.0.1:18980", "the address buck2 is pointed at")
@@ -60,18 +61,22 @@ func main() {
 	version := flags.String("version", "", "what ensure expects a running relay to answer")
 	logPath := flags.String("log", "", "where a relay ensure starts writes its errors")
 	connections := flags.Int("connections", 128, "at most this many connections to the upstream at once")
-	http1 := flags.Bool("http1", false, "send every call as HTTP/1.1")
+	tunnel := flags.Bool("tunnel", false, "send every call over HTTP/2 through a tunnel to the upstream's tunnel-server")
 	flags.Parse(os.Args[2:])
 	if *upstream == "" {
 		fail("-upstream is required")
 	}
 	switch os.Args[1] {
 	case "serve":
-		serve(*listen, *upstream, *version, *connections, *http1)
+		serve(*listen, *upstream, *version, *connections, *tunnel)
 	case "ensure":
-		ensure(*listen, *upstream, *version, *logPath, *connections, *http1)
+		ensure(*listen, *upstream, *version, *logPath, *connections, *tunnel)
+	case "tunnel-server":
+		serveTunnel(*listen, *upstream)
+	case "tunnel-probe":
+		probeTunnel(*upstream)
 	default:
-		fail("usage: re-relay serve|ensure [flags]")
+		fail("usage: re-relay serve|ensure|tunnel-server|tunnel-probe [flags]")
 	}
 }
 
@@ -80,7 +85,7 @@ func fail(format string, args ...any) {
 	os.Exit(1)
 }
 
-func ensure(listen, upstream, version, logPath string, connections int, http1 bool) {
+func ensure(listen, upstream, version, logPath string, connections int, tunnel bool) {
 	local := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 5 * time.Second}
 	base := "http://" + listen + controlPath
 	resp, err := local.Get(base)
@@ -103,7 +108,7 @@ func ensure(listen, upstream, version, logPath string, connections int, http1 bo
 		fail("%v", err)
 	}
 	command := exec.Command(self, "serve", "-listen", listen, "-upstream", upstream,
-		"-version", version, "-connections", strconv.Itoa(connections), "-http1="+strconv.FormatBool(http1))
+		"-version", version, "-connections", strconv.Itoa(connections), "-tunnel="+strconv.FormatBool(tunnel))
 	detach(command)
 	if logPath != "" {
 		log, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -125,18 +130,24 @@ func ensure(listen, upstream, version, logPath string, connections int, http1 bo
 	}
 }
 
-func serve(listen, upstream, version string, connections int, http1 bool) {
-	transport := &http.Transport{
+func serve(listen, upstream, version string, connections int, tunnel bool) {
+	// The Authorization header buck2 sends, which a tunnel's own requests carry too.
+	authorization := new(atomic.Pointer[string])
+	var transport http.RoundTripper
+	scheme := "https"
+	plain := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:   !http1,
+		ForceAttemptHTTP2:   true,
 		MaxConnsPerHost:     connections,
 		MaxIdleConns:        connections,
 		MaxIdleConnsPerHost: connections,
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  true,
 	}
-	if http1 {
-		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+	transport = plain
+	if tunnel {
+		transport = tunnelTransport(upstream, authorization)
+		scheme = "http"
 	}
 
 	listener, err := net.Listen("tcp", listen)
@@ -159,8 +170,14 @@ func serve(listen, upstream, version string, connections int, http1 bool) {
 	})
 	cache := newCASCache()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		relay(transport, upstream, cache, w, r)
+		if a := r.Header.Get("Authorization"); a != "" {
+			authorization.Store(&a)
+		}
+		start := time.Now()
+		relay(transport, scheme, upstream, cache, w, r)
+		timings.add(r.URL.Path, time.Since(start))
 	})
+	go timings.report()
 
 	server.Protocols = new(http.Protocols)
 	server.Protocols.SetHTTP1(true)
@@ -203,18 +220,18 @@ var resumable = map[string]bool{
 	"/build.bazel.remote.execution.v2.Execution/WaitExecution": true,
 }
 
-func relay(transport *http.Transport, upstream string, cache *casCache, w http.ResponseWriter, r *http.Request) {
+func relay(transport http.RoundTripper, scheme, upstream string, cache *casCache, w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		grpcError(w, 14, "re-relay: reading the request: "+err.Error())
 		return
 	}
-	send := func(body []byte) (*http.Response, string) { return call(transport, upstream, r, body) }
+	send := func(body []byte) (*http.Response, string) { return call(transport, scheme, upstream, r, body) }
 	if cache.handle(w, r, body, send) {
 		return
 	}
 
-	resp, failure := call(transport, upstream, r, body)
+	resp, failure := call(transport, scheme, upstream, r, body)
 	if failure != "" {
 		grpcError(w, 14, "re-relay: "+failure)
 		return
@@ -252,7 +269,7 @@ func relay(transport *http.Transport, upstream string, cache *casCache, w http.R
 		fmt.Fprintf(os.Stderr, "re-relay: %s %s broke off (%v), making it again (%d of %d)\n",
 			time.Now().Format(time.RFC3339), r.URL.Path, readErr, resumed, resumes)
 		resp.Body.Close()
-		resp, failure = call(transport, upstream, r, body)
+		resp, failure = call(transport, scheme, upstream, r, body)
 		if failure != "" {
 			resp = &http.Response{Body: http.NoBody}
 			trailerError(w, "re-relay: "+failure)
@@ -276,9 +293,9 @@ func relay(transport *http.Transport, upstream string, cache *casCache, w http.R
 }
 
 // A call made until it answers with gRPC, or why it never did.
-func call(transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
+func call(transport http.RoundTripper, scheme, upstream string, r *http.Request, body []byte) (*http.Response, string) {
 	for attempt := 1; ; attempt++ {
-		resp, failure := roundTrip(transport, upstream, r, body)
+		resp, failure := roundTrip(transport, scheme, upstream, r, body)
 		if failure == "" {
 			return resp, ""
 		}
@@ -319,8 +336,8 @@ func trailerError(w http.ResponseWriter, message string) {
 }
 
 // One attempt at a call: the response when it is gRPC's, or why it is not.
-func roundTrip(transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
-	out, err := http.NewRequestWithContext(r.Context(), r.Method, "https://"+upstream+r.URL.RequestURI(), bytes.NewReader(body))
+func roundTrip(transport http.RoundTripper, scheme, upstream string, r *http.Request, body []byte) (*http.Response, string) {
+	out, err := http.NewRequestWithContext(r.Context(), r.Method, scheme+"://"+upstream+r.URL.RequestURI(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err.Error()
 	}

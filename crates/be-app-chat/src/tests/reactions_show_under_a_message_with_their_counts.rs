@@ -10,7 +10,17 @@ fn reactions_show_under_a_message_with_their_counts() {
         (other, "party-popper"),
         (other, "heart"),
     ] {
-        chat.arrive(chat.content().react(release, author, reaction, MORNING));
+        let (key, made) = chat
+            .content()
+            .reaction(release, author, reaction, MORNING, true);
+        let made = be_type_chat::Reaction {
+            signature: Signature(be_sdk_test::signature(
+                author,
+                &key.signed_bytes(CHAT, &made),
+            )),
+            ..made
+        };
+        chat.arrive(chat.content().put_reaction(&key, &made));
     }
     chat.click(&format!("chat.message.{release}.reaction.heart"));
     chat.click(&format!("chat.message.{thanks}.react"));

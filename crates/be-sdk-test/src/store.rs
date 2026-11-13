@@ -88,6 +88,8 @@ struct Inner {
     sleeping: Vec<Reply<()>>,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
+    /// Each type's blank content, as the module's start listed it.
+    blanks: BTreeMap<Uuid, Vec<u8>>,
     commits: BTreeMap<CommitId, Vec<u8>>,
     /// The commits written with parts after their first, as a vault holds them: a type that loads
     /// only its first part reads the rest by range.
@@ -144,6 +146,7 @@ impl Default for Inner {
             sleeping: Vec::new(),
             now: 0,
             replicas: BTreeMap::new(),
+            blanks: BTreeMap::new(),
             commits: BTreeMap::new(),
             manifests: BTreeMap::new(),
             vault: {
@@ -181,7 +184,12 @@ impl Default for Inner {
             held_reads: Vec::new(),
             known_elsewhere: None,
         };
-        inner.ask(|host| replicas::start(host, vec![0; 32]));
+        if let Some(types) = inner.ask(|host| replicas::start(host, vec![0; 32])) {
+            inner.blanks = types
+                .into_iter()
+                .map(|info| (info.content_type, info.blank))
+                .collect();
+        }
         inner
     }
 }
@@ -496,7 +504,6 @@ impl Inner {
             | Call::ReportClean { reply, .. }
             | Call::ReportStatus { reply, .. }
             | Call::InStepAt { reply, .. }
-            | Call::History { reply, .. }
             | Call::Conflict { reply, .. }
             | Call::Error { reply, .. } => reply.send(&mut self.host, &()),
         }
@@ -647,6 +654,7 @@ impl Inner {
                 now,
                 Some(be_sdk_type_guest::api::Delivery {
                     kind: be_sdk_type_guest::api::RelayKind::Edit,
+                    received: now as i64,
                 }),
             );
         });
@@ -1180,7 +1188,7 @@ impl ContentStore {
         self.0.borrow_mut().editor_sent(block, instance.0, message);
     }
 
-    pub(crate) fn command(&self, block: Uuid, command: BlockCommand) {
+    pub(crate) fn command(&self, block: Uuid, command: &BlockCommand) {
         let change = match command {
             BlockCommand::Undo => Change::Undo,
             BlockCommand::Redo => Change::Redo,
@@ -1262,7 +1270,7 @@ impl ContentStore {
             Some(bytes) => self.seed(id, block_type, bytes, false),
             None => {
                 let mut inner = self.0.borrow_mut();
-                if let Some(Ok(bytes)) = inner.ask(|host| replicas::blank(host, block_type)) {
+                if let Some(bytes) = inner.blanks.get(&block_type).cloned() {
                     inner.put(id, block_type, bytes);
                 }
             }

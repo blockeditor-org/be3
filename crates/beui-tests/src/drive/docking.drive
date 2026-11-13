@@ -12,7 +12,7 @@ wait 'value="([Alpha*] |0.3 [Gamma Beta*])"'
 drag '#dock.tab.3' '#docking.beta+100,440' 6
 wait 'value="([Alpha*] |0.3 ([Beta*] /0.5 [Gamma*]))"'
 click '#dock.tab.1.close'
-gone '#docking.alpha'
+wait not '#docking.alpha'
 wait 'value="([Beta*] /0.5 [Gamma*])"'
 click '#dock.tab.3' right
 wait 'MenuItem "Pop out into a window"'

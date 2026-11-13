@@ -11,22 +11,22 @@ wait 'MenuItem "Copy"'
 click 'MenuItem "Share"'
 wait 'MenuItem "Email"'
 move 'MenuItem "Delete"'
-gone 'MenuItem "Email"'
+wait not 'MenuItem "Email"'
 move 'MenuItem "Share"'
 wait 'MenuItem "Email"'
 click 'MenuItem "Email"'
 wait 'value="Chose Email fruit Some(0)"'
-gone 'MenuItem "Copy"'
+wait not 'MenuItem "Copy"'
 key Enter
 wait 'MenuItem "Copy" focused'
 key Enter
 wait 'value="Chose Copy fruit Some(0)"'
-gone 'MenuItem "Copy"'
+wait not 'MenuItem "Copy"'
 click '#menus.fruit'
 wait 'ListBoxOption "Cherry"'
 click 'ListBoxOption "Cherry"'
 wait 'value="Chose Copy fruit Some(2)"'
-gone 'ListBoxOption "Cherry"'
+wait not 'ListBoxOption "Cherry"'
 click '#menus.card' right
 wait 'MenuItem "Share"'
 key down down
@@ -35,13 +35,13 @@ key right
 wait 'MenuItem "Email" focused'
 key Enter
 wait 'value="Chose Email fruit Some(2)"'
-gone 'MenuItem "Share"'
+wait not 'MenuItem "Share"'
 click '#menus.card.focus'
 key ContextMenu
 wait 'MenuItem "Copy"' over 30,160
 key Escape
-gone 'MenuItem "Copy"'
+wait not 'MenuItem "Copy"'
 key shift+F10
 wait 'MenuItem "Copy"' over 30,160
 key Escape
-gone 'MenuItem "Copy"'
+wait not 'MenuItem "Copy"'

@@ -36,6 +36,7 @@ fn a_message_shows_whether_its_author_signed_it() {
         author: ROSA,
         time: MORNING + 25 * MINUTE,
         body: "Rewritten by someone else".into(),
+        previous: None,
         signature: Signature(be_sdk_test::signature(sam, b"not Rosa's edit")),
     };
     let first = chat.id(0);

@@ -13,15 +13,17 @@ TEST_TIME_LIMIT = "20m"
 # own flags, to which a runner adds its output flags, then "--" and `command`.
 # `hidden` is what the test reads that the command does not name, such as the
 # accepted paintings. A test that `paints` accepts paintings under
-# UPDATE_SNAPSHOTS. `parts` is a run_apart test's tests, one be_test a file
-# under src/tests/, by the file's name; such a test has no [run] of its own, and
-# `runs` is each part's [run], where any other test's is its own.
+# UPDATE_SNAPSHOTS. `parts` is a run_apart test's tests, one be_test a test
+# file, by its part's name; such a test has no [run] of its own, and `runs` is
+# each part's [run], where any other test's is its own. `libtest` is a part's
+# test, the full name it runs with --exact, and empty for any other test.
 TestRunInfo = provider(
     fields = {
         "command": provider_field(typing.Any),
         "env": provider_field(dict),
         "hidden": provider_field(list),
         "launcher": provider_field(typing.Any),
+        "libtest": provider_field(str),
         "local": provider_field(bool),
         "paints": provider_field(bool),
         "parts": provider_field(dict),
@@ -90,7 +92,7 @@ def _run(ctx: AnalysisContext, info: TestRunInfo) -> Artifact:
 # Every test: harness, a RunInfo, run with args and env through
 # crates/be-tool-run-test, for buck2 test and as the action [run] alike. An
 # LD_LIBRARY_PATH in env is the test's alone (the launcher's --library-path),
-# since Namespace's workers replace an action's with their own. manifest is the
+# so a sysroot's libc in it does not load into the launcher. manifest is the
 # crate's Cargo.toml, whose directory is the test's CARGO_MANIFEST_DIR, for a
 # test that reads its snapshots/ from there. A local test, which needs this
 # machine (a browser), runs here and has no time limit.
@@ -103,12 +105,14 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
         ctx.attrs._launcher[RunInfo],
         ["--library-path", library_path] if library_path != None else [],
         [] if ctx.attrs.local else ["--time-limit", TEST_TIME_LIMIT],
+        ["--one-test"] if ctx.attrs.libtest else [],
     )
     fields = dict(
         command = cmd_args(ctx.attrs.harness[RunInfo], ctx.attrs.args),
         env = env,
         hidden = ctx.attrs.paintings,
         launcher = launcher,
+        libtest = ctx.attrs.libtest,
         local = ctx.attrs.local,
         paints = ctx.attrs.paints,
         parts = {name: part[TestRunInfo] for name, part in ctx.attrs.parts.items()},
@@ -146,6 +150,7 @@ _be_test = rule(
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
         "harness": attrs.dep(providers = [RunInfo]),
         "labels": attrs.list(attrs.string(), default = []),
+        "libtest": attrs.string(default = ""),
         "local": attrs.bool(default = False),
         "manifest": attrs.option(attrs.source(), default = None),
         "paintings": attrs.list(attrs.source(), default = []),

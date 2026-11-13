@@ -27,7 +27,7 @@ impl Index {
         origin: Id,
     ) -> Result<(Index, Written), Error> {
         let mut written = Written::default();
-        let mut retired: BTreeMap<Id, u64> = BTreeMap::new();
+        let mut retired: BTreeMap<Id, i64> = BTreeMap::new();
         for Retired { id, at } in self.retired.iter().chain(&other.retired) {
             let kept = retired.entry(*id).or_insert(*at);
             *kept = (*kept).max(*at);
@@ -88,9 +88,11 @@ impl Index {
         let mut keeps: Vec<Place> = Vec::new();
         let mut merged: Vec<Entry> = Vec::with_capacity(sides.len());
         for (doc, mut entries) in sides {
+            // Of two at one commit, a full entry wins over a partial one (`Entry::partial`).
             let rank = |entry: &Entry| {
                 (
                     entry.commit,
+                    !entry.partial,
                     survives(&entry.place),
                     std::cmp::Reverse(entry.place),
                 )
@@ -101,7 +103,11 @@ impl Index {
             if winner.place.is_some() && !survives(&winner.place) {
                 winner.place = entries[1..]
                     .iter()
-                    .find(|other| other.indexed == winner.indexed && survives(&other.place))
+                    .find(|other| {
+                        other.indexed == winner.indexed
+                            && other.partial == winner.partial
+                            && survives(&other.place)
+                    })
                     .and_then(|other| other.place);
             }
             if let Some(removed) = removed_blocks.get(&doc.block)

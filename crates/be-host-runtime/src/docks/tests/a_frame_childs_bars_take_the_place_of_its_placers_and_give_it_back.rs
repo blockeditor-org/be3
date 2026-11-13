@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_api::{
     DockAlign, DockBar, DockBarEdge, DockBarMove, DockBarPlacement, DockCover, DockDragStage,
-    DockEdge, Pos2, Rect, Size,
+    DockEdge, Pos2, Rect, Vec2,
 };
 
 const FRAMER: EditorInstanceId = EditorInstanceId(4);
@@ -15,10 +15,8 @@ fn bar(tab: u64, owner: u64, placement: DockBarPlacement) -> DockBar {
         kind: "canvas/tools".to_owned(),
         owner: Some(path(&[], owner)),
         placement,
-        size: Size {
-            width: 160.0,
-            height: 32.0,
-        },
+        size: Vec2 { x: 160.0, y: 32.0 },
+        pane: None,
     }
 }
 
@@ -94,6 +92,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
             owner: Some(path(&[], 1)),
             placement: moved.clone(),
             hidden: false,
+            pane: Some(path(&[], 2)),
         }],
         Vec::new(),
     );
@@ -148,6 +147,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         }],
         vec![DockCover {
             tab: path(&[], 1),
@@ -165,6 +165,7 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
                 align: DockAlign::Center
             }),
             hidden: false,
+            pane: None,
         }],
         "it hears where its bar is, owned by its own tab"
     );
@@ -183,8 +184,9 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
             owner: Some(path(&[], 1)),
             placement: moved.clone(),
             hidden: false,
+            pane: Some(path(&[], 2)),
         }],
-        "its placer keeps its hidden bar where it was"
+        "its placer keeps its hidden bar where it was, on the pane it was on"
     );
 
     updates(&mut docks, "shell");
@@ -218,6 +220,11 @@ fn a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back() {
         delivered_bars(&docks),
         [(path(&[], 3), Some(path(&[], 1)), moved)],
         "letting the frame go brings its placer's bar back where it was"
+    );
+    assert_eq!(
+        docks.delivered.get(&(ROOT, OUTER_CHILD)).unwrap().bars[0].pane,
+        Some(path(&[], 2)),
+        "and on the pane it was on"
     );
     assert!(
         updates(&mut docks, "framer")

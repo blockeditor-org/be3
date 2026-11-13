@@ -187,7 +187,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     .info(share.block)
                     .map(|info| workspace.label(info.id, info.block_type).name)
                     .unwrap_or_default();
-                format!("Share \u{201c}{name}\u{201d}")
+                format!(
+                    "Share \u{201c}{}\u{201d}",
+                    be_sdk_beui::be_block::quoted_name(&name)
+                )
             })
             .unwrap_or_default()
     });
@@ -309,7 +312,19 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
         })
     });
     let invited = create_memo(move || !invite_link.get().is_empty());
-    let act = Callback::new(move |action: ShareAction| workspace.share_action(action));
+    // The block the dialog opened for, kept while it stays open, which every action names.
+    let shown = create_signal(None::<Uuid>);
+    create_effect(move || {
+        let block = state.with(|share| share.as_ref().map(|share| share.block));
+        if block.is_none() || shown.get_untracked().is_none() {
+            shown.set(block);
+        }
+    });
+    let act = Callback::new(move |action: ShareAction| {
+        if let Some(block) = shown.get_untracked() {
+            workspace.share_action(block, action);
+        }
+    });
     view! {
         <Dialog
             open={open}

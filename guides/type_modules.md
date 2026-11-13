@@ -115,10 +115,12 @@ answered, so a server ignores ones it does not know.
 ## The protocol
 
 The module imports `host` and exports `replicas`. `replicas.start(entropy)`
-comes first: it answers the module's types, and seeds the module's randomness,
-since a pure guest has none.
+comes first: it answers the module's types, each with everything the host
+keeps about it (`type-info`: its schema, plain form, blank content and that
+content's description), and seeds the module's randomness, since a pure guest
+has none.
 
-Stateless requests (`blank`, `merge3`, `merge-parts`, `describe`, `to-file`,
+Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
 `search-text`, `claims`, `apply`) are answered in the step that asks, except
 `merge-parts` and `search-text`, which may read parts first (below, "Merging
 by parts"). `apply` is how a host that publishes commits rather than joining a
@@ -311,6 +313,26 @@ it, so two builds of a type never edit one session.
 The session (`crates/be-block-session`) is owner sequencing with follower
 rebase. The rules an agent most needs:
 
+- **Arrival time.** The host hands a peer's message to the replica with when
+  the server took it (`delivery.received`). The owner, sequencing a
+  follower's `Submit`, fills the operation's stamp slot (`LiveEdit::arrival`)
+  and sequences the operation as that changed it, so the stamp is the
+  operation's own content and every replica, journal, snapshot and later owner
+  holds it. One slot reads and writes the stamp, so the check and the stamp
+  cannot disagree; an operation holding others exposes one slot at most. Only
+  the owner stamps: a replica refuses an edit whose slot is already filled, so
+  an honest follower never sends one, and the owner drops a `Submit` that claims
+  one, inline or by its part, and reports it as incompatible, so a type that
+  pre-stamps shows. Undo goes through the same check, so an inverse operation
+  leaves the stamp off. A missing stamp
+  means the arrival is unknown, and content then shows no time, never one the
+  edit claims. Unstamped: the owner's own operations (plans/chat.md), one that
+  travels as a part, and one that stamping would take past
+  `LARGEST_RELAYED_OPERATION`. An operation an old owner never accepted and the
+  follower resubmits to a new one gets the later time, an upper bound on when a
+  sequencing owner first had it. Types that keep no arrival time leave the
+  hook at its default and are unchanged.
+
 - Every operation the owner sequences goes to the block's journal
   (guides/blocks/client.md, "The journal") through the host's `append`: with
   others in the session at once, relayed by the same call; alone, folded and
@@ -342,7 +364,7 @@ rebase. The rules an agent most needs:
   `replay` does the same for a reader outside the session. A journal by
   another build is not handed over: `opening.lost-edits` says it held edits,
   or that the server marked them lost since the last commit, and the replica
-  reports them lost (`undo-state.lost-edits`).
+  reports them lost (`status.undo.lost-edits`).
 - **Restarts.** At a commit, once session state passes `RESTART_STATE_BYTES`
   (1 MiB) and the content's size, with no gesture open, while alone or past
   `RESTART_CEILING` times the limit, the owner restarts the session
@@ -534,7 +556,11 @@ process in tests:
   sleeps. A source that declares its types starts lazily, on the first call
   to it, so a host runs only the modules its blocks use; what a host must
   know without running one (names, icons, `plain_file`) comes from the
-  manifest. `started(sources)` starts all, as `be` and `be sync` do. A
+  manifest, and be-tool-cli's
+  `a_manifest_says_which_of_its_types_have_a_plain_file` holds `plain_file`
+  to the module's `type-info.plain`, which `be` and `be sync` read without
+  manifests (decisions/plain_file_stays_in_the_manifest.md).
+  `started(sources)` starts all, as `be` and `be sync` do. A
   module's types are taken only if its manifest declares them
   (`Source::declaring`).
 - `replicas`: `Replicas<H: Host>`, the replica IO of

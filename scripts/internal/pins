@@ -52,19 +52,13 @@ be_metadata_sha256_aarch64_unknown_linux_gnu='2d6f29800823e396962eacaebb290975b2
 be_metadata_sha256_x86_64_apple_darwin=''
 be_metadata_sha256_aarch64_apple_darwin=''
 
-# nsc, Namespace's command line tool, for the host that runs the waker
-# (sh scripts/internal/bootstrap.sh install-nsc, guides/build_server.md).
-nsc_version='0.0.587'
-nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
-nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
-
 # crates/be-tool-bootstrap, which every script runs: the SHA-256 of each platform's
 # binary, which is also its name at https://be3-ci.b-cdn.net/bootstrap/<sha256>.
 # CI uploads and pins a new release when the binaries built from the checkout
 # are not these (guides/bootstrap.md).
-bootstrap_sha256_x86_64_unknown_linux_gnu='2b4841af480ba220c04c828d764644c2c080567a064f0582f4b3a8dbd561656b'
-bootstrap_sha256_aarch64_unknown_linux_gnu='ee87fe6e1b5a5020221b5731d137eb17ccbe97099e19984f0cba6ef45c8faf55'
-bootstrap_sha256_x86_64_apple_darwin='407847620bb94135d015a9faaecca36e4df3978eb3a5c31a37d751b359d95999'
-bootstrap_sha256_aarch64_apple_darwin='9c35760cd29e0c82f68e7d5ac6b6c09d81b44c656107767605b59ee3b3a32845'
-bootstrap_sha256_x86_64_pc_windows_msvc='94d4a7e75fd7d3e4d0aaefcf86f4516dd050d6625d989d9712f79d2f4403e1a2'
-bootstrap_sha256_aarch64_pc_windows_msvc='b366d5c51faa6b247b5cc80066a0eb669a27505ff7d4ea8ac6710c974b7885f7'
+bootstrap_sha256_x86_64_unknown_linux_gnu='89e926fecb0a188fef3b1abbd093a6b2047e20d06a143f4d816f4336e5a9e38a'
+bootstrap_sha256_aarch64_unknown_linux_gnu='229624210c4f98b2ba7c30e1d63a8f25877547f47a5f6fe2f9c6238bfcaf964a'
+bootstrap_sha256_x86_64_apple_darwin='aecf4912d916a47d2c7d1789a889f5e6ad59444d85066c3aa903e24fb597b187'
+bootstrap_sha256_aarch64_apple_darwin='40429978da121f11111dfacf46a40199d77dd69400d39b5ca8ea79ca239b5fab'
+bootstrap_sha256_x86_64_pc_windows_msvc='a263df7e2adfe42b753e971d5eb205a27e4b079690a10a1fd48b97df190fa30c'
+bootstrap_sha256_aarch64_pc_windows_msvc='19d2ccc8ef0aaec2e1db5c17410f0ea2ec19b8ce2eb567d874cad484ed012532'

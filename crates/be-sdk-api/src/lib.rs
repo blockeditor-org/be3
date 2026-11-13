@@ -28,7 +28,7 @@ be_wasm_ops_bindgen::generate!({
         "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "view-id",
     ],
     default: [
-        "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
+        "frame-chrome", "top-bar", "frame-spec", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
@@ -40,7 +40,7 @@ be_wasm_ops_bindgen::generate!({
         "search-hit", "search-results",
     ],
     inline: [
-        "artifact-command", "unlink-command",
+        "artifact-command", "unlink-command", "define-command",
         "delete-command", "move-command", "reorder-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
@@ -53,6 +53,7 @@ be_wasm_ops_bindgen::generate!({
 });
 
 pub use accessibility::DescribedAction;
+pub use app::ShellDialog;
 pub use be_wasm_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
@@ -63,16 +64,15 @@ pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{
-    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, ShellDialog,
-    Signer, TerminalHostBe, TerminalHostDownload, TerminalHostSource,
+    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, Signer,
+    TerminalHostBe, TerminalHostDownload, TerminalHostSource,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
-    OfferedClipItem, PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange,
-    WebViewEvent,
+    OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
@@ -80,8 +80,8 @@ pub use types::{
     FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
     LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, OpeningKind,
     Picture, PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, Size, SurfaceFormat, SurfaceRect,
-    SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect, SurfaceSpec,
+    SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
@@ -719,12 +719,19 @@ impl embed::blocks::Call {
                 metadata(defined)?;
                 content.as_ref().map_or(Ok(()), |content| blob(content))
             }
-            Call::Define {
-                value: Some(value), ..
+            Call::Act {
+                command:
+                    BlockCommand::Define {
+                        value: Some(value), ..
+                    },
+                ..
             } => descriptor(value),
             Call::WriteContent { bytes, .. } => blob(bytes),
             Call::ReplicaSend { frame, .. } => blob(frame),
-            Call::Version { command, .. } => match command {
+            Call::Act {
+                command: BlockCommand::Version(command),
+                ..
+            } => match command {
                 VersionCommand::Finish { description: value }
                 | VersionCommand::Switch { branch: value }
                 | VersionCommand::CreateBranch { name: value }
@@ -792,14 +799,15 @@ pub fn paste_events(item: ClipItem) -> Vec<Input> {
 }
 
 fn paste_pieces(item: ClipItem, limit: usize) -> Vec<Input> {
-    let ClipItem { format, data } = item;
+    let ClipItem { format, data, refs } = item;
     let mut pieces = data
         .chunks(limit)
         .map(|piece| ClipItem::new(format.clone(), piece.to_vec()))
         .collect::<Vec<_>>();
-    let last = pieces
+    let mut last = pieces
         .pop()
         .unwrap_or_else(|| ClipItem::new(format, Vec::new()));
+    last.refs = refs;
     pieces
         .into_iter()
         .map(Input::PastePiece)

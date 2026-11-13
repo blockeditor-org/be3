@@ -716,6 +716,7 @@ impl Client {
                     from,
                     kind,
                     payload,
+                    received,
                 } => {
                     streams.send(
                         &mut lock,
@@ -723,6 +724,7 @@ impl Client {
                             from,
                             kind,
                             payload: payload.to_vec(),
+                            received,
                         },
                         sessions(block),
                     )?;
@@ -2155,6 +2157,7 @@ impl Client {
                         from: connection.client,
                         kind,
                         payload: payload.into(),
+                        received: be_block_commit::now_milliseconds(),
                     };
                     match to {
                         Some(target) if participants.contains(&target) => {
@@ -2214,6 +2217,7 @@ impl Client {
                             .await?;
                     }
                     if relay {
+                        let received = be_block_commit::now_milliseconds();
                         let participants = state.participants;
                         for entry in entries {
                             let message = Push::Relayed {
@@ -2221,6 +2225,7 @@ impl Client {
                                 from: connection.client,
                                 kind: RelayKind::Edit,
                                 payload: entry.payload.into(),
+                                received,
                             };
                             connection
                                 .hub
@@ -2246,8 +2251,14 @@ impl Client {
                     prelude?;
                     let block = block?;
                     let state = connection.registry.state(block).await;
+                    if !state.participants.contains(&connection.client) {
+                        return Err(not_joined());
+                    }
+                    // Kept only from the current owner of its generation, as an append is: an
+                    // owner whose lease lapsed or passed rebases until the next `Lease` tells
+                    // it, and the journal is the new owner's to write.
                     if !state.is_owner(connection.client) || state.generation != generation {
-                        return Err(not_owner());
+                        return Ok(());
                     }
                     connection
                         .store
@@ -2905,11 +2916,4 @@ fn at_most_urls(objects: usize) -> Result<(), ServerError> {
         )),
         false => Ok(()),
     }
-}
-
-fn not_owner() -> ServerError {
-    ServerError::Refused(
-        ErrorCode::PermissionDenied,
-        "only the session's owner writes its journal".into(),
-    )
 }

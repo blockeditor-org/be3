@@ -24,7 +24,7 @@ pub struct ChildDockTab {
 }
 
 #[derive(Clone)]
-pub struct ChildHandle {
+pub struct ChildBlockHandle {
     pub state: ReadSignal<ChildState>,
     pub menu: Memo<Vec<MenuNode>>,
 }
@@ -45,7 +45,7 @@ pub fn ChildBlock(
     on_details: Callback<()>,
     on_focus: Callback<()>,
     docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
-    #[prop(children)] content: Option<Render<ChildHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
     let placing = Placing {
@@ -92,7 +92,7 @@ pub fn Subregion(
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    #[prop(children)] content: Option<Render<ChildHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
 ) -> NodeId {
     let layout = use_context::<DialogLayout>();
     let modal = use_modal();
@@ -149,7 +149,7 @@ struct Placing {
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    content: Option<Render<ChildHandle>>,
+    content: Option<Render<ChildBlockHandle>>,
 }
 
 #[component]
@@ -268,7 +268,7 @@ fn SubregionView(
         untrack(|| editor.hold_frame_child_menu(key, taken));
     });
     on_cleanup(move || editor.hold_frame_child_menu(key, None));
-    let handle = ChildHandle { state, menu };
+    let handle = ChildBlockHandle { state, menu };
     let picture = view! {
         <PreviewPicture editor={editor} placed={placed} preview={preview} turn={turn} fade={fade} />
     };

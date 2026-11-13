@@ -364,13 +364,9 @@ impl ProtocolLink {
         };
         let sizes = self.bar_sizes.handle();
         let size = |bar: TabId| {
-            let size = sizes
+            sizes
                 .with_untracked(|sizes| sizes.get(&bar).copied())
-                .unwrap_or(beui::Vec2::ZERO);
-            api::Size {
-                width: size.x,
-                height: size.y,
-            }
+                .unwrap_or(beui::Vec2::ZERO)
         };
         let block_type = self.host.block_type();
         let kind = |kind: &str| match block_type {
@@ -886,8 +882,8 @@ fn DockBarBody(
         pushed.get();
         untrack(|| host.child_dock(child))
             .and_then(|declaration| declaration.bar(&path).map(|bar| bar.size))
-            .filter(|size| size.width > 0.0 && size.height > 0.0)
-            .map_or(EMPTY_BAR, |size| beui::vec2(size.width, size.height))
+            .filter(|size| size.x > 0.0 && size.y > 0.0)
+            .unwrap_or(EMPTY_BAR)
     });
     let width =
         create_memo(move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x)));
@@ -1125,7 +1121,7 @@ pub(crate) fn declaration_to_api(
     declaration: &DockDeclaration,
     path: PathOf<'_>,
     empty: EmptyOf<'_>,
-    size: &dyn Fn(TabId) -> api::Size,
+    size: &dyn Fn(TabId) -> beui::Vec2,
     kind: &dyn Fn(&str) -> String,
 ) -> api::DockDeclaration {
     let spec = &declaration.spec;
@@ -1162,10 +1158,7 @@ pub(crate) fn declaration_to_api(
                         .icon
                         .map(|icon| icon.as_str().to_owned())
                         .unwrap_or_default(),
-                    size: api::Size {
-                        width: dialog.size.x,
-                        height: dialog.size.y,
-                    },
+                    size: dialog.size,
                     modal: dialog.modal,
                     dismiss_on_outside_press: dialog.dismiss_on_outside_press,
                     closable: dialog.closable,
@@ -1186,6 +1179,7 @@ pub(crate) fn declaration_to_api(
                     },
                     placement: placement_to_api(bar.placement),
                     size: size(bar.tab),
+                    pane: bar.pane.and_then(path),
                 })
             })
             .collect(),
@@ -1294,7 +1288,7 @@ fn declaration_from_api(
             parent: paths.tab(&dialog.parent),
             title: dialog.title.clone(),
             icon: Glyph::from_codepoint(&dialog.glyph),
-            size: beui::vec2(dialog.size.width, dialog.size.height),
+            size: dialog.size,
             modal: dialog.modal,
             dismiss_on_outside_press: dialog.dismiss_on_outside_press,
             closable: dialog.closable,
@@ -1309,6 +1303,7 @@ fn declaration_from_api(
             kind: bar.kind.clone(),
             owner: bar.owner.as_ref().map(|owner| paths.tab(owner)),
             placement: placement_from_api(&bar.placement),
+            pane: bar.pane.as_ref().map(|pane| paths.tab(pane)),
         })
         .collect();
     Some(DockDeclaration {
@@ -1409,6 +1404,7 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
                     },
                     placement: placement_to_api(bar.placement),
                     hidden: bar.hidden,
+                    pane: bar.pane.and_then(path),
                 })
             })
             .collect(),
@@ -1491,6 +1487,7 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
                     },
                     placement: placement_from_api(&bar.placement),
                     hidden: bar.hidden,
+                    pane: bar.pane.as_ref().and_then(&mut *tab),
                 })
             })
             .collect(),
@@ -1712,3 +1709,6 @@ fn placement_from_api(placement: &api::DockBarPlacement) -> DockBarPlacement {
         },
     }
 }
+
+#[cfg(test)]
+mod tests;

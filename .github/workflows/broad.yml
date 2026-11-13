@@ -22,9 +22,9 @@ permissions:
   contents: read
 
 env:
-  # The API gateway's header for api.be3.pfg.pw's build server, as in ci.yml.
-  BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
-  BE3_BUILD_SERVER: api.be3.pfg.pw
+  # The build server and its token, as in ci.yml.
+  BE3_BUILD_SERVER: nl.be3.pfg.pw
+  BE3_NL_TOKEN: ${{ secrets.BE3_NL_TOKEN }}
 
 jobs:
   broad:

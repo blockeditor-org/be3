@@ -10,8 +10,6 @@ mod cargo;
 mod deploy;
 mod download;
 mod lock;
-mod nativelink;
-mod nsc;
 mod pins;
 mod platform;
 mod quiet;
@@ -30,7 +28,8 @@ pub use test::crate_of_function;
 
 pub type Result<T> = std::result::Result<T, String>;
 
-const USAGE: &str = "usage: bootstrap buck|test|verify|ci|lock|buckify|be|deploy|setup|switch|install-buck2|install-nsc ...";
+const USAGE: &str =
+    "usage: bootstrap buck|test|verify|ci|lock|buckify|be|deploy|setup|switch|install-buck2 ...";
 
 pub fn run() -> ExitCode {
     let mut arguments = std::env::args().skip(1);
@@ -54,7 +53,6 @@ pub fn run() -> ExitCode {
         "setup" => setup::main(rest),
         "switch" => switch::main(rest),
         "install-buck2" => buck2::install_command(rest),
-        "install-nsc" => nsc::main(rest),
         _ => Err(USAGE.to_owned()),
     };
     match result {

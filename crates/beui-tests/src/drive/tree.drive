@@ -11,7 +11,7 @@ key Enter
 wait 'value="Selected main.rs rows 5"'
 click '#tree.src.chevron'
 wait 'value="Selected main.rs rows 3"'
-gone '#tree.lib.rs.row'
+wait not '#tree.lib.rs.row'
 key right
 wait 'value="Selected main.rs rows 5"'
 wait '#tree.lib.rs.row'
@@ -20,8 +20,8 @@ wait 'value="Selected main.rs rows 3"'
 key ContextMenu
 wait 'MenuItem "Rename"' over '#tree.docs.row+40,8'
 key Escape
-gone 'MenuItem "Rename"'
+wait not 'MenuItem "Rename"'
 key shift+F10
 wait 'MenuItem "Rename"' over '#tree.docs.row+40,8'
 key Escape
-gone 'MenuItem "Rename"'
+wait not 'MenuItem "Rename"'

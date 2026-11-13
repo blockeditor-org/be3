@@ -2,9 +2,7 @@ use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
-use be_sdk_api::shell_types::{
-    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
-};
+use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
     BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
     InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock, OpenCreation,
@@ -29,6 +27,7 @@ use beui::{
     Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
 };
 use beui_host::native::testing::{Target, button_name};
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
 type Delivered = Box<dyn FnOnce(&mut HeadlessApp) -> Result<(), String>>;
@@ -86,6 +85,13 @@ const SCREEN: ScreenId = ScreenId(1);
 /// the host is kept for the `take_*` methods; `clear_calls` drops it. Calls such as
 /// `set_view` queue what be-host would send; setting the same state on the `EditorHost`
 /// directly skips the protocol and is overwritten by the session on the next frame.
+/// A revision preview an editor asked for (`BeuiTest::take_revision_previews`).
+pub struct AskedPreview {
+    pub block: [u8; 16],
+    pub commit: [u8; 32],
+    pub reply: Reply<Result<[u8; 16], be_sdk_api::Failure>>,
+}
+
 pub struct BeuiTest<A: BeuiRoot> {
     app: HeadlessApp,
     kind: Kind,
@@ -144,6 +150,12 @@ pub struct BeuiTest<A: BeuiRoot> {
     exited: bool,
     draft: Vec<u8>,
     requests: Vec<(Option<OpId>, Call)>,
+    /// Each revision preview the editor holds, by its op, with its block and commit.
+    revision_previews: BTreeMap<OpId, ([u8; 16], [u8; 32])>,
+    /// Each preview's `opened` the test has not answered yet.
+    preview_asks: Vec<(OpId, Reply<Result<[u8; 16], be_sdk_api::Failure>>)>,
+    /// The commits of the previews the editor dropped.
+    closed_previews: Vec<[u8; 32]>,
     signatures: crate::signatures::Signatures,
     fetches: crate::fetches::Fetches,
     wakes: Arc<Wakes>,
@@ -447,6 +459,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
             exited: false,
             draft: data,
             requests: Vec::new(),
+            revision_previews: BTreeMap::new(),
+            preview_asks: Vec::new(),
+            closed_previews: Vec::new(),
             signatures,
             fetches: crate::fetches::Fetches::default(),
             wakes,
@@ -495,9 +510,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let shown = self.view();
         let raster = self.raster.unwrap_or(self.scale_factor);
         let metrics = ViewportMetrics {
-            logical: be_sdk_api::Size {
-                width: self.size.x,
-                height: self.size.y,
+            logical: be_sdk_api::Vec2 {
+                x: self.size.x,
+                y: self.size.y,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: (self.size.x * raster).round() as u32,
@@ -974,9 +989,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn resize(&mut self, size: Vec2) {
-        let size = be_sdk_api::Size {
-            width: size.x,
-            height: size.y,
+        let size = be_sdk_api::Vec2 {
+            x: size.x,
+            y: size.y,
         };
         self.call(|editor, connection| {
             editor.hear(connection, vec![EditorEvent::Resized(size)]);
@@ -992,6 +1007,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
             self.link
                 .offer_history(block, &crate::link::history(history));
         }
+    }
+
+    /// The state of an artifact block the editor watches (`EditorHost::watch_artifacts`).
+    pub fn set_artifact(&mut self, block: Uuid, state: Option<be_sdk_api::ArtifactState>) {
+        self.link.offer_artifact(block, state);
+    }
+
+    /// Each block watch the editor holds open, by its op, with what it follows.
+    #[cfg(test)]
+    pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, crate::link::Subject)> {
+        self.link.watching()
     }
 
     pub fn set_version_status(&mut self, status: be_sdk_beui::VersionStatus) {
@@ -1433,6 +1459,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     self.link.ended(op, &self.store, &mut self.connection);
                     continue;
                 }
+                Incoming::Canceled { op } if self.revision_previews.contains_key(&op) => {
+                    if let Some((_, commit)) = self.revision_previews.remove(&op) {
+                        self.closed_previews.push(commit);
+                    }
+                    self.preview_asks.retain(|(preview, _)| *preview != op);
+                    self.connection
+                        .complete(op, Outcome::Err(OpError::Canceled));
+                    continue;
+                }
                 Incoming::Canceled { op } if self.fetches.holds(op) => {
                     self.fetches.ended(op, &mut self.connection);
                     continue;
@@ -1518,6 +1553,22 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             self.link.call(call, &self.store, connection, author);
                             continue;
                         }
+                        Some(embed::Call::HostServices(Call::RevisionPreviewNew {
+                            resource,
+                            block,
+                            commit,
+                        })) => {
+                            self.revision_previews
+                                .insert(resource.op(), (block, commit));
+                            continue;
+                        }
+                        Some(embed::Call::HostServices(Call::RevisionPreviewOpened {
+                            this,
+                            reply,
+                        })) => {
+                            self.preview_asks.push((this.op(), reply));
+                            continue;
+                        }
                         Some(embed::Call::HostServices(call)) => {
                             if let Some(call) = self.signatures.answer(call, connection, shown) {
                                 self.requests.push((Some(op), call));
@@ -1588,7 +1639,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     ShellMessage::LeaveFrame => self.exited = true,
                     ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
                     ShellMessage::IntrinsicSize(size) => {
-                        self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
+                        self.intrinsic = *size;
                     }
                     _ => {}
                 }
@@ -1627,22 +1678,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.extension_calls.clear();
     }
 
-    pub fn take_shell_commands(&mut self) -> Vec<(Uuid, be_sdk_api::ShellCommand)> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::Act(BlockAct { block, command }) => {
-                Some((Uuid::from_bytes(*block), *command))
-            }
-            _ => None,
-        })
-    }
-
-    /// The `format` data of each copy that offered it ready.
-    pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
+    /// The `format` item of each copy that offered it ready.
+    pub fn take_copied(&mut self, format: &str) -> Vec<be_sdk_api::ClipItem> {
         self.take_shell_messages(|call| match call {
             ShellMessage::Copy(ClipOffer { items, .. }) => items
                 .iter()
                 .find(|item| item.format == format)
-                .and_then(|item| item.data.clone()),
+                .and_then(|item| Some(be_sdk_api::ClipItem::of_body(format, item.body.clone()?))),
             _ => None,
         })
     }
@@ -1651,7 +1693,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_copied_text(&mut self) -> Vec<String> {
         self.take_copied(be_sdk_api::clipboard::formats::TEXT)
             .into_iter()
-            .map(|text| String::from_utf8_lossy(&text).into_owned())
+            .map(|text| String::from_utf8_lossy(&text.data).into_owned())
             .collect()
     }
 
@@ -1718,9 +1760,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 view,
                 child: placement.child,
                 available: true,
-                intrinsic: shown.then_some(be_sdk_api::Size {
-                    width: intrinsic.x,
-                    height: intrinsic.y,
+                intrinsic: shown.then_some(be_sdk_api::Vec2 {
+                    x: intrinsic.x,
+                    y: intrinsic.y,
                 }),
                 active: false,
                 interaction: be_sdk_beui::InteractionMode::Live,
@@ -1953,6 +1995,28 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .collect()
     }
 
+    /// Each revision preview the editor waits to see opened since the last call: its block, its
+    /// commit, and the reply that opens it (`answer` it with the preview's block id).
+    pub fn take_revision_previews(&mut self) -> Vec<AskedPreview> {
+        let previews = &self.revision_previews;
+        std::mem::take(&mut self.preview_asks)
+            .into_iter()
+            .filter_map(|(preview, reply)| {
+                let (block, commit) = *previews.get(&preview)?;
+                Some(AskedPreview {
+                    block,
+                    commit,
+                    reply,
+                })
+            })
+            .collect()
+    }
+
+    /// The commits of the revision previews the editor dropped since the last call.
+    pub fn take_closed_previews(&mut self) -> Vec<[u8; 32]> {
+        std::mem::take(&mut self.closed_previews)
+    }
+
     pub fn take_requests_where<T>(&mut self, pick: impl Fn(Call) -> Result<T, Call>) -> Vec<T> {
         let mut picked = Vec::new();
         for (op, call) in std::mem::take(&mut self.requests) {
@@ -1978,7 +2042,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_block_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::BlockCommand)> {
         self.take_sent_calls(|sent| match sent {
-            Sent::Command(block, command) => Some((*block, *command)),
+            Sent::Command(block, command) => Some((*block, command.clone())),
             _ => None,
         })
     }
@@ -1996,13 +2060,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             None => true,
         });
         taken
-    }
-
-    pub fn take_version_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::VersionCommand)> {
-        self.take_sent_calls(|sent| match sent {
-            Sent::Version(block, command) => Some((*block, command.clone())),
-            _ => None,
-        })
     }
 
     fn take_frames<T>(&mut self, pick: impl Fn(Uuid, FromEditor) -> Option<T>) -> Vec<T> {

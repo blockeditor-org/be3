@@ -223,6 +223,9 @@ pub struct Put {
     /// indexed for it from that same source, it comes back in
     /// `Written::needs_text`.
     pub text: Option<Text>,
+    /// Its text is all a device could read of it, not its type's (the block's name, where no
+    /// module for its type runs): a put of the same commit that is not partial replaces it.
+    pub partial: bool,
 }
 
 /// One batch of changes, which adds at most one segment.
@@ -235,6 +238,10 @@ pub struct Batch {
     pub removed_blocks: Vec<(Vec<u8>, Commit)>,
     /// The sequence of changes (`changed-since`) the index has now seen every change up to.
     pub watermark: Option<u64>,
+    /// When the writing device applies it, on its own clock (milliseconds): a block it removes
+    /// is remembered from then (`Index::forget_before`), whatever its commit's author's clock
+    /// said.
+    pub at: i64,
 }
 
 /// A document table entry: what the index holds for a document.
@@ -252,6 +259,9 @@ pub struct Entry {
     pub digest: Option<Hash>,
     /// None for a removed document.
     place: Option<Place>,
+    /// Its text came from a partial put (`Put::partial`): a full put at the same commit
+    /// replaces it, here and in a merge.
+    pub partial: bool,
 }
 
 impl Entry {
@@ -267,7 +277,17 @@ impl Entry {
             source: None,
             digest: None,
             place: None,
+            partial: false,
         }
+    }
+
+    /// Whether `change` replaces this entry: it is newer, or a full put of the commit this
+    /// entry holds partially.
+    fn replaced_by(&self, change: &Change) -> bool {
+        self.commit < change.commit()
+            || self.commit == change.commit()
+                && self.partial
+                && matches!(change, Change::Put(put) if !put.partial)
     }
 }
 
@@ -285,8 +305,8 @@ const BODY: u8 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Retired {
     id: Id,
-    /// The watermark when it was retired.
-    at: u64,
+    /// When it was retired, in milliseconds.
+    at: i64,
 }
 
 /// A block that left the tree, masking its documents at older commits,
@@ -295,7 +315,8 @@ struct Retired {
 struct RemovedBlock {
     block: Vec<u8>,
     commit: Commit,
-    at: u64,
+    /// When it was recorded: its removal's commit time, in milliseconds.
+    at: i64,
 }
 
 /// The header of an index: its segments, its document table's chunks and its
@@ -337,13 +358,18 @@ impl Index {
         self.segments.len()
     }
 
-    /// Forgets retired segments and removed blocks recorded before
-    /// `watermark`, once no index that predates them can still be merged in
-    /// (the index block's history retention says when).
-    pub fn forget_before(&mut self, watermark: u64) {
-        self.retired.retain(|retired| retired.at >= watermark);
-        self.removed_blocks
-            .retain(|removed| removed.at >= watermark);
+    /// How many retired segments and removed blocks the header remembers
+    /// (`forget_before` forgets them).
+    pub fn remembered(&self) -> usize {
+        self.retired.len() + self.removed_blocks.len()
+    }
+
+    /// Forgets retired segments and removed blocks recorded before `time`
+    /// (milliseconds), once no index that predates them can still be merged
+    /// in: the index block's history retention says when.
+    pub fn forget_before(&mut self, time: i64) {
+        self.retired.retain(|retired| retired.at >= time);
+        self.removed_blocks.retain(|removed| removed.at >= time);
     }
 
     /// Every part the header names, the header aside.
@@ -403,7 +429,7 @@ impl Index {
             self.removed_blocks.push(RemovedBlock {
                 block: block.clone(),
                 commit,
-                at: self.watermark,
+                at: commit.time.max(batch.at),
             });
             for entry in table.entries_of(parts, &block).await? {
                 if entry.commit < commit {
@@ -434,10 +460,7 @@ impl Index {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
-            if old
-                .as_ref()
-                .is_some_and(|old| old.commit >= change.commit())
-            {
+            if old.as_ref().is_some_and(|old| !old.replaced_by(&change)) {
                 continue;
             }
             let old_place = old.as_ref().and_then(|old| old.place);
@@ -451,6 +474,7 @@ impl Index {
                     text: Some(text),
                     commit,
                     source,
+                    partial,
                     ..
                 }) if old
                     .as_ref()
@@ -459,6 +483,7 @@ impl Index {
                     if let Some(mut entry) = old {
                         entry.commit = commit;
                         entry.source = source;
+                        entry.partial = partial;
                         table.put(entry);
                     }
                 }
@@ -466,10 +491,11 @@ impl Index {
                     text: Some(text),
                     commit,
                     source,
+                    partial,
                     ..
                 }) => {
                     masks.extend(old_place);
-                    fresh.push((doc, commit, source, text));
+                    fresh.push((doc, commit, source, text, partial));
                 }
                 Change::Put(Put {
                     text: None,
@@ -494,9 +520,9 @@ impl Index {
                 origin,
                 fresh
                     .iter()
-                    .map(|(doc, commit, _, text)| (doc, *commit, text)),
+                    .map(|(doc, commit, _, text, _)| (doc, *commit, text)),
             );
-            for ((doc, commit, source, text), local) in fresh.into_iter().zip(places) {
+            for ((doc, commit, source, text, partial), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
                     doc,
                     commit,
@@ -507,6 +533,7 @@ impl Index {
                         segment: origin,
                         local,
                     }),
+                    partial,
                 });
             }
             written.added.extend(segment_parts);
@@ -567,8 +594,12 @@ impl Change {
         }
     }
 
+    /// Keeps the newer change, and of two at one commit a full put over a partial one.
     fn newest(&mut self, other: Change) {
-        if other.commit() > self.commit() {
+        let partial = |change: &Change| matches!(change, Change::Put(put) if put.partial);
+        if other.commit() > self.commit()
+            || other.commit() == self.commit() && partial(self) && !partial(&other)
+        {
             *self = other;
         }
     }
