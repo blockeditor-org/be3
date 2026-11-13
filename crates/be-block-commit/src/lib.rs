@@ -54,11 +54,14 @@ pub fn commit_time(local: i64, server_now: Option<i64>, parent: Option<i64>) -> 
 
 /// The latest commit time a device believes (`be_lib_search::Commit::believed`): the later of
 /// its own clock and the server's estimated clock, plus `MAX_COMMIT_AHEAD`, so a device whose
-/// clock runs slow still believes what others stamped honestly.
+/// clock runs slow still believes what others stamped honestly. The server's counts no more
+/// than `MAX_CLOCK_PULLBACK` past its own, as a measurement is trusted no further back.
 pub fn latest_believed(local: i64, server_now: Option<i64>) -> i64 {
-    local
-        .max(server_now.unwrap_or(local))
-        .saturating_add(MAX_COMMIT_AHEAD)
+    // A server whose clock reads far ahead would otherwise switch the bound off.
+    let server = server_now
+        .unwrap_or(local)
+        .min(local.saturating_add(MAX_CLOCK_PULLBACK));
+    local.max(server).saturating_add(MAX_COMMIT_AHEAD)
 }
 
 /// Whether `now_milliseconds` is pinned (`pin_now`): the test's clock, which an embedded

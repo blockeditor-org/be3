@@ -424,6 +424,23 @@ impl Versions {
         Ok(tree)
     }
 
+    /// The newest of `parents`, by time, which a commit made on them is never stamped before
+    /// (`Peer::commit_time`).
+    async fn newest_of(
+        &mut self,
+        peer: &Peer<Store>,
+        parents: &[CommitId],
+    ) -> Result<Option<Commit>, Failure> {
+        let mut newest: Option<Commit> = None;
+        for parent in parents {
+            let commit = self.commit_of(peer, *parent).await?;
+            if newest.as_ref().is_none_or(|held| held.time < commit.time) {
+                newest = Some(commit);
+            }
+        }
+        Ok(newest)
+    }
+
     async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, Failure> {
         if let Some(found) = self.commits.get(&commit) {
             return Ok(found.clone());
@@ -577,6 +594,7 @@ impl Versions {
         let key = context.peer.sealing_key(repository).await.map_err(failed)?;
         let vault = context.peer.commits().vault();
         let manifest = tree.write(vault, key).map_err(stored)?;
+        let newest = self.newest_of(context.peer, &parents).await?;
         let commit = be_block_vcs::snapshot(
             context.peer.commits(),
             key,
@@ -584,7 +602,7 @@ impl Versions {
             parents,
             change,
             context.peer.account(),
-            context.peer.commit_time(None),
+            context.peer.commit_time(newest.as_ref()),
             description,
         )
         .map_err(stored)?;
@@ -759,10 +777,13 @@ impl Versions {
         if unchanged {
             return Err("Nothing has changed yet.".into());
         }
+        let newest = self
+            .newest_of(context.peer, &current.commit.parents)
+            .await?;
         let finished = Commit::new(
             current.commit.manifest.clone(),
             context.peer.account(),
-            context.peer.commit_time(None),
+            context.peer.commit_time(newest.as_ref()),
         )
         .with_parents(current.commit.parents.clone())
         .with_change(current.change())

@@ -414,9 +414,14 @@ impl Index {
         table.entries_of(parts, block).await
     }
 
-    /// The newest commit a block was removed from the index at, if it was, as believed.
+    /// The commit a block was last removed from the index at, if it was: the newest as believed
+    /// (`Commit::believed`), with its time as stored.
     pub fn removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
-        self.block_removed_at(block, latest)
+        self.removed_blocks
+            .iter()
+            .filter(|removed| removed.block == block)
+            .map(|removed| removed.commit)
+            .max_by_key(|commit| commit.believed(latest))
     }
 
     fn block_removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {

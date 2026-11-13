@@ -2055,15 +2055,14 @@ async fn outdate_ancestors<S: ObjectStore>(
         // A block that left and came back is put at a commit the index masked: it is stamped
         // after the removal, which is only an order.
         if let Some(removal) = content.index().removed_at(&doc.block, latest)
-            && removal >= commit.believed(latest)
+            && removal.believed(latest) >= commit.believed(latest)
         {
             commit.time = removal.time.saturating_add(1);
         }
         let Some(old) = entries[&doc.block].get(&doc.key) else {
             continue;
         };
-        let old_commit = old.commit.believed(latest);
-        if old_commit < commit.believed(latest) || old_commit.id == commit.id {
+        if old.commit.believed(latest) < commit.believed(latest) || old.commit.id == commit.id {
             continue;
         }
         let (old_id, new_id) = (
@@ -2076,7 +2075,7 @@ async fn outdate_ancestors<S: ObjectStore>(
             .await
             .map_err(|error| error.to_string())?
         {
-            commit.time = old_commit.time.saturating_add(1);
+            commit.time = old.commit.time.saturating_add(1);
         }
     }
     Ok(())
