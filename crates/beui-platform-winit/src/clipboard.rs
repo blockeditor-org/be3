@@ -263,6 +263,7 @@ fn beside(items: &[ClipItem], text: bool) -> Beside<'_> {
 /// run it on: only its compiling is checked.
 #[cfg(target_os = "macos")]
 #[allow(unused_unsafe)]
+// unsafe(ffi)
 mod macos {
     use beui_types::ClipItem;
     use objc2::rc::Retained;
