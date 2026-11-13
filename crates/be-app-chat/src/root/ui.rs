@@ -14,8 +14,8 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    BlockFilter, BlockLink, BlockParent, BlockQuery, ChildTarget, ContentProjection, Editor,
-    EditorHost, KeptEdit, LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
+    BlockFilter, BlockLink, BlockQuery, ChildTarget, ContentProjection, Editor,
+    KeptEdit, LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
 };
 use be_type_chat::{
     ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey, ReadPlace,
@@ -255,7 +255,7 @@ fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String)
     let readable = create_memo(move || target.get().is_some());
     let hidden = create_memo(move || !readable.get());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center @test_id={link_id}>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs @test_id={link_id}>
             <Show condition={readable}>
                 <BlockLink editor block={target} />
             </Show>

@@ -1,4 +1,3 @@
-use be_sdk_beui::be_block::BlockContent;
 use be_sdk_beui::be_block::be_block_model::BlockRef;
 use be_sdk_test::HostCall;
 
