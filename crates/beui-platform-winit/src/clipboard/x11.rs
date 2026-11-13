@@ -397,7 +397,10 @@ impl Server {
     /// pieces, or nothing.
     fn read_answered(&self, target: Atom, property: Atom) {
         let mut reading = lock(&self.reading);
-        if reading.as_ref().is_none_or(|reading| reading.target != target) {
+        if reading
+            .as_ref()
+            .is_none_or(|reading| reading.target != target)
+        {
             return;
         }
         let taken = (property != NONE).then(|| self.take_paste()).flatten();
@@ -418,7 +421,10 @@ impl Server {
     /// A piece of a transfer to a paste arrived; an empty one ends it.
     fn read_piece(&self) {
         let mut reading = lock(&self.reading);
-        if reading.as_ref().is_none_or(|reading| reading.data.is_none()) {
+        if reading
+            .as_ref()
+            .is_none_or(|reading| reading.data.is_none())
+        {
             return;
         }
         let Some((_, piece)) = self.take_paste() else {

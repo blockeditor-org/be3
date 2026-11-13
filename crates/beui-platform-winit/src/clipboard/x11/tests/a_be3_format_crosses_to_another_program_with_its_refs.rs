@@ -21,7 +21,15 @@ fn a_be3_format_crosses_to_another_program_with_its_refs() {
         targets.iter().any(|target| target == formats::BLOCKS),
         "be3/blocks in {targets:?}"
     );
-    assert_eq!(pasting.read(formats::BLOCKS), Some(blocks), "the item keeps its refs");
+    assert_eq!(
+        pasting.read(formats::BLOCKS),
+        Some(blocks),
+        "the item keeps its refs"
+    );
     assert_eq!(pasting.read(formats::CANVAS_ITEMS), Some(large));
-    assert_eq!(pasting.read(formats::FILES), None, "a format not offered is not read");
+    assert_eq!(
+        pasting.read(formats::FILES),
+        None,
+        "a format not offered is not read"
+    );
 }
