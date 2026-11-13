@@ -15,6 +15,11 @@ or that is forged.
 - **A recent message can be dropped unnoticed.** Removing a message from the
   recent series leaves no record a signature covers; only the `seen` hashes of
   its author's later messages show the gap (below).
+- **A chain restarts after a forged overwrite.** An author's next edit or
+  reaction names only their own latest record as `previous`, so once a record
+  of theirs is overwritten by someone else's (which shows as forged), their
+  records from before it are never superseded and can be put back later
+  without showing as forged.
 - **A replaced key still verifies what it signed.** After a contact takes a new
   recovery phrase, its old key shows as changed, not forged, since its earlier
   messages are real; someone holding the old phrase can sign with it, and
