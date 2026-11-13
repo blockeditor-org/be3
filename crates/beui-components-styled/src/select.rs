@@ -8,7 +8,7 @@ use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::field_border;
-use crate::tokens::{Length, Padding, Size, Space, Stroke, use_size, use_space};
+use crate::tokens::{Length, Padding, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     AnchoredStyle, ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -56,8 +56,8 @@ pub fn Select(
             }}
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
-            list_height={use_size(OPTIONS_MAX_HEIGHT).get_untracked()}
-            spacing={use_space(POPUP_PADDING).get_untracked()}
+            list_height={OPTIONS_MAX_HEIGHT.px()}
+            spacing={POPUP_PADDING.px()}
             trigger={move |handle| view! {
                 <SelectTrigger handle placeholder={placeholder} width={width} />
             }}

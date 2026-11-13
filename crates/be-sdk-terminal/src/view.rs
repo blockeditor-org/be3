@@ -119,13 +119,13 @@ pub fn TerminalView(
         false => Vec::new(),
     });
     let spill = Rc::new(Cell::new(0.0_f32));
-    let padding = use_space(PADDING);
+    let padding = PADDING.px();
     let size_held = create_signal(Vec2::ZERO);
     let size = size_held.read_only();
     let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
     create_effect(move || {
         let size = size.get();
-        let inset = 2.0 * padding.get();
+        let inset = 2.0 * padding;
         let Some(cell) = cell() else {
             return;
         };

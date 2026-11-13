@@ -1613,16 +1613,16 @@ async fn drain_outbox(
                 .collect();
             published.extend(refused.iter().map(|block| (*block, true)));
             for outcome in drained {
-                // The graph follows what the drain published, as it does a replica's publish, and
-                // asks again for listings a creation or move it sent changes: one answered while
-                // it was on its way is from before it.
+                // The graph follows what the drain published of a block no replica holds
+                // (`Graph::drained_head`), and asks again for listings a creation or move it
+                // sent changes: one answered while it was on its way is from before it.
                 match &outcome {
                     be_block_client::Drained::Published { block, head } => {
                         shared
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .graph
-                            .set_head(*block, Some(*head));
+                            .drained_head(*block, *head);
                     }
                     be_block_client::Drained::Created { block } => {
                         let parent = peer
