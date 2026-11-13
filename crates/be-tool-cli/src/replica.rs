@@ -102,8 +102,6 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
 
     fn described(_: &Arc<Mutex<Self>>, _: Uuid, _: Vec<Uuid>, _: Description) {}
 
-    fn history(_: &Arc<Mutex<Self>>, _: Uuid, _: be_sdk_type_api::UndoState) {}
-
     fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
     fn counted(_: &Arc<Mutex<Self>>, _: usize, _: usize, _: usize) {}
