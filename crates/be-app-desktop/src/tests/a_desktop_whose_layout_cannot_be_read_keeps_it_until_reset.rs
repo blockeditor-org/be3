@@ -1,4 +1,4 @@
-use be_sdk_beui::ShellCommand;
+use be_sdk_beui::BlockCommand;
 use be_sdk_beui::be_block::ViewState;
 
 use super::*;
@@ -47,13 +47,13 @@ fn a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset() {
         .test
         .snapshot("a_desktop_whose_layout_cannot_be_read_keeps_it_until_reset");
 
-    second.test.take_shell_commands();
+    second.test.take_block_commands();
     second.test.click("workspace.layout.exit");
     second.settle();
     let desktop = second.test.block_id().expect("the desktop is a block");
     assert_eq!(
-        second.test.take_shell_commands(),
-        vec![(desktop, ShellCommand::CloseEditor)],
+        second.test.take_block_commands(),
+        vec![(desktop, BlockCommand::CloseEditor)],
         "exiting asks the host to end the desktop session"
     );
     assert_eq!(

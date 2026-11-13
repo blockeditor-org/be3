@@ -26,12 +26,12 @@ fn another_branch_is_combined_into_this_one() {
     editor.run();
 
     assert_eq!(
-        editor.take_version_commands(),
+        editor.take_block_commands(),
         vec![(
             own(&editor),
-            VersionCommand::Merge {
+            BlockCommand::Version(VersionCommand::Merge {
                 branch: "draft".into()
-            }
+            })
         )]
     );
     assert!(!editor.shown("checkout.merge.main"));

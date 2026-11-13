@@ -150,7 +150,15 @@ impl Share {
                 grants.extend(self.pending.drain(..).map(|person| (person.id, access)));
                 self.query.clear();
             }
-            ShareAction::SetAccess(account, access) => grants.push((account, access)),
+            ShareAction::SetAccess(account, access) => {
+                if self
+                    .grants
+                    .iter()
+                    .any(|grant| grant.account == account.into_bytes())
+                {
+                    grants.push((account, access));
+                }
+            }
             ShareAction::Refresh => reload = true,
             ShareAction::InviteNew => {}
         }

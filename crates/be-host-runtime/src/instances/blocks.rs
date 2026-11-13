@@ -1,5 +1,5 @@
 use be_sdk_api::{
-    BlockIdRole, BlockQuery, VersionCommand,
+    BlockCommand, BlockIdRole, BlockQuery, VersionCommand,
     blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest, ShowRequest},
     embed::blocks::Call,
     ops::{OpError, OpId, Outcome, Reply, Serialize, encode},
@@ -30,6 +30,20 @@ impl From<BlockSubject> for Subject {
             BlockSubject::Artifact(block) => Self::Artifact(Uuid::from_bytes(block)),
             BlockSubject::Version => Self::Version,
         }
+    }
+}
+
+impl Subject {
+    /// Whether `value` is of this subject's variant.
+    fn answered_by(self, value: &BlockValue) -> bool {
+        matches!(
+            (self, value),
+            (Self::Blocks(_), BlockValue::Blocks(_))
+                | (Self::History(_), BlockValue::History(_))
+                | (Self::Head(_), BlockValue::Head(_))
+                | (Self::Artifact(_), BlockValue::Artifact(_))
+                | (Self::Version, BlockValue::Version(_))
+        )
     }
 }
 
@@ -67,7 +81,19 @@ impl Instance {
         self.watches.values().map(|watch| watch.watched)
     }
 
-    pub(super) fn offer(&mut self, watched: Subject, value: &impl Serialize) {
+    /// Offers the block watches of `watched` its latest value, a `BlockValue` of the
+    /// variant of the same name.
+    pub(super) fn offer(&mut self, watched: Subject, value: &BlockValue) {
+        debug_assert!(watched.answered_by(value), "{watched:?} offered {value:?}");
+        self.offer_encoded(watched, value);
+    }
+
+    /// Offers the search watch `op` its latest results.
+    pub(super) fn offer_search(&mut self, op: OpId, results: &be_sdk_api::SearchResults) {
+        self.offer_encoded(Subject::Search(op), results);
+    }
+
+    fn offer_encoded(&mut self, watched: Subject, value: &impl Serialize) {
         for watch in self.watches.values_mut() {
             if watch.watched == watched {
                 watch.offer(value);
@@ -174,41 +200,7 @@ impl Instances {
                 reply,
                 block,
                 command,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return self.acknowledge(reply, None);
-                };
-                let _ = entry;
-                let id = Uuid::from_bytes(block);
-                crate::events::emit(
-                    &self.app_id,
-                    instance,
-                    InstanceEvent::Action(EditorAction::Command { id, command }),
-                );
-                self.acknowledge(reply, Some(true))
-            }
-            Call::Version {
-                reply,
-                block,
-                command,
-            } => {
-                let block = Uuid::from_bytes(block);
-                let own = self
-                    .entries
-                    .get(&instance)
-                    .and_then(|entry| entry.role.block())
-                    .is_some_and(|own| own.id == block);
-                if !own || !self.editable(block) {
-                    return self.acknowledge(reply, None);
-                }
-                if let VersionCommand::Adopt { block_id } = &command
-                    && !self.editable(Uuid::from_bytes(*block_id))
-                {
-                    return self.acknowledge(reply, None);
-                }
-                be_host_stack::version(block, command);
-                self.acknowledge(reply, Some(true))
-            }
+            } => self.act(instance, reply, Uuid::from_bytes(block), command),
             Call::WriteContent {
                 reply,
                 block,
@@ -272,40 +264,6 @@ impl Instances {
                 );
                 self.acknowledge(reply, Some(true))
             }
-            Call::SetParent {
-                reply,
-                block,
-                parent,
-            } => {
-                let block = Uuid::from_bytes(block);
-                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
-                    return self.acknowledge(reply, None);
-                };
-                if !self.editable(block)
-                    || parent.block().is_some_and(|parent| !self.editable(parent))
-                {
-                    return self.acknowledge(reply, None);
-                }
-                be_host_stack::set_parent(block, parent);
-                self.acknowledge(reply, Some(true))
-            }
-            Call::Define {
-                reply,
-                block,
-                key,
-                value,
-            } => {
-                let block = Uuid::from_bytes(block);
-                let key = Uuid::from_bytes(key);
-                if !self.editable(block)
-                    || key == be_block::LOCAL_ID.id
-                    || key == be_block::CREATED_BY.id
-                {
-                    return self.acknowledge(reply, None);
-                }
-                be_host_stack::define(block, vec![(key, value)]);
-                self.acknowledge(reply, Some(true))
-            }
             Call::ReplicaNew {
                 resource,
                 block,
@@ -361,6 +319,71 @@ impl Instances {
                     .answers
                     .push(call.refuse(OpError::Unsupported));
                 false
+            }
+        }
+    }
+
+    /// One `blocks.act`. Permission checks are a match on the command: version control, a
+    /// parent and metadata are checked and done here; the rest go to be-host, which checks
+    /// what it does.
+    fn act(
+        &mut self,
+        instance: EditorInstanceId,
+        reply: Reply<()>,
+        block: Uuid,
+        command: BlockCommand,
+    ) -> bool {
+        match command {
+            BlockCommand::Version(command) => {
+                let own = self
+                    .entries
+                    .get(&instance)
+                    .and_then(|entry| entry.role.block())
+                    .is_some_and(|own| own.id == block);
+                if !own || !self.editable(block) {
+                    return self.acknowledge(reply, None);
+                }
+                if let VersionCommand::Adopt { block_id } = &command
+                    && !self.editable(Uuid::from_bytes(*block_id))
+                {
+                    return self.acknowledge(reply, None);
+                }
+                be_host_stack::version(block, command);
+                self.acknowledge(reply, Some(true))
+            }
+            BlockCommand::SetParent(parent) => {
+                let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
+                    return self.acknowledge(reply, None);
+                };
+                if !self.editable(block)
+                    || parent.block().is_some_and(|parent| !self.editable(parent))
+                {
+                    return self.acknowledge(reply, None);
+                }
+                be_host_stack::set_parent(block, parent);
+                self.acknowledge(reply, Some(true))
+            }
+            BlockCommand::Define { key, value } => {
+                let key = Uuid::from_bytes(key);
+                if !self.editable(block)
+                    || key == be_block::LOCAL_ID.id
+                    || key == be_block::CREATED_BY.id
+                {
+                    return self.acknowledge(reply, None);
+                }
+                be_host_stack::define(block, vec![(key, value)]);
+                self.acknowledge(reply, Some(true))
+            }
+            command => {
+                if !self.entries.contains_key(&instance) {
+                    return self.acknowledge(reply, None);
+                }
+                crate::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::Command { id: block, command }),
+                );
+                self.acknowledge(reply, Some(true))
             }
         }
     }
