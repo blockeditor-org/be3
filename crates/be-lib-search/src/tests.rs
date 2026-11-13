@@ -122,7 +122,7 @@ pub(crate) fn put(n: u32, version: u32, time: i64) -> Put {
 }
 
 pub(crate) fn apply(index: &mut Index, store: &mut Store, origin: Id, batch: Batch) {
-    let written = run(index.apply(store, origin, batch)).unwrap();
+    let written = run(index.apply(store, origin, batch, i64::MAX)).unwrap();
     store.keep(&written);
 }
 
@@ -141,7 +141,7 @@ pub(crate) fn from_scratch(documents: &BTreeMap<u32, (u32, i64)>, store: &mut St
 }
 
 pub(crate) fn found(index: &Index, store: &Store, query: &str) -> BTreeSet<DocId> {
-    run(index.search(store, &Query::parse(query), 10_000))
+    run(index.search(store, &Query::parse(query), 10_000, i64::MAX))
         .unwrap()
         .into_iter()
         .map(|hit| hit.doc)
@@ -180,7 +180,7 @@ pub(crate) fn same_answers(a: (&Index, &Store), b: (&Index, &Store), count: u32)
 
 /// Hits in order with their scores.
 pub(crate) fn ranked(index: &Index, store: &Store, query: &str, limit: usize) -> Vec<(DocId, f64)> {
-    run(index.search(store, &Query::parse(query), limit))
+    run(index.search(store, &Query::parse(query), limit, i64::MAX))
         .unwrap()
         .into_iter()
         .map(|hit| (hit.doc, hit.score))

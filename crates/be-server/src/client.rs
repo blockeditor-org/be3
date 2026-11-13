@@ -2541,6 +2541,7 @@ impl Connection {
             escrows,
             pinned,
             server: self.store.server_account(),
+            time: be_block_commit::now_milliseconds(),
         })
     }
 

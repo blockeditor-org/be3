@@ -29,9 +29,14 @@ More types answering `search-text` are in plans/search_library.md.
   stale or missing until the block next changes. Answers are filtered by the mirror, so
   only snippets and ranking use the stale text.
 - **A forged index.** Any editor of a root is enough to write forged entries into its
-  index. The server bounds a commit of an index (`MAX_INDEX_BYTES`) and refuses a
-  commit time more than `MAX_COMMIT_AHEAD` past its clock, so what is left is the
-  content itself, which only the root's editors can forge.
+  index, or a commit whose own time (which the server cannot read) is far in the
+  future. Closed: the server bounds a commit of an index (`MAX_INDEX_BYTES`), and a
+  device does not believe a commit time past its clock plus `MAX_COMMIT_AHEAD`,
+  whether it indexes it or reads it from an index (`Commit::believed`: it counts as
+  the oldest, so the next honest put replaces it and it ranks last among equal
+  scores). Left: the content itself, which only the root's editors can forge, and a
+  forged time within the hour, which wins ties for that long. A merge of two index
+  heads has no clock, so it keeps a forged time until the next apply.
 - **The writer only.** The device whose session seals a commit indexes it
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.

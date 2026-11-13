@@ -284,6 +284,9 @@ pub struct Peer<S: ObjectStore> {
     /// Commits whose objects the store holds every one of (`holds`). The store never drops an
     /// object, so a commit found whole stays whole.
     whole: Mutex<HashSet<CommitId>>,
+    /// The server's clock less this device's, measured when the session opened, which commits
+    /// are stamped by (`commit_time`).
+    server_offset: Mutex<Option<i64>>,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -380,6 +383,7 @@ impl<S: ObjectStore> Peer<S> {
             tried: Mutex::new(HashSet::new()),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
+            server_offset: Mutex::new(None),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -399,6 +403,12 @@ impl<S: ObjectStore> Peer<S> {
         self.open_session().await
     }
 
+    /// The time a commit made now is stamped with: this device's clock, held to the server's
+    /// plus a little once a session measured it (`be_block_commit::commit_time`).
+    pub fn commit_time(&self) -> i64 {
+        be_block_commit::commit_time(now_milliseconds(), *self.server_offset.lock().unwrap())
+    }
+
     pub fn detach(&self) {
         *self.connection.lock().unwrap() = Connection::offline();
     }
@@ -416,8 +426,10 @@ impl<S: ObjectStore> Peer<S> {
             escrows,
             pinned,
             server,
+            time,
             ..
         } = client::organizations::open_organization(&connection, organization).await??;
+        *self.server_offset.lock().unwrap() = Some(time.saturating_sub(now_milliseconds()));
         *self.session.lock().unwrap() = (role, kind);
         self.keys
             .set_server(server.account, RecoveryPublic(server.public));
@@ -1575,7 +1587,7 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn stash(&self, block: Uuid, mut write: Write<'_>) -> Result<CommitId, ClientError> {
         let (manifest, _, metadata) = self.prepare_write(block, &mut write).await?;
         let key = self.sealing_key(block).await?;
-        let commit = Commit::new(manifest, self.account, now_milliseconds())
+        let commit = Commit::new(manifest, self.account, self.commit_time())
             .with_parent(write.expected)
             .with_references(write.references)
             .with_metadata(metadata.encode());
@@ -1602,7 +1614,7 @@ impl<S: ObjectStore> Peer<S> {
             Some(head) => Some(self.load_commit(head).await?),
             None => None,
         };
-        let time = now_milliseconds();
+        let time = self.commit_time();
         let encoded = metadata.encode();
         if extra_parents.is_empty()
             && bookmark.is_none()

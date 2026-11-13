@@ -144,6 +144,9 @@ pub struct ServerConfig {
     pub account_quota: Option<u64>,
     /// How long an upload no block holds is kept before it is collected.
     pub upload_grace: Duration,
+    /// The bytes one commit of a search index may hold (`limits::MAX_INDEX_BYTES` unless a test
+    /// sets a smaller one).
+    pub max_index_bytes: u64,
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
     /// only this host, where the reverse proxy runs.
     pub trusted_proxies: Cow<'static, [IpAddr]>,
@@ -175,6 +178,7 @@ impl ServerConfig {
         portal: None,
         account_quota: Some(store::DEFAULT_ACCOUNT_QUOTA),
         upload_grace: store::DEFAULT_UPLOAD_GRACE,
+        max_index_bytes: limits::MAX_INDEX_BYTES,
         trusted_proxies: Cow::Borrowed(&[
             IpAddr::V4(Ipv4Addr::LOCALHOST),
             IpAddr::V6(Ipv6Addr::LOCALHOST),
@@ -345,6 +349,7 @@ pub async fn serve_with_mail(
         store::StorageLimits {
             account_quota: config.account_quota,
             upload_grace: config.upload_grace,
+            max_index_bytes: config.max_index_bytes,
         },
         config.bucket.as_ref(),
     )?);

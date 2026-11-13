@@ -447,7 +447,11 @@ hold at most `MAX_INDEX_BYTES` (refused as `OverQuota`), since any editor of its
 root writes what every viewer's search reads, and no commit's time may be more
 than `MAX_COMMIT_AHEAD` (an hour) past the server's clock (refused as
 `InvalidRequest`), since a far-future time wins every comparison by commit time
-and escapes history's thinning by age. A relay is shared by every
+and escapes history's thinning by age. `open-organization` answers the server's
+clock, and a peer stamps its commits no later than that plus
+`COMMIT_CLOCK_SLACK` (`Peer::commit_time`), so a device whose clock runs fast is
+not refused. The index cap sums the base commit's objects in one query and adds
+and removes only what the publish changes. A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one client that has left the
 session (or never joined) is dropped without an error: it is best-effort, and the
 sender cannot know the other left.

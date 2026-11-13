@@ -567,7 +567,7 @@ impl Versions {
             parents,
             change,
             context.peer.account(),
-            now_milliseconds(),
+            context.peer.commit_time(),
             description,
         )
         .map_err(stored)?;
@@ -607,7 +607,7 @@ impl Versions {
         parent: CommitId,
     ) -> Result<CommitId, String> {
         let manifest = self.commit_of(context.peer, parent).await?.manifest;
-        let commit = Commit::new(manifest, context.peer.account(), now_milliseconds())
+        let commit = Commit::new(manifest, context.peer.account(), context.peer.commit_time())
             .with_parents(vec![parent])
             .with_change(ChangeId::new())
             .with_kind(CommitKind::Snapshot(String::new()));
@@ -744,7 +744,7 @@ impl Versions {
         let finished = Commit::new(
             current.commit.manifest.clone(),
             context.peer.account(),
-            now_milliseconds(),
+            context.peer.commit_time(),
         )
         .with_parents(current.commit.parents.clone())
         .with_change(current.change())

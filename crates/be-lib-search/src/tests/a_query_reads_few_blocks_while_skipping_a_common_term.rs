@@ -29,7 +29,7 @@ fn a_query_reads_few_blocks_while_skipping_a_common_term() {
         },
     );
     store.reads.borrow_mut().clear();
-    let hits = run(index.search(&store, &Query::parse("common rare "), 10)).unwrap();
+    let hits = run(index.search(&store, &Query::parse("common rare "), 10, i64::MAX)).unwrap();
     assert_eq!(
         hits.iter().map(|hit| hit.doc.clone()).collect::<Vec<_>>(),
         [doc(777)]
@@ -44,7 +44,7 @@ fn a_query_reads_few_blocks_while_skipping_a_common_term() {
 
     // Alone, a common term's top ten skip most of its list by block bounds.
     store.reads.borrow_mut().clear();
-    let hits = run(index.search(&store, &Query::parse("common "), 10)).unwrap();
+    let hits = run(index.search(&store, &Query::parse("common "), 10, i64::MAX)).unwrap();
     assert_eq!(hits.len(), 10);
     let postings = store.count(|kind| *kind == PartKind::Postings);
     assert!(postings <= 4, "{postings} postings reads");

@@ -20,7 +20,7 @@ fn finds_each_document_by_a_word_a_prefix_and_a_phrase() {
     }
     assert_eq!(index.segment_count(), 5);
     for n in 0..300 {
-        let word = run(index.search(&store, &Query::parse(&format!("uniq{n}v0x ")), 10)).unwrap();
+        let word = run(index.search(&store, &Query::parse(&format!("uniq{n}v0x ")), 10, i64::MAX)).unwrap();
         assert_eq!(
             word.iter().map(|hit| hit.doc.clone()).collect::<Vec<_>>(),
             [doc(n)]

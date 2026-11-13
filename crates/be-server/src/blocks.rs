@@ -41,7 +41,7 @@ const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
-    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_INDEX_BYTES, MAX_METADATA_BYTES},
+    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_METADATA_BYTES},
     store::{
         Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
         usage::{forget_objects, payer_for_new, persist_sizes},
@@ -754,11 +754,39 @@ impl ServerStore {
                     .get(block)
                     .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
                 {
-                    let bytes = store.stored_bytes(database, &held)?;
-                    if bytes > MAX_INDEX_BYTES {
+                    // The base's total in one query, then only what the change moves.
+                    let base_set: BTreeSet<Hash> = base.iter().copied().collect();
+                    let added: Vec<Hash> = std::iter::once(commit.hash())
+                        .chain(change.added.iter().copied())
+                        .filter(|hash| !base_set.contains(hash))
+                        .collect();
+                    let removed: Vec<Hash> = expected
+                        .map(CommitId::hash)
+                        .into_iter()
+                        .chain(
+                            change
+                                .removed
+                                .iter()
+                                .copied()
+                                .filter(|hash| base_set.contains(hash)),
+                        )
+                        .collect();
+                    let base_bytes = match expected {
+                        Some(expected) => store.commit_bytes(
+                            database,
+                            identity.organization,
+                            block,
+                            expected,
+                        )?,
+                        None => 0,
+                    };
+                    let bytes = base_bytes
+                        .saturating_add(store.stored_bytes(database, &added)?)
+                        .saturating_sub(store.stored_bytes(database, &removed)?);
+                    if bytes > store.max_index_bytes() {
                         return Err(crate::limits::too_many(
                             "a search index's bytes",
-                            MAX_INDEX_BYTES,
+                            store.max_index_bytes(),
                         ));
                     }
                 }

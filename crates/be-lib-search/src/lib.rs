@@ -88,6 +88,22 @@ pub struct Commit {
     pub id: Hash,
 }
 
+impl Commit {
+    /// This commit as a reader whose clock allows times up to `latest` takes it: a time past
+    /// that is not believed, and counts as the oldest. Any editor of a root may write its index
+    /// and its blocks' commits, so a forged far-future time would otherwise win every
+    /// comparison, and its document could never be updated again.
+    pub fn believed(self, latest: i64) -> Self {
+        match self.time > latest {
+            true => Self {
+                time: i64::MIN,
+                ..self
+            },
+            false => self,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PartKind {
     Dictionary,
@@ -352,32 +368,35 @@ impl Index {
     }
 
     /// The newest commit a block was removed from the index at, if it was.
-    pub fn removed_at(&self, block: &[u8]) -> Option<Commit> {
-        self.block_removed_at(block)
+    pub fn removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
+        self.block_removed_at(block, latest)
     }
 
-    fn block_removed_at(&self, block: &[u8]) -> Option<Commit> {
+    fn block_removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
         self.removed_blocks
             .iter()
             .filter(|removed| removed.block == block)
-            .map(|removed| removed.commit)
+            .map(|removed| removed.commit.believed(latest))
             .max()
     }
 
     /// Applies a batch: a new segment for the documents with new text, the
     /// table chunks they change and the deletion bitmaps of what they mask.
+    /// Commit times past `latest` are not believed (`Commit::believed`).
     pub async fn apply(
         &mut self,
         parts: &impl Parts,
         origin: Id,
         batch: Batch,
+        latest: i64,
     ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut masks: Vec<Place> = Vec::new();
         for (block, commit) in batch.removed_blocks {
+            let commit = commit.believed(latest);
             if self
-                .block_removed_at(&block)
+                .block_removed_at(&block, latest)
                 .is_some_and(|known| known >= commit)
             {
                 continue;
@@ -389,29 +408,31 @@ impl Index {
                 at: self.watermark,
             });
             for entry in table.entries_of(parts, &block).await? {
-                if entry.commit < commit {
+                if entry.commit.believed(latest) < commit {
                     masks.extend(entry.place);
                     table.put(Entry::tombstone(entry.doc, commit));
                 }
             }
         }
-        let mut latest: BTreeMap<DocId, Change> = BTreeMap::new();
-        for item in batch.put {
-            latest
+        let mut newest: BTreeMap<DocId, Change> = BTreeMap::new();
+        for mut item in batch.put {
+            item.commit = item.commit.believed(latest);
+            newest
                 .entry(item.doc.clone())
                 .or_insert(Change::Put(item.clone()))
                 .newest(Change::Put(item));
         }
         for (doc, commit) in batch.removed {
-            latest
+            let commit = commit.believed(latest);
+            newest
                 .entry(doc.clone())
                 .or_insert(Change::Remove(commit))
                 .newest(Change::Remove(commit));
         }
         let mut fresh = Vec::new();
-        for (doc, change) in latest {
+        for (doc, change) in newest {
             if self
-                .block_removed_at(&doc.block)
+                .block_removed_at(&doc.block, latest)
                 .is_some_and(|removed| removed >= change.commit())
             {
                 continue;
@@ -419,7 +440,7 @@ impl Index {
             let old = table.get(parts, &doc).await?.cloned();
             if old
                 .as_ref()
-                .is_some_and(|old| old.commit >= change.commit())
+                .is_some_and(|old| old.commit.believed(latest) >= change.commit())
             {
                 continue;
             }

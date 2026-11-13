@@ -844,10 +844,13 @@ async fn puts_of(
     let Ok(commit) = peer.load_commit(head).await else {
         return None;
     };
+    // The commit's own time, which the server cannot read, so a forged one past this device's
+    // bound counts as the oldest (`Commit::believed`).
     let at = be_lib_search::Commit {
         time: commit.time,
         id: *head.hash().as_bytes(),
-    };
+    }
+    .believed(latest());
     // Only a module already running is asked: starting one would hold up the worker's loop.
     // A block a catch-up named may be of a type this device has not run yet: its module is
     // started once, which is worth it to index what other devices wrote.
@@ -1363,6 +1366,12 @@ async fn load<S: ObjectStore>(
     SearchIndexContent::from_stored(&stored).map_err(|error| error.to_string())
 }
 
+/// The latest commit time this device believes: its clock plus how far ahead the server lets a
+/// commit be (`Commit::believed`).
+fn latest() -> i64 {
+    be_block_commit::now_milliseconds().saturating_add(be_block_commit::MAX_COMMIT_AHEAD)
+}
+
 /// Applies a batch to the index's newest head and seals the commit into the outbox. False when
 /// the index has no head on this device yet.
 pub async fn write<S: ObjectStore>(
@@ -1376,7 +1385,7 @@ pub async fn write<S: ObjectStore>(
     let mut content = load(peer, head).await?;
     outdate_ancestors(peer, &content, &mut batch).await?;
     content
-        .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch)
+        .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch, latest())
         .await
         .map_err(|error| error.to_string())?;
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
@@ -1403,7 +1412,7 @@ async fn outdate_ancestors<S: ObjectStore>(
             .map_err(|error| error.to_string())?;
         // A block that left and came back is put at a commit the index masked: it is stamped
         // after the removal, which is only an order.
-        if let Some(removal) = content.index().removed_at(&put.doc.block)
+        if let Some(removal) = content.index().removed_at(&put.doc.block, latest())
             && removal >= put.commit
         {
             put.commit.time = removal.time.saturating_add(1);
@@ -1411,7 +1420,8 @@ async fn outdate_ancestors<S: ObjectStore>(
         let Some(old) = held.iter().find(|entry| entry.doc == put.doc) else {
             continue;
         };
-        if old.commit < put.commit || old.commit.id == put.commit.id {
+        let old_commit = old.commit.believed(latest());
+        if old_commit < put.commit || old_commit.id == put.commit.id {
             continue;
         }
         let (old_id, new_id) = (
@@ -1423,7 +1433,7 @@ async fn outdate_ancestors<S: ObjectStore>(
             .await
             .map_err(|error| error.to_string())?
         {
-            put.commit.time = old.commit.time.saturating_add(1);
+            put.commit.time = old_commit.time.saturating_add(1);
         }
     }
     Ok(())
@@ -1441,7 +1451,7 @@ pub async fn search_index<S: ObjectStore>(
     };
     load(peer, head)
         .await?
-        .search(&PeerParts(peer), query, limit)
+        .search(&PeerParts(peer), query, limit, latest())
         .await
         .map_err(|error| error.to_string())
 }
