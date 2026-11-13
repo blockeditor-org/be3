@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{BlockQuery, Editor};
+use be_sdk_beui::{BlockQuery, ChildBlock, ChildLayer, ChildMode, ChildTarget, Editor};
 
 use super::entries::{self, Row};
 
@@ -43,8 +43,20 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                 })
         })
     });
+    let target = create_memo(move || {
+        listed.with(|listed| {
+            listed
+                .as_ref()
+                .ok()
+                .and_then(|list| list.first())
+                .map(|info| ChildTarget::new(info.id, info.block_type))
+        })
+    });
     view! {
         <List spacing=Space::None>
+            <Frame padding={Padding::symmetric(PADDING, Space::Xs)}>
+                <Preview editor target />
+            </Frame>
             <ListItem grow=1.0>
                 <Tree
                     keys={keys}
@@ -78,3 +90,24 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
         </List>
     }
 }
+
+/// The block in its own editor, in a popover: a child placed above an anchored view, which
+/// every host shows over it (guides/running/web.md, Apps on the page).
+#[component]
+fn Preview(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
+    view! {
+        <Popover label="Preview" @test_id={"block-debug.preview"}>|_|
+            <Frame width={Length::Size(PREVIEW.0)} height={Length::Size(PREVIEW.1)}>
+                <ChildBlock
+                    editor
+                    block={target}
+                    mode=ChildMode::Passive
+                    layer=ChildLayer::Above
+                    @test_id={"block-debug.preview.child"}
+                />
+            </Frame>
+        </Popover>
+    }
+}
+
+const PREVIEW: (Size, Size) = (Size::Custom(280.0), Size::Custom(180.0));
