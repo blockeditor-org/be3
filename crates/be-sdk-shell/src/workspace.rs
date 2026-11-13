@@ -504,7 +504,10 @@ impl Workspace {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
-        debug_assert_eq!(share.block, block, "a share action reached another block's share");
+        debug_assert_eq!(
+            share.block, block,
+            "a share action reached another block's share"
+        );
         if share.block != block {
             return;
         }
