@@ -1010,7 +1010,7 @@ impl HostCore {
             }
             if self.screenshots.is_none() {
                 self.screenshots = Some(screenshot::Screenshots::start(
-                    be_host_desktop::desktop_host::screenshot,
+                    |answer| be_host_desktop::desktop_host::screenshot(answer),
                 ));
             }
         }

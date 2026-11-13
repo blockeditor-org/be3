@@ -30,12 +30,14 @@ mod controller;
 pub mod environment;
 mod intake;
 mod layer;
+mod pictures;
 pub mod renderer;
 
 pub use controller::{Controller, Hand, HandPose};
 use intake::{Drain, Intake};
 pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
 pub use layer::{Above, Below, Layer, LayerFrame, LayerView, Shown};
+pub use pictures::WindowPictures;
 
 type Answered = (FilePickId, FilePick);
 type Saved = (FileSaveId, FileSave);
@@ -226,6 +228,7 @@ pub struct Runner {
     platform_keyboard: Option<bool>,
     keyboard_attached: Option<bool>,
     output: Option<FrameOutput>,
+    pictures: Option<WindowPictures>,
     exited: bool,
     failure: Option<String>,
 }
@@ -287,6 +290,7 @@ impl Runner {
             platform_keyboard: None,
             keyboard_attached: None,
             output: None,
+            pictures: None,
             exited: false,
             failure: None,
         }
@@ -308,6 +312,9 @@ impl Runner {
         let rendering = Rendering::new(&self.context, loaded);
         rendering.provide(&mut setup);
         setup.provide(self.context.clone());
+        let pictures = WindowPictures::new(self.context.clone());
+        setup.provide(pictures.clone());
+        self.pictures = Some(pictures);
         self.rendering = Some(rendering);
         self.waker = Some(setup.waker.clone());
         self.context.set_waker(setup.waker.clone());
@@ -792,6 +799,9 @@ impl Runner {
         if !self.unpresented && self.layers.iter().any(|layer| layer.wants_capture()) {
             capture_for(&mut self.layers, rendering.capture());
         }
+        if !self.unpresented {
+            answer_pictures(self.pictures.as_ref(), rendering);
+        }
         let closing = output.close_requested || self.closing;
         self.shown = layered;
         self.output = Some(output);
@@ -823,6 +833,7 @@ impl Runner {
             if self.layers.iter().any(|layer| layer.wants_capture()) {
                 capture_for(&mut self.layers, rendering.capture());
             }
+            answer_pictures(self.pictures.as_ref(), rendering);
         }
         again
     }
@@ -833,6 +844,12 @@ fn services<'a>(
     platform: &'a mut dyn PlatformServices,
 ) -> Below<'a> {
     Below { layers, platform }
+}
+
+fn answer_pictures(pictures: Option<&WindowPictures>, rendering: &mut Rendering) {
+    if let Some(pictures) = pictures.filter(|pictures| pictures.asked()) {
+        pictures.answer(rendering.capture());
+    }
 }
 
 fn capture_for(layers: &mut [Box<dyn Layer>], capture: Option<Capture>) {
