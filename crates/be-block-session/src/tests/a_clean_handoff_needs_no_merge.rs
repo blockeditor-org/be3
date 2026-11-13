@@ -6,8 +6,8 @@ fn a_clean_handoff_needs_no_merge() {
     let head = write(&commits, "everything the phone typed\n", 1_000, None);
 
     let mut lease = Lease::new();
-    lease.join(1, 0);
-    lease.join(2, 0);
+    lease.join(1, true, 0);
+    lease.join(2, true, 0);
     let generation = lease.generation();
     assert!(lease.heartbeat(1, generation, Some(head), 100));
 

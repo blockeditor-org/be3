@@ -293,6 +293,7 @@ impl Inner {
                 reply,
                 to: Recipients::One(Endpoint::Editor(editor)),
                 bytes,
+                ..
             } => {
                 reply.send(&mut self.host, &());
                 let Some(block) = block else {
@@ -638,7 +639,15 @@ impl Inner {
         let bytes = Wire::Session(message).encode();
         let now = self.now;
         self.on_replica(replica, |replica, host| {
-            replica.message(host, Endpoint::Peer(client), bytes, now);
+            replica.message(
+                host,
+                Endpoint::Peer(client),
+                bytes,
+                now,
+                Some(be_sdk_type_guest::api::Delivery {
+                    kind: be_sdk_type_guest::api::RelayKind::Edit,
+                }),
+            );
         });
     }
 
@@ -782,7 +791,7 @@ impl Inner {
         let send = move |inner: &mut Self| {
             let now = inner.now;
             inner.on_replica(replica, |replica, host| {
-                replica.message(host, Endpoint::Editor(editor), frame, now);
+                replica.message(host, Endpoint::Editor(editor), frame, now, None);
             });
         };
         match message {

@@ -172,7 +172,9 @@ clipboard's sequence number and carries be3 formats as registered formats; the
 web writes them as `web ` types where `ClipboardItem.supports` says so
 (Chromium) and reads them from the async clipboard; both hold an item's
 `ClipItem::stored` bytes, refs and all; elsewhere the plain text on
-the clipboard is compared with the text written. On the system clipboard each
+the clipboard is compared with the text written, as beui's HTML core does too
+(`page::copy` and `page::held`): a `paste` event on a node answers from the held
+clip when its text matches. On the system clipboard each
 platform puts the plain text, or a PNG when there is none.
 
 The focus reads the clipboard only by pasting: an `Interactive`'s `pastes`

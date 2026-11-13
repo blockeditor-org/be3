@@ -16,7 +16,9 @@ use be_sdk_api::{
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
-use beui::{Pos2, Rect, Vec2, pos2, vec2};
+use beui::{Modifiers, Pos2, Rect, Vec2, pos2, vec2};
+
+use crate::instances::gift::{GiftView, KeyProgress, Keys};
 use uuid::Uuid;
 
 use be_host_base::host;
@@ -691,6 +693,9 @@ impl Runtime {
     fn begin_frame(&mut self, pass: u64) {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
+        }
+        if let Some(left) = self.instances.expire_gifts(self.now()) {
+            host::request_repaint_after(left);
         }
         let messages = self.instances.drive_web_views();
         self.pacing.need_if(!messages.is_empty());
@@ -1490,6 +1495,7 @@ impl Runtime {
         }
         super::request_windows(&self.app.identity.id, window_requests);
         self.instances.adopt_anchored(&reports, &self.layout);
+        let committed = self.instances.committed(&reports, &children);
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
@@ -1503,7 +1509,7 @@ impl Runtime {
         });
         changed |= self.instances.refresh_anchoring_views();
         changed |= super::docks::heard(&self.app.identity.id, docks);
-        self.instances.settle_block_focus();
+        self.instances.settle_gifts(&committed);
         changed
     }
 
@@ -1709,9 +1715,12 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
     with(app_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
 }
 
+/// The instance's view gives the keyboard it has to `child`, which fills the view.
 pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
     if with(app_id, |runtime| {
-        runtime.instances.ask_child_focus(instance, child)
+        runtime
+            .instances
+            .ask_gift(instance, crate::instances::gift::GiftTo::Child(child))
     })
     .is_some()
     {
@@ -1719,33 +1728,124 @@ pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_
     }
 }
 
-pub fn take_child_focus(
-    app_id: &str,
-    instance: EditorInstanceId,
+/// The child `child`'s view `view` takes the keyboard the instance gives it (it heard
+/// `InstanceEvent::KeyboardGift`), already having it (`focused`) or being given it now. Answers
+/// whether the instance still gives it.
+pub fn take_gift(
+    (app_id, instance): (&str, EditorInstanceId),
     child: be_sdk_api::ChildId,
+    view: GiftView,
+    focused: bool,
 ) -> bool {
+    let asked = frames_answered(&view.0).0;
     with(app_id, |runtime| {
-        runtime.instances.take_child_focus(instance, child)
+        runtime.error.is_none()
+            && runtime
+                .instances
+                .take_gift(instance, child, view, focused, (asked, host::pass()))
     })
     .unwrap_or(false)
 }
 
-/// Whether the instance asked to give the keyboard to a child it still places whose view has
-/// not taken it yet. A gift ends when the child's view takes it (`take_child_focus`), when it is
-/// refused (`refuse_child_focus`), or when the child, the instance or its app goes.
-pub fn child_focus_pending(app_id: &str, instance: EditorInstanceId) -> bool {
+/// Ends the keyboard the instance gives, dropping the keys held for it: the keyboard is elsewhere.
+pub fn end_gift(app_id: &str, instance: EditorInstanceId) {
     with(app_id, |runtime| {
-        runtime.error.is_none() && runtime.instances.child_focus_pending(instance)
-    })
-    .unwrap_or(false)
-}
-
-/// Ends every gift of the keyboard the instance asked for: the person moved on (pressed in the
-/// editor, or took the keyboard elsewhere) before the child's view took it.
-pub fn refuse_child_focus(app_id: &str, instance: EditorInstanceId) {
-    with(app_id, |runtime| {
-        runtime.instances.refuse_child_focus(instance);
+        runtime
+            .instances
+            .end_gift(instance, crate::instances::gift::Keys::Drop);
     });
+}
+
+/// The child `child` the instance gives the keyboard to is up: its view is built and its app
+/// running. The gift is counted from now and ends if the view does not take it in time.
+pub fn child_up_for_gift((app_id, instance): (&str, EditorInstanceId), child: be_sdk_api::ChildId) {
+    with(app_id, |runtime| {
+        runtime
+            .instances
+            .start_gift_count(instance, child, host::now());
+    });
+}
+
+/// The app of the child `child` the instance gives the keyboard to failed to start: the gift
+/// ends, and the keys held go back to the editor's view if it still has the keyboard.
+pub fn child_failed_for_gift(
+    (app_id, instance): (&str, EditorInstanceId),
+    child: be_sdk_api::ChildId,
+) {
+    with(app_id, |runtime| {
+        if runtime.instances.gives_to(instance, child) {
+            runtime.instances.end_gift(instance, Keys::Return);
+        }
+    });
+}
+
+/// The view `view` forwarded a press to its app while `asked` frames had been asked of it: keys
+/// typed into it wait for the frame that answers it, which may give the keyboard to a child.
+pub fn sent_press(view: &GiftView, asked: u64) {
+    with(&view.0, |runtime| {
+        runtime.instances.sent_press(view.1, view.clone(), asked);
+    });
+}
+
+/// Routes the keys of input forwarded to `view`, whose app stands at `app`: they are held while
+/// its editor's gift of the keyboard is pending, and keys owed to it come first, as the editor
+/// that placed it (`placer`) gave it the keyboard or as its own gift gave them back.
+pub fn route_keys(
+    view: &GiftView,
+    placer: Option<(&str, EditorInstanceId)>,
+    app: KeyProgress,
+    input: &mut beui::ForwardedInput,
+) {
+    let pass = host::pass();
+    with(&view.0, |runtime| {
+        if runtime.error.is_some() {
+            runtime.instances.end_gift(view.1, Keys::Return);
+        }
+        runtime.instances.hold_keys(view.1, view, app, input, pass);
+    });
+    if let Some((placer, instance)) = placer {
+        with(placer, |runtime| {
+            runtime.instances.owe_keys(instance, view, app, input, pass);
+        });
+    }
+}
+
+/// Settles what `view` holds and is owed after its app moved on, `focused` saying whether it has
+/// the keyboard. Answers the modifiers to forward it an empty input with, to carry what it can
+/// take now (`route_keys`).
+pub fn settle_keys(
+    view: &GiftView,
+    placer: Option<(&str, EditorInstanceId)>,
+    app: KeyProgress,
+    focused: bool,
+) -> Option<Modifiers> {
+    let pass = host::pass();
+    let own = with(&view.0, |runtime| {
+        if runtime.error.is_some() {
+            runtime.instances.end_gift(view.1, Keys::Return);
+        }
+        runtime
+            .instances
+            .settle_own_keys(view.1, view, app, focused, pass)
+    })
+    .flatten();
+    let owed = placer.and_then(|(placer, instance)| {
+        with(placer, |runtime| {
+            runtime
+                .instances
+                .settle_owed_keys(instance, view, app, focused, pass)
+        })
+        .flatten()
+    });
+    own.or(owed)
+}
+
+/// The view `view` is gone: what it held and was owed goes with it.
+pub fn forget_keys(view: &GiftView, placer: Option<(&str, EditorInstanceId)>) {
+    with(&view.0, |runtime| runtime.instances.forget_keys(view));
+    if let Some((placer, _)) = placer {
+        with(placer, |runtime| runtime.instances.forget_keys(view));
+    }
 }
 
 /// Whether the instance's block content, if it edits one, has reached it.
@@ -1876,7 +1976,6 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
 
 pub fn poll() {
     let pass = host::pass();
-    let touched = be_host_stack::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {
@@ -1884,7 +1983,6 @@ pub fn poll() {
                 if std::mem::take(&mut runtime.restart_asked) {
                     runtime.restart();
                 }
-                runtime.instances.touch(&touched);
                 runtime.detect_error();
                 runtime.taking_in = true;
                 runtime.pump();
