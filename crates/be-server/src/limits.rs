@@ -35,7 +35,7 @@ pub const MAX_MENTIONS: usize = 1_024;
 /// Live sessions one connection may be joined to at once.
 pub const MAX_SESSIONS_PER_CONNECTION: usize = 1_024;
 /// Listings one connection may hold at once: folders, references and backlinks open. A block's
-/// own listing (`read-block`), which nothing unlists, does not count (`watch.rs`, `counts`).
+/// own listing (`Listing::Block`), which nothing unlists, does not count (`watch.rs`, `counts`).
 pub const MAX_LISTINGS_PER_CONNECTION: usize = 65_536;
 /// Streams (watches, session events, change feeds) one connection may have open at once.
 pub const MAX_STREAMS_PER_CONNECTION: usize = 16_384;
@@ -58,6 +58,11 @@ pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// be-sdk-type-guest); a catch-up snapshot carries the operations since the last seal, so this
 /// leaves room for both.
 pub const MAX_RELAY_BYTES: usize = MAX_FRAME_BYTES / 2;
+/// The objects one commit of a search index may hold. Every viewer's search reads the index,
+/// and any editor of its root may write it, so it is bounded well above an index of a gigabyte
+/// of text (plans/search.md, "Scale").
+pub const MAX_INDEX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+pub use be_block_commit::MAX_COMMIT_AHEAD;
 
 pub(crate) fn too_many(what: &str, limit: impl std::fmt::Display) -> ServerError {
     ServerError::Refused(ErrorCode::OverQuota, format!("{what}: at most {limit}"))

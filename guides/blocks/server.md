@@ -103,9 +103,15 @@ with no bytes moving either way, so a large post on a slow link goes through.
 ### Objects over S3
 
 Clients move object bytes only through presigned S3 URLs (decisions/objects_live_in_s3_compatible_storage.md):
-`objects.upload-urls` takes (hash, length) pairs, reserves them as an upload
-(below, "Storage") and answers a presigned PUT per object (`upload-url`: the
-URL and the headers to send with it); `objects.download-urls` answers a
+`objects.upload-urls` takes (hash, length) pairs and answers, per object, none
+for one the caller holds already (`held_objects`: it uploaded it, or may read
+it) and otherwise a presigned PUT (`upload-url`: the URL and the headers to
+send with it), reserving only those as an upload (below, "Storage"). An object
+with no length (one the caller reuses by its ref and does not hold) asks only
+whether the caller holds it: it is answered none if so, and otherwise refuses the
+call as `object-not-found`, alike whether another organization stored it or no
+one did, with nothing reserved, so a real uploader is never held to a length no
+one gave and the answer leaks nothing. `objects.download-urls` answers a
 presigned GET for each object the caller may read (`may_read_objects`) and none
 for the rest. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
 Only `publish`'s carried objects and `read-contents`' objects travel inside
@@ -334,7 +340,7 @@ until `forget_objects`, with the reserved length, and answers usage's sizes.
 Bytes arrive after the reservation, so an object counts as stored
 (`store::stored`, its `confirmed` column) only once `confirm_uploads` saw it
 in the store with that length (`Objects::len_many`, a HEAD each on a bucket):
-`publish`, `hold-objects` and `missing-objects` confirm the caller's own
+`publish`, `hold-objects` and `upload-urls` confirm the caller's own
 unconfirmed reservations among the objects they name first, and a held
 object is confirmed already, so downloads ask nothing. Carried objects are
 confirmed when written (`put_objects`). Reads and writes of several objects go
@@ -394,8 +400,9 @@ blocks.
 ### Announcements and listings
 
 A connection hears only of what it listed. `list-blocks` (a `Listing`:
-children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`) and
-`read-block` register with `WatchHub` *before* reading, so nothing changed
+children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`, or one
+`Block`, which is how a client reads a block's summary) registers with
+`WatchHub` *before* reading, so nothing changed
 during the read is missed, and the hub remembers each block it told a
 connection of. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
@@ -405,7 +412,7 @@ folder is still announced, then forgotten). The blocks a change starts or stops
 referencing are announced with it. `unlist` drops a listing; a refused listing
 stays until then, so a block read before it is made is announced once it is,
 but a connection keeps at most `REFUSED_LISTINGS` of them (`watch.rs`) and
-drops any refused past that at once. A block's own listing (`read-block`),
+drops any refused past that at once. A block's own listing (`Listing::Block`),
 which clients never unlist, does not count against
 `MAX_LISTINGS_PER_CONNECTION`: it is bounded by the blocks the caller may know
 of.
@@ -453,7 +460,19 @@ organizations created, open contact links, contacts, invitations outstanding and
 escrow keys per organization (refused as `OverQuota`); and per connection,
 sessions, listings and streams. Names, metadata (held in the graph and sent in
 every summary), sealed blobs, pairing messages and relayed session messages
-have byte limits (refused as `InvalidRequest`). A relay is shared by every
+have byte limits (refused as `InvalidRequest`). A commit of a search index may
+hold at most `MAX_INDEX_BYTES` (refused as `OverQuota`), since any editor of its
+root writes what every viewer's search reads, and no commit's time may be more
+than `MAX_COMMIT_AHEAD` (an hour) past the server's clock (refused as
+`InvalidRequest`), since a far-future time wins every comparison by commit time
+and escapes history's thinning by age. `open-organization` answers the server's
+clock, and a peer stamps its commits no later than that plus
+`COMMIT_CLOCK_SLACK` (`Peer::commit_time`), so a device whose clock runs fast is
+not refused: it keeps the measurement by its monotonic clock, and the offset in
+its refs for offline use after a restart, and ignores one that would pull its
+stamps back more than a day (`MAX_CLOCK_PULLBACK`). The index cap sums the base
+commit's objects in one query and adds and removes only what the publish
+changes. A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
 client that has left the session (or never joined) is dropped without an error:
 it is best-effort, and the sender cannot know the other left. Each relay, and

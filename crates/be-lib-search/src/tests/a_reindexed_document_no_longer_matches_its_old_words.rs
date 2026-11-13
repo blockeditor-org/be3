@@ -67,6 +67,7 @@ fn a_reindexed_document_no_longer_matches_its_old_words() {
             }],
             ..Batch::default()
         },
+        i64::MAX,
     ))
     .unwrap();
     store.keep(&elsewhere);

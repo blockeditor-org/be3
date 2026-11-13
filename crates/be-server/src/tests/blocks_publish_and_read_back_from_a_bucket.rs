@@ -16,24 +16,23 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
 
     let (head, chunks) = author.compose(b"kept in a bucket\n", 1_000, None);
     let objects = author.objects_of(head, &chunks);
-    let missing = client
-        .call(|peer| client::objects::missing_objects(peer, objects.clone()))
-        .await;
+    let bytes: Vec<Vec<u8>> = objects
+        .iter()
+        .map(|hash| author.store.get(*hash).unwrap().unwrap())
+        .collect();
+    let missing = client.missing(&bytes).await;
     assert!(
         matches!(&missing, Ok(missing) if *missing == objects),
         "{missing:?}"
     );
     // Bytes move between the client and the bucket, never through the server.
-    let urls = client
-        .reserve(&[author.store.get(objects[0]).unwrap().unwrap()])
-        .await
-        .unwrap();
+    let url = client.reserve(&bytes[..1]).await.unwrap()[0]
+        .clone()
+        .expect("an object not sent yet is asked for")
+        .url;
     assert!(
-        urls[0]
-            .url
-            .starts_with(&format!("http://{}/{}/", bucket.address, TestBucket::NAME)),
-        "{}",
-        urls[0].url
+        url.starts_with(&format!("http://{}/{}/", bucket.address, TestBucket::NAME)),
+        "{url}"
     );
     let response = client
         .publish(&author, block, head, chunks.clone(), None, 1_000)
@@ -42,9 +41,7 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
         matches!(response, Ok(be_block_protocol::PublishOutcome::Published(published)) if published == head),
         "{response:?}"
     );
-    let missing = client
-        .call(|peer| client::objects::missing_objects(peer, objects.clone()))
-        .await;
+    let missing = client.missing(&bytes).await;
     assert!(
         matches!(&missing, Ok(missing) if missing.is_empty()),
         "{missing:?}"

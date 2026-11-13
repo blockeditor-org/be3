@@ -17,7 +17,7 @@ fn described(source: Uuid) -> BlockMetadata {
 
 async fn backrefs(peer: &Peer<MemoryStore>, block: Uuid) -> Vec<Uuid> {
     let mut found: Vec<Uuid> = peer
-        .backrefs(block)
+        .list(Listing::Backrefs(block))
         .await
         .unwrap()
         .into_iter()

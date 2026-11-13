@@ -92,9 +92,22 @@ fn HitRow(editor: Editor, hit: Memo<SearchHit>, block: Uuid) -> NodeId {
     let before = create_memo(move || parts.get().0);
     let matched = create_memo(move || parts.get().1);
     let after = create_memo(move || parts.get().2);
+    // Opening the row shows the block at its match, where its editor supports a location.
     let open = move || {
-        if let Some(info) = found.get_untracked() {
-            editor.host().open_block(block, info.block_type);
+        let Some(info) = found.get_untracked() else {
+            return;
+        };
+        let hit = hit.get_untracked();
+        match hit.matches.first() {
+            Some(range) => editor.host().open_block_at(
+                block,
+                info.block_type,
+                be_sdk_beui::SearchLocation {
+                    key: hit.key.clone(),
+                    text: hit.snippet[range.clone()].to_owned(),
+                },
+            ),
+            None => editor.host().open_block(block, info.block_type),
         }
     };
     view! {

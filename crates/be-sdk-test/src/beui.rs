@@ -1845,6 +1845,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         });
     }
 
+    /// The host tells the editor it was opened at `at` in its block (`editor-event.reveal`).
+    pub fn open_at(&mut self, at: be_sdk_api::SearchLocation) {
+        self.call(|editor, connection| {
+            editor.hear(connection, vec![EditorEvent::Reveal(at)]);
+        });
+    }
+
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_sent_calls(|sent| match sent {
             Sent::Define(block, key, value) if *key == be_sdk_beui::be_block::NAME.id => Some((
@@ -2035,6 +2042,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 block_type: Uuid::from_bytes(open.block_type),
                 via: open.via.map(Uuid::from_bytes),
                 editor: open.editor.map(Uuid::from_bytes),
+                at: open.at.clone(),
             }),
             _ => None,
         })

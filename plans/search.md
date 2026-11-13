@@ -7,29 +7,32 @@ Full-text search over names and content: what is left of it. Built
 access (exactly its root's, checked by the server), indexing on seal into the
 root's index with commits sealed into the outbox and merged by parts, the
 `search-watch` query on the app protocol, the file tree's filter listing hits
-in content, quick open listing hits, and catching up through `changed-since`
+in content, quick open listing hits, opening a hit at its match, and catching up through `changed-since`
 (guides/blocks/server.md, "Changes since"; guides/blocks/host.md, "Catching
 up").
 
-## Order of work
-
-1. **Locations.** Opening a hit opens the block at its document and highlights
-   the match where the editor supports a location: `OpenableBlock` (be-host's
-   palette), `EditorAction::OpenBlock` and the app protocol's open request
-   carry the document key and match, and the file tree's hit rows pass it on.
-   Done: a host test opens a hit from quick open and the text shows the match
-   selected, with a painting.
-
 ## Left open
+
+- **Opening at the hit, not the first occurrence.** A hit's location carries only the words its
+  first match covers, and the editor selects their first whole-word occurrence, which may not be
+  where the hit was. Send the snippet's surrounding text or an occurrence index with it.
 
 - **A block let go stays stale.** A block whose commit could not be read three times is
   counted as indexed (`MAX_READ_FAILURES`), so a catch-up ends: its entry in the index is
   stale or missing until the block next changes. Answers are filtered by the mirror, so
   only snippets and ranking use the stale text.
-- **A forged index.** Any editor of a root is enough to write arbitrary content into its
-  index: forged entries, an unbounded size that every viewer's search reads, and a
-  far-future commit time that wins the merge by commit time in a query. Cap an
-  index's size and refuse commit times in the future when it is cheap.
+- **A forged index.** Any editor of a root is enough to write forged entries
+  into its index, or a commit whose own time (which the server cannot read) is
+  far in the future. Closed: the server bounds a commit of an index
+  (`MAX_INDEX_BYTES`), and a device does not believe a commit time past the
+  later of its clock and the server's (as it measured it) plus
+  `MAX_COMMIT_AHEAD`, whether it indexes it or reads it from an index
+  (`Commit::believed`: it compares as the oldest, so the next honest put
+  replaces it and it ranks last among equal scores, while the index stores every
+  time as given, so a device whose clock is behind rewrites none). Left: the
+  content itself, which only the root's editors can forge, and a forged time
+  within the hour, which wins ties for that long. A merge of two index heads has
+  no clock, so it keeps a forged time until the next apply.
 - **The writer only.** The device whose session seals a commit indexes it
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.
