@@ -410,7 +410,12 @@ impl State {
         }
         let own = state.bar_tab(bar);
         own.into_iter()
-            .chain(state.bar_panes(bar).into_iter().filter(|tab| Some(*tab) != own))
+            .chain(
+                state
+                    .bar_panes(bar)
+                    .into_iter()
+                    .filter(|tab| Some(*tab) != own),
+            )
             .find_map(|tab| {
                 let (body, pane) = self.pane_areas(tab)?;
                 pane.contains(pos).then_some((Some(tab), body, pane))
@@ -482,11 +487,7 @@ impl State {
             .count()
     }
 
-    pub(super) fn resolve_bar(
-        &self,
-        point: DragPoint,
-        bar: TabId,
-    ) -> Option<BarPlace> {
+    pub(super) fn resolve_bar(&self, point: DragPoint, bar: TabId) -> Option<BarPlace> {
         let current = self
             .state
             .with_untracked(|state| state.bar_placement(bar))?;
@@ -888,9 +889,8 @@ impl State {
     fn thrown(&self, bar: TabId, point: DragPoint) -> Option<BarPlace> {
         let velocity = self.lifting.flight.value().borrow().velocity.get();
         let (on, body, pane) = self.pane_at(bar, point.pos)?;
-        let thrown = point.window == self.home()
-            && motion().animates()
-            && velocity.length() >= THROW_SPEED;
+        let thrown =
+            point.window == self.home() && motion().animates() && velocity.length() >= THROW_SPEED;
         if !thrown {
             return None;
         }

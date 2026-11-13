@@ -8,7 +8,6 @@ use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
-mod a_joined_docks_bar_moves_to_the_edge_of_another_of_its_panes;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
 mod a_bar_hidden_from_its_grip_menu_takes_no_room_until_the_page_shows_it;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
@@ -27,6 +26,7 @@ mod a_dragged_task_lifts_parts_its_neighbours_and_settles_where_it_is_dropped;
 mod a_fade_shows_what_it_holds_at_its_opacity;
 mod a_fixed_side_pane_keeps_its_width_when_the_window_resizes;
 mod a_frame_moves_turns_and_fades_what_it_holds;
+mod a_joined_docks_bar_moves_to_the_edge_of_another_of_its_panes;
 mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;

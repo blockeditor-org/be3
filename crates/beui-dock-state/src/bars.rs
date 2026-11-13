@@ -200,7 +200,10 @@ impl DockState {
         };
         let depth_of = |at: usize| self.bar_pane(&self.bars[at]).map_or(0, |(_, held)| held);
         let mut held = (0..self.bars.len()).filter(on_pane);
-        match (0..self.bars.len()).filter(on_pane).rfind(|at| depth_of(*at) >= depth) {
+        match (0..self.bars.len())
+            .filter(on_pane)
+            .rfind(|at| depth_of(*at) >= depth)
+        {
             Some(last) => last + 1,
             None => held.next().unwrap_or(self.bars.len()),
         }
@@ -282,7 +285,11 @@ impl DockState {
             return Vec::new();
         };
         let Some(group) = self.hosted_group(owner) else {
-            return self.owner_pane(owner).map(|(tab, _)| tab).into_iter().collect();
+            return self
+                .owner_pane(owner)
+                .map(|(tab, _)| tab)
+                .into_iter()
+                .collect();
         };
         let mut panes = Vec::new();
         self.group_panes(group, 0, &mut panes);

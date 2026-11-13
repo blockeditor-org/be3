@@ -11,7 +11,6 @@ fn bar(bar: u64, owner: u64) -> DockSpecBar {
         hidden: false,
         pane: None,
     }
-    pane: None,
 }
 
 fn tabs(ids: &[u64]) -> Vec<TabId> {
