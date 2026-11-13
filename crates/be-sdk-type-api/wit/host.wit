@@ -7,7 +7,7 @@ package be3:block-type@0.1.0;
 interface host {
     use types.{
         announced, announcement, byte-range, commit-id, description, journal-base, journal-entry,
-        loaded, undo-state, merging,
+        loaded, merging,
         part-ref, recipients, relay-kind, resume, status, written,
     };
 
@@ -110,8 +110,6 @@ interface host {
 
     /// After the visible content changed, for the graph mirror.
     described: async func(description: description);
-
-    history: async func(history: undo-state);
 
     /// A merge kept both sides.
     conflict: async func(ours: commit-id, theirs: commit-id, count: u32);
