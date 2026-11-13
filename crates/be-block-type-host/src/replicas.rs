@@ -399,6 +399,8 @@ struct Open {
     content_type: Uuid,
     client: ClientId,
     organization: Uuid,
+    /// The account this device signs in as (`opening.account`).
+    account: Uuid,
     editors: BTreeMap<EditorId, bool>,
     status: Status,
     session: SessionState,
@@ -928,6 +930,7 @@ impl<H: Host> Replicas<H> {
             block,
             content_type,
             organization,
+            account: peer.account(),
             client,
             tag,
             head,
@@ -937,6 +940,7 @@ impl<H: Host> Replicas<H> {
             journal_kept,
             commits_kept: kept.0,
             refused_commits: kept.1,
+            server_head: peer.known_remote_head(block),
             sealed_head,
         };
         let handle = self
@@ -953,6 +957,7 @@ impl<H: Host> Replicas<H> {
                 content_type,
                 client,
                 organization,
+                account: peer.account(),
                 editors: BTreeMap::new(),
                 status: Status {
                     head,
@@ -1045,7 +1050,7 @@ impl<H: Host> Replicas<H> {
             true => (be_sdk_type_api::KeptCommits::Outbox, Vec::new()),
             false => (be_sdk_type_api::KeptCommits::None, Vec::new()),
         };
-        self.reopen_joined(replica, client, session, from, journal, commits_kept);
+        self.reopen_joined(replica, client, session, from, head, journal, commits_kept);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -1065,6 +1070,7 @@ impl<H: Host> Replicas<H> {
         client: ClientId,
         session: SessionState,
         head: Option<CommitId>,
+        server_head: Option<CommitId>,
         journal: Option<be_block_protocol::Journal>,
         commits_kept: Kept,
     ) {
@@ -1085,6 +1091,7 @@ impl<H: Host> Replicas<H> {
             block: open.block,
             content_type: open.content_type,
             organization: open.organization,
+            account: open.account,
             client,
             tag: self.modules.tag(module),
             head,
@@ -1094,6 +1101,7 @@ impl<H: Host> Replicas<H> {
             journal_kept: false,
             commits_kept: commits_kept.0,
             refused_commits: commits_kept.1,
+            server_head,
             sealed_head: None,
         };
         let editors: Vec<(EditorId, bool)> = open
@@ -2286,7 +2294,7 @@ impl<H: Host> Replicas<H> {
             })
             .collect();
         let known = open.status.head;
-        self.reopen_joined(replica, client, session, known, None, commits_kept);
+        self.reopen_joined(replica, client, session, known, head, None, commits_kept);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -2348,6 +2356,7 @@ impl<H: Host> Replicas<H> {
                 block: open.block,
                 content_type: open.content_type,
                 organization: open.organization,
+                account: open.account,
                 client: open.client,
                 tag,
                 head: open.status.head,
@@ -2357,6 +2366,7 @@ impl<H: Host> Replicas<H> {
                 journal_kept: false,
                 commits_kept: kept.0,
                 refused_commits: kept.1,
+                server_head: peer.known_remote_head(open.block),
                 sealed_head: None,
             };
             let editors: Vec<(EditorId, bool)> = open
