@@ -30,10 +30,28 @@ do inside the world (move a piece, kick a player) is the app's own role,
 kept in the block's content and checked by the host; a powerful player is a
 Join member with a role, not an editor.
 
-A block type that is hosted says so, with its own name and one line for each
-level, in its manifest entry; the share dialog shows them (a game: "Play",
-"Spectate: sees everything", "Host and edit the world"). A type that is not
-hosted never offers Join.
+### The share dialog
+
+A block type that is hosted says so in its manifest entry, with which levels it
+offers and, for each, a name and one line saying what it means. A type that is
+not hosted never offers Join; a folder's share dialog shows the core names.
+
+A type names a level by what it adds for the type's stored content, never by
+a role inside the app, since the share dialog grants no roles. A game:
+
+- **Join** ("Join game"): connect to whoever hosts. Playing, watching,
+  building or moderating are roles the host gives, possibly through a setting
+  of the world; someone who should build in a shared world needs Join and a
+  role, not Host.
+- **Host** (Edit): "Can run the world, and so can read and change anything in
+  it, outside the game's rules. Hosts only while the world is open, or after
+  Keep hosting." The line must say both: that the level reaches all of the
+  stored world, secrets included, and that it is a permission, not a duty to
+  keep a machine running.
+- **Manage**.
+- **View**, only if the type offers it, named for what it is ("Read the world
+  data": every secret and the whole history, for a co-designer, a backup or a
+  review), never as watching the game, which is a Join role.
 
 ## The channel
 
@@ -56,8 +74,8 @@ hosted never offers Join.
   of a new kind: it receives only what the host addresses to it, its messages
   go only to the lease holder, its presence is shown only to the host, and it
   learns only whether a host is online. View members join as today, and their
-  messages to the host use the same channel, so one spectator cannot read a
-  player's moves. A relay of the host kind from anyone but the lease holder,
+  messages to the host use the same channel, so one View member cannot read
+  another member's messages to the host. A relay of the host kind from anyone but the lease holder,
   or to a member of another kind, is refused (the check
   plans/session_message_authority.md adds, by relay kind). Each Join member
   is rate limited by the server.
@@ -120,8 +138,9 @@ hosted never offers Join.
    records; then `be BLOCK host`. Done: a test with two editors and two
    players where the first host closes the world and the second carries on;
    one where Keep hosting outlives the editor and Stop ends it.
-5. **The share dialog.** Labels and lines from the manifest; Join offered only
-   for hosted types; who is hosting now. Done: paintings.
+5. **The share dialog.** The offered levels, names and lines from the
+   manifest (above); who is hosting now. Done: paintings of a game's dialog
+   (Join, Host, Manage) and a text block's (unchanged).
 6. **Join links** (plans/share_links.md, step 3).
 7. **A first hosted type**: a small game world in the logic game's spirit,
    with secret state, or a hosted variant of an existing game. Done: a host
