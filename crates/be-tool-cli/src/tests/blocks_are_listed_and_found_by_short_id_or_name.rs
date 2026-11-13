@@ -91,16 +91,20 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         text.contains("Steps to reproduce.") && text.ends_with("Seen twice."),
         "{text}"
     );
-    for refused in [
-        format!("{id} page delete"),
-        format!("{id} page move Tracker"),
-        format!("{page} delete"),
-    ] {
+    for refused in [format!("{id} page delete"), format!("{id} page move Tracker")] {
         let refused = run(&tracker, &refused)
             .await
-            .expect_err("a row's page goes with its row");
-        assert!(refused.contains("goes with its row"), "{refused}");
+            .expect_err("a row's page takes only the text verbs");
+        assert!(refused.contains("a row's page takes cat"), "{refused}");
     }
+    let refused = run(&tracker, &format!("{page} delete"))
+        .await
+        .expect_err("a row's page goes with its row");
+    assert!(refused.contains("goes with its row"), "{refused}");
+    let refused = run(&tracker, &format!("{id} set --new"))
+        .await
+        .expect_err("--new is option's alone");
+    assert!(refused.contains("--new goes with option"), "{refused}");
     assert!(
         run(&tracker, &format!("{id} page"))
             .await
