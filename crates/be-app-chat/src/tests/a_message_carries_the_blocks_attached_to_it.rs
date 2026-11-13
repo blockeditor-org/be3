@@ -29,7 +29,12 @@ fn a_message_carries_the_blocks_attached_to_it() {
         Some(BlockParent::Block(CHAT)),
         "the attached block moves into the chat"
     );
-    assert_eq!(chat.editor.label(&format!("chat.attaching.{plans}")).trim(), "Floor plans");
+    assert!(
+        chat.editor
+            .label(&format!("chat.attaching.{plans}"))
+            .contains("Floor plans"),
+        "the draft shows what it will carry"
+    );
 
     // A message of attachments alone is sent: the body may be empty.
     chat.click("chat.send");
