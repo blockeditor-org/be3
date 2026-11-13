@@ -1,0 +1,106 @@
+// NativeLink for be3 on one Hetzner server: the cache (CAS and action cache), the scheduler and the worker in one
+// process, inside the image worker_properties (buck/tools/defs.bzl) names, so that the worker runs actions in it.
+// Everything is on the server's local disk, which survives a reboot.
+// Caddy (Caddyfile) is the only thing reachable from outside; NativeLink listens on 127.0.0.1.
+{
+  stores: [
+    {
+      // The worker takes inputs from and writes outputs to this one store, so nothing is copied between a server's
+      // and a worker's cache. The worker needs a fast_slow whose fast side is a filesystem store (it hardlinks from it
+      // into action directories); the slow side holds nothing.
+      name: "CAS",
+      fast_slow: {
+        fast: {
+          filesystem: {
+            content_path: "/work/cas/content",
+            temp_path: "/work/cas/tmp",
+            // Of a CPX62's 601 GB disk: the system and the image take about 5 GB, and actions' directories under
+            // /work/run, often over 10 GB for a verify, need the rest.
+            eviction_policy: { max_bytes: 450000000000 },
+          },
+        },
+        slow: { noop: {} },
+      },
+    },
+    {
+      name: "AC_BACKEND",
+      filesystem: {
+        content_path: "/work/ac/content",
+        temp_path: "/work/ac/tmp",
+        eviction_policy: { max_bytes: 2000000000 },
+      },
+    },
+    {
+      // Drops an action result whose outputs are no longer in the CAS.
+      name: "AC",
+      completeness_checking: {
+        backend: { ref_store: { name: "AC_BACKEND" } },
+        cas_store: { ref_store: { name: "CAS" } },
+      },
+    },
+  ],
+  schedulers: [
+    {
+      name: "MAIN_SCHEDULER",
+      simple: {
+        worker_timeout_s: 30,
+        allocation_strategy: "least_loaded",
+        supported_platform_properties: {
+          OSFamily: "exact",
+          "container-image": "exact",
+        },
+      },
+    },
+  ],
+  workers: [
+    {
+      local: {
+        worker_api_endpoint: { uri: "grpc://127.0.0.1:50061" },
+        cas_fast_slow_store: "CAS",
+        upload_action_result: { ac_store: "AC" },
+        work_directory: "/work/run",
+        // One per CPU: at two per CPU the big compiles every other action waits for ran on half a CPU.
+        max_inflight_tasks: 16,
+        // Actions start with an empty environment; the toolchain scripts use `env bash`.
+        additional_environment: { PATH: { value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" } },
+        platform_properties: {
+          OSFamily: { values: ["Linux"] },
+          "container-image": { values: ["docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549"] },
+        },
+      },
+    },
+  ],
+  servers: [
+    {
+      name: "frontend",
+      listener: {
+        http: {
+          socket_address: "127.0.0.1:50052",
+          advanced_http: {
+            http2_keep_alive_interval: 60,
+            experimental_http2_keep_alive_timeout: 20,
+            experimental_http2_max_concurrent_streams: 2000,
+            experimental_http2_initial_connection_window_size: 16777216,
+            experimental_http2_initial_stream_window_size: 8388608,
+          },
+        },
+      },
+      services: {
+        cas: [{ instance_name: "", cas_store: "CAS" }],
+        ac: [{ instance_name: "", ac_store: "AC" }],
+        execution: [{ instance_name: "", cas_store: "CAS", scheduler: "MAIN_SCHEDULER" }],
+        capabilities: [{ instance_name: "", remote_execution: { scheduler: "MAIN_SCHEDULER" } }],
+        bytestream: [{ instance_name: "", cas_store: "CAS" }],
+      },
+    },
+    {
+      name: "workers",
+      listener: { http: { socket_address: "127.0.0.1:50061" } },
+      services: {
+        worker_api: { scheduler: "MAIN_SCHEDULER" },
+        health: {},
+      },
+    },
+  ],
+  global: { max_open_files: 65536 },
+}

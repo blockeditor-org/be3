@@ -57,10 +57,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             view: ViewId::MAIN,
             placement: ViewPlacement::Parent(ParentView::Main),
             metrics: ViewportMetrics {
-                logical: be_sdk_api::Size {
-                    width: 800.0,
-                    height: 600.0,
-                },
+                logical: be_sdk_api::Vec2 { x: 800.0, y: 600.0 },
                 visible: be_sdk_api::Pos2::ZERO,
                 pixel_width: 800,
                 pixel_height: 600,
@@ -102,9 +99,9 @@ fn dock_screen(shown: View, screen: u64, docked: bool) -> (ScreenPlacement, Scre
         view: shown.id,
         placement: shown.placement,
         metrics: ViewportMetrics {
-            logical: be_sdk_api::Size {
-                width: width as f32,
-                height: 600.0,
+            logical: be_sdk_api::Vec2 {
+                x: width as f32,
+                y: 600.0,
             },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: width,

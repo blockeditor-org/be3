@@ -47,10 +47,7 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
         (
             ViewId::MAIN,
             be_sdk_api::WindowPlacement::AtPointer,
-            be_sdk_api::Size {
-                width: 200.0,
-                height: 100.0
-            },
+            be_sdk_api::Vec2 { x: 200.0, y: 100.0 },
         ),
         "from the region it was opened in, at the pointer, at its size, with its role"
     );

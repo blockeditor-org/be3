@@ -4,7 +4,7 @@ Every script in `scripts/` is a few lines of `sh` that runs `crates/be-tool-boot
 `./scripts/buck`, `test`, `verify`, `ci`, `be`, `deploy`, `setup` and
 `switch` are `bootstrap buck ...`, `bootstrap test ...` and so on. It is
 everything that has to happen before buck2 can build: installing buck2,
-picking and waking the build server (guides/build_server.md), the build id,
+picking the build server (guides/build_server.md), the build id,
 retries, cutting buck2's output down, finding a test's crate, and keeping
 Cargo.lock and third-party/rust/downloads.bzl in step with the manifests (the
 lock step, below). Nothing can
@@ -39,7 +39,7 @@ to set.
 
 `scripts/internal/pins` names everything the scripts download, as
 `name='value'` lines that both the stub and the bootstrap read: buck2's
-version, be's release, nsc's, and the bootstrap's: `bootstrap_sha256_<triple>`
+version, cargo's, be's release, and the bootstrap's: `bootstrap_sha256_<triple>`
 is the SHA-256 of each platform's binary, which is also its name at
 `https://be3-ci.b-cdn.net/bootstrap/<sha256>`.
 `scripts/internal/bootstrap.sh` downloads the one for this machine into

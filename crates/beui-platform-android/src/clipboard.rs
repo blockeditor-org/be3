@@ -53,10 +53,15 @@ struct Held {
 impl Held {
     fn item(&self, format: &str) -> Option<ClipItem> {
         if format == formats::TEXT {
-            return self.text.clone().filter(|text| !text.is_empty()).map(ClipItem::text);
+            return self
+                .text
+                .clone()
+                .filter(|text| !text.is_empty())
+                .map(ClipItem::text);
         }
         let (_, encoded) = self.be3.iter().find(|(held, _)| held == format)?;
-        let stored = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded).ok()?;
+        let stored =
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded).ok()?;
         ClipItem::from_stored(format, &stored)
     }
 }
@@ -93,7 +98,8 @@ mod android {
         with_manager(|env, _activity, manager| {
             let label = env.new_string("")?;
             let string_class = env.find_class(jni_str!("java/lang/String"))?;
-            let kinds = env.new_object_array(1 + be3.len() as i32, &string_class, JObject::null())?;
+            let kinds =
+                env.new_object_array(1 + be3.len() as i32, &string_class, JObject::null())?;
             let plain = env.new_string("text/plain")?;
             kinds.set_element(env, 0, &plain)?;
             let extras = env.new_object(
@@ -226,7 +232,12 @@ mod android {
             return Ok(Vec::new());
         }
         let count = env
-            .call_method(&description, jni_str!("getMimeTypeCount"), jni_sig!("()I"), &[])?
+            .call_method(
+                &description,
+                jni_str!("getMimeTypeCount"),
+                jni_sig!("()I"),
+                &[],
+            )?
             .i()?;
         let mut be3 = Vec::new();
         for index in 0..count {

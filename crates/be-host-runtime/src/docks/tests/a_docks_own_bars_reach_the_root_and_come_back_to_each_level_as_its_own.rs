@@ -1,6 +1,6 @@
 use super::*;
 use be_sdk_api::{
-    DockAlign, DockBar, DockBarEdge, DockBarPlacement, DockEdge, DockPlacedBar, Size,
+    DockAlign, DockBar, DockBarEdge, DockBarPlacement, DockEdge, DockPlacedBar, Vec2,
 };
 
 fn own_bar(tab: u64, key: &str) -> DockBar {
@@ -13,10 +13,7 @@ fn own_bar(tab: u64, key: &str) -> DockBar {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
-        size: Size {
-            width: 160.0,
-            height: 32.0,
-        },
+        size: Vec2 { x: 160.0, y: 32.0 },
         pane: None,
     }
 }

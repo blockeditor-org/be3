@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn commits_not_on_a_branch_are_refused() {
-    let running = start_with("refused", None, true, &[OTHER]).await;
+    let running = start_with("refused", &[OTHER]).await;
 
     let refused = running.product("POST", "android", OTHER).await;
     assert_eq!(refused.status, "HTTP/1.1 422 Unprocessable Entity");

@@ -1,6 +1,6 @@
 [package]
 name = "be-tool-build-helper"
-description = "Builds named products of a commit on request with ./scripts/buck, uploads them to the CDN by content hash, and wakes Namespace's remote execution cluster"
+description = "Builds named products of a commit on request with ./scripts/buck, uploads them to the CDN by content hash"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

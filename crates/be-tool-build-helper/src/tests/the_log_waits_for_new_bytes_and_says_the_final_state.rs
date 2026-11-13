@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn the_log_waits_for_new_bytes_and_says_the_final_state() {
-    let mut running = start("log", None).await;
+    let mut running = start("log").await;
     let path = format!("/build/products/launcher-android/{COMMIT}/log");
 
     running.product("POST", "launcher-android", COMMIT).await;
