@@ -46,8 +46,7 @@ headless browser it can time out once an app canvas shows.
 ## beui's HTML core in a browser
 
 A crate on beui's HTML core (guides/beui/core.md, Cores) renders DOM elements instead of
-drawing. Its bundle answers drive's reading commands (`tree`, `ids`, `find`, `reveal`, `shown`,
-`wait`, `gone`, `settle`, `pause`, `clock`) through `beui::html::automate`, in the native line
+drawing. Its bundle answers drive's reading commands (`tree`, `ids`, `find`, `wait`, `settle`, `pause`, `clock`) through `beui::html::automate`, in the native line
 format; input comes from Playwright. crates/beui-tests' `:web-test` drives its scripts that way
 (guides/testing_a_gui.md, 7). A bundle on this core stages beui's fonts
 (`//crates/beui-fonts:*.ttf`) beside its index.html, where its `@font-face` rules look.

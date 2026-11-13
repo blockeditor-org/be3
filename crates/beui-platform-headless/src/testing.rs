@@ -756,7 +756,7 @@ impl<A: Program + 'static> Stepped<A> {
     }
 
     pub fn gone(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["gone"], &[target.into()], &[])
+        self.gesture(&["wait", "not"], &[target.into()], &[])
     }
 
     pub fn pause(&mut self, by: Duration) -> String {

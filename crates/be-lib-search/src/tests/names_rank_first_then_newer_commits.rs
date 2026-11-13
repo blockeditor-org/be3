@@ -12,6 +12,7 @@ fn names_rank_first_then_newer_commits() {
             name: name.into(),
             body: body.into(),
         }),
+        partial: false,
     };
     let first = vec![
         document(1, 1, "Groceries", "buy apples and pears"),

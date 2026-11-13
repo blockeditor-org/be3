@@ -30,6 +30,7 @@ fn unchanged(n: u32, time: i64) -> Batch {
             commit: commit(time),
             source: Some([9; 32]),
             text: None,
+            partial: false,
         }],
         ..Batch::default()
     }

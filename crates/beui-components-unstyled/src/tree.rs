@@ -144,10 +144,10 @@ struct State<K: 'static> {
     on_paste: Callback<(K, ClipItem)>,
     typeahead: Stored<RefCell<Typeahead>>,
     spacing: f32,
-    parting: Stored<Cell<Option<ReorderHandle<K, ()>>>>,
+    parting: StoredCell<Option<ReorderHandle<K, ()>>>,
     group: Signal<Vec<K>>,
     over: Stored<RefCell<Option<TreeDragOver<K>>>>,
-    settling: Stored<Cell<bool>>,
+    settling: StoredCell<bool>,
 }
 
 impl<K> Clone for State<K> {
@@ -265,10 +265,10 @@ where
         on_paste,
         typeahead: store(RefCell::default()),
         spacing,
-        parting: store(Cell::new(None)),
+        parting: StoredCell::new(None),
         group: create_signal(Vec::new()),
         over: store(RefCell::default()),
-        settling: store(Cell::new(false)),
+        settling: StoredCell::new(false),
     };
     api.fill(TreeApi(state));
 
@@ -279,8 +279,8 @@ where
     });
     create_effect(move || {
         keys.with(|_| ());
-        if state.settling.value().replace(false)
-            && let Some(parted) = state.parting.value().get()
+        if state.settling.replace(false)
+            && let Some(parted) = state.parting.get()
         {
             parted.shut();
         }
@@ -336,7 +336,7 @@ where
                 <Frame />
             }}
         >|parted: ReorderHandle<K, ()>| {
-            state.parting.value().set(Some(parted));
+            state.parting.set(Some(parted));
             rows(Some(parted))
         }</Reorder>
     }
@@ -554,27 +554,25 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         hovered,
         active,
     } = target;
-    let gesture: Stored<Cell<Option<Gesture>>> = store(Cell::default());
+    let gesture = StoredCell::<Option<Gesture>>::default();
     let pressed = move |press: PointerPress| {
-        gesture.with(|gesture| {
-            gesture.set(Some(Gesture {
-                origin: press.pos,
-                at: press.pos,
-                started: false,
-            }))
-        });
+        gesture.set(Some(Gesture {
+            origin: press.pos,
+            at: press.pos,
+            started: false,
+        }));
         if press.clicks >= 2 {
             open.call(());
         }
     };
     let dragged = move |at: PointerPress| {
-        let Some(mut held) = gesture.with(Cell::get) else {
+        let Some(mut held) = gesture.get() else {
             return;
         };
         held.at = at.pos;
         let starts = !held.started && (at.pos - held.origin).length() >= ROW_DRAG_THRESHOLD;
         held.started |= starts;
-        gesture.with(|gesture| gesture.set(Some(held)));
+        gesture.set(Some(held));
         if starts {
             drag_start.call(());
         }
@@ -585,14 +583,14 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
     let settled = move |down: bool| {
         active.set(down);
         if !down {
-            let held = gesture.with(|gesture| gesture.take());
+            let held = gesture.take();
             if let Some(held) = held.filter(|held| held.started) {
                 drop.call(held.at);
             }
         }
     };
     let chose = move || {
-        if gesture.with(Cell::get).is_none_or(|held| !held.started) {
+        if gesture.get().is_none_or(|held| !held.started) {
             select.call(());
         }
     };
@@ -962,8 +960,8 @@ impl<K: Clone + Eq + Hash + 'static> TreeApi<K> {
         allow: impl Fn(&TreeDrop<K>) -> bool,
     ) -> Option<TreeDragOver<K>> {
         let state = self.0;
-        let parted = state.parting.value().get()?;
-        state.settling.value().set(false);
+        let parted = state.parting.get()?;
+        state.settling.set(false);
         let Some(at) = at else {
             state.over.value().borrow_mut().take();
             parted.hover(None);
@@ -1003,11 +1001,11 @@ impl<K: Clone + Eq + Hash + 'static> TreeApi<K> {
     pub fn drag_end(&self, settle: bool) {
         let state = self.0;
         state.over.value().borrow_mut().take();
-        let Some(parted) = state.parting.value().get() else {
+        let Some(parted) = state.parting.get() else {
             return;
         };
         match settle && parted.gap.with_untracked(Option::is_some) {
-            true => state.settling.value().set(true),
+            true => state.settling.set(true),
             false => parted.hover(None),
         }
     }

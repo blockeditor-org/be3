@@ -99,8 +99,9 @@ impl<T: 'static> Drop for OwnedStored<T> {
     }
 }
 
-/// A `Copy` cell owned by the current scope, for a `Copy` value several closures read and
-/// write, such as where a gesture started.
+/// A `Copy` cell owned by the current scope, for a value several closures read and write, such
+/// as where a gesture started. Once its scope is disposed, `get`, `replace` and `take` panic and
+/// `try_get` answers `None`, while `set` and `update` do nothing.
 pub struct StoredCell<T>(Stored<Cell<T>>);
 
 impl<T> Clone for StoredCell<T> {
@@ -141,6 +142,13 @@ impl<T: 'static> StoredCell<T> {
         T: Copy,
     {
         self.0.with(Cell::get)
+    }
+
+    pub fn try_get(&self) -> Option<T>
+    where
+        T: Copy,
+    {
+        self.0.try_with(Cell::get)
     }
 
     pub fn set(&self, value: T) {

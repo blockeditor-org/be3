@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 type Checked = Result<(), String>;
 
 pub fn run() -> String {
-    let checks: [(&str, fn() -> Checked); 8] = [
+    let checks: [(&str, fn() -> Checked); 9] = [
         (
             "mounting_keeps_nodes_while_bindings_update",
             mounting_keeps_nodes,
@@ -26,6 +26,10 @@ pub fn run() -> String {
         ("a_handler_is_flushed_after_it_runs", handlers_are_flushed),
         ("hydrated_nodes_take_their_listeners", hydrated_listeners),
         ("hydrating_a_form_keeps_its_inputs", hydrating_a_form),
+        (
+            "a_slot_opened_on_a_mounted_element_fills_and_empties",
+            a_slot_opened_on_a_mounted_element,
+        ),
     ];
     let mut report = String::new();
     for (name, check) in checks {
@@ -455,5 +459,54 @@ fn hydrating_a_form() -> Checked {
     let text = host.text_content().unwrap_or_default();
     expect(text.contains("Password hunter2"), || {
         format!("typing did not reach the signal: {text:?}")
+    })
+}
+
+fn a_slot_opened_on_a_mounted_element() -> Checked {
+    use beui_html::reactive::IntoSlotHost;
+
+    let _root = RootScope::new();
+    let host = host();
+    let held = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let keep = std::rc::Rc::clone(&held);
+    let _mounted = beui_html::dom::mount(&host, move || {
+        let holder = Node::element("div");
+        IntoSlotHost::<Node>::into_slot_host(&holder).append(Node::element("hr"));
+        *keep.borrow_mut() = Some(holder.clone());
+        holder
+    });
+    let holder = held
+        .borrow()
+        .clone()
+        .ok_or_else(|| "the view was not built".to_owned())?;
+    let div = first_element(&host)?;
+    let slots = IntoSlotHost::<Node>::into_slot_host(&holder);
+    let slot = slots.open();
+    let item = |name: &str| {
+        let node = Node::element("span");
+        node.set_attribute("data-item", Some(name.to_owned()));
+        node
+    };
+    let shown = || -> Vec<String> {
+        items(&div)
+            .iter()
+            .map(|element| {
+                element
+                    .get_attribute("data-item")
+                    .unwrap_or_else(|| element.tag_name())
+            })
+            .collect()
+    };
+    slots.fill(slot, vec![item("a"), item("b")]);
+    expect(shown() == ["HR", "a", "b"], || {
+        format!("filled, the element holds {:?}", shown())
+    })?;
+    slots.fill(slot, vec![item("c")]);
+    expect(shown() == ["HR", "c"], || {
+        format!("filled again, the element holds {:?}", shown())
+    })?;
+    slots.fill(slot, Vec::new());
+    expect(shown() == ["HR"], || {
+        format!("emptied, the element still holds {:?}", shown())
     })
 }
