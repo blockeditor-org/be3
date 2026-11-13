@@ -251,6 +251,15 @@ pub trait LiveEdit: BlockContent {
     /// of content that holds it. The replica hands it to the host with the edit, and the host
     /// keeps it beside the journal entry or commit holding the edit and sends it once the
     /// server holds that, whether the replica is open then or not.
+    /// What this content holds that `server` (the head the server last held) lacks, as the
+    /// operations that would add it: how a replica opened after a restart, with commits of
+    /// this device still in its outbox, shows what is still sending. None by default, so a
+    /// type that does not show sending state answers nothing.
+    fn unsent_over(&self, server: &Self) -> Vec<Self::Op> {
+        let _ = server;
+        Vec::new()
+    }
+
     fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
         let _ = operation;
         Vec::new()

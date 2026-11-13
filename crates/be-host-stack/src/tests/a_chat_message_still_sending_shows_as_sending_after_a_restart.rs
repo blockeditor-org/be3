@@ -17,6 +17,7 @@ fn sending(editor: &Editor<be_type_chat::ChatContent>) -> Vec<String> {
 fn a_chat_message_still_sending_shows_as_sending_after_a_restart() {
     let mut harness = Harness::pushing();
     let room = ChatRoom::start(&harness, &[]);
+    let address = harness.address();
 
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
@@ -43,4 +44,12 @@ fn a_chat_message_still_sending_shows_as_sending_after_a_restart() {
         ["Running late"],
         "a message the server never got still shows as sending after a restart"
     );
+
+    // Back online, the outbox drains and the message is sent.
+    harness.start_server(&address);
+    retry_now();
+    wait_until("reconnected and drained the outbox", |shared| {
+        shared.connected && shared.waiting == 0 && !shared.draining
+    });
+    editor.until("shows nothing as sending", |editor| sending(editor).is_empty());
 }

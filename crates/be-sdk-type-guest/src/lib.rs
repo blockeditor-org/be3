@@ -455,6 +455,7 @@ impl Module {
                 journal_kept: opening.journal_kept,
                 commits_kept: opening.commits_kept,
                 refused_commits: opening.refused_commits.clone(),
+                server_head: opening.server_head,
                 from_file: kind.from_file,
                 parts_merge: kind.replica_merge.clone(),
                 now,

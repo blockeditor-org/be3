@@ -98,6 +98,7 @@ pub(crate) struct Opened {
     pub(crate) journal_kept: bool,
     pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
     pub(crate) refused_commits: Vec<CommitId>,
+    pub(crate) server_head: Option<CommitId>,
     pub(crate) from_file: Option<FromFileFn>,
     /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
     /// merges by parts.
@@ -589,6 +590,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     commits_kept: be_sdk_type_api::KeptCommits,
     /// The refused commits this device holds (`opening.refused-commits`).
     refused_commits: Vec<CommitId>,
+    /// The server's head as this device last heard it, read beside `base` on opening when
+    /// commits are kept (`opening.server-head`), until the content's own is loaded.
+    server_head: Option<Option<CommitId>>,
     out: Vec<Effect>,
 }
 
@@ -598,9 +602,11 @@ where
     H: Recorder<C>,
 {
     fn start(&mut self, out: &mut Vec<Effect>) {
-        match self.base {
-            Some(head) => self.read(vec![Some(head)], Then::Load),
-            None => self.loaded(C::default()),
+        match (self.base, self.server_head) {
+            // What the commits kept add over the server's head is read with them.
+            (Some(head), Some(server)) => self.read(vec![Some(head), server], Then::Load),
+            (Some(head), None) => self.read(vec![Some(head)], Then::Load),
+            (None, _) => self.loaded(C::default()),
         }
         self.run(out);
     }
@@ -823,6 +829,9 @@ where
             journal_kept: opened.journal_kept,
             commits_kept: opened.commits_kept,
             refused_commits: opened.refused_commits,
+            server_head: (opened.commits_kept == be_sdk_type_api::KeptCommits::Outbox
+                && opened.server_head != opened.head)
+                .then_some(opened.server_head),
             out: Vec::new(),
         }
     }
@@ -1601,7 +1610,21 @@ where
         let mut contents = contents.into_iter();
         let mut next = || contents.next().unwrap_or_default();
         match then {
-            Then::Load => self.load(next()),
+            Then::Load => {
+                let loaded = next();
+                if self.server_head.take().is_some() {
+                    // Opened after a restart with commits still in the outbox: what they add
+                    // over the server's head is still sending, unless an earlier replica's
+                    // edits were carried, which say so themselves.
+                    let unsent: Vec<Vec<u8>> = loaded
+                        .unsent_over(&next())
+                        .iter()
+                        .map(C::encode_operation)
+                        .collect();
+                    self.lacking.kept_unsent(unsent);
+                }
+                self.load(loaded)
+            }
             Then::Snapshot {
                 head,
                 sealed,

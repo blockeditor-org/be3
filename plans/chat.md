@@ -21,11 +21,8 @@ counts are built (guides/chat.md). What is left:
   message shows its claimed time; once stamped, if it arrived well after that,
   it says it was sent offline and when it arrived. A dishonest session owner
   could alter stored content, which plans/authorship.md accepts.
-- **Edits lost on a restart.** A host or type module restart loses edits not
-  yet in a commit (a journal entry the server lacks), so they no longer show as
-  sending; a content-level answer (what the local head adds over the server's)
-  would close that, which is the user's call. A `drive` command that cuts the
-  server would let a host test cover sending state.
+- **A `drive` command that cuts the server**, so a host test can cover
+  sending state through be-host.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a
   follower's message is told by the follower's replica once the owner accepts
   it, so a follower that closes or restarts before then tells nobody, as its
