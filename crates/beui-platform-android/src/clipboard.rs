@@ -73,15 +73,22 @@ impl Clipboard {
     }
 }
 
-/// A nonce no other copy is likely to have drawn: std's randomly seeded
-/// hasher, over a count of this program's copies.
+/// A nonce no other copy is likely to have drawn: eight bytes from the
+/// kernel's random source, or failing that the clock and a count of this
+/// program's copies.
 fn fresh_nonce() -> i64 {
-    use std::hash::{BuildHasher, Hasher};
+    use std::io::Read as _;
     use std::sync::atomic::{AtomicU64, Ordering};
     static COPIES: AtomicU64 = AtomicU64::new(0);
-    let mut hasher = std::hash::RandomState::new().build_hasher();
-    hasher.write_u64(COPIES.fetch_add(1, Ordering::Relaxed));
-    hasher.finish() as i64
+    let mut bytes = [0; 8];
+    let read = std::fs::File::open("/dev/urandom").and_then(|mut random| random.read_exact(&mut bytes));
+    if read.is_ok() {
+        return i64::from_ne_bytes(bytes);
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_nanos() as u64);
+    (now ^ COPIES.fetch_add(1, Ordering::Relaxed).rotate_left(48)) as i64
 }
 
 /// What the system clipboard holds: its text, the be3 formats a be3 program
