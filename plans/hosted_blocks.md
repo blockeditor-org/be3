@@ -95,7 +95,9 @@ hosted never offers Join.
   closing the last editor of that block on the device stops it and gives the
   lease up, so a world left closed uses nothing. Hosting on after the editor
   closes is explicit: a "Keep hosting" action in the frame menu, after which
-  the shell lists the block among what this device hosts, with Stop. On a
+  the shell lists the block among what this device hosts, with Stop. The
+  list is kept in memory only, not in settings or view state: quitting
+  be-host stops every host, and starting it again restarts none. On a
   server, `be BLOCK host` runs the same component headless
   (plans/headless_apps.md).
 
@@ -124,10 +126,3 @@ hosted never offers Join.
 7. **A first hosted type**: a small game world in the logic game's spirit,
    with secret state, or a hosted variant of an existing game. Done: a host
    test where an editor hosts and a Join member plays.
-
-## Open questions
-
-- **Q13. Keep hosting across restarts.** When be-host quits and starts again,
-  does a block the person chose to keep hosting start hosting again by itself
-  (a setting of that device, shown in the shell's list), or does Keep hosting
-  last only until be-host quits?
