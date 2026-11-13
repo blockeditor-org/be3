@@ -418,7 +418,5 @@ pub fn note_animating() {
     with(|host| host.output.animating = true);
 }
 
-
-
 #[cfg(test)]
 mod tests;

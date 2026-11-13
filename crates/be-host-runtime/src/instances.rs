@@ -1,12 +1,12 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::{
-    AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
+    AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand,
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
     DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View,
-    ViewAnchor, ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent,
+    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View,
+    ViewAnchor, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent,
     WebViewId,
 };
 use be_sdk_api::{
@@ -242,7 +242,7 @@ impl ContentLink {
 
 pub(super) type OpenRequest = crate::BlockOpen;
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Focus {
     pub block: Option<(Uuid, Uuid)>,
     /// The editor the block is shown with when one was asked for by id.
@@ -1836,7 +1836,6 @@ impl Instances {
         )]
     }
 
-
     pub(super) fn menu(&self, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
         self.entries
             .get(&instance)
@@ -1866,8 +1865,6 @@ impl Instances {
             EditorEvent::MenuPick(MenuChoice { view, id, anchor }),
         )]
     }
-
-
 
     pub(super) fn report_creation(
         &mut self,
@@ -1936,7 +1933,7 @@ impl Instances {
         instance: EditorInstanceId,
         data: &[u8],
     ) -> Vec<Outbound> {
-        let Some(entry) = self.entries.get_mut(&instance) else {
+        let Some(_) = self.entries.get(&instance) else {
             return Vec::new();
         };
         vec![Outbound::Editor(
@@ -1944,7 +1941,6 @@ impl Instances {
             EditorCall::RegenerateArtifact(data.to_vec()),
         )]
     }
-
 
     pub(super) fn allow_network(&mut self, hosts: Vec<String>) {
         self.network = hosts;
@@ -1981,7 +1977,11 @@ impl Instances {
             entry.reported_presenting = false;
             entry.published.forget_reported();
             entry.heads = Heads::default();
-            super::events::emit(&self.app_id, *instance, InstanceEvent::ArtifactWatch(Vec::new()));
+            super::events::emit(
+                &self.app_id,
+                *instance,
+                InstanceEvent::ArtifactWatch(Vec::new()),
+            );
             entry.watches.clear();
             entry.replicas.clear();
             entry.shows.clear();
@@ -2747,7 +2747,6 @@ impl Instances {
         revoked
     }
 
-
     pub(super) fn content_view(&self, instance: EditorInstanceId) -> ViewId {
         let Some(entry) = self.entries.get(&instance) else {
             return ViewId::MAIN;
@@ -2911,8 +2910,6 @@ impl Instances {
         self.entries.get(&instance).is_some_and(|entry| entry.card)
     }
 
-
-
     pub(super) fn ask_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) {
         if let Some(entry) = self.entries.get_mut(&instance)
             && !entry.child_focus.contains(&child)
@@ -3003,7 +3000,6 @@ impl Instances {
                 .is_none_or(|link| link.attached.is_none() || link.delivered)
         })
     }
-
 
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
         let mut statuses: Vec<_> = self
@@ -3096,7 +3092,6 @@ impl Instances {
         }
         vec![Outbound::Editor(instance, EditorCall::CommitCreation)]
     }
-
 
     pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
         self.entries.get(&instance)?.intrinsic
@@ -3333,7 +3328,6 @@ impl Instances {
         }
     }
 
-
     pub(super) fn drive_web_views(&mut self) -> Vec<Outbound> {
         let mut messages = Vec::new();
         for (instance, entry) in &mut self.entries {
@@ -3391,7 +3385,6 @@ impl Instances {
             Some(request_id),
         )
     }
-
 
     pub(super) fn replace_child(
         &mut self,
@@ -3670,7 +3663,11 @@ impl Instances {
                 Err(_) => return false,
             },
             ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, anchor }) => {
-                super::events::emit(&self.app_id, instance, InstanceEvent::ChildMenuPick { child, id, anchor });
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ChildMenuPick { child, id, anchor },
+                );
             }
             ShellMessage::Copy(ClipOffer { serial, items }) => {
                 host::copy(host::CopiedClip {
@@ -3711,7 +3708,11 @@ impl Instances {
             }
             ShellMessage::Act(BlockAct { block, command }) => {
                 let id = Uuid::from_bytes(block);
-                super::events::emit(&self.app_id, instance, InstanceEvent::Action(EditorAction::Shell { id, command }));
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::Shell { id, command }),
+                );
             }
             ShellMessage::LeaveFrame => {
                 super::events::emit(&self.app_id, instance, InstanceEvent::Leaving);
@@ -3797,7 +3798,11 @@ impl Instances {
                     parent,
                     name,
                 };
-                super::events::emit(&self.app_id, instance, InstanceEvent::ChildCommitted(commit));
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ChildCommitted(commit),
+                );
             }
             ShellMessage::ArtifactDescribed(description) => {
                 entry.artifact.description = Some(description);
@@ -3835,14 +3840,22 @@ impl Instances {
             }
             EditorAnswer::Regenerated(outcome) => {
                 let outcome = outcome.map_err(|failure| failure.to_string());
-                super::events::emit(&self.app_id, instance, InstanceEvent::ArtifactOutcome(outcome));
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ArtifactOutcome(outcome),
+                );
             }
             EditorAnswer::Rendered { request_id, data } => {
                 if entry.renders.remove(&request_id) {
-                    super::events::emit(&self.app_id, instance, InstanceEvent::Rendered {
-                        request: request_id,
-                        data,
-                    });
+                    super::events::emit(
+                        &self.app_id,
+                        instance,
+                        InstanceEvent::Rendered {
+                            request: request_id,
+                            data,
+                        },
+                    );
                 }
             }
             EditorAnswer::Replaced {
@@ -3866,8 +3879,6 @@ impl Instances {
         }
         true
     }
-
-
 
     pub(super) fn debug_call(&mut self, instance: EditorInstanceId, call: DebugCall) -> bool {
         match call {
@@ -3898,7 +3909,7 @@ impl Instances {
                 block,
                 access,
             } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
+                let Some(_) = self.entries.get(&instance) else {
                     self.services
                         .answers
                         .push((reply.into_op(), Outcome::Err(OpError::Canceled)));
@@ -3906,7 +3917,11 @@ impl Instances {
                 };
                 self.services.answers.push(reply.answer(&()));
                 let id = Uuid::from_bytes(block);
-                super::events::emit(&self.app_id, instance, InstanceEvent::Action(EditorAction::SimulateAccess { id, access }));
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::SimulateAccess { id, access }),
+                );
                 true
             }
             call @ (DebugCall::DebugTemplatesWatchNew { .. }
@@ -3918,11 +3933,6 @@ impl Instances {
             }
         }
     }
-
-
-
-
-
 
     pub(super) fn show_dialog(
         &self,

@@ -469,10 +469,10 @@ impl Instances {
                     }
                 }
                 Subject::Artifact(_) => crate::events::emit(
-                &self.app_id,
-                instance,
-                InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
-            ),
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
+                ),
                 Subject::Search(op) => {
                     entry.searches.remove(&op);
                 }

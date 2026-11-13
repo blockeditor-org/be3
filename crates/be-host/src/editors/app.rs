@@ -560,8 +560,6 @@ impl AppEditor {
         );
     }
 
-
-
     pub(crate) fn menu(&self) -> Vec<be_sdk_api::MenuEntry> {
         match self.app() {
             Some(app) => be_host_runtime::menu(&app.identity.id, self.instance),

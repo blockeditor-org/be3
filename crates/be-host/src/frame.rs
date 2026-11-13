@@ -139,7 +139,9 @@ fn rendered(heard: be_host_runtime::Heard) {
     let answered = WAITING.with(|waiting| {
         let mut waiting = waiting.borrow_mut();
         let at = waiting.renders.iter().position(|render| {
-            render.request == request && render.instance == heard.instance && render.app_id == heard.app_id
+            render.request == request
+                && render.instance == heard.instance
+                && render.app_id == heard.app_id
         })?;
         let render = waiting.renders.remove(at);
         if waiting.renders.is_empty() {

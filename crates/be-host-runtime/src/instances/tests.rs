@@ -20,6 +20,17 @@ fn tell(instances: &mut Instances, message: ShellMessage) -> bool {
     })
 }
 
+/// What instances report from now on, heard once the frame's mail is delivered
+/// (`host::deliver`).
+fn hearing() -> (host::Mailbox, std::rc::Rc<std::cell::RefCell<Vec<InstanceEvent>>>) {
+    let heard = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let into = std::rc::Rc::clone(&heard);
+    let (mailbox, post) =
+        host::mailbox(move |heard: crate::Heard| into.borrow_mut().push(heard.event));
+    crate::events::listen(post);
+    (mailbox, heard)
+}
+
 fn placed() -> Instances {
     placed_on(Uuid::nil(), Uuid::nil())
 }

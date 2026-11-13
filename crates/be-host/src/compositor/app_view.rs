@@ -28,8 +28,8 @@ use be_host_desktop::host_item::HostItem;
 use be_host_desktop::host_item::HostItemFace;
 use be_host_desktop::occlusion::{Occlusion, occlusion};
 use be_host_runtime::{
-    InstanceEvent,
-    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, PlacedView, ViewPlace, ViewSlot,
+    self, BlockDrag, EditorView, HostChild, InstanceEvent, InstanceRole, Piece, PlacedView,
+    ViewPlace, ViewSlot,
 };
 use beui::native::draw_gpu;
 use beui::reactive::toggle_keyboard;

@@ -40,8 +40,8 @@ mod wire;
 #[cfg(not(target_arch = "wasm32"))]
 pub use be_wasm_host::memories as wasm_memories;
 pub use description::describe;
-pub use input::BlockDrag;
 pub use events::{Heard, InstanceEvent, listen};
+pub use input::BlockDrag;
 pub use instances::{EditorView, Focus};
 pub(crate) use palette::host_draws_palette;
 pub use palette::{PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks};
@@ -58,8 +58,8 @@ pub use runtime::{
     PlacedView, ViewPlace, ViewPlacer, ViewSlot, anchored_blits, anchored_drawing, back_view,
     dismiss_anchored_views, drag_over_view, forward_anchored, forward_view, frames, intercept_tap,
     intercept_view, mount_view, place_view, placed_view, pressed_outside_view, set_view_inert,
-    take_changed, unmount_view,
-    unplace_view, view_damage, view_drawing, view_has_keyboard, view_placed, view_published,
+    take_changed, unmount_view, unplace_view, view_damage, view_drawing, view_has_keyboard,
+    view_placed, view_published,
 };
 pub use runtime::{
     artifact, artifact_draft, assigned_size, begin_frame, busy, card, child_focus_pending, close,
@@ -67,11 +67,11 @@ pub use runtime::{
     drawing, flush, forget_dialog_answer, frame_child, frame_rects, frames_answered, hold, in_use,
     install, intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll, present,
     presenting, preview_image, record_pacing, refuse_child_focus, regenerate_artifact, render_clip,
-    replace_child, replace_gpu, restart_app, report_child_details, report_child_focus, report_children,
-    request_painting, resized, revoke_frame_child, running, set_artifact_states, set_focus,
-    set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog, show_history,
-    show_panel, start_frames, take_child_focus, take_steps,
-    take_stopped, view_placement_of, view_size, warm,
+    replace_child, replace_gpu, report_child_details, report_child_focus, report_children,
+    request_painting, resized, restart_app, revoke_frame_child, running, set_artifact_states,
+    set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
+    show_history, show_panel, start_frames, take_child_focus, take_steps, take_stopped,
+    view_placement_of, view_size, warm,
 };
 pub use windows::{forget_windows, request_windows, take_window_requests};
 

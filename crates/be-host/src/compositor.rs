@@ -60,7 +60,10 @@ pub(crate) fn install() {
 fn heard(heard: be_host_runtime::Heard) {
     match heard.event {
         be_host_runtime::InstanceEvent::Action(action) => {
-            act(editors::editors().key_of(&heard.app_id, heard.instance), action);
+            act(
+                editors::editors().key_of(&heard.app_id, heard.instance),
+                action,
+            );
         }
         be_host_runtime::InstanceEvent::BlockDrag(drag) => app_view::carry(drag),
         _ => {}

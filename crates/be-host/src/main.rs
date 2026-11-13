@@ -2821,7 +2821,10 @@ impl HostCore {
             let mut commits = Vec::new();
             let mut dismissed = Vec::new();
             let mut closed = Vec::new();
-            for heard in heard.iter().filter(|heard| heard.from(&source.app_id, source.instance)) {
+            for heard in heard
+                .iter()
+                .filter(|heard| heard.from(&source.app_id, source.instance))
+            {
                 match &heard.event {
                     be_host_runtime::InstanceEvent::ChildCommitted(commit) => {
                         commits.push(commit.clone());

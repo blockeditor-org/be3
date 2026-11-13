@@ -11,7 +11,7 @@ use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
     EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
     PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange,
+    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View,
     ViewId, ViewSize, WindowRequest,
 };
 use be_sdk_manifest::AppManifest;
@@ -1764,9 +1764,6 @@ pub fn frames_answered(app_id: &str) -> (u64, u64) {
     .unwrap_or_default()
 }
 
-
-
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FramePlacement {
     pub rect: Rect,
@@ -2159,8 +2156,6 @@ pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
     });
 }
 
-
-
 pub fn menu(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
     with(app_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
 }
@@ -2171,7 +2166,6 @@ pub fn menu_pick(app_id: &str, instance: EditorInstanceId, id: String, anchor: O
         runtime.send(messages);
     });
 }
-
 
 pub fn show_dialog(
     app_id: &str,
@@ -2269,7 +2263,6 @@ pub fn regenerate_artifact(app_id: &str, instance: EditorInstanceId, data: &[u8]
     });
 }
 
-
 pub fn view_size(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
     with(app_id, |runtime| {
         runtime.instances.view_size(instance, region)
@@ -2301,7 +2294,6 @@ pub fn commit_creation(app_id: &str, instance: EditorInstanceId) {
     });
 }
 
-
 /// The child that has taken `instance`'s frame: the view placing it, the child and its block.
 pub fn frame_child(
     app_id: &str,
@@ -2317,7 +2309,6 @@ pub fn revoke_frame_child(app_id: &str, instance: EditorInstanceId) {
     });
     mark(app_id);
 }
-
 
 pub fn hold(app_id: &str, instance: EditorInstanceId, region: ViewId) {
     with(app_id, |runtime| runtime.instances.hold(instance, region));
@@ -2388,7 +2379,6 @@ pub fn render_clip(
     .flatten()
 }
 
-
 pub fn replace_child(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2409,8 +2399,6 @@ pub fn resized(app_id: &str, instance: EditorInstanceId, size: Vec2) {
         runtime.send(messages);
     });
 }
-
-
 
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
     with(app_id, |runtime| runtime.instances.assigned_size(instance)).flatten()
@@ -3317,9 +3305,6 @@ fn shown_view(
 pub fn frames(app_id: &str) -> u64 {
     with(app_id, |runtime| runtime.frames).unwrap_or_default()
 }
-
-
-
 
 pub fn drag_over_view(
     app_id: &str,

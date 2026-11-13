@@ -1,6 +1,6 @@
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use be_sdk_api::{EditorInstanceId, FitArea, PanMode, ViewChange, ViewId};
 use beui::reactive::*;
