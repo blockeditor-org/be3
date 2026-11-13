@@ -11,7 +11,7 @@ impl BeuiRoot for Quiet {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;
-        view! { <Root><List /></Root> }
+        view! { <Root><List spacing=Space::Sm /></Root> }
     }
 }
 
@@ -55,7 +55,15 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
             .find(|(_, watched)| *watched == subject)
             .map(|(op, _)| *op)
     };
-    assert_eq!(before.len(), 4, "one watch per subject: {before:?}");
+    for subject in [
+        Subject::Blocks(BlockQuery::Children(folder)),
+        Subject::History(history),
+        Subject::Artifact(kept),
+        Subject::Artifact(dropped),
+    ] {
+        let held = before.iter().filter(|(_, watched)| *watched == subject);
+        assert_eq!(held.count(), 1, "one watch of {subject:?}: {before:?}");
+    }
 
     test.set_histories([(
         history,
@@ -71,7 +79,11 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
     host.watch_artifacts([kept]);
     test.run();
     let after = test.block_watches();
-    assert_eq!(after.len(), 3, "only the dropped artifact's watch closed: {after:?}");
+    assert_eq!(
+        after.len(),
+        before.len() - 1,
+        "only the dropped artifact's watch closed: {after:?}"
+    );
     assert_eq!(op_of(&after, Subject::Artifact(dropped)), None);
     for subject in [
         Subject::Blocks(BlockQuery::Children(folder)),
