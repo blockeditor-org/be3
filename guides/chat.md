@@ -115,6 +115,12 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   made since.
 - It sends, replies, edits and deletes its own messages and toggles reactions
   (Lucide icon names). A draft stays in the editor until sent.
+- **Attachments.** Attach picks a block (`pick_block`) and moves it into the
+  chat as a child (`set_parent`), so it is shared and copied with the chat;
+  the message lists it in `attachments`, and a message may be attachments
+  alone. Each shows as a `BlockLink` under the message, named and typed from
+  the chat's children (`BlockQuery::Children`), opening the block on a press.
+  Removing a picked block from the draft leaves it in the chat.
 - **Sending state.** A message shows "Sending" while the server lacks the edit
   that sent it, and "Not sent", with Send again and Discard, once the server
   refused the commit holding it (`ContentProjection::lacking`,

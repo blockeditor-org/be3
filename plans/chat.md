@@ -11,8 +11,6 @@ counts are built (guides/chat.md). What is left:
   replied-to author. Add a host service that names the accounts in a block's
   members (contacts by their card, others by what the server says, marked
   unverified), with no framework types.
-- **Attachments.** They are in the model (child blocks) but the editor cannot
-  add or show them.
 - **Unread counts outside the editor.** No sidebar or block row shows a chat's
   count yet.
 - **Arrival time.** The server stamps each relayed operation with when it

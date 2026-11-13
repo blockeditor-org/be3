@@ -7,11 +7,15 @@ use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
     Glyph, ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PARTY_POPPER,
-    ICON_PENCIL, ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
+    ICON_PAPERCLIP, ICON_PENCIL, ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Signer, utc_offset};
+use be_sdk_beui::{
+    BlockFilter, BlockLink, BlockParent, BlockQuery, ChildTarget, ContentProjection, Editor,
+    KeptEdit, LayeredSettings, Signer, utc_offset,
+};
+use be_sdk_beui::be_block::be_block_model::BlockRef;
 use be_type_chat::{
     ChatContent, ChatReads, Message, MessageEdit, ReadPlace, Segment, Shown, Signature,
 };
@@ -41,6 +45,8 @@ struct Row {
     edited: bool,
     reply: Option<String>,
     reactions: Vec<Reacted>,
+    /// The blocks sent with it, the chat's children.
+    attachments: Vec<Uuid>,
     /// What its author signed: the message, and its edit if it has one.
     proofs: Vec<Proof>,
 }
@@ -84,6 +90,69 @@ struct Composer {
     replying: Signal<Option<ObjectId>>,
     editing: Signal<Option<ObjectId>>,
     picking: Signal<Option<ObjectId>>,
+    /// The blocks picked to send with the next message, each moved into the chat already.
+    attaching: Signal<Vec<Uuid>>,
+}
+
+/// The type of each of a chat's children (its attachments), by id.
+type Attached = Memo<HashMap<Uuid, Uuid>>;
+
+fn attached(editor: Editor, block: Uuid) -> Attached {
+    let found = create_signal(HashMap::new());
+    let children = editor.blocks().watch(BlockQuery::Children(block));
+    create_binding(move || {
+        if let Ok(blocks) = children.read() {
+            found.set(
+                blocks
+                    .into_iter()
+                    .map(|info| (info.id, info.block_type))
+                    .collect(),
+            );
+        }
+    });
+    create_memo(move || found.get())
+}
+
+/// Picks a block to send with the next message, and moves it into the chat.
+fn attach(editor: Editor, composer: Composer, anchor: NodeRef) {
+    let chat = editor.block_id();
+    editor.pick_block(
+        BlockFilter {
+            name: "Attach".to_owned(),
+            block_types: Vec::new(),
+            excluded: Vec::new(),
+            templates: false,
+            place: None,
+        },
+        &anchor,
+        move |picked| {
+            let Ok(picked) = picked else {
+                return;
+            };
+            let id = picked.id();
+            editor.blocks().set_parent(id, BlockParent::Block(chat));
+            composer.attaching.update(|attaching| {
+                if !attaching.contains(&id) {
+                    attaching.push(id);
+                }
+            });
+        },
+    );
+}
+
+/// A block sent with a message, or about to be: a link to it by its name.
+#[component]
+fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String) -> NodeId {
+    let target = create_memo(move || {
+        attached.with(|attached| {
+            attached
+                .get(&id)
+                .map(|block_type| ChildTarget::new(id, *block_type))
+        })
+    });
+    view! {
+        <BlockLink editor block={target} fallback="Attachment" @test_id={link_id} />
+    }
 }
 
 #[component]
@@ -111,6 +180,29 @@ pub fn Chat(editor: Editor) -> NodeId {
         replying: create_signal(None),
         editing: create_signal(None),
         picking: create_signal(None),
+        attaching: create_signal(Vec::new()),
+    };
+    let attached = attached(editor, block);
+    let attach_button = NodeRef::new();
+    let attaching_ids = create_memo(move || composer.attaching.get());
+    let has_attaching = create_memo(move || composer.attaching.with(|ids| !ids.is_empty()));
+    let attaching_chip = move |id: Uuid| {
+        view! {
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                <AttachmentChip editor attached id link_id={format!("chat.attaching.{id}")} />
+                <Button
+                    label="Remove the attachment"
+                    glyph=ICON_X
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Small
+                    @test_id={format!("chat.attaching.{id}.remove")}
+                    on_click={move || {
+                        composer.attaching.update(|ids| ids.retain(|held| *held != id));
+                    }}
+                />
+            </List>
+        }
     };
     // A message replied to or being edited can be deleted, here or elsewhere.
     create_effect(move || {
@@ -207,13 +299,13 @@ pub fn Chat(editor: Editor) -> NodeId {
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         view! {
-            <MessageRow editor chat={chat} me id row={shown} composer unsent block signing />
+            <MessageRow editor chat={chat} me id row={shown} composer unsent block signing attached />
         }
     };
     let older_message_rows = move |id: ObjectId| {
         let shown = older.rows.get(&id);
         view! {
-            <MessageRow editor chat={chat} me id row={shown} composer unsent block signing />
+            <MessageRow editor chat={chat} me id row={shown} composer unsent block signing attached />
         }
     };
     let has_older = older.remaining;
@@ -314,7 +406,21 @@ pub fn Chat(editor: Editor) -> NodeId {
                             />
                         </List>
                     </Show>
+                    <Show condition={has_attaching}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                            <ForEach keys={attaching_ids} view={attaching_chip} />
+                        </List>
+                    </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Button
+                            label="Attach a block"
+                            glyph=ICON_PAPERCLIP
+                            icon_only=true
+                            variant=ButtonVariant::Ghost
+                            @node_ref={&attach_button}
+                            @test_id={"chat.attach"}
+                            on_click={move || attach(editor, composer, attach_button)}
+                        />
                         <ListItem grow=1.0>
                             <TextInput
                                 value={composer.draft}
@@ -574,6 +680,12 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
         edited: message.edited,
         reply,
         reactions,
+        attachments: message
+            .message
+            .attachments
+            .iter()
+            .map(|attachment| attachment.0)
+            .collect(),
     }
 }
 
@@ -657,12 +769,17 @@ const MAX_BODY_BYTES: usize = 32 * 1024;
 /// host could not, which others see as forged rather than lose it.
 fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer) {
     let body = composer.draft.get_untracked().trim().to_owned();
+    let editing = composer.editing.get_untracked();
+    let attachments = match editing {
+        Some(_) => Vec::new(),
+        None => composer.attaching.get_untracked(),
+    };
     // A body the host would refuse to sign stays in the composer rather than go out as forged.
-    if body.is_empty() || body.len() > MAX_BODY_BYTES {
+    if (body.is_empty() && attachments.is_empty()) || body.len() > MAX_BODY_BYTES {
         return;
     }
     let chat = *chat;
-    match composer.editing.get_untracked() {
+    match editing {
         Some(message) => {
             let edit = MessageEdit {
                 author: me,
@@ -690,8 +807,10 @@ fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer
             composer.editing.set(None);
         }
         None => {
-            let message =
-                Message::new(me, now(), body).replying_to(composer.replying.get_untracked());
+            let message = Message {
+                attachments: attachments.into_iter().map(BlockRef).collect(),
+                ..Message::new(me, now(), body).replying_to(composer.replying.get_untracked())
+            };
             if let Ok((id, message)) = chat.read(|content| content.draft(block, message)) {
                 let signing = editor.host().sign(message.signed_bytes(block, id));
                 editor.then(signing, move |signed| {
@@ -703,6 +822,7 @@ fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer
                 });
             }
             composer.replying.set(None);
+            composer.attaching.set(Vec::new());
         }
     }
     composer.draft.set(String::new());
@@ -743,7 +863,20 @@ fn MessageRow(
     unsent: Memo<HashMap<ObjectId, Unsent>>,
     block: Uuid,
     signing: Signal<Uuid>,
+    attached: Attached,
 ) -> NodeId {
+    let attachment_ids = create_memo(move || row.with(|row| row.attachments.clone()));
+    let has_attachments = create_memo(move || attachment_ids.with(|ids| !ids.is_empty()));
+    let attachment_chip = move |attachment: Uuid| {
+        view! {
+            <AttachmentChip
+                editor
+                attached
+                id={attachment}
+                link_id={format!("chat.message.{id}.attachment.{attachment}")}
+            />
+        }
+    };
     let proofs = create_memo(move || row.with(|row| row.proofs.clone()));
     // Who signed it, once the host says: nothing is marked until then.
     let signer = create_signal(None::<Signer>);
@@ -1020,6 +1153,11 @@ fn MessageRow(
                     </Frame>
                 </Show>
                 <Text>{body}</Text>
+                <Show condition={has_attachments}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                        <ForEach keys={attachment_ids} view={attachment_chip} />
+                    </List>
+                </Show>
                 <Show condition={reacted}>
                     <List
                         direction=Direction::Horizontal
