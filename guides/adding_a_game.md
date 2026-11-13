@@ -9,8 +9,8 @@ game is written and built once for desktop, Android and the browser.
 - `tabletop-api`: the contract, compiled into every game: the types both sides
   exchange, the `GameHelper` a game is written against, the `game!` macro and
   the build helper. It builds for wasm32-unknown-unknown.
-- `tabletop-host`: the other side, which embeds wasmi. Only be-host depends on
-  it; it re-exports the api types it passes across.
+- `tabletop-host`: the other side, which embeds wasmi. Only the Games app
+  (`be-app-deterministic-game`) depends on it; it re-exports the api types it passes across.
 - `tabletop-pieces`: shared rules for games of pieces on a board.
 - `tabletop-rules-<game>`: one game each, the only place its rules live.
 
