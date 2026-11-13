@@ -933,11 +933,22 @@ struct Device {
 
 impl Device {
     fn online(harness: &Harness) -> Self {
+        Self::at(harness, harness.config(PathBuf::new()).socket_url())
+    }
+
+    /// Connects straight to the server, past the harness's relay: taking the relay offline
+    /// keeps the stack offline and this device online.
+    fn past_the_relay(harness: &Harness) -> Self {
+        let mut config = harness.config(PathBuf::new());
+        config.server_url = harness.url.clone();
+        Self::at(harness, config.socket_url())
+    }
+
+    fn at(harness: &Harness, url: String) -> Self {
         let runtime = runtime();
         let refs = be_block_client::RefsDb::memory();
         let store = be_block_store::MemoryStore::new();
-        let (url, identity, token, organization) = (
-            harness.config(PathBuf::new()).socket_url(),
+        let (identity, token, organization) = (
             harness.identity(),
             harness.token.clone(),
             harness.organization,

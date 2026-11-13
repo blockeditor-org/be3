@@ -52,9 +52,8 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
 
 #[test]
 fn what_is_typed_is_found_through_the_workspaces_search_index() {
-    let mut harness = Harness::start();
+    let harness = Harness::relayed();
     harness.connect();
-    let address = harness.address();
     let workspace = Uuid::new_v4();
     create(
         workspace,
@@ -92,14 +91,15 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("cherries", &[apples]);
     finds("apples", &[]);
 
-    harness.stop_server();
+    // Offline at the relay, so the stack cannot reconnect before this test lets it: the other
+    // device writes the index while it is away.
+    harness.relay().offline(true);
     wait_until("noticed the server was gone", |shared| !shared.connected);
     type_text(bananas, 0, "figs ");
     flush();
     finds("figs", &[bananas]);
 
-    harness.start_server(&address);
-    let other = Device::online(&harness);
+    let other = Device::past_the_relay(&harness);
     let elderberries = Uuid::new_v4();
     other.runtime.block_on(async {
         let peer = std::sync::Arc::clone(&other.peer.borrow());
@@ -142,6 +142,7 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
             .await
             .expect("the other device publishes its batch");
     });
+    harness.relay().offline(false);
     retry_now();
     wait_until("reconnected and sent what waited", |shared| {
         shared.connected && shared.waiting == 0
