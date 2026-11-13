@@ -15,9 +15,17 @@ fn a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones() {
     let outer = host.place(BAR);
     let card = host.place(SHAPE);
 
+    let entities = host.count(SHAPE);
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
     host.run(&["click", &inside]);
     host.run(&["settle"]);
+    // One click hands the inner canvas the press once: twice, it reads as a double-click on its
+    // empty space and starts a text there.
+    assert_eq!(
+        host.count(SHAPE),
+        entities,
+        "the click that went into the inner canvas made something there"
+    );
     assert_eq!(
         host.count(GRIP),
         1,

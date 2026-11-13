@@ -446,7 +446,7 @@ pub struct Pointer {
 
 impl Pointer {
     fn count_click(&mut self, pos: Pos2, now: Instant) {
-        self.clicks.count(pos, now);
+        self.clicks.count(pos, self.window, now);
     }
 
     pub fn clicks(&self) -> u32 {
