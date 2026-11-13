@@ -1,7 +1,8 @@
 # Hosted blocks
 
 Depends on: plans/session_message_authority.md, plans/signed_access.md;
-plans/share_links.md for step 6 only.
+plans/headless_apps.md for step 4's headless host only; plans/share_links.md
+for step 6 only.
 
 A hosted block is run by a host: one member with Edit, online, holding the
 block's live session, that others talk to instead of reading the block. A game
@@ -79,11 +80,24 @@ hosted never offers Join.
   joins through an honest host or server.
 - The host signs the handshake with its account key too, so the app knows
   which account is hosting and may show it.
-- Apps: the host side hears a member join (account, level, how its grant was
-  checked), its messages, and its leaving, and sends to one member or to
-  several; the Join side has an editor with no content frame, only the
-  channel and whether a host is online. Neither side sees keys. The protocol
-  names no framework types (guides/apps/host_services.md).
+- **The host component.** The type module stays as simple as text's: storage
+  and basic operations on the world, nothing game-specific, since every
+  editor runs it as the replica. The rules (what each player sees, which
+  moves are allowed, timers) live in the app, in a host component: an entry
+  point of the same app wasm with no frame, attached to the replica as an
+  editor with Edit is, that hears a member join (account, level, how its
+  grant was checked), its messages and its leaving, and sends to one member
+  or to several. The Join side is an ordinary editor with no content frame,
+  only the channel and whether a host is online. Neither side sees keys, and
+  the protocol names no framework types (guides/apps/host_services.md).
+- **When a device hosts.** Opening the block in an editor on a device with
+  Edit, while no one hosts, starts the host component and takes the lease;
+  closing the last editor of that block on the device stops it and gives the
+  lease up, so a world left closed uses nothing. Hosting on after the editor
+  closes is explicit: a "Keep hosting" action in the frame menu, after which
+  the shell lists the block among what this device hosts, with Stop. On a
+  server, `be BLOCK host` runs the same component headless
+  (plans/headless_apps.md).
 
 ## Order of work
 
@@ -99,9 +113,11 @@ hosted never offers Join.
    `be-block-keys`, the client sides in `be-block-client`. Done: a test with a
    forging server that offers its own host key to a Join member, which refuses
    it; and one where a joiner whose grant was revoked is refused.
-4. **Hosting.** Lease handoff and reconnecting, ban records, the app side
-   (Q12 decides where). Done: a test with two editors and two
-   players where the first host leaves and the second carries on.
+4. **Hosting.** The host component, starting and stopping it with the editor,
+   Keep hosting and the shell's list, lease handoff and reconnecting, ban
+   records; then `be BLOCK host`. Done: a test with two editors and two
+   players where the first host closes the world and the second carries on;
+   one where Keep hosting outlives the editor and Stop ends it.
 5. **The share dialog.** Labels and lines from the manifest; Join offered only
    for hosted types; who is hosting now. Done: paintings.
 6. **Join links** (plans/share_links.md, step 3).
@@ -111,13 +127,7 @@ hosted never offers Join.
 
 ## Open questions
 
-- **Q12. Where the host's logic runs.** The type module stays as it is for
-  text: storage and basic operations on the world, nothing game-specific. The
-  game's rules (what each player sees, which moves are allowed) live in the
-  app. Either:
-  - **In the editor**: hosting happens while an editor of the block is open on
-    an Edit holder's device, as a game hosted from the window you play in.
-  - **In a host component**: a second entry point of the app with no frame,
-    attached to the replica as an editor is, that be-host starts when this
-    device takes the lease, window or not, and that a headless runner (`be
-    BLOCK host`) can run on a server.
+- **Q13. Keep hosting across restarts.** When be-host quits and starts again,
+  does a block the person chose to keep hosting start hosting again by itself
+  (a setting of that device, shown in the shell's list), or does Keep hosting
+  last only until be-host quits?
