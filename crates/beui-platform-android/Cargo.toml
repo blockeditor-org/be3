@@ -10,6 +10,7 @@ accesskit_android = { version = "0.7.5", features = ["embedded-dex"] }
 beui-core = { path = "../beui-core" }
 beui-types = { path = "../beui-types" }
 beui-runner = { path = "../beui-runner" }
+base64 = "0.22"
 jni = "0.22"
 libc = "0.2"
 ndk = { version = "0.9", default-features = false }

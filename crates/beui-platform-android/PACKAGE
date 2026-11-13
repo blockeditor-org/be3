@@ -22,6 +22,7 @@ write_package_value("be3.cargo", {
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:accesskit_android-0.7.5",
+                "//third-party/rust:base64-0.22.1",
                 "//third-party/rust:jni-0.22.4",
                 "//third-party/rust:libc-0.2.186",
                 "//third-party/rust:ndk-0.9.0",

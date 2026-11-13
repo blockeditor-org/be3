@@ -25,9 +25,6 @@ Fixed items are removed as they land.
 The typed clipboard is in (guides/beui/platforms.md, Clipboard and paste;
 guides/apps/host_services.md, Copying and cutting blocks). Left of it:
 
-- **Android.** be3 formats stay in memory there, matched by plain text. Done:
-  they travel as `ClipData` MIME types, checked on an Android emulator
-  (guides/running/android.md).
 - **macOS.** The same. Done: macOS writes them as custom pasteboard types and
   knows another program copied by the pasteboard's change count. No Mac is
   available, so this is written blind: done when it compiles for macOS and
