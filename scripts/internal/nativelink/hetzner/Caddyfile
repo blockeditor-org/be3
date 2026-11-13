@@ -1,0 +1,20 @@
+# The build server's front door on the public internet, on port 443 with a certificate Caddy gets from Let's Encrypt
+# itself. buck2 connects directly over TLS, or through scripts/internal/re-relay behind an HTTPS proxy; this forwards
+# each call to NativeLink over cleartext HTTP/2. Requests without `Authorization: Bearer NL_TUNNEL_TOKEN`
+# (/etc/nl-caddy.env, which nl-caddy.service reads) get 401.
+{
+	admin off
+}
+
+{$NL_HOST} {
+	@authorized header Authorization "Bearer {env.NL_TUNNEL_TOKEN}"
+	handle @authorized {
+		reverse_proxy h2c://127.0.0.1:50052 {
+			header_up -Authorization
+			flush_interval -1
+		}
+	}
+	handle {
+		respond "nl-caddy: the token is missing or wrong" 401
+	}
+}

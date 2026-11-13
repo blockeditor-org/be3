@@ -2,8 +2,8 @@
 
 Every buck2 action runs on a remote execution server. `BE3_BUILD_SERVER` picks which, or else
 the one saved in `~/.config/be3/build-server`; at a terminal with neither, `./scripts/buck`
-asks and saves the answer (delete the file to be asked again). Otherwise it is `nativelink`, the
-NativeLink server on boat below. CI sets `BE3_BUILD_SERVER=nativelink` in .github/workflows/ci.yml.
+asks and saves the answer (delete the file to be asked again). Otherwise it is `nl.be3.pfg.pw`, the
+NativeLink server on Hetzner below. CI sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` in .github/workflows/ci.yml.
 
 `api.be3.pfg.pw` was much slower than Namespace was, so verify builds only what its tests and
 lints need: Linux, the apps' wasm, and beui's HTML core only where a test runs on it. Nothing is
@@ -18,7 +18,8 @@ release is built from (guides/bootstrap.md).
 
 | `BE3_BUILD_SERVER` | Server | Key | In a Claude Code cloud session |
 |---|---|---|---|
-| `nativelink` (default, and CI's) | our NativeLink server on boat, behind Caddy on a hosted port | its address and token `BE3_NL_URL`, and a boat key `BE3_NL_KEY` to wake it | works once the proxy adds both keys (below); needs Go |
+| `nl.be3.pfg.pw` (default, and CI's) | our NativeLink server on one Hetzner machine, behind Caddy | Caddy's token, `BE3_BUILD_SERVER_KEY` | works once the proxy adds the token for it (below); needs Go |
+| `nativelink` | our old NativeLink server on boat, behind Caddy on a hosted port, until it is deleted | its address and token `BE3_NL_URL`, and a boat key `BE3_NL_KEY` to wake it | works once the proxy adds both keys (below); needs Go |
 | `api.be3.pfg.pw` | our NativeLink server | gateway header | works with no setup |
 | `blocks.pfg.pw` | our NativeLink build VM, behind its own gateway over WireGuard | its gateway's header | works once the proxy adds the gateway header for it |
 | `namespace` | Namespace's remote execution, no longer reachable | gateway header, to its waker | not working |
@@ -50,7 +51,42 @@ or `~/.config/be3/gateway-authorization`, asking at a terminal when none works.
 itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KEY`, `.build-server-key.buildbuddy` or
 `~/.config/be3/build-server-key.buildbuddy`; a cloud session has none.
 
+## The NativeLink server on Hetzner (`nl.be3.pfg.pw`)
+
+One Hetzner CPX62 (16 shared AMD EPYC Genoa vCPUs, 32 GB, 601 GB of local disk, in Helsinki, €111 a month) runs
+NativeLink's cache, scheduler and worker as one process, inside the image `worker_properties` names, so the worker
+hardlinks inputs from the same store clients upload to and nothing crosses a network between them. Everything it runs
+is in scripts/internal/nativelink/hetzner/ (none of it is a secret); `setup.sh nl.be3.pfg.pw`, run as root on a new
+Ubuntu 24.04 server, installs it, and running it again updates it.
+
+- **The front door** is Caddy on port 443 (`Caddyfile`, `nl-caddy.service`), with a Let's Encrypt certificate it gets
+  itself for nl.be3.pfg.pw. It answers 401 to any request without `Authorization: Bearer TOKEN` and forwards the rest
+  to NativeLink on 127.0.0.1 over cleartext HTTP/2. The token is `NL_TUNNEL_TOKEN` in `/etc/nl-caddy.env` on the
+  server, which `setup.sh` makes once.
+- **The key** is that token: `BE3_BUILD_SERVER_KEY`, `.build-server-key.nl.be3.pfg.pw` at the checkout's root or
+  `~/.config/be3/build-server-key.nl.be3.pfg.pw`, asked for at a terminal. CI has it as the secret
+  `BE3_BUILD_SERVER_KEY`. buck2 reaches the server directly over TLS; behind an HTTPS proxy, through the relay.
+- **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
+  and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
+- **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB
+  (`/var/lib/nativelink/cas`) and the action cache 2 GB, each evicting the least recently used. Nothing is copied
+  elsewhere: a lost server means a new one and a cold cache, whose first `./scripts/verify` took 30 minutes, most of it
+  the client uploading toolchain archives. buck2 and the relay remember for hours which blobs the server holds, so
+  after emptying the cache by hand restart every client's daemon (`./scripts/buck kill`).
+- **One worker runs 16 actions**, one per vCPU. A rustc runs many threads, so a full queue keeps the load far above 16
+  (up to 280), and a lone tail action, such as the last big compile or link, gets all 16 vCPUs.
+- **Speed**, measured when it was set up:
+  - `./scripts/verify` with everything cached: 56 s.
+  - A one-file change to be-lib-geometry, one build alone: 192 s.
+  - 8 such builds at once, each a different change, from 3 client VMs on boat: all passed, in 918-1414 s. The CPU was
+    86% busy (61% user, 25% system) with no steal, memory peaked at 11 GB, and 50 GB of the cache was in use. It is
+    CPU-bound: a second machine would be the way to more.
+- **Cost**: €110.99 a month flat with its IPv4 address and 20 TB of traffic, whatever it builds; no controller and no
+  start limits.
+
 ## The NativeLink server on boat (`nativelink`)
+
+The server before nl.be3.pfg.pw, kept until it is deleted.
 
 Everything it runs is in scripts/internal/nativelink/ (none of it is a secret). A large `nl-scheduler` VM runs
 NativeLink (CAS, action cache, scheduler), `nl-controller.py` and Caddy; boat VMs named `nl-w-*` in the

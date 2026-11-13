@@ -10,7 +10,8 @@ use be_lib_prompt::{Choice, Saved, choose, config_directory, interactive, save_p
 
 use crate::{Result, repository};
 
-const SERVERS: [&str; 6] = [
+const SERVERS: [&str; 7] = [
+    "nl.be3.pfg.pw",
     "nativelink",
     "api.be3.pfg.pw",
     "blocks.pfg.pw",
@@ -86,6 +87,12 @@ pub fn configure(buck2: &Path) -> Result<()> {
             engine = config.host("engine_address");
             storage = config.host("cas_address");
             header = config.header();
+        } else if server == "nl.be3.pfg.pw" {
+            // Caddy in front of NativeLink checks `Authorization: Bearer TOKEN` (scripts/internal/nativelink/hetzner).
+            // With no key buck2 sends no header, for a cloud session's proxy, which adds it.
+            engine = server.clone();
+            storage = engine.clone();
+            header = bearer_header(&server);
         } else if server == "buildbuddy" {
             let key = key(&server)?;
             engine = "remote.buildbuddy.io".to_owned();
@@ -199,7 +206,10 @@ fn ask_for_server(saved: &Path) -> Option<String> {
         .map(|server| Choice {
             label: server,
             detail: match *server {
-                "nativelink" => "our NativeLink build server on boat (needs its address and token)",
+                "nl.be3.pfg.pw" => "our NativeLink build server (needs its token)",
+                "nativelink" => {
+                    "our old NativeLink build server on boat (needs its address and token)"
+                }
                 "namespace" => "Namespace's remote execution",
                 "api.be3.pfg.pw" => "our own NativeLink server",
                 "blocks.pfg.pw" => "our NativeLink build VM, behind blocks.pfg.pw",
@@ -301,6 +311,29 @@ fn key(server: &str) -> Result<String> {
          checkout or to ~/.config/be3/{name}. Run ./scripts/buck from a terminal\n\
          to be asked for it. guides/build_server.md has more."
     ))
+}
+
+/// `Authorization: Bearer` with the server's token (BE3_BUILD_SERVER_KEY, `.build-server-key.SERVER` or
+/// ~/.config/be3/build-server-key.SERVER), asking at a terminal; empty when there is none.
+fn bearer_header(server: &str) -> String {
+    let name = format!("build-server-key.{server}");
+    let what = format!("{server} token");
+    let saved = Saved {
+        variable: "BE3_BUILD_SERVER_KEY",
+        name: &name,
+        what: &what,
+        checkout: Some(repository()),
+    };
+    let why = format!(
+        "buck2 builds on {server}, which needs its token (guides/build_server.md says where to get one)."
+    );
+    saved
+        .stored()
+        .or_else(|| saved.ask(&why))
+        .map_or_else(String::new, |key| {
+            let key = key.strip_prefix("Bearer ").unwrap_or(&key).trim();
+            format!("Authorization:Bearer {key}")
+        })
 }
 
 fn gateway_header(server: &str, saved: &Saved) -> String {
