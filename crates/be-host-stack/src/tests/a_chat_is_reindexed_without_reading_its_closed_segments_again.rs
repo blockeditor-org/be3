@@ -96,19 +96,9 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
         "a new message reindexes the chat without reading its segment again"
     );
 
-    // A deleted message leaves search, whether recent or in the closed segment.
-    let delete_recent = editor.content().delete(sent[119], author, 300);
-    editor.operate(delete_recent.into());
-    let delete_closed = editor.content().delete(sent[3], author, 301);
-    editor.operate(delete_closed.into());
-    flush();
-    finds("word119 ", &[]);
-    finds("word3 ", &[]);
-    finds("word4 ", &[chat]);
-
     // The segment's entry is removed (a merge, say) after the indexer read what the index held
     // and before it wrote: its put without text is one the index has no text for, so the
-    // index asks for it and the chat is read whole again.
+    // index asks for it, and the chat is queued to be read whole again, parts and all.
     let index = node(workspace)
         .and_then(|node| node.metadata.get(&be_block::SEARCH_INDEX))
         .map(|be_block::be_block_model::BlockRef(index)| index)
@@ -159,5 +149,23 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
     });
     be_host_base::host::wake();
     crate::wait_until(|shared| (shared.search.parts_read > read).then_some(()));
+    // In the race the chat's head is newer than the removal; here the removal was stamped
+    // after the head, so the chat moves on once more and its segment is back.
+    let (_, send) = editor
+        .content()
+        .send(chat, Message::new(author, 201, "word201"));
+    editor.operate(send.into());
+    flush();
+    finds("word201 ", &[chat]);
+    finds("word4 ", &[chat]);
+
+    // A deleted message leaves search, whether recent or in the closed segment.
+    let delete_recent = editor.content().delete(sent[119], author, 300);
+    editor.operate(delete_recent.into());
+    let delete_closed = editor.content().delete(sent[3], author, 301);
+    editor.operate(delete_closed.into());
+    flush();
+    finds("word119 ", &[]);
+    finds("word3 ", &[]);
     finds("word4 ", &[chat]);
 }
