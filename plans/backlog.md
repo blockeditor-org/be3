@@ -67,3 +67,10 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   (`version.rs`, `merge_over`) finds the two heads' common ancestor by walking all the history
   the device holds of each, up to four times a write. Done: the walk stops at a depth past
   which the command falls back to the head it read as the base.
+
+## 10. Search
+
+- **Compaction past the byte cap.** A writer's compaction makes no merge reading more than
+  `MERGE_BYTES` (`SearchIndexContent::compact`), so a large index's biggest segments are never
+  merged. An idle-time pass (the device idle, on power) could lift the cap. Done: a stack test
+  where an index whose tier is over the cap is merged by an idle pass and answers the same.

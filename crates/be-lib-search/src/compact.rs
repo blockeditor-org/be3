@@ -52,8 +52,20 @@ impl Written {
 }
 
 impl Index {
-    /// Merges segments until no tier holds `FACTOR` of them.
-    pub async fn compact(&mut self, parts: &impl Parts, origin: Id) -> Result<Written, Error> {
+    /// Merges segments until no tier holds `FACTOR` of them, or `most` merges are done: a
+    /// writer compacts a few at a time with each batch, so no one write rewrites the index.
+    /// A merge whose inputs' parts come to more than `bytes` (as `length` gives a part's) is
+    /// not made: those segments are left as they are. What it retires is recorded at `now` (milliseconds), for
+    /// `Index::forget_before`.
+    pub async fn compact(
+        &mut self,
+        parts: &impl Parts,
+        origin: Id,
+        now: i64,
+        most: usize,
+        bytes: u64,
+        length: impl Fn(&crate::PartName) -> u64,
+    ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut built: HashMap<Id, segment::Named> = HashMap::new();
@@ -66,31 +78,47 @@ impl Index {
                     written.dropped.extend(meta.parts());
                     self.retired.push(Retired {
                         id: meta.id,
-                        at: self.watermark,
+                        at: now,
                     });
                 } else {
                     index += 1;
                 }
             }
-            let group = match self
+            if n as usize >= most {
+                break;
+            }
+            // A segment more than half masked first, then a tier of `FACTOR`; the first whose
+            // inputs fit under `bytes`.
+            let mut candidates: Vec<Vec<usize>> = self
                 .segments
                 .iter()
-                .position(|meta| u64::from(meta.deleted) * 2 > u64::from(meta.docs))
-            {
-                Some(index) => vec![index],
-                None => {
-                    let mut tiers: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
-                    for (index, meta) in self.segments.iter().enumerate() {
-                        tiers.entry(tier(meta.live())).or_default().push(index);
-                    }
-                    let Some(mut group) = tiers.into_values().find(|group| group.len() >= FACTOR)
-                    else {
-                        break;
-                    };
-                    group.sort_by_key(|&index| self.segments[index].live());
-                    group.truncate(FACTOR);
-                    group
-                }
+                .enumerate()
+                .filter(|(_, meta)| u64::from(meta.deleted) * 2 > u64::from(meta.docs))
+                .map(|(index, _)| vec![index])
+                .collect();
+            let mut tiers: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+            for (index, meta) in self.segments.iter().enumerate() {
+                tiers.entry(tier(meta.live())).or_default().push(index);
+            }
+            candidates.extend(
+                tiers
+                    .into_values()
+                    .filter(|group| group.len() >= FACTOR)
+                    .map(|mut group| {
+                        group.sort_by_key(|&index| self.segments[index].live());
+                        group.truncate(FACTOR);
+                        group
+                    }),
+            );
+            let size = |group: &Vec<usize>| -> u64 {
+                group
+                    .iter()
+                    .flat_map(|&index| self.segments[index].parts())
+                    .map(|part| length(&part))
+                    .fold(0u64, u64::saturating_add)
+            };
+            let Some(group) = candidates.into_iter().find(|group| size(group) <= bytes) else {
+                break;
             };
             n += 1;
             let id = derive(origin, n);
@@ -110,7 +138,7 @@ impl Index {
                 written.dropped.extend(meta.parts());
                 self.retired.push(Retired {
                     id: meta.id,
-                    at: self.watermark,
+                    at: now,
                 });
             }
             built.insert(id, segment_parts.clone());
