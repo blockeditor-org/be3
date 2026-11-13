@@ -2278,6 +2278,18 @@ pub fn show_dialog(
     });
 }
 
+/// Tells the instance where in its block it was opened, which it selects where it can. Answers
+/// whether it could: false until the instance is open.
+pub fn reveal(app_id: &str, instance: EditorInstanceId, at: be_sdk_api::SearchLocation) -> bool {
+    with(app_id, |runtime| {
+        let calls = runtime.instances.reveal(instance, at);
+        let told = !calls.is_empty();
+        runtime.send(calls);
+        told
+    })
+    .unwrap_or(false)
+}
+
 pub fn show_history(
     app_id: &str,
     instance: EditorInstanceId,

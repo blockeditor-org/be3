@@ -32,6 +32,7 @@ fn show(instances: &mut Instances) {
             block_type: Uuid::from_u128(8),
             via: None,
             editor: None,
+            at: None,
         },
     );
 }
@@ -56,6 +57,7 @@ fn a_block_shown_before_its_instance_reports_reaches_it_once_it_does() {
             block_type: Uuid::from_u128(8).into_bytes(),
             via: None,
             editor: None,
+            at: None,
         })]),
         "a block shown before its instance reported waits for it"
     );

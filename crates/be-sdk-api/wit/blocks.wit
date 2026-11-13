@@ -254,13 +254,23 @@ interface blocks {
         lost-edits: bool,
     }
 
-    /// A block to open or show, and through which block and with which
-    /// editor when the request names them.
+    /// Where in a block a search found something (`search-hit`): the document
+    /// within it, empty for a block that is one document, and the words it
+    /// matched. The editor that shows the block selects the first place they
+    /// occur, where it supports a location (`editor-event.reveal`).
+    record search-location {
+        key: string,
+        text: string,
+    }
+
+    /// A block to open or show, through which block and with which editor
+    /// when the request names them, and where in it when it names that.
     record open-request {
         block-id: block-id,
         block-type: block-type-id,
         via: option<block-id>,
         editor: option<editor-id>,
+        at: option<search-location>,
     }
 
     /// A block's version history, at a commit when named.

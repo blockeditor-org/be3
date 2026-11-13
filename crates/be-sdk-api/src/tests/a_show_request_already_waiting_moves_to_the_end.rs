@@ -6,6 +6,7 @@ fn shown(block: u8) -> ShowRequest {
         block_type: [0; 16],
         via: None,
         editor: None,
+        at: None,
     })
 }
 

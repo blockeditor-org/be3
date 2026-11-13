@@ -7,20 +7,15 @@ Full-text search over names and content: what is left of it. Built
 access (exactly its root's, checked by the server), indexing on seal into the
 root's index with commits sealed into the outbox and merged by parts, the
 `search-watch` query on the app protocol, the file tree's filter listing hits
-in content, quick open listing hits, and catching up through `changed-since`
+in content, quick open listing hits, opening a hit at its match, and catching up through `changed-since`
 (guides/blocks/server.md, "Changes since"; guides/blocks/host.md, "Catching
 up").
 
-## Order of work
-
-1. **Locations.** Opening a hit opens the block at its document and highlights
-   the match where the editor supports a location: `OpenableBlock` (be-host's
-   palette), `EditorAction::OpenBlock` and the app protocol's open request
-   carry the document key and match, and the file tree's hit rows pass it on.
-   Done: a host test opens a hit from quick open and the text shows the match
-   selected, with a painting.
-
 ## Left open
+
+- **Opening at the hit, not the first occurrence.** A hit's location carries only the words its
+  first match covers, and the editor selects their first whole-word occurrence, which may not be
+  where the hit was. Send the snippet's surrounding text or an occurrence index with it.
 
 - **A block let go stays stale.** A block whose commit could not be read three times is
   counted as indexed (`MAX_READ_FAILURES`), so a catch-up ends: its entry in the index is
