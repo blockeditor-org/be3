@@ -48,6 +48,7 @@ pub fn Button(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = None)] href: Prop<Option<String>>,
     #[prop(default = false)] submit: bool,
+    #[prop(default = CursorIcon::PointingHand)] cursor: CursorIcon,
     expanded: Option<Prop<bool>>,
     on_click: Callback<()>,
     on_click_at: Callback<PointerPress>,
@@ -199,7 +200,7 @@ pub fn Button(
             }}
             on_activate_change={key_active_change}
             on_activate={key_click}
-            cursor=CursorIcon::PointingHand
+            cursor
             capture_presses
             key_active
             on_click={click}

@@ -91,7 +91,8 @@ pub(crate) fn LevelOsd(
     });
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
     // The margin goes on the anchor, not around the card: an overlay's whole content
-    // rect covers the program windows under it, so transparent padding would hide them.
+    // rect takes the presses over the program windows under it, so transparent padding
+    // would keep them from the windows.
     let anchor = create_memo(move || {
         let area = area.get();
         let below = area.height() * (1.0 - SCREEN_HEIGHT_FRACTION);

@@ -6,7 +6,7 @@ fn fullscreen(host: &mut HostTest) -> bool {
 
 #[test]
 fn presenting_a_deck_fills_the_screen_until_escape() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Presentation");
     host.click("#presentation.add");
     host.wait("#picker.slides");

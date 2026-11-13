@@ -1,4 +1,4 @@
-use crate::{HostTest, Server};
+use crate::{HostTest, Options, Server};
 
 mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
@@ -47,6 +47,7 @@ mod a_second_click_on_a_zoomed_workspaces_add_button_closes_its_menu;
 mod a_second_finger_turns_a_pen_stroke_into_a_pinch;
 mod a_session_in_the_desktop_gives_each_tab_only_its_own_blocks_actions;
 mod a_setting_opens_from_the_settings_tab_beside_the_files;
+mod a_settings_page_and_the_settings_list_show_the_same_block_side_by_side;
 mod a_slides_canvas_bar_shares_the_top_band_with_the_presentation_toolbar;
 mod a_slides_preview_catches_up_with_quick_changes_after_a_pause;
 mod a_tab_keeps_its_view_through_a_resize;

@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn more_blocks_from_the_add_menu_in_space_opens_the_search() {
-    let mut host = HostTest::start_in_space();
+    let mut host = HostTest::start(Options {
+        space: true,
+        ..Options::default()
+    });
     host.wait(NEW);
     host.run(&["--into=space", "click", NEW]);
     host.run(&["--into=space", "click", NEW_IN_MY_FILES]);
