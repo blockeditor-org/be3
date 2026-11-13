@@ -2218,12 +2218,27 @@ async fn set_parent(
     Ok(())
 }
 
+/// Holds the next version command's write of a block, once, until the test lets it go: what a
+/// test does meanwhile lands between the command reading the block and writing it.
+#[cfg(test)]
+pub(crate) type HeldWrite = (std::sync::mpsc::Sender<Uuid>, std::sync::mpsc::Receiver<()>);
+
+#[cfg(test)]
+pub(crate) static BEFORE_WRITE: std::sync::Mutex<Option<HeldWrite>> = std::sync::Mutex::new(None);
+
+/// Writes `manifest` as `block`'s content, made from its content at `base` (the head the command
+/// read, when the block was there). Edits go on while a version command runs in the lane, so the
+/// block may have moved on since, or move on while this writes: then what it moved to is merged
+/// with what this writes, three ways from the head this was made from, and the merge is written
+/// instead, so no edit is lost. A merge that conflicts keeps the conflict in the content, as the
+/// type merges it.
 async fn publish(
     context: &mut Context<'_>,
     block: Uuid,
     manifest: Option<Manifest>,
     references: Vec<Uuid>,
     metadata: &BlockMetadata,
+    base: Option<CommitId>,
 ) -> Result<Option<CommitId>, String> {
     let Some(manifest) = manifest else {
         let summary = context
@@ -2240,14 +2255,34 @@ async fn publish(
             .put(node, summary.revision);
         return Ok(summary.head);
     };
+    #[cfg(test)]
+    let hook = BEFORE_WRITE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    #[cfg(test)]
+    if let Some((reached, go)) = hook {
+        let _ = reached.send(block);
+        let _ = go.recv();
+    }
     let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
+    let mut made_from = base.or(expected);
+    let (mut manifest, mut references, mut derived) =
+        (manifest, references, metadata.derived.clone());
     for _ in 0..4 {
+        if let Some(theirs) = expected
+            && made_from != expected
+        {
+            let merged = merge_over(context, block, made_from, &manifest, theirs).await?;
+            (manifest, references, derived) = merged;
+            made_from = expected;
+        }
         match context
             .peer
             .write(
                 block,
                 Write::written(manifest.clone(), expected)
-                    .described(references.clone(), metadata.derived.clone())
+                    .described(references.clone(), derived.clone())
                     .defined(metadata.defined.clone()),
             )
             .await
@@ -2269,6 +2304,49 @@ async fn publish(
         }
     }
     Err("Someone else kept changing a block at the same time. Try again.".into())
+}
+
+/// `ours`, made from `block`'s content at `base`, merged with its content at `theirs`, written:
+/// its manifest, references and derived metadata.
+async fn merge_over(
+    context: &mut Context<'_>,
+    block: Uuid,
+    base: Option<CommitId>,
+    ours: &Manifest,
+    theirs: CommitId,
+) -> Result<(Manifest, Vec<Uuid>, be_block::Entries), String> {
+    let content_type = context
+        .peer
+        .known_summary(block)
+        .map(|summary| summary.content_type)
+        .ok_or("Version control does not know a block it writes.")?;
+    let base = match base {
+        Some(base) => Some(context.peer.load_commit(base).await.map_err(failed)?.manifest),
+        None => None,
+    };
+    let theirs = context
+        .peer
+        .load_commit(theirs)
+        .await
+        .map_err(failed)?
+        .manifest;
+    let ctx = (context.peer, context.shared);
+    let merged = context
+        .replicas
+        .merge(ctx, content_type, [base.as_ref(), Some(ours), Some(&theirs)])
+        .await
+        .map_err(failed)?
+        .ok_or("A block changed while version control wrote it, and its type cannot merge them.")?;
+    let manifest = context
+        .peer
+        .write_content(block, content_type, merged.parts())
+        .await
+        .map_err(failed)?;
+    Ok((
+        manifest,
+        merged.content.references.clone(),
+        merged.content.derived.clone(),
+    ))
 }
 
 async fn materialize(
@@ -2314,15 +2392,31 @@ async fn materialize(
                 {
                     true => working.heads.get(&block).copied().flatten(),
                     false => {
-                        publish(context, block, entry.content.clone(), references, &metadata)
-                            .await?
+                        let base = working.heads.get(&block).copied().flatten();
+                        publish(
+                            context,
+                            block,
+                            entry.content.clone(),
+                            references,
+                            &metadata,
+                            base,
+                        )
+                        .await?
                     }
                 }
             }
             None => {
                 let metadata = tagged(&entry.metadata, block, local);
                 create(context, block, entry.content_type, parent, metadata.clone()).await?;
-                publish(context, block, entry.content.clone(), references, &metadata).await?
+                publish(
+                    context,
+                    block,
+                    entry.content.clone(),
+                    references,
+                    &metadata,
+                    None,
+                )
+                .await?
             }
         };
         if let Some(head) = head {
@@ -2413,7 +2507,7 @@ async fn version_block(
         .iter()
         .map(|reference| real.get(reference).copied().unwrap_or(*reference))
         .collect();
-    publish(context, block, manifest, references, &metadata).await?;
+    publish(context, block, manifest, references, &metadata, None).await?;
     Ok(Some(block))
 }
 

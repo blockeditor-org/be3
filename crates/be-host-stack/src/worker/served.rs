@@ -73,6 +73,9 @@ impl Served {
             tasks.clone(),
             calls.clone(),
         );
+        // The busy flag set by `Ran::version` lives in this stack's `Shared`: a task dropped
+        // with the stack (stopped or restarted) cannot leave it set on the next, which starts
+        // from a fresh `Shared`.
         self.run(&shared.clone(), tasks, vec![block], async move {
             served_tasks.sent(&peer, &shared, None).await;
             let outcome = Versions::default()

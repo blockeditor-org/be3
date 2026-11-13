@@ -89,3 +89,11 @@ when:
   tests in be-host-runtime's `instances/tests`).
 - the placer's view learns the gift through an `InstanceEvent` rather than
   polling `be_host_runtime::take_child_focus` (the last per-instance `take_*`).
+
+## 7. Version control's caches
+
+- **Trees and commits read once.** A version command in the lane runs on a `Versions` of its
+  own (`Served::version`), so it reads again every tree and commit the loop's statuses already
+  hold, and what it writes never reaches theirs. Done: the loop's `Versions` and the lane's
+  share one cache of trees and commits (behind an `Arc`), and a status after a command reads
+  nothing the command already read.
