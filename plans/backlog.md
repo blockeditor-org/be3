@@ -66,26 +66,3 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   embeds cross in the clip's `refs`, translated like any other. Done: a
   paste between two rich texts keeps bold, links and an embed, and pasting
   from a browser's `text/html` gives bold and links.
-
-## 6. Handing the keyboard to a child block
-
-The held-keys mechanism in be-host (an editor giving the keyboard to a child
-block, such as a deck's notes; guides/apps/children.md, Focus) works but is
-spread over three thread-local maps, two runtime lists and a `seen` flag.
-Replace them with one gift record per editor instance in be-host-runtime: what
-it is given to (a block, a child or a view), the keys held and whose they are,
-moving pending → given → ready → done, with one function that ends it. Done
-when:
-- a child that is placed but never takes the keyboard ends the gift instead of
-  holding the editor's keys until a press or a focus move;
-- an entry left when the focus moved away before the child's view saw it can
-  no longer replay its keys when that view is focused later;
-- a block gift's deadline counts the asking instance's layout commits, not the
-  whole app's, and a gift ends even if the editor commits no layout;
-- held keys are released by the child's input-method request only if a frame
-  was answered after the focus, so a stale `ime` can't release them early;
-- a block gift ends when no child shows the block (a block gift already
-  turns into a child gift at a layout commit, `settle_block_focus`, with unit
-  tests in be-host-runtime's `instances/tests`).
-- the placer's view learns the gift through an `InstanceEvent` rather than
-  polling `be_host_runtime::take_child_focus` (the last per-instance `take_*`).

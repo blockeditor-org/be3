@@ -110,7 +110,7 @@ both editors in the same frame (guides/pan_and_zoom.md).
 ### Events for the host
 
 What an instance asks of be-host one way (to leave its frame, move its view, open a
-block, the answer to a clip render, its focus, its children's commits, ...) is an
+block, the answer to a clip render, its focus, its children's commits, the child it gives the keyboard to, ...) is an
 `InstanceEvent` that be-host-runtime posts, as the app's call arrives, to every
 mailbox handed to `be_host_runtime::listen`; nothing in be-host polls per instance
 for it. A mailbox hears it when its desk delivers: be-host delivers the frame's

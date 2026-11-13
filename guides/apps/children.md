@@ -117,30 +117,35 @@ same for the child that will show a block, so an editor that makes a block to
 type into ("Add notes") asks in the frame that makes it, before the child
 exists.
 
-While a gift is pending, be-host holds the keys typed into the editor's view
-(`be-host/src/compositor/app_view/held_keys.rs`). Every gift ends explicitly,
-never by a timeout:
+Each editor instance makes at most one gift at a time (`be-host-runtime/src/instances/gift.rs`):
+what it gives the keyboard to (a block, a child, then the child's view), the keys held for it
+and the editor's view they were typed into. It moves pending → given → ready → done, and
+`Instances::end_gift` ends it however it ends:
 
-- Granted when the child's view takes the keyboard. The child's app hears the
-  held keys, in order and ahead of keys typed into it since, once a text field
-  in it has the keyboard (its view asks for an input method), or, for a child
-  with none, two frames after it had its block's content and the focus (the
-  count starts again if the content is replaced).
-- Refused when the person presses in the editor or takes the keyboard
-  elsewhere, and when the child or the editor goes or its app stops. A block
-  gift waits for a child to show its block however many frames that takes: the
-  editor has to change its content first, which a busy host can delay. It ends
-  at once when the host refused to make the block, when the editor has no view
-  left, and when the editor asks for another block (only the latest ask
-  stands). The editor hears the held keys if it still has the keyboard;
-  otherwise they are dropped.
+- Pending: keys typed into the editor's view are held. A block gift turns into a gift to the
+  child that shows the block at a layout commit, and the placer's views hear which child
+  (`InstanceEvent::KeyboardGift`, kept in be-host's `app_view/gifts.rs` until the child's view
+  is built and takes it with `be_host_runtime::take_gift`). Only the latest ask stands.
+- Given: the child's view took the keyboard. It has to be seen with it by the next host pass,
+  or it lost it before it saw it and the gift ends, so keys are never replayed into a view
+  focused much later. Keys typed into it queue behind the held ones.
+- Ready: a text field in it has the keyboard (its view asks for an input method in a frame its
+  app answered after the focus, so an input method left from before does not count), or, for a
+  child with none, its app drew two frames after it had its block's content and the focus (the
+  count starts again if the content is replaced). The child's app hears the held keys, in order
+  and ahead of its own.
+- Ended before that: when the person presses in the editor or takes the keyboard elsewhere, when
+  the child stops being placed in a mode that runs an editor, when the host refused to make the
+  block, when the editor has no view left, when its instance or app goes, and when it is not
+  given within `GIFT_COMMITS` (8) of the editor instance's own layout commits (those that carry
+  its children or one of its frame reports; other instances of the app do not count) or
+  `GIFT_WAIT` (3 s) on the frame clock, which bounds an editor that commits nothing. A child
+  placed but never shown in a view that takes the keyboard, or a block only ever shown as a
+  preview, so ends on its own. The editor's view hears the held keys if it has the keyboard by
+  the next host pass; otherwise they are dropped.
 
-Only children placed in a mode that runs an editor count; a gift to a child
-that is placed but never shows a view that takes the keyboard (a view behind
-another that holds it), and a block gift whose block is only ever shown as a
-preview or hidden, last until the person presses or moves the keyboard.
-Keys typed into a view right after a press there wait the same way until its
-app has drawn a frame after the press (only for a press the app was sent, as it
+Keys typed into a view right after a press there wait the same way, as a pending
+gift to nothing yet (`GiftTo::Answer`), until its app has drawn a frame after the press (only for a press the app was sent, as it
 draws no frame for one that never reached it), since that frame may carry the ask
 ("Add notes" asks as it is clicked), and go to the view if it asked for
 nothing. Owed keys and the keyboard are kept by view, not by the node that
