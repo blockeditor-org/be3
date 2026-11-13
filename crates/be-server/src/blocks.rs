@@ -220,8 +220,6 @@ fn require_parent_of(
     }
 }
 
-/// A search index lies under the block whose tree it indexes, one held per block: the server
-/// cannot read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
 /// A head moves only to a commit that descends from it: a publish onto a head lists that head
 /// among its parents, and a block's first commit lists none. A merge's other parents need not
 /// be on the server yet: a merge carries a commit the server refused, objects and all.
@@ -242,6 +240,8 @@ fn require_descends(expected: Option<CommitId>, parents: &[CommitId]) -> Result<
     }
 }
 
+/// A search index lies under the block whose tree it indexes, one held per block: the server
+/// cannot read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
 /// (plans/search.md). `index` is the index being placed, which may already be the one held.
 fn require_index_place(
     graph: &BlockGraph,
