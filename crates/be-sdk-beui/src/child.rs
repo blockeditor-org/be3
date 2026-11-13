@@ -7,8 +7,8 @@ use beui::styled::*;
 use std::cell::RefCell;
 
 use be_sdk_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, DockTabPath, KeyChord,
-    MenuCheck, MenuEntry, MenuPin, TopBar,
+    ChildId, ChildLayer, ChildMode, ChildPreview, DialogFrame, DockTabPath, KeyChord, MenuCheck,
+    MenuEntry, MenuPin, TopBar,
 };
 use uuid::Uuid;
 
@@ -42,7 +42,7 @@ pub fn ChildBlock(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
-    on_bar: Callback<BarAction>,
+    on_details: Callback<()>,
     on_focus: Callback<()>,
     docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
@@ -64,7 +64,7 @@ pub fn ChildBlock(
         dialog: Prop::Static(None),
         fullscreen: Prop::Static(false),
         on_state,
-        on_bar,
+        on_details,
         on_focus,
         content,
     };
@@ -90,7 +90,7 @@ pub fn Subregion(
     #[prop(default = false)] dialog: bool,
     #[prop(default = false)] fullscreen: Prop<bool>,
     on_state: Callback<ChildState>,
-    on_bar: Callback<BarAction>,
+    on_details: Callback<()>,
     on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
@@ -122,7 +122,7 @@ pub fn Subregion(
         dialog,
         fullscreen,
         on_state,
-        on_bar,
+        on_details,
         on_focus,
         content,
     };
@@ -147,7 +147,7 @@ struct Placing {
     dialog: Prop<Option<DialogFrame>>,
     fullscreen: Prop<bool>,
     on_state: Callback<ChildState>,
-    on_bar: Callback<BarAction>,
+    on_details: Callback<()>,
     on_focus: Callback<()>,
     content: Option<Render<ChildHandle>>,
 }
@@ -174,7 +174,7 @@ fn SubregionView(
         dialog,
         fullscreen,
         on_state,
-        on_bar,
+        on_details,
         on_focus,
         content,
     } = placing;
@@ -229,7 +229,7 @@ fn SubregionView(
         dialog,
         fullscreen,
         on_state,
-        on_bar,
+        on_details,
         on_focus,
         dock_tab,
         docks,

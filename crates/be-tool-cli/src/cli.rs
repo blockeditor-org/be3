@@ -19,8 +19,7 @@ workspaces this account can see, or named within its database:
 
 Commands:
   be ls [TARGET]                      List the workspaces and what is shared with this
-                                      account, or a block's children
-  be workspaces                       List the workspaces, and which this account may write in
+                                      account, and which it may write in, or a block's children
   be whoami                           Say which account and organization this is
   be help [TARGET]                    This, or the verbs a target takes
   be new-database NAME [--prefix BE] [--in TARGET]
@@ -51,11 +50,10 @@ A database (or a view of one):
                                       Add a row, with a page when --body is given
   schema                              Its columns, and each choice's colour, icon, whether
                                       it closes a row and which is the default
-  option FIELD OPTION [SETTING=VALUE]...
-                                      Change a choice: color=blue, icon=done, closed=yes,
-                                      default=yes, name=NEW, after=OPTION or first=yes
-  add-option FIELD OPTION [SETTING=VALUE]...
-                                      Add a choice, with the same settings
+  option FIELD OPTION [SETTING=VALUE]... [--new]
+                                      Change a choice, or add it with --new: color=blue,
+                                      icon=done, closed=yes, default=yes, name=NEW,
+                                      after=OPTION or first=yes
   add-column NAME TYPE [--options A,B] [--links DATABASE] [--multiple] [--inverse NAME]
                                       TYPE is text, number, enum, boolean, date, color,
                                       block or relation
@@ -66,12 +64,12 @@ A database (or a view of one):
 
 A row (be ROW-ID [VERB], or be DATABASE row ROW-ID [VERB]):
   show                                Its fields and its page (what a bare row id does)
-  set [FIELD=VALUE]... [--body TEXT] [--append TEXT]
-                                      FIELD+=VALUE adds a link to a relation of several
+  set [FIELD=VALUE]...                FIELD+=VALUE adds a link to a relation of several
                                       rows and FIELD-=VALUE removes one; an empty VALUE
                                       clears the field
-  page [cat | write TEXT | append TEXT | edit]
-                                      Its page, a text block made the first time it is written
+  page [cat | write TEXT | append TEXT | edit | info | download [FILE]]
+                                      Its page, a text block (bare, it prints it); write,
+                                      append and edit make it the first time
   delete                              Delete the row and its page
 
 A text block:
@@ -104,6 +102,7 @@ pub struct Options {
     pub column: NewColumn,
     pub command: Vec<String>,
     pub watch: Option<u64>,
+    pub new: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,15 +128,7 @@ pub enum Outcome {
     },
 }
 
-const COMMANDS: [&str; 7] = [
-    "ls",
-    "workspaces",
-    "whoami",
-    "help",
-    "new-database",
-    "upload",
-    "sync",
-];
+const COMMANDS: [&str; 6] = ["ls", "whoami", "help", "new-database", "upload", "sync"];
 
 const WATCH_SECONDS: u64 = 10;
 
@@ -175,8 +166,11 @@ pub fn parse(
                 options.watch = Some(seconds);
             }
             "--multiple" => options.column.multiple = true,
+            "--new" => options.new = true,
+            "--append" => {
+                return Err("--append is gone; `be ROW page append TEXT`".to_owned());
+            }
             "--body" => options.body = Some(Body::Replace(text(value()?)?)),
-            "--append" => options.body = Some(Body::Append(text(value()?)?)),
             "--page" => options.page = Some(value()?),
             "--prefix" => options.prefix = Some(value()?),
             "--in" => options.within = Some(value()?),
@@ -224,6 +218,9 @@ pub async fn run<S: ObjectStore>(
     tracker: &Tracker<S>,
     invocation: &Invocation,
 ) -> Result<Outcome, String> {
+    if invocation.options.new && invocation.verb != "option" {
+        return Err("--new goes with option: `be DATABASE option FIELD OPTION --new`".to_owned());
+    }
     let Some(target) = &invocation.target else {
         if invocation.verb == "sync" {
             return sync(tracker, None, invocation).await;
@@ -271,42 +268,6 @@ async fn command<S: ObjectStore>(
             })
         }
         "ls" => listing(tracker, None, json).await,
-        "workspaces" => {
-            let top = tracker.top().await?;
-            let workspaces = crate::blocks::workspaces(&top);
-            if json {
-                return Ok(Value::Array(
-                    workspaces
-                        .iter()
-                        .map(|entry| {
-                            let mut described = entry_json(entry);
-                            described["writable"] = Value::Bool(entry.access.can_edit());
-                            described
-                        })
-                        .collect(),
-                )
-                .to_string());
-            }
-            if workspaces.is_empty() {
-                return Ok("no workspaces; `be ls` lists what is shared with this account".into());
-            }
-            let width = workspaces
-                .iter()
-                .map(|entry| entry.short.len())
-                .max()
-                .unwrap_or(4);
-            Ok(workspaces
-                .iter()
-                .map(|entry| {
-                    let access = match entry.access.can_edit() {
-                        true => "may write",
-                        false => "may read",
-                    };
-                    format!("{:width$}  {:9}  {}", entry.short, access, entry.label())
-                })
-                .collect::<Vec<_>>()
-                .join("\n"))
-        }
         "new-database" => {
             let name = arguments
                 .first()
@@ -402,7 +363,17 @@ async fn listing<S: ObjectStore>(
         !pages.contains(&entry.id) && !be_block::EDIT_KINDS.contains(&entry.block_type)
     });
     if json {
-        return Ok(Value::Array(children.iter().map(entry_json).collect()).to_string());
+        return Ok(Value::Array(
+            children
+                .iter()
+                .map(|entry| {
+                    let mut described = entry_json(entry);
+                    described["writable"] = Value::Bool(entry.access.can_edit());
+                    described
+                })
+                .collect(),
+        )
+        .to_string());
     }
     if children.is_empty() && pages.is_empty() {
         return Ok("nothing here".to_owned());
@@ -434,8 +405,13 @@ async fn listing<S: ObjectStore>(
                 0 => String::new(),
                 count => format!("  ({count} inside)"),
             };
+            let access = match (parent, entry.access.can_edit()) {
+                (Some(_), _) => "",
+                (None, true) => "may write  ",
+                (None, false) => "may read   ",
+            };
             format!(
-                "{:width$}  {:13}  {}{extra}{inside}",
+                "{:width$}  {access}{:13}  {}{extra}{inside}",
                 entry.short,
                 entry.kind(),
                 entry.label()
@@ -567,23 +543,27 @@ async fn block_verb<S: ObjectStore>(
             print(shown(&row, json))
         }
         ("schema", _, Some(database)) => print(tracker.schema(database).await?.join("\n")),
-        (verb @ ("option" | "add-option"), _, Some(database)) => {
+        ("option", _, Some(database)) => {
             let [field, option, settings @ ..] = arguments.as_slice() else {
                 return Err(format!(
-                    "usage: be {} {verb} FIELD OPTION [SETTING=VALUE]...",
+                    "usage: be {} option FIELD OPTION [SETTING=VALUE]...",
                     entry.short
                 ));
             };
-            tracker
+            let added = tracker
                 .set_option(
                     database,
                     field,
                     option,
                     &assignments(settings)?,
-                    verb == "add-option",
+                    invocation.options.new,
                 )
                 .await?;
-            print(tracker.schema(database).await?.join("\n"))
+            let schema = tracker.schema(database).await?.join("\n");
+            print(match added {
+                Some(added) => format!("{added}\n{schema}"),
+                None => schema,
+            })
         }
         ("add-column", _, Some(database)) => {
             let [name, kind] = arguments.as_slice() else {
@@ -664,7 +644,7 @@ async fn block_verb<S: ObjectStore>(
             match (is_text, database) {
                 (true, _) => "cat, write, append, edit, ls, info, move, download and delete",
                 (false, Some(_)) =>
-                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, move, download and delete",
+                    "rows, row, new, schema, option, add-column, import, pull-request, ls, info, move, download and delete",
                 (false, None) => "ls, info, move, download and delete",
             }
         ) + &format!(", not {verb}")),
@@ -686,40 +666,47 @@ async fn row_verb<S: ObjectStore>(
     match verb {
         "" | "show" => print(shown(&tracker.show(database, code).await?, json)),
         "set" => {
-            let body = invocation.options.body.clone().unwrap_or(Body::Keep);
+            if invocation.options.body.is_some() {
+                return Err(format!(
+                    "set changes fields; write the page with `be {code} page write TEXT` or `append TEXT`"
+                ));
+            }
             let row = tracker
-                .update(database, code, &assignments(arguments)?, body)
+                .update(database, code, &assignments(arguments)?, Body::Keep)
                 .await?;
             print(shown(&row, json))
         }
         "delete" => print(tracker.delete(database, code).await?),
         "page" => {
-            let action = arguments.first().map_or("cat", String::as_str);
-            let writing = matches!(action, "write" | "append" | "edit");
-            let page = tracker.page_of(database, code, writing).await?;
-            match (action, page) {
-                ("cat", None) => print(String::new()),
-                ("cat", Some(page)) => print(tracker.text(page).await?),
-                ("write" | "append", Some(page)) => {
-                    let text = arguments.get(1).cloned().ok_or_else(|| {
-                        format!("usage: be DATABASE row {code} page {action} TEXT")
-                    })?;
-                    let body = match action {
-                        "write" => Body::Replace(text),
-                        _ => Body::Append(text),
-                    };
-                    tracker.write_text(page, &body).await?;
-                    print(format!("wrote the page of {code}"))
-                }
-                ("edit", Some(page)) => Ok(Outcome::Edit {
-                    block: page,
-                    label: code.to_owned(),
-                    base: tracker.text(page).await?,
-                }),
-                (other, _) => Err(format!(
-                    "a page takes cat, write, append or edit, not {other}"
-                )),
+            let (verb, arguments) = match arguments {
+                [] => ("", &[][..]),
+                [verb, arguments @ ..] => (verb.as_str(), arguments),
+            };
+            if !matches!(
+                verb,
+                "" | "cat" | "write" | "append" | "edit" | "info" | "download"
+            ) {
+                return Err(format!(
+                    "a row's page takes cat, write, append, edit, info and download, not {verb}"
+                ));
             }
+            let writing = matches!(verb, "write" | "append" | "edit");
+            let page_id = match tracker.page_of(database, code, writing).await? {
+                Some(page) => page,
+                None if matches!(verb, "" | "cat") => return print(String::new()),
+                None => {
+                    return Err(format!(
+                        "{code} has no page yet; `be {code} page write TEXT` makes one"
+                    ));
+                }
+            };
+            let page = Invocation {
+                target: Some(page_id.to_string()),
+                verb: verb.to_owned(),
+                arguments: arguments.to_vec(),
+                ..invocation.clone()
+            };
+            block_verb(tracker, &tracker.entry(page_id).await?, &page).await
         }
         other => Err(format!(
             "a row takes show, set, page and delete, not {other}"

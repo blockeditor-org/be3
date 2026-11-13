@@ -17,7 +17,6 @@ use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
 
 use crate::list::List;
-use crate::theme::Density;
 use crate::tokens::{Length, Padding, Size, Space};
 use beui_view::reactive::*;
 use beui_view::types::{Align, Direction, Extent, Justify};
@@ -330,5 +329,5 @@ fn ActionButton(handle: DialogBodyHandle, index: usize, id: Memo<String>) -> Nod
 }
 
 fn at_most(size: Size) -> Length {
-    Length::Extent(Extent::at_most(size.resolve(Density::Compact)))
+    Length::Extent(Extent::at_most(size.px()))
 }

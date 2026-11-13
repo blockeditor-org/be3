@@ -5,7 +5,7 @@ interface app {
     use types.{child-id, opening, present-commit, screen-id, screen-request, size, view-id};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
-    use shell-types.{bar-action, drag-over, focus};
+    use shell-types.{drag-over, focus};
     use be3:ui/types@0.1.0.{rect};
     use host-services.{shell-dialog};
     use types.{failure};
@@ -19,12 +19,6 @@ interface app {
         view: view-id,
         id: string,
         anchor: option<rect>,
-    }
-
-    /// The user ran an action of the bar of a child the editor placed.
-    record child-bar-press {
-        child: child-id,
-        action: bar-action,
     }
 
     /// The part of the editor's world its frame shows, and at what scale.
@@ -42,8 +36,9 @@ interface app {
     /// Something that happened around an editor.
     variant editor-event {
         menu-pick(menu-choice),
-        /// The user ran an action of the bar of a child.
-        child-bar(child-bar-press),
+        /// The user asked for the details of a child the editor placed, from
+        /// the child's bar.
+        child-details(child-id),
         /// The user focused a child the editor placed.
         child-focused(child-id),
         /// Whether the user may edit what the editor shows.

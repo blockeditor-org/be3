@@ -443,7 +443,10 @@ replica:
   nothing while one drains, so what a drain publishes goes together. It marks
   each sent before it calls `notify`, putting them back only when the server
   cannot be reached, so a crash costs a notification rather than repeating
-  one. What waits together on one block is one notification: the text of one,
+  one. `notify` names their keys, and the server pushes nothing for a call
+  whose keys it has all told before: a device stopped after the server took
+  the call but before it heard the answer sends it again on its next start,
+  and the members hear it at most once. What waits together on one block is one notification: the text of one,
   or the newest's `several`, mentioning everyone they mention. The server
   allows `MAX_NOTIFICATIONS_PER_BLOCK` a minute per account and block, and one
   it refuses is dropped, never reported: it was about then.

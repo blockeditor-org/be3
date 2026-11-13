@@ -12,6 +12,8 @@ struct Waiting {
     picks: Vec<(FilePickId, PickSlot)>,
     saves: Vec<(FileSaveId, SaveSlot)>,
     renders: Vec<Render>,
+    /// Hears the instances' answers to `renders`, while any wait.
+    rendered: Option<host::Mailbox>,
     exports: Vec<Export>,
 }
 
@@ -63,12 +65,18 @@ fn app_clip(copied: host::CopiedClip) -> beui::Clip {
                         format.clone(),
                     ) {
                         Some(request) => WAITING.with(|waiting| {
-                            waiting.borrow_mut().renders.push(Render {
+                            let mut waiting = waiting.borrow_mut();
+                            waiting.renders.push(Render {
                                 app_id: app_id.clone(),
                                 instance,
                                 request,
                                 answer,
-                            })
+                            });
+                            if waiting.rendered.is_none() {
+                                let (mailbox, post) = host::mailbox(rendered);
+                                be_host_runtime::listen(None, post);
+                                waiting.rendered = Some(mailbox);
+                            }
                         }),
                         None => answer(None),
                     },
@@ -123,10 +131,32 @@ fn export_files(blocks: &[uuid::Uuid], answer: Box<dyn FnOnce(Option<Vec<u8>>)>)
     });
 }
 
+/// Answers the paste waiting for what an instance rendered.
+fn rendered(heard: be_host_runtime::Heard) {
+    let be_host_runtime::InstanceEvent::Rendered { request, data } = heard.event else {
+        return;
+    };
+    let answered = WAITING.with(|waiting| {
+        let mut waiting = waiting.borrow_mut();
+        let at = waiting.renders.iter().position(|render| {
+            render.request == request
+                && render.instance == heard.instance
+                && render.app_id == heard.app_id
+        })?;
+        let render = waiting.renders.remove(at);
+        if waiting.renders.is_empty() {
+            waiting.rendered = None;
+        }
+        Some(render.answer)
+    });
+    if let Some(answer) = answered {
+        answer(data);
+    }
+}
+
 pub(crate) fn begin(context: &beui::native::Context) {
     let mut picked = Vec::new();
     let mut saved = Vec::new();
-    let mut rendered = Vec::new();
     WAITING.with(|waiting| {
         let mut waiting = waiting.borrow_mut();
         waiting
@@ -144,16 +174,7 @@ pub(crate) fn begin(context: &beui::native::Context) {
                 None => waiting.saves.push((id, deliver)),
             }
         }
-        for render in std::mem::take(&mut waiting.renders) {
-            match be_host_runtime::take_rendered(&render.app_id, render.instance, render.request) {
-                Some(data) => rendered.push((render.answer, data)),
-                None => waiting.renders.push(render),
-            }
-        }
     });
-    for (answer, data) in rendered {
-        answer(data);
-    }
     let exported = WAITING.with(|waiting| {
         let mut waiting = waiting.borrow_mut();
         for export in &mut waiting.exports {
