@@ -7,7 +7,7 @@ use crate::button::{Button, ButtonVariant};
 use crate::list::List;
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
-use crate::tokens::{Padding, Size, Space, use_space};
+use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     Edge, Picture, Pressable, TOAST_DURATION, Toast, ToastAction, ToastHandle,
@@ -58,8 +58,8 @@ pub fn Toasts(
             duration
             edge
             width={WIDTH.px()}
-            margin={use_space(MARGIN)}
-            spacing={use_space(SPACING)}
+            margin={MARGIN.px()}
+            spacing={SPACING.px()}
             scrollbar={scrollbar_style()}
             on_dismiss
             on_action

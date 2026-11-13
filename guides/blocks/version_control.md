@@ -61,7 +61,7 @@ over the trees, then `Replicas::merge` for blocks both sides changed, which
 is each type's `Merge::merge3` or, for a type that merges by parts, its
 `MergeParts` (guides/type_modules.md, "Merging by parts"), leaving `before`, `yours` and `incoming` copies of a conflicted block
 under the checkout), resolve, undo, fork, pull and push. It answers a
-`version-watch` with each shown repository's and checkout's `version-status`,
+`block-watch` of the `version` subject with each shown repository's and checkout's `version-status`,
 recomputed when the mirror changes, and holds followed checkouts' trees in the
 mirror (`Query::Subtree` under `Owner::Version`), re-listing before each
 operation so every head is current.
