@@ -22,7 +22,7 @@ APPS = {
     "a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_there": ["infinite-canvas"],
     "a_canvas_tool_bar_goes_where_its_grip_menu_puts_it": ["infinite-canvas"],
     "a_canvas_tool_bar_popped_out_lifts_out_of_its_window_and_follows_its_grip": ["infinite-canvas"],
-    "a_child_placed_in_a_popover_shows_above_it": ["example-block-debug", "text"],
+    "a_child_placed_in_a_popover_shows_above_it": ["example-block-debug", "infinite-canvas", "text"],
     "a_checklist_on_a_canvas_works_in_place_and_zooms_with_it": ["checklist", "infinite-canvas"],
     "a_contact_link_asks_before_connecting_two_accounts": [],
     "a_control_focused_in_the_desktops_apps_panel_reads_as_focused": ["desktop"],
