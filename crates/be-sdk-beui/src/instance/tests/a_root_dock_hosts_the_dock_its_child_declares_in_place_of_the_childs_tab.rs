@@ -56,6 +56,7 @@ fn a_root_dock_hosts_the_dock_its_child_declares_in_place_of_the_childs_tab() {
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
             child,
             declaration: Some(inner()),
+            epoch: 1,
         })]);
     show_docked(&mut session, &[(View::MAIN, 0)], false);
     show_docked(&mut session, &[(View::MAIN, 0)], false);

@@ -115,10 +115,12 @@ answered, so a server ignores ones it does not know.
 ## The protocol
 
 The module imports `host` and exports `replicas`. `replicas.start(entropy)`
-comes first: it answers the module's types, and seeds the module's randomness,
-since a pure guest has none.
+comes first: it answers the module's types, each with everything the host
+keeps about it (`type-info`: its schema, plain form, blank content and that
+content's description), and seeds the module's randomness, since a pure guest
+has none.
 
-Stateless requests (`blank`, `merge3`, `merge-parts`, `describe`, `to-file`,
+Stateless requests (`merge3`, `merge-parts`, `describe`, `to-file`,
 `search-text`, `claims`, `apply`) are answered in the step that asks, except
 `merge-parts` and `search-text`, which may read parts first (below, "Merging
 by parts"). `apply` is how a host that publishes commits rather than joining a
@@ -342,7 +344,7 @@ rebase. The rules an agent most needs:
   `replay` does the same for a reader outside the session. A journal by
   another build is not handed over: `opening.lost-edits` says it held edits,
   or that the server marked them lost since the last commit, and the replica
-  reports them lost (`undo-state.lost-edits`).
+  reports them lost (`status.undo.lost-edits`).
 - **Restarts.** At a commit, once session state passes `RESTART_STATE_BYTES`
   (1 MiB) and the content's size, with no gesture open, while alone or past
   `RESTART_CEILING` times the limit, the owner restarts the session
@@ -534,7 +536,11 @@ process in tests:
   sleeps. A source that declares its types starts lazily, on the first call
   to it, so a host runs only the modules its blocks use; what a host must
   know without running one (names, icons, `plain_file`) comes from the
-  manifest. `started(sources)` starts all, as `be` and `be sync` do. A
+  manifest, and be-tool-cli's
+  `a_manifest_says_which_of_its_types_have_a_plain_file` holds `plain_file`
+  to the module's `type-info.plain`, which `be` and `be sync` read without
+  manifests (decisions/plain_file_stays_in_the_manifest.md).
+  `started(sources)` starts all, as `be` and `be sync` do. A
   module's types are taken only if its manifest declares them
   (`Source::declaring`).
 - `replicas`: `Replicas<H: Host>`, the replica IO of

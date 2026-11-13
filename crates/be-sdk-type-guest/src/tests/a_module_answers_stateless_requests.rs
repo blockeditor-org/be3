@@ -36,11 +36,13 @@ fn a_module_answers_stateless_requests() {
     assert!(types[0].undo && types[0].plain == Plain::None);
     assert!(!types[1].undo && types[1].plain == Plain::File);
 
-    let module = block_types();
+    assert_eq!(types[0].blank, ChecklistContent::default().encode());
     assert_eq!(
-        pollster::block_on(module.blank(ChecklistContent::CONTENT_TYPE)),
-        Ok(ChecklistContent::default().encode())
+        types[0].blank_description.derived,
+        be_block::derived_metadata(&ChecklistContent::default())
     );
+
+    let module = block_types();
     let mut ours = ChecklistContent::default();
     ours.apply(&add("ours"));
     let mut theirs = ChecklistContent::default();
@@ -85,7 +87,7 @@ fn a_module_answers_stateless_requests() {
         None
     );
     assert_eq!(
-        pollster::block_on(module.blank(Uuid::nil())),
+        pollster::block_on(module.to_file(Uuid::nil(), Vec::new())),
         Err(Failure::UnknownType)
     );
 

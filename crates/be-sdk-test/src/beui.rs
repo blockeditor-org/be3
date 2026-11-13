@@ -1636,13 +1636,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    /// The `format` data of each copy that offered it ready.
-    pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
+    /// The `format` item of each copy that offered it ready.
+    pub fn take_copied(&mut self, format: &str) -> Vec<be_sdk_api::ClipItem> {
         self.take_shell_messages(|call| match call {
             ShellMessage::Copy(ClipOffer { items, .. }) => items
                 .iter()
                 .find(|item| item.format == format)
-                .and_then(|item| item.data.clone()),
+                .and_then(|item| Some(be_sdk_api::ClipItem::of_body(format, item.body.clone()?))),
             _ => None,
         })
     }
@@ -1651,7 +1651,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_copied_text(&mut self) -> Vec<String> {
         self.take_copied(be_sdk_api::clipboard::formats::TEXT)
             .into_iter()
-            .map(|text| String::from_utf8_lossy(&text).into_owned())
+            .map(|text| String::from_utf8_lossy(&text.data).into_owned())
             .collect()
     }
 
