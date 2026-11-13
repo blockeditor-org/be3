@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn choosing_a_scale_draws_the_host_larger() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("Tab \"Settings\"");
     host.click("#settings.display");
     host.click("#display.scale");

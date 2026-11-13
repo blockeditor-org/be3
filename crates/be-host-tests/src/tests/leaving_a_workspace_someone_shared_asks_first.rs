@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn leaving_a_workspace_someone_shared_asks_first() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");
     host.click("#host.contacts.new-link");

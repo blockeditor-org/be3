@@ -4,7 +4,7 @@ const STROKE: &str = "GenericContainer #infinite-canvas.entity.";
 
 #[test]
 fn a_pen_draws_a_line_on_a_canvas_with_the_pen_tool() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.canvas");
     let stage = host.place("#infinite-canvas.canvas");

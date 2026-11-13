@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_contact_link_asks_before_connecting_two_accounts() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");
     host.click("#host.contacts.new-link");

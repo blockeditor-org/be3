@@ -183,10 +183,14 @@ scrims stay the framework's.
 
 ## The graph on the app protocol
 
-An app watches a `BlockQuery` with a `blocks-watch` resource, answered from
-the host's mirror whenever the answer changes (`be-host-stack/src/app_graph.rs`);
-on the app side `editor.watch_blocks(query)` and `editor.blocks()`, held while
-anything holds the `BlockList`.
+An app follows what the host knows of blocks with one resource, `block-watch`,
+opened on a `block-subject`: the blocks a `BlockQuery` lists, a block's undo
+history, the content at its head, an artifact's state, or its own block's
+version status. `next` answers the `block-value` of the same name once it
+changes; listings come from the host's mirror (`be-host-stack/src/app_graph.rs`).
+On the app side `editor.watch_blocks(query)` and `editor.blocks()`, held while
+anything holds the `BlockList`; be-sdk's `link.rs` keeps one watch per subject
+the editor asks for and drops a value that is not of its subject.
 
 Full-text search is a query of its own, not a `BlockQuery`: a `search-watch`
 (text and an optional `within` block) answers hits of block, document key,
