@@ -1,13 +1,13 @@
 #!/bin/bash
-# Run as root on a new Hetzner server (Ubuntu 24.04): `scp -r` this directory and scripts/internal/re-relay there, side by side, and run it with the server's public
+# Run as root on a new Hetzner server (Ubuntu 24.04): `scp -r` scripts/internal/nativelink and scripts/internal/re-relay there, side by side, and run it with the server's public
 # name, `bash setup.sh nl.be3.pfg.pw` (its DNS record must point at the server). It installs NativeLink (cache, scheduler and worker in one process,
 # nativelink.json5) and Caddy (Caddyfile), and makes Caddy's token on first run. Running it again updates both.
 set -euo pipefail; cd "$(dirname "$(readlink -f "$0")")"; export DEBIAN_FRONTEND=noninteractive
 NL_HOST=${1:?usage: setup.sh PUBLIC_NAME}
 NL_VERSION=1.8.3
-NL_SHA256=1a6596c96f059d4e99f7352164321e1f1cdff435275667ad8489e83f7e2977c5   # GitHub's published digest; as in ../scheduler/setup-scheduler.sh
+NL_SHA256=1a6596c96f059d4e99f7352164321e1f1cdff435275667ad8489e83f7e2977c5   # GitHub's published digest
 CADDY_VERSION=2.11.7
-CADDY_SHA256=727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b   # as in ../scheduler/setup-scheduler.sh
+CADDY_SHA256=727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b   # Caddy's published digest
 IMAGE=docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549   # buck/tools/defs.bzl worker_properties()
 # Only key logins (Hetzner's image allows passwords for users other than root).
 printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh/sshd_config.d/10-keys-only.conf
@@ -22,10 +22,10 @@ curl -fsSL --retry 3 -o /tmp/caddy.tgz "https://github.com/caddyserver/caddy/rel
 echo "$CADDY_SHA256  /tmp/caddy.tgz" | sha256sum -c -
 tar xzf /tmp/caddy.tgz -C /tmp caddy; install -m0755 /tmp/caddy /usr/local/bin/caddy
 # re-relay, whose tunnel-server carries the calls of a client behind a slow proxy (nl-tunnel.service), built from
-# ../../re-relay, or ../re-relay when the two directories were copied side by side, with a pinned Go.
+# ../re-relay with a pinned Go.
 GO_VERSION=1.26.11
 GO_SHA256=9849f4e04ee35303714e34fbc3ac8ab44ea3e448a95aa182f91e3b9b79c710ec   # go.dev's published digest
-RELAY_SOURCE=$(readlink -f ../../re-relay 2>/dev/null || true); [ -f "$RELAY_SOURCE/go.mod" ] || RELAY_SOURCE=$(readlink -f ../re-relay)
+RELAY_SOURCE=$(readlink -f ../re-relay)
 if [ "$(/usr/local/go/bin/go version 2>/dev/null)" != "go version go$GO_VERSION linux/amd64" ]; then
   curl -fsSL --retry 3 -o /tmp/go.tgz "https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz"
   echo "$GO_SHA256  /tmp/go.tgz" | sha256sum -c -

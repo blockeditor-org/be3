@@ -1,7 +1,8 @@
 # buck2 on this machine
 
-When no build server is reachable, buck2 can run every action locally. Write `.buckconfig.local`
-by hand (git ignores it, and nothing but a person writes it):
+When no build server is reachable, buck2 can run every action locally: `BE3_BUILD_SERVER=local`,
+or `local` saved as the first line of `~/.config/be3/build-server` (guides/build_server.md).
+`./scripts/buck` then writes this into `target/build-server.buckconfig`:
 
     [build]
     execution_platforms = root//buck/platforms:execution_platforms_local
@@ -12,22 +13,24 @@ by hand (git ignores it, and nothing but a person writes it):
     [be3]
     rustc_threads = 2
 
+For other settings, write them into `.buckconfig.local` by hand instead (git ignores it, and
+nothing but a person writes it); while it exists `./scripts/buck` writes no
+`target/build-server.buckconfig` and asks for no build server.
+
 `execution_platforms_local` (buck/platforms/BUCK) is the build server's execution platform with
 remote execution and the remote cache turned off. It takes the remote platform's label and
 constraints, so the exec configurations, and with them the output paths, are the same as on a
 build server. `fbcode.disable_re_tests` is the prelude's switch that runs tests here rather than
-on the worker toolchains//:remote_test_execution names. Since the file is a person's, `./scripts/buck`
-asks no build server or waker for anything and writes no `target/build-server.buckconfig`
-(guides/build_server.md). The rules tell a local build apart
+on the worker toolchains//:remote_test_execution names. The rules tell a local build apart
 only by `execution_platforms` (`LOCAL_BUILD` in buck/platforms/profile.bzl), in any spelling of
 `root//buck/platforms:execution_platforms` or `:execution_platforms_local`, and fail to load on
 any other value, for the two differences below. Then use `./scripts/buck` as usual, such as
 `./scripts/buck run //crates/be-host:dev` (guides/running/drive.md).
 
 `be3.rustc_threads` is how many threads rustc's frontend runs on (`-Zthreads`). A build server
-always uses eight, whatever this file says, so the cache never splits by who asked. Here buck2
+always uses eight, whatever the config says, so the cache never splits by who asked. Here buck2
 already runs one rustc per core, and eight threads each oversubscribe the CPU and memory: on a
-machine of 8 cores and 15 GB, shared with other builds, use 1 or 2. Leave it out for eight.
+machine of 8 cores and 15 GB, shared with other builds, use 1 or 2. Left out, it is eight.
 
 A local build also leaves out buck2's content-based output paths for rust targets (`RUST_LOCAL`
 in buck/platforms/profile.bzl), and `program` outputs always do. With them, buck2 writes each
@@ -46,8 +49,7 @@ in the last twelve hours (`--dry-run` says how much first), and `./scripts/buck 
 everything.
 
 Everything downloads and builds here: the toolchains and sysroot (about 500 MB), then the crates.
-A first `:dev-host-text` build (`-c be3.apps=text`) took six minutes on 8 cores. Delete the file to go back to a
-build server.
+A first `:dev-host-text` build (`-c be3.apps=text`) took six minutes on 8 cores.
 
 `./scripts/verify` runs whole here, with nothing skipped: every compile, lint and test, the host
 tests, and the browser tests (`web_drive_test`, `page_test` in buck/program/drive.bzl), which run

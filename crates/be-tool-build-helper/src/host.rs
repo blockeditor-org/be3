@@ -18,13 +18,7 @@ pub const STORAGE: &str = "https://storage.bunnycdn.com/be3-ci";
 
 /// What `git clean -ffdx` keeps at the checkout's root between builds: the caches and the
 /// credentials `./scripts/buck` reads.
-const KEPT: [&str; 5] = [
-    "buck-out",
-    "target",
-    ".build-server-key.*",
-    ".gateway-authorization",
-    ".namespace-token.json",
-];
+const KEPT: [&str; 3] = ["buck-out", "target", ".nl-token"];
 
 /// Builds a product of a commit in the helper's own checkout and uploads it to the be3-ci zone:
 /// each file once as `files/SHA256`, then the manifest `builds/PRODUCT/COMMIT.json` last, so a
