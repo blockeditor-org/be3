@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_protocol::ClientId;
+use be_block_protocol::{ClientId, RelayKind};
 
 use crate::Event;
 use be_type_example_counter::CounterContent;
@@ -17,6 +17,7 @@ async fn heard(
             block: relayed,
             from,
             payload,
+            ..
         } = events.recv().await.unwrap()
             && relayed == block
         {
@@ -45,10 +46,13 @@ async fn relayed_messages_reach_one_peer_or_all_of_them_sealed() {
     tablet.join_session(block).unwrap().await.unwrap();
 
     let to_laptop = phone
-        .relay(block, Some(laptop_id), b"to the laptop")
+        .relay(block, Some(laptop_id), RelayKind::Peer, b"to the laptop")
         .await
         .unwrap();
-    let to_everyone = phone.relay(block, None, b"to everyone").await.unwrap();
+    let to_everyone = phone
+        .relay(block, None, RelayKind::Peer, b"to everyone")
+        .await
+        .unwrap();
     to_laptop.await.unwrap();
     to_everyone.await.unwrap();
 

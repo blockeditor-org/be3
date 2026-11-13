@@ -66,3 +66,11 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   embeds cross in the clip's `refs`, translated like any other. Done: a
   paste between two rich texts keeps bold, links and an embed, and pasting
   from a browser's `text/html` gives bold and links.
+
+## 7. Sessions
+
+- **Catch-ups from viewers.** `Catchup` is a `peer` relay, so any viewer can
+  send one, and each makes the owner answer a `Snapshot` (with session state
+  unless the asker already holds it) and may set it to reload. Done: the owner
+  answers one sender at most once per interval, shown by a be-sdk-type-guest
+  test where a viewer's repeated `Catchup`s get one `Snapshot`.
