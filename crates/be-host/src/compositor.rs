@@ -51,6 +51,7 @@ pub(crate) fn install() {
     PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
     let searched = create_signal(be_host_stack::search_revision());
     SEARCHED.with(|held| *held.borrow_mut() = Some(searched));
+    editors::camera::install();
     let (mailbox, post) = be_host_base::host::mailbox(heard);
     be_host_runtime::listen(post);
     HEARD.with(|held| *held.borrow_mut() = Some(mailbox));
@@ -66,6 +67,9 @@ fn heard(heard: be_host_runtime::Heard) {
             );
         }
         be_host_runtime::InstanceEvent::BlockDrag(drag) => app_view::carry(drag),
+        be_host_runtime::InstanceEvent::ViewChange(change) => {
+            editors::camera::heard_view_change(heard.app_id, heard.instance, change);
+        }
         _ => {}
     }
 }

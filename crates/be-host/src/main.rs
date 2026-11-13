@@ -449,6 +449,8 @@ impl beui::native::Program for Shell {
         let store = self.view;
         compositor::notify();
         beui::native::enter(&mut self.document, || {
+            // What the apps did in this frame's `poll` reaches its owners in the document.
+            host::deliver();
             display::apply_shown();
             store.set(view);
         });
@@ -3253,8 +3255,6 @@ impl HostCore {
     fn run_frame(&mut self) {
         performance::begin_frame();
         be_host_runtime::poll();
-        // What the apps did in `poll` reaches its owners in this frame.
-        host::deliver();
         self.watch_shell();
         desk().deliver(self);
         #[cfg(target_os = "linux")]

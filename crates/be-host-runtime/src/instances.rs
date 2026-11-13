@@ -1,13 +1,12 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::{
-    AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand,
-    BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
-    DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
-    OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View,
-    ViewAnchor, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent,
-    WebViewId,
+    AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
+    EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
+    ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View, ViewAnchor, ViewId,
+    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,

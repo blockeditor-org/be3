@@ -22,7 +22,10 @@ fn tell(instances: &mut Instances, message: ShellMessage) -> bool {
 
 /// What instances report from now on, heard once the frame's mail is delivered
 /// (`host::deliver`).
-fn hearing() -> (host::Mailbox, std::rc::Rc<std::cell::RefCell<Vec<InstanceEvent>>>) {
+fn hearing() -> (
+    host::Mailbox,
+    std::rc::Rc<std::cell::RefCell<Vec<InstanceEvent>>>,
+) {
     let heard = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     let into = std::rc::Rc::clone(&heard);
     let (mailbox, post) =

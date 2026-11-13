@@ -11,8 +11,8 @@ use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
     EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
     PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View,
-    ViewId, ViewSize, WindowRequest,
+    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewId,
+    ViewSize, WindowRequest,
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;

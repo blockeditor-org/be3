@@ -1187,7 +1187,7 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     }
 }
 
-mod camera;
+pub(crate) mod camera;
 use camera::{Camera, CameraSpec, CameraView};
 
 #[component]

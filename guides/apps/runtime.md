@@ -114,8 +114,8 @@ block, the answer to a clip render, its focus, its children's commits, ...) is a
 `InstanceEvent` that be-host-runtime posts, as the app's call arrives, to every
 mailbox handed to `be_host_runtime::listen`; nothing in be-host polls per instance
 for it. A mailbox hears it when its desk delivers: be-host delivers the frame's
-mail right after `be_host_runtime::poll`, so an owner acts in the frame the app
-spoke. Each owner keeps the events of the instances it runs (`compositor::hear`
+mail in the document after `be_host_runtime::poll`, so an owner acts in the
+frame the app spoke and may touch the document (focus, a drag). Each owner keeps the events of the instances it runs (`compositor::hear`
 for a component, `HostCore::instance_heard` for the core) and lets the rest go.
 
 ### Late answers and idle editors

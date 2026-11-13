@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use be_sdk_api::{EditorInstanceId, FitArea, PanMode, ViewChange, ViewId};
 use beui::reactive::*;
@@ -9,7 +8,48 @@ use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use uuid::Uuid;
 
 use super::super::app_view::PanDrag;
-use be_host_runtime::{EditorView, InstanceEvent};
+use be_host_runtime::EditorView;
+
+type ViewChanges = HashMap<(String, EditorInstanceId), Vec<ViewChange>>;
+
+thread_local! {
+    /// The view changes instances asked for, until the camera that holds the instance's
+    /// content takes them: one may not be shown yet when its instance asks.
+    static VIEW_CHANGES: RefCell<ViewChanges> = RefCell::new(HashMap::new());
+    static VIEW_CHANGED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+}
+
+pub(crate) fn install() {
+    let changed = create_signal(0u64);
+    VIEW_CHANGED.with(|held| *held.borrow_mut() = Some(changed));
+}
+
+/// Keeps a view change `instance` asked for until its camera takes it.
+pub(crate) fn heard_view_change(app_id: String, instance: EditorInstanceId, change: ViewChange) {
+    VIEW_CHANGES.with_borrow_mut(|changes| {
+        changes.entry((app_id, instance)).or_default().push(change);
+    });
+    if let Some(changed) = VIEW_CHANGED.with(|held| *held.borrow()) {
+        changed.update(|changed| *changed += 1);
+    }
+}
+
+fn view_changed() -> ReadSignal<u64> {
+    VIEW_CHANGED.with(|held| {
+        held.borrow()
+            .as_ref()
+            .map(|changed| changed.read_only())
+            .expect("the compositor is installed while the document is built")
+    })
+}
+
+fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
+    VIEW_CHANGES.with_borrow_mut(|changes| {
+        changes
+            .remove(&(app_id.to_owned(), instance))
+            .unwrap_or_default()
+    })
+}
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
 pub(super) const MAX_ZOOM: f32 = 32.0;
@@ -245,31 +285,14 @@ pub(super) fn Camera(
         }
     });
     let pan_drags = create_signal(0u64);
-    // The view that holds the content when a change arrives takes it.
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let heard = create_signal(0u64);
-    let held = Rc::clone(&changes);
-    super::super::hear(app_id, instance, move |event| {
-        let InstanceEvent::ViewChange(change) = event else {
-            return;
-        };
-        let holding = match be_host_runtime::frame_rects(&app_id.value(), instance, shown_view) {
-            Some(frame) => frame.holds_content(),
-            None => shown_view == ViewId::MAIN,
-        };
-        if holding {
-            held.borrow_mut().push(change);
-            heard.update(|heard| *heard += 1);
-        }
-    });
+    let changed = view_changed();
     create_effect(move || {
-        heard.get();
+        changed.get();
         if !holds.get() {
             return;
         }
         let rect = rect.get_untracked();
-        let taken = std::mem::take(&mut *changes.borrow_mut());
-        for change in taken {
+        for change in take_view_changes(&app_id.value(), instance) {
             command(match change {
                 ViewChange::Pan(by) => Command::Pan(by),
                 ViewChange::Zoom { factor, anchor } => Command::Zoom {
