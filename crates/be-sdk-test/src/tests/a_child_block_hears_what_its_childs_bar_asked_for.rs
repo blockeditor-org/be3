@@ -1,5 +1,5 @@
+use be_sdk_beui::TopBar;
 use be_sdk_beui::beui::styled::Root;
-use be_sdk_beui::{BarAction, TopBar};
 
 use super::*;
 
@@ -31,7 +31,7 @@ fn BarParent(editor: Editor) -> NodeId {
                     mode=ChildMode::Live
                     own_frame=true
                     top_bar={TopBar::Phone}
-                    on_bar={move |action: BarAction| heard.set(format!("{action:?}"))}
+                    on_details={move || heard.set(String::from("Details"))}
                 />
             </Frame>
         </List>
@@ -45,7 +45,7 @@ fn a_child_block_hears_what_its_childs_bar_asked_for() {
     let placement = test.children()[0].clone();
     assert_eq!(placement.top_bar, TopBar::Phone);
 
-    test.child_bar(placement.child, BarAction::Details);
+    test.child_details(placement.child);
     test.run();
 
     let node = test

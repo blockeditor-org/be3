@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn typing_in_the_add_menu_from_the_files_reaches_it_straight_away() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_add_to_my_files(&mut host);
     host.wait("#picker.more");
     let tree = host.tree();

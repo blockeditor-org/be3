@@ -432,7 +432,10 @@ impl TestClient {
             ),
             (
                 "notify",
-                answered(client::notifications::notify(peer, block, sealed(), Vec::new()).await),
+                answered(
+                    client::notifications::notify(peer, block, sealed(), Vec::new(), Vec::new())
+                        .await,
+                ),
             ),
         ];
         let escrow = be_block_protocol::EscrowKey {
@@ -495,7 +498,7 @@ impl TestClient {
         ));
         answers.push((
             "session-relay",
-            answered(session.relay(None, sealed()).await),
+            answered(session.relay(None, RelayKind::Peer, sealed()).await),
         ));
         answers.push((
             "session-append",

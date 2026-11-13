@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_popup_a_joined_demo_tab_places_over_its_own_window_opens_over_that_tab() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_beui_demo(&mut host);
     host.run(&["scroll", "#demo.catalog.Pickers", "1500"]);
     host.wait("#demo.catalog.Layering");

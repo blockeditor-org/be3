@@ -13,6 +13,7 @@ fn a_nested_dock_reaches_the_root_spliced_into_its_placers() {
             DockUpdate::Child(DockDeclaredChild {
                 child: OUTER_CHILD,
                 declaration: Some(spliced()),
+                epoch: 0,
             })
         )]
     );

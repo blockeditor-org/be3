@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_joined_demos_tab_bodies_are_in_the_accessibility_tree() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_beui_demo(&mut host);
     host.wait("#demo.catalog.Docking");
     host.wait("Heading \"The dock around this page\"");

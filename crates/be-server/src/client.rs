@@ -8,7 +8,7 @@ use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     AccountStorage, Authenticated, BlockChange, BlockEvent, BrowserLogin, BrowserLoginState,
     Collected, Contents, CreatedAgent, Error, ErrorCode, Header, Listing, OrganizationOpened,
-    PairingMessage, RecoveryKey, SessionEvent, SessionState, UploadUrl, embed,
+    PairingMessage, RecoveryKey, RelayKind, SessionEvent, SessionState, UploadUrl, embed,
 };
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
@@ -152,8 +152,14 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             embed::sessions::Call::SessionNew { .. } => Rule::SignedIn,
             embed::sessions::Call::SessionJoin { this, .. }
             | embed::sessions::Call::SessionHeartbeat { this, .. }
-            | embed::sessions::Call::SessionRelay { this, .. } => {
-                Rule::Session(this.op(), Access::View)
+            | embed::sessions::Call::SessionRelay {
+                this,
+                kind: RelayKind::Peer,
+                ..
+            } => Rule::Session(this.op(), Access::View),
+            // An `edit` relay carries operations or session state, so needs edit access.
+            embed::sessions::Call::SessionRelay { this, .. } => {
+                Rule::Session(this.op(), Access::Edit)
             }
             embed::sessions::Call::SessionClaimOwnership { this, .. }
             | embed::sessions::Call::SessionAppend { this, .. }
@@ -708,12 +714,14 @@ impl Client {
                 Push::Relayed {
                     block,
                     from,
+                    kind,
                     payload,
                 } => {
                     streams.send(
                         &mut lock,
                         SessionEvent::Relayed {
                             from,
+                            kind,
                             payload: payload.to_vec(),
                         },
                         sessions(block),
@@ -1989,7 +1997,15 @@ impl Client {
                         organization: connection.identity()?.organization,
                         block,
                     };
-                    let state = connection.registry.join(place, connection.client).await;
+                    let may_edit = connection
+                        .store
+                        .require_access(connection.identity()?, vec![block], Access::Edit)
+                        .await
+                        .is_ok();
+                    let state = connection
+                        .registry
+                        .join(place, connection.client, may_edit)
+                        .await;
                     // As for a watch: a view lost since the check ran leaves the session again.
                     if let Err(error) = connection
                         .store
@@ -2084,6 +2100,24 @@ impl Client {
                 let beat = async {
                     prelude?;
                     let block = block?;
+                    // An owner that lost edit access since it took the lease hands it on, so
+                    // the session is not held by one whose edits are refused.
+                    if connection
+                        .registry
+                        .state(block)
+                        .await
+                        .is_owner(connection.client)
+                        && connection
+                            .store
+                            .require_access(connection.identity()?, vec![block.block], Access::Edit)
+                            .await
+                            .is_err()
+                        && let Some(state) =
+                            connection.registry.demote(block, connection.client).await
+                    {
+                        connection.announce(block, &state).await;
+                        return Ok(state);
+                    }
                     Ok::<SessionState, ServerError>(
                         match connection
                             .registry
@@ -2102,6 +2136,7 @@ impl Client {
                 this,
                 reply,
                 to,
+                kind,
                 payload,
             } => {
                 let block = self.joined(this.op());
@@ -2109,14 +2144,16 @@ impl Client {
                 let relayed = async {
                     prelude?;
                     let block = block?;
-                    let participants = connection.registry.participants(block).await;
-                    if !participants.contains(&connection.client) {
+                    let state = connection.registry.state(block).await;
+                    if !state.participants.contains(&connection.client) {
                         return Err(not_joined());
                     }
+                    let participants = state.participants;
                     crate::limits::at_most("a relayed message", payload.len(), MAX_RELAY_BYTES)?;
                     let message = Push::Relayed {
                         block,
                         from: connection.client,
+                        kind,
                         payload: payload.into(),
                     };
                     match to {
@@ -2163,7 +2200,8 @@ impl Client {
                             MAX_RELAY_BYTES,
                         )?;
                     }
-                    if state.is_owner(connection.client) && state.generation == generation {
+                    let owns = state.is_owner(connection.client) && state.generation == generation;
+                    if owns {
                         connection
                             .store
                             .append_journal(
@@ -2181,6 +2219,7 @@ impl Client {
                             let message = Push::Relayed {
                                 block,
                                 from: connection.client,
+                                kind: RelayKind::Edit,
                                 payload: entry.payload.into(),
                             };
                             connection
@@ -2311,10 +2350,11 @@ impl Client {
                 block,
                 sealed,
                 mentions,
+                keys,
             } => {
                 let queued = async {
                     prelude?;
-                    connection.notify(block, sealed, mentions).await
+                    connection.notify(block, sealed, mentions, keys).await
                 }
                 .await;
                 self.reply(reply, queued);
@@ -2572,12 +2612,14 @@ impl Connection {
 
     /// Queues a push of `sealed` to each device of every member `notification_recipients`
     /// names who has no connection to the organization open, and drops each endpoint its
-    /// service says is gone.
+    /// service says is gone. One whose `keys` were all told before pushes nothing
+    /// (`ServerStore::tell`).
     async fn notify(
         &self,
         block: Uuid,
         sealed: Vec<u8>,
         mentions: Vec<Uuid>,
+        keys: Vec<be_block_store::Hash>,
     ) -> Result<(), ServerError> {
         let identity = self.identity()?;
         crate::limits::at_most(
@@ -2590,6 +2632,15 @@ impl Connection {
                 "accounts one notification mentions",
                 crate::limits::MAX_MENTIONS,
             ));
+        }
+        if keys.len() > be_block_protocol::MAX_TOLD_KEYS {
+            return Err(crate::limits::too_many(
+                "keys one notification names",
+                be_block_protocol::MAX_TOLD_KEYS,
+            ));
+        }
+        if !keys.is_empty() && !self.store.tell(identity, block, keys).await? {
+            return Ok(());
         }
         if !self.notifications.allow_key(identity.account) {
             return Err(crate::limits::too_many(
