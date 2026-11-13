@@ -45,7 +45,7 @@ fn a_put_without_text_survives_a_merge_with_compaction_or_reindexing() {
 
     // The other side compacted the segment the newer entry points into.
     let mut compacted = base.clone();
-    store.keep(&run(compacted.compact(&store, id(20))).unwrap());
+    store.keep(&run(compacted.compact(&store, id(20), 0, usize::MAX)).unwrap());
     assert_eq!(compacted.segment_count(), 1);
     for (a, b) in [(&compacted, &moved), (&moved, &compacted)] {
         let (merged, written) = run(a.merge(b, &store, id(30))).unwrap();
@@ -78,7 +78,7 @@ fn a_put_without_text_survives_a_merge_with_compaction_or_reindexing() {
     // Reindexed and compacted: no surviving segment holds the newer entry's
     // text, so the merge asks for it again.
     let mut both = reindexed.clone();
-    store.keep(&run(both.compact(&store, id(60))).unwrap());
+    store.keep(&run(both.compact(&store, id(60), 0, usize::MAX)).unwrap());
     let (merged, written) = run(both.merge(&moved, &store, id(70))).unwrap();
     store.keep(&written);
     assert_eq!(written.needs_text, [doc(3)]);

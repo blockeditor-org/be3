@@ -52,8 +52,16 @@ impl Written {
 }
 
 impl Index {
-    /// Merges segments until no tier holds `FACTOR` of them.
-    pub async fn compact(&mut self, parts: &impl Parts, origin: Id) -> Result<Written, Error> {
+    /// Merges segments until no tier holds `FACTOR` of them, or `most` merges are done: a
+    /// writer compacts a few at a time with each batch, so no one write rewrites the index.
+    /// What it retires is recorded at `now` (milliseconds), for `Index::forget_before`.
+    pub async fn compact(
+        &mut self,
+        parts: &impl Parts,
+        origin: Id,
+        now: i64,
+        most: usize,
+    ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut built: HashMap<Id, segment::Named> = HashMap::new();
@@ -66,11 +74,14 @@ impl Index {
                     written.dropped.extend(meta.parts());
                     self.retired.push(Retired {
                         id: meta.id,
-                        at: self.watermark,
+                        at: now,
                     });
                 } else {
                     index += 1;
                 }
+            }
+            if n as usize >= most {
+                break;
             }
             let group = match self
                 .segments
@@ -110,7 +121,7 @@ impl Index {
                 written.dropped.extend(meta.parts());
                 self.retired.push(Retired {
                     id: meta.id,
-                    at: self.watermark,
+                    at: now,
                 });
             }
             built.insert(id, segment_parts.clone());

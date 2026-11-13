@@ -37,7 +37,7 @@ fn compaction_gives_the_same_answers_as_one_index_built_from_scratch() {
                 ..Batch::default()
             },
         );
-        let written = run(index.compact(&store, id(1000 + batch))).unwrap();
+        let written = run(index.compact(&store, id(1000 + batch), 0, usize::MAX)).unwrap();
         store.keep(&written);
         most_segments = most_segments.max(index.segment_count());
     }

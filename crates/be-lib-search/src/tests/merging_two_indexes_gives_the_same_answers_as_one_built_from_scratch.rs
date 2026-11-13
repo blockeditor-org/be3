@@ -41,7 +41,7 @@ fn merging_two_indexes_gives_the_same_answers_as_one_built_from_scratch() {
             },
         );
     }
-    store.keep(&run(a.compact(&store, id(150))).unwrap());
+    store.keep(&run(a.compact(&store, id(150), 0, usize::MAX)).unwrap());
     // The other adds others, reindexes 3 and 4 too, and removes 5 and 6.
     let mut b = base.clone();
     let put_list: Vec<Put> = (300..330)
@@ -90,7 +90,7 @@ fn merging_two_indexes_gives_the_same_answers_as_one_built_from_scratch() {
     let (again, written) = run(merged.merge(&reverse, &store, id(302))).unwrap();
     store.keep(&written);
     let mut compacted = again.clone();
-    store.keep(&run(compacted.compact(&store, id(303))).unwrap());
+    store.keep(&run(compacted.compact(&store, id(303), 0, usize::MAX)).unwrap());
     same_answers((&again, &store), (&fresh, &fresh_store), 330);
     same_answers((&compacted, &store), (&fresh, &fresh_store), 330);
 }

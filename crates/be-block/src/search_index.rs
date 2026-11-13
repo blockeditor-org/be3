@@ -36,6 +36,14 @@ impl Held {
     }
 }
 
+/// How long the server keeps an index block's old states (`be_server::retention`), and so how
+/// long a retired segment or a removed block is remembered (`SearchIndexContent::compact`): a
+/// device that writes on an older head than that has been away longer than its index lives.
+pub const SEARCH_INDEX_KEPT: i64 = be_block_commit::retention::DAY;
+
+/// The segment merges one compaction makes at most, so no one batch rewrites the index.
+const MERGES_PER_PASS: usize = 2;
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct Header {
     index: Vec<u8>,
@@ -86,6 +94,25 @@ impl SearchIndexContent {
         let needs_text = written.needs_text.clone();
         *self = Self::rebuilt(index, written, [&*self]);
         Ok(needs_text)
+    }
+
+    /// Compacts a few segments (`Index::compact`, `MERGES_PER_PASS`) and forgets the retired
+    /// segments and removed blocks recorded longer than `SEARCH_INDEX_KEPT` before `now`
+    /// (milliseconds): what the device that writes a batch does with it, so the segments a
+    /// query reads stay few.
+    pub async fn compact<F: AsyncRead>(
+        &mut self,
+        read: &F,
+        origin: Id,
+        now: i64,
+    ) -> Result<(), Error> {
+        let mut index = self.index.clone();
+        let written = index
+            .compact(&self.reader([self], read), origin, now, MERGES_PER_PASS)
+            .await?;
+        index.forget_before(now - SEARCH_INDEX_KEPT);
+        *self = Self::rebuilt(index, written, [&*self]);
+        Ok(())
     }
 
     /// The best `limit` hits of `query` (`Index::search`).

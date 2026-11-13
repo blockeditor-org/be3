@@ -1957,6 +1957,15 @@ async fn write_at<S: ObjectStore>(
         .apply(&parts, Uuid::new_v4().into_bytes(), batch)
         .await
         .map_err(|error| unwritten(error.to_string()))?;
+    // The device that writes a batch compacts a few segments with it, so queries read few.
+    content
+        .compact(
+            &parts,
+            Uuid::new_v4().into_bytes(),
+            be_block_commit::now_milliseconds(),
+        )
+        .await
+        .map_err(|error| unwritten(error.to_string()))?;
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
         .described(Vec::new(), be_block::derived_metadata(&content));
     peer.seal(index, write).await?;

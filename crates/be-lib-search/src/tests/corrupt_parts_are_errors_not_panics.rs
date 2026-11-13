@@ -42,7 +42,7 @@ fn exercise(index: &Index, other: &Index, store: &Store) {
         },
     ));
     let mut compacted = index.clone();
-    let _ = run(compacted.compact(store, id(91)));
+    let _ = run(compacted.compact(store, id(91), 0, usize::MAX));
     let _ = run(index.merge(other, store, id(92)));
     let _ = run(other.merge(index, store, id(93)));
 }

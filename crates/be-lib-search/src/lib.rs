@@ -301,8 +301,8 @@ const BODY: u8 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Retired {
     id: Id,
-    /// The watermark when it was retired.
-    at: u64,
+    /// When it was retired, in milliseconds.
+    at: i64,
 }
 
 /// A block that left the tree, masking its documents at older commits,
@@ -311,7 +311,8 @@ struct Retired {
 struct RemovedBlock {
     block: Vec<u8>,
     commit: Commit,
-    at: u64,
+    /// When it was recorded: its removal's commit time, in milliseconds.
+    at: i64,
 }
 
 /// The header of an index: its segments, its document table's chunks and its
@@ -353,13 +354,12 @@ impl Index {
         self.segments.len()
     }
 
-    /// Forgets retired segments and removed blocks recorded before
-    /// `watermark`, once no index that predates them can still be merged in
-    /// (the index block's history retention says when).
-    pub fn forget_before(&mut self, watermark: u64) {
-        self.retired.retain(|retired| retired.at >= watermark);
-        self.removed_blocks
-            .retain(|removed| removed.at >= watermark);
+    /// Forgets retired segments and removed blocks recorded before `time`
+    /// (milliseconds), once no index that predates them can still be merged
+    /// in: the index block's history retention says when.
+    pub fn forget_before(&mut self, time: i64) {
+        self.retired.retain(|retired| retired.at >= time);
+        self.removed_blocks.retain(|removed| removed.at >= time);
     }
 
     /// Every part the header names, the header aside.
@@ -419,7 +419,7 @@ impl Index {
             self.removed_blocks.push(RemovedBlock {
                 block: block.clone(),
                 commit,
-                at: self.watermark,
+                at: commit.time,
             });
             for entry in table.entries_of(parts, &block).await? {
                 if entry.commit < commit {

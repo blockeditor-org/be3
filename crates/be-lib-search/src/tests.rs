@@ -13,6 +13,7 @@ use crate::{
 };
 
 mod a_full_put_replaces_a_partial_one_at_the_same_commit;
+mod a_long_run_of_batches_compacted_a_few_merges_at_a_time_stays_few_segments;
 mod a_put_of_the_text_already_indexed_moves_only_its_commit;
 mod a_put_without_text_survives_a_merge_with_compaction_or_reindexing;
 mod a_query_reads_few_blocks_while_skipping_a_common_term;
@@ -28,6 +29,8 @@ mod names_rank_first_then_newer_commits;
 mod queries_parse_words_phrases_and_a_last_prefix;
 mod ranked_results_match_a_brute_force_scorer;
 mod removals_of_unseen_documents_survive_a_merge;
+mod retired_segments_and_removed_blocks_are_forgotten_past_retention;
+mod two_devices_compacting_concurrently_merge_to_the_same_result;
 
 /// Runs a future that never waits: every read here is from memory.
 pub(crate) fn run<T>(future: impl Future<Output = T>) -> T {

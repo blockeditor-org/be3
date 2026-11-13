@@ -99,13 +99,13 @@ fn ranked_results_match_a_brute_force_scorer() {
     check(&index, &store);
 
     let mut compacted = index.clone();
-    store.keep(&run(compacted.compact(&store, id(100))).unwrap());
+    store.keep(&run(compacted.compact(&store, id(100), 0, usize::MAX)).unwrap());
     assert!(compacted.segment_count() < index.segment_count());
     check(&compacted, &store);
 
     let mut a = index.clone();
     batches(&mut random, &mut a, &mut store, 8, 3, 200);
-    store.keep(&run(a.compact(&store, id(250))).unwrap());
+    store.keep(&run(a.compact(&store, id(250), 0, usize::MAX)).unwrap());
     let mut b = index.clone();
     batches(&mut random, &mut b, &mut store, 11, 2, 300);
     let (merged, written) = run(a.merge(&b, &store, id(400))).unwrap();
