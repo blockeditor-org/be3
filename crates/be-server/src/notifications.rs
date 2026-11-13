@@ -50,15 +50,20 @@ fn mode_of(name: &str) -> Result<NotifyMode, ServerError> {
     }
 }
 
-/// Forgets a deleted block's modes.
+/// Forgets a deleted block's modes and what was told about it.
 pub(crate) fn forget(
     database: &Connection,
     organization: Uuid,
     block: Uuid,
 ) -> Result<(), ServerError> {
+    let (organization, block) = (organization.to_string(), block.to_string());
     database.execute(
         "DELETE FROM notify_modes WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization.to_string(), block.to_string()],
+        params![organization, block],
+    )?;
+    database.execute(
+        "DELETE FROM told_keys WHERE organization_id = ?1 AND block_id = ?2",
+        params![organization, block],
     )?;
     Ok(())
 }
@@ -78,6 +83,10 @@ pub(crate) fn forget_member(
         "DELETE FROM notify_modes WHERE organization_id = ?1 AND account_id = ?2",
         params![organization, account],
     )?;
+    database.execute(
+        "DELETE FROM told_keys WHERE organization_id = ?1 AND account_id = ?2",
+        params![organization, account],
+    )?;
     Ok(())
 }
 
@@ -90,6 +99,52 @@ fn not_viewable() -> ServerError {
 }
 
 impl ServerStore {
+    /// Notes `keys` told about `block` from `identity`'s account, and answers whether any was
+    /// not told before: a device that sent a notification and lost the answer sends it again,
+    /// and the members hear it once. The newest `MAX_TOLD_KEYS` are remembered per account and
+    /// block.
+    pub(crate) async fn tell(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        keys: Vec<String>,
+    ) -> Result<bool, ServerError> {
+        self.with_database(move |_, database| {
+            let (organization, block, account) = (
+                identity.organization.to_string(),
+                block.to_string(),
+                identity.account.to_string(),
+            );
+            let transaction = database.unchecked_transaction()?;
+            let mut new = false;
+            for key in &keys {
+                new |= transaction.execute(
+                    "INSERT OR IGNORE INTO told_keys (organization_id, block_id, account_id, key)
+                     VALUES (?1, ?2, ?3, ?4)",
+                    params![organization, block, account, key],
+                )? > 0;
+            }
+            transaction.execute(
+                "DELETE FROM told_keys
+                 WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3
+                 AND rowid NOT IN (
+                     SELECT rowid FROM told_keys
+                     WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3
+                     ORDER BY rowid DESC LIMIT ?4
+                 )",
+                params![
+                    organization,
+                    block,
+                    account,
+                    be_block_protocol::MAX_TOLD_KEYS as i64
+                ],
+            )?;
+            transaction.commit()?;
+            Ok(new)
+        })
+        .await
+    }
+
     /// Registers `endpoint` for `identity`'s account in its organization, replacing one at the
     /// same address and dropping the oldest past `MAX_PUSH_ENDPOINTS`.
     pub(crate) async fn register_endpoint(

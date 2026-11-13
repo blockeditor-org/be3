@@ -77,6 +77,11 @@ interface notifications {
     /// server vouches for. At most `limits::MAX_NOTIFICATIONS_PER_MINUTE` a
     /// minute from one account and `limits::MAX_NOTIFICATIONS_PER_BLOCK` about
     /// one block. Answered once the pushes are queued; a push service's
-    /// refusal is never the caller's.
-    notify: async func(block: block-id, sealed: list<u8>, mentions: list<account-id>) -> result<_, error>;
+    /// refusal is never the caller's. `keys` name what it tells (an edit's
+    /// announcements, at most `be_block_protocol::MAX_TOLD_KEYS`, each at most
+    /// `be_block_protocol::MAX_TOLD_KEY_BYTES`): one whose keys were all told about this
+    /// block from this account before is answered without a push, so a device
+    /// that never heard the answer may send it again. Without keys, every call
+    /// pushes.
+    notify: async func(block: block-id, sealed: list<u8>, mentions: list<account-id>, keys: list<string>) -> result<_, error>;
 }

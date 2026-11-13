@@ -59,6 +59,7 @@ mod a_mode_set_on_one_device_is_announced_to_the_others;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
+mod a_notification_sent_again_with_the_keys_it_told_pushes_nothing;
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
@@ -1521,7 +1522,17 @@ impl TestClient {
     async fn notify(&mut self, block: Uuid, sealed: &[u8], mentions: Vec<Uuid>) {
         let sealed = sealed.to_vec();
         let notified = self
-            .call(|peer| client::notifications::notify(peer, block, sealed, mentions))
+            .call(|peer| client::notifications::notify(peer, block, sealed, mentions, Vec::new()))
+            .await;
+        assert!(notified.is_ok(), "{notified:?}");
+    }
+
+    /// Notifies with the keys of what it tells, which the server tells once.
+    async fn tell(&mut self, block: Uuid, sealed: &[u8], keys: &[&str]) {
+        let sealed = sealed.to_vec();
+        let keys = keys.iter().map(|key| (*key).to_owned()).collect();
+        let notified = self
+            .call(|peer| client::notifications::notify(peer, block, sealed, Vec::new(), keys))
             .await;
         assert!(notified.is_ok(), "{notified:?}");
     }
