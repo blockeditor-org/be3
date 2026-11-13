@@ -126,14 +126,7 @@ pub enum Outcome {
     },
 }
 
-const COMMANDS: [&str; 6] = [
-    "ls",
-    "whoami",
-    "help",
-    "new-database",
-    "upload",
-    "sync",
-];
+const COMMANDS: [&str; 6] = ["ls", "whoami", "help", "new-database", "upload", "sync"];
 
 const WATCH_SECONDS: u64 = 10;
 
@@ -674,7 +667,11 @@ async fn row_verb<S: ObjectStore>(
             let page_id = match tracker.page_of(database, code, writing).await? {
                 Some(page) => page,
                 None if matches!(verb, "" | "cat") => return print(String::new()),
-                None => return Err(format!("{code} has no page yet; `be {code} page write TEXT` makes one")),
+                None => {
+                    return Err(format!(
+                        "{code} has no page yet; `be {code} page write TEXT` makes one"
+                    ));
+                }
             };
             let page = Invocation {
                 target: Some(page_id.to_string()),

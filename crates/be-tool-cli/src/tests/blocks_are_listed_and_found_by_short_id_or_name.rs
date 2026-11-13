@@ -59,7 +59,10 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
     let pages = run(&tracker, "Issues ls").await.unwrap();
     assert!(pages.contains("1 row pages"), "{pages}");
     let info = run(&tracker, &format!("{id} page info")).await.unwrap();
-    assert!(info.contains("kind text"), "a row's page is a text block target: {info}");
+    assert!(
+        info.contains("kind text"),
+        "a row's page is a text block target: {info}"
+    );
     let refused = run(&tracker, &format!("{id} set --body Replaced."))
         .await
         .expect_err("set changes fields only");

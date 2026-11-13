@@ -54,9 +54,7 @@ async fn a_choice_option_takes_a_colour_an_icon_and_closes_rows() {
         "Status\tone of Backlog (gray, icon backlog), Done (blue, icon done, closed), Todo (gray)"
     );
 
-    let schema = run(&tracker, "Issues option Status done")
-        .await
-        .unwrap();
+    let schema = run(&tracker, "Issues option Status done").await.unwrap();
     assert_eq!(
         status(&schema),
         "Status\tone of Backlog (gray, icon backlog), Done (blue, icon done, closed), Todo (gray)",
