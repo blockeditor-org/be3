@@ -106,48 +106,7 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("figs", &[bananas]);
 
     let other = Device::past_the_relay(&harness);
-    let elderberries = Uuid::new_v4();
-    other.runtime.block_on(async {
-        let peer = std::sync::Arc::clone(&other.peer.borrow());
-        peer.create_with_id::<TextContent>(
-            elderberries,
-            be_block_graph::BlockParent::Block(workspace),
-        )
-        .await
-        .expect("the other device makes a note");
-        let saved = peer
-            .save(elderberries, &TextBlock::of("elderberries"), None)
-            .await
-            .expect("the other device saves it");
-        let head = saved.published().expect("the note is published");
-        let commit = peer.load_commit(head).await.expect("its commit loads");
-        let batch = be_lib_search::Batch {
-            put: vec![be_lib_search::Put {
-                doc: be_lib_search::DocId {
-                    block: elderberries.as_bytes().to_vec(),
-                    key: String::new(),
-                },
-                commit: be_lib_search::Commit {
-                    time: commit.time,
-                    id: *head.hash().as_bytes(),
-                },
-                source: None,
-                text: Some(be_lib_search::Text {
-                    name: "Note".to_owned(),
-                    body: "elderberries".to_owned(),
-                }),
-            }],
-            ..be_lib_search::Batch::default()
-        };
-        assert_eq!(
-            crate::search::write(peer.as_ref(), index, batch).await,
-            Ok(Some(Vec::new())),
-            "the other device indexes its note"
-        );
-        peer.drain(|_| false)
-            .await
-            .expect("the other device publishes its batch");
-    });
+    let elderberries = other.index_note(workspace, index, "elderberries");
     harness.relay().offline(false);
     retry_now();
     wait_until("reconnected and sent what waited", |shared| {

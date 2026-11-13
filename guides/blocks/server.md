@@ -46,7 +46,12 @@ the server are in guides/blocks/keys.md.
   ones with `drop_after`), never keeping less than `history_kept_for`. A
   pruned commit truncates a chain; a device merges an offline edit against
   its last-known remote head, which it holds locally, so the server pruning
-  that head costs nothing (`Peer::reconcile`).
+  that head costs nothing (`Peer::reconcile`). A reader that has a head but
+  not yet its objects can find them gone once a newer head replaces it in its
+  slot: it reads the server's head again (`be_host_stack::search::write`). The
+  indexer gives a batch back after a few such heads in a row and holds it until
+  the index's head moves on, which it watches the index for, or until a delay
+  that doubles with each batch given back runs out (`Searching::moving`).
 - **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
   having been away), and `Sequencer`/`Follower`. Operations carry an `OpId`, so

@@ -160,13 +160,11 @@ impl<S: ObjectStore> Peer<S> {
                 }
             }
         }
-        let local = self.local_head(block);
-        self.refs.remove(&settled)?;
         self.refs.commits_held(block, &commits)?;
-        self.refs.set_remote(block, head)?;
-        if local.is_none_or(|local| commits.contains(&local)) {
-            self.refs.set_head(block, head)?;
-        }
+        self.refs
+            .settle(block, &settled, head, self.behind(), |local| {
+                local.is_none_or(|local| commits.contains(&local))
+            })?;
         Ok(())
     }
 
@@ -469,13 +467,11 @@ impl<S: ObjectStore> Peer<S> {
             .filter(|(_, commit)| reached.contains(commit))
             .map(|(sequence, _)| *sequence)
             .collect();
-        let local = self.local_head(block);
-        self.refs.remove(&settled)?;
         self.refs.commits_held(block, &reached)?;
-        self.refs.set_remote(block, head)?;
-        if local.is_none_or(|local| local == head || reached.contains(&local)) {
-            self.refs.set_head(block, head)?;
-        }
+        self.refs
+            .settle(block, &settled, head, self.behind(), |local| {
+                local.is_none_or(|local| local == head || reached.contains(&local))
+            })?;
         Ok(())
     }
 
