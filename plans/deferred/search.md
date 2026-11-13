@@ -2,13 +2,14 @@
 
 Depends on: none.
 
-Set aside from plans/search.md and plans/search_library.md until the user picks
-them up. The limits below are accepted for now.
+Set aside from plans/search.md until the user picks them up. The limits below
+are accepted for now.
 
 - **Fuzzy matching on names**, which needs a way to find a misspelt name's
   terms without reading a segment's whole dictionary (the blocked dictionary
   answers exact terms and prefixes only). Set aside by the owner.
-- **PDF text** answering `search-text`. Set aside by the owner.
+- **PDF text** answering `search-text`. Set aside by the owner. Not by linking
+  pdfium into the pdf type module, which the owner ruled out.
 - **No host test for a second device.** be-host-tests start one host with its own
   dev server, so catching up what another device wrote, and a host restart, are
   only tested in be-host-stack: a harness for a second device and a host restart. Set aside: be-host-stack's tests cover both.
