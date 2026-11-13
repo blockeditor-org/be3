@@ -10,6 +10,8 @@ pub struct TimerState {
     work: Box<dyn Fn() -> Option<Duration>>,
     armed: Rc<RefCell<Timers>>,
     listed: Cell<bool>,
+    /// The document frame it last fired in, so a frame fires it at most once.
+    fired_in: Cell<u64>,
 }
 
 impl TimerState {
@@ -29,11 +31,16 @@ impl TimerState {
         }
     }
 
-    pub fn fire(&self, now: Instant) {
+    pub(crate) fn fired_in(&self) -> u64 {
+        self.fired_in.get()
+    }
+
+    pub fn fire(&self, now: Instant, frame: u64) {
         if self.due.get().is_none_or(|due| due > now) {
             return;
         }
         self.due.set(None);
+        self.fired_in.set(frame);
         if let Some(delay) = (self.work)() {
             self.due.set(Some(now + delay));
         }
@@ -53,7 +60,7 @@ impl Timer {
             return;
         }
         state.arm(due);
-        try_with_document(|document| document.request_repaint_after(delay));
+        try_with_document(|document| document.timer_started(delay));
     }
 
     pub fn restart(&self, delay: Duration) {
@@ -123,6 +130,7 @@ pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
         work: Box::new(work),
         armed,
         listed: Cell::new(false),
+        fired_in: Cell::new(0),
     });
     on_cleanup(move || {
         state.try_with(|state| state.due.set(None));

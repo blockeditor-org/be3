@@ -1134,15 +1134,22 @@ impl Instances {
     pub(super) fn awaiting_content(&self) -> bool {
         self.entries.values().any(|entry| {
             let mounted = entry.screens.values().any(|screen| screen.mounted > 0);
-            match (entry.role.block(), &entry.content) {
-                (Some(block), Some(link)) => {
-                    mounted
-                        && link.attached.is_some()
-                        && !link.delivered
-                        && be_host_stack::may_load(block.id)
-                }
-                _ => false,
-            }
+            let own = entry
+                .role
+                .block()
+                .zip(entry.content.as_ref())
+                .map(|(block, link)| (block.id, link));
+            // A block it watches besides its own (its view's state, where the text app keeps
+            // where it was left) is waited for as its own block is.
+            mounted
+                && own
+                    .into_iter()
+                    .chain(entry.watched.iter().map(|(block, link)| (*block, link)))
+                    .any(|(block, link)| {
+                        link.attached.is_some()
+                            && !link.delivered
+                            && be_host_stack::may_load(block)
+                    })
         })
     }
 
