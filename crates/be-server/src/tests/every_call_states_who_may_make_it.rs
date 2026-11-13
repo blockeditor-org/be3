@@ -432,7 +432,10 @@ impl TestClient {
             ),
             (
                 "notify",
-                answered(client::notifications::notify(peer, block, sealed(), Vec::new(), Vec::new()).await),
+                answered(
+                    client::notifications::notify(peer, block, sealed(), Vec::new(), Vec::new())
+                        .await,
+                ),
             ),
         ];
         let escrow = be_block_protocol::EscrowKey {
