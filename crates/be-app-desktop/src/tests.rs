@@ -1095,7 +1095,7 @@ fn a_shelf_of_programs() -> ProgramCatalog {
                 icon: None,
             })
             .collect(),
-        shell: Vec::new(),
+        shell: vec!["sh".to_owned(), "-c".to_owned()],
     }
 }
 

@@ -578,7 +578,9 @@ interface programs {
     /// The programs the host found. `listed` is false until it has looked
     /// for them once, so an empty list can mean "not yet" or "none".
     /// `shell` runs a typed command line through the platform's shell: the
-    /// line goes after it as one more argument of an `exec`.
+    /// line goes after it as one more argument of an `exec`. A host may run an
+    /// `exec` that starts with its `shell` its own way (Windows runs the line as
+    /// its Run dialog does).
     record program-catalog {
         listed: bool,
         programs: list<host-program>,
