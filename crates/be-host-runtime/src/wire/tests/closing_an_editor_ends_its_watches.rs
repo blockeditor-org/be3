@@ -4,7 +4,8 @@ use std::{
 };
 
 use be_sdk_api::{
-    guest::blocks::HistoryWatch,
+    blocks::BlockSubject,
+    guest::blocks::BlockWatch,
     ops::{
         OpError,
         guest::{Executor, Serve, spawn, with_parent},
@@ -69,7 +70,7 @@ fn closing_an_editor_ends_its_watches() {
     let ended = Rc::new(RefCell::new(None));
     let told = Rc::clone(&ended);
     guest.enter(|| {
-        let watch = with_parent(editor, || HistoryWatch::new([7; 16]));
+        let watch = with_parent(editor, || BlockWatch::new(BlockSubject::History([7; 16])));
         spawn(async move {
             let answer = watch.next().await;
             *told.borrow_mut() = Some(answer.map(drop));
@@ -77,8 +78,9 @@ fn closing_an_editor_ends_its_watches() {
     });
     exchange(&mut wire, &guest, &mut heard);
     let watch = match heard.as_slice() {
-        [Heard::Blocks(instance, blocks::Call::HistoryWatchNew { resource, block })] => {
-            assert_eq!((*instance, *block), (INSTANCE, [7; 16]));
+        [Heard::Blocks(instance, blocks::Call::BlockWatchNew { resource, subject })] => {
+            assert_eq!(*instance, INSTANCE);
+            assert!(matches!(subject, BlockSubject::History([7, ..])));
             resource.op()
         }
         _ => panic!("the host never heard the watch open"),

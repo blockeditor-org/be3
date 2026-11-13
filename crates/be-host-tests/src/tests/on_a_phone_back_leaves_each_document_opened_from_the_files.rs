@@ -6,7 +6,7 @@ use super::*;
 /// document, which showed the files there instead and sent back to the document.
 #[test]
 fn on_a_phone_back_leaves_each_document_opened_from_the_files() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.click("#text.surface");
     host.type_text("Hello");

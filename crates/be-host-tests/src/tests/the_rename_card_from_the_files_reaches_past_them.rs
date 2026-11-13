@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_rename_card_from_the_files_reaches_past_them() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.wait("Tab \"Text\"");
     host.run(&["click", "TreeItem \"Text\"", "right"]);
