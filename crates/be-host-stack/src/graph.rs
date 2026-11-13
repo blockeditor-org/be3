@@ -104,6 +104,8 @@ struct Listed {
 
 #[derive(Clone, Debug, Default)]
 pub struct Graph {
+    /// Counts the changes to the mirror, for the stack's own work to tell whether it moved;
+    /// the host hears of each one as a change notice (`Changes::graph`).
     pub revision: u64,
     nodes: HashMap<Uuid, Node>,
     wants: HashMap<Owner, Vec<Query>>,
@@ -122,6 +124,11 @@ pub struct Graph {
 }
 
 impl Graph {
+    fn moved(&mut self) {
+        self.revision += 1;
+        crate::changes::graph();
+    }
+
     pub fn want(&mut self, owner: Owner, queries: Vec<Query>) {
         match queries.is_empty() {
             true => self.wants.remove(&owner),
@@ -173,7 +180,7 @@ impl Graph {
         }
         if changed {
             self.prune();
-            self.revision += 1;
+            self.moved();
         }
     }
 
@@ -286,7 +293,7 @@ impl Graph {
             }
         }
         self.prune();
-        self.revision += 1;
+        self.moved();
         self.refresh_listings();
     }
 
@@ -295,7 +302,7 @@ impl Graph {
             return;
         };
         listed.fetch = Fetch::Failed(error);
-        self.revision += 1;
+        self.moved();
     }
 
     /// A listing whose request never got an answer is asked for again.
@@ -425,7 +432,7 @@ impl Graph {
             .collect();
         for block in kept {
             self.nodes.remove(&block);
-            self.revision += 1;
+            self.moved();
         }
     }
 
@@ -459,7 +466,7 @@ impl Graph {
         if let Some(node) = self.nodes.get_mut(&block) {
             *self.pending.entry(block).or_default() += 1;
             change(node);
-            self.revision += 1;
+            self.moved();
         }
     }
 
@@ -471,7 +478,7 @@ impl Graph {
         if *count == 0 {
             self.pending.remove(&block);
             if !self.covers(block) && self.nodes.remove(&block).is_some() {
-                self.revision += 1;
+                self.moved();
             }
             return true;
         }
@@ -483,7 +490,7 @@ impl Graph {
             && node.metadata.derived != derived
         {
             node.metadata.derived.clone_from(&derived);
-            self.revision += 1;
+            self.moved();
         }
         self.derived.insert(block, derived);
     }
@@ -497,7 +504,7 @@ impl Graph {
             let all = with_described(references.clone(), &node.metadata);
             if node.references != all {
                 node.references = all;
-                self.revision += 1;
+                self.moved();
                 self.relist(Listing::References(block));
             }
         }
@@ -553,13 +560,13 @@ impl Graph {
         }
         if !self.covers(node.id) {
             if self.nodes.remove(&node.id).is_some() {
-                self.revision += 1;
+                self.moved();
             }
             return;
         }
         if self.nodes.get(&node.id) != Some(&node) {
             self.nodes.insert(node.id, node);
-            self.revision += 1;
+            self.moved();
         }
     }
 
@@ -601,7 +608,7 @@ impl Graph {
             && head.is_some()
         {
             node.head = head;
-            self.revision += 1;
+            self.moved();
         }
     }
 
@@ -610,7 +617,7 @@ impl Graph {
             listed.members.remove(&block);
         }
         if self.nodes.remove(&block).is_some() {
-            self.revision += 1;
+            self.moved();
         }
     }
 
@@ -745,7 +752,7 @@ impl Graph {
             false => self.placing.remove(&block),
         };
         if changed {
-            self.revision += 1;
+            self.moved();
         }
     }
 

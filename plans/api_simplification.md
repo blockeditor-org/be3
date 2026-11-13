@@ -25,22 +25,6 @@ host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
 whether `set-parent` and the existing `move-command`/`reorder-command` are one
 thing, and keep one.
 
-## 8. The stack pushes its changes
-
-`be-host-stack/src/lib.rs` pairs getters with counters be-host polls every
-frame: `content_revision`, `contacts_revision`, `storage_revision`,
-`stale_revision`, `graph_revision`, and `take_touched`. Replace them with one
-change notice the worker posts through the mailbox, carrying what changed
-(`contacts`, `storage`, `stale`, `graph`, and the blocks whose content
-changed), and drop the `seen`/`published` bookkeeping in be-host. Settings
-sync compares content per block (`be-host/src/local_settings.rs`), so the
-content part is a set of blocks.
-
-`Versions` (`be-host-stack/src/version.rs`) also takes a watch for every block a
-status reads and never lets go: blocks that leave a root's subtree and closed
-checkouts stay watched for the life of the connection. Release them when the
-change notice reports what left.
-
 ## 9. Block protocol requests that duplicate others
 
 - `read-block` is `list-blocks(listing.block)`: the server implements it as

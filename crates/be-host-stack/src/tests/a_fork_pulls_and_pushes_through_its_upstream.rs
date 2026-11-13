@@ -34,7 +34,7 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
         .into_iter()
         .find(|repository| *repository != versioned.repository)
         .expect("the fork exists");
-    version_since(fork, be_block::RepositoryContent::CONTENT_TYPE, None);
+    show_version(fork, be_block::RepositoryContent::CONTENT_TYPE);
     wait_until("listed the fork's branches", |shared| {
         head_of(shared, fork).is_some()
             && head_of(shared, fork) == head_of(shared, versioned.repository)

@@ -10,9 +10,9 @@ use be_block::{
 };
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
-    Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome, ReorderChild,
-    ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
+    Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
+    Journal, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
+    ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
@@ -641,8 +641,13 @@ impl Module {
 
     fn effect(&self, effect: Effect) {
         match effect {
-            Effect::Send { replica, to, bytes } => {
-                ops::with_parent(replica, || host::send(to, bytes)).detach();
+            Effect::Send {
+                replica,
+                to,
+                kind,
+                bytes,
+            } => {
+                ops::with_parent(replica, || host::send(to, kind, bytes)).detach();
             }
             Effect::Publish {
                 replica,
@@ -1026,9 +1031,22 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) -> LocalFuture<()> {
+    fn message(
+        &self,
+        from: Endpoint,
+        bytes: Vec<u8>,
+        at: u64,
+        delivery: Option<Delivery>,
+    ) -> LocalFuture<()> {
         self.module.tick(at);
-        self.module.input(self.id, Input::Message { from, bytes });
+        self.module.input(
+            self.id,
+            Input::Message {
+                from,
+                bytes,
+                delivery,
+            },
+        );
         Box::pin(ready(()))
     }
 

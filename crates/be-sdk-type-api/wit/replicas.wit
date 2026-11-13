@@ -7,7 +7,7 @@ package be3:block-type@0.1.0;
 interface replicas {
     use types.{
         block-id, change, client-id, commit-id, content-type-id, description, editor-id,
-        endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
+        delivery, endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
         search-document, session-state, session-tag, type-info,
     };
 
@@ -69,7 +69,9 @@ interface replicas {
 
         /// `at` is the module's clock when the host sent it, which the replica
         /// reads the message at even when the clock's stream has yet to say so.
-        message: async func(%from: endpoint, bytes: list<u8>, at: u64);
+        /// `delivery` is what the server says of a peer's message; none for
+        /// an editor's or the host's.
+        message: async func(%from: endpoint, bytes: list<u8>, at: u64, delivery: option<delivery>);
 
         /// An editor instance starts following the block, or its `editable`
         /// changed. The replica drops edits from an editor attached read-only.

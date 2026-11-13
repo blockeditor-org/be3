@@ -1,6 +1,7 @@
 use be_block_commit::CommitId;
 use be_sdk_type_api::{
-    Description, JournalBase, JournalEntry, Merging, Recipients, ReplicaId, Status, Written,
+    Description, JournalBase, JournalEntry, Merging, Recipients, RelayKind, ReplicaId, Status,
+    Written,
 };
 
 pub(crate) type Token = u64;
@@ -11,6 +12,7 @@ pub(crate) enum Effect {
     Send {
         replica: ReplicaId,
         to: Recipients,
+        kind: RelayKind,
         bytes: Vec<u8>,
     },
     Publish {

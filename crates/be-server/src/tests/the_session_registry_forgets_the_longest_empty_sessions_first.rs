@@ -13,7 +13,7 @@ async fn the_session_registry_forgets_the_longest_empty_sessions_first() {
         })
         .collect();
     for block in &blocks {
-        let state = registry.join(*block, client).await;
+        let state = registry.join(*block, client, true).await;
         registry
             .heartbeat(*block, client, state.generation, Some(clean))
             .await
@@ -25,8 +25,8 @@ async fn the_session_registry_forgets_the_longest_empty_sessions_first() {
     assert_eq!(registry.state(blocks[0]).await.clean_at, None);
     assert_eq!(registry.state(blocks[1]).await.clean_at, Some(clean));
 
-    registry.join(blocks[1], client).await;
-    registry.join(blocks[2], client).await;
+    registry.join(blocks[1], client, true).await;
+    registry.join(blocks[2], client, true).await;
     let left = registry.leave_all(client).await;
     assert_eq!(left.len(), 2);
     assert!(registry.blocks_of(client).await.is_empty());

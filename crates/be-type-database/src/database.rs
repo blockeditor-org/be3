@@ -523,6 +523,34 @@ impl Database {
 impl Root for Database {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x0064_6174_6162_6173_652d_626c_6f63_6b01);
 
+    /// One document per row, keyed by its id and named by its short id: its non-empty text
+    /// (`String`) cells, one per line, in the order of their field ids (the schema that orders
+    /// and names the fields is another block). Other cells are not indexed. A tracker's issues
+    /// are rows and answer the same way.
+    fn search_text_in(document: &Document<Self>) -> Vec<be_block::SearchDocument> {
+        let database = document.root();
+        database
+            .rows
+            .iter()
+            .map(|row| {
+                let cells: Vec<&str> = row
+                    .values
+                    .values()
+                    .filter_map(|value| match value {
+                        DatabaseValue::String(text) if !text.is_empty() => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .collect();
+                be_block::SearchDocument {
+                    key: row.id.as_uuid().to_string(),
+                    source: None,
+                    name: Some(database.short_id(row.id)),
+                    body: Some(cells.join("\n")),
+                }
+            })
+            .collect()
+    }
+
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         let (old, new) = match change {
             ChildChange::Add(_) | ChildChange::Reorder { .. } => return None,
