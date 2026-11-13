@@ -105,4 +105,59 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
     finds("word119 ", &[]);
     finds("word3 ", &[]);
     finds("word4 ", &[chat]);
+
+    // The segment's entry is removed (a merge, say) after the indexer read what the index held
+    // and before it wrote: its put without text is one the index has no text for, so the
+    // index asks for it and the chat is read whole again.
+    let index = node(workspace)
+        .and_then(|node| node.metadata.get(&be_block::SEARCH_INDEX))
+        .map(|be_block::be_block_model::BlockRef(index)| index)
+        .expect("the workspace names its index");
+    let peer = crate::with_shared(|shared| shared.peer.clone())
+        .flatten()
+        .expect("the host has a peer");
+    let runtime = runtime();
+    let needs_text = runtime.block_on(async {
+        let segment = crate::search::entries(&peer, index, chat)
+            .await
+            .into_iter()
+            .find(|entry| entry.source.is_some() && !entry.is_removed())
+            .expect("the index holds the segment, from its part");
+        let later = |by: i64| be_lib_search::Commit {
+            time: segment.commit.time + by,
+            id: segment.commit.id,
+        };
+        let removed = be_lib_search::Batch {
+            removed: vec![(segment.doc.clone(), later(1))],
+            ..be_lib_search::Batch::default()
+        };
+        crate::search::write(&peer, index, removed)
+            .await
+            .expect("the removal is written");
+        let unchanged = be_lib_search::Batch {
+            put: vec![be_lib_search::Put {
+                doc: segment.doc.clone(),
+                commit: later(2),
+                source: segment.source,
+                text: None,
+            }],
+            ..be_lib_search::Batch::default()
+        };
+        crate::search::write(&peer, index, unchanged)
+            .await
+            .expect("the put is written")
+    });
+    let needs_text = needs_text.expect("the index has a head");
+    assert_eq!(needs_text.len(), 1, "the index has no text for the segment");
+    let read = parts_read();
+    crate::with_shared_mut(|shared| {
+        shared.search.reread(
+            needs_text
+                .iter()
+                .filter_map(|doc| Uuid::from_slice(&doc.block).ok()),
+        )
+    });
+    be_host_base::host::wake();
+    crate::wait_until(|shared| (shared.search.parts_read > read).then_some(()));
+    finds("word4 ", &[chat]);
 }

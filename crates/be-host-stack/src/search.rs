@@ -189,6 +189,8 @@ pub struct Searching {
     /// How many parts the types read to answer `search-text` for indexing, since the start: a
     /// part whose text an index holds is not read again.
     pub(crate) parts_read: u64,
+    /// Blocks to read whole next time, passing the type no part as indexed (`reread`).
+    whole: HashSet<Uuid>,
     /// Roots just defined, until their define is sent and the mirror has read the root again,
     /// so the size it shows is the server's with the define in it.
     confirming: HashMap<Uuid, Confirm>,
@@ -226,6 +228,15 @@ impl Searching {
     /// Queues a block whose head this device's session moved.
     pub(crate) fn sealed(&mut self, block: Uuid) {
         self.dirty.insert(block);
+    }
+
+    /// Queues `blocks` to be read whole, every part of them, since the index lacks text it was
+    /// told it held (`write`).
+    pub(crate) fn reread(&mut self, blocks: impl IntoIterator<Item = Uuid>) {
+        for block in blocks {
+            self.dirty.insert(block);
+            self.whole.insert(block);
+        }
     }
 
     /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
@@ -635,12 +646,19 @@ async fn index(
         let mut batch = Batch::default();
         let mut put_blocks = Vec::new();
         // What the index holds now, read once a batch: each block's entries say which documents
-        // it answered before and which parts' text is held.
+        // it answered before and which parts' text is held. An index that cannot be loaded
+        // gives no entries, so each block is read whole and removes nothing.
         let content = match head_of(peer, index).await {
             Some(head) => load(peer, head).await.ok(),
             None => None,
         };
         for block in &blocks {
+            let whole = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search
+                .whole
+                .remove(block);
             let held = match &content {
                 Some(content) => content
                     .entries_of(&PeerParts(peer), block.as_bytes())
@@ -649,7 +667,7 @@ async fn index(
                 None => Vec::new(),
             };
             // None: held back (a commit or part that could not be read), so not put.
-            match puts_of(peer, shared, replicas, *block, &held).await {
+            match puts_of(peer, shared, replicas, *block, &held, whole).await {
                 Some((puts, removed)) => {
                     batch.removed.extend(removed);
                     // Failures count the reads in a row that failed.
@@ -664,6 +682,9 @@ async fn index(
                 }
                 None => {
                     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                    if whole {
+                        held.search.whole.insert(*block);
+                    }
                     let failures = held.search.failures.entry(*block).or_default();
                     *failures += 1;
                     if *failures >= MAX_READ_FAILURES {
@@ -684,15 +705,18 @@ async fn index(
                 held.search.writing.remove(&index);
                 match written {
                     // Every answer is read again, whichever index it read.
-                    Ok(true) => {
+                    Ok(Some(needs_text)) => {
                         for block in &put_blocks {
                             held.search.caught.remove(block);
                         }
                         held.search.mark_put(put_blocks);
                         held.search.answers.clear();
+                        held.search.reread(needs_text.iter().filter_map(|doc| {
+                            Uuid::from_slice(&doc.block).ok()
+                        }));
                     }
                     // Not on this device yet: made by a command still queued.
-                    Ok(false) => held.search.park(index, blocks),
+                    Ok(None) => held.search.park(index, blocks),
                     Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
                 }
             }
@@ -816,6 +840,7 @@ async fn puts_of(
     replicas: &mut Replicas,
     block: Uuid,
     held: &[be_lib_search::Entry],
+    whole: bool,
 ) -> Option<(Vec<Put>, Vec<(DocId, be_lib_search::Commit)>)> {
     let Some((content_type, name, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -884,7 +909,7 @@ async fn puts_of(
     };
     let indexed: Vec<[u8; 32]> = held
         .iter()
-        .filter(|entry| !entry.is_removed())
+        .filter(|entry| !whole && !entry.is_removed())
         .filter_map(|entry| entry.source)
         .collect();
     // Whether the type answered every document: only then is one it no longer answers removed.
@@ -1336,8 +1361,15 @@ fn settle_indexes(
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.search.writing.remove(&index);
             match written {
-                Ok(true) => held.search.answers.clear(),
-                Ok(false) => {}
+                Ok(Some(needs_text)) => {
+                    held.search.answers.clear();
+                    held.search.reread(
+                        needs_text
+                            .iter()
+                            .filter_map(|doc| Uuid::from_slice(&doc.block).ok()),
+                    );
+                }
+                Ok(None) => {}
                 Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
             }
             drop(held);
@@ -1442,19 +1474,40 @@ async fn load<S: ObjectStore>(
     SearchIndexContent::from_stored(&stored).map_err(|error| error.to_string())
 }
 
-/// Applies a batch to the index's newest head and seals the commit into the outbox. False when
-/// the index has no head on this device yet.
+/// What `index` holds for `block` at its newest head.
+#[cfg(test)]
+pub(crate) async fn entries<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    block: Uuid,
+) -> Vec<be_lib_search::Entry> {
+    let Some(head) = head_of(peer, index).await else {
+        return Vec::new();
+    };
+    let Ok(content) = load(peer, head).await else {
+        return Vec::new();
+    };
+    content
+        .entries_of(&PeerParts(peer), block.as_bytes())
+        .await
+        .unwrap_or_default()
+}
+
+/// Applies a batch to the index's newest head and seals the commit into the outbox, answering
+/// the documents the index lacks text for (a put without text whose entry is gone or holds
+/// another part's: `held` was read from an older head), for the indexer to read whole again.
+/// None when the index has no head on this device yet.
 pub async fn write<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
     mut batch: Batch,
-) -> Result<bool, String> {
+) -> Result<Option<Vec<DocId>>, String> {
     let Some(head) = head_of(peer, index).await else {
-        return Ok(false);
+        return Ok(None);
     };
     let mut content = load(peer, head).await?;
     outdate_ancestors(peer, &content, &mut batch).await?;
-    content
+    let needs_text = content
         .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch)
         .await
         .map_err(|error| error.to_string())?;
@@ -1463,7 +1516,7 @@ pub async fn write<S: ObjectStore>(
     peer.seal(index, write)
         .await
         .map_err(|error| error.to_string())?;
-    Ok(true)
+    Ok(Some(needs_text))
 }
 
 /// A put or removal wins over the entry the index holds for its document only when its commit

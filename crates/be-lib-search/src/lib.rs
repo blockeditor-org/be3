@@ -219,8 +219,9 @@ pub struct Put {
     pub commit: Commit,
     pub source: Option<Hash>,
     /// None when its text is unchanged since it was indexed (its source was
-    /// in `search-text`'s `indexed`): only its commit and source move. With
-    /// nothing indexed for it, it comes back in `Written::needs_text`.
+    /// in `search-text`'s `indexed`): only its commit moves. With nothing
+    /// indexed for it from that same source, it comes back in
+    /// `Written::needs_text`.
     pub text: Option<Text>,
 }
 
@@ -476,9 +477,12 @@ impl Index {
                     source,
                     ..
                 }) => match old {
-                    Some(mut entry) if !entry.is_removed() => {
+                    // Only text from the same part: one put without text names the part
+                    // whose text it says the index holds.
+                    Some(mut entry)
+                        if !entry.is_removed() && source.is_some() && entry.source == source =>
+                    {
                         entry.commit = commit;
-                        entry.source = source;
                         table.put(entry);
                     }
                     _ => written.needs_text.push(doc),
