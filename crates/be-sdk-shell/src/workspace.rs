@@ -16,11 +16,7 @@ use be_sdk_beui::beui::icons::{Glyph, ICON_APP_WINDOW, ICON_MONITOR};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
-use be_sdk_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
-    Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode,
-    NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
-};
+use be_sdk_beui::{AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode, NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch};
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
 

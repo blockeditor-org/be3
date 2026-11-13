@@ -3,10 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_block_content::{BlockMetadata, Definition};
-use be_sdk::{
-    AccessLevel, BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, EditorHost,
-    Subscription,
-};
+use be_sdk::{AccessLevel, BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, EditorHost, Subscription};
 use beui::reactive::*;
 use uuid::Uuid;
 

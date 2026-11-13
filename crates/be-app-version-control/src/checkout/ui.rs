@@ -6,10 +6,7 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{
-    BlockLink, ChildTarget, ConflictSide, Editor, VersionChangeKind, VersionCommand,
-    VersionHistory, VersionSteps, short_id,
-};
+use be_sdk_beui::{BlockLink, ChildTarget, ConflictSide, Editor, VersionChangeKind, VersionCommand, VersionHistory, VersionSteps, short_id};
 use beui::Overflow;
 use beui::{Align, Direction};
 use uuid::Uuid;

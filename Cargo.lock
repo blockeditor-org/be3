@@ -827,6 +827,7 @@ dependencies = [
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-chat",
+ "be-type-image",
  "beui",
  "uuid",
 ]

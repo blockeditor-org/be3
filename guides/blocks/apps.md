@@ -124,10 +124,13 @@ the owner accepts it.
 
 What is not kept:
 - A host or type module that restarts loses its list of edits. The host opens
-  the new replica with `commits-kept`, which settles nothing it does not list:
-  commits kept in the outbox still count when they drain, but a journal entry the
-  server lacks shows as sent, and an edit the server refused no longer shows
-  "Not sent".
+  the new replica with `commits-kept` and `server-head`, the head it last heard
+  the server hold: with commits kept, the replica loads that head beside its own
+  and follows what the content adds over it as kept until they drain
+  (`LiveEdit::unsent_over`, a type's own answer; none by default), when it carried
+  nothing from an earlier replica. An edit the server refused no longer shows
+  "Not sent", and one journaled on this device alone, past the server's journal,
+  is followed only as the replayed journal says.
 - A block carried over the module's 64-block limit loses its edits' status: a
   refused message in it shows as sent.
 - A replica reopened after a rejoin lists only what the module carried.

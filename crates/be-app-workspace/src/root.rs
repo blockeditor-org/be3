@@ -14,10 +14,7 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::root_settings::own_settings_blocks;
-use be_sdk_beui::{
-    ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
-    TopBar,
-};
+use be_sdk_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded, TopBar};
 use be_sdk_shell::{
     BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows,
     WindowDialog, Workspace, WorkspaceDialogs,

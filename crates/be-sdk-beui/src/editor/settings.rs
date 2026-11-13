@@ -2,10 +2,7 @@ use be_lib_stable_hash::HashMap;
 use std::any::{Any, TypeId};
 use std::collections::BTreeMap;
 
-use be_block::{
-    ANYONE_INSIDE, EDIT_KINDS, Resolution, ResolutionLayers, Settings, SettingsContent,
-    WORKSPACE_TYPE, edit_kind_key,
-};
+use be_block::{ANYONE_INSIDE, EDIT_KINDS, Resolution, ResolutionLayers, Settings, SettingsContent, WORKSPACE_TYPE, edit_kind_key};
 use be_block_content::be_block_model::{BlockRef, Document};
 use be_block_content::{BlockContent, Follows, KindVisibility, Layered, LiveEdit, Root, SETTINGS};
 use be_sdk_api::AccessLevel;

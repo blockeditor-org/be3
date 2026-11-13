@@ -6,10 +6,7 @@ use std::{
 
 use be_wasm_threads::Mutex;
 
-use be_block::{
-    Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,
-    version_control::{Action, Kept, Operation, View, masked, scope_mask},
-};
+use be_block::{Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository, version_control::{Action, Kept, Operation, View, masked, scope_mask}};
 use be_block_client::{ClientError, Peer, Saved, Write};
 use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
 use be_block_content::{
@@ -431,6 +428,23 @@ impl Versions {
         Ok(tree)
     }
 
+    /// The newest of `parents`, by time, which a commit made on them is never stamped before
+    /// (`Peer::commit_time`).
+    async fn newest_of(
+        &mut self,
+        peer: &Peer<Store>,
+        parents: &[CommitId],
+    ) -> Result<Option<Commit>, Failure> {
+        let mut newest: Option<Commit> = None;
+        for parent in parents {
+            let commit = self.commit_of(peer, *parent).await?;
+            if newest.as_ref().is_none_or(|held| held.time < commit.time) {
+                newest = Some(commit);
+            }
+        }
+        Ok(newest)
+    }
+
     async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, Failure> {
         if let Some(found) = self.commits.get(&commit) {
             return Ok(found.clone());
@@ -584,6 +598,7 @@ impl Versions {
         let key = context.peer.sealing_key(repository).await.map_err(failed)?;
         let vault = context.peer.commits().vault();
         let manifest = tree.write(vault, key).map_err(stored)?;
+        let newest = self.newest_of(context.peer, &parents).await?;
         let commit = be_block_vcs::snapshot(
             context.peer.commits(),
             key,
@@ -591,7 +606,7 @@ impl Versions {
             parents,
             change,
             context.peer.account(),
-            now_milliseconds(),
+            context.peer.commit_time(newest.as_ref()),
             description,
         )
         .map_err(stored)?;
@@ -630,8 +645,9 @@ impl Versions {
         repository: Uuid,
         parent: CommitId,
     ) -> Result<CommitId, String> {
-        let manifest = self.commit_of(context.peer, parent).await?.manifest;
-        let commit = Commit::new(manifest, context.peer.account(), now_milliseconds())
+        let held = self.commit_of(context.peer, parent).await?;
+        let time = context.peer.commit_time(Some(&held));
+        let commit = Commit::new(held.manifest, context.peer.account(), time)
             .with_parents(vec![parent])
             .with_change(ChangeId::new())
             .with_kind(CommitKind::Snapshot(String::new()));
@@ -765,10 +781,13 @@ impl Versions {
         if unchanged {
             return Err("Nothing has changed yet.".into());
         }
+        let newest = self
+            .newest_of(context.peer, &current.commit.parents)
+            .await?;
         let finished = Commit::new(
             current.commit.manifest.clone(),
             context.peer.account(),
-            now_milliseconds(),
+            context.peer.commit_time(newest.as_ref()),
         )
         .with_parents(current.commit.parents.clone())
         .with_change(current.change())

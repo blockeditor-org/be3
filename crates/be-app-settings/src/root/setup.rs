@@ -1,7 +1,5 @@
 use be_sdk_beui::be_block::settings::SettingsProfile;
-use be_sdk_beui::be_block::{
-    DeviceClass, DisplaySettings, DisplaySettingsContent, SettingsContent, SettingsProfileContent,
-};
+use be_sdk_beui::be_block::{DeviceClass, DisplaySettings, DisplaySettingsContent, SettingsContent, SettingsProfileContent};
 use be_sdk_beui::be_block_content::{BlockContent, Edit};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;

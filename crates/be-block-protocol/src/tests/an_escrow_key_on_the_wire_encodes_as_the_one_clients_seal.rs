@@ -31,6 +31,7 @@ fn an_escrow_key_on_the_wire_encodes_as_the_one_clients_seal() {
             account: Uuid::nil(),
             public: [0; 32],
         },
+        time: 0,
     };
     let wire = postcard::to_stdvec(&opened).unwrap();
     assert!(

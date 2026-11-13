@@ -7,6 +7,7 @@ use crate::{ChatContent, Message};
 
 mod a_chat_answers_its_recent_messages_and_each_closed_segment_as_documents;
 mod a_chat_decoded_from_bytes_alone_keeps_its_segments_when_saved_again;
+mod a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry;
 mod a_close_whose_index_entry_does_not_match_its_bytes_is_ignored;
 mod a_closed_segment_saves_as_a_part_and_loads_back_without_being_read;
 mod a_merged_index_keeps_the_entries_in_time_order;
@@ -31,6 +32,7 @@ mod two_devices_moving_on_at_once_keep_the_furthest_place;
 mod two_replicas_that_each_add_messages_offline_keep_both_sides_in_order;
 mod unread_counts_from_the_furthest_message_read_by_order_not_by_claimed_time;
 mod unread_counts_reach_back_into_a_closed_segment;
+mod what_a_chat_adds_over_the_servers_is_its_unsent_messages;
 
 const CHAT: Uuid = Uuid::from_u128(0xc4a7);
 const ADA: Uuid = Uuid::from_u128(0xada);

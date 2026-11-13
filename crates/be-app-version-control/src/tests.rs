@@ -1,12 +1,7 @@
-use be_sdk_beui::be_block::{
-    Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent,
-};
+use be_sdk_beui::be_block::{Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent};
 use be_sdk_beui::be_block_content::LiveEdit;
 use be_sdk_beui::beui::Vec2;
-use be_sdk_beui::{
-    BeuiRoot, BlockCommand, ConflictSide, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id,
-};
+use be_sdk_beui::{BeuiRoot, BlockCommand, ConflictSide, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 

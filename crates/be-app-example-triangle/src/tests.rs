@@ -1,8 +1,5 @@
 use be_sdk::be_block_content::BlockContent;
-use be_sdk::{
-    EditorHost, EditorInstanceId, FrameSpec, GraphCommand, Instance, Module, Rect, ShownView, View,
-    pos2, vec2,
-};
+use be_sdk::{EditorHost, EditorInstanceId, FrameSpec, GraphCommand, Instance, Module, Rect, ShownView, View, pos2, vec2};
 use be_type_example_triangle::TriangleContent;
 
 use crate::root::Triangle;

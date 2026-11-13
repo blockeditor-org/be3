@@ -216,6 +216,17 @@ pub trait LiveEdit: BlockContent {
 
     fn apply(&mut self, operation: &Self::Op);
 
+    /// What `account` added to this content that `server` (the head the server last held)
+    /// lacks, as the operations that would add it: how a replica opened after a restart, with
+    /// commits of this device still in its outbox, shows what is still sending. What others
+    /// added, which the device's commits may hold too (an owner seals what it relayed), is
+    /// theirs to show. None by default, so a type that does not show sending state answers
+    /// nothing.
+    fn unsent_over(&self, server: &Self, account: Uuid) -> Vec<Self::Op> {
+        let _ = (server, account);
+        Vec::new()
+    }
+
     /// What `operation` announces (`Announcement`), asked when the edit is made on this device
     /// of content that holds it. The replica hands it to the host with the edit, and the host
     /// keeps it beside the journal entry or commit holding the edit and sends it once the

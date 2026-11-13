@@ -3,10 +3,7 @@ use be_sdk_beui::be_block_content::Root as _;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{
-    BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, VersionSteps,
-    short_id,
-};
+use be_sdk_beui::{BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, VersionSteps, short_id};
 use beui::Overflow;
 use beui::{Align, Direction};
 

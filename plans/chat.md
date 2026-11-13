@@ -11,8 +11,6 @@ counts are built (guides/chat.md). What is left:
   replied-to author. Add a host service that names the accounts in a block's
   members (contacts by their card, others by what the server says, marked
   unverified), with no framework types.
-- **Attachments.** They are in the model (child blocks) but the editor cannot
-  add or show them.
 - **Unread counts outside the editor.** No sidebar or block row shows a chat's
   count yet.
 - **Arrival time.** The protocol half is built (guides/type_modules.md,
@@ -35,11 +33,12 @@ counts are built (guides/chat.md). What is left:
   replica, and the snapshots and journal the owner hands on, hold the same
   stamp; otherwise replicas would disagree on content. Done: an owner's message
   shows when the server took it on every replica, checked by a guest test.
-- **Edits lost on a restart.** A host or type module restart loses edits not
-  yet in a commit (a journal entry the server lacks), so they no longer show as
-  sending; a content-level answer (what the local head adds over the server's)
-  would close that, which is the user's call. A `drive` command that cuts the
-  server would let a host test cover sending state.
+- **"Not sent" across a restart.** A refused commit's edit no longer shows
+  "Not sent" after a host or module restart: `refused-commits` names commits,
+  not edits. An `unsent_over` against the refused commit's parent would name
+  them.
+- **A `drive` command that cuts the server**, so a host test can cover
+  sending state through be-host.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a
   follower's message is told by the follower's replica once the owner accepts
   it, so a follower that closes or restarts before then tells nobody, as its

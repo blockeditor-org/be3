@@ -1,9 +1,4 @@
-use be_block::{
-    CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
-    InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent,
-    PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent,
-    TagsContent,
-};
+use be_block::{CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent, InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent, PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent, TagsContent};
 use be_block_content::BlockContent;
 use be_sdk_api::{BlockTypeDescriptor, ChildOperations, Press};
 #[cfg(test)]

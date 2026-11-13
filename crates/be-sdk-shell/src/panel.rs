@@ -7,10 +7,7 @@ use be_sdk_beui::beui::icons::{ICON_CLOUD_OFF, ICON_LOCK};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use be_sdk_beui::{
-    ArtifactState, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget, Editor,
-    TopBar,
-};
+use be_sdk_beui::{ArtifactState, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget, Editor, TopBar};
 use uuid::Uuid;
 
 use super::artifact::ArtifactBar;
