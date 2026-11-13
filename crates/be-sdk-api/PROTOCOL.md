@@ -321,7 +321,11 @@ closing means to the host. The host takes `close-editor` only for the editor's
 own block or a child it placed, or from the shell. A `leave` asks the person
 to confirm in a dialog of the host's that names the block from the host's own
 graph; a second `leave` while one is asked is ignored, and the confirm leaves
-only the block the dialog named. None of them is answered either.
+only the block the dialog named. A `share` while the shell's share dialog is
+open is ignored, and that dialog's actions touch only the block it shows. Both
+dialogs quote a name through `be_block::quoted_name`, which drops control and
+format characters, straightens curly quotes and shortens it, so no name can
+pass for the dialog's own words. None of them is answered either.
 
 An instance may ask the host to tell it about the dynamic artifacts of the
 blocks it names, which the host answers with, and repeats whenever any of it

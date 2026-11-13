@@ -41,7 +41,7 @@ pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
     EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
     MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SEARCH_INDEX, SETTINGS, THUMBHASH, Thumbhash,
-    VIEW_EDITOR,
+    VIEW_EDITOR, quoted_name,
 };
 pub use model::Root;
 pub use organization::{
