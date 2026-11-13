@@ -88,6 +88,24 @@ pub struct Commit {
     pub id: Hash,
 }
 
+impl Commit {
+    /// This commit as a reader whose clock allows times up to `latest` takes it: a time past
+    /// that is not believed, and counts as the oldest. Any editor of a root may write its index
+    /// and its blocks' commits, so a forged far-future time would otherwise win every
+    /// comparison, and its document could never be updated again. Only a comparison key: an
+    /// index stores the time as it was given, so a reader whose `latest` is too early never
+    /// rewrites an honest one.
+    pub fn believed(self, latest: i64) -> Self {
+        match self.time > latest {
+            true => Self {
+                time: i64::MIN,
+                ..self
+            },
+            false => self,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PartKind {
     Dictionary,
@@ -283,11 +301,13 @@ impl Entry {
 
     /// Whether `change` replaces this entry: it is newer, or a full put of the commit this
     /// entry holds partially.
-    fn replaced_by(&self, change: &Change) -> bool {
-        self.commit < change.commit()
-            || self.commit == change.commit()
-                && self.partial
-                && matches!(change, Change::Put(put) if !put.partial)
+    fn replaced_by(&self, change: &Change, latest: i64) -> bool {
+        let (held, by) = (
+            self.commit.believed(latest),
+            change.commit().believed(latest),
+        );
+        held < by
+            || held == by && self.partial && matches!(change, Change::Put(put) if !put.partial)
     }
 }
 
@@ -394,34 +414,43 @@ impl Index {
         table.entries_of(parts, block).await
     }
 
-    /// The newest commit a block was removed from the index at, if it was.
-    pub fn removed_at(&self, block: &[u8]) -> Option<Commit> {
-        self.block_removed_at(block)
-    }
-
-    fn block_removed_at(&self, block: &[u8]) -> Option<Commit> {
+    /// The commit a block was last removed from the index at, if it was: the newest as believed
+    /// (`Commit::believed`), with its time as stored.
+    pub fn removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
         self.removed_blocks
             .iter()
             .filter(|removed| removed.block == block)
             .map(|removed| removed.commit)
+            .max_by_key(|commit| commit.believed(latest))
+    }
+
+    fn block_removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
+        self.removed_blocks
+            .iter()
+            .filter(|removed| removed.block == block)
+            .map(|removed| removed.commit.believed(latest))
             .max()
     }
 
     /// Applies a batch: a new segment for the documents with new text, the
     /// table chunks they change and the deletion bitmaps of what they mask.
+    /// Commit times past `latest` are not believed (`Commit::believed`).
     pub async fn apply(
         &mut self,
         parts: &impl Parts,
         origin: Id,
         batch: Batch,
+        latest: i64,
     ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut masks: Vec<Place> = Vec::new();
+        // Commits are compared as believed and stored as they are, so a reader whose clock is
+        // behind never rewrites an honest time.
         for (block, commit) in batch.removed_blocks {
             if self
-                .block_removed_at(&block)
-                .is_some_and(|known| known >= commit)
+                .block_removed_at(&block, latest)
+                .is_some_and(|known| known >= commit.believed(latest))
             {
                 continue;
             }
@@ -432,35 +461,38 @@ impl Index {
                 at: commit.time.max(batch.at),
             });
             for entry in table.entries_of(parts, &block).await? {
-                if entry.commit < commit {
+                if entry.commit.believed(latest) < commit.believed(latest) {
                     masks.extend(entry.place);
                     table.put(Entry::tombstone(entry.doc, commit));
                 }
             }
         }
-        let mut latest: BTreeMap<DocId, Change> = BTreeMap::new();
+        let mut newest: BTreeMap<DocId, Change> = BTreeMap::new();
         for item in batch.put {
-            latest
+            newest
                 .entry(item.doc.clone())
                 .or_insert(Change::Put(item.clone()))
-                .newest(Change::Put(item));
+                .newest(Change::Put(item), latest);
         }
         for (doc, commit) in batch.removed {
-            latest
+            newest
                 .entry(doc.clone())
                 .or_insert(Change::Remove(commit))
-                .newest(Change::Remove(commit));
+                .newest(Change::Remove(commit), latest);
         }
         let mut fresh = Vec::new();
-        for (doc, change) in latest {
+        for (doc, change) in newest {
             if self
-                .block_removed_at(&doc.block)
-                .is_some_and(|removed| removed >= change.commit())
+                .block_removed_at(&doc.block, latest)
+                .is_some_and(|removed| removed >= change.commit().believed(latest))
             {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
-            if old.as_ref().is_some_and(|old| !old.replaced_by(&change)) {
+            if old
+                .as_ref()
+                .is_some_and(|old| !old.replaced_by(&change, latest))
+            {
                 continue;
             }
             let old_place = old.as_ref().and_then(|old| old.place);
@@ -595,11 +627,13 @@ impl Change {
     }
 
     /// Keeps the newer change, and of two at one commit a full put over a partial one.
-    fn newest(&mut self, other: Change) {
+    fn newest(&mut self, other: Change, latest: i64) {
         let partial = |change: &Change| matches!(change, Change::Put(put) if put.partial);
-        if other.commit() > self.commit()
-            || other.commit() == self.commit() && partial(self) && !partial(&other)
-        {
+        let (held, by) = (
+            self.commit().believed(latest),
+            other.commit().believed(latest),
+        );
+        if by > held || by == held && partial(self) && !partial(&other) {
             *self = other;
         }
     }

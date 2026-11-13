@@ -5,14 +5,14 @@ fn one_copy_offers_its_text_and_its_image() {
     let Some(server) = Xvfb::start() else {
         return;
     };
-    let _watchdog = Watchdog::start();
+    let _watchdog = Watchdog::start(&server);
     let owner = Owner::connect(Some(&server.display)).expect("the owner connects");
     let reader = Reader::connect(&server.display);
     // Larger than one piece, so it goes by INCR.
     let png = (0..CHUNK * 2 + 7)
         .map(|index| (index % 251) as u8)
         .collect::<Vec<_>>();
-    owner.offer(Some("plain"), Some(&png));
+    owner.offer(&[ClipItem::text("plain"), ClipItem::png(png.clone())]);
 
     let targets = reader.targets();
     for target in ["UTF8_STRING", "text/plain;charset=utf-8", "image/png"] {
@@ -33,7 +33,7 @@ fn one_copy_offers_its_text_and_its_image() {
         "the image arrives whole, beside the text"
     );
 
-    owner.offer(Some("only text"), None);
+    owner.offer(&[ClipItem::text("only text")]);
     assert_eq!(
         reader.read("UTF8_STRING").as_deref(),
         Some(&b"only text"[..])
