@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_second_click_on_a_zoomed_workspaces_add_button_closes_its_menu() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("TreeItem \"My files\"");
     let add = "#file-tree.new";
     host.click(add);

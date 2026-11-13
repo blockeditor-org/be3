@@ -9,7 +9,7 @@ fn at(x: f32, y: f32) -> String {
 
 #[test]
 fn dragging_the_workspace_splitter_draws_the_files_at_their_new_width_in_the_same_frame() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.wait(SPLITTER);
     host.wait("#file-tree.shared.row");
     host.run(&["settle"]);

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_canvas_popped_out_into_a_window_hides_the_files_behind_it() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("Pane \"Canvas\"");
     host.run(&["click", "#dock.grip.editors", "right"]);

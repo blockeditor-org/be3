@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn on_a_phone_an_editor_stacks_over_the_files_with_its_panes_gathered_below_its_stage() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Pan and Zoom");
     host.wait("#pan_zoom.card.0");
     host.gone("#editor.loading");
