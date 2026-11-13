@@ -171,7 +171,9 @@ survive where the system clipboard cannot carry them. Windows knows by the
 clipboard's sequence number and carries be3 formats as registered formats; the
 web writes them as `web ` types where `ClipboardItem.supports` says so
 (Chromium) and reads them from the async clipboard; Android lists them among
-the clip's description's MIME types and keeps them, base64, in its extras
+the clip's description's MIME types and keeps them, base64, in its extras,
+with a nonce of the copy that tells its clip from another's, and leaves out
+what would overrun 256 KB there (`clip::fitting`), which stays in the held clip
 (`beui-platform-android/src/clipboard.rs`, written without an emulator: only
 its compiling is checked); all three hold an item's `ClipItem::stored` bytes,
 refs and all. Elsewhere the plain text on the clipboard is compared with the text
