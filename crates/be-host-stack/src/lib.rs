@@ -1045,6 +1045,14 @@ pub fn fail_listings(query: Query, error: &str) {
     });
 }
 
+/// Queues `blocks` to be indexed again, read whole (`Search::reread`), and wakes the worker to
+/// do it: a test's stand-in for an index that asks for text it lacks.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub fn reread_search(blocks: impl IntoIterator<Item = Uuid>) {
+    with_shared_mut(|shared| shared.search.reread(blocks));
+    send(Command::Sync);
+}
+
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 pub fn refetch(query: Query) {
     let query = sourced(query);
