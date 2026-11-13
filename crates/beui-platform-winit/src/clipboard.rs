@@ -59,8 +59,8 @@ impl Clipboard {
         self.write(&clip);
         #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
-            system::write(&clip.ready_items(), clip.plain_text().is_some());
-            self.sequence = system::sequence();
+            self.sequence = system::write(&clip.ready_items(), clip.plain_text().is_some())
+                .or_else(system::sequence);
         }
         self.held.copy(clip);
     }
@@ -200,13 +200,15 @@ mod windows {
         clipboard_win::raw::seq_num().map(|sequence| i64::from(u32::from(sequence)))
     }
 
-    pub(super) fn write(items: &[ClipItem], text: bool) {
+    /// Adds be3 formats and the PNG beside what arboard wrote. `None`: the
+    /// clipboard's sequence number, read after, says whose the clipboard is.
+    pub(super) fn write(items: &[ClipItem], text: bool) -> Option<i64> {
         let super::Beside { be3, png } = super::beside(items, text);
         if be3.is_empty() && png.is_none() {
-            return;
+            return None;
         }
         let Ok(_open) = clipboard_win::Clipboard::new_attempts(10) else {
-            return;
+            return None;
         };
         for item in be3 {
             if let Some(format) = clipboard_win::register_format(&item.format) {
@@ -221,6 +223,7 @@ mod windows {
                 let _ = clipboard_win::raw::set_without_clear(CF_DIB, &dib);
             }
         }
+        None
     }
 
     pub(super) fn read(format: &str) -> Option<ClipItem> {
@@ -257,51 +260,69 @@ fn beside(items: &[ClipItem], text: bool) -> Beside<'_> {
     }
 }
 
-/// be3 formats as pasteboard types named by their format id, holding their
-/// `stored` bytes, and a PNG beside the text arboard wrote as `public.png`;
-/// and the change count that moves with every copy. Written without a Mac to
-/// run it on: only its compiling is checked.
+/// be3 formats as pasteboard types, each a reverse-DNS UTI made from its
+/// format id (`pasteboard_type`), holding their `stored` bytes, and a PNG
+/// beside the text arboard wrote as `public.png`; and the change count that
+/// moves with every copy. Written without a Mac to run it on: only its
+/// compiling is checked.
 #[cfg(target_os = "macos")]
-#[allow(unused_unsafe)]
 mod macos {
     use beui_types::ClipItem;
     use objc2::rc::Retained;
     use objc2_app_kit::NSPasteboard;
     use objc2_foundation::{NSArray, NSData, NSString};
 
-    // unsafe(ffi)
     pub(super) fn sequence() -> Option<i64> {
-        let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
-        Some(unsafe { pasteboard.changeCount() } as i64)
+        Some(NSPasteboard::generalPasteboard().changeCount() as i64)
     }
 
-    // unsafe(ffi)
-    pub(super) fn write(items: &[ClipItem], text: bool) {
+    /// Adds be3 formats and the PNG beside what arboard wrote; the change
+    /// count that adding them left, or `None` when there was nothing to add.
+    pub(super) fn write(items: &[ClipItem], text: bool) -> Option<i64> {
         let super::Beside { be3, png } = super::beside(items, text);
         let mut typed: Vec<(Retained<NSString>, Vec<u8>)> = be3
             .into_iter()
-            .map(|item| (NSString::from_str(&item.format), item.stored()))
+            .map(|item| {
+                let kind = super::pasteboard_type(&item.format);
+                (NSString::from_str(&kind), item.stored())
+            })
             .collect();
         if let Some(png) = png {
             typed.push((NSString::from_str("public.png"), png.data.clone()));
         }
         if typed.is_empty() {
-            return;
+            return None;
         }
-        let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
+        let pasteboard = NSPasteboard::generalPasteboard();
         let types = typed.iter().map(|(kind, _)| &**kind).collect::<Vec<_>>();
-        unsafe { pasteboard.addTypes_owner(&NSArray::from_slice(&types), None) };
+        // unsafe(ffi)
+        let count = unsafe { pasteboard.addTypes_owner(&NSArray::from_slice(&types), None) };
         for (kind, data) in &typed {
-            unsafe { pasteboard.setData_forType(Some(&NSData::with_bytes(data)), kind) };
+            pasteboard.setData_forType(Some(&NSData::with_bytes(data)), kind);
         }
+        Some(count as i64)
     }
 
-    // unsafe(ffi)
     pub(super) fn read(format: &str) -> Option<ClipItem> {
-        let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
-        let data = unsafe { pasteboard.dataForType(&NSString::from_str(format)) }?;
+        let kind = NSString::from_str(&super::pasteboard_type(format));
+        let data = NSPasteboard::generalPasteboard().dataForType(&kind)?;
         ClipItem::from_stored(format, &data.to_vec())
     }
+}
+
+/// The pasteboard type of a be3 format: a reverse-DNS UTI, as NSPasteboard
+/// expects, from the format id: `be3/blocks` is `org.be3.clip.blocks`.
+#[cfg(any(target_os = "macos", test))]
+fn pasteboard_type(format: &str) -> String {
+    let name = format.strip_prefix("be3/").unwrap_or(format);
+    let name = name
+        .chars()
+        .map(|c| match c.is_ascii_alphanumeric() || c == '-' || c == '.' {
+            true => c,
+            false => '-',
+        })
+        .collect::<String>();
+    format!("org.be3.clip.{name}")
 }
 
 /// A PNG as a device-independent bitmap: a `BITMAPINFOHEADER` and 32-bit BGRA
