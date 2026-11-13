@@ -35,6 +35,7 @@ pub fn Frame(
     #[prop(default = 0.0)] rotate: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = Sides::ZERO)] fade_edges: Prop<Sides>,
+    #[prop(default = false)] raised: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     crate::core::frame(
@@ -50,6 +51,7 @@ pub fn Frame(
         rotate,
         opacity,
         fade_edges,
+        raised,
         children,
     )
 }
