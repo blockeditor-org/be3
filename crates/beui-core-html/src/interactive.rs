@@ -1010,8 +1010,10 @@ mod web {
                     (true, true) => return,
                 };
                 let text = data.get_data("text").ok();
-                let ours = crate::page::held(text.as_deref())
-                    .filter(|clip| clip.formats().any(|format| taken.iter().any(|t| t == format)));
+                let ours = crate::page::held(text.as_deref()).filter(|clip| {
+                    clip.formats()
+                        .any(|format| taken.iter().any(|t| t == format))
+                });
                 if let Some(clip) = ours {
                     handled(&event, true);
                     let on_paste = held.handlers.on_paste;

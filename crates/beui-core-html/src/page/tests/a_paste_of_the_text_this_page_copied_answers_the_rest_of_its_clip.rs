@@ -13,8 +13,14 @@ fn a_paste_of_the_text_this_page_copied_answers_the_rest_of_its_clip() {
             .with(ClipItem::new(blocks, b"rich".to_vec()))
             .with(ClipItem::text("plain")),
     );
-    assert!(held(Some("other")).is_none(), "another program's text drops the clip");
-    assert!(held(Some("plain")).is_none(), "a dropped clip stays dropped");
+    assert!(
+        held(Some("other")).is_none(),
+        "another program's text drops the clip"
+    );
+    assert!(
+        held(Some("plain")).is_none(),
+        "a dropped clip stays dropped"
+    );
 
     copy(
         &beui_types::Clip::new()
@@ -24,10 +30,16 @@ fn a_paste_of_the_text_this_page_copied_answers_the_rest_of_its_clip() {
     let clip = held(Some("plain")).expect("the clipboard still holds what this page wrote");
     let pasted = Rc::new(RefCell::new(None));
     let into = Rc::clone(&pasted);
-    clip.resolve(&[blocks.to_owned(), formats::TEXT.to_owned()], move |item| {
-        *into.borrow_mut() = item;
-    });
-    let pasted = pasted.borrow_mut().take().expect("the clip answers a be3 format");
+    clip.resolve(
+        &[blocks.to_owned(), formats::TEXT.to_owned()],
+        move |item| {
+            *into.borrow_mut() = item;
+        },
+    );
+    let pasted = pasted
+        .borrow_mut()
+        .take()
+        .expect("the clip answers a be3 format");
     assert_eq!(pasted.format, blocks);
     assert_eq!(pasted.data, b"rendered");
 }
