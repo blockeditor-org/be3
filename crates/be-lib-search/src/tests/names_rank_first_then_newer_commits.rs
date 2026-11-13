@@ -41,10 +41,10 @@ fn names_rank_first_then_newer_commits() {
             ..Batch::default()
         },
     );
-    let hits = run(index.search(&store, &Query::parse("apples "), 10)).unwrap();
+    let hits = run(index.search(&store, &Query::parse("apples "), 10, i64::MAX)).unwrap();
     let order: Vec<DocId> = hits.iter().map(|hit| hit.doc.clone()).collect();
     assert_eq!(order, [doc(2), doc(4), doc(3), doc(1), doc(5)]);
-    let top = run(index.search(&store, &Query::parse("apples "), 2)).unwrap();
+    let top = run(index.search(&store, &Query::parse("apples "), 2, i64::MAX)).unwrap();
     assert_eq!(
         top.iter().map(|hit| hit.doc.clone()).collect::<Vec<_>>(),
         [doc(2), doc(4)]

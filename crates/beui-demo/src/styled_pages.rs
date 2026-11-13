@@ -970,7 +970,10 @@ fn HoverTooltip() -> NodeId {
 pub(crate) fn InputsPage() -> NodeId {
     view! {
         <ScrollPage>
-            <Sample title="Text input" code={vec![NameInput::SOURCE, greeting_label::SOURCE]}>
+            <Sample
+                title="Text input"
+                code={vec![NameInput::SOURCE, ImagePaste::SOURCE, greeting_label::SOURCE]}
+            >
                 <NameInput />
             </Sample>
             <Sample title="On-screen keyboard" code={vec![KeyboardInput::SOURCE]}>
@@ -1023,6 +1026,27 @@ fn NameInput() -> NodeId {
                 label="Invite link"
                 copyable=true
             />
+            <ImagePaste />
+        </List>
+    }
+}
+
+/// A field that takes a pasted image (`on_image_paste`) as well as text.
+#[sample]
+#[component]
+fn ImagePaste() -> NodeId {
+    let pasted = create_signal("Paste a picture into the field.".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <TextInput
+                value=String::new()
+                placeholder="Text, or a pasted picture"
+                @test_id="demo.image_paste.field"
+                on_image_paste={move |file: beui::PickedFile| {
+                    pasted.set(format!("Pasted {} ({} bytes)", file.name, file.data.len()))
+                }}
+            />
+            <Text style=TextStyle::CAPTION>{pasted}</Text>
         </List>
     }
 }

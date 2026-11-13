@@ -1286,6 +1286,8 @@ async fn puts_of(
     let Ok(commit) = peer.load_commit(head).await else {
         return None;
     };
+    // The commit's own time, which the server cannot read: stored as it is, and compared as
+    // believed (`Commit::believed`).
     let at = be_lib_search::Commit {
         time: commit.time,
         id: *head.hash().as_bytes(),
@@ -2086,7 +2088,12 @@ async fn write_at<S: ObjectStore>(
         .await
         .map_err(unwritten)?;
     let needs_text = content
-        .apply(&parts, Uuid::new_v4().into_bytes(), batch)
+        .apply(
+            &parts,
+            Uuid::new_v4().into_bytes(),
+            batch,
+            parts.peer.latest_believed(),
+        )
         .await
         .map_err(|error| unwritten(error.to_string()))?;
     // The device that writes a batch compacts a few segments with it, so queries read few.
@@ -2149,6 +2156,7 @@ async fn outdate_ancestors<S: ObjectStore>(
                 .iter_mut()
                 .map(|(doc, commit)| (&*doc, commit)),
         );
+    let latest = parts.peer.latest_believed();
     for (doc, commit) in changes {
         if !entries.contains_key(&doc.block) {
             let read = content
@@ -2164,15 +2172,15 @@ async fn outdate_ancestors<S: ObjectStore>(
         }
         // A block that left and came back is put at a commit the index masked: it is stamped
         // after the removal, which is only an order.
-        if let Some(removal) = content.index().removed_at(&doc.block)
-            && removal >= *commit
+        if let Some(removal) = content.index().removed_at(&doc.block, latest)
+            && removal.believed(latest) >= commit.believed(latest)
         {
             commit.time = removal.time.saturating_add(1);
         }
         let Some(old) = entries[&doc.block].get(&doc.key) else {
             continue;
         };
-        if old.commit < *commit || old.commit.id == commit.id {
+        if old.commit.believed(latest) < commit.believed(latest) || old.commit.id == commit.id {
             continue;
         }
         let (old_id, new_id) = (
@@ -2234,7 +2242,7 @@ pub async fn search_index<S: ObjectStore>(
     };
     load(peer, head)
         .await?
-        .search(&PeerParts(peer), query, limit)
+        .search(&PeerParts(peer), query, limit, peer.latest_believed())
         .await
         .map_err(|error| error.to_string())
 }
@@ -2410,7 +2418,7 @@ async fn run(
         };
         let hits = match load(peer, head).await {
             Ok(content) => content
-                .search(&PeerParts(peer), &query, HITS)
+                .search(&PeerParts(peer), &query, HITS, peer.latest_believed())
                 .await
                 .map_err(|error| error.to_string()),
             Err(error) => Err(error),

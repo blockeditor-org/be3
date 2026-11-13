@@ -5,6 +5,7 @@
 
 use std::{collections::BTreeSet, time::Duration};
 
+use be_block_commit::CommitId;
 use be_block_graph::{BlockGraph, BlockParent};
 use be_block_protocol::{AccountStorage, ErrorCode};
 use be_block_store::{Hash, ObjectStore};
@@ -33,12 +34,15 @@ pub struct StorageLimits {
     /// None for no limit, as on a device's own embedded server.
     pub account_quota: Option<u64>,
     pub upload_grace: Duration,
+    /// The bytes one commit of a search index may hold (`ServerConfig::max_index_bytes`).
+    pub max_index_bytes: u64,
 }
 
 impl StorageLimits {
     pub const DEFAULT: Self = Self {
         account_quota: Some(DEFAULT_ACCOUNT_QUOTA),
         upload_grace: DEFAULT_UPLOAD_GRACE,
+        max_index_bytes: crate::limits::MAX_INDEX_BYTES,
     };
 }
 
@@ -163,6 +167,54 @@ impl ServerStore {
             }
         }
         Ok(shrank)
+    }
+
+    /// The bytes of the stored objects among `hashes`, each counted once.
+    pub(crate) fn stored_bytes(
+        &self,
+        connection: &Connection,
+        hashes: &[Hash],
+    ) -> Result<u64, ServerError> {
+        let mut total = 0u64;
+        for hash in distinct(hashes) {
+            let stored: Option<i64> = connection
+                .prepare_cached("SELECT bytes FROM object_sizes WHERE hash = ?1")?
+                .query_row([hash.to_hex()], |row| row.get(0))
+                .optional()?;
+            total = total.saturating_add(
+                stored
+                    .and_then(|bytes| u64::try_from(bytes).ok())
+                    .unwrap_or(0),
+            );
+        }
+        Ok(total)
+    }
+
+    /// The bytes of the stored objects `commit` of `block` holds, each counted once, in one
+    /// query.
+    pub(crate) fn commit_bytes(
+        &self,
+        connection: &Connection,
+        organization: Uuid,
+        block: Uuid,
+        commit: CommitId,
+    ) -> Result<u64, ServerError> {
+        let bytes: i64 = connection
+            .prepare_cached(
+                "SELECT COALESCE(SUM(sizes.bytes), 0)
+                 FROM (SELECT DISTINCT hash FROM commit_objects
+                       WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3) held
+                 JOIN object_sizes sizes ON sizes.hash = held.hash",
+            )?
+            .query_row(
+                params![
+                    organization.to_string(),
+                    block.to_string(),
+                    commit.hash().to_hex()
+                ],
+                |row| row.get(0),
+            )?;
+        Ok(u64::try_from(bytes).unwrap_or(0))
     }
 
     /// The size of an object the server holds, from `object_sizes`, which has a row for every
@@ -319,6 +371,10 @@ impl ServerStore {
     }
 
     /// How long an upload no block took, or an `until-committed` hold, lasts.
+    pub(crate) fn max_index_bytes(&self) -> u64 {
+        self.limits.max_index_bytes
+    }
+
     pub(crate) fn upload_grace(&self) -> Duration {
         self.limits.upload_grace
     }

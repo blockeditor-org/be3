@@ -93,10 +93,11 @@ impl SearchIndexContent {
         read: &F,
         origin: Id,
         batch: Batch,
+        latest: i64,
     ) -> Result<Vec<DocId>, Error> {
         let mut index = self.index.clone();
         let written = index
-            .apply(&self.reader([self], read), origin, batch)
+            .apply(&self.reader([self], read), origin, batch, latest)
             .await?;
         let needs_text = written.needs_text.clone();
         *self = Self::rebuilt(index, written, [&*self]);
@@ -142,9 +143,10 @@ impl SearchIndexContent {
         read: &F,
         query: &be_lib_search::Query,
         limit: usize,
+        latest: i64,
     ) -> Result<Vec<be_lib_search::Hit>, Error> {
         self.index
-            .search(&self.reader([self], read), query, limit)
+            .search(&self.reader([self], read), query, limit, latest)
             .await
     }
 
