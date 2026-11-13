@@ -3639,8 +3639,7 @@ impl Instances {
             entry.blocks_due |= changes.graph;
             entry.searches_due |= changes.search;
             if !entry.stale
-                && (changes.every_block
-                    || changes.blocks.iter().any(|block| entry.follows(*block)))
+                && (changes.every_block || changes.blocks.iter().any(|block| entry.follows(*block)))
             {
                 entry.stale = true;
             }

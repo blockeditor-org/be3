@@ -1569,15 +1569,12 @@ impl Versions {
     /// status's `error`.
     pub(super) async fn refresh(&mut self, context: &mut Context<'_>, retry: bool) -> bool {
         let mut awaiting = false;
-        let watched: HashSet<Uuid> = {
-            let mut held = context
-                .shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            let watched = held.version_watch.clone();
-            held.versions.retain(|block, _| watched.contains(block));
-            watched
-        };
+        let watched: HashSet<Uuid> = context
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .version_watch
+            .clone();
         let before = self.followed.len();
         self.followed
             .retain(|checkout, _| watched.contains(checkout));

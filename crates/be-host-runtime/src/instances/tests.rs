@@ -182,7 +182,6 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
 }
 
 fn next_screens(instances: &mut Instances) -> NextScreens {
-    be_host_base::host::deliver();
     instances.next_screens(PASS)
 }
 

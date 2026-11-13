@@ -468,7 +468,11 @@ pub fn want_versions(owner: Owner, blocks: Vec<(Uuid, Uuid)>) {
                 .collect::<std::collections::HashSet<Uuid>>()
         };
         let ids: Vec<Uuid> = blocks.iter().map(|(block, _)| *block).collect();
-        if stack.versioned.get(&owner).map_or(ids.is_empty(), |held| *held == ids) {
+        if stack
+            .versioned
+            .get(&owner)
+            .map_or(ids.is_empty(), |held| *held == ids)
+        {
             return;
         }
         let before = union(&stack.versioned);

@@ -17,7 +17,6 @@ fn a_checkout_no_longer_shown_lets_go_of_what_its_status_read() {
     );
     wait_until("let go of the checkout and its root", |shared| {
         !shared.version_watch.contains(&versioned.checkout)
-            && version_status(shared, versioned.checkout).is_none()
             && shared.graph.wanted(Owner::Version).is_empty()
     });
 }

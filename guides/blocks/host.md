@@ -202,14 +202,14 @@ access, references, unsealed `BlockMetadata`, `locked` (no key opens it) and
 the server's `size` and `tree_size`. The host never lists the whole
 organization.
 
-The stack tells the host what changed rather than being polled: a `ChangeWatch`
-(`be-host-stack/src/changes.rs`) made on a thread hears, through a mailbox
-delivered at the start of each frame, a `Changes` notice (the graph, contacts,
-storage, stale blocks, search answers, notification modes, and the blocks whose
-content changed), coalesced into one letter a frame, and holds it until taken;
-a new watch, and every watch when the stack starts or stops, hears everything.
+The stack tells the host what changed rather than being polled: it pushes a
+`Changes` notice (the graph, contacts, storage, stale blocks, search answers,
+notification modes, and the blocks whose content changed) into every
+`ChangeWatch` (`be-host-stack/src/changes.rs`) as it happens, merged until the
+watcher takes it, and the first change after a take wakes the host; a new
+watch, and every watch when the stack starts or stops, hears everything.
 be-host's core, each app runtime's instances, the compositor and the input
-remapper each keep one and read again only what it names.
+remapper each keep one, take it once a frame, and read again only what it names.
 
 The account's storage against its quota is not in the graph: while an editor
 watches `StorageUsageWatch`, be-host turns on `be_host_stack::watch_storage`,

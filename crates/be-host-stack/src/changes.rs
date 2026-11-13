@@ -1,15 +1,9 @@
-//! What the stack tells the host changed (`ChangeWatch`): pushed through the host's mailbox
-//! as it happens, never polled from the stack's state. Each watcher holds what changed since its
-//! last letter, and the first change after that posts it one, so it hears once a frame whatever
+//! What the stack tells the host changed (`ChangeWatch`): pushed into each watcher as it
+//! happens, never polled from the stack's state. Each watcher holds what changed since it last
+//! took it, and the first change after that wakes the host, so it hears once a frame whatever
 //! the number of changes.
 
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{Arc, PoisonError, Weak},
-};
-
-use be_host_base::host::{Mailbox, Post};
+use std::sync::{Arc, PoisonError, Weak};
 use be_wasm_threads::Mutex;
 use uuid::Uuid;
 
@@ -72,54 +66,28 @@ impl Changes {
     }
 }
 
-struct Watcher {
-    alive: Weak<()>,
-    held: Arc<Mutex<Changes>>,
-    post: Post<()>,
-}
+static WATCHERS: Mutex<Vec<Weak<Mutex<Changes>>>> = Mutex::new(Vec::new());
 
-static WATCHERS: Mutex<Vec<Watcher>> = Mutex::new(Vec::new());
-
-/// Hears what the stack changed, through a mailbox on the thread that made it, delivered at the
-/// start of each frame (`be_host_base::host::begin_frame`), and holds it until taken. Dropping
-/// it ends the watch.
+/// Holds what the stack changed until taken, which the stack pushes into it as it happens.
+/// The first change after a take wakes the host, which takes it in its next frame. Dropping it
+/// ends the watch.
 pub struct ChangeWatch {
-    heard: Rc<RefCell<Changes>>,
-    _alive: Arc<()>,
-    _mailbox: Mailbox,
+    held: Arc<Mutex<Changes>>,
 }
 
 impl ChangeWatch {
     /// A new watch, which first tells of everything: nothing is heard of what was there before.
     pub fn new() -> Self {
-        let heard = Rc::new(RefCell::new(Changes::everything()));
-        let held = Arc::new(Mutex::new(Changes::default()));
-        let (mailbox, post) = be_host_base::host::mailbox({
-            let (heard, held) = (Rc::clone(&heard), Arc::clone(&held));
-            move |()| {
-                let changes =
-                    std::mem::take(&mut *held.lock().unwrap_or_else(PoisonError::into_inner));
-                heard.borrow_mut().merge(changes);
-            }
-        });
-        let alive = Arc::new(());
+        let held = Arc::new(Mutex::new(Changes::everything()));
         let mut watchers = WATCHERS.lock().unwrap_or_else(PoisonError::into_inner);
-        watchers.retain(|watcher| watcher.alive.strong_count() > 0);
-        watchers.push(Watcher {
-            alive: Arc::downgrade(&alive),
-            held,
-            post,
-        });
-        Self {
-            heard,
-            _alive: alive,
-            _mailbox: mailbox,
-        }
+        watchers.retain(|watcher| watcher.strong_count() > 0);
+        watchers.push(Arc::downgrade(&held));
+        Self { held }
     }
 
     /// What changed since the last take.
     pub fn take(&self) -> Changes {
-        std::mem::take(&mut *self.heard.borrow_mut())
+        std::mem::take(&mut *self.held.lock().unwrap_or_else(PoisonError::into_inner))
     }
 }
 
@@ -134,15 +102,20 @@ pub(crate) fn post(changes: Changes) {
     if changes.is_empty() {
         return;
     }
+    let mut woken = false;
     let mut watchers = WATCHERS.lock().unwrap_or_else(PoisonError::into_inner);
-    watchers.retain(|watcher| watcher.alive.strong_count() > 0);
-    for watcher in watchers.iter() {
-        let mut held = watcher.held.lock().unwrap_or_else(PoisonError::into_inner);
-        let first = held.is_empty();
+    watchers.retain(|watcher| {
+        let Some(held) = watcher.upgrade() else {
+            return false;
+        };
+        let mut held = held.lock().unwrap_or_else(PoisonError::into_inner);
+        woken |= held.is_empty();
         held.merge(changes.clone());
-        if first {
-            watcher.post.send(());
-        }
+        true
+    });
+    drop(watchers);
+    if woken {
+        be_host_base::host::wake();
     }
 }
 

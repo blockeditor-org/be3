@@ -2182,9 +2182,9 @@ impl Ran<'_> {
                                 mode => modes.insert(block, mode),
                             };
                             crate::changes::post(crate::Changes {
- notify_modes: true,
- ..crate::Changes::default()
- });
+                                notify_modes: true,
+                                ..crate::Changes::default()
+                            });
                             held.progressed += 1;
                         }
                     }
@@ -2338,9 +2338,9 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
                 if changed {
                     shared.contacts = contacts;
                     crate::changes::post(crate::Changes {
- contacts: true,
- ..crate::Changes::default()
- });
+                        contacts: true,
+                        ..crate::Changes::default()
+                    });
                     shared.progressed += 1;
                 }
                 changed
@@ -3729,9 +3729,9 @@ impl Tasks {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 held.notify_modes = Some(read.iter().map(|row| (row.block, row.mode)).collect());
                 crate::changes::post(crate::Changes {
- notify_modes: true,
- ..crate::Changes::default()
- });
+                    notify_modes: true,
+                    ..crate::Changes::default()
+                });
                 held.progressed += 1;
                 drop(held);
                 be_host_base::host::wake();
@@ -3777,9 +3777,9 @@ impl Tasks {
                         if held.storage.as_ref() != Some(&next) {
                             held.storage = Some(next);
                             crate::changes::post(crate::Changes {
- storage: true,
- ..crate::Changes::default()
- });
+                                storage: true,
+                                ..crate::Changes::default()
+                            });
                             held.progressed += 1;
                         }
                     }
