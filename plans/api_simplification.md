@@ -81,8 +81,6 @@ Both cores lose their implementations; tests that use the base nodes directly
 (`beui-host/src/tests.rs`, `beui-demo/src/base_pages.rs`) move to the new
 components.
 
-## 15. Host, CLI and test harness
-
 ## Smaller cleanups found alongside
 
 - `shell-dialog` is defined in `host-services.wit` but used only by `app.wit`;
