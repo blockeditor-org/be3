@@ -5,7 +5,17 @@ use beui_types::clipboard::formats;
 #[cfg(not(target_os = "ios"))]
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 
-/// The system clipboard through arboard, which carries plain text and images.
+#[cfg(all(
+    unix,
+    not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+))]
+mod x11;
+
+/// The system clipboard. A copy puts its plain text and its PNG there
+/// together: on X11 (and Wayland, through XWayland) by owning the selection
+/// itself (`x11`), on Windows as `CF_UNICODETEXT` beside `CF_DIB` and a
+/// registered `PNG` format, elsewhere through arboard, which carries one of
+/// them. Pastes from other programs read through arboard.
 /// The clip a copy wrote stays held, so pastes in this program get its other
 /// representations until another program copies: on Windows the clipboard's
 /// sequence number says so, and be3 formats are registered formats there too;
@@ -14,6 +24,11 @@ use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 pub struct Clipboard {
     #[cfg(not(target_os = "ios"))]
     inner: Option<arboard::Clipboard>,
+    #[cfg(all(
+        unix,
+        not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+    ))]
+    x11: Option<x11::Owner>,
     held: HeldClip,
     #[cfg(target_os = "windows")]
     sequence: Option<u32>,
@@ -24,6 +39,11 @@ impl Clipboard {
         Self {
             #[cfg(not(target_os = "ios"))]
             inner: arboard::Clipboard::new().ok(),
+            #[cfg(all(
+                unix,
+                not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+            ))]
+            x11: x11::Owner::connect(None),
             ..Self::default()
         }
     }
@@ -33,7 +53,7 @@ impl Clipboard {
         self.write(&clip);
         #[cfg(target_os = "windows")]
         {
-            windows::write(&clip.ready_items());
+            windows::write(&clip.ready_items(), clip.plain_text().is_some());
             self.sequence = windows::sequence();
         }
         self.held.copy(clip);
@@ -64,6 +84,13 @@ impl Clipboard {
 
     #[cfg(not(target_os = "ios"))]
     fn write(&mut self, clip: &Clip) {
+        #[cfg(all(
+            unix,
+            not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+        ))]
+        if let Some(owner) = &self.x11 {
+            return owner.offer(clip.plain_text().as_deref(), clip.ready(formats::PNG));
+        }
         let Some(clipboard) = &mut self.inner else {
             return;
         };
@@ -153,23 +180,32 @@ fn set_image(clipboard: &mut arboard::Clipboard, png: &[u8]) {
 }
 
 /// be3 formats as registered clipboard formats, named by their format id, so
-/// another be3 program reads them; and the sequence number that changes with
-/// every copy.
+/// another be3 program reads them; a PNG beside the text arboard wrote, as
+/// `CF_DIB` and the registered `PNG` format other programs read; and the
+/// sequence number that changes with every copy.
 #[cfg(target_os = "windows")]
 mod windows {
     use beui_types::ClipItem;
     use beui_types::clipboard::formats;
 
+    const CF_DIB: u32 = 8;
+
     pub(super) fn sequence() -> Option<u32> {
         clipboard_win::raw::seq_num().map(u32::from)
     }
 
-    pub(super) fn write(items: &[ClipItem]) {
+    /// Adds to what arboard wrote: be3 formats, and the PNG when arboard
+    /// wrote the `text` instead of it.
+    pub(super) fn write(items: &[ClipItem], text: bool) {
         let be3 = items
             .iter()
             .filter(|item| formats::is_be3(&item.format))
             .collect::<Vec<_>>();
-        if be3.is_empty() {
+        let png = items
+            .iter()
+            .find(|item| item.format == formats::PNG)
+            .filter(|_| text);
+        if be3.is_empty() && png.is_none() {
             return;
         }
         let Ok(_open) = clipboard_win::Clipboard::new_attempts(10) else {
@@ -178,6 +214,14 @@ mod windows {
         for item in be3 {
             if let Some(format) = clipboard_win::register_format(&item.format) {
                 let _ = clipboard_win::raw::set_without_clear(format.get(), &item.data);
+            }
+        }
+        if let Some(png) = png {
+            if let Some(format) = clipboard_win::register_format("PNG") {
+                let _ = clipboard_win::raw::set_without_clear(format.get(), &png.data);
+            }
+            if let Some(dib) = super::dib(&png.data) {
+                let _ = clipboard_win::raw::set_without_clear(CF_DIB, &dib);
             }
         }
     }
@@ -193,3 +237,32 @@ mod windows {
         Some(ClipItem::new(format, data))
     }
 }
+
+/// A PNG as a device-independent bitmap: a `BITMAPINFOHEADER` and 32-bit BGRA
+/// rows, bottom row first, as Windows' `CF_DIB` holds an image.
+#[cfg(any(target_os = "windows", test))]
+fn dib(png: &[u8]) -> Option<Vec<u8>> {
+    let image = image::load_from_memory_with_format(png, image::ImageFormat::Png)
+        .ok()?
+        .into_rgba8();
+    let (width, height) = image.dimensions();
+    let mut dib = Vec::with_capacity(40 + image.as_raw().len());
+    dib.extend(40u32.to_le_bytes());
+    dib.extend(i32::try_from(width).ok()?.to_le_bytes());
+    dib.extend(i32::try_from(height).ok()?.to_le_bytes());
+    dib.extend(1u16.to_le_bytes());
+    dib.extend(32u16.to_le_bytes());
+    dib.extend(0u32.to_le_bytes()); // BI_RGB
+    dib.extend(u32::try_from(image.as_raw().len()).ok()?.to_le_bytes());
+    dib.extend([0u8; 16]); // resolution and palette
+    for row in image.rows().rev() {
+        for pixel in row {
+            let [red, green, blue, alpha] = pixel.0;
+            dib.extend([blue, green, red, alpha]);
+        }
+    }
+    Some(dib)
+}
+
+#[cfg(test)]
+mod tests;

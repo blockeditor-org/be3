@@ -32,13 +32,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   knows another program copied by the pasteboard's change count. No Mac is
   available, so this is written blind: done when it compiles for macOS and
   shares its logic with tested code where it can.
-- **Images beside text on desktops.** arboard (`beui-platform-winit`) sets
-  either the plain text or a PNG, not both, so this needs per-platform code:
-  X11 and Wayland selections offering both targets, and Windows clipboard
-  formats. Done: on Linux, a test against a headless Wayland or X server
-  (Xvfb, installed with apt on the test machine and started by the test,
-  skipping with a message when absent) reads both targets from one clip;
-  Windows compiles.
 - **Block ids inside any clip, inside a checkout.** The host translates the
   ids of a clip crossing the app protocol for an instance in a checkout
   (guides/blocks/version_control.md, "Scopes and local ids"), but only for

@@ -166,8 +166,13 @@ survive where the system clipboard cannot carry them. Windows knows by the
 clipboard's sequence number and carries be3 formats as registered formats; the
 web writes them as `web ` types where `ClipboardItem.supports` says so
 (Chromium) and reads them from the async clipboard; elsewhere the plain text on
-the clipboard is compared with the text written. On the system clipboard each
-platform puts the plain text, or a PNG when there is none.
+the clipboard is compared with the text written. On the system clipboard a
+platform puts the plain text and the PNG together where it can: X11 (and
+Wayland, through XWayland) by owning the CLIPBOARD selection from a thread of
+its own (`beui-platform-winit/src/clipboard/x11.rs`, INCR for large data),
+Windows as `CF_DIB` and a registered `PNG` beside the text; elsewhere the plain
+text, or a PNG when there is none. Its Xvfb test runs where `Xvfb` is
+installed and skips with a message where it is not, as on the build workers.
 
 The focus reads the clipboard only by pasting: an `Interactive`'s `pastes`
 lists the format ids it takes, preferred first, and its `on_paste` gets a
