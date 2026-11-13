@@ -133,13 +133,6 @@ components.
 
 ## 15. Host, CLI and test harness
 
-- `BeuiTest` (`be-sdk-test/src/beui.rs`): remove the one-line `take_*`
-  wrappers that only pick a `ShellMessage` variant (about 15, with 3 to 17
-  callers each across the app tests) in favour of `take_shell_messages(pick)`,
-  keeping those that decode something. Remove `take_copies`,
-  `take_copied_text` and `take_copied_images` in favour of
-  `take_copied(format)`, with the serial of a copy in a separate accessor if a
-  test needs it (`take_copies` has two callers in be-sdk-beui-platform).
 - `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
   become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
   WIT `launch`) goes; a typed line is wrapped as the platform's shell command
