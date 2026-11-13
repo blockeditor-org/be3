@@ -419,7 +419,7 @@ impl DemoDialog {
 #[derive(Clone, Copy)]
 struct DemoDialogs {
     open: Signal<Vec<DemoDialog>>,
-    next: Stored<std::cell::Cell<u64>>,
+    next: StoredCell<u64>,
 }
 
 impl DemoDialogs {
@@ -427,12 +427,12 @@ impl DemoDialogs {
         let open = create_signal(Vec::new());
         Self {
             open,
-            next: store(std::cell::Cell::new(DIALOG_TABS)),
+            next: StoredCell::new(DIALOG_TABS),
         }
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
+        let id = TabId::new(self.next.replace(self.next.get() + 1));
         self.open.update(|open| {
             let depth = open
                 .iter()
