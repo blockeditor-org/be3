@@ -157,8 +157,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
                 kind: RelayKind::Peer,
                 ..
             } => Rule::Session(this.op(), Access::View),
-            // `edit` and `owner` relays carry operations or session state, so need edit
-            // access; `SessionRelay` also checks that an `owner` relay's sender holds the lease.
+            // An `edit` relay carries operations or session state, so needs edit access.
             embed::sessions::Call::SessionRelay { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
             }
@@ -2149,12 +2148,6 @@ impl Client {
                     if !state.participants.contains(&connection.client) {
                         return Err(not_joined());
                     }
-                    if kind == RelayKind::Owner && !state.is_owner(connection.client) {
-                        return Err(ServerError::Refused(
-                            ErrorCode::PermissionDenied,
-                            "only the session's owner relays this".into(),
-                        ));
-                    }
                     let participants = state.participants;
                     crate::limits::at_most("a relayed message", payload.len(), MAX_RELAY_BYTES)?;
                     let message = Push::Relayed {
@@ -2226,10 +2219,7 @@ impl Client {
                             let message = Push::Relayed {
                                 block,
                                 from: connection.client,
-                                kind: match owns {
-                                    true => RelayKind::Owner,
-                                    false => RelayKind::Edit,
-                                },
+                                kind: RelayKind::Edit,
                                 payload: entry.payload.into(),
                             };
                             connection

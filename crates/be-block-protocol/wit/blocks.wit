@@ -284,8 +284,7 @@ interface sessions {
     record relayed {
         %from: client-id,
         /// What the server checked its sender may send: a receiver drops a
-        /// message that asks for more. An `append`'s entries are `owner` from
-        /// the owner of their generation and `edit` otherwise.
+        /// message that asks for more. An `append`'s entries are `edit`.
         kind: relay-kind,
         payload: list<u8>,
     }
@@ -295,12 +294,11 @@ interface sessions {
     enum relay-kind {
         /// Presence, channel messages and asking to catch up: any participant.
         peer,
-        /// Operations or session state a participant hands the owner: only
-        /// from a participant with edit access.
+        /// Operations or session state: only from a participant with edit
+        /// access. Which of them only the owner says is the replicas' to
+        /// check: an owner whose lease lapsed unseen still relays what it
+        /// accepted, which the next owner takes over.
         edit,
-        /// What only the session's owner says (accepted operations, snapshots,
-        /// seals): only from the owner.
-        owner,
     }
 
     /// What a session's `join` stream tells.

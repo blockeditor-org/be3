@@ -82,7 +82,11 @@ fn a_submit_relayed_as_less_than_it_asks_is_not_applied() {
 
     sim.relay_as(0, viewer, RelayKind::Peer, submit(viewer, 7));
     sim.settle();
-    assert_eq!(entries(&mut sim, 0), Vec::<u32>::new(), "a viewer's Submit was applied");
+    assert_eq!(
+        entries(&mut sim, 0),
+        Vec::<u32>::new(),
+        "a viewer's Submit was applied"
+    );
 
     sim.operate(2, 1, 8);
     sim.settle();

@@ -447,12 +447,12 @@ participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one clie
 session (or never joined) is dropped without an error: it is best-effort, and the
 sender cannot know the other left. The server cannot read a relay, so each names
 its `relay-kind`: `peer` (presence, channel messages, asking to catch up) needs
-view access, `edit` (operations and session state handed to the owner) edit
-access (`rule`), and `owner` (what only the owner says) that the sender holds the
-lease. The server stamps what it checked on what it delivers (`relayed.kind`; an
-`append`'s entries are `owner` from the owner of their generation, `edit`
-otherwise), and receivers drop a message that asks for more, since the label is
-the sender's. An owner that lost edit access hands the lease on at its next
+view access, and `edit` (operations and session state) edit access (`rule`).
+Whether the sender holds the lease is not checked: an owner whose lease lapsed
+unseen still relays what it accepted, which the next owner takes over, and
+followers heed owner-only messages from the owner alone. The server stamps what it
+checked on what it delivers (`relayed.kind`; an `append`'s entries are `edit`),
+and receivers drop a message that asks for more, since the label is the sender's. An owner that lost edit access hands the lease on at its next
 heartbeat (`Lease::demote`), which also covers a grant or revoke racing a join. The lease goes only to a participant with edit access when it joined
 (`Lease::join`), so a session of viewers alone has no owner, and a viewer's claim
 is refused.

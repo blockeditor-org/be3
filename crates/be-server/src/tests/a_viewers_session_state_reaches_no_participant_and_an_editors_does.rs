@@ -2,8 +2,8 @@ use super::*;
 use be_block_graph::Access;
 
 /// The server cannot read a relayed message, so it checks the kind its sender names: what
-/// carries operations or session state only from an editor, and what only the owner says only
-/// from the owner. A viewer joining first is not granted the lease.
+/// carries operations or session state only from an editor, and stamps what it checked on what
+/// it delivers. A viewer joining first is not granted the lease.
 #[tokio::test]
 async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
     let harness = Harness::start().await;
@@ -28,19 +28,12 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
         .await;
     let (editor_id, _) = editor.join_session(block).await;
 
-    for kind in [RelayKind::Edit, RelayKind::Owner] {
-        let forged = guest.relay(block, None, kind, b"forged".to_vec()).await;
-        assert!(
-            refused_as(&forged, ErrorCode::PermissionDenied),
-            "a viewer relayed {kind:?}: {forged:?}"
-        );
-    }
-    let forged = editor
-        .relay(block, None, RelayKind::Owner, b"not the owner".to_vec())
+    let forged = guest
+        .relay(block, None, RelayKind::Edit, b"forged".to_vec())
         .await;
     assert!(
         refused_as(&forged, ErrorCode::PermissionDenied),
-        "a participant that is not the owner relayed what only the owner says: {forged:?}"
+        "a viewer relayed an edit: {forged:?}"
     );
 
     let presence = guest
@@ -55,7 +48,7 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
         .relay(
             block,
             Some(editor_id),
-            RelayKind::Owner,
+            RelayKind::Edit,
             b"accepted".to_vec(),
         )
         .await;
@@ -71,7 +64,7 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
     );
     assert_eq!(
         relayed(&mut editor).await,
-        (owner_id, RelayKind::Owner, b"accepted".to_vec())
+        (owner_id, RelayKind::Edit, b"accepted".to_vec())
     );
     harness.stop().await;
 }

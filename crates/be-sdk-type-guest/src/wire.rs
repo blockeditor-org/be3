@@ -23,25 +23,21 @@ impl Wire {
             SessionMessage::Catchup { .. }
             | SessionMessage::Presence { .. }
             | SessionMessage::Channel { .. } => RelayKind::Peer,
-            SessionMessage::Submit { .. } | SessionMessage::Kept { .. } => RelayKind::Edit,
-            SessionMessage::Accepted { .. }
+            SessionMessage::Submit { .. }
+            | SessionMessage::Kept { .. }
+            | SessionMessage::Accepted { .. }
             | SessionMessage::Snapshot { .. }
             | SessionMessage::Sealed { .. }
             | SessionMessage::Replaced { .. }
             | SessionMessage::Saved { .. }
-            | SessionMessage::Resend => RelayKind::Owner,
+            | SessionMessage::Resend => RelayKind::Edit,
         }
     }
 
     /// Whether a message the server relayed as `kind` may say this: what the server checked
     /// covers what it asks for. A viewer could label a `Submit` as presence; it is dropped.
     pub fn sent_as(&self, kind: RelayKind) -> bool {
-        let rank = |kind: RelayKind| match kind {
-            RelayKind::Peer => 0,
-            RelayKind::Edit => 1,
-            RelayKind::Owner => 2,
-        };
-        rank(self.kind()) <= rank(kind)
+        kind == RelayKind::Edit || self.kind() == RelayKind::Peer
     }
 
     pub fn decode(bytes: &[u8]) -> Option<Self> {

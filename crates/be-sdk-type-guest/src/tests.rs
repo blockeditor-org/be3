@@ -10,8 +10,8 @@ use be_block_protocol::ClientId;
 use be_block_session::{Lease, Resume};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Delivery, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
-    Recipients, RelayKind, SessionTag, Status, UndoState,
+    Change, Delivery, Description, EditorId, Endpoint, Journal, JournalBase, Opening,
+    PublishOutcome, Recipients, RelayKind, SessionTag, Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -1004,7 +1004,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let allowed = match kind {
                     RelayKind::Peer => true,
                     RelayKind::Edit => may_edit,
-                    RelayKind::Owner => may_edit && self.lease.state().is_owner(client),
                 };
                 if !allowed && !matches!(to, Recipients::One(Endpoint::Editor(_))) {
                     return;
@@ -1194,11 +1193,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     return self.to(device, |host| reply.send(host, &false));
                 }
                 self.to(device, |host| reply.send(host, &true));
-                let state = self.lease.state();
-                let kind = match state.is_owner(client) && state.generation == generation {
-                    true => RelayKind::Owner,
-                    false => RelayKind::Edit,
-                };
+                let kind = RelayKind::Edit;
                 if relay {
                     let participants = self.lease.state().participants.clone();
                     for entry in &entries {
@@ -1303,9 +1298,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.settle();
     }
 
-    /// Hands `to` a message as relayed from `from` by a server that checked it as the owner's.
+    /// Hands `to` a message as relayed from `from` by a server that checked it as an editor's.
     fn relay(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {
-        self.relay_as(to, from, RelayKind::Owner, bytes);
+        self.relay_as(to, from, RelayKind::Edit, bytes);
     }
 
     /// Hands `to` a message as relayed from `from` by a server that checked it as `kind`.

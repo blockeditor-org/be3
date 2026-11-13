@@ -388,14 +388,16 @@ rebase. The rules an agent most needs:
   name. One from a sender it did not know as the owner is remembered, and it
   asks to be caught up should that sender become the owner. The server checks
   the sender too: `send` names a `relay-kind` (`Wire::kind`), `peer` for
-  presence, channel messages, `Catchup` and the tag handshake, `edit` for
-  `Submit` and `Kept`, `owner` for the rest; the server relays `edit` only from
-  an editor and `owner` only from the lease's owner, which is always an editor
-  (guides/blocks/server.md), and hands each message on with the kind it checked
+  presence, channel messages, `Catchup` and the tag handshake, `edit` for the
+  rest; the server relays `edit` only from an editor (guides/blocks/server.md)
+  and hands each message on with the kind it checked
   (`message`'s `delivery`). Since the kind is the sender's label, every replica,
   owner included, drops a message that asks for more than its stamped kind
   (`Wire::sent_as`), before it reads any part it names: a viewer's `Submit`
-  labelled as presence is never applied. The server holds a
+  labelled as presence is never applied. Which messages only the owner sends
+  stays the replicas' check, not the server's: an owner whose lease lapsed
+  unseen still relays what it accepted, and the next owner takes it over
+  (`inherit_accepted`). The server holds a
   part for the whole upload grace (a day), and longer while the block's journal holds
   entries, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.

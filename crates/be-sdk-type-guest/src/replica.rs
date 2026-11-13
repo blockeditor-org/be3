@@ -8,8 +8,8 @@ use be_block_session::{
 };
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Delivery, Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
+    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
+    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
 };
 use uuid::Uuid;
 

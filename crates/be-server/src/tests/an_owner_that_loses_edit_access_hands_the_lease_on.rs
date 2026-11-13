@@ -19,7 +19,11 @@ async fn an_owner_that_loses_edit_access_hands_the_lease_on() {
     assert!(matches!(granted, Ok(())), "{granted:?}");
 
     let (holder, state) = guest.join_session(block).await;
-    assert_eq!(state.owner, Some(holder), "an editor joining first takes the lease");
+    assert_eq!(
+        state.owner,
+        Some(holder),
+        "an editor joining first takes the lease"
+    );
     let (author, _) = owner.join_session(block).await;
 
     let demoted = owner.grant(block, guest_account, Access::View).await;
@@ -30,6 +34,9 @@ async fn an_owner_that_loses_edit_access_hands_the_lease_on() {
     };
     assert_eq!(after.owner, Some(author), "the lease went to the editor");
     assert!(after.generation > state.generation);
-    assert!(after.participants.contains(&holder), "the viewer stays in the session");
+    assert!(
+        after.participants.contains(&holder),
+        "the viewer stays in the session"
+    );
     harness.stop().await;
 }

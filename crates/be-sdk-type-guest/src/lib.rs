@@ -10,9 +10,9 @@ use be_block::{
 };
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange, Journal,
-    Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome, ReorderChild,
-    ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
+    Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
+    Journal, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
+    ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
