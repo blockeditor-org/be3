@@ -25,6 +25,7 @@ fn a_put_of_the_text_already_indexed_moves_only_its_commit() {
             put: again,
             ..Batch::default()
         },
+        i64::MAX,
     ))
     .unwrap();
     store.keep(&written);

@@ -388,6 +388,7 @@ fn opening(
         block: BLOCK,
         content_type: Uuid::nil(),
         organization: ORGANIZATION,
+        account: Uuid::nil(),
         client,
         tag: TAG,
         head,
@@ -397,6 +398,7 @@ fn opening(
         journal_kept: false,
         commits_kept: be_sdk_type_api::KeptCommits::None,
         refused_commits: Vec::new(),
+        server_head: None,
         sealed_head: None,
     }
 }

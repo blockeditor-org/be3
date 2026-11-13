@@ -127,6 +127,23 @@ impl Lacking {
         self.changed = true;
     }
 
+    /// What commits kept in the outbox add over the server's head, for a replica that carried
+    /// nothing from an earlier one (a host or module restarted): sending until the host says
+    /// they `drained`.
+    pub(crate) fn kept_unsent(&mut self, operations: Vec<Vec<u8>>, tip: CommitId) {
+        if !self.entries.is_empty() {
+            return;
+        }
+        // Kept up to the outbox's last commit, which a drain names once all of it is held.
+        let until = self.keeping(tip);
+        for mut operation in operations {
+            if operation.len() > LARGEST_KEPT {
+                operation = Vec::new();
+            }
+            self.push(operation, until, false, None, Vec::new());
+        }
+    }
+
     /// Adds an edit replayed from this device's own journal, which the server lacks, whether an
     /// editor follows yet or not: it opens before they ask.
     pub(crate) fn add_replayed(&mut self, operation: Vec<u8>, sequence: u64) {
@@ -543,3 +560,6 @@ impl Lacking {
         messages
     }
 }
+
+#[cfg(test)]
+mod tests;

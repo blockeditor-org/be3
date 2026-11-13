@@ -35,22 +35,20 @@ counts are built (guides/chat.md). What is left:
   replica, and the snapshots and journal the owner hands on, hold the same
   stamp; otherwise replicas would disagree on content. Done: an owner's message
   shows when the server took it on every replica, checked by a guest test.
-- **Edits lost on a restart.** A host or type module restart loses edits not
-  yet in a commit (a journal entry the server lacks), so they no longer show as
-  sending; a content-level answer (what the local head adds over the server's)
-  would close that, which is the user's call.
-- **A message sent just after a drop can skip "Sending".** A host test that
-  sends, waits for `synced`, goes `HostTest::offline`, sends again and waits
-  for "Sending" (branch feat/tooling-chat-offline-host-test) fails about one run
-  in seven under `local-tools stress`. Nothing is lost: a second device gets
-  the message once the first is back. Traced so far: both messages are signed
-  at once and reach the replica; in the failing runs the first message's
-  journal append is still unanswered when `synced` returns, both are sealed
-  into one kept commit, and a drain then publishes that commit with the peer
-  attached, before the test brings the device back. So either `synced` returns
-  before an owner's journal append is answered, or the relay lets a
-  connection through while offline. Done: the host test passes 50 runs of 50
-  under stress, and lands.
+- **"Not sent" across a restart.** A refused commit's edit no longer shows
+  "Not sent" after a host or module restart: `refused-commits` names commits,
+  not edits. An `unsent_over` against the refused commit's parent would name
+  them.
+- **A host test of sending state.** `HostTest::offline` cuts the server, so a
+  host test can cover it: send a message, wait for `synced`, go offline, send
+  another and wait for "Sending" on it, then come back and see it go. Written
+  that way it fails about one run in seven under `local-tools stress`, with
+  nothing lost (a second device gets the message once the first is back): in
+  the failing runs a drain publishes the offline message's kept commit with
+  the peer attached, before the test brings the device back. Find whether the
+  harness lets the device reach the server while offline (be-block-fault-relay,
+  `drive offline`) or the device does, fix that, and land the test with a
+  painting. Done: it passes 50 runs of 50 under stress.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a
   follower's message is told by the follower's replica once the owner accepts
   it, so a follower that closes or restarts before then tells nobody, as its

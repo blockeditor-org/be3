@@ -1565,10 +1565,7 @@ impl Session<'_> {
                 .await
             {
                 // The merge holds what this device kept up to its diverged head.
-                Ok(_) if peer.pending_commits(block).is_empty() => {
-                    self.replicas.drained(block, false, vec![local]);
-                }
-                Ok(_) => {}
+                Ok(_) => self.replicas.drained(block, false, vec![local]),
                 Err(error) => record(shared, error),
             }
         }

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, future::Future, pin::Pin};
 
-use be_block_commit::{Commit, CommitKind, now_milliseconds};
+use be_block_commit::{Commit, CommitKind};
 use be_block_graph::BlockParent;
 use be_block_protocol::{BlockSummary, ErrorCode, KeySet, PublishOutcome, client};
 use be_block_store::{Hash, ObjectStore};
@@ -203,7 +203,7 @@ impl<S: ObjectStore> Peer<S> {
         references.extend(block.metadata.references());
         let references = deduplicated(references);
         let encoded = block.metadata.encode();
-        let commit = Commit::new(manifest.clone(), self.account, now_milliseconds())
+        let commit = Commit::new(manifest.clone(), self.account, self.commit_time(None))
             .with_parents(Vec::new())
             .with_kind(CommitKind::Autosave)
             .with_references(references.clone())
