@@ -96,9 +96,11 @@ another block.
 
 ### Gestures
 
-An editor writes every change as it happens (each frame of a drag, a stroke as
-it grows) so peers see it at once; the client batches saving
-(decisions/editors_write_every_change_as_it_happens.md). Bracket a gesture with
+An editor writes every change as it happens (a stroke as it grows, text as it
+is typed) so peers see it at once; the client batches saving. Edits confirmed by
+letting go, such as a drag, are decided to be tentative, held locally until they
+commit (decisions/tentative_edits_wait_for_release.md), but that is not built
+yet (plans/tentative_gestures.md): today a drag is written each frame too. Bracket a gesture with
 `begin_gesture` and `commit_gesture` so it undoes as one step;
 `cancel_gesture` puts back what it wrote and leaves no history; `break_step`
 ends the editor's burst of quick edits so its next edit starts a step of its
