@@ -12,14 +12,6 @@ Fixed items are removed as they land.
   Done: it can be dropped on any edge of any joined layer's pane, shown by a
   dock test.
 
-## 3. Anchored views
-
-- **Children over anchored views on the web.** A child placed in an anchored
-  view with `ChildLayer::Above` shows under it on the web, since child screens
-  are behind `#block` (guides/running/web.md). Done: it shows above it, as
-  natively, checked by a host test on `:web` in Chromium; update
-  guides/running/web.md.
-
 ## 4. The clipboard's last pieces
 
 The typed clipboard is in (guides/beui/platforms.md, Clipboard and paste;
