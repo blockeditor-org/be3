@@ -1146,9 +1146,7 @@ impl Instances {
                     .into_iter()
                     .chain(entry.watched.iter().map(|(block, link)| (*block, link)))
                     .any(|(block, link)| {
-                        link.attached.is_some()
-                            && !link.delivered
-                            && be_host_stack::may_load(block)
+                        link.attached.is_some() && !link.delivered && be_host_stack::may_load(block)
                     })
         })
     }
