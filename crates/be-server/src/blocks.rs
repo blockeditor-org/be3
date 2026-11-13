@@ -564,6 +564,7 @@ impl ServerStore {
         members: Vec<Identity>,
         blocks: Vec<Uuid>,
         subtree: bool,
+        from: be_block_protocol::ClientId,
     ) -> Result<Vec<Vec<(crate::watch::Push, bool)>>, ServerError> {
         self.with_graph(organization, move |_, graph, _| {
             let mut touched = Vec::new();
@@ -595,7 +596,10 @@ impl ServerStore {
                         .map(|block| match summary_with(graph, &seen, *block) {
                             Some(found) if found.access.can_know_exists() => {
                                 let entry = found.access.can_view() && shared.contains(block);
-                                (crate::watch::Push::BlockChanged(found), entry)
+                                (
+                                    crate::watch::Push::BlockChanged { block: found, from },
+                                    entry,
+                                )
                             }
                             _ => (
                                 crate::watch::Push::BlockRemoved {

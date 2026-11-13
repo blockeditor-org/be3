@@ -36,7 +36,7 @@ async fn a_connection_keeps_only_so_many_refused_listings() {
             )
             .await;
     }
-    let Notice::BlockChanged { block: heard } = reader.graph_change().await else {
+    let Notice::BlockChanged { block: heard, .. } = reader.graph_change().await else {
         panic!("the block read before it was made was not announced");
     };
     assert_eq!(

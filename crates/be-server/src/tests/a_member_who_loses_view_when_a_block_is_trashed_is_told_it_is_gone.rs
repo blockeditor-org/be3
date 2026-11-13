@@ -2,7 +2,7 @@ use super::*;
 use be_block_graph::Access;
 
 #[tokio::test]
-async fn a_member_who_loses_view_when_a_block_is_trashed_stops_watching_it() {
+async fn a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
@@ -17,14 +17,7 @@ async fn a_member_who_loses_view_when_a_block_is_trashed_stops_watching_it() {
     let note = owner.create_block(BlockParent::Block(shared)).await;
     let granted = owner.grant(shared, guest_id, Access::View).await;
     assert!(matches!(granted, Ok(())), "{granted:?}");
-    guest.watch(note).await;
-    assert!(
-        guest
-            .heard
-            .iter()
-            .any(|heard| matches!(heard, Heard::Watch(..))),
-        "the guest watches the note it may view"
-    );
+    guest.follow(note).await;
 
     let response = owner
         .call(|peer| {
@@ -32,14 +25,16 @@ async fn a_member_who_loses_view_when_a_block_is_trashed_stops_watching_it() {
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    guest.round_trip().await;
-    guest.round_trip().await;
-    assert!(
-        !guest
-            .heard
-            .iter()
-            .any(|heard| matches!(heard, Heard::Watch(..))),
-        "the guest cannot view the trashed note, so its watch ended"
-    );
+    loop {
+        let notification = guest.graph_change().await;
+        match notification {
+            Notice::BlockRemoved { block, .. } if block == note => break,
+            Notice::BlockChanged { block, .. } if block.id == note => assert!(
+                !block.access.can_view(),
+                "the guest may not view the trashed note: {block:?}"
+            ),
+            _ => {}
+        }
+    }
     harness.stop().await;
 }

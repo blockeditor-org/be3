@@ -3,7 +3,6 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
 use be_block_protocol::{
     BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage, SessionState,
@@ -16,7 +15,7 @@ use tokio::sync::{
 use crate::{Identity, ServerError, limits::MAX_LISTINGS_PER_CONNECTION};
 use uuid::Uuid;
 
-/// A block in the organization that holds it. Watches and live sessions are keyed by both: block
+/// A block in the organization that holds it. Live sessions are keyed by both: block
 /// ids are chosen by clients, so another organization can hold a block with the same id, and the
 /// two must never hear of each other.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -31,21 +30,14 @@ pub const REFUSED_LISTINGS: usize = 256;
 
 #[derive(Clone, Debug)]
 pub enum Push {
-    BlockChanged(BlockSummary),
+    BlockChanged {
+        block: BlockSummary,
+        /// The connection whose call changed it.
+        from: ClientId,
+    },
     BlockRemoved {
         block: Uuid,
         revision: u64,
-    },
-    HeadChanged {
-        block: Place,
-        head: CommitId,
-        author: Uuid,
-    },
-    BlockDeleted {
-        block: Place,
-    },
-    Unwatched {
-        block: Place,
     },
     SessionChanged {
         block: Place,
@@ -75,8 +67,6 @@ struct Joined {
     by_organization: HashMap<Uuid, HashSet<u64>>,
     by_member: HashMap<(Uuid, Uuid), HashSet<u64>>,
     administrators: HashMap<Uuid, HashSet<u64>>,
-    watchers: HashMap<Place, HashSet<u64>>,
-    watching: HashMap<u64, HashSet<Place>>,
     interests: HashMap<u64, Interest>,
 }
 
@@ -268,33 +258,6 @@ impl WatchHub {
         client
     }
 
-    pub async fn watch(&self, block: Place, client: u64) {
-        let mut joined = self.joined.lock().await;
-        joined.watchers.entry(block).or_default().insert(client);
-        joined.watching.entry(client).or_default().insert(block);
-    }
-
-    /// The blocks a connection watches.
-    pub async fn watched_by(&self, client: u64) -> Vec<Place> {
-        let joined = self.joined.lock().await;
-        joined
-            .watching
-            .get(&client)
-            .map(|blocks| blocks.iter().copied().collect())
-            .unwrap_or_default()
-    }
-
-    pub async fn unwatch(&self, block: Place, client: u64) {
-        let mut joined = self.joined.lock().await;
-        unindex(&mut joined.watchers, block, client);
-        if let Some(blocks) = joined.watching.get_mut(&client) {
-            blocks.remove(&block);
-            if blocks.is_empty() {
-                joined.watching.remove(&client);
-            }
-        }
-    }
-
     /// Registers a listing before it is read, so nothing changed during the read is missed;
     /// answers whether the connection did not already hold it, and refuses it once the
     /// connection holds `MAX_LISTINGS_PER_CONNECTION`.
@@ -355,7 +318,9 @@ impl WatchHub {
             let mut joined = self.joined.lock().await;
             let interest = joined.interests.entry(client).or_default();
             match &message {
-                Push::BlockChanged(block) => interest.told(block.id, Facts::of(block, entry)),
+                Push::BlockChanged { block, .. } => {
+                    interest.told(block.id, Facts::of(block, entry))
+                }
                 Push::BlockRemoved { block, .. } => interest.known.remove(block).is_some(),
                 _ => true,
             }
@@ -567,9 +532,6 @@ impl WatchHub {
             let mut joined = self.joined.lock().await;
             joined.leave_account(client);
             joined.interests.remove(&client);
-            for block in joined.watching.remove(&client).unwrap_or_default() {
-                unindex(&mut joined.watchers, block, client);
-            }
         }
         self.clients.lock().await.remove(&client);
     }
@@ -584,24 +546,6 @@ impl WatchHub {
             if *client != from {
                 deliver(&mut senders, *client, message.clone());
             }
-        }
-    }
-
-    pub async fn broadcast(&self, block: Place, from: u64, message: Push) {
-        let targets: Vec<u64> = self
-            .joined
-            .lock()
-            .await
-            .watchers
-            .get(&block)
-            .into_iter()
-            .flatten()
-            .copied()
-            .filter(|client| *client != from)
-            .collect();
-        let mut clients = self.clients.lock().await;
-        for target in targets {
-            deliver(&mut clients, target, message.clone());
         }
     }
 }

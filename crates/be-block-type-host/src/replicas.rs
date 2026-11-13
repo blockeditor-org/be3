@@ -568,15 +568,11 @@ impl<H: Host> Replicas<H> {
 
     fn leave(&mut self, shared: &Arc<Mutex<H>>, peer: &Peer<H::Store>, block: Uuid) {
         let left = peer.connection().leave_session(block);
-        let unwatched = peer.unwatch(block);
         self.left += 1;
         H::leaving(shared, true);
         let io = self.io.clone();
         H::spawn(async move {
             let _ = left.await;
-            if let Ok(unwatched) = unwatched {
-                let _ = unwatched.await;
-            }
             let _ = io.send(Io::Left);
             H::wake();
         });
@@ -842,7 +838,7 @@ impl<H: Host> Replicas<H> {
                     reset::<H>(peer, block, &kind).await?;
                 }
                 let (client, session, journal) = peer.connection().join_session(block).await?;
-                peer.watch(block);
+                // Reading the head lists the block, so `changes` tells its next ones.
                 let head = peer.remote_head(block).await?;
                 let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
                 Ok::<_, ClientError>((client, session, head, false, journal))
@@ -1910,11 +1906,12 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
-        let (Event::SessionChanged { block, .. }
-        | Event::Relayed { block, .. }
-        | Event::HeadChanged { block, .. }) = event
-        else {
-            return;
+        let block = match event {
+            Event::SessionChanged { block, .. } | Event::Relayed { block, .. } => block,
+            // A head another connection published; this connection's own publishes are the
+            // replica's, which it heard of as it made them.
+            Event::BlockChanged { block, own: false } if block.head.is_some() => &block.id,
+            _ => return,
         };
         if let Some(waiting) = self.unsealing.get_mut(block) {
             waiting.push_back(event.clone());
@@ -1979,7 +1976,15 @@ impl<H: Host> Replicas<H> {
                 }
                 self.replay(replica, replayed);
             }
-            Event::HeadChanged { block, head, .. } => {
+            Event::BlockChanged {
+                block:
+                    be_block_protocol::BlockSummary {
+                        id: block,
+                        head: Some(head),
+                        ..
+                    },
+                ..
+            } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
@@ -2257,7 +2262,6 @@ impl<H: Host> Replicas<H> {
         H::spawn(async move {
             let joined = async {
                 let (client, session, _) = peer.connection().join_session(block).await?;
-                peer.watch(block);
                 let head = peer.remote_head(block).await?;
                 Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block)))
             }
@@ -3128,7 +3132,6 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
         peer.ensure_type(block, content_type, BlockParent::Detached)
             .await?;
         let (client, session, journal) = peer.connection().join_session(block).await?;
-        peer.watch(block);
         let head = peer.remote_head(block).await?;
         let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
         Ok((client, session, head, ahead(&peer, block), journal))

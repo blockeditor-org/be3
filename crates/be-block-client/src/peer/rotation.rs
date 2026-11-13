@@ -9,8 +9,17 @@ use super::Peer;
 use crate::ClientError;
 
 impl<S: ObjectStore> Peer<S> {
+    /// The organization's key work for this account: the first value of a `key-work-changed`
+    /// stream, which starts with it.
     pub async fn key_work(&self) -> Result<KeyWork, ClientError> {
-        Ok(client::keys::get_key_work(&self.connection()).await??)
+        let mut work = client::keys::key_work_changed(&self.connection());
+        match work.recv().await {
+            Some(work) => Ok(work),
+            None => Err(match work.ended() {
+                Some(Err(error)) => ClientError::from(error),
+                _ => ClientError::Disconnected("the key work stream ended".into()),
+            }),
+        }
     }
 
     pub async fn tend(&self) -> Result<(), ClientError> {

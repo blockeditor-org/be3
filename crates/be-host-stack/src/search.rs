@@ -180,10 +180,6 @@ pub(crate) struct Settle {
 /// What the worker keeps for search, in `Shared::search`.
 #[derive(Default)]
 pub struct Searching {
-    /// The indexes the wanted searches read, which this connection watches: a head another
-    /// device moves reaches a device online only through a watch (`Event::HeadChanged`), and
-    /// moves the mirror's head the answers are kept for.
-    watching: HashSet<Uuid>,
     /// Blocks whose text their root's index has yet to take.
     dirty: BTreeSet<Uuid>,
     /// Indexes a batch is being written to.
@@ -277,9 +273,8 @@ pub struct Searching {
 }
 
 impl Searching {
-    /// The new connection watches nothing yet.
+    /// The new connection lists nothing yet.
     pub(crate) fn reconnected(&mut self) {
-        self.watching.clear();
         self.release_failing(None);
     }
 
@@ -2303,11 +2298,9 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
     }
     let wanted: Vec<SearchAsk> = held.search.wanted().cloned().collect();
     let mut followed = Vec::new();
-    let mut searched = HashSet::new();
     let mut started = false;
     for asked in wanted {
         let indexes = indexes(&held.graph, &held.search.named, asked.within);
-        searched.extend(indexes.iter().copied());
         followed.extend(indexes.iter().map(|index| GraphQuery::Block(*index)));
         let read = heads(peer, &held.graph, &indexes);
         if held.search.running.contains(&asked)
@@ -2352,51 +2345,15 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
     let held = &mut *held;
     // An index a batch is held back for is followed too, for its next head (`moving`).
     let moving: Vec<Uuid> = held.search.moving_indexes().collect();
-    searched.extend(moving.iter().copied());
     followed.extend(moving.into_iter().map(GraphQuery::Block));
     // What the mirror lacks to place a queued block (`unplaced`).
     followed.extend(held.search.unplaced_wanted().map(GraphQuery::Block));
-    watch(peer, &held.graph, &mut held.search.watching, &searched);
     let mut seen = HashSet::new();
     followed.retain(|query| seen.insert(*query));
     if held.graph.wanted(Owner::Search) != followed.as_slice() {
         held.graph.want(Owner::Search, followed);
     }
     started
-}
-
-/// Watches the indexes in `read` and lets go of the rest, while the connection is attached.
-/// An index is watched only once the server holds it: one this device made and has not sent
-/// yet would be refused, and a refused watch is not asked again. The server holds it when this
-/// device published or caught it up (a remote head it keeps), or when this device holds none of
-/// it and the mirror lists a head, which only the server can have told a device that never
-/// wrote it (a device that only reads, or one new to the account).
-fn watch(peer: &Peer<Store>, graph: &Graph, watching: &mut HashSet<Uuid>, read: &HashSet<Uuid>) {
-    let attached = peer.is_attached();
-    let read: HashSet<Uuid> = read
-        .iter()
-        .copied()
-        .filter(|index| {
-            peer.known_remote_head(*index).is_some()
-                || (peer.local_head(*index).is_none()
-                    && graph.get(*index).is_some_and(|node| node.head.is_some()))
-        })
-        .collect();
-    let read = &read;
-    let gone: Vec<Uuid> = watching.difference(read).copied().collect();
-    for index in gone {
-        watching.remove(&index);
-        if attached {
-            let _ = peer.unwatch(index);
-        }
-    }
-    if attached {
-        for index in read {
-            if watching.insert(*index) {
-                peer.watch(*index);
-            }
-        }
-    }
 }
 
 /// Every index's best hits, one per document: where two indexes hold a document, the later

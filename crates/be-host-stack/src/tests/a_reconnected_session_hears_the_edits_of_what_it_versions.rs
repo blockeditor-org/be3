@@ -15,16 +15,16 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
     });
     flush();
 
-    let mut watches = harness
+    let mut listings = harness
         .relay()
-        .count(|method| method == be_block_protocol::__args::BLOCKS_WATCH);
+        .count(|method| method == be_block_protocol::__args::BLOCKS_LIST_BLOCKS);
     harness.relay().stall();
     harness.miss_a_ping();
     retry_now();
     wait_until("connected again", |shared| shared.connected);
     runtime()
-        .block_on(watches.wait_for(|watches| *watches > 0))
-        .expect("the new connection watches what the session versions");
+        .block_on(listings.wait_for(|listings| *listings > 0))
+        .expect("the new connection lists what the session versions");
 
     // Another device edits the note in the checkout, which the new connection must hear.
     let note = versioned.note;

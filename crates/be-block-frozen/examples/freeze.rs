@@ -736,8 +736,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .map_err(text)?;
     let friend_editing = reopen(&socket, &friend, personal, ChunkerConfig::DEFAULT).await?;
     let friend_note = text_block(&friend_editing, holiday, scene::FRIEND_NOTE).await?;
-    let friend_held = ask(client::account::storage_usage(&friend_editing.connection()))
-        .await?
+    let friend_held = client::account::storage_changed(&friend_editing.connection())
+        .recv()
+        .await
+        .ok_or("the friend's storage stream ended")?
         .held;
     if friend_held != 0 {
         return Err(format!(
@@ -818,7 +820,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .confirm_mail(&link.token, None, "127.0.0.1")
         .await
         .map_err(text)?;
-    let storage = ask(client::account::storage_usage(&owner.connection())).await?;
+    let storage = client::account::storage_changed(&owner.connection())
+        .recv()
+        .await
+        .ok_or("the owner's storage stream ended")?;
     let size = |block: Uuid| {
         let owner = &owner;
         async move { owner.summary(block).await.map_err(text) }
