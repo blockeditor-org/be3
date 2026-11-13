@@ -36,10 +36,13 @@ pub struct Screenshots {
 
 impl Screenshots {
     /// Serves the portal backend. `take` runs on this thread for each request and
-    /// returns the whole desktop, or `None` when it cannot.
-    pub fn start(take: impl Fn() -> Option<Image> + 'static) -> Self {
+    /// answers, then or later on this thread, with the whole desktop, or `None`
+    /// when it cannot.
+    pub fn start(take: impl Fn(Box<dyn FnOnce(Option<Image>)>) + 'static) -> Self {
         let (requests, post) = host::mailbox(move |answer: Answer| {
-            let _ = answer.send(take());
+            take(Box::new(move |picture| {
+                let _ = answer.send(picture);
+            }));
         });
         let ask: Ask = Arc::new(move |answer| post.send(answer));
         let directory = directory();

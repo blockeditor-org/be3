@@ -1018,9 +1018,9 @@ impl HostCore {
                 self.tray = Some(tray::Tray::start());
             }
             if self.screenshots.is_none() {
-                self.screenshots = Some(screenshot::Screenshots::start(
-                    be_host_desktop::desktop_host::screenshot,
-                ));
+                self.screenshots = Some(screenshot::Screenshots::start(|answer| {
+                    be_host_desktop::desktop_host::screenshot(answer)
+                }));
             }
         }
     }

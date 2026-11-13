@@ -25,6 +25,7 @@ struct Running {
     display: Option<beui_platform_drm::DisplayControl>,
     flips: Option<beui_platform_drm::Flips>,
     displays: Option<beui_platform_drm::Displays>,
+    pictures: Option<beui_host::native::WindowPictures>,
     blanked: bool,
     lock_due: bool,
     lock_noticed: bool,
@@ -123,6 +124,7 @@ impl DesktopHost for Linux {
             compositor.join_loop(handle);
         }
         let displays = setup.get::<beui_platform_drm::Displays>().cloned();
+        let pictures = setup.get::<beui_host::native::WindowPictures>().cloned();
         RUNNING.with(|running| {
             *running.borrow_mut() = Some(Running {
                 compositor,
@@ -130,6 +132,7 @@ impl DesktopHost for Linux {
                 display,
                 flips,
                 displays,
+                pictures,
                 blanked: false,
                 lock_due: false,
                 lock_noticed: false,
@@ -460,10 +463,20 @@ pub fn set_keyboard(keyboard: &be_host_wayland::KeyboardConfig) -> bool {
     with(|running| running.compositor.set_keyboard(keyboard)).unwrap_or(true)
 }
 
-/// The whole desktop as the displays show it, for the screenshot portal; `None`
-/// while be-host runs in a window rather than on the displays.
-pub fn screenshot() -> Option<beui::Image> {
-    with(|running| running.displays.as_ref()?.screenshot()).flatten()
+/// The whole desktop as the displays show it, for the screenshot portal; run in
+/// a window, the window as it was last presented. `None` when there is no
+/// picture to give.
+pub fn screenshot(answer: impl FnOnce(Option<beui::Image>) + 'static) {
+    let asked = with(|running| match (&running.displays, &running.pictures) {
+        (Some(displays), _) => Err(displays.screenshot()),
+        (None, Some(pictures)) => Ok(pictures.clone()),
+        (None, None) => Err(None),
+    });
+    match asked {
+        Some(Ok(pictures)) => pictures.take(answer),
+        Some(Err(picture)) => answer(picture),
+        None => answer(None),
+    }
 }
 
 pub fn set_layout(index: u32) {
