@@ -54,6 +54,10 @@ fn declare(
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
             child,
             declaration: declared.then(inner),
+            epoch: {
+                static EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                EPOCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
+            },
         })]);
     show_docked(session, &[(View::MAIN, 0)], false);
     show_docked(session, &[(View::MAIN, 0)], false);
