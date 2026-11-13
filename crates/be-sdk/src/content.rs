@@ -291,7 +291,10 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
 
     fn adopt_lazily(&self) {
         self.adopt();
-        if self.0.touched.borrow().is_empty() {
+        // What a read took is announced at the next pump, which only this asks for now: the
+        // host lists for pumping only blocks whose updates are still waiting.
+        let lacking = self.0.mirror.borrow().lacking_revision();
+        if self.0.touched.borrow().is_empty() && self.0.lacking_revision.get() == lacking {
             return;
         }
         let due = self.0.due.borrow().clone();
