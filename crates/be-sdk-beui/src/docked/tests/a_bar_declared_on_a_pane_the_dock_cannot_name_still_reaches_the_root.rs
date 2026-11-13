@@ -22,10 +22,7 @@ fn a_bar_declared_on_a_pane_the_dock_cannot_name_still_reaches_the_root() {
         &declaration,
         &path,
         &|_| None,
-        &|_| api::Size {
-            width: 160.0,
-            height: 32.0,
-        },
+        &|_| beui::vec2(160.0, 32.0),
         &|kind| kind.to_owned(),
     );
     assert_eq!(

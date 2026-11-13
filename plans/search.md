@@ -20,26 +20,27 @@ up").
    Done: a host test opens a hit from quick open and the text shows the match
    selected, with a painting.
 
-More types answering `search-text` are in plans/search_library.md.
-
 ## Left open
 
 - **A block let go stays stale.** A block whose commit could not be read three times is
   counted as indexed (`MAX_READ_FAILURES`), so a catch-up ends: its entry in the index is
   stale or missing until the block next changes. Answers are filtered by the mirror, so
   only snippets and ranking use the stale text.
-- **A forged index.** Any editor of a root is enough to write arbitrary content into its
-  index: forged entries, an unbounded size that every viewer's search reads, and a
-  far-future commit time that wins the merge by commit time in a query. Cap an
-  index's size and refuse commit times in the future when it is cheap.
+- **A forged index.** Any editor of a root is enough to write forged entries
+  into its index, or a commit whose own time (which the server cannot read) is
+  far in the future. Closed: the server bounds a commit of an index
+  (`MAX_INDEX_BYTES`), and a device does not believe a commit time past the
+  later of its clock and the server's (as it measured it) plus
+  `MAX_COMMIT_AHEAD`, whether it indexes it or reads it from an index
+  (`Commit::believed`: it compares as the oldest, so the next honest put
+  replaces it and it ranks last among equal scores, while the index stores every
+  time as given, so a device whose clock is behind rewrites none). Left: the
+  content itself, which only the root's editors can forge, and a forged time
+  within the hour, which wins ties for that long. A merge of two index heads has
+  no clock, so it keeps a forged time until the next apply.
 - **The writer only.** The device whose session seals a commit indexes it
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.
-- **Compaction.** Each batch adds a segment; nothing merges them yet
-  (`Index::compact` exists), and `Index::forget_before` has no caller, so the
-  index's header keeps every block it ever masked. Compact on the device that writes, a few segments
-  at a time, when the count passes a threshold, and call
-  `Index::forget_before` past the index block's history retention.
 - **Rotation** reseals every part the index reuses at its next save, so a
   rotation costs one re-upload of the index;
   plans/deferred/large_blocks_lazy_rekeying.md would remove that.

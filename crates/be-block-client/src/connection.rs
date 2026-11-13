@@ -87,6 +87,8 @@ pub enum Event {
         /// What the server checked the sender may send (`relayed.kind`).
         kind: RelayKind,
         payload: Vec<u8>,
+        /// When the server took it, by its clock (`relayed.received`).
+        received: i64,
     },
     Paired(PairingMessage),
     ContactsChanged,
@@ -125,6 +127,8 @@ pub struct Connection {
     closed: watch::Receiver<bool>,
     due: watch::Receiver<Duration>,
     registry: Mutex<Registry>,
+    /// The clock the connection keeps time by (`Clock::real` for an offline one).
+    clock: Clock,
 }
 
 impl Caller for Connection {
@@ -182,6 +186,7 @@ impl Connection {
             closed,
             due: watched,
             registry: Mutex::new(Registry::default()),
+            clock: clock.clone(),
         });
         spawn(worker(
             Carried {
@@ -216,7 +221,13 @@ impl Connection {
             closed,
             due,
             registry: Mutex::new(Registry::default()),
+            clock: Clock::real(),
         })
+    }
+
+    /// The clock this connection keeps time by: monotonic, or a test's manual one.
+    pub fn clock(&self) -> &Clock {
+        &self.clock
     }
 
     fn registry(&self) -> std::sync::MutexGuard<'_, Registry> {
@@ -414,11 +425,13 @@ impl Connection {
                             from,
                             kind,
                             payload,
+                            received,
                         } => Event::Relayed {
                             block,
                             from,
                             kind,
                             payload,
+                            received,
                         },
                         SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,
                     });

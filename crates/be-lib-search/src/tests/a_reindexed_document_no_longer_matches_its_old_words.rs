@@ -23,6 +23,7 @@ fn a_reindexed_document_no_longer_matches_its_old_words() {
             removed: vec![(doc(9), commit(2))],
             removed_blocks: vec![(doc(10).block, commit(2))],
             watermark: Some(12),
+            at: 0,
         },
     );
     assert_eq!(index.watermark(), 12);
@@ -66,6 +67,7 @@ fn a_reindexed_document_no_longer_matches_its_old_words() {
             }],
             ..Batch::default()
         },
+        i64::MAX,
     ))
     .unwrap();
     store.keep(&elsewhere);

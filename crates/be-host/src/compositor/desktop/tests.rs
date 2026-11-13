@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use be_sdk_api::{Size, WindowOver, WindowRequest};
+use be_sdk_api::{Vec2, WindowOver, WindowRequest};
 use beui::native::{Context, WindowSize, enter};
 use beui::{PointerButton, PointerEvent, PointerId};
 use beui_host::native::testing::{Showing, Stepped};
@@ -91,9 +91,9 @@ impl Carrying {
             screen: be_sdk_api::ScreenId::opened(7),
             opener: main,
             placement: WindowPlacement::Over(WindowOver { view: main, at }),
-            size: Size {
-                width: size.x,
-                height: size.y,
+            size: Vec2 {
+                x: size.x,
+                y: size.y,
             },
             level: be_sdk_api::WindowLevel::Normal,
         });

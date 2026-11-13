@@ -122,7 +122,9 @@ its head.
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
-  with the real session, replaying what happened meanwhile. A seal asked of a
+  with the real session, replaying what happened meanwhile; an editor that made
+  an edit kept for that and has detached since is attached for its edits to be
+  given again (`Open::departed`), or the replica would drop them. A seal asked of a
   joining replica with unconfirmed edits first gives it a session it owns, so
   flush and stop never wait for a join.
 - **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
@@ -174,8 +176,8 @@ outbox adds or moves (`Peer::listed`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
 owns and joins (`Replicas::created`). A command that needs the server to know a
 block waits first for a drain to send what this device made of it
-(`Tasks::sent`; an export or a version command waits for the whole outbox, since
-it reads a tree).
+(`Tasks::sent`; an export, and a version command in the lane, waits for the
+whole outbox, since it reads a tree).
 
 **Commands that need the server.** Those that need only the server and no open
 block (share, list access, read a head, leave, approve pairing, members, block
@@ -189,10 +191,14 @@ the lane holds a block it needs (`Command::needs`); one that is not order-safe
 (`Command::order_safe`: it may reach blocks it does not name, as a version
 command or an import reaches a tree) waits until the lane is empty; and none
 overtakes a command deferred before it. An open block whose key the lane
-rotates is resealed once that command ends. Version commands and merging still
-run in the loop: they interleave server reads with the open replicas (sealing
-them, checking content out into them), so on a server that stopped answering
-the commands behind one wait until the connection is declared lost.
+rotates is resealed once that command ends. A version command (merging
+included) is split: the loop seals the open replicas, and the rest runs in the
+lane (`Served::version`), which waits for the outbox to be sent and then reads
+and writes the server between steps, reaching the replicas and type modules
+through the loop (`version::Reach`, `LoopCalls`: describing, applying and
+merging content, moving an open replica to a head it published), so a server
+that stopped answering holds up only the lane. A merge reads its sides from the
+server in the lane first, so the loop finds them on the device.
 
 ## The graph mirror
 

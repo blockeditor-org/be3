@@ -93,7 +93,7 @@ impl crate::embed::host_services::Call {
     pub fn visit_block_ids(&mut self, visit: &mut impl FnMut(&mut [u8; 16])) {
         match self {
             Self::ListRevisions { block, .. }
-            | Self::PreviewRevision { block, .. }
+            | Self::RevisionPreviewNew { block, .. }
             | Self::RestoreRevision { block, .. }
             | Self::ExportBlock { block, .. }
             | Self::ReadPlainFile { block, .. }
@@ -102,7 +102,6 @@ impl crate::embed::host_services::Call {
             | Self::MakeContactLink { block, .. }
             | Self::CreateBlockAgent { block, .. }
             | Self::SetNotifyMode { block, .. } => visit(block),
-            Self::ReleaseRevision { preview, .. } => visit(preview),
             Self::ImportBlocks { parent, .. } => location(parent, visit),
             Self::CutBlocks { blocks, holder, .. } => {
                 blocks.iter_mut().for_each(&mut *visit);
@@ -117,6 +116,7 @@ impl crate::embed::host_services::Call {
                 location(parent, visit);
             }
             Self::PickFile { .. }
+            | Self::RevisionPreviewOpened { .. }
             | Self::SaveFile { .. }
             | Self::RotateAgentToken { .. }
             | Self::RemoveAgent { .. }

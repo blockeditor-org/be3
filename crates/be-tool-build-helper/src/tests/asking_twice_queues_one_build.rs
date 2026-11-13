@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn asking_twice_queues_one_build() {
-    let mut running = start("twice", None).await;
+    let mut running = start("twice").await;
 
     let first = running.product("POST", "native-linux_x86_64", COMMIT).await;
     assert_eq!(first.status, "HTTP/1.1 200 OK");
