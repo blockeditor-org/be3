@@ -10,45 +10,83 @@ use uuid::Uuid;
 use super::super::app_view::PanDrag;
 use be_host_runtime::EditorView;
 
-type ViewChanges = HashMap<(String, EditorInstanceId), Vec<ViewChange>>;
+type Key = (String, EditorInstanceId);
 
-thread_local! {
-    /// The view changes instances asked for, until the camera that holds the instance's
-    /// content takes them: one may not be shown yet when its instance asks.
-    static VIEW_CHANGES: RefCell<ViewChanges> = RefCell::new(HashMap::new());
-    static VIEW_CHANGED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+/// The view changes instances asked for, until the camera that holds an instance's content
+/// takes them: it may not be shown yet when its instance asks. An instance that never shows
+/// one (a window, a creation) keeps only its latest few, and none once it closes.
+#[derive(Default)]
+pub(super) struct HeldChanges {
+    held: HashMap<Key, Vec<ViewChange>>,
 }
 
-pub(crate) fn install() {
-    let changed = create_signal(0u64);
-    VIEW_CHANGED.with(|held| *held.borrow_mut() = Some(changed));
+impl HeldChanges {
+    /// How many changes an instance keeps while no camera takes them.
+    const KEPT: usize = 16;
+
+    pub(super) fn hold(&mut self, key: Key, change: ViewChange) {
+        let held = self.held.entry(key).or_default();
+        held.push(change);
+        if held.len() > Self::KEPT {
+            held.remove(0);
+        }
+    }
+
+    pub(super) fn take(&mut self, key: &Key) -> Vec<ViewChange> {
+        self.held.remove(key).unwrap_or_default()
+    }
+
+    pub(super) fn forget(&mut self, key: &Key) {
+        self.held.remove(key);
+    }
+}
+
+thread_local! {
+    static HELD: RefCell<HeldChanges> = RefCell::new(HeldChanges::default());
+    /// The cameras showing each instance, woken when it asks for a change.
+    static CAMERAS: RefCell<HashMap<Key, Vec<(u64, Signal<u64>)>>> = RefCell::new(HashMap::new());
+    static NEXT_CAMERA: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// Keeps a view change `instance` asked for until its camera takes it.
 pub(crate) fn heard_view_change(app_id: String, instance: EditorInstanceId, change: ViewChange) {
-    VIEW_CHANGES.with_borrow_mut(|changes| {
-        changes.entry((app_id, instance)).or_default().push(change);
-    });
-    if let Some(changed) = VIEW_CHANGED.with(|held| *held.borrow()) {
+    let key = (app_id, instance);
+    let cameras = CAMERAS.with_borrow(|cameras| cameras.get(&key).cloned().unwrap_or_default());
+    HELD.with_borrow_mut(|held| held.hold(key, change));
+    for (_, changed) in cameras {
         changed.update(|changed| *changed += 1);
     }
 }
 
-fn view_changed() -> ReadSignal<u64> {
-    VIEW_CHANGED.with(|held| {
-        held.borrow()
-            .as_ref()
-            .map(|changed| changed.read_only())
-            .expect("the compositor is installed while the document is built")
-    })
+/// The instance closed: the changes it asked for go with it.
+pub(crate) fn closed(app_id: String, instance: EditorInstanceId) {
+    HELD.with_borrow_mut(|held| held.forget(&(app_id, instance)));
+}
+
+/// A signal that moves when the instance asks for a change, while the calling scope lives.
+fn view_changed(app_id: &str, instance: EditorInstanceId) -> ReadSignal<u64> {
+    let changed = create_signal(0u64);
+    let id = NEXT_CAMERA.with(|next| {
+        next.set(next.get() + 1);
+        next.get()
+    });
+    let key = (app_id.to_owned(), instance);
+    CAMERAS.with_borrow_mut(|cameras| cameras.entry(key.clone()).or_default().push((id, changed)));
+    on_cleanup(move || {
+        CAMERAS.with_borrow_mut(|cameras| {
+            if let Some(held) = cameras.get_mut(&key) {
+                held.retain(|(camera, _)| *camera != id);
+                if held.is_empty() {
+                    cameras.remove(&key);
+                }
+            }
+        });
+    });
+    changed.read_only()
 }
 
 fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
-    VIEW_CHANGES.with_borrow_mut(|changes| {
-        changes
-            .remove(&(app_id.to_owned(), instance))
-            .unwrap_or_default()
-    })
+    HELD.with_borrow_mut(|held| held.take(&(app_id.to_owned(), instance)))
 }
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
@@ -285,7 +323,7 @@ pub(super) fn Camera(
         }
     });
     let pan_drags = create_signal(0u64);
-    let changed = view_changed();
+    let changed = view_changed(&app_id.value(), instance);
     create_effect(move || {
         changed.get();
         if !holds.get() {
@@ -393,6 +431,9 @@ pub(super) fn Camera(
     });
     built
 }
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod tests;

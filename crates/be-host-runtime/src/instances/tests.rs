@@ -30,7 +30,7 @@ fn hearing() -> (
     let into = std::rc::Rc::clone(&heard);
     let (mailbox, post) =
         host::mailbox(move |heard: crate::Heard| into.borrow_mut().push(heard.event));
-    crate::events::listen(post);
+    crate::events::listen(None, post);
     (mailbox, heard)
 }
 
@@ -431,6 +431,8 @@ fn shown_rects(instances: &Instances) -> Vec<Rect> {
 mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
 mod a_block_gift_becomes_a_gift_to_the_child_that_shows_its_block;
 mod a_block_gift_ends_when_the_instance_goes;
+mod a_render_still_asked_is_answered_with_nothing_when_its_instance_goes;
+mod a_screen_asked_to_take_the_keyboard_reaches_its_view;
 mod a_block_gift_for_a_block_the_host_refused_to_make_never_starts;
 mod a_block_gift_waits_for_the_child_however_many_commits_it_takes;
 mod a_block_is_named_after_its_content_until_someone_names_it;

@@ -8,6 +8,7 @@ mod palette;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
+    rc::Rc,
 };
 
 use beui::reactive::*;
@@ -30,6 +31,8 @@ thread_local! {
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     static HEARD: RefCell<Option<be_host_base::host::Mailbox>> = const { RefCell::new(None) };
+    static OWNERS: RefCell<HashMap<(String, be_sdk_api::EditorInstanceId), Vec<(u64, Owner)>>> =
+        RefCell::new(HashMap::new());
     static STALE: Cell<u64> = const { Cell::new(0) };
     static SEARCHED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
@@ -51,25 +54,46 @@ pub(crate) fn install() {
     PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
     let searched = create_signal(be_host_stack::search_revision());
     SEARCHED.with(|held| *held.borrow_mut() = Some(searched));
-    editors::camera::install();
     let (mailbox, post) = be_host_base::host::mailbox(heard);
-    be_host_runtime::listen(post);
+    be_host_runtime::listen(None, post);
     HEARD.with(|held| *held.borrow_mut() = Some(mailbox));
 }
 
-/// Acts on what an instance asks of the host wherever it is shown.
+/// Acts on what an instance asks of the host whether or not a view of it is shown: an editor
+/// that asks to open a block or starts a drag acts as the person asked, as before its view is up.
 fn heard(heard: be_host_runtime::Heard) {
-    match heard.event {
-        be_host_runtime::InstanceEvent::Action(action) => {
-            act(
-                editors::editors().key_of(&heard.app_id, heard.instance),
-                action,
-            );
+    use be_host_runtime::InstanceEvent;
+    let be_host_runtime::Heard {
+        app_id,
+        instance,
+        event,
+    } = heard;
+    match event {
+        InstanceEvent::Action(action) => {
+            act(editors::editors().key_of(&app_id, instance), action);
         }
-        be_host_runtime::InstanceEvent::BlockDrag(drag) => app_view::carry(drag),
-        be_host_runtime::InstanceEvent::ViewChange(change) => {
-            editors::camera::heard_view_change(heard.app_id, heard.instance, change);
+        InstanceEvent::BlockDrag(drag) => app_view::carry(drag),
+        InstanceEvent::ViewChange(change) => {
+            editors::camera::heard_view_change(app_id, instance, change);
         }
+        InstanceEvent::ChildMenuPick {
+            block: Some(block),
+            id,
+            anchor,
+            ..
+        } => editors::pick_frame_menu(block, id, anchor),
+        InstanceEvent::Details | InstanceEvent::Leaving => {
+            let owner = OWNERS.with_borrow(|owners| {
+                owners
+                    .get(&(app_id, instance))
+                    .and_then(|owned| owned.last())
+                    .map(|(_, owner)| Rc::clone(owner))
+            });
+            if let Some(owner) = owner {
+                owner(event);
+            }
+        }
+        InstanceEvent::Closed => editors::camera::closed(app_id, instance),
         _ => {}
     }
 }
@@ -170,17 +194,43 @@ pub(crate) fn listen(app_id: &str) -> ReadSignal<u64> {
 /// Hands `receive` what the instance `instance` of `app_id` does from now on, until the
 /// calling scope is cleaned up.
 pub(crate) fn hear(
-    app_id: Stored<String>,
+    app_id: &str,
     instance: be_sdk_api::EditorInstanceId,
     receive: impl Fn(be_host_runtime::InstanceEvent) + 'static,
 ) {
-    let (mailbox, post) = be_host_base::host::mailbox(move |heard: be_host_runtime::Heard| {
-        if app_id.try_with(|app_id| heard.from(app_id, instance)) == Some(true) {
-            receive(heard.event);
-        }
-    });
-    be_host_runtime::listen(post);
+    let (mailbox, post) =
+        be_host_base::host::mailbox(move |heard: be_host_runtime::Heard| receive(heard.event));
+    be_host_runtime::listen(Some((app_id, instance)), post);
     on_cleanup(move || drop(mailbox));
+}
+
+type Owner = Rc<dyn Fn(be_host_runtime::InstanceEvent)>;
+
+/// Makes the calling scope the one that acts on what the instance asks of the frame it is
+/// shown in (its details, to leave it) until it is cleaned up. While a frame is rebuilt two
+/// can claim it; the latest acts, once.
+pub(crate) fn own_frame(
+    app_id: &str,
+    instance: be_sdk_api::EditorInstanceId,
+    receive: impl Fn(be_host_runtime::InstanceEvent) + 'static,
+) {
+    let id = NEXT_LISTENER.with(|next| {
+        next.set(next.get() + 1);
+        next.get()
+    });
+    let key = (app_id.to_owned(), instance);
+    let owner: Owner = Rc::new(receive);
+    OWNERS.with_borrow_mut(|owners| owners.entry(key.clone()).or_default().push((id, owner)));
+    on_cleanup(move || {
+        OWNERS.with_borrow_mut(|owners| {
+            if let Some(owned) = owners.get_mut(&key) {
+                owned.retain(|(held, _)| *held != id);
+                if owned.is_empty() {
+                    owners.remove(&key);
+                }
+            }
+        });
+    });
 }
 
 pub(crate) fn notify() {

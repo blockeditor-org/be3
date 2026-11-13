@@ -937,7 +937,7 @@ impl HostCore {
             instance_events: Vec::new(),
             _instance_events: {
                 let (mailbox, post) = desk().mailbox(HostCore::instance_heard);
-                be_host_runtime::listen(post);
+                be_host_runtime::listen(None, post);
                 mailbox
             },
             ui_settings: None,
@@ -2714,15 +2714,17 @@ impl HostCore {
             self.windows_sent = Some((Host::revision(), hidden));
         }
         let heard = std::mem::take(&mut self.instance_events);
-        let keys: HashMap<(String, be_sdk_api::EditorInstanceId), Uuid> =
-            self.editors.with(|open| {
+        let keys: HashMap<(String, be_sdk_api::EditorInstanceId), Uuid> = match heard.is_empty() {
+            true => HashMap::new(),
+            false => self.editors.with(|open| {
                 open.iter()
                     .filter_map(|(key, editor)| {
                         let source = editor.source()?;
                         Some(((source.app_id, source.instance), *key))
                     })
                     .collect()
-            });
+            }),
+        };
         let mut refocused = false;
         let mut rewatched = false;
         let mut children = Vec::new();
@@ -2813,6 +2815,10 @@ impl HostCore {
 
     /// Acts on what instances' children asked: commits, dismissals and closes.
     fn forward_child_commits(&mut self, heard: Vec<be_host_runtime::Heard>) {
+        if heard.is_empty() {
+            self.editors.forget_hidden_settings();
+            return;
+        }
         let editors: Vec<(Uuid, InstanceSource)> = self.editors.with(|open| {
             open.iter()
                 .filter_map(|(key, editor)| Some((*key, editor.source()?)))

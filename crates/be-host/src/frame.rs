@@ -74,7 +74,7 @@ fn app_clip(copied: host::CopiedClip) -> beui::Clip {
                             });
                             if waiting.rendered.is_none() {
                                 let (mailbox, post) = host::mailbox(rendered);
-                                be_host_runtime::listen(post);
+                                be_host_runtime::listen(None, post);
                                 waiting.rendered = Some(mailbox);
                             }
                         }),
