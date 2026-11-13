@@ -11,7 +11,7 @@ use crate::scroll::{Bleed, Scroll};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
 use crate::theme::{Density, use_density};
-use crate::tokens::{Padding, Size, Space, Stroke, use_space};
+use crate::tokens::{Padding, Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -44,18 +44,26 @@ struct Metrics {
     glyph: TextSize,
 }
 
+/// The tree's sizes at each density. Density sizes the tree alone: under
+/// `Density::Comfortable` its rows are tall enough to tap.
 fn metrics(density: Density) -> Metrics {
-    let (chevron, menu, glyph) = match density {
-        Density::Compact => (Size::Xs.px(), Size::Sm.px(), TextSize::Xs),
-        Density::Comfortable => (36.0, Size::Xl.px(), TextSize::Lg),
-    };
-    Metrics {
-        row: Size::Row.resolve(density),
-        indent: INDENT.resolve(density),
-        spacing: SPACING.resolve(density),
-        chevron,
-        menu,
-        glyph,
+    match density {
+        Density::Compact => Metrics {
+            row: Size::Row.px(),
+            indent: INDENT.px(),
+            spacing: SPACING.px(),
+            chevron: Size::Xs.px(),
+            menu: Size::Sm.px(),
+            glyph: TextSize::Xs,
+        },
+        Density::Comfortable => Metrics {
+            row: 44.0,
+            indent: 16.0,
+            spacing: 8.0,
+            chevron: 36.0,
+            menu: Size::Xl.px(),
+            glyph: TextSize::Lg,
+        },
     }
 }
 
@@ -114,7 +122,7 @@ where
     let viewport = NodeRef::new();
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     let pastes = pastes.unwrap_or_else(|| Func::new(|_| Vec::new()));
-    let spacing = use_space(spacing).get_untracked();
+    let spacing = spacing.get_untracked().px();
     view! {
         <List spacing=Space::None>
             <ListItem grow=1.0>
@@ -336,7 +344,7 @@ where
 fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
     let height = create_memo(move || Size::Custom(sized.get().row - 2.0 * OUTLINE_WIDTH.px()));
     let style = unstyled::TextInputStyle {
-        padding_horizontal: use_space(PADDING_HORIZONTAL).map(|inset| inset - OUTLINE_WIDTH.px()),
+        padding_horizontal: Prop::Static(PADDING_HORIZONTAL.px() - OUTLINE_WIDTH.px()),
         ..text_input_style()
     };
     view! {

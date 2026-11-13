@@ -8,8 +8,8 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    BlockEvent, ClientId, Journal, JournalBase, JournalEntry, PairingMessage, SessionEvent,
-    SessionState, client, hello, read_hello,
+    BlockEvent, ClientId, Journal, JournalBase, JournalEntry, PairingMessage, RelayKind,
+    SessionEvent, SessionState, client, hello, read_hello,
 };
 use be_block_store::Hash;
 use be_wasm_ops::{
@@ -84,6 +84,8 @@ pub enum Event {
     Relayed {
         block: Uuid,
         from: ClientId,
+        /// What the server checked the sender may send (`relayed.kind`).
+        kind: RelayKind,
         payload: Vec<u8>,
     },
     Paired(PairingMessage),
@@ -408,9 +410,14 @@ impl Connection {
                 while let Some(event) = joining.recv().await {
                     let _ = events.send(match event {
                         SessionEvent::Changed(state) => Event::SessionChanged { block, state },
-                        SessionEvent::Relayed { from, payload } => Event::Relayed {
+                        SessionEvent::Relayed {
+                            from,
+                            kind,
+                            payload,
+                        } => Event::Relayed {
                             block,
                             from,
+                            kind,
                             payload,
                         },
                         SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,
@@ -474,10 +481,16 @@ impl Connection {
         Box::pin(async move { Ok(beat?.await??) })
     }
 
-    pub fn relay(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
+    pub fn relay(
+        &self,
+        block: Uuid,
+        to: Option<ClientId>,
+        kind: RelayKind,
+        payload: Vec<u8>,
+    ) -> Answer<()> {
         let relayed = self
             .session(block)
-            .map(|session| session.relay(to, payload));
+            .map(|session| session.relay(to, kind, payload));
         Box::pin(async move { Ok(relayed?.await??) })
     }
 

@@ -1,15 +1,13 @@
-use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
+use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
-use be_sdk_api::shell_types::{
-    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
-};
+use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
-    HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
-    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
-    ViewId, ViewportMetrics,
+    BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
+    InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock, OpenCreation,
+    ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewId,
+    ViewportMetrics,
 };
 use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::{
@@ -126,6 +124,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     completed: std::collections::HashMap<be_sdk_api::ops::OpId, be_sdk_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
     docked: bool,
+    anchor_space: Option<be_sdk_api::AnchorSpace>,
     docks: Vec<be_sdk_api::DockMessage>,
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
@@ -428,6 +427,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             completed: std::collections::HashMap::new(),
             menu: Vec::new(),
             docked: false,
+            anchor_space: None,
             docks: Vec::new(),
             output: None,
             shown_window: None,
@@ -515,7 +515,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 host_place: None,
                 origin: None,
                 docked: self.docked,
-                anchor_space: None,
+                anchor_space: self.anchor_space.clone(),
                 fit: false,
             }]
         });
@@ -737,12 +737,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
+    /// The host asks for the details of `child`, from the child's bar.
+    pub fn child_details(&mut self, child: ChildId) {
         self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::ChildBar(ChildBarPress { child, action })],
-            );
+            editor.hear(connection, vec![EditorEvent::ChildDetails(child)]);
         });
     }
 
@@ -806,6 +804,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.call(|editor, connection| {
             editor.hear(connection, vec![EditorEvent::Drag(Some(drag))]);
         });
+    }
+
+    /// Lays the view out as if its points sat at `origin` in the host, unscaled, so what it
+    /// anchors reaches the host there.
+    pub fn at_host_origin(mut self, origin: Pos2) -> Self {
+        self.anchor_space = Some(be_sdk_api::AnchorSpace {
+            to_host: be_sdk_api::HostTransform {
+                origin,
+                scale: Vec2::splat(1.0),
+            },
+            bounds: Rect::from_min_size(Pos2::ZERO, Vec2::splat(4096.0)),
+        });
+        self.place();
+        self.run();
+        self
     }
 
     pub fn docked(mut self) -> Self {
@@ -977,6 +990,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
             self.link
                 .offer_history(block, &crate::link::history(history));
         }
+    }
+
+    /// The state of an artifact block the editor watches (`EditorHost::watch_artifacts`).
+    pub fn set_artifact(&mut self, block: Uuid, state: Option<be_sdk_api::ArtifactState>) {
+        self.link.offer_artifact(block, state);
+    }
+
+    /// Each block watch the editor holds open, by its op, with what it follows.
+    #[cfg(test)]
+    pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, crate::link::Subject)> {
+        self.link.watching()
     }
 
     pub fn set_version_status(&mut self, status: be_sdk_beui::VersionStatus) {
@@ -1612,30 +1636,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.extension_calls.clear();
     }
 
-    pub fn take_shell_commands(&mut self) -> Vec<(Uuid, be_sdk_api::ShellCommand)> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::Act(BlockAct { block, command }) => {
-                Some((Uuid::from_bytes(*block), *command))
-            }
-            _ => None,
-        })
-    }
-
-    /// Every copy the editor made: its serial and the items it offered.
-    pub fn take_copies(&mut self) -> Vec<(u64, Vec<be_sdk_api::OfferedClipItem>)> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::Copy(ClipOffer { serial, items }) => Some((*serial, items.clone())),
-            _ => None,
-        })
-    }
-
-    /// The `format` data of each copy that offered it ready.
-    pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
+    /// The `format` item of each copy that offered it ready.
+    pub fn take_copied(&mut self, format: &str) -> Vec<be_sdk_api::ClipItem> {
         self.take_shell_messages(|call| match call {
             ShellMessage::Copy(ClipOffer { items, .. }) => items
                 .iter()
                 .find(|item| item.format == format)
-                .and_then(|item| item.data.clone()),
+                .and_then(|item| Some(be_sdk_api::ClipItem::of_body(format, item.body.clone()?))),
             _ => None,
         })
     }
@@ -1644,12 +1651,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_copied_text(&mut self) -> Vec<String> {
         self.take_copied(be_sdk_api::clipboard::formats::TEXT)
             .into_iter()
-            .map(|text| String::from_utf8_lossy(&text).into_owned())
+            .map(|text| String::from_utf8_lossy(&text.data).into_owned())
             .collect()
-    }
-
-    pub fn take_copied_images(&mut self) -> Vec<Vec<u8>> {
-        self.take_copied(be_sdk_api::clipboard::formats::PNG)
     }
 
     pub fn placed_picker(&self) -> Option<ChildPlacement> {
@@ -1885,20 +1888,20 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn take_child_menu_picks(&mut self) -> Vec<(ChildId, String)> {
+    pub fn take_child_menu_picks(&mut self) -> Vec<ChildMenuChoice> {
         self.take_shell_messages(|call| match call {
-            ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, .. }) => {
-                Some((*child, id.clone()))
-            }
+            ShellMessage::ChildMenuPick(choice) => Some(choice.clone()),
             _ => None,
         })
     }
 
-    pub fn take_bar_actions(&mut self) -> Vec<BarAction> {
+    /// How many times the editor asked to show its details.
+    pub fn take_details(&mut self) -> usize {
         self.take_shell_messages(|call| match call {
-            ShellMessage::BarAction(action) => Some(*action),
+            ShellMessage::Details => Some(()),
             _ => None,
         })
+        .len()
     }
 
     pub fn has_requests(&self) -> bool {
@@ -1975,7 +1978,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_block_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::BlockCommand)> {
         self.take_sent_calls(|sent| match sent {
-            Sent::Command(block, command) => Some((*block, *command)),
+            Sent::Command(block, command) => Some((*block, command.clone())),
             _ => None,
         })
     }
@@ -1993,13 +1996,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             None => true,
         });
         taken
-    }
-
-    pub fn take_version_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::VersionCommand)> {
-        self.take_sent_calls(|sent| match sent {
-            Sent::Version(block, command) => Some((*block, command.clone())),
-            _ => None,
-        })
     }
 
     fn take_frames<T>(&mut self, pick: impl Fn(Uuid, FromEditor) -> Option<T>) -> Vec<T> {

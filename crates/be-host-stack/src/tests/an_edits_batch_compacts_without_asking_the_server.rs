@@ -17,7 +17,7 @@ fn an_edits_batch_compacts_without_asking_the_server() {
         // The sixteenth fills a tier, so the batch compacts.
         assert_eq!(
             crate::search::write(peer.as_ref(), index, one(&word(16), 17, None)).await,
-            Ok(true),
+            Ok(Some(Vec::new())),
             "the batch is written while the server is silent"
         );
     });

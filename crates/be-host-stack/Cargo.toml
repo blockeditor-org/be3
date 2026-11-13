@@ -47,6 +47,7 @@ wasm-bindgen-futures = "0.4"
 be-sdk = { path = "../be-sdk" }
 be-type-chat = { path = "../be-type-chat" }
 be-type-checklist = { path = "../be-type-checklist" }
+be-type-database = { path = "../be-type-database" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-block-fault-relay = { path = "../be-block-fault-relay" }
 be-type-bundle = { path = "../be-type-bundle" }

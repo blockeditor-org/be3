@@ -9,6 +9,7 @@ fn bar(bar: u64, owner: Option<u64>) -> DockSpecBar {
         owner: owner.map(TabId::new),
         placement: BOTTOM,
         hidden: false,
+        pane: None,
     }
 }
 

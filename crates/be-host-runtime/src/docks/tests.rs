@@ -131,6 +131,12 @@ fn updates(docks: &mut Docks, app: &str) -> Vec<(EditorInstanceId, DockUpdate)> 
         DockUpdate::queue(&mut held, update);
         queued.extend(held.into_iter().map(|update| (to, update)));
     }
+    // What a declaration says, not its place in the count (`epochs` has that).
+    for (_, update) in &mut queued {
+        if let DockUpdate::Child(child) = update {
+            child.epoch = 0;
+        }
+    }
     queued
 }
 
@@ -165,7 +171,14 @@ fn hosted_by_root() -> DockHosted {
     }
 }
 
+/// The root holds its child's tab as `hold`, having heard every declaration sent for it.
 fn host(docks: &mut Docks, hold: DockHold) {
+    let seen = docks.epochs.get(&(ROOT, OUTER_CHILD)).copied().unwrap_or(0);
+    host_seen(docks, hold, seen);
+}
+
+/// The root holds its child's tab as `hold`, having heard the declarations up to `seen`.
+fn host_seen(docks: &mut Docks, hold: DockHold, seen: u64) {
     docks.heard(
         "shell",
         vec![DockMessage::Host(DockChildHosted {
@@ -174,6 +187,7 @@ fn host(docks: &mut Docks, hold: DockHold) {
                 child: OUTER_CHILD,
             },
             hold,
+            seen,
         })],
     );
 }
@@ -187,8 +201,11 @@ mod a_docks_own_bars_reach_the_root_and_come_back_to_each_level_as_its_own;
 mod a_frame_childs_bars_take_the_place_of_its_placers_and_give_it_back;
 mod a_nested_dock_reaches_the_root_spliced_into_its_placers;
 mod a_pick_from_a_tabs_menu_reaches_the_owner_two_levels_down;
+mod a_placing_sent_before_the_root_heard_a_declaration_leaves_it_awaited_while_placed;
+mod a_placing_sent_before_the_root_heard_a_declaration_leaves_it_awaited_while_unplaced;
 mod a_request_reaches_the_root_through_each_placer;
-mod a_spliced_childs_bar_action_reaches_its_placer;
+mod a_root_that_answers_a_declaration_by_placing_lets_the_child_go_once_unplaced;
+mod a_spliced_childs_ask_for_details_reaches_its_placer;
 mod a_tab_the_root_closes_is_closed_at_its_owner;
 mod messages_about_another_apps_instances_are_ignored;
 mod the_root_places_a_descendants_dialog_and_empty_pane_bodies;

@@ -33,6 +33,10 @@ pub struct ChatHeader {
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
     pub deletions: LatestMap<ObjectId, Deletion>,
     pub reactions: LatestMap<ReactionKey, Reaction>,
+    /// The keys of edits and reaction records a later one replaced (`MessageEdit::previous`,
+    /// `Reaction::previous`): a record whose key was ever written here, whatever its value
+    /// says now, was put back after it was replaced, so it is shown as forged.
+    pub superseded: LatestMap<MessageHash, ()>,
     /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
     /// yet.
     pub segments: Series<Segment>,
@@ -67,6 +71,9 @@ pub struct MessageEdit {
     pub author: Uuid,
     pub time: i64,
     pub body: String,
+    /// The key of the edit this one replaces (`MessageEdit::key`), none for a message's
+    /// first: signed, so each edit names the one before it.
+    pub previous: Option<MessageHash>,
     pub signature: Signature,
 }
 
@@ -77,13 +84,13 @@ pub struct Deletion {
     pub time: i64,
     pub signature: Signature,
     /// The message before it when it was deleted, so a place kept by message id (where
-    /// someone read up to) is found by order once it is gone. Not signed: a forged one, from
-    /// anyone who may write the chat, only miscounts what is unread.
+    /// someone read up to) is found by order once it is gone, and a forged deletion's row is
+    /// placed. Signed.
     pub after: Option<ObjectId>,
 }
 
-/// One person's reaction to a message: present while they keep it. `reaction` names a Lucide
-/// icon.
+/// One person's reaction to a message, kept or taken back (`Reaction::kept`). `reaction` names
+/// a Lucide icon.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(default)]
 pub struct ReactionKey {
@@ -96,6 +103,12 @@ pub struct ReactionKey {
 #[serde(default)]
 pub struct Reaction {
     pub time: i64,
+    /// False once its author took it back: a taken-back reaction stays as a signed record, so
+    /// nobody else can remove one unnoticed.
+    pub kept: bool,
+    /// The key of the record of this key it replaces (`Reaction::key`), none for the first:
+    /// signed, so an older record put back over a newer one is caught.
+    pub previous: Option<MessageHash>,
     pub signature: Signature,
 }
 
@@ -157,15 +170,30 @@ impl Message {
 
 impl MessageEdit {
     /// What an edit's signature covers: the chat, the message and its hash (so an edit signed
-    /// for one message never verifies on another that took its id), author, claimed time and
-    /// the new body's hash.
+    /// for one message never verifies on another that took its id), author, claimed time,
+    /// the new body's hash and the edit it replaces.
     pub fn signed_bytes(&self, chat: Uuid, message: ObjectId, of: MessageHash) -> Vec<u8> {
         Signed::new("be3.chat.edit", chat, message)
             .seen(Some(of))
             .uuid(self.author)
             .time(self.time)
             .body(&self.body)
+            .seen(self.previous)
             .finish()
+    }
+
+    /// What names this edit of `message` in `superseded` and in the next edit's `previous`:
+    /// the hash of its fields, not of its signed bytes, so an editor checks it before it knows
+    /// the block signatures bind to.
+    pub fn key(&self, message: ObjectId) -> MessageHash {
+        MessageHash::of(
+            &Signed::new("be3.chat.edit.key", Uuid::nil(), message)
+                .uuid(self.author)
+                .time(self.time)
+                .body(&self.body)
+                .seen(self.previous)
+                .finish(),
+        )
     }
 }
 
@@ -174,6 +202,7 @@ impl Deletion {
         Signed::new("be3.chat.deletion", chat, message)
             .uuid(self.author)
             .time(self.time)
+            .reply(self.after)
             .finish()
     }
 }
@@ -184,7 +213,25 @@ impl ReactionKey {
             .uuid(self.author)
             .time(reaction.time)
             .text(&self.reaction)
+            .flag(reaction.kept)
+            .seen(reaction.previous)
             .finish()
+    }
+}
+
+impl Reaction {
+    /// What names this record of `key` in `superseded` and in the next record's `previous`,
+    /// as `MessageEdit::key` does for an edit.
+    pub fn key(&self, key: &ReactionKey) -> MessageHash {
+        MessageHash::of(
+            &Signed::new("be3.chat.reaction.key", Uuid::nil(), key.message)
+                .uuid(key.author)
+                .text(&key.reaction)
+                .time(self.time)
+                .flag(self.kept)
+                .seen(self.previous)
+                .finish(),
+        )
     }
 }
 
@@ -288,6 +335,56 @@ impl ChatContent {
 
     fn deletions(&self) -> LatestMap<ObjectId, Deletion> {
         self.header.field(ObjectId::ROOT, ChatHeader::DELETIONS)
+    }
+
+    fn superseded(&self) -> LatestMap<MessageHash, ()> {
+        self.header.field(ObjectId::ROOT, ChatHeader::SUPERSEDED)
+    }
+
+    /// The latest edit of `message` if `author` made it, for a message recent or closed.
+    pub fn edit_by(&self, message: ObjectId, author: Uuid) -> Option<MessageEdit> {
+        self.edits()
+            .get(&message)
+            .filter(|edit| edit.author == author)
+            .cloned()
+    }
+
+    /// Whether the edit or reaction record `key` names was replaced: shown again, it was put
+    /// back.
+    pub fn replaced(&self, key: MessageHash) -> bool {
+        self.superseded().written(&key)
+    }
+
+    /// Whether `message`'s edit record was written and is not an edit by `author` now: removed
+    /// outright, or overwritten by someone else's, which no signature of the author's covers.
+    pub fn edit_removed(&self, message: ObjectId, author: Uuid) -> bool {
+        let edits = self.edits();
+        edits.written(&message) && edits.get(&message).is_none_or(|edit| edit.author != author)
+    }
+
+    /// Whether `message`'s deletion was written and then removed, which brings back a message
+    /// in a closed segment with no signature covering it.
+    pub fn deletion_removed(&self, message: ObjectId) -> bool {
+        let deletions = self.deletions();
+        deletions.written(&message) && !deletions.contains_key(&message)
+    }
+
+    /// Every deletion, by the id of the message it deleted.
+    pub fn deletions_made(&self) -> Vec<(ObjectId, Deletion)> {
+        self.deletions()
+            .iter()
+            .map(|(message, deletion)| (*message, deletion.clone()))
+            .collect()
+    }
+
+    /// Every reaction record to `message`: kept, taken back, or removed (none), which its
+    /// author's signature cannot cover.
+    pub fn reaction_records(&self, message: ObjectId) -> Vec<(ReactionKey, Option<Reaction>)> {
+        self.reaction_map()
+            .written_entries()
+            .filter(|(key, _)| key.message == message)
+            .map(|(key, reaction)| (key.clone(), reaction.cloned()))
+            .collect()
     }
 
     fn reaction_map(&self) -> LatestMap<ReactionKey, Reaction> {
@@ -483,6 +580,7 @@ impl ChatContent {
             .into()
     }
 
+    /// An unsigned edit of `message` (`next_edit`, then `put_edit`).
     pub fn edit(
         &self,
         message: ObjectId,
@@ -490,45 +588,80 @@ impl ChatContent {
         time: i64,
         body: impl Into<String>,
     ) -> Edit {
-        let edit = MessageEdit {
+        self.put_edit(message, &self.next_edit(message, author, time, body))
+    }
+
+    /// The edit of `message` that replaces its latest, for its author to sign
+    /// (`MessageEdit::signed_bytes`) before `put_edit` writes it.
+    pub fn next_edit(
+        &self,
+        message: ObjectId,
+        author: Uuid,
+        time: i64,
+        body: impl Into<String>,
+    ) -> MessageEdit {
+        let previous = self
+            .edits()
+            .get(&message)
+            .filter(|edit| edit.author == author)
+            .map(|edit| edit.key(message));
+        MessageEdit {
             author,
             time,
             body: body.into(),
+            previous,
             signature: Signature::default(),
-        };
-        self.put_edit(message, &edit)
+        }
     }
 
-    /// Makes `edit` the latest of `message`, signed or not.
+    /// Makes `edit` the latest of `message`, signed or not, and records the edit it replaces as
+    /// replaced.
     pub fn put_edit(&self, message: ObjectId, edit: &MessageEdit) -> Edit {
-        let stamp = self
-            .edits()
-            .next(&message, stamp_time(edit.time), edit.author);
-        ChatHeader::EDITS
-            .put(ObjectId::ROOT, &message, Some(edit), stamp)
-            .into()
+        let at = stamp_time(edit.time);
+        let stamp = self.edits().next(&message, at, edit.author);
+        let mut changes = vec![ChatHeader::EDITS.put(ObjectId::ROOT, &message, Some(edit), stamp)];
+        changes.extend(self.supersede(edit.previous, at, edit.author));
+        changes.into_iter().collect()
     }
 
-    /// Removes `message` with its edit and reactions, and records who deleted it.
+    /// Records `previous` as replaced, if there is one.
+    fn supersede(&self, previous: Option<MessageHash>, at: u64, author: Uuid) -> Option<Change> {
+        let previous = previous?;
+        let stamp = self.superseded().next(&previous, at, author);
+        Some(ChatHeader::SUPERSEDED.put(ObjectId::ROOT, &previous, Some(&()), stamp))
+    }
+
+    /// An unsigned deletion of `message` (`deletion`, then `put_deletion`).
     pub fn delete(&self, message: ObjectId, author: Uuid, time: i64) -> Edit {
+        self.put_deletion(message, &self.deletion(message, author, time))
+    }
+
+    /// The deletion of `message`, for its author to sign (`Deletion::signed_bytes`) before
+    /// `put_deletion` writes it.
+    pub fn deletion(&self, message: ObjectId, author: Uuid, time: i64) -> Deletion {
         let messages = self.messages();
         let after = messages
             .iter()
             .position(|id| *id == message)
             .and_then(|at| at.checked_sub(1))
             .map(|before| messages[before]);
-        let deletion = Deletion {
+        Deletion {
             author,
             time,
             signature: Signature::default(),
             after,
-        };
+        }
+    }
+
+    /// Removes `message` with its edit and reactions, and records `deletion`, signed or not.
+    pub fn put_deletion(&self, message: ObjectId, deletion: &Deletion) -> Edit {
+        let (author, time) = (deletion.author, deletion.time);
         let at = stamp_time(time);
         let (edits, deletions, reactions) = (self.edits(), self.deletions(), self.reaction_map());
         let mut changes = vec![ChatHeader::DELETIONS.put(
             ObjectId::ROOT,
             &message,
-            Some(&deletion),
+            Some(deletion),
             deletions.next(&message, at, author),
         )];
         if self.message(message).is_some() {
@@ -550,6 +683,7 @@ impl ChatContent {
         changes.into_iter().collect()
     }
 
+    /// An unsigned reaction to `message` (`reaction`, then `put_reaction`).
     pub fn react(
         &self,
         message: ObjectId,
@@ -557,21 +691,11 @@ impl ChatContent {
         reaction: impl Into<String>,
         time: i64,
     ) -> Edit {
-        let key = ReactionKey {
-            message,
-            author,
-            reaction: reaction.into(),
-        };
-        let stamp = self.reaction_map().next(&key, stamp_time(time), author);
-        let reaction = Reaction {
-            time,
-            signature: Signature::default(),
-        };
-        ChatHeader::REACTIONS
-            .put(ObjectId::ROOT, &key, Some(&reaction), stamp)
-            .into()
+        let (key, reaction) = self.reaction(message, author, reaction, time, true);
+        self.put_reaction(&key, &reaction)
     }
 
+    /// An unsigned taking back of a reaction to `message`.
     pub fn unreact(
         &self,
         message: ObjectId,
@@ -579,15 +703,43 @@ impl ChatContent {
         reaction: impl Into<String>,
         time: i64,
     ) -> Edit {
+        let (key, reaction) = self.reaction(message, author, reaction, time, false);
+        self.put_reaction(&key, &reaction)
+    }
+
+    /// A reaction record, kept or taken back, naming the record it replaces, for its author
+    /// to sign (`ReactionKey::signed_bytes`) before `put_reaction` writes it.
+    pub fn reaction(
+        &self,
+        message: ObjectId,
+        author: Uuid,
+        reaction: impl Into<String>,
+        time: i64,
+        kept: bool,
+    ) -> (ReactionKey, Reaction) {
         let key = ReactionKey {
             message,
             author,
             reaction: reaction.into(),
         };
-        let stamp = self.reaction_map().next(&key, stamp_time(time), author);
-        ChatHeader::REACTIONS
-            .put(ObjectId::ROOT, &key, None, stamp)
-            .into()
+        let previous = self.reaction_map().get(&key).map(|held| held.key(&key));
+        let reaction = Reaction {
+            time,
+            kept,
+            previous,
+            signature: Signature::default(),
+        };
+        (key, reaction)
+    }
+
+    /// Writes a reaction record, signed or not, and records the one it replaces as replaced.
+    pub fn put_reaction(&self, key: &ReactionKey, reaction: &Reaction) -> Edit {
+        let at = stamp_time(reaction.time);
+        let stamp = self.reaction_map().next(key, at, key.author);
+        let mut changes =
+            vec![ChatHeader::REACTIONS.put(ObjectId::ROOT, key, Some(reaction), stamp)];
+        changes.extend(self.supersede(reaction.previous, at, key.author));
+        changes.into_iter().collect()
     }
 }
 
@@ -602,8 +754,9 @@ fn grouped_reactions(
 ) -> BTreeMap<ObjectId, Vec<(String, Vec<Uuid>)>> {
     let mut grouped: BTreeMap<ObjectId, BTreeMap<String, Vec<Uuid>>> = BTreeMap::new();
     for key in reactions
-        .keys()
-        .filter(|key| !deletions.contains_key(&key.message))
+        .iter()
+        .filter(|(key, reaction)| reaction.kept && !deletions.contains_key(&key.message))
+        .map(|(key, _)| key)
     {
         grouped
             .entry(key.message)
@@ -912,6 +1065,115 @@ impl BlockContent for ChatContent {
     fn describe(&self, metadata: &mut BlockMetadata) {
         BlockContent::describe(&self.header, metadata);
     }
+
+    /// A document of the recent messages (key `recent`) and one per closed segment (keyed by
+    /// its part's hash, which never changes), each message as it reads now on a line of its own.
+    /// A segment's source is its saved part only while no edit or deletion in the header may
+    /// name one of its messages: the index then keeps its text until the part changes, and a
+    /// segment edited since it closed is read again (at every reindex, since the header keeps
+    /// the edit). Content that holds a segment neither as bytes nor as a part (an editor sent
+    /// the header alone) answers an error rather than leave the segment out.
+    fn search_text(
+        &self,
+        keys: Option<&std::collections::HashSet<String>>,
+        indexed: &std::collections::HashSet<PartRef>,
+        parts: PartReader,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>>
+    {
+        let asked = |key: &str| keys.is_none_or(|keys| keys.contains(key));
+        let mut documents = Vec::new();
+        if asked(RECENT) {
+            documents.push(be_block::SearchDocument {
+                key: RECENT.to_owned(),
+                body: Some(lines(self.shown())),
+                ..be_block::SearchDocument::default()
+            });
+        }
+        let changed: Vec<ObjectId> = self
+            .edits()
+            .keys()
+            .chain(self.deletions().keys())
+            .copied()
+            .collect();
+        let mut reads = Vec::new();
+        for (segment, held) in self.segments().into_iter().zip(&self.held) {
+            let key = segment_key(&segment);
+            if !asked(&key) {
+                continue;
+            }
+            let touched = changed.iter().any(|message| segment.may_hold(*message));
+            let source = match held {
+                Held::Saved(part) if !touched => Some(*part),
+                _ => None,
+            };
+            if source.is_some_and(|source| indexed.contains(&source)) {
+                documents.push(be_block::SearchDocument {
+                    key,
+                    source,
+                    ..be_block::SearchDocument::default()
+                });
+                continue;
+            }
+            let read = match held {
+                Held::Bytes(bytes) => Read::Bytes(bytes.clone()),
+                Held::Saved(part) => Read::Part(*part),
+                // An editor sent only the header has nothing of the segment: an answer without it
+                // would have the index drop the segment's text, so there is none.
+                Held::Absent => {
+                    return Box::pin(std::future::ready(Err(
+                        "a closed segment's part is not held here".to_owned(),
+                    )));
+                }
+            };
+            reads.push((documents.len(), segment, source, read));
+            documents.push(be_block::SearchDocument {
+                key,
+                source,
+                ..be_block::SearchDocument::default()
+            });
+        }
+        let this = self.clone();
+        Box::pin(async move {
+            for (at, segment, _, read) in reads {
+                let bytes = match read {
+                    Read::Bytes(bytes) => bytes,
+                    Read::Part(part) => parts.read_all(part).await?,
+                };
+                let messages = segment
+                    .read(&bytes)
+                    .ok_or("a segment's part does not match its index entry")?;
+                documents[at].body = Some(lines(this.shown_of(messages)));
+            }
+            Ok(documents)
+        })
+    }
+}
+
+/// The search document of the recent messages (`ChatContent::search_text`).
+const RECENT: &str = "recent";
+
+/// A closed segment's search key: its part's hash, in hex.
+fn segment_key(segment: &Segment) -> String {
+    segment
+        .hash
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// A segment's bytes to read for search: held, or saved as a part.
+enum Read {
+    Bytes(Vec<u8>),
+    Part(PartRef),
+}
+
+/// Messages as search text: each as it reads now, one per line.
+fn lines(shown: Vec<Shown>) -> String {
+    shown
+        .into_iter()
+        .map(|shown| shown.body)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 impl LiveEdit for ChatContent {

@@ -15,7 +15,7 @@ fn an_offline_catch_up_forgets_nothing() {
     device.runtime.block_on(async {
         assert_eq!(
             crate::search::write(peer.as_ref(), index, one(&word(5), 6, Some(50))).await,
-            Ok(true),
+            Ok(Some(Vec::new())),
             "the batch is written offline"
         );
     });

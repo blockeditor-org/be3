@@ -9,9 +9,12 @@ fn every_format_the_host_copies_is_offered_to_programs() {
     let _control = harness.client.data_control();
     harness.settle();
 
+    let mut fragment = ClipItem::new(formats::TEXT_FRAGMENT, b"fragment".to_vec());
+    fragment.refs = vec![Default::default()];
+    let stored = String::from_utf8(fragment.stored()).expect("these stored bytes are text");
     harness.stepped.program_mut().copy = Some(
         beui::Clip::new()
-            .with(ClipItem::new(formats::TEXT_FRAGMENT, b"fragment".to_vec()))
+            .with(fragment)
             .with(ClipItem::text("plain"))
             .with(ClipItem::png(b"PNG bytes".to_vec())),
     );
@@ -25,7 +28,7 @@ fn every_format_the_host_copies_is_offered_to_programs() {
     }
     for (mime, data) in [
         (formats::PNG, "PNG bytes"),
-        (formats::TEXT_FRAGMENT, "fragment"),
+        (formats::TEXT_FRAGMENT, stored.as_str()),
         (client::TEXT, "plain"),
     ] {
         let answer = client::ask_as(&offer, mime);

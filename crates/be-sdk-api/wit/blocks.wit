@@ -108,9 +108,24 @@ interface blocks {
         linked: bool,
     }
 
-    /// What an editor asks the host to do with a block it draws: undo or redo
-    /// it, show its version history (at a commit when named), act on its
-    /// artifact, unlink, delete, move, reorder, place or restore it.
+    /// Sets or, with no value, clears one metadata entry the block defines.
+    record define-command {
+        key: uuid,
+        value: option<list<u8>>,
+    }
+
+    /// What an editor asks the host to do with a block: undo or redo it, show
+    /// its version history (at a commit when named), act on its artifact,
+    /// unlink, delete, move, reorder, place or restore it, act on the
+    /// checkout or repository it shows (its own block only), share it, leave
+    /// it, close its editor, set its parent or define its metadata.
+    ///
+    /// `move` takes the block out of one container's content and into
+    /// another's, through their editors, and sets its parent unless it moves
+    /// a link; `set-parent` only sets the parent in the graph, for a block the
+    /// editor already holds in content of its own. An editor renames a block
+    /// or shows the host's menu by placing a `child-content.rename` or
+    /// `host(menu)` child in a view it anchored.
     variant block-command {
         undo,
         redo,
@@ -122,6 +137,12 @@ interface blocks {
         reorder(reorder-command),
         place(place-command),
         restore,
+        version(version-command),
+        share,
+        leave,
+        close-editor,
+        set-parent(block-location),
+        define(define-command),
     }
 
     enum conflict-side {
@@ -258,11 +279,9 @@ interface blocks {
     /// Asks the host to open a block for the user.
     open-block: async func(request: open-request);
 
-    /// Asks the host to act on a block the editor draws.
+    /// Asks the host to act on a block. The host refuses what the editor may
+    /// not do.
     act: async func(block: block-id, command: block-command);
-
-    /// Asks the host to act on the checkout or repository the editor shows.
-    version: async func(block: block-id, command: version-command);
 
     /// Creates a block with the id the editor chose, so it can name the block
     /// before the host has seen it. With `owner-only`, only this account
@@ -276,11 +295,6 @@ interface blocks {
         content: option<list<u8>>,
         owner-only: bool,
     );
-
-    set-parent: async func(block: block-id, parent: block-location);
-
-    /// Sets or, with no value, clears one metadata entry the block defines.
-    define: async func(block: block-id, key: uuid, value: option<list<u8>>);
 
     /// Gives a block content. With `replace`, replaces the content of a block
     /// the editor may edit; without, seeds a block the editor holds, unless it

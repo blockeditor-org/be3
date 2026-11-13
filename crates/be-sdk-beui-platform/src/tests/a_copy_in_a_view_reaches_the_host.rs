@@ -28,7 +28,7 @@ fn a_copy_in_a_view_reaches_the_host() {
         items,
         &vec![be_sdk_api::OfferedClipItem {
             format: "text/plain".to_owned(),
-            data: Some(b"copied".to_vec()),
+            body: Some(b"copied".to_vec().into()),
         }]
     );
 }

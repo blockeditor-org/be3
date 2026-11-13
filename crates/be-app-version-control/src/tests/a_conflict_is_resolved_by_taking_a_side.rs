@@ -29,13 +29,13 @@ fn a_conflict_is_resolved_by_taking_a_side() {
     editor.run();
 
     assert_eq!(
-        editor.take_version_commands(),
+        editor.take_block_commands(),
         vec![(
             own(&editor),
-            VersionCommand::Resolve {
+            BlockCommand::Version(VersionCommand::Resolve {
                 block_id: note.into_bytes(),
                 take: ConflictSide::Theirs,
-            }
+            })
         )]
     );
 }

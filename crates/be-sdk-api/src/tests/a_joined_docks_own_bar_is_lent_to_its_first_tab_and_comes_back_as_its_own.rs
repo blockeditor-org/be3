@@ -18,6 +18,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
             width: 40.0,
             height: 40.0,
         },
+        pane: None,
     });
     assert_eq!(
         inner.validate_own(),
@@ -50,6 +51,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
                     align: DockAlign::Center,
                 }),
                 hidden: false,
+                pane: None,
             }],
             outside: Vec::new(),
         },
@@ -76,6 +78,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         }],
         "the child hears it back as its dock's own"
     );
