@@ -33,8 +33,9 @@ pub(crate) enum Until {
     /// Journaled on this device alone while it owned the session, which another device took: no
     /// seal of this replica can hold it, so it only waits to be dismissed.
     Dropped,
-    /// In a commit kept in this device's outbox, until the host says it `drained`.
-    Kept,
+    /// In a commit kept in this device's outbox, until the host says that commit, or one kept
+    /// after it, `drained`. None for one kept by an earlier replica that named no commit.
+    Kept(Option<CommitId>),
     /// From an earlier replica of the block, until a seal or replacement reaches the server
     /// (this replica's content holds it).
     Carried,
@@ -60,6 +61,8 @@ pub(crate) struct Carried {
     pub(crate) followers: BTreeSet<EditorId>,
     /// The refused commits whose refusal the replicas already applied.
     pub(crate) refused: BTreeSet<CommitId>,
+    /// The commits kept in the outbox, oldest first.
+    pub(crate) kept: Vec<CommitId>,
 }
 
 #[derive(Default)]
@@ -68,6 +71,9 @@ pub(crate) struct Lacking {
     /// The refused commits whose refusal was applied (by a drain or on opening): a commit the
     /// device still holds after it was refused is not refused again.
     refused: BTreeSet<CommitId>,
+    /// The commits this replica's edits were kept in, in the order they were kept: each drains
+    /// with every one kept before it, since the outbox publishes in order.
+    kept: Vec<CommitId>,
     next: u64,
     /// What the edits the server came to hold since this was last taken announce, which no
     /// append carried: a follower's.
@@ -221,11 +227,12 @@ impl Lacking {
         });
     }
 
-    /// A seal holding everything sequenced up to `through` was published (`held`) or kept.
-    pub(crate) fn sealed(&mut self, through: u64, held: bool) {
+    /// A seal holding everything sequenced up to `through` was published (`held`) or kept as
+    /// `commit`.
+    pub(crate) fn sealed(&mut self, through: u64, held: bool, commit: CommitId) {
         let done = match held {
             true => None,
-            false => Some(Until::Kept),
+            false => Some(self.keeping(commit)),
         };
         self.update(|until| match until {
             Until::Sequenced(sequence) | Until::Lost(sequence) if sequence <= through => done,
@@ -234,16 +241,25 @@ impl Lacking {
         });
     }
 
-    /// A replacement holding everything this replica shows was published (`held`) or kept: a
-    /// follower's unaccepted edits are in it too.
-    pub(crate) fn replaced(&mut self, held: bool) {
+    /// A replacement holding everything this replica shows was published (`held`) or kept as
+    /// `commit`: a follower's unaccepted edits are in it too.
+    pub(crate) fn replaced(&mut self, held: bool, commit: CommitId) {
+        let done = match held {
+            true => None,
+            false => Some(self.keeping(commit)),
+        };
         self.update(|until| match until {
-            Until::Carried | Until::Unsettled => match held {
-                true => None,
-                false => Some(Until::Kept),
-            },
+            Until::Carried | Until::Unsettled => done,
             until => Some(until),
         });
+    }
+
+    /// Notes `commit` as kept in the outbox, after every one kept before it.
+    fn keeping(&mut self, commit: CommitId) -> Until {
+        if !self.kept.contains(&commit) {
+            self.kept.push(commit);
+        }
+        Until::Kept(Some(commit))
     }
 
     /// A follower stashed its unaccepted edits as `commit` and handed it to the owner.
@@ -264,13 +280,24 @@ impl Lacking {
         });
     }
 
-    /// The kept commits reached the server: those edits are held. One the server refused stays
-    /// until it is dismissed, so a "Not sent" never goes unseen.
-    fn forget_kept(&mut self) {
+    /// The kept commits up to the last of `drained` this replica knows reached the server, and
+    /// so did any kept by an earlier replica that named no commit: those edits are held. One
+    /// the server refused stays until it is dismissed, so a "Not sent" never goes unseen.
+    fn forget_kept(&mut self, drained: &[CommitId]) {
+        let reached = drained
+            .iter()
+            .filter_map(|commit| self.kept.iter().position(|kept| kept == commit))
+            .max()
+            .map_or_else(Vec::new, |last| self.kept.drain(..=last).collect());
         let before = self.entries.len();
         let mut held = Vec::new();
         self.entries.retain_mut(|entry| {
-            let stays = entry.until != Until::Kept || entry.failed;
+            let gone = match entry.until {
+                Until::Kept(None) => true,
+                Until::Kept(Some(commit)) => reached.contains(&commit),
+                _ => false,
+            };
+            let stays = !gone || entry.failed;
             if !stays {
                 held.append(&mut entry.announcements);
             }
@@ -283,26 +310,27 @@ impl Lacking {
     /// The stash this replica handed to an owner is kept in a commit of its own that only this
     /// device's outbox holds, until it drains.
     pub(crate) fn kept_here(&mut self, commit: CommitId) {
+        let kept = self.keeping(commit);
         self.update(|until| {
             Some(match until {
-                Until::Handed(handed) if handed == commit => Until::Kept,
+                Until::Handed(handed) if handed == commit => kept,
                 until => until,
             })
         });
     }
 
-    /// The kept commits reached the server, or it refused them: those edits then show as
-    /// failed rather than sending for ever.
+    /// The kept commits up to those named reached the server, or it refused them: those edits
+    /// then show as failed rather than sending for ever.
     pub(crate) fn drained(&mut self, refused: bool, commits: &[CommitId]) {
         if !refused {
-            return self.forget_kept();
+            return self.forget_kept(commits);
         }
         self.refused.extend(commits.iter().copied());
         // Edits carried from an earlier replica may be among the refused commits, and
         // nothing else would ever settle them.
         for entry in &mut self.entries {
-            if matches!(entry.until, Until::Kept | Until::Carried) && !entry.failed {
-                entry.until = Until::Kept;
+            if matches!(entry.until, Until::Kept(_) | Until::Carried) && !entry.failed {
+                entry.until = Until::Kept(None);
                 entry.failed = true;
                 self.changed = true;
             }
@@ -323,7 +351,15 @@ impl Lacking {
             self.drained(true, &new);
         }
         match kept {
-            KeptCommits::None => self.forget_kept(),
+            KeptCommits::None => {
+                let kept = std::mem::take(&mut self.kept);
+                for entry in &mut self.entries {
+                    if matches!(entry.until, Until::Kept(Some(_))) {
+                        entry.until = Until::Kept(None);
+                    }
+                }
+                self.forget_kept(&kept);
+            }
             KeptCommits::Outbox => {}
         }
     }
@@ -403,7 +439,7 @@ impl Lacking {
                     _ => entry.sequence,
                 },
                 until: match entry.until {
-                    Until::Kept => Until::Kept,
+                    Until::Kept(commit) => Until::Kept(commit),
                     _ => Until::Carried,
                 },
                 ..entry
@@ -413,11 +449,13 @@ impl Lacking {
             entries,
             followers: std::mem::take(&mut self.followers),
             refused: std::mem::take(&mut self.refused),
+            kept: std::mem::take(&mut self.kept),
         }
     }
 
     pub(crate) fn adopt(&mut self, carried: Carried) {
         self.refused.extend(carried.refused);
+        self.kept.extend(carried.kept);
         for entry in carried.entries {
             self.push(
                 entry.operation,

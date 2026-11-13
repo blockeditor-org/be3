@@ -98,10 +98,12 @@ interface replicas {
         /// `force` is a rekey: publish even when clean.
         seal: async func(force: bool);
 
-        /// Every commit of the block this device kept (`publish-outcome.kept`)
-        /// has reached the server, or with `refused` the server refused them and
-        /// they will not reach it: `commits` then lists the commits that were
-        /// refused, whether set aside in the unsent area or still in the outbox.
+        /// Commits of the block this device kept (`publish-outcome.kept`) reached
+        /// the server: `commits` names the heads that were published, and every
+        /// kept commit up to one of them has drained. With `refused` the server
+        /// refused them and they will not reach it: `commits` then lists the
+        /// commits that were refused, whether set aside in the unsent area or
+        /// still in the outbox.
         drained: async func(refused: bool, commits: list<commit-id>);
     }
 

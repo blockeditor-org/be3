@@ -113,7 +113,8 @@ struct Inner {
     left: BTreeSet<BlockQuery>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
     offline: bool,
-    kept: BTreeSet<Uuid>,
+    /// The blocks with commits kept in the outbox, with the last one kept.
+    kept: BTreeMap<Uuid, CommitId>,
     /// The commits the server refused, by block: they stay on the device.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
     refusals: u8,
@@ -170,7 +171,7 @@ impl Default for Inner {
             left: BTreeSet::new(),
             deferred: None,
             offline: false,
-            kept: BTreeSet::new(),
+            kept: BTreeMap::new(),
             refused: BTreeMap::new(),
             refusals: 0,
             announcing: Vec::new(),
@@ -366,7 +367,7 @@ impl Inner {
                 }
                 let outcome = match self.offline {
                     true => {
-                        self.kept.insert(block);
+                        self.kept.insert(block, head);
                         PublishOutcome::Kept(head)
                     }
                     false => PublishOutcome::Published(head),
@@ -472,7 +473,7 @@ impl Inner {
             }
             Call::RebaseJournal { reply, base, .. } => {
                 // This device seals every commit here, so what the base holds goes with it.
-                let kept = block.is_some_and(|block| self.kept.contains(&block));
+                let kept = block.is_some_and(|block| self.kept.contains_key(&block));
                 for (at, until, _) in &mut self.announcing {
                     if *at == block
                         && let Announcing::Journal(sequence) = *until
@@ -553,7 +554,7 @@ impl Inner {
         }
         let (content_type, head) = (held.content_type, held.head);
         let unapplied = std::mem::take(&mut held.unapplied);
-        let commits_kept = match self.kept.contains(&block) {
+        let commits_kept = match self.kept.contains_key(&block) {
             true => be_sdk_type_guest::api::KeptCommits::Outbox,
             false => be_sdk_type_guest::api::KeptCommits::None,
         };
@@ -1090,9 +1091,13 @@ impl ContentStore {
 
     fn drain(&self, refused: bool) {
         let mut inner = self.0.borrow_mut();
-        let kept: Vec<Uuid> = std::mem::take(&mut inner.kept).into_iter().collect();
-        for block in kept {
-            let mut commits = Vec::new();
+        let kept: Vec<(Uuid, CommitId)> = std::mem::take(&mut inner.kept).into_iter().collect();
+        for (block, head) in kept {
+            // A drain names the head it published; a refusal, the commits it refused.
+            let mut commits = match refused {
+                true => Vec::new(),
+                false => vec![head],
+            };
             if refused {
                 inner.refusals += 1;
                 let commit = CommitId::from_hash(Hash::from_bytes([inner.refusals; 32]));
