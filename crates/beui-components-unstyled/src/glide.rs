@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use beui_macros::{component, view};
-use beui_view::measure::measure;
+use beui_view::measure::{measure, scrolled_by};
 use beui_view::primitives::Frame;
 use beui_view::reactive::*;
 use beui_view::types::{Direction, Measured, Pos2, Spring, Vec2};
@@ -175,6 +175,37 @@ pub fn Glide(
         </Frame>
     };
     let measured = measure(node);
+    // Where the glide rests, against what a move is measured: inside another glide, against
+    // that glide's drawn content, which this layout measured with the same offset and scroll
+    // as this one; otherwise with the scroll around it taken out, since a scroll moves where
+    // it is measured, not where it is in its list.
+    let settle = move |resting: Pos2| {
+        let state = stored.value();
+        let content = within
+            .and_then(|within| within.try_get())
+            .and_then(|within| within.content.get_untracked());
+        let placed = match content {
+            Some(content) => Pos2::ZERO + (resting - content.rect.min),
+            None => resting + scrolled_by(node),
+        };
+        let mut moved = Vec2::ZERO;
+        if let Some(from) = state.from.take() {
+            moved += from - resting;
+        }
+        if let Some(was) = state.placed.get().filter(|_| state.armed.get()) {
+            moved += was - placed;
+        }
+        state.resting.set(Some(resting));
+        state.placed.set(Some(placed));
+        if state.hold.get().is_some() {
+            glide.take_hold();
+        } else if moved != Vec2::ZERO {
+            let mut motion = state.motion.get();
+            motion.displacement += moved;
+            state.motion.set(motion);
+            glide.start();
+        }
+    };
     // An arm lasts until a layout has run, and every move that layout makes glides: a frame
     // can lay out more than once, and moves that cancel out then net to nothing. It ends there,
     // or it would turn the next move it did not ask for into a glide. An animation's first step
@@ -186,6 +217,10 @@ pub fn Glide(
             waited.get() < 2
         },
         move || {
+            // A move a scroll cancelled out changed no measurement: look once more.
+            if let Some(measured) = measured.get_untracked() {
+                settle(measured.rect.min);
+            }
             stored.try_with(|state| state.armed.set(false));
         },
     );
@@ -222,35 +257,8 @@ pub fn Glide(
         }
     });
     create_effect(move || {
-        let state = stored.value();
-        let Some(resting) = measured.get().map(|measured| measured.rect.min) else {
-            return;
-        };
-        // Inside another glide, a move is one against that glide's drawn content, which this
-        // layout measured with the same offset as this one.
-        let content = within
-            .and_then(|within| within.try_get())
-            .and_then(|within| within.content.get_untracked());
-        let placed = match content {
-            Some(content) => Pos2::ZERO + (resting - content.rect.min),
-            None => resting,
-        };
-        let mut moved = Vec2::ZERO;
-        if let Some(from) = state.from.take() {
-            moved += from - resting;
-        }
-        if let Some(was) = state.placed.get().filter(|_| state.armed.get()) {
-            moved += was - placed;
-        }
-        state.resting.set(Some(resting));
-        state.placed.set(Some(placed));
-        if state.hold.get().is_some() {
-            glide.take_hold();
-        } else if moved != Vec2::ZERO {
-            let mut motion = state.motion.get();
-            motion.displacement += moved;
-            state.motion.set(motion);
-            glide.start();
+        if let Some(measured) = measured.get() {
+            settle(measured.rect.min);
         }
     });
     node

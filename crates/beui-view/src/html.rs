@@ -12,7 +12,7 @@ pub(crate) mod interactive;
 pub(crate) mod layers;
 pub(crate) mod list;
 pub(crate) mod measure {
-    pub(crate) use beui_core_html::measure::{TextGeometry, measure, measure_text};
+    pub(crate) use beui_core_html::measure::{TextGeometry, measure, measure_text, scrolled_by};
 }
 pub(crate) mod nodes;
 pub(crate) mod offset;

@@ -499,6 +499,20 @@ impl Document {
         self.arena.touch_mut_as::<OffsetNode>(offset).on_steer = Callback::new(handler);
     }
 
+    /// How far the `Offset`s around `node` scrolled it in the last layout: the shift each
+    /// applied to its content, summed.
+    pub fn scrolled_by(&self, node: NodeId) -> Vec2 {
+        let mut by = Vec2::ZERO;
+        let mut at = self.arena.parent(node);
+        while let Some(id) = at {
+            if let Some(offset) = self.arena.kind_of::<OffsetNode>(id) {
+                by -= self.arena.get_as::<OffsetNode>(offset).translation;
+            }
+            at = self.arena.parent(id);
+        }
+        by
+    }
+
     pub fn first_offset_within(&self, id: NodeId) -> Option<NodeOf<OffsetNode>> {
         if !self.contains(id) {
             return None;

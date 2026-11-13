@@ -243,6 +243,7 @@ mod a_gap_before_one_child_replaces_the_rows_spacing;
 mod a_gap_in_rich_text_takes_room_but_no_bytes;
 mod a_gathered_pane_folds_to_its_tabs_and_unfolds_for_a_tab;
 mod a_glide_armed_by_a_reorder_paints_where_it_was_and_springs_to_its_new_place;
+mod a_scroll_in_the_update_that_arms_a_glide_moves_no_row;
 mod a_glide_handed_a_starting_point_settles_from_it;
 mod a_glide_moved_again_mid_flight_carries_on_from_where_it_is;
 mod a_glide_snaps_when_unarmed_or_when_animations_are_off;
@@ -3148,6 +3149,30 @@ pub(crate) fn gliding_rows(
                     </unstyled::Glide>
                 </ForEach>
             </List>
+        }
+    })
+}
+
+pub(crate) fn scrolled_gliding_rows(
+    order: crate::reactive::Signal<Vec<u64>>,
+    arm: crate::reactive::Signal<u64>,
+    scrolled: crate::reactive::Signal<f32>,
+) -> Document {
+    use crate::primitives::*;
+    use crate::reactive::*;
+    build_node(move || {
+        view! {
+            <Frame height={2.0 * GLIDE_ROW}>
+                <Offset offset={scrolled}>
+                    <List spacing=0.0>
+                        <ForEach keys={order}>|key: u64|
+                            <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
+                                <Frame @test_id={format!("row.{key}")} height=GLIDE_ROW />
+                            </unstyled::Glide>
+                        </ForEach>
+                    </List>
+                </Offset>
+            </Frame>
         }
     })
 }
