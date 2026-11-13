@@ -9,30 +9,6 @@ lands on its own. Step numbers stay as written when a step is done and
 removed. No format is frozen, so wire and WIT changes need no migration. Line
 numbers are from when this plan was written.
 
-## 2. The shell's one-way reports are one batched call (left)
-
-`shell.tell` and `shell-message` replaced the 28 one-way functions, and
-`EditorHost` keeps what an editor tells the shell in one ordered queue
-(`told`, `EditorHost::tell`), so messages go in the order the editor made
-them in; `be-sdk-test` has a test of that order. What is left of this step:
-
-- The queued messages come first in `outbound`; the ones that need session
-  state stay computed there (`DragAccepted`, `HandlesDismiss`, `LeaveFrame`,
-  `Paste`, `Picked`, `Focused`, `ChildMenuPick`, `PlayAudio`, the menus, the
-  card, the artifact and the intrinsic size), so their order is still fixed.
-  Make each push at the moment the editor asks where it does not need session
-  state, and compute the child menu pick's anchor when it is queued.
-- `bar-action` has one variant, `details`; drop the enum and make it a
-  `details` message (and `child-bar` a `details` event).
-
-## 3. The editor's one-way methods are one event call (left)
-
-`editor.hear` and `editor-event` replaced the 14 one-way methods, and the host
-makes `EditorEvent`s directly (`Outbound::Event`); `EditorCall` keeps only
-what is not an event, and `child-bar` and `child-focused` carry the child
-only. What is left: the host's `docks::take_bars` still carries a `ViewId`
-nothing reads.
-
 ## 5. Acting on a block is one call
 
 Today a block is changed through `blocks.act(block, block-command)`,
@@ -48,26 +24,6 @@ Add `version(version-command)`, `share`, `leave`, `close-editor`,
 host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
 whether `set-parent` and the existing `move-command`/`reorder-command` are one
 thing, and keep one.
-
-## 7. The host's per-instance queues are one pushed stream
-
-`be-host-runtime/src/runtime.rs` has 19 `take_*` functions that be-host polls
-every frame, 14 of them per instance (`take_child_focus`,
-`take_child_dismissals`, `take_child_closes`, `take_child_commits`,
-`take_focus_report`, `take_artifact_watch`, `take_child_menu_picks`,
-`take_artifact_outcome`, `take_created`, `take_leaving`, `take_rendered`,
-`take_view_changes`, `take_bar_actions`, `take_focus_request`,
-`take_view_actions`, `take_block_drags`), each with one caller in be-host.
-
-Replace them with one `InstanceEvent` enum delivered to its owner through
-`host::Desk<Instances>` (`be-host-runtime/src/instances.rs`) rather than
-polled, so nothing checks each frame. Keyed queries (`take_child_focus(child)`,
-`take_focus_request(region)`) become matches on the event. After step 2 most
-events are a `ShellMessage` plus the instance, so do this after it.
-
-`host::push_command` / `take_commands` / `HostCommand { RestartApp }`
-(`be-host-base/src/host.rs`) is a second queue with one producer and one
-consumer; it becomes a `Desk<Instances>` message too.
 
 ## 8. The stack pushes its changes
 
@@ -177,19 +133,6 @@ components.
 
 ## 15. Host, CLI and test harness
 
-- `BeuiTest` (`be-sdk-test/src/beui.rs`): remove the one-line `take_*`
-  wrappers that only pick a `ShellMessage` variant (about 15, with 3 to 17
-  callers each across the app tests) in favour of `take_shell_messages(pick)`,
-  keeping those that decode something. Remove `take_copies`,
-  `take_copied_text` and `take_copied_images` in favour of
-  `take_copied(format)`, with the serial of a copy in a separate accessor if a
-  test needs it (`take_copies` has two callers in be-sdk-beui-platform).
-- `be` CLI (`be-tool-cli/src/cli.rs`): a row's page is a text block target.
-  `be ROW page` resolves to it, made on first write, and the text verbs
-  (`cat`, `write`, `append`, `edit`) work on it; remove the copied `page`
-  verbs and `set --body/--append`. Keep `new … --body`. `add-option` merges
-  into `option`. `workspaces` becomes `ls`, whose `--json` carries
-  `writable`. Update guides/tracker.md.
 - `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
   become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
   WIT `launch`) goes; a typed line is wrapped as the platform's shell command
