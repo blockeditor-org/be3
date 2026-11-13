@@ -6,7 +6,7 @@ use beui_components_unstyled::narrower_than;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
-use crate::tokens::{Space, resolved};
+use crate::tokens::Space;
 
 #[component]
 pub fn Stack(
@@ -15,7 +15,7 @@ pub fn Stack(
     children: Children<ListItem>,
 ) -> NodeId {
     let narrow = narrower_than(breakpoint);
-    let spacing = resolved(spacing, Space::resolve);
+    let spacing = spacing.map(Space::px);
     view! {
         <unstyled::Stack spacing narrow children />
     }
