@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn a_failed_build_says_why_and_is_built_again_when_asked() {
-    let mut running = start("failed", None).await;
+    let mut running = start("failed").await;
 
     running.product("POST", "android", COMMIT).await;
     running.started().await;

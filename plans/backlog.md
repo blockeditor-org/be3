@@ -51,3 +51,22 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   one gesture, as a click in one window once counted toward a double-click in
   another (`ClickCounter`). Done: a touch in one window never joins a gesture in
   another, shown by a beui-core test with two windows' touches.
+
+## 9. Version control's caches
+
+- **Trees and commits read once.** A version command in the lane runs on a `Versions` of its
+  own (`Served::version`), so it reads again every tree and commit the loop's statuses already
+  hold, and what it writes never reaches theirs. Done: the loop's `Versions` and the lane's
+  share one cache of trees and commits (behind an `Arc`), and a status after a command reads
+  nothing the command already read.
+- **A bounded walk to the merge base.** A version command's write of a block that moved
+  (`version.rs`, `merge_over`) finds the two heads' common ancestor by walking all the history
+  the device holds of each, up to four times a write. Done: the walk stops at a depth past
+  which the command falls back to the head it read as the base.
+
+## 10. Search
+
+- **Compaction past the byte cap.** A writer's compaction makes no merge reading more than
+  `MERGE_BYTES` (`SearchIndexContent::compact`), so a large index's biggest segments are never
+  merged. An idle-time pass (the device idle, on power) could lift the cap. Done: a stack test
+  where an index whose tier is over the cap is merged by an idle pass and answers the same.

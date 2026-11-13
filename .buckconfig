@@ -50,10 +50,9 @@ clean_stale_enabled = true
 clean_stale_artifact_ttl_hours = 72
 clean_stale_period_hours = 24
 
-# Where the remote execution cluster is: not here, but in the file included at
-# the end. Namespace shuts it down when it has been idle, so ./scripts/buck asks
-# the waker for its hosts and writes them, with the header that authenticates to
-# them, into that file (crates/be-tool-bootstrap/src/server.rs). The address is a bare
+# Where the build server is: not here, but in the file included at the end,
+# which ./scripts/buck writes with the header that authenticates to it
+# (crates/be-tool-bootstrap/src/server.rs). The address is a bare
 # host:port (buck2 rejects grpcs:// and https://), http_headers uses a colon,
 # and there is no instance name.
 #
@@ -77,8 +76,8 @@ find_missing_blobs_batch_size = 1500
 [project]
 ignore = .git, .claude, target, dist, buck-out
 
-# What ./scripts/buck generates: the build server's hosts and key, above. It is
-# not written when .buckconfig.local, a person's own, exists: buck2 then builds
-# where that says, here (guides/running/local_buck2.md) or on the server it
-# names. It is read after this.
+# What ./scripts/buck generates: the build server's address and key, above, or
+# this machine's settings (guides/running/local_buck2.md). It is not written
+# when .buckconfig.local, a person's own, exists: buck2 then builds where that
+# says. It is read after this.
 <?file:target/build-server.buckconfig>
