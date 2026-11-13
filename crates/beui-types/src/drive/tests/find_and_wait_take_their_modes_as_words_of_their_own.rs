@@ -8,7 +8,10 @@ fn find_and_wait_take_their_modes_as_words_of_their_own() {
         parse(&command, &words.collect::<Vec<_>>()).expect("a reading command")
     };
     assert_eq!(parse("find #row"), Ok(Command::Find("#row".into())));
-    assert_eq!(parse("find #row reveal"), Ok(Command::Reveal("#row".into())));
+    assert_eq!(
+        parse("find #row reveal"),
+        Ok(Command::Reveal("#row".into()))
+    );
     assert_eq!(parse("find #row shown"), Ok(Command::Shown("#row".into())));
     assert_eq!(
         parse("find reveal"),
