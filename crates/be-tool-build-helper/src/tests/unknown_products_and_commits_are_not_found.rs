@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn unknown_products_and_commits_are_not_found() {
-    let running = start("unknown", None).await;
+    let running = start("unknown").await;
 
     for (product, commit) in [
         ("ios", COMMIT),

@@ -14,7 +14,7 @@ pub use be_sdk_api::{
     ops::{Reply, wire},
     requested,
 };
-pub use beui::{BeuiTest, HostCall};
+pub use beui::{AskedPreview, BeuiTest, HostCall};
 pub use document::DocumentTest;
 pub use fetches::Fetch;
 pub use signatures::signature;

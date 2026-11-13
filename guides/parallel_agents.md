@@ -10,6 +10,13 @@ the headless be-host.
   branch) starts a session on that branch, in the same environment. Omit `permission_mode`: the child
   inherits the coordinator's, and a mode more permissive than the coordinator's is refused.
 - Run at most 8 subagents at a time; start the next only after one finishes.
+- Start a fresh session for each new task rather than handing a finished one its next. A
+  long session pays for its whole context on every turn, and summarizing it loses detail; a
+  fresh one starts from its prompt alone. The cost is what the old session had learned about
+  the code, so the prompt carries what the task needs: the files, what was found or ruled
+  out, the decisions already made, and the branch to start from. Keep a session only for
+  follow-ups on its own branch (review fixes, CI failures, conflicts), and send a delta
+  review to the reviewer of the head before it.
 - A child can't read the coordinator's scratchpad, so each prompt carries the whole protocol:
   its branch, what to check, how to finish and what to report. Keep the shared part word for
   word the same in every prompt and put the task after it.

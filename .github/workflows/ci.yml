@@ -66,8 +66,8 @@ jobs:
   # request that each run edits rather than adding to, which also counts the
   # lines of Rust the pull request adds and removes outside its tests. The paintings
   # compared are the ones committed on the head, so a painting the autofix job
-  # accepts shows up in the run its commit starts. A fork's run has no gateway
-  # token to build with and no token to comment with, so it has no previews.
+  # accepts shows up in the run its commit starts. A fork's run has no build
+  # server token to build with and no token to comment with, so it has no previews.
   ci:
     name: ci
     runs-on: ubuntu-24.04
@@ -78,9 +78,9 @@ jobs:
       # sees an empty value, and the server refuses its build.
       BE3_BUILD_SERVER: nl.be3.pfg.pw
       BE3_NL_TOKEN: ${{ secrets.BE3_NL_TOKEN }}
-      # The pinned bootstrap predates the nl.be3.pfg.pw server and would refuse its name, so this job runs the
-      # checkout's own, built with cargo (guides/bootstrap.md, Recovery). Remove it once a release that knows
-      # the server is pinned.
+      # The pinned bootstrap predates the change to the build servers it knows, so this job runs the
+      # checkout's own, built with cargo (guides/bootstrap.md, Recovery). Remove it once a release built
+      # from this checkout is pinned.
       BE3_BOOTSTRAP: cargo
     outputs:
       bootstrap: ${{ steps.outputs.outputs.bootstrap }}
@@ -208,16 +208,14 @@ jobs:
       #
       # The files a credential can be in are deleted first rather than left to
       # .gitignore, because the .gitignore is the pull request's, and one based
-      # on an older main may not ignore them: .buckconfig.local, where an
-      # older bootstrap wrote the build server's header (it now writes
-      # target/build-server.buckconfig, under the ignored target/), the scripts' key
-      # files, and the keystore older workflows wrote. Deleted, the most one
-      # can stage is its removal.
+      # on an older main may not ignore them: .buckconfig.local, the scripts'
+      # key files, and the keystore older workflows wrote. Deleted, the most
+      # one can stage is its removal.
       - name: Collect what verification changed
         id: collect
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: |
-          rm -f .buckconfig.local .gateway-authorization .build-server-key.* .nl-key .nl-url buck/android/ci-keystore.base64
+          rm -f .buckconfig.local .gateway-authorization .nl-token buck/android/ci-keystore.base64
           git add --all
           if git diff --cached --quiet; then
             echo 'Verification changed nothing.'

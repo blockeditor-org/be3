@@ -713,6 +713,7 @@ impl Client {
                     from,
                     kind,
                     payload,
+                    received,
                 } => {
                     streams.send(
                         &mut lock,
@@ -720,6 +721,7 @@ impl Client {
                             from,
                             kind,
                             payload: payload.to_vec(),
+                            received,
                         },
                         sessions(block),
                     )?;
@@ -2138,6 +2140,7 @@ impl Client {
                         from: connection.client,
                         kind,
                         payload: payload.into(),
+                        received: be_block_commit::now_milliseconds(),
                     };
                     match to {
                         Some(target) if participants.contains(&target) => {
@@ -2197,6 +2200,7 @@ impl Client {
                             .await?;
                     }
                     if relay {
+                        let received = be_block_commit::now_milliseconds();
                         let participants = state.participants;
                         for entry in entries {
                             let message = Push::Relayed {
@@ -2204,6 +2208,7 @@ impl Client {
                                 from: connection.client,
                                 kind: RelayKind::Edit,
                                 payload: entry.payload.into(),
+                                received,
                             };
                             connection
                                 .hub

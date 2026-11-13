@@ -282,6 +282,10 @@ interface sessions {
         /// message that asks for more. An `append`'s entries are `edit`.
         kind: relay-kind,
         payload: list<u8>,
+        /// When the server took it, in milliseconds since the Unix epoch by
+        /// the server's clock: a relay's arrival time, which its sender
+        /// cannot claim.
+        received: s64,
     }
 
     /// What a relayed message carries, which the server checks against its

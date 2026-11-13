@@ -5,9 +5,9 @@ fn closing_hands_the_clip_to_a_clipboard_manager() {
     let Some(server) = Xvfb::start() else {
         return;
     };
-    let _watchdog = Watchdog::start();
+    let _watchdog = Watchdog::start(&server);
     let owner = Owner::connect(Some(&server.display)).expect("the owner connects");
-    owner.offer(Some("kept"), None);
+    owner.offer(&[ClipItem::text("kept")]);
 
     let (ready, managing) = std::sync::mpsc::channel();
     let display = server.display.clone();

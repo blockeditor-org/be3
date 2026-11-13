@@ -372,11 +372,25 @@ impl Wire {
         call: host_services::Call,
         heard: &mut Vec<Heard>,
     ) {
-        let Some(instance) = self.editor_of(parent) else {
+        use host_services::Call as Services;
+        let instance = match &call {
+            Services::RevisionPreviewOpened { this, .. } => {
+                self.held.owners.get(&this.op()).copied()
+            }
+            _ => self.editor_of(parent),
+        };
+        let Some(instance) = instance else {
             self.connection.complete(op, Outcome::Err(OpError::Denied));
             return;
         };
-        self.serving.insert(op, instance);
+        match &call {
+            Services::RevisionPreviewNew { resource, .. } => {
+                self.held.owners.insert(resource.op(), instance);
+            }
+            _ => {
+                self.serving.insert(op, instance);
+            }
+        }
         heard.push(Heard::Service(Service { instance, call }));
     }
 

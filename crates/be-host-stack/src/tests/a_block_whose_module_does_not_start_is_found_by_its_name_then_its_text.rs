@@ -61,14 +61,14 @@ fn a_block_whose_module_does_not_start_is_found_by_its_name_then_its_text() {
     harness.connect();
     // The text type's module does not start for the indexer, as one that fails to load.
     with_shared_mut(|shared| shared.search.not_running.insert(TextContent::CONTENT_TYPE));
-    let (workspace, note) = workspace_with_note("Pantry", "apples and pears");
+    let (_, note) = workspace_with_note("Pantry", "apples and pears");
 
     // Put by its name, marked partial, and searches are complete.
     finds("Pantry", &[note]);
     finds("apples", &[]);
 
-    // Once its module runs, as when a text block is opened, the note queued again is put in
-    // full at the same commit, which replaces the partial entry.
+    // Once its module runs, as when a text block is opened, the note is put in full at the
+    // same commit, which replaces the partial entry.
     with_shared_mut(|shared| shared.search.not_running.remove(&TextContent::CONTENT_TYPE));
     let other = Uuid::new_v4();
     create(
@@ -83,11 +83,8 @@ fn a_block_whose_module_does_not_start_is_found_by_its_name_then_its_text() {
     wait_until("ran the text type", |_| {
         kind_of(TextContent::CONTENT_TYPE).is_some()
     });
-    // The mirror lists the workspace's children, so the note can be placed once the
-    // catch-up that named it is done with it.
-    want(Owner::Host, vec![Query::Children(workspace)]);
-    crate::wait_until(|shared| shared.graph.get(note).map(|_| ()));
-    with_shared_mut(|shared| shared.search.reread([note]));
+    // Nothing asks for it again: the partial put is queued again once the module runs, and
+    // the note, which no listing here holds, is placed by asking the mirror for it.
     retry_now();
     finds("apples", &[note]);
     finds("Pantry", &[note]);

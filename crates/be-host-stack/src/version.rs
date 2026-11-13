@@ -25,8 +25,10 @@ use be_sdk_api::{
 use uuid::Uuid;
 
 use super::graph::{Graph, Owner, Query, Scope};
-use super::replicas::Replicas;
+mod reach;
+
 use super::worker::{Shared, Store, node_of};
+pub(super) use reach::{LoopCall, LoopCalls, Reach};
 
 const LOG_LENGTH: usize = 100;
 
@@ -287,7 +289,7 @@ struct Step {
 pub(super) struct Context<'a> {
     pub(super) peer: &'a Arc<Peer<Store>>,
     pub(super) shared: &'a Arc<Mutex<Shared>>,
-    pub(super) replicas: &'a mut Replicas,
+    pub(super) replicas: Reach<'a>,
 }
 
 fn failed(error: ClientError) -> String {
@@ -2144,7 +2146,7 @@ async fn save_new<R: Root + Model + Default + Clone>(
 }
 
 async fn settle(context: &mut Context<'_>, block: Uuid, head: CommitId) -> Result<(), String> {
-    context.replicas.moved_here(block, head);
+    context.replicas.moved_here(block, head).await;
     context
         .shared
         .lock()
@@ -2158,41 +2160,42 @@ fn unplaced() -> String {
     "You cannot see where this block is.".to_owned()
 }
 
+/// Makes a block under `parent`, or moves there one already made under the same id: a block
+/// coming back into the tree, or one another device's command made first. Answers what such a
+/// block holds (its head and defined metadata), which `publish` writes over as read, merging
+/// what changed after.
 async fn create(
     context: &mut Context<'_>,
     block: Uuid,
     content_type: Uuid,
     parent: BlockParent,
     metadata: BlockMetadata,
-) -> Result<(), String> {
-    let summary = match context
+) -> Result<Option<(Option<CommitId>, be_block::Entries)>, String> {
+    let (summary, found) = match context
         .peer
         .create_block(block, content_type, parent, &metadata, false)
         .await
     {
-        Ok(summary) => summary,
+        Ok(summary) => (summary, false),
         Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
             context
                 .peer
                 .set_parent(block, parent)
                 .await
                 .map_err(failed)?;
-            context
-                .peer
-                .define(block, |held| held.defined.clone_from(&metadata.defined))
-                .await
-                .map_err(failed)?
+            (context.peer.summary(block).await.map_err(failed)?, true)
         }
         Err(error) => return Err(failed(error)),
     };
     let node = node_of(context.peer, &summary);
+    let existing = found.then(|| (summary.head, node.metadata.defined.clone()));
     context
         .shared
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .graph
         .put(node, summary.revision);
-    Ok(())
+    Ok(existing)
 }
 
 async fn set_parent(
@@ -2216,17 +2219,53 @@ async fn set_parent(
     Ok(())
 }
 
+/// Holds the next version command's write of a block, once, until the test lets it go: what a
+/// test does meanwhile, the loop still running, lands between the command reading the block and
+/// writing it (`Shared::before_write`).
+#[cfg(test)]
+pub(crate) type HeldWrite = (
+    tokio::sync::oneshot::Sender<Uuid>,
+    tokio::sync::oneshot::Receiver<()>,
+);
+
+/// What a block holds when version control writes it.
+struct Written<'a> {
+    manifest: Option<Manifest>,
+    references: Vec<Uuid>,
+    metadata: &'a BlockMetadata,
+}
+
+/// What the command read of a block before it wrote it: its head and defined metadata. `None`
+/// for a block it makes, or one it found already made under the same id, which it writes over:
+/// a block coming back into the tree takes what the tree says.
+struct Read<'a> {
+    head: Option<CommitId>,
+    /// The content the command read, the base of a merge when its head is not known (the
+    /// mirror does not always know the head of a block not open here).
+    content: Option<Manifest>,
+    defined: &'a be_block::Entries,
+}
+
+/// Writes `written` as `block`'s content and defined metadata. Edits go on while a version
+/// command runs in the lane, so the block may have moved on since the command read it, or move
+/// on while this writes: what it moved to is merged with what this writes, so no edit is lost.
+/// The content merges three ways from the two heads' common ancestor (a conflict stays in the
+/// content, as the type merges it), and the defined metadata key by key: the command's value
+/// where it changed the key, the block's otherwise.
 async fn publish(
     context: &mut Context<'_>,
     block: Uuid,
-    manifest: Option<Manifest>,
-    references: Vec<Uuid>,
-    metadata: &BlockMetadata,
+    written: Written<'_>,
+    read: Option<Read<'_>>,
 ) -> Result<Option<CommitId>, String> {
-    let Some(manifest) = manifest else {
+    let no_entries = be_block::Entries::new();
+    let read_defined = read.as_ref().map_or(&no_entries, |read| read.defined);
+    let defined =
+        |held: &be_block::Entries| merge_defined(read_defined, &written.metadata.defined, held);
+    let Some(manifest) = written.manifest else {
         let summary = context
             .peer
-            .define(block, |held| held.defined.clone_from(&metadata.defined))
+            .define(block, |held| held.defined = defined(&held.defined))
             .await
             .map_err(failed)?;
         let node = node_of(context.peer, &summary);
@@ -2238,15 +2277,78 @@ async fn publish(
             .put(node, summary.revision);
         return Ok(summary.head);
     };
+    #[cfg(test)]
+    let hook = context
+        .shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .before_write
+        .take();
+    #[cfg(test)]
+    if let Some((reached, go)) = hook {
+        let _ = reached.send(block);
+        let _ = go.await;
+    }
     let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
-    for _ in 0..4 {
+    let mut made_from = read.as_ref().map_or(expected, |read| read.head);
+    let mut read_content = read.as_ref().and_then(|read| read.content.clone());
+    let (mut manifest, mut references, mut derived) = (
+        manifest,
+        written.references,
+        written.metadata.derived.clone(),
+    );
+    // Rejected writes and waits for this device's own edit to be sent, each bounded on its own.
+    let (mut rejected, mut waited) = (0, 0);
+    loop {
+        if let Some(theirs) = expected
+            && made_from != expected
+        {
+            match merge_over(
+                context,
+                block,
+                (made_from, read_content.as_ref()),
+                &manifest,
+                theirs,
+            )
+            .await?
+            {
+                Some(merged) => {
+                    (manifest, references, derived) = merged;
+                    made_from = expected;
+                    read_content = None;
+                }
+                None => {
+                    // What this was made from is this device's edit, not sent yet, on top of
+                    // `expected`: what this writes holds it already. Once it is sent, it is the
+                    // head this writes over, so nothing of it is merged in twice.
+                    if waited == 2 {
+                        return Err(
+                            "This device's edit of a block could not be sent. Try again \
+                                    once it is."
+                                .into(),
+                        );
+                    }
+                    waited += 1;
+                    let ctx = (context.peer, context.shared);
+                    context.replicas.content_sent(ctx, block).await;
+                    expected = context.peer.remote_head(block).await.map_err(failed)?;
+                    continue;
+                }
+            }
+        }
+        let held = node_of(
+            context.peer,
+            &context.peer.summary(block).await.map_err(failed)?,
+        )
+        .metadata
+        .defined;
         match context
             .peer
             .write(
                 block,
                 Write::written(manifest.clone(), expected)
-                    .described(references.clone(), metadata.derived.clone())
-                    .defined(metadata.defined.clone()),
+                    .described(references.clone(), derived.clone())
+                    .defined(defined(&held)),
             )
             .await
             .map_err(failed)?
@@ -2263,10 +2365,108 @@ async fn publish(
                     .put(node, summary.revision);
                 return Ok(Some(head));
             }
-            Saved::Rejected { head } => expected = head,
+            Saved::Rejected { head } => {
+                rejected += 1;
+                if rejected == 4 {
+                    return Err(
+                        "Someone else kept changing a block at the same time. Try again.".into(),
+                    );
+                }
+                expected = head;
+            }
         }
     }
-    Err("Someone else kept changing a block at the same time. Try again.".into())
+}
+
+/// The command's defined entries over the block's: the command's value for each key it
+/// changed from what it read, the block's for the rest.
+fn merge_defined(
+    read: &be_block::Entries,
+    ours: &be_block::Entries,
+    held: &be_block::Entries,
+) -> be_block::Entries {
+    let mut merged = held.clone();
+    for key in read.keys().chain(ours.keys()) {
+        if read.get(key) == ours.get(key) {
+            continue;
+        }
+        match ours.get(key) {
+            Some(value) => merged.insert(*key, value.clone()),
+            None => merged.remove(key),
+        };
+    }
+    merged
+}
+
+/// `ours`, made from `block`'s content at `made_from` (or from `read_content`, when that head
+/// is not known or shares no history with `theirs`), merged with its content at `theirs`:
+/// the merge written, its references and derived metadata. `None` when there is nothing to
+/// merge: `theirs` is what `made_from` was built on, an edit of this device not sent yet.
+async fn merge_over(
+    context: &mut Context<'_>,
+    block: Uuid,
+    (made_from, read_content): (Option<CommitId>, Option<&Manifest>),
+    ours: &Manifest,
+    theirs: CommitId,
+) -> Result<Option<(Manifest, Vec<Uuid>, be_block::Entries)>, String> {
+    let content_type = context
+        .peer
+        .known_summary(block)
+        .map(|summary| summary.content_type)
+        .ok_or("Version control does not know a block it writes.")?;
+    let base = match made_from {
+        Some(made_from) => {
+            context.peer.fetch_history(theirs).await.map_err(failed)?;
+            context
+                .peer
+                .fetch_history(made_from)
+                .await
+                .map_err(failed)?;
+            let commits = context.peer.commits();
+            if commits.is_ancestor(theirs, made_from).map_err(stored)? {
+                return Ok(None);
+            }
+            match commits.common_ancestor(made_from, theirs).map_err(stored)? {
+                Some(base) => Some(
+                    context
+                        .peer
+                        .load_commit(base)
+                        .await
+                        .map_err(failed)?
+                        .manifest,
+                ),
+                None => read_content.cloned(),
+            }
+        }
+        None => read_content.cloned(),
+    };
+    let theirs = context
+        .peer
+        .load_commit(theirs)
+        .await
+        .map_err(failed)?
+        .manifest;
+    let ctx = (context.peer, context.shared);
+    let merged = context
+        .replicas
+        .merge(
+            ctx,
+            content_type,
+            [base.as_ref(), Some(ours), Some(&theirs)],
+        )
+        .await
+        .map_err(failed)?
+        .ok_or("A block changed while version control wrote it, and its type cannot merge them.")?;
+    let manifest = context
+        .peer
+        .write_content(block, content_type, merged.parts())
+        .await
+        .map_err(failed)?;
+    Ok(Some((
+        manifest,
+        merged.content.references.clone(),
+        merged.content.derived.clone(),
+    )))
 }
 
 async fn materialize(
@@ -2312,15 +2512,45 @@ async fn materialize(
                 {
                     true => working.heads.get(&block).copied().flatten(),
                     false => {
-                        publish(context, block, entry.content.clone(), references, &metadata)
-                            .await?
+                        let read = Read {
+                            head: working.heads.get(&block).copied().flatten(),
+                            content: current.content.clone(),
+                            defined: &current.metadata.defined,
+                        };
+                        publish(
+                            context,
+                            block,
+                            Written {
+                                manifest: entry.content.clone(),
+                                references,
+                                metadata: &metadata,
+                            },
+                            Some(read),
+                        )
+                        .await?
                     }
                 }
             }
             None => {
                 let metadata = tagged(&entry.metadata, block, local);
-                create(context, block, entry.content_type, parent, metadata.clone()).await?;
-                publish(context, block, entry.content.clone(), references, &metadata).await?
+                let existing =
+                    create(context, block, entry.content_type, parent, metadata.clone()).await?;
+                let read = existing.as_ref().map(|(head, defined)| Read {
+                    head: *head,
+                    content: None,
+                    defined,
+                });
+                publish(
+                    context,
+                    block,
+                    Written {
+                        manifest: entry.content.clone(),
+                        references,
+                        metadata: &metadata,
+                    },
+                    read,
+                )
+                .await?
             }
         };
         if let Some(head) = head {
@@ -2399,7 +2629,7 @@ async fn version_block(
             .map(|description| description.derived)
             .unwrap_or_default();
     }
-    create(
+    let existing = create(
         context,
         block,
         content_type,
@@ -2411,7 +2641,22 @@ async fn version_block(
         .iter()
         .map(|reference| real.get(reference).copied().unwrap_or(*reference))
         .collect();
-    publish(context, block, manifest, references, &metadata).await?;
+    let read = existing.as_ref().map(|(head, defined)| Read {
+        head: *head,
+        content: None,
+        defined,
+    });
+    publish(
+        context,
+        block,
+        Written {
+            manifest,
+            references,
+            metadata: &metadata,
+        },
+        read,
+    )
+    .await?;
     Ok(Some(block))
 }
 
