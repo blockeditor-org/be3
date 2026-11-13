@@ -2299,7 +2299,7 @@ async fn run(
         };
         let hits = match load(peer, head).await {
             Ok(content) => content
-                .search(&PeerParts(peer), &query, HITS)
+                .search(&PeerParts(peer), &query, HITS, peer.latest_believed())
                 .await
                 .map_err(|error| error.to_string()),
             Err(error) => Err(error),

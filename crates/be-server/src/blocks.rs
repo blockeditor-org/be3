@@ -780,13 +780,14 @@ impl ServerStore {
                         .chain(change.added.iter().copied())
                         .filter(|hash| !base_set.contains(hash))
                         .collect();
-                    let removed: Vec<Hash> = expected
-                        .map(CommitId::hash)
-                        .into_iter()
-                        .chain(change.removed.iter().copied().filter(|hash| {
-                            base_set.contains(hash) && !added_set.contains(hash)
-                        }))
-                        .collect();
+                    let removed: Vec<Hash> =
+                        expected
+                            .map(CommitId::hash)
+                            .into_iter()
+                            .chain(change.removed.iter().copied().filter(|hash| {
+                                base_set.contains(hash) && !added_set.contains(hash)
+                            }))
+                            .collect();
                     let base_bytes = match expected {
                         Some(expected) => {
                             store.commit_bytes(database, identity.organization, block, expected)?

@@ -307,9 +307,7 @@ impl Entry {
             change.commit().believed(latest),
         );
         held < by
-            || held == by
-                && self.partial
-                && matches!(change, Change::Put(put) if !put.partial)
+            || held == by && self.partial && matches!(change, Change::Put(put) if !put.partial)
     }
 }
 
@@ -486,7 +484,10 @@ impl Index {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
-            if old.as_ref().is_some_and(|old| !old.replaced_by(&change, latest)) {
+            if old
+                .as_ref()
+                .is_some_and(|old| !old.replaced_by(&change, latest))
+            {
                 continue;
             }
             let old_place = old.as_ref().and_then(|old| old.place);
@@ -627,8 +628,7 @@ impl Change {
             self.commit().believed(latest),
             other.commit().believed(latest),
         );
-        if by > held || by == held && partial(self) && !partial(&other)
-        {
+        if by > held || by == held && partial(self) && !partial(&other) {
             *self = other;
         }
     }
