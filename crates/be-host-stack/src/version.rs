@@ -2321,7 +2321,14 @@ async fn merge_over(
         .map(|summary| summary.content_type)
         .ok_or("Version control does not know a block it writes.")?;
     let base = match base {
-        Some(base) => Some(context.peer.load_commit(base).await.map_err(failed)?.manifest),
+        Some(base) => Some(
+            context
+                .peer
+                .load_commit(base)
+                .await
+                .map_err(failed)?
+                .manifest,
+        ),
         None => None,
     };
     let theirs = context
@@ -2333,7 +2340,11 @@ async fn merge_over(
     let ctx = (context.peer, context.shared);
     let merged = context
         .replicas
-        .merge(ctx, content_type, [base.as_ref(), Some(ours), Some(&theirs)])
+        .merge(
+            ctx,
+            content_type,
+            [base.as_ref(), Some(ours), Some(&theirs)],
+        )
         .await
         .map_err(failed)?
         .ok_or("A block changed while version control wrote it, and its type cannot merge them.")?;
