@@ -293,6 +293,7 @@ struct ArtifactState {
 }
 
 mod blocks;
+use be_sdk_api::blocks::BlockValue;
 use blocks::Subject;
 
 impl Instance {
@@ -392,7 +393,7 @@ impl Instance {
             let mut answer = match be_host_stack::ready(graph_query) {
                 true => Ok(be_host_stack::app_graph::answer(query)),
                 false => match be_host_stack::failure(graph_query) {
-                    Some(error) => Err(error),
+                    Some(error) => Err(be_sdk_api::Failure::Failed(error)),
                     None => continue,
                 },
             };
@@ -403,7 +404,7 @@ impl Instance {
                     }
                 });
             }
-            self.offer(Subject::Blocks(query), &answer);
+            self.offer(Subject::Blocks(query), &BlockValue::Blocks(answer));
         }
     }
 
@@ -491,7 +492,7 @@ impl Instance {
                 be_host_stack::version_since(block.id, self.version_sent)
         {
             self.version_sent = Some(revision);
-            self.offer(Subject::Version, &status);
+            self.offer(Subject::Version, &BlockValue::Version(status));
         }
     }
 
@@ -619,7 +620,7 @@ impl Instance {
             .collect();
         for block in blocks {
             let history = self.history(block);
-            self.offer(Subject::History(block), &history);
+            self.offer(Subject::History(block), &BlockValue::History(history));
         }
     }
 
@@ -2245,7 +2246,7 @@ impl Instances {
                     },
                 );
                 for (block, head) in heads {
-                    entry.offer(Subject::Head(block), &head);
+                    entry.offer(Subject::Head(block), &head_value(head));
                 }
             }
             if stale || graph_moved {
@@ -3661,7 +3662,7 @@ impl Instances {
             && let Some(entry) = self.entries.get_mut(&instance)
             && entry.heads.wants(block, commit)
         {
-            entry.offer(Subject::Head(block), &head);
+            entry.offer(Subject::Head(block), &head_value(head));
         }
     }
 
@@ -4269,4 +4270,8 @@ fn preview_may_tell(message: &ShellMessage) -> bool {
             | ShellMessage::ViewStopped(_)
             | ShellMessage::Copy(_)
     )
+}
+
+fn head_value(head: super::heads::Head) -> BlockValue {
+    BlockValue::Head(head.map_err(be_sdk_api::Failure::Failed))
 }
