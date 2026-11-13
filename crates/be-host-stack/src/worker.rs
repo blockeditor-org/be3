@@ -22,7 +22,7 @@ use uuid::Uuid;
 use super::graph::{Graph, Listing, Node, Owner, Query};
 use super::replicas::Replicas;
 use super::types::{self, Modules};
-use super::version::{Context, Versions};
+use super::version::{Context, LoopCall, LoopCalls, Reach, Versions};
 use super::{Config, Content, platform};
 
 mod served;
@@ -847,6 +847,10 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             uploads: Uploads::new(&shared),
             served: Served::default(),
             versions: Versions::default(),
+            calls: {
+                let (calls, called) = tokio::sync::mpsc::unbounded_channel();
+                (LoopCalls(calls), called)
+            },
             line: Line::down(&config, 0, Duration::ZERO),
             tasks: Tasks::new(),
             drained_at: Duration::ZERO,
@@ -1065,6 +1069,8 @@ struct Session<'a> {
     uploads: Uploads,
     served: Served,
     versions: Versions,
+    /// Calls from version commands in the lane to the replicas (`version::Reach`).
+    calls: (LoopCalls, UnboundedReceiver<LoopCall>),
     line: Line,
     tasks: (Tasks, UnboundedReceiver<()>),
     drained_at: Duration,
@@ -1141,6 +1147,7 @@ impl Session<'_> {
                     &mut self.uploads,
                     &mut *self.replicas,
                     &mut self.tasks.1,
+                    &mut self.calls.1,
                     stopping
                 ));
                 let timer = wake_at.map(|at| self.config.clock.sleep_until(at));
@@ -1219,10 +1226,10 @@ impl Session<'_> {
                         wanted: &mut self.wanted,
                         shared,
                         config: self.config,
-                        versions: &mut self.versions,
                         flushes: &mut flushes,
                         tasks: &self.tasks.0,
                         served: &mut self.served,
+                        calls: &self.calls.0,
                     };
                     let mut next = Some(command);
                     let mut applied = false;
@@ -1257,10 +1264,10 @@ impl Session<'_> {
                         wanted: &mut self.wanted,
                         shared,
                         config: self.config,
-                        versions: &mut self.versions,
                         flushes: &mut flushes,
                         tasks: &self.tasks.0,
                         served: &mut self.served,
+                        calls: &self.calls.0,
                     };
                     let mut applied = false;
                     for command in self.uploads.runnable() {
@@ -1302,6 +1309,13 @@ impl Session<'_> {
                     self.replicas.modules.tick_due();
                     false
                 }
+                Woken::Call(call) => {
+                    call(&mut *self.replicas, peer, shared).await;
+                    while let Ok(call) = self.calls.1.try_recv() {
+                        call(&mut *self.replicas, peer, shared).await;
+                    }
+                    false
+                }
                 Woken::Finished => {
                     let runnable = self.served.runnable();
                     let mut ran = Ran {
@@ -1310,10 +1324,10 @@ impl Session<'_> {
                         wanted: &mut self.wanted,
                         shared,
                         config: self.config,
-                        versions: &mut self.versions,
                         flushes: &mut flushes,
                         tasks: &self.tasks.0,
                         served: &mut self.served,
+                        calls: &self.calls.0,
                     };
                     for command in runnable {
                         step(shared, Some(command.name()));
@@ -1406,7 +1420,7 @@ impl Session<'_> {
                 &mut Context {
                     peer,
                     shared,
-                    replicas: &mut *self.replicas,
+                    replicas: Reach::Here(&mut *self.replicas),
                 },
                 due,
             )
@@ -1918,6 +1932,8 @@ fn rekey_changed(
 
 enum Woken {
     Command(Command),
+    /// Work the lane asks of the loop's replicas (`LoopCalls`).
+    Call(LoopCall),
     Finished,
     Uploaded,
     Event(Option<Event>),
@@ -1933,6 +1949,7 @@ impl Woken {
     fn name(&self) -> &'static str {
         match self {
             Woken::Command(_) => "a command",
+            Woken::Call(_) => "a version command's call",
             Woken::Finished => "a finished task",
             Woken::Uploaded => "finished uploads",
             Woken::Event(_) => "an event from the server",
@@ -1974,6 +1991,7 @@ async fn wait(
     uploads: &mut Uploads,
     replicas: &mut Replicas,
     finished: &mut UnboundedReceiver<()>,
+    calls: &mut UnboundedReceiver<LoopCall>,
     stopping: bool,
 ) -> Woken {
     let command = std::pin::pin!(async {
@@ -2009,6 +2027,13 @@ async fn wait(
             None => std::future::pending().await,
         }
     });
+    let called = std::pin::pin!(async {
+        match calls.recv().await {
+            Some(call) => Woken::Call(call),
+            None => std::future::pending().await,
+        }
+    });
+    let fetched = std::pin::pin!(async { select(fetched, called).await.factor_first().0 });
     let first = select(
         select(command, select(nudge, fetched)),
         select(heard, select(uploaded, module)),
@@ -2033,10 +2058,10 @@ struct Ran<'a> {
     wanted: &'a mut Wanted,
     shared: &'a Arc<Mutex<Shared>>,
     config: &'a Config,
-    versions: &'a mut Versions,
     flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
     tasks: &'a Tasks,
     served: &'a mut Served,
+    calls: &'a LoopCalls,
 }
 
 type DoneReply = Box<dyn FnOnce(Result<(), String>) + Send>;
@@ -2109,6 +2134,10 @@ impl Ran<'_> {
     }
 
     async fn run(&mut self, command: Command) -> bool {
+        if let Command::Version { block, command } = command {
+            self.version(block, command).await;
+            return true;
+        }
         let command = match self.peer.is_attached() {
             true => Some(command),
             false => refuse_offline(command, self.shared),
@@ -2120,8 +2149,8 @@ impl Ran<'_> {
         if let Some(block) = command.asks_server_of() {
             self.tasks.sent(self.peer, self.shared, Some(block)).await;
         }
-        // An export or a version command reads a whole tree from the server.
-        if matches!(command, Command::Export { .. } | Command::Version { .. }) {
+        // An export reads a whole tree from the server.
+        if matches!(command, Command::Export { .. }) {
             self.tasks.sent(self.peer, self.shared, None).await;
         }
         let applied = match command {
@@ -2233,7 +2262,6 @@ impl Ran<'_> {
                     self.replicas,
                     self.wanted,
                     self.shared,
-                    self.versions,
                     self.flushes,
                     self.tasks,
                     command,
@@ -2243,6 +2271,25 @@ impl Ran<'_> {
         };
         self.done();
         applied
+    }
+
+    /// A version command: the loop seals the open replicas, so it reads what they hold, and the
+    /// lane does the rest, which reads and writes the server between steps; it reaches the
+    /// replicas through the loop (`version::Reach`), so the loop and other blocks never wait on
+    /// the server for it.
+    async fn version(&mut self, block: Uuid, command: be_sdk_api::VersionCommand) {
+        set_busy(self.shared, block, true, None);
+        be_host_base::host::wake();
+        self.replicas.seal_all((self.peer, self.shared)).await;
+        self.served.version(
+            self.peer,
+            self.shared,
+            self.tasks,
+            self.calls,
+            block,
+            command,
+        );
+        self.done();
     }
 
     fn done(&self) {
@@ -2653,7 +2700,12 @@ fn version_revisions(shared: &Arc<Mutex<Shared>>) -> u64 {
         .sum()
 }
 
-fn set_busy(shared: &Arc<Mutex<Shared>>, block: Uuid, busy: bool, error: Option<String>) {
+pub(super) fn set_busy(
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+    busy: bool,
+    error: Option<String>,
+) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let state = held.versions.entry(block).or_default();
     state.status.busy = busy;
@@ -2756,7 +2808,6 @@ async fn apply(
     replicas: &mut Replicas,
     wanted: &mut Wanted,
     shared: &Arc<Mutex<Shared>>,
-    versions: &mut Versions,
     flushes: &mut Vec<std::sync::mpsc::Sender<()>>,
     tasks: &Tasks,
     command: Command,
@@ -2817,24 +2868,8 @@ async fn apply(
             be_host_base::host::wake();
             false
         }
-        Command::Version { block, command } => {
-            set_busy(shared, block, true, None);
-            be_host_base::host::wake();
-            replicas.seal_all(ctx).await;
-            let outcome = versions
-                .run(
-                    &mut Context {
-                        peer,
-                        shared,
-                        replicas,
-                    },
-                    block,
-                    command,
-                )
-                .await;
-            set_busy(shared, block, false, outcome.err());
-            true
-        }
+        // In the lane (`Ran::version`).
+        Command::Version { .. } => false,
         Command::PreviewChild {
             alias,
             source,

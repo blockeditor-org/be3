@@ -25,8 +25,10 @@ use be_sdk_api::{
 use uuid::Uuid;
 
 use super::graph::{Graph, Owner, Query, Scope};
-use super::replicas::Replicas;
+mod reach;
+
 use super::worker::{Shared, Store, node_of};
+pub(super) use reach::{LoopCall, LoopCalls, Reach};
 
 const LOG_LENGTH: usize = 100;
 
@@ -287,7 +289,7 @@ struct Step {
 pub(super) struct Context<'a> {
     pub(super) peer: &'a Arc<Peer<Store>>,
     pub(super) shared: &'a Arc<Mutex<Shared>>,
-    pub(super) replicas: &'a mut Replicas,
+    pub(super) replicas: Reach<'a>,
 }
 
 fn failed(error: ClientError) -> String {
@@ -2144,7 +2146,7 @@ async fn save_new<R: Root + Model + Default + Clone>(
 }
 
 async fn settle(context: &mut Context<'_>, block: Uuid, head: CommitId) -> Result<(), String> {
-    context.replicas.moved_here(block, head);
+    context.replicas.moved_here(block, head).await;
     context
         .shared
         .lock()
