@@ -731,7 +731,26 @@ fn AboutPanel() -> NodeId {
 #[component]
 fn LeaveDialog(view: HostUiStore) -> NodeId {
     let leaving = view.leaving;
-    let open = create_memo(move || leaving.get());
+    let open = create_memo(move || leaving.with(Option::is_some));
+    let title = create_memo(move || {
+        leaving.with(|leaving| match leaving {
+            Some(leaving) => format!("Leave \u{201c}{}\u{201d}?", leaving.name),
+            None => String::new(),
+        })
+    });
+    let message = create_memo(move || {
+        let within =
+            leaving.with(|leaving| leaving.as_ref().and_then(|leaving| leaving.within.clone()));
+        let from = match within {
+            Some(within) => format!(
+                "You will no longer see it, in \u{201c}{within}\u{201d}, or anything inside it"
+            ),
+            None => "You will no longer see it or anything inside it".to_owned(),
+        };
+        format!(
+            "{from}, unless someone shares it with you again. Whoever can edit it gives it new keys."
+        )
+    });
     let busy = view.leave_busy;
     let busy = create_memo(move || busy.get());
     let refused = view.leave_refused;
@@ -741,17 +760,20 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         <Dialog
             open={open}
             kind=DialogKind::Alert
-            title="Leave?"
+            title={title}
             id="host.leave"
             actions={vec![
-                DialogAction::destructive("Leave", || send(UiCommand::ConfirmLeave)).busy(busy),
+                DialogAction::destructive("Leave", move || {
+                    if let Some(leaving) = leaving.get_untracked() {
+                        send(UiCommand::ConfirmLeave(leaving.block));
+                    }
+                })
+                .busy(busy),
                 DialogAction::cancel("Stay"),
             ]}
             on_dismiss={|| send(UiCommand::CancelLeave)}
         >
-            <Text style=TextStyle::PARAGRAPH>
-                "You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
-            </Text>
+            <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <Show condition={was_refused}>
                 <Text style=TextStyle::CAPTION @test_id="host.leave.refused">{refused}</Text>
             </Show>

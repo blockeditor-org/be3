@@ -39,7 +39,8 @@ fn a_workspace_s_rows_follow_the_order_it_lists_its_children_in() {
     fixture
         .host
         .reorder_block(todo.id, MY_FILES, Some(notes.id));
-    let asked = fixture.host.take_block_commands();
+    fixture.settle();
+    let asked = fixture.test.take_block_commands();
     assert!(
         asked.iter().any(|(block, command)| *block == todo.id
             && *command
