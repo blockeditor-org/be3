@@ -16,9 +16,14 @@ interface dock {
         tab: dock-tab-path,
     }
 
+    /// A docked child's dock, or its withdrawal. `epoch` grows with every
+    /// one the host sends for the child, and the instance names the last it
+    /// heard in each `dock-child-hosted` for the child, so the host can tell
+    /// an answer to this one from one sent before it arrived.
     record dock-declared-child {
         child: child-id,
         declaration: option<dock-declaration>,
+        epoch: u64,
     }
 
     /// `owner` leads from the child to the instance that asked, whose

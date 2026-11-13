@@ -30,6 +30,7 @@ fn the_apps_button_opens_a_grid_of_the_programs_the_host_lists() {
     fixture.test.set_watched::<ProgramsWatch>(&ProgramCatalog {
         listed: true,
         programs: Vec::new(),
+        shell: Vec::new(),
     });
     fixture.settle();
     assert!(
