@@ -441,7 +441,9 @@ fn plain_name(name: &str) -> String {
     let bytes = collapsed.as_bytes();
     let cut = (0..=cut)
         .rev()
-        .find(|at| collapsed.is_char_boundary(*at) && be_lib_graphemes::is_grapheme_boundary(bytes, *at))
+        .find(|at| {
+            collapsed.is_char_boundary(*at) && be_lib_graphemes::is_grapheme_boundary(bytes, *at)
+        })
         .unwrap_or(0);
     format!("{}\u{2026}", collapsed[..cut].trim_end())
 }
@@ -449,20 +451,54 @@ fn plain_name(name: &str) -> String {
 /// Letters that draw as nothing (Hangul fillers, the blank Braille pattern), which a name could
 /// use to look like spaces that collapsing does not see.
 fn is_blank_letter(c: char) -> bool {
-    matches!(c, '\u{115f}' | '\u{1160}' | '\u{2800}' | '\u{3164}' | '\u{ffa0}')
+    matches!(
+        c,
+        '\u{115f}' | '\u{1160}' | '\u{2800}' | '\u{3164}' | '\u{ffa0}'
+    )
 }
 
 /// The straight quote a quotation mark (Unicode's Quotation_Mark property) or a lookalike reads
 /// as.
 fn straight_quote(c: char) -> Option<char> {
     match c {
-        '\u{00ab}' | '\u{00bb}' | '\u{02ba}' | '\u{02ee}' | '\u{05f4}' | '\u{201c}'..='\u{201f}'
-        | '\u{2033}' | '\u{2036}' | '\u{2e42}' | '\u{3003}' | '\u{300e}' | '\u{300f}'
-        | '\u{301d}'..='\u{301f}' | '\u{275d}' | '\u{275e}' | '\u{275f}' | '\u{2760}'
-        | '\u{fe43}' | '\u{fe44}' | '\u{ff02}' | '\u{1f676}'..='\u{1f678}' => Some('"'),
-        '\u{02bb}' | '\u{02bc}' | '\u{055a}' | '\u{05f3}' | '\u{2018}'..='\u{201b}'
-        | '\u{2032}' | '\u{2035}' | '\u{2039}' | '\u{203a}' | '\u{275b}' | '\u{275c}'
-        | '\u{300c}' | '\u{300d}' | '\u{fe41}' | '\u{fe42}' | '\u{ff07}' | '\u{ff62}'
+        '\u{00ab}'
+        | '\u{00bb}'
+        | '\u{02ba}'
+        | '\u{02ee}'
+        | '\u{05f4}'
+        | '\u{201c}'..='\u{201f}'
+        | '\u{2033}'
+        | '\u{2036}'
+        | '\u{2e42}'
+        | '\u{3003}'
+        | '\u{300e}'
+        | '\u{300f}'
+        | '\u{301d}'..='\u{301f}'
+        | '\u{275d}'
+        | '\u{275e}'
+        | '\u{275f}'
+        | '\u{2760}'
+        | '\u{fe43}'
+        | '\u{fe44}'
+        | '\u{ff02}'
+        | '\u{1f676}'..='\u{1f678}' => Some('"'),
+        '\u{02bb}'
+        | '\u{02bc}'
+        | '\u{055a}'
+        | '\u{05f3}'
+        | '\u{2018}'..='\u{201b}'
+        | '\u{2032}'
+        | '\u{2035}'
+        | '\u{2039}'
+        | '\u{203a}'
+        | '\u{275b}'
+        | '\u{275c}'
+        | '\u{300c}'
+        | '\u{300d}'
+        | '\u{fe41}'
+        | '\u{fe42}'
+        | '\u{ff07}'
+        | '\u{ff62}'
         | '\u{ff63}' => Some('\''),
         _ => None,
     }

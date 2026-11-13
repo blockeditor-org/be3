@@ -36,7 +36,11 @@ fn a_quoted_name_cannot_fake_what_a_dialog_says() {
     let long = inside(&"word ".repeat(40));
     assert_eq!(long.chars().count(), 60, "{long}");
     assert!(long.ends_with('\u{2026}'), "{long}");
-    let flags = inside(&format!("{}{}", "a".repeat(58), "\u{1f1eb}\u{1f1f7}\u{1f1e9}\u{1f1ea}"));
+    let flags = inside(&format!(
+        "{}{}",
+        "a".repeat(58),
+        "\u{1f1eb}\u{1f1f7}\u{1f1e9}\u{1f1ea}"
+    ));
     assert!(
         flags.ends_with(&format!("{}\u{1f1eb}\u{1f1f7}\u{2026}", "a")),
         "the cut falls between whole characters as drawn: {flags}"
@@ -49,7 +53,9 @@ fn a_quoted_name_cannot_fake_what_a_dialog_says() {
         "every quote-like mark is straightened"
     );
     assert_eq!(
-        inside("\u{02ee}f\u{02ee} \u{1f676}g\u{1f677} \u{05f4}h\u{05f3} \u{02bc}i\u{02bb} \u{300c}j\u{300f}"),
+        inside(
+            "\u{02ee}f\u{02ee} \u{1f676}g\u{1f677} \u{05f4}h\u{05f3} \u{02bc}i\u{02bb} \u{300c}j\u{300f}"
+        ),
         "\"f\" \"g\" \"h' 'i' 'j\"",
         "lookalikes of quotes are straightened too"
     );
