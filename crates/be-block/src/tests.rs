@@ -5,12 +5,12 @@ use crate::{
 use be_block_content::*;
 use uuid::Uuid;
 
-mod a_quoted_name_cannot_fake_what_a_dialog_says;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
 mod a_profile_layers_its_settings_over_the_defaults;
 mod a_profile_picks_its_own_remapper_and_a_remapper_runs_once_it_names_a_module;
+mod a_quoted_name_cannot_fake_what_a_dialog_says;
 mod a_repository_keeps_its_latest_operations_and_knows_what_was_undone;
 mod a_repository_moves_and_drops_branches;
 mod a_screen_back_at_its_default_mode_is_forgotten;
