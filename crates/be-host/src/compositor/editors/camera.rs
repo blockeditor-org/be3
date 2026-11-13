@@ -13,27 +13,60 @@ use be_host_runtime::EditorView;
 type Key = (String, EditorInstanceId);
 
 /// The view changes instances asked for, until the camera that holds an instance's content
-/// takes them: it may not be shown yet when its instance asks. An instance that never shows
-/// one (a window, a creation) keeps only its latest few, and none once it closes.
+/// takes them: it may not be shown yet when its instance asks. What is held is compacted so
+/// that it means the same with less: the latest `keep-fitted` (sticky), a `fit` (an absolute
+/// reset, which clears the moves before it), then a run of moves where a pan after a pan adds
+/// and a zoom after a zoom about the same anchor multiplies. Only that run is capped. An
+/// instance's changes go when it closes.
 #[derive(Default)]
 pub(super) struct HeldChanges {
-    held: HashMap<Key, Vec<ViewChange>>,
+    held: HashMap<Key, Held>,
+}
+
+#[derive(Default)]
+struct Held {
+    keep_fitted: Option<Option<FitArea>>,
+    fit: bool,
+    moves: Vec<ViewChange>,
 }
 
 impl HeldChanges {
-    /// How many changes an instance keeps while no camera takes them.
+    /// How many moves an instance keeps while no camera takes them.
     const KEPT: usize = 16;
 
     pub(super) fn hold(&mut self, key: Key, change: ViewChange) {
         let held = self.held.entry(key).or_default();
-        held.push(change);
-        if held.len() > Self::KEPT {
-            held.remove(0);
+        match change {
+            ViewChange::KeepFitted(area) => held.keep_fitted = Some(area),
+            ViewChange::Fit => {
+                held.fit = true;
+                held.moves.clear();
+            }
+            ViewChange::Pan(by) => match held.moves.last_mut() {
+                Some(ViewChange::Pan(last)) => *last += by,
+                _ => held.moves.push(change),
+            },
+            ViewChange::Zoom { factor, anchor } => match held.moves.last_mut() {
+                Some(ViewChange::Zoom {
+                    factor: last,
+                    anchor: at,
+                }) if *at == anchor => *last *= factor,
+                _ => held.moves.push(change),
+            },
+            ViewChange::PanDrag => held.moves.push(change),
+        }
+        if held.moves.len() > Self::KEPT {
+            held.moves.remove(0);
         }
     }
 
     pub(super) fn take(&mut self, key: &Key) -> Vec<ViewChange> {
-        self.held.remove(key).unwrap_or_default()
+        let Some(held) = self.held.remove(key) else {
+            return Vec::new();
+        };
+        let keep = held.keep_fitted.map(ViewChange::KeepFitted);
+        let fit = held.fit.then_some(ViewChange::Fit);
+        keep.into_iter().chain(fit).chain(held.moves).collect()
     }
 
     pub(super) fn forget(&mut self, key: &Key) {
@@ -52,6 +85,10 @@ thread_local! {
 pub(crate) fn heard_view_change(app_id: String, instance: EditorInstanceId, change: ViewChange) {
     let key = (app_id, instance);
     let cameras = CAMERAS.with_borrow(|cameras| cameras.get(&key).cloned().unwrap_or_default());
+    if change == ViewChange::PanDrag && cameras.is_empty() {
+        // A live gesture: one no camera is shown to follow is not replayed later.
+        return;
+    }
     HELD.with_borrow_mut(|held| held.hold(key, change));
     for (_, changed) in cameras {
         changed.update(|changed| *changed += 1);
