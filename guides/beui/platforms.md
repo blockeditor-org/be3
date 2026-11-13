@@ -169,7 +169,8 @@ web writes them as `web ` types where `ClipboardItem.supports` says so
 the clipboard is compared with the text written. On the system clipboard a
 platform puts the plain text and the PNG together where it can: X11 (and
 Wayland, through XWayland) by owning the CLIPBOARD selection from a thread of
-its own (`beui-platform-winit/src/clipboard/x11.rs`, INCR for large data),
+its own (`beui-platform-winit/src/clipboard/x11.rs`, INCR for large data, handing the
+clip to a clipboard manager with SAVE_TARGETS when the program closes),
 Windows as `CF_DIB` and a registered `PNG` beside the text; elsewhere the plain
 text, or a PNG when there is none. Its Xvfb test runs where `Xvfb` is
 installed and skips with a message where it is not, as on the build workers.

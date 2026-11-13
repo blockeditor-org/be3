@@ -5,6 +5,7 @@ fn one_copy_offers_its_text_and_its_image() {
     let Some(server) = Xvfb::start() else {
         return;
     };
+    let _watchdog = Watchdog::start();
     let owner = Owner::connect(Some(&server.display)).expect("the owner connects");
     let reader = Reader::connect(&server.display);
     // Larger than one piece, so it goes by INCR.
@@ -21,6 +22,11 @@ fn one_copy_offers_its_text_and_its_image() {
         );
     }
     assert_eq!(reader.read("UTF8_STRING").as_deref(), Some(&b"plain"[..]));
+    assert_eq!(
+        reader.read_typed("TEXT").map(|(kind, _)| kind),
+        Some(reader.atom("UTF8_STRING")),
+        "TEXT is answered as UTF-8"
+    );
     assert_eq!(
         reader.read("image/png"),
         Some(png),

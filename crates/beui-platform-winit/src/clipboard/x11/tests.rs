@@ -2,7 +2,31 @@ use super::*;
 use std::io::BufRead as _;
 use std::process::{Child, Command, Stdio};
 
+mod a_transfer_in_pieces_ends_with_an_empty_one;
+mod closing_hands_the_clip_to_a_clipboard_manager;
+mod idle_and_abandoned_transfers_are_dropped;
 mod one_copy_offers_its_text_and_its_image;
+
+/// Fails the whole test binary if a test that talks to an X server has not
+/// finished within a minute: a broken owner otherwise hangs the read.
+struct Watchdog {
+    _alive: std::sync::mpsc::Sender<()>,
+}
+
+impl Watchdog {
+    fn start() -> Self {
+        let (alive, watched) = std::sync::mpsc::channel::<()>();
+        std::thread::spawn(move || {
+            if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                watched.recv_timeout(Duration::from_secs(60))
+            {
+                eprintln!("an X clipboard test did not finish within a minute");
+                std::process::abort();
+            }
+        });
+        Self { _alive: alive }
+    }
+}
 
 /// An Xvfb server of the test's own, stopped when dropped; `None`, with a
 /// message, where Xvfb is not installed.
@@ -110,6 +134,11 @@ impl Reader {
 
     /// The clipboard as `target`, or `None` when the owner refuses it.
     fn read(&self, target: &str) -> Option<Vec<u8>> {
+        self.read_typed(target).map(|(_, data)| data)
+    }
+
+    /// The clipboard as `target`, with the type the owner gave it.
+    fn read_typed(&self, target: &str) -> Option<(Atom, Vec<u8>)> {
         let clipboard = self.atom("CLIPBOARD");
         self.connection
             .convert_selection(
@@ -133,19 +162,21 @@ impl Reader {
         }
         let first = self.take();
         if first.type_ != self.incr {
-            return Some(first.value);
+            return Some((first.type_, first.value));
         }
+        let mut kind = NONE;
         let mut data = Vec::new();
         loop {
             match self.connection.wait_for_event().expect("an event") {
                 Event::PropertyNotify(notify)
                     if notify.atom == self.property && notify.state == Property::NEW_VALUE =>
                 {
-                    let piece = self.take().value;
-                    if piece.is_empty() {
-                        return Some(data);
+                    let piece = self.take();
+                    if piece.value.is_empty() {
+                        return Some((kind, data));
                     }
-                    data.extend(piece);
+                    kind = piece.type_;
+                    data.extend(piece.value);
                 }
                 _ => {}
             }
