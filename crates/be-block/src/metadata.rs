@@ -396,13 +396,15 @@ pub fn quoted_name(name: &str) -> String {
         .filter_map(|c| match c {
             c if c.is_whitespace() => Some(' '),
             c if c.is_control() || is_format(c) => None,
-            '\u{201c}' | '\u{201d}' | '\u{201e}' | '\u{201f}' | '\u{00ab}' | '\u{00bb}' => {
-                Some('"')
-            }
-            '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}' => Some('\''),
+            '\u{201c}' | '\u{201d}' | '\u{201e}' | '\u{201f}' | '\u{00ab}' | '\u{00bb}'
+            | '\u{2033}' | '\u{2036}' | '\u{275d}' | '\u{275e}' | '\u{301d}'..='\u{301f}'
+            | '\u{ff02}' => Some('"'),
+            '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}' | '\u{2032}' | '\u{2035}'
+            | '\u{2039}' | '\u{203a}' | '\u{275b}' | '\u{275c}' | '\u{ff07}' => Some('\''),
             c => Some(c),
         })
         .collect();
+    let cleaned = cap_combining(&cleaned);
     let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
     match collapsed.chars().count() > MAX_QUOTED_NAME {
         true => {
@@ -413,7 +415,41 @@ pub fn quoted_name(name: &str) -> String {
     }
 }
 
-/// Unicode's format characters (general category Cf).
+/// The most combining marks a quoted name keeps on one character: enough for any script, too
+/// few to stack marks over the dialog's own words.
+const MAX_COMBINING: usize = 2;
+
+/// `name` with each run of combining marks cut to `MAX_COMBINING`.
+fn cap_combining(name: &str) -> String {
+    let mut run = 0;
+    name.chars()
+        .filter(|c| match is_combining(*c) {
+            true => {
+                run += 1;
+                run <= MAX_COMBINING
+            }
+            false => {
+                run = 0;
+                true
+            }
+        })
+        .collect()
+}
+
+/// The blocks of combining marks (Combining Diacritical Marks and their Extended, Supplement,
+/// for Symbols and Half Marks blocks), which is where stacked marks come from.
+fn is_combining(c: char) -> bool {
+    matches!(
+        c,
+        '\u{0300}'..='\u{036f}'
+            | '\u{1ab0}'..='\u{1aff}'
+            | '\u{1dc0}'..='\u{1dff}'
+            | '\u{20d0}'..='\u{20ff}'
+            | '\u{fe20}'..='\u{fe2f}'
+    )
+}
+
+/// Unicode's format characters (general category Cf), as of Unicode 15.1.
 fn is_format(c: char) -> bool {
     matches!(
         c,

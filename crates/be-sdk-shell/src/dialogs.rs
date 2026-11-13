@@ -179,12 +179,21 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     let state = workspace.share;
     let me = workspace.host().account_id();
     let open = create_memo(move || state.with(Option::is_some));
+    // The block the dialog opened for, kept while it stays open: its title and every action
+    // name it.
+    let shown = create_signal(None::<Uuid>);
+    create_effect(move || {
+        let block = state.with(|share| share.as_ref().map(|share| share.block));
+        if block.is_none() || shown.get_untracked().is_none() {
+            shown.set(block);
+        }
+    });
     let title = create_memo(move || {
-        state
+        shown
             .get()
-            .map(|share| {
+            .map(|block| {
                 let name = workspace
-                    .info(share.block)
+                    .info(block)
                     .map(|info| workspace.label(info.id, info.block_type).name)
                     .unwrap_or_default();
                 format!(
@@ -312,14 +321,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
         })
     });
     let invited = create_memo(move || !invite_link.get().is_empty());
-    // The block the dialog opened for, kept while it stays open, which every action names.
-    let shown = create_signal(None::<Uuid>);
-    create_effect(move || {
-        let block = state.with(|share| share.as_ref().map(|share| share.block));
-        if block.is_none() || shown.get_untracked().is_none() {
-            shown.set(block);
-        }
-    });
     let act = Callback::new(move |action: ShareAction| {
         if let Some(block) = shown.get_untracked() {
             workspace.share_action(block, action);
