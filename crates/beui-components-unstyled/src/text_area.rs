@@ -1289,7 +1289,6 @@ struct Field {
     ime_text: Memo<Option<ImeText>>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
-    pastes_images: bool,
     on_image_paste: Callback<PickedFile>,
 }
 
@@ -1344,7 +1343,6 @@ pub fn TextArea(
     on_submit: Callback<()>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
-    #[prop(default = false)] pastes_images: bool,
     on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
     let focus_request = focused;
@@ -1683,7 +1681,6 @@ pub fn TextArea(
         ime_text,
         on_focus_change,
         on_hover_change,
-        pastes_images,
         on_image_paste,
     };
     let multi_line = !single_line;
@@ -1760,9 +1757,10 @@ fn Editing(field: Field) -> NodeId {
         ime_text,
         on_focus_change,
         on_hover_change,
-        pastes_images,
         on_image_paste,
     } = field;
+    // An image is offered only to a text area that takes one.
+    let pastes_images = !on_image_paste.is_empty();
     let pastes = [formats::PNG]
         .into_iter()
         .filter(|_| pastes_images)

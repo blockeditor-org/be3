@@ -369,11 +369,18 @@ fn resend(
     module: usize,
     replica: ReplicaId,
     replay: &mut [Replayed],
+    departed: &BTreeMap<EditorId, bool>,
     asked: Vec<(Asked, Option<Waiting>)>,
     waiting: &mut HashMap<OpId, Waiting>,
     replies: &mut HashMap<(usize, OpId), Waiting>,
     pending: &mut HashMap<(usize, OpId), (ReplicaId, Asked)>,
 ) {
+    // An editor that made an edit kept here and has since detached is attached while its edits
+    // are given again, as it could edit when it made them: the replica drops what an editor it
+    // does not have sends, and the edit, not journaled yet, would be lost.
+    for (editor, editable) in departed {
+        handle.attach(connection, *editor, *editable);
+    }
     for replayed in replay.iter_mut() {
         let sent = replayed.send(handle, connection);
         if let (Replayed::Change { op, .. }, Some(sent)) = (replayed, sent) {
@@ -382,6 +389,9 @@ fn resend(
             }
             *op = Some(sent);
         }
+    }
+    for editor in departed.keys() {
+        handle.detach(connection, *editor);
     }
     for (request, answer) in asked {
         let sent = request.send(handle, connection);
@@ -409,6 +419,9 @@ struct Open {
     moved: Vec<CommitId>,
     published: Vec<CommitId>,
     replay: Vec<Replayed>,
+    /// Editors that detached while `replay` holds edits of theirs, and whether they could edit:
+    /// what a replica opened again is given their edits as (`resend`).
+    departed: BTreeMap<EditorId, bool>,
     closing: bool,
     reopen: bool,
     epoch: u64,
@@ -969,6 +982,7 @@ impl<H: Host> Replicas<H> {
                 moved: Vec::new(),
                 published: Vec::new(),
                 replay: Vec::new(),
+                departed: BTreeMap::new(),
                 closing: false,
                 reopen: false,
                 epoch: 0,
@@ -1129,7 +1143,12 @@ impl<H: Host> Replicas<H> {
                 waiting.insert(*op, answer);
             }
         }
-        let (replies, pending, replay) = (&mut self.replies, &mut self.asked, &mut open.replay);
+        let (replies, pending, replay, departed) = (
+            &mut self.replies,
+            &mut self.asked,
+            &mut open.replay,
+            &open.departed,
+        );
         self.modules.call(module, |connection| {
             handle.reopen(connection, opening);
             for (editor, editable) in editors {
@@ -1141,6 +1160,7 @@ impl<H: Host> Replicas<H> {
                 module,
                 replica,
                 replay,
+                departed,
                 asked,
                 &mut waiting,
                 replies,
@@ -1182,6 +1202,7 @@ impl<H: Host> Replicas<H> {
             return;
         };
         open.editors.insert(editor, editable);
+        open.departed.remove(&editor);
         let (module, handle) = (open.module, open.handle);
         self.modules.call(module, |connection| {
             handle.attach(connection, editor, editable);
@@ -1223,8 +1244,14 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return false;
         };
-        if open.editors.remove(&editor).is_none() {
+        let Some(editable) = open.editors.remove(&editor) else {
             return open.editors.is_empty();
+        };
+        let kept = open.replay.iter().any(|replayed| {
+            matches!(replayed, Replayed::Message { from: Endpoint::Editor(from), .. } if *from == editor)
+        });
+        if kept {
+            open.departed.insert(editor, editable);
         }
         let idle = open.editors.is_empty();
         self.with_replica(replica, |handle, connection| {
@@ -2376,7 +2403,12 @@ impl<H: Host> Replicas<H> {
                 .collect();
             let closing = open.closing && !open.joining;
             let asked = asked.remove(&replica).unwrap_or_default();
-            let (replies, pending, replay) = (&mut self.replies, &mut self.asked, &mut open.replay);
+            let (replies, pending, replay, departed) = (
+                &mut self.replies,
+                &mut self.asked,
+                &mut open.replay,
+                &open.departed,
+            );
             let Some(handle) = self.modules.call(module, |connection| {
                 let handle = Replica::new(connection, opening);
                 for (editor, editable) in editors {
@@ -2388,6 +2420,7 @@ impl<H: Host> Replicas<H> {
                     module,
                     replica,
                     replay,
+                    departed,
                     asked,
                     &mut waiting,
                     replies,
@@ -2581,9 +2614,18 @@ impl<H: Host> Replicas<H> {
             } => {
                 self.acknowledge(module, reply);
                 match to {
-                    Recipients::One(Endpoint::Editor(editor)) => {
+                    // Only to an editor attached now: one attached for its kept edits alone
+                    // (`Open::departed`), or detached since the replica wrote, takes nothing.
+                    Recipients::One(Endpoint::Editor(editor))
+                        if editor == HOST_EDITOR
+                            || self
+                                .open
+                                .get(&replica)
+                                .is_some_and(|open| open.editors.contains_key(&editor)) =>
+                    {
                         H::to_editor(shared, block, editor, bytes)
                     }
+                    Recipients::One(Endpoint::Editor(_)) => false,
                     Recipients::One(Endpoint::Host) => false,
                     _ if made_up => false,
                     Recipients::One(Endpoint::Peer(client)) => {
@@ -2986,6 +3028,7 @@ impl<H: Host> Replicas<H> {
                 }
                 if status.clean && status.head.is_some() && !status.owes_seal {
                     open.replay.clear();
+                    open.departed.clear();
                 }
                 let became_unreadable =
                     status.unreadable.is_some() && open.status.unreadable.is_none();

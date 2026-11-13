@@ -122,7 +122,9 @@ its head.
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
-  with the real session, replaying what happened meanwhile. A seal asked of a
+  with the real session, replaying what happened meanwhile; an editor that made
+  an edit kept for that and has detached since is attached for its edits to be
+  given again (`Open::departed`), or the replica would drop them. A seal asked of a
   joining replica with unconfirmed edits first gives it a session it owns, so
   flush and stop never wait for a join.
 - **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
