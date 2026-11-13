@@ -33,7 +33,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         command.env_remove(name);
     }
     command.env("BE3_AGENT_CREDENTIALS", bundle);
-    if let Some(key) = crate::server::gateway().stored() {
+    if let Some(key) = gateway().stored() {
         command.env("BE3_AUTHORIZATION", key);
     }
     buck::exec(command)
@@ -105,5 +105,15 @@ fn restrict(path: &std::path::Path) -> bool {
     #[cfg(not(unix))]
     {
         path.is_file()
+    }
+}
+
+/// The API gateway's `Be3-Gateway-Authorization` header, for the tracker's server.
+fn gateway() -> be_lib_prompt::Saved<'static> {
+    be_lib_prompt::Saved {
+        variable: "BE3_AUTHORIZATION",
+        name: "gateway-authorization",
+        what: "api.be3.pfg.pw gateway key",
+        checkout: Some(repository()),
     }
 }

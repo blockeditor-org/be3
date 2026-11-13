@@ -8,16 +8,11 @@
 // left out: the one in its headers when it had nothing else to say, and OK
 // when its body arrived whole.
 //
-//	re-relay serve  -listen 127.0.0.1:18980 -upstream reapih-p5cvniii97l8a.iad4.namespaced.app
-//	re-relay ensure -listen 127.0.0.1:18980 -upstream reapih-p5cvniii97l8a.iad4.namespaced.app -version <hash> -log <path>
+//	re-relay serve  -listen 127.0.0.1:18980 -upstream nl.be3.pfg.pw
+//	re-relay ensure -listen 127.0.0.1:18980 -upstream nl.be3.pfg.pw -version <hash> -log <path>
 //
 // ensure returns once a relay of that version is listening, starting one in
 // the background if there is none, and replacing one of another version.
-//
-// -http1 sends every call as HTTP/1.1, for an upstream whose front carries
-// gRPC only that way: the NativeLink build server on boat, whose hosted port
-// blocks gRPC over HTTP/2 (guides/build_server.md). It is used there with or
-// without a proxy.
 //
 // -tunnel sends every call over HTTP/2 inside a tunnel of a few long HTTP/1.1
 // requests to the upstream's tunnel-server (tunnel.go), for a proxy that
@@ -30,7 +25,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"flag"
 	"fmt"
@@ -67,7 +61,6 @@ func main() {
 	version := flags.String("version", "", "what ensure expects a running relay to answer")
 	logPath := flags.String("log", "", "where a relay ensure starts writes its errors")
 	connections := flags.Int("connections", 128, "at most this many connections to the upstream at once")
-	http1 := flags.Bool("http1", false, "send every call as HTTP/1.1")
 	tunnel := flags.Bool("tunnel", false, "send every call over HTTP/2 through a tunnel to the upstream's tunnel-server")
 	flags.Parse(os.Args[2:])
 	if *upstream == "" {
@@ -75,9 +68,9 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "serve":
-		serve(*listen, *upstream, *version, *connections, *http1, *tunnel)
+		serve(*listen, *upstream, *version, *connections, *tunnel)
 	case "ensure":
-		ensure(*listen, *upstream, *version, *logPath, *connections, *http1, *tunnel)
+		ensure(*listen, *upstream, *version, *logPath, *connections, *tunnel)
 	case "tunnel-server":
 		serveTunnel(*listen, *upstream)
 	case "tunnel-probe":
@@ -92,7 +85,7 @@ func fail(format string, args ...any) {
 	os.Exit(1)
 }
 
-func ensure(listen, upstream, version, logPath string, connections int, http1, tunnel bool) {
+func ensure(listen, upstream, version, logPath string, connections int, tunnel bool) {
 	local := &http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 5 * time.Second}
 	base := "http://" + listen + controlPath
 	resp, err := local.Get(base)
@@ -115,7 +108,7 @@ func ensure(listen, upstream, version, logPath string, connections int, http1, t
 		fail("%v", err)
 	}
 	command := exec.Command(self, "serve", "-listen", listen, "-upstream", upstream,
-		"-version", version, "-connections", strconv.Itoa(connections), "-http1="+strconv.FormatBool(http1), "-tunnel="+strconv.FormatBool(tunnel))
+		"-version", version, "-connections", strconv.Itoa(connections), "-tunnel="+strconv.FormatBool(tunnel))
 	detach(command)
 	if logPath != "" {
 		log, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -137,22 +130,19 @@ func ensure(listen, upstream, version, logPath string, connections int, http1, t
 	}
 }
 
-func serve(listen, upstream, version string, connections int, http1, tunnel bool) {
+func serve(listen, upstream, version string, connections int, tunnel bool) {
 	// The Authorization header buck2 sends, which a tunnel's own requests carry too.
 	authorization := new(atomic.Pointer[string])
 	var transport http.RoundTripper
 	scheme := "https"
 	plain := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:   !http1,
+		ForceAttemptHTTP2:   true,
 		MaxConnsPerHost:     connections,
 		MaxIdleConns:        connections,
 		MaxIdleConnsPerHost: connections,
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  true,
-	}
-	if http1 {
-		plain.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 	}
 	transport = plain
 	if tunnel {
