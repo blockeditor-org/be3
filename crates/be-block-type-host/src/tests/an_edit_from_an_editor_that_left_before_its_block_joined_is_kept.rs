@@ -63,6 +63,11 @@ fn an_edit_from_an_editor_that_left_before_its_block_joined_is_kept() {
         );
         // It leaves before the replica has said what it journaled.
         replicas.detach(block, editor);
+        let given = |shared: &Arc<Mutex<Quiet>>| {
+            let held = shared.lock().unwrap();
+            held.to_editors.iter().filter(|to| **to == editor).count()
+        };
+        let before = given(&shared);
 
         peer.drain(|_| false).await.expect("the creation is sent");
         replicas.created((&peer, &shared));
@@ -73,5 +78,11 @@ fn an_edit_from_an_editor_that_left_before_its_block_joined_is_kept() {
         }
         replicas.pump((&peer, &shared)).await;
         assert_eq!(text(&peer, &shared, &mut replicas, block).await, "socks");
+        // Attached for its edits alone, it is given nothing: no one would take it.
+        assert_eq!(
+            given(&shared),
+            before,
+            "the editor that left was given frames after it left"
+        );
     });
 }

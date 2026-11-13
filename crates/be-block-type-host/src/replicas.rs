@@ -2614,9 +2614,18 @@ impl<H: Host> Replicas<H> {
             } => {
                 self.acknowledge(module, reply);
                 match to {
-                    Recipients::One(Endpoint::Editor(editor)) => {
+                    // Only to an editor attached now: one attached for its kept edits alone
+                    // (`Open::departed`), or detached since the replica wrote, takes nothing.
+                    Recipients::One(Endpoint::Editor(editor))
+                        if editor == HOST_EDITOR
+                            || self
+                                .open
+                                .get(&replica)
+                                .is_some_and(|open| open.editors.contains_key(&editor)) =>
+                    {
                         H::to_editor(shared, block, editor, bytes)
                     }
+                    Recipients::One(Endpoint::Editor(_)) => false,
                     Recipients::One(Endpoint::Host) => false,
                     _ if made_up => false,
                     Recipients::One(Endpoint::Peer(client)) => {

@@ -24,9 +24,12 @@ mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
 mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
 
-/// A host that keeps nothing, for tests of stateless requests.
+/// A host that keeps nothing but which editors it was given frames for, for tests of stateless
+/// requests.
 #[derive(Default)]
-struct Quiet;
+struct Quiet {
+    to_editors: Vec<EditorId>,
+}
 
 impl Host for Quiet {
     type Store = MemoryStore;
@@ -65,7 +68,8 @@ impl Host for Quiet {
         None
     }
 
-    fn to_editor(_: &Arc<Mutex<Self>>, _: Uuid, _: EditorId, _: Vec<u8>) -> bool {
+    fn to_editor(shared: &Arc<Mutex<Self>>, _: Uuid, editor: EditorId, _: Vec<u8>) -> bool {
+        shared.lock().unwrap().to_editors.push(editor);
         false
     }
 
@@ -118,7 +122,7 @@ fn with_test_types<F: Future<Output = ()>>(
         .await;
         test(
             Arc::new(peer),
-            Arc::new(Mutex::new(Quiet)),
+            Arc::new(Mutex::new(Quiet::default())),
             Replicas::new(modules),
         )
         .await;
