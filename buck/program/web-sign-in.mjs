@@ -46,10 +46,21 @@ async function approve(portal, url, serverLog, invite) {
         await portal.getByRole("link", { name: "Create an account", exact: true }).click();
         if (!invite) throw new Error("Registering needs an invite code, and none was given.");
         await portal.getByLabel("Invite code", { exact: true }).fill(invite);
-        await portal.getByLabel("Display name", { exact: true }).fill("Dev");
-        await portal.getByLabel("Email", { exact: true }).fill("dev@localhost");
-        await portal.locator('[name="password"]').fill("dev-password");
-        await portal.getByLabel("Confirm password", { exact: true }).fill("dev-password");
+        // The form can render again under the typing, so each field is filled until it holds
+        // what was typed.
+        const fields = [
+            [portal.getByLabel("Display name", { exact: true }), "Dev"],
+            [portal.getByLabel("Email", { exact: true }), "dev@localhost"],
+            [portal.locator('[name="password"]'), "dev-password"],
+            [portal.getByLabel("Confirm password", { exact: true }), "dev-password"],
+        ];
+        for (let tries = 0; tries < 5; tries++) {
+            for (const [field, value] of fields) {
+                if ((await field.inputValue()) !== value) await field.fill(value);
+            }
+            const held = await Promise.all(fields.map(async ([field, value]) => (await field.inputValue()) === value));
+            if (held.every(Boolean)) break;
+        }
         await portal.getByRole("button", { name: "Create account", exact: true }).click();
         await portal.getByText("Check your email", { exact: true }).first().waitFor();
         const links = (await readFile(serverLog, "utf8")).match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
