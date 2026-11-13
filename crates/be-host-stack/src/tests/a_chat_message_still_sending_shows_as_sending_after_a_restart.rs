@@ -24,7 +24,9 @@ fn a_chat_message_still_sending_shows_as_sending_after_a_restart() {
     let mut editor = room.editor();
     editor.send(be_sdk_type_guest::editor::FromEditor::FollowLacking);
     room.send(&mut editor, "Running late", None);
-    editor.until("shows the message as sending", |editor| !sending(editor).is_empty());
+    editor.until("shows the message as sending", |editor| {
+        !sending(editor).is_empty()
+    });
     assert_eq!(sending(&editor), ["Running late"]);
     drop(editor);
     stop();
@@ -51,5 +53,7 @@ fn a_chat_message_still_sending_shows_as_sending_after_a_restart() {
     wait_until("reconnected and drained the outbox", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
     });
-    editor.until("shows nothing as sending", |editor| sending(editor).is_empty());
+    editor.until("shows nothing as sending", |editor| {
+        sending(editor).is_empty()
+    });
 }

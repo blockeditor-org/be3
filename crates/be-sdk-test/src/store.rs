@@ -582,6 +582,9 @@ impl Inner {
                 journal_kept: false,
                 commits_kept,
                 refused_commits,
+                // This store keeps no head of the server's apart from its own: a reopened
+                // replica follows what it carried, never more.
+                server_head: head,
                 sealed_head: None,
             },
         );
