@@ -1,4 +1,5 @@
 use super::*;
 mod a_crash_report_does_not_leave_a_dev_run_busy;
+mod a_leave_asked_while_another_is_pending_does_not_change_what_confirm_leaves;
 mod an_editor_closes_only_itself_and_the_children_it_placed;
 mod restore_puts_a_block_back_in_unfiled_and_falls_back_to_it;

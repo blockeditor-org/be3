@@ -1281,11 +1281,6 @@ impl EditorHost {
         self.version_status.borrow().is_some()
     }
 
-    /// Takes the block commands the editor asked for, leaving its other graph commands queued.
-    pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
-        self.graph.take_acts()
-    }
-
     pub fn block_types_known(&self) -> bool {
         self.block_types_known.get()
     }

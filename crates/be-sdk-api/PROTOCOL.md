@@ -318,8 +318,10 @@ level, which is what shows a block as an account with less access would see
 it; to reveal one client's presence cursor, which only the editor of that
 block can scroll to; and to close a block's editor, which is what a tab
 closing means to the host. The host takes `close-editor` only for the editor's
-own block or a child it placed, or from the shell, and asks the person to
-confirm a `leave`. None of them is answered either.
+own block or a child it placed, or from the shell. A `leave` asks the person
+to confirm in a dialog of the host's that names the block from the host's own
+graph; a second `leave` while one is asked is ignored, and the confirm leaves
+only the block the dialog named. None of them is answered either.
 
 An instance may ask the host to tell it about the dynamic artifacts of the
 blocks it names, which the host answers with, and repeats whenever any of it

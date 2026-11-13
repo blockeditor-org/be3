@@ -3078,7 +3078,7 @@ impl HostCore {
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            BlockCommand::Leave => self.leaving = Some(id),
+            BlockCommand::Leave => ask_to_leave(&mut self.leaving, id),
             BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
             BlockCommand::CloseEditor => {
                 if may_close(from, self.shell, self.editors.parent_of(id)) {
@@ -3772,8 +3772,8 @@ impl HostCore {
             }
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
-            UiCommand::ConfirmLeave => {
-                if let Some(block) = self.leaving
+            UiCommand::ConfirmLeave(shown) => {
+                if let Some(block) = confirmed_leave(self.leaving, shown)
                     && self.leave_answers.is_none()
                 {
                     let (answers, post) = desk().mailbox(HostCore::left);
@@ -4041,7 +4041,7 @@ impl HostCore {
                 discarding: self.discarding_unsent,
             }),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
-            leaving: self.leaving.is_some(),
+            leaving: self.leaving.map(leaving_view),
             leave_busy: self.leave_answers.is_some(),
             leave_refused: self.leave_refused.clone().unwrap_or_default(),
             presenting: self
@@ -4241,6 +4241,38 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
         BlockLocation::Unfiled => SidebarDragSource::Unfiled,
         BlockLocation::Block(id) if is_unfiled(Uuid::from_bytes(id)) => SidebarDragSource::Unfiled,
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
+    }
+}
+
+/// An editor asked to leave `block`: the dialog asks about it, unless it already asks about
+/// another, which a second ask never swaps out from under the person.
+fn ask_to_leave(pending: &mut Option<Uuid>, block: Uuid) {
+    if pending.is_none() {
+        *pending = Some(block);
+    }
+}
+
+/// The block a confirm in the leave dialog leaves: the one it showed, and only while that is
+/// still the one pending.
+fn confirmed_leave(pending: Option<Uuid>, shown: Uuid) -> Option<Uuid> {
+    pending.filter(|pending| *pending == shown)
+}
+
+/// The leave dialog's view of `block`, named from the host's graph.
+fn leaving_view(block: Uuid) -> ui::LeavingView {
+    let node = be_host_stack::node(block);
+    let name = node
+        .as_ref()
+        .and_then(|node| node.metadata.name())
+        .unwrap_or_else(|| "Untitled".to_owned());
+    let within = node
+        .and_then(|node| node.parent.block())
+        .and_then(be_host_stack::node)
+        .and_then(|parent| parent.metadata.name());
+    ui::LeavingView {
+        block,
+        name,
+        within,
     }
 }
 
