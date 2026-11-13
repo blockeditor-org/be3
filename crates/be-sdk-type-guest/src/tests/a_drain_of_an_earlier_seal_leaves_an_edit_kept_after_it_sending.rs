@@ -18,7 +18,11 @@ fn a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending() {
     sim.operate(0, 1, add("second"));
     sim.settle();
     sim.advance(crate::QUIET_INTERVAL);
-    assert_ne!(sim.head, Some(first), "the second edit is in a seal of its own");
+    assert_ne!(
+        sim.head,
+        Some(first),
+        "the second edit is in a seal of its own"
+    );
     assert_eq!(sim.lacking(0, 1), 2);
 
     sim.with_replica(0, |replica, host| replica.drained(host, false, vec![first]));
@@ -30,7 +34,9 @@ fn a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending() {
     );
 
     let second = sim.head.expect("the second seal was kept");
-    sim.with_replica(0, |replica, host| replica.drained(host, false, vec![second]));
+    sim.with_replica(0, |replica, host| {
+        replica.drained(host, false, vec![second])
+    });
     sim.settle();
     assert_eq!(sim.lacking(0, 1), 0);
 }

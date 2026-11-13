@@ -1676,7 +1676,9 @@ async fn drain_outbox(
                 match outcome {
                     // Each published head names what drained, so a seal kept meanwhile stays
                     // sending.
-                    be_block_client::Drained::Published { block, head } if !missed.contains(&block) => {
+                    be_block_client::Drained::Published { block, head }
+                        if !missed.contains(&block) =>
+                    {
                         published.push((block, Some(head), false));
                     }
                     be_block_client::Drained::Created { block }
