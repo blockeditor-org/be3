@@ -9,7 +9,12 @@ are accepted for now.
   terms without reading a segment's whole dictionary (the blocked dictionary
   answers exact terms and prefixes only). Set aside by the owner.
 - **PDF text** answering `search-text`. Set aside by the owner. Not by linking
-  pdfium into the pdf type module, which the owner ruled out.
+  pdfium into the pdf type module, which the owner ruled out (nor could it link
+  as is: type modules build for wasm32-unknown-unknown and run with no WASI,
+  while pdfium builds for the apps' wasm32-wasip1-threads). One way left open:
+  the pdf app, which runs pdfium, saves each page's text as a part of the
+  block, and the type module answers from that part alone; a pure-Rust parser
+  in the type module reads far fewer real PDFs.
 - **No host test for a second device.** be-host-tests start one host with its own
   dev server, so catching up what another device wrote, and a host restart, are
   only tested in be-host-stack: a harness for a second device and a host restart. Set aside: be-host-stack's tests cover both.
