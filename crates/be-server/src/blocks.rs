@@ -220,6 +220,20 @@ fn require_parent_of(
     }
 }
 
+/// A head moves only to a commit that descends from it: a publish onto a head lists that head
+/// among its parents. A publish onto no head may list parents: a merge onto a block with no
+/// commit yet carries the commit the server refused it. Other parents need not be on the server
+/// yet either: a merge carries them, objects and all.
+fn require_descends(expected: Option<CommitId>, parents: &[CommitId]) -> Result<(), ServerError> {
+    match expected {
+        Some(expected) if !parents.contains(&expected) => Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            format!("a commit onto {expected} lists it among its parents"),
+        )),
+        _ => Ok(()),
+    }
+}
+
 /// A search index lies under the block whose tree it indexes, one held per block: the server
 /// cannot read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
 /// (plans/search.md). `index` is the index being placed, which may already be the one held.
@@ -739,6 +753,7 @@ impl ServerStore {
                 if current == Some(commit) {
                     return Ok(PublishOutcome::Published(commit, None));
                 }
+                require_descends(expected, &parents)?;
                 let organization = identity.organization.to_string();
                 let base = match expected {
                     Some(expected) => {

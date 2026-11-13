@@ -441,6 +441,11 @@ const MERGE_READ_TRIES: u8 = 3;
 const MERGE_RETRY_INTERVAL: u64 = 5_000;
 const MERGE_RETRY_CEILING: u64 = 60_000;
 
+/// How long an owner whose seal failed (its block's key not on this device while offline, say)
+/// waits before it seals again, doubling up to `SEAL_RETRY_CEILING`.
+const SEAL_RETRY_INTERVAL: u64 = 5_000;
+const SEAL_RETRY_CEILING: u64 = 60_000;
+
 enum Wait<C> {
     /// A merge by parts, polled again as the parts it asked for arrive: it never resolves
     /// without them.
@@ -534,6 +539,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// one resolved.
     merge_retry_at: Option<u64>,
     merge_failures: u8,
+    /// When an owner whose seals failed seals again, and how many failed in a row.
+    seal_retry_at: Option<u64>,
+    seal_failures: u8,
     appended_bytes: usize,
     applied_ops: Vec<SessionOp>,
     restarting: bool,
@@ -788,6 +796,8 @@ where
             put_retry_at: None,
             merge_retry_at: None,
             merge_failures: 0,
+            seal_retry_at: None,
+            seal_failures: 0,
             appended_bytes: 0,
             applied_ops: Vec::new(),
             restarting: false,
@@ -1240,6 +1250,10 @@ where
             return None;
         }
         let since = self.owes_since?;
+        // A seal that failed is tried again on its own timer, not at each pause.
+        if let Some(at) = self.seal_retry_at {
+            return Some(at);
+        }
         if self.appended_bytes >= JOURNAL_BYTES {
             return Some(since);
         }
@@ -1267,11 +1281,13 @@ where
     }
 
     /// The owner sequenced `op`: with others in the session it appends it to the journal and
-    /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded.
+    /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded. While a seal
+    /// that failed waits to be retried it appends at once, as that seal would have before it
+    /// published: no seal is owed meanwhile (`seal_would_settle`), so none would.
     fn sequenced(&mut self, op: SessionOp) {
         self.last_edit = Some(self.now);
         self.unappended.push(op);
-        match self.alone() {
+        match self.alone() && self.seal_retry_at.is_none() {
             true => {
                 self.append_at.get_or_insert(self.now + APPEND_INTERVAL);
             }
@@ -1464,6 +1480,11 @@ where
                 resynchronize,
             } => {
                 self.adopt(session);
+                // A new lease is a new chance for a failed seal. Reconnecting always gives one: the
+                // host rejoins every open block's session (`Replicas::reconnect`) and leases it
+                // again.
+                self.seal_failures = 0;
+                self.seal_retry_at = None;
                 if resynchronize && let Role::Follower(_) = &self.role {
                     self.catch_up_failures = 0;
                     self.catch_up_at = None;
@@ -1814,6 +1835,19 @@ where
         reading.insert(token, read);
     }
 
+    /// A seal that failed leaves the work unsealed, journaled, and is tried again on a timer that
+    /// doubles up to a ceiling: until then the replica owes no seal (`seal_would_settle`), or a
+    /// host that seals what is owed on every frame would fail it on every frame. Once the time
+    /// passes, `seal_retry_at` stays set until a seal settles or fails again: `commit_at` makes
+    /// the retry due, and `sealing` keeps a second one from starting while it is on its way.
+    fn seal_failed(&mut self) {
+        let wait = (SEAL_RETRY_INTERVAL << self.seal_failures.min(4)).min(SEAL_RETRY_CEILING);
+        self.seal_failures = self.seal_failures.saturating_add(1);
+        self.seal_retry_at = Some(self.now + wait);
+        // What was sequenced while it was on its way waits on no timer now (`sequenced`).
+        self.append_unappended();
+    }
+
     /// A merge that could not have its parts is dropped, so the replica goes on, and tried again
     /// on a timer that doubles up to a ceiling (a `Job::Reconcile`): it resolves only with its
     /// parts. The failure is reported once, not at each try.
@@ -2081,6 +2115,7 @@ where
                         ..
                     }) => {
                         self.sealing = false;
+                        self.seal_failed();
                         reply.map(|id| (id, Answer::Sealed))
                     }
                     Some(Wait::Publish {
@@ -2109,6 +2144,8 @@ where
                     self.settle_at(head);
                 }
                 self.sealing = false;
+                self.seal_failures = 0;
+                self.seal_retry_at = None;
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
                 }
@@ -2457,6 +2494,17 @@ where
             Role::Owner(sequencer) => sequencer.is_clean() && self.held.is_empty(),
             Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
         }
+    }
+
+    /// Whether a seal now would leave this replica owing less: an owner with sequenced work not
+    /// sealed, and no merge waiting for parts it could not read. What it holds back (behind a
+    /// part being put, or edits made during a seal) is not sealed until it is sequenced, and a
+    /// seal on the old base while a merge waits is rejected (as `commit_at`): either way the host,
+    /// which seals what is owed on every hurried frame, would ask again on each one.
+    fn seal_would_settle(&self) -> bool {
+        matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
+            && self.merge_failures == 0
+            && self.seal_retry_at.is_none_or(|at| self.now >= at)
     }
 
     fn has_unsealed_work(&self) -> bool {
@@ -3062,13 +3110,15 @@ where
                 Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
                 Role::Follower(_) => self.is_clean(),
             },
-            owes_seal: self.loaded && self.is_owner() && !self.is_clean(),
+            owes_seal: self.loaded && self.seal_would_settle(),
             incompatible: self.incompatible,
             diverged: self.diverged,
             unreadable: self.unreadable.clone(),
             undo,
         };
-        self.owes_since = match status.owes_seal {
+        // Since when there is work to seal, whether or not a seal now would settle it: a seal
+        // that waits on a merge or a retry is still timed from then.
+        self.owes_since = match self.loaded && self.is_owner() && !self.is_clean() {
             true => self.owes_since.or(Some(self.now)),
             false => None,
         };

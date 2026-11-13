@@ -17,6 +17,7 @@ fn a_query_reads_few_blocks_while_skipping_a_common_term() {
                     format!("common filler{n}")
                 },
             }),
+            partial: false,
         })
         .collect();
     apply(

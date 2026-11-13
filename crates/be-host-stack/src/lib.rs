@@ -982,7 +982,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         if left.is_zero() {
             let state = format!(
                 "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
-                 commands not run: {}, edits owed: {}, not yet durable: {}, draining the outbox: {}\n  \
+                 commands not run: {}, edits owed: {} {:?} (sealed what was owed {} time(s)), asking the modules for {:?}, not yet durable: {}, draining the outbox: {}\n  \
                  listings loading: {}, listings failed: {}\n  \
                  progressed: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
                 held.connected,
@@ -991,6 +991,12 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.reconnect.is_some(),
                 held.pending,
                 held.owing,
+                held.owing_blocks
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+                held.seals_owed,
+                held.asking,
                 held.undurable,
                 held.draining,
                 held.graph.fetching(),
@@ -1038,6 +1044,14 @@ pub fn fail_listings(query: Query, error: &str) {
             shared.graph.failed(listing, error.to_owned());
         }
     });
+}
+
+/// Queues `blocks` to be indexed again, read whole (`Search::reread`), and wakes the worker to
+/// do it: a test's stand-in for an index that asks for text it lacks.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub fn reread_search(blocks: impl IntoIterator<Item = Uuid>) {
+    with_shared_mut(|shared| shared.search.reread(blocks));
+    send(Command::Sync);
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]

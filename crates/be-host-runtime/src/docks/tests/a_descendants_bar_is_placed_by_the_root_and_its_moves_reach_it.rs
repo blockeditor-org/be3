@@ -21,6 +21,7 @@ fn a_descendants_bar_is_placed_by_the_root_and_its_moves_reach_it() {
             width: 160.0,
             height: 32.0,
         },
+        pane: None,
     });
     docks.heard("inner", vec![declare(INNER, Some(inner))]);
     host(&mut docks, DockHold::Hosted(hosted_by_root()));

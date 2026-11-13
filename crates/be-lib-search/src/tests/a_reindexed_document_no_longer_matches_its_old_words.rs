@@ -62,6 +62,7 @@ fn a_reindexed_document_no_longer_matches_its_old_words() {
                 commit: commit(4),
                 source: Some([8; 32]),
                 text: None,
+                partial: false,
             }],
             ..Batch::default()
         },
@@ -80,6 +81,7 @@ fn a_reindexed_document_no_longer_matches_its_old_words() {
                 commit: commit(5),
                 source,
                 text: None,
+                partial: false,
             }],
             ..Batch::default()
         },

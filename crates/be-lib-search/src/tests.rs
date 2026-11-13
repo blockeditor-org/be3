@@ -13,6 +13,7 @@ use crate::{
 };
 
 mod a_commit_time_past_the_readers_bound_counts_as_the_oldest;
+mod a_full_put_replaces_a_partial_one_at_the_same_commit;
 mod a_reader_whose_clock_is_behind_keeps_honest_times;
 mod a_put_of_the_text_already_indexed_moves_only_its_commit;
 mod a_put_without_text_survives_a_merge_with_compaction_or_reindexing;
@@ -121,6 +122,7 @@ pub(crate) fn put(n: u32, version: u32, time: i64) -> Put {
         commit: commit(time),
         source: None,
         text: Some(text(n, version)),
+        partial: false,
     }
 }
 

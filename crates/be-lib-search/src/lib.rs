@@ -241,6 +241,9 @@ pub struct Put {
     /// indexed for it from that same source, it comes back in
     /// `Written::needs_text`.
     pub text: Option<Text>,
+    /// Its text is all a device could read of it, not its type's (the block's name, where no
+    /// module for its type runs): a put of the same commit that is not partial replaces it.
+    pub partial: bool,
 }
 
 /// One batch of changes, which adds at most one segment.
@@ -270,6 +273,9 @@ pub struct Entry {
     pub digest: Option<Hash>,
     /// None for a removed document.
     place: Option<Place>,
+    /// Its text came from a partial put (`Put::partial`): a full put at the same commit
+    /// replaces it, here and in a merge.
+    pub partial: bool,
 }
 
 impl Entry {
@@ -285,7 +291,21 @@ impl Entry {
             source: None,
             digest: None,
             place: None,
+            partial: false,
         }
+    }
+
+    /// Whether `change` replaces this entry: it is newer, or a full put of the commit this
+    /// entry holds partially.
+    fn replaced_by(&self, change: &Change, latest: i64) -> bool {
+        let (held, by) = (
+            self.commit.believed(latest),
+            change.commit().believed(latest),
+        );
+        held < by
+            || held == by
+                && self.partial
+                && matches!(change, Change::Put(put) if !put.partial)
     }
 }
 
@@ -456,10 +476,7 @@ impl Index {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
-            if old
-                .as_ref()
-                .is_some_and(|old| old.commit.believed(latest) >= change.commit().believed(latest))
-            {
+            if old.as_ref().is_some_and(|old| !old.replaced_by(&change, latest)) {
                 continue;
             }
             let old_place = old.as_ref().and_then(|old| old.place);
@@ -473,6 +490,7 @@ impl Index {
                     text: Some(text),
                     commit,
                     source,
+                    partial,
                     ..
                 }) if old
                     .as_ref()
@@ -481,6 +499,7 @@ impl Index {
                     if let Some(mut entry) = old {
                         entry.commit = commit;
                         entry.source = source;
+                        entry.partial = partial;
                         table.put(entry);
                     }
                 }
@@ -488,10 +507,11 @@ impl Index {
                     text: Some(text),
                     commit,
                     source,
+                    partial,
                     ..
                 }) => {
                     masks.extend(old_place);
-                    fresh.push((doc, commit, source, text));
+                    fresh.push((doc, commit, source, text, partial));
                 }
                 Change::Put(Put {
                     text: None,
@@ -516,9 +536,9 @@ impl Index {
                 origin,
                 fresh
                     .iter()
-                    .map(|(doc, commit, _, text)| (doc, *commit, text)),
+                    .map(|(doc, commit, _, text, _)| (doc, *commit, text)),
             );
-            for ((doc, commit, source, text), local) in fresh.into_iter().zip(places) {
+            for ((doc, commit, source, text, partial), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
                     doc,
                     commit,
@@ -529,6 +549,7 @@ impl Index {
                         segment: origin,
                         local,
                     }),
+                    partial,
                 });
             }
             written.added.extend(segment_parts);
@@ -589,8 +610,15 @@ impl Change {
         }
     }
 
+    /// Keeps the newer change, and of two at one commit a full put over a partial one.
     fn newest(&mut self, other: Change, latest: i64) {
-        if other.commit().believed(latest) > self.commit().believed(latest) {
+        let partial = |change: &Change| matches!(change, Change::Put(put) if put.partial);
+        let (held, by) = (
+            self.commit().believed(latest),
+            other.commit().believed(latest),
+        );
+        if by > held || by == held && partial(self) && !partial(&other)
+        {
             *self = other;
         }
     }

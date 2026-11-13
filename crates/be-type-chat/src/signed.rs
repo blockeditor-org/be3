@@ -89,6 +89,11 @@ impl Signed {
         self
     }
 
+    pub(crate) fn flag(&mut self, flag: bool) -> &mut Self {
+        self.0.push(u8::from(flag));
+        self
+    }
+
     pub(crate) fn finish(&mut self) -> Vec<u8> {
         std::mem::take(&mut self.0)
     }

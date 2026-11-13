@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::time::Duration;
 
 use accesskit::{Node, Role};
@@ -159,9 +158,9 @@ pub fn DateTimeField(
     let typing = create_signal(None);
     let focus = create_signal(None);
     let disabled = create_memo(move || disabled.get());
-    let left_state = store(Cell::new(None::<State>));
+    let left_state = StoredCell::new(None::<State>);
     let left = create_timer(move || {
-        if let Some(state) = left_state.try_with(Cell::get).flatten() {
+        if let Some(state) = left_state.try_get().flatten() {
             left_field(state);
         }
         None
@@ -178,7 +177,7 @@ pub fn DateTimeField(
         left,
         on_open,
     };
-    left_state.with(|left| left.set(Some(state)));
+    left_state.set(Some(state));
     api.fill(DateTimeFieldApi(state));
 
     create_effect(move || {

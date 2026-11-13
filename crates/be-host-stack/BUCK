@@ -1,3 +1,10 @@
-load("@root//buck/cargo:defs.bzl", "cargo_crate")
+load("@root//buck/cargo:defs.bzl", "cargo_crate", "cargo_test")
 
-cargo_crate()
+cargo_crate(test = False)
+
+# The tests share the process's one stack (`stack()` in src/lib.rs) and take it
+# in turn, so in one process they run one at a time: each file runs as a
+# process of its own instead, side by side on the workers.
+cargo_test(
+    run_apart = True,
+)

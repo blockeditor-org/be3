@@ -40,6 +40,7 @@ fn put(block: u8, time: i64, body: &str) -> Put {
             name: "Note".to_owned(),
             body: body.to_owned(),
         }),
+        partial: false,
     }
 }
 

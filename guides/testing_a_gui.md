@@ -317,7 +317,7 @@ Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says
   of the tree (above). A `pause` runs frames, and runs each only
   once the apps have answered the one before it, so an animation that spans one ends the same
   under load; it is not a way to wait for a thread, a server or the network. For those use
-  `wait`/`gone` on a line of the tree, or on a node's place (`gone ID over ID+X,Y`).
+  `wait` and `wait not` on a line of the tree, or on a node's place (`wait not ID over ID+X,Y`).
 - Whatever the pointer rests on is part of the painting. A press that opens a menu or a card
   under the pointer leaves it over the new content, and whether that is highlighted depends on
   how the frames fell. A painting that is not about hover moves the pointer away first
@@ -327,6 +327,9 @@ Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says
   `snapshot`) paints twice with a settle between and fails with "the painting is not settled"
   if the two differ, whatever the test did: a hover, an animation's last step or an app's late
   frame is caught the first time it shows, on any machine. Wait for it, not for time.
+- `paint` does not wait for the outbox: a painting that shows whether everything is saved (the
+  host menu's first row) waits for `synced` first, or it shows "Syncing changes..." on a busy
+  machine.
 - `drive pause 200` before a `shot`, as drive.md says, is for a hosted Wayland or X11 program,
   which draws on its own after input; it is not a way to wait in a host test.
 - Do not read the clock, the machine's speed or the order threads finish in. A test that
@@ -348,7 +351,7 @@ holds what must behave the same on both: screens (each a `#[component]` in src/l
 `Fixture` picks by name) and one `drive -` script per screen, `src/drive/NAME.drive`.
 
 A script uses only the commands both cores answer (listed in crates/beui-tests/src/lib.rs).
-Text metrics differ between the cores, so assert with `wait` and `gone` on test ids or on text
+Text metrics differ between the cores, so assert with `wait` and `wait not` on test ids or on text
 the screen writes itself, never on coordinates: to check a layout, have the screen print what
 it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, `clock stop` and
 `pause`.
@@ -360,7 +363,7 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
   for `wasi_html` and runs every script in Chromium through Playwright (buck/program/web-test.mjs,
   `web_drive_test` in buck/program/drive.bzl); verify runs it as `:web-test[run]`. Reading
   commands go to beui-core-html's `automate`; input is real Playwright input aimed where
-  `reveal` says, so the browser's own focus, key and IME paths run. It also runs the page's
+  `find TARGET reveal` says, so the browser's own focus, key and IME paths run. It also runs the page's
   `checks()` (src/web/live.rs). It runs on a worker, like any test, with Node, Playwright and
   Playwright's headless Chromium pinned in buck/tools (the versions buck/program/browser-tests'
   lockfile names) and Chromium's libraries from `buck/sysroot:amd64-browser`; it fails rather than
@@ -369,8 +372,9 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
 - A script both cores run marks a step only the browser can make with `#web COMMAND` (a comment
   natively): the browser-only commands are `attribute`, `history`, `history-state` (the current
   history entry holds the page's own back entry or not), `loads` (how many times the page has
-  loaded), `reload`, `selection`, `role` and
-  `roles`; web-test.mjs's header says what each takes.
+  loaded), `reload`, `selection`, `highlighted` (what the page's CSS highlights cover),
+  `elements` (how many elements match a selector), `role` and `roles`; web-test.mjs's header
+  says what each takes.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`; in a browser,
   serve `:web` with COOP `same-origin` and COEP `require-corp` and open
   `index.html?fixture=NAME`.

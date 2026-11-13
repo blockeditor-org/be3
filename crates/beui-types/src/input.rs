@@ -25,20 +25,26 @@ const MULTI_CLICK_LIMIT: u32 = 4;
 #[derive(Clone, Copy, Default, Debug)]
 pub struct ClickCounter {
     clicks: u32,
-    last: Option<(Instant, Pos2)>,
+    last: Option<(Instant, Pos2, crate::window::WindowId)>,
 }
 
 impl ClickCounter {
-    pub fn count(&mut self, pos: Pos2, now: Instant) -> u32 {
-        let repeated = self.last.is_some_and(|(when, at)| {
-            now.saturating_duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
+    /// Counts a press at `pos` in `window`: a repeat of the last when it came soon enough and
+    /// close enough in the same window. Presses in two windows are never one double-click, even
+    /// at the same position: an app's views are windows of their own, and a child that takes its
+    /// parent's frame shares its coordinates, so the press that went into it (replayed from the
+    /// parent, `be-host`'s handoff) is not a second click.
+    pub fn count(&mut self, pos: Pos2, window: crate::window::WindowId, now: Instant) -> u32 {
+        let repeated = self.last.is_some_and(|(when, at, was)| {
+            was == window
+                && now.saturating_duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
                 && at.distance(pos) <= MULTI_CLICK_DISTANCE
         });
         self.clicks = match repeated {
             true => self.clicks % MULTI_CLICK_LIMIT + 1,
             false => 1,
         };
-        self.last = Some((now, pos));
+        self.last = Some((now, pos, window));
         self.clicks
     }
 
@@ -47,7 +53,9 @@ impl ClickCounter {
     }
 
     pub fn scale(&mut self, scale: impl Fn(Pos2) -> Pos2) {
-        self.last = self.last.map(|(when, pos)| (when, scale(pos)));
+        self.last = self
+            .last
+            .map(|(when, pos, window)| (when, scale(pos), window));
     }
 }
 
@@ -427,3 +435,6 @@ pub struct PointerEvent {
     /// appeared (`Event::PointerRested`).
     pub rested: bool,
 }
+
+#[cfg(test)]
+mod tests;

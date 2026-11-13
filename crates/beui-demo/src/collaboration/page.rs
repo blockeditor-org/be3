@@ -119,7 +119,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
     let same = create_signal(true);
     let seen = create_signal([None::<Caret>, None]);
     let published = Cell::new([None::<Caret>, None]);
-    let timer = store(Cell::new(None::<Timer>));
+    let timer = StoredCell::new(None::<Timer>);
 
     let pump = Callback::new(move |force: Option<(Side, Amount)>| {
         let now = now();
@@ -179,7 +179,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         if seen.get_untracked() != carets {
             seen.set(carets);
         }
-        if let (Some(due), Some(timer)) = (due, timer.with(Cell::get)) {
+        if let (Some(due), Some(timer)) = (due, timer.get()) {
             timer.start(due.saturating_duration_since(now));
         }
     });
@@ -187,7 +187,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         pump.call(None);
         None
     });
-    timer.with(|timer| timer.set(Some(pumping)));
+    timer.set(Some(pumping));
     create_effect(move || {
         left.content().get();
         right.content().get();

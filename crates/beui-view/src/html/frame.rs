@@ -37,6 +37,7 @@ pub(crate) fn frame(
     rotate: Prop<f32>,
     opacity: Prop<f32>,
     fade_edges: Prop<Sides>,
+    raised: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = create("Frame", "div");
@@ -130,6 +131,10 @@ pub(crate) fn frame(
             "mask-composite",
             (layers > 1).then(|| "intersect".to_owned()),
         );
+    });
+    bind(raised, move |raised| {
+        set_style(frame, "position", raised.then(|| "relative".to_owned()));
+        set_style(frame, "z-index", raised.then(|| "1".to_owned()));
     });
     frame
 }
