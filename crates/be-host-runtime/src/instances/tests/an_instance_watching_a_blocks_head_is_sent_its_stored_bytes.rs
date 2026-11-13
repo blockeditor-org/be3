@@ -1,7 +1,10 @@
 use super::*;
 
 use be_block::{BlockContent, LiveEdit};
-use be_sdk_api::StoredHead;
+use be_sdk_api::{
+    Failure, StoredHead,
+    blocks::{BlockSubject, BlockValue},
+};
 use be_type_example_counter::{Counter, CounterContent};
 
 fn saved_head(block: Uuid, after: Option<be_block_commit::CommitId>) -> be_block_commit::CommitId {
@@ -14,14 +17,20 @@ fn saved_head(block: Uuid, after: Option<be_block_commit::CommitId>) -> be_block
     })
 }
 
-fn heads(instances: &mut Instances, watch: OpId) -> Vec<Result<Option<StoredHead>, String>> {
+fn heads(instances: &mut Instances, watch: OpId) -> Vec<Result<Option<StoredHead>, Failure>> {
     next_screens(instances);
     be_host_stack::flush_and_send();
     instances.pending();
-    answered(instances, watch).into_iter().collect()
+    answered::<BlockValue>(instances, watch)
+        .into_iter()
+        .map(|value| match value {
+            BlockValue::Head(head) => head,
+            other => panic!("not a head: {other:?}"),
+        })
+        .collect()
 }
 
-fn stored(head: &Result<Option<StoredHead>, String>) -> (i64, [u8; 32]) {
+fn stored(head: &Result<Option<StoredHead>, Failure>) -> (i64, [u8; 32]) {
     let head = head.as_ref().ok().and_then(Option::as_ref).expect("a head");
     assert_eq!(head.content_type, CounterContent::CONTENT_TYPE.into_bytes());
     let counter = CounterContent::decode(&head.bytes).expect("the stored bytes are a counter");
@@ -51,9 +60,9 @@ fn an_instance_watching_a_blocks_head_is_sent_its_stored_bytes() {
     let first = saved_head(block, None);
     let mut instances = placed();
     next_screens(&mut instances);
-    let watch = open_watch(&mut instances, |op| Call::HeadWatchNew {
-        resource: wire::HeadWatch(op),
-        block: block.into_bytes(),
+    let watch = open_watch(&mut instances, |op| Call::BlockWatchNew {
+        resource: wire::BlockWatch(op),
+        subject: BlockSubject::Head(block.into_bytes()),
     });
 
     let sent = heads(&mut instances, watch);

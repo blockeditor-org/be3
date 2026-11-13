@@ -67,23 +67,10 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   paste between two rich texts keeps bold, links and an embed, and pasting
   from a browser's `text/html` gives bold and links.
 
-## 6. Handing the keyboard to a child block
+## 7. Sessions
 
-The held-keys mechanism in be-host (an editor giving the keyboard to a child
-block, such as a deck's notes; guides/apps/children.md, Focus) works but is
-spread over three thread-local maps, two runtime lists and a `seen` flag.
-Replace them with one gift record per editor instance in be-host-runtime: what
-it is given to (a block, a child or a view), the keys held and whose they are,
-moving pending → given → ready → done, with one function that ends it. Done
-when:
-- a child that is placed but never takes the keyboard ends the gift instead of
-  holding the editor's keys until a press or a focus move;
-- an entry left when the focus moved away before the child's view saw it can
-  no longer replay its keys when that view is focused later;
-- a block gift's deadline counts the asking instance's layout commits, not the
-  whole app's, and a gift ends even if the editor commits no layout;
-- held keys are released by the child's input-method request only if a frame
-  was answered after the focus, so a stale `ime` can't release them early;
-- a block gift ends when no child shows the block (a block gift already
-  turns into a child gift at a layout commit, `settle_block_focus`, with unit
-  tests in be-host-runtime's `instances/tests`).
+- **Catch-ups from viewers.** `Catchup` is a `peer` relay, so any viewer can
+  send one, and each makes the owner answer a `Snapshot` (with session state
+  unless the asker already holds it) and may set it to reload. Done: the owner
+  answers one sender at most once per interval, shown by a be-sdk-type-guest
+  test where a viewer's repeated `Catchup`s get one `Snapshot`.

@@ -1,4 +1,4 @@
-use crate::{HostTest, Server};
+use crate::{HostTest, Options, Server};
 
 mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
@@ -66,6 +66,7 @@ mod an_offline_device_that_never_opened_my_files_is_told_it_cannot_add_to_it;
 mod choosing_a_scale_draws_the_host_larger;
 mod choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there;
 mod closing_a_demos_block_tab_closes_the_tabs_its_dock_put_in_the_workspace;
+mod closing_a_presentation_while_its_notes_wait_for_the_keyboard_leaves_the_host_settled;
 mod closing_a_tab_shuts_its_editor_down;
 mod dragging_the_workspace_splitter_draws_the_files_at_their_new_width_in_the_same_frame;
 mod fit_on_an_active_child_fits_its_content_in_its_view;

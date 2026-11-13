@@ -383,13 +383,25 @@ rebase. The rules an agent most needs:
   lands, the snapshot starts at a head that holds it; before that it still
   names the part, so the follower waits. Giving up is never a divergence, only
   bytes that do not decode are. A follower heeds `Accepted`, `Snapshot`,
-  `Sealed`, `Replaced` and `Resend` from the owner alone and ignores `Submit`,
-  `Catchup` and `Kept` (`not_heeded`), before it reads any part they name,
-  since the server relays what any participant, a viewer included, sends. One
-  from a sender it did not know as the owner is remembered, and it asks to be
-  caught up should that sender become the owner. That the
-  server does not limit `Submit` and the owner's messages to editors and the
-  owner is a known gap (plans/session_message_authority.md). The server holds a
+  `Sealed`, `Replaced`, `Saved` and `Resend` from the owner alone and ignores
+  `Submit`, `Catchup` and `Kept` (`not_heeded`), before it reads any part they
+  name. One from a sender it did not know as the owner is remembered, and it
+  asks to be caught up should that sender become the owner. The server checks
+  the sender too: `send` names a `relay-kind` (`Wire::kind`), `peer` for
+  presence, channel messages, `Catchup` and the tag handshake, `edit` for the
+  rest; the server relays `edit` only from an editor (guides/blocks/server.md)
+  and hands each message on with the kind it checked
+  (`message`'s `delivery`). Since the kind is the sender's label, every replica,
+  owner included, drops a message that asks for more than its stamped kind
+  (`Wire::sent_as`), before it reads any part it names: a viewer's `Submit`
+  labelled as presence is never applied. Which messages only the owner sends
+  stays the replicas' check, not the server's: an owner whose lease lapsed
+  unseen still relays what it accepted, and the next owner takes it over
+  (`inherit_accepted`), but only from a client it knew as an owner
+  (`past_owners`). The owner heeds `Replaced` from any editor (a follower
+  that replaced the content sends it) and `Saved` changes nothing on it. Editors
+  are trusted with the block's content and session; only viewers are kept out.
+  The server holds a
   part for the whole upload grace (a day), and longer while the block's journal holds
   entries, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.
@@ -441,7 +453,10 @@ replica:
   nothing while one drains, so what a drain publishes goes together. It marks
   each sent before it calls `notify`, putting them back only when the server
   cannot be reached, so a crash costs a notification rather than repeating
-  one. What waits together on one block is one notification: the text of one,
+  one. `notify` names their keys, and the server pushes nothing for a call
+  whose keys it has all told before: a device stopped after the server took
+  the call but before it heard the answer sends it again on its next start,
+  and the members hear it at most once. What waits together on one block is one notification: the text of one,
   or the newest's `several`, mentioning everyone they mention. The server
   allows `MAX_NOTIFICATIONS_PER_BLOCK` a minute per account and block, and one
   it refuses is dropped, never reported: it was about then.

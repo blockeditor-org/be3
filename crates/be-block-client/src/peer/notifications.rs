@@ -84,12 +84,14 @@ impl Notification {
 
 impl<S: ObjectStore> Peer<S> {
     /// Seals `text` about `block` under its data key and has the server push it to the block's
-    /// members who are not connected; `mentions` names the accounts it mentions.
+    /// members who are not connected; `mentions` names the accounts it mentions, and `keys` what
+    /// it tells, which the server tells once however often it is sent.
     pub async fn notify(
         &self,
         block: Uuid,
         text: &str,
         mentions: Vec<Uuid>,
+        keys: Vec<be_block_store::Hash>,
     ) -> Result<(), ClientError> {
         let notification = Notification {
             organization: self.organization,
@@ -99,7 +101,7 @@ impl<S: ObjectStore> Peer<S> {
             text: text.to_owned(),
         };
         let sealed = self.seal_notification(&notification).await?;
-        client::notifications::notify(&self.connection(), block, sealed, mentions).await??;
+        client::notifications::notify(&self.connection(), block, sealed, mentions, keys).await??;
         Ok(())
     }
 
@@ -182,8 +184,13 @@ impl<S: ObjectStore> Peer<S> {
                     mentions.push(*mention);
                 }
             }
+            // The newest the server takes, oldest first: it remembers the last it is told.
+            let keys = held[held.len().saturating_sub(be_block_protocol::MAX_TOLD_KEYS)..]
+                .iter()
+                .map(|announcing| be_block_protocol::told_key(block, &announcing.made.key))
+                .collect();
             let sent = match text {
-                Ok(text) => self.notify(block, &text, mentions).await,
+                Ok(text) => self.notify(block, &text, mentions, keys).await,
                 Err(error) => Err(error),
             };
             match sent {

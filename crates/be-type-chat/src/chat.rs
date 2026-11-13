@@ -912,6 +912,115 @@ impl BlockContent for ChatContent {
     fn describe(&self, metadata: &mut BlockMetadata) {
         BlockContent::describe(&self.header, metadata);
     }
+
+    /// A document of the recent messages (key `recent`) and one per closed segment (keyed by
+    /// its part's hash, which never changes), each message as it reads now on a line of its own.
+    /// A segment's source is its saved part only while no edit or deletion in the header may
+    /// name one of its messages: the index then keeps its text until the part changes, and a
+    /// segment edited since it closed is read again (at every reindex, since the header keeps
+    /// the edit). Content that holds a segment neither as bytes nor as a part (an editor sent
+    /// the header alone) answers an error rather than leave the segment out.
+    fn search_text(
+        &self,
+        keys: Option<&std::collections::HashSet<String>>,
+        indexed: &std::collections::HashSet<PartRef>,
+        parts: PartReader,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>>
+    {
+        let asked = |key: &str| keys.is_none_or(|keys| keys.contains(key));
+        let mut documents = Vec::new();
+        if asked(RECENT) {
+            documents.push(be_block::SearchDocument {
+                key: RECENT.to_owned(),
+                body: Some(lines(self.shown())),
+                ..be_block::SearchDocument::default()
+            });
+        }
+        let changed: Vec<ObjectId> = self
+            .edits()
+            .keys()
+            .chain(self.deletions().keys())
+            .copied()
+            .collect();
+        let mut reads = Vec::new();
+        for (segment, held) in self.segments().into_iter().zip(&self.held) {
+            let key = segment_key(&segment);
+            if !asked(&key) {
+                continue;
+            }
+            let touched = changed.iter().any(|message| segment.may_hold(*message));
+            let source = match held {
+                Held::Saved(part) if !touched => Some(*part),
+                _ => None,
+            };
+            if source.is_some_and(|source| indexed.contains(&source)) {
+                documents.push(be_block::SearchDocument {
+                    key,
+                    source,
+                    ..be_block::SearchDocument::default()
+                });
+                continue;
+            }
+            let read = match held {
+                Held::Bytes(bytes) => Read::Bytes(bytes.clone()),
+                Held::Saved(part) => Read::Part(*part),
+                // An editor sent only the header has nothing of the segment: an answer without it
+                // would have the index drop the segment's text, so there is none.
+                Held::Absent => {
+                    return Box::pin(std::future::ready(Err(
+                        "a closed segment's part is not held here".to_owned(),
+                    )));
+                }
+            };
+            reads.push((documents.len(), segment, source, read));
+            documents.push(be_block::SearchDocument {
+                key,
+                source,
+                ..be_block::SearchDocument::default()
+            });
+        }
+        let this = self.clone();
+        Box::pin(async move {
+            for (at, segment, _, read) in reads {
+                let bytes = match read {
+                    Read::Bytes(bytes) => bytes,
+                    Read::Part(part) => parts.read_all(part).await?,
+                };
+                let messages = segment
+                    .read(&bytes)
+                    .ok_or("a segment's part does not match its index entry")?;
+                documents[at].body = Some(lines(this.shown_of(messages)));
+            }
+            Ok(documents)
+        })
+    }
+}
+
+/// The search document of the recent messages (`ChatContent::search_text`).
+const RECENT: &str = "recent";
+
+/// A closed segment's search key: its part's hash, in hex.
+fn segment_key(segment: &Segment) -> String {
+    segment
+        .hash
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+/// A segment's bytes to read for search: held, or saved as a part.
+enum Read {
+    Bytes(Vec<u8>),
+    Part(PartRef),
+}
+
+/// Messages as search text: each as it reads now, one per line.
+fn lines(shown: Vec<Shown>) -> String {
+    shown
+        .into_iter()
+        .map(|shown| shown.body)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 impl LiveEdit for ChatContent {

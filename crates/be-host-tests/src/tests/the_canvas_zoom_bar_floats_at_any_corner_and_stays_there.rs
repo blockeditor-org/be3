@@ -6,7 +6,7 @@ const MODE_BAR: &str = "GenericContainer #infinite-canvas.mode at";
 
 #[test]
 fn the_canvas_zoom_bar_floats_at_any_corner_and_stays_there() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.zoom-pill");
     host.run(&["settle"]);

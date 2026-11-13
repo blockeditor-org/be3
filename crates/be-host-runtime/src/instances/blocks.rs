@@ -1,12 +1,13 @@
 use be_sdk_api::{
     BlockIdRole, BlockQuery, VersionCommand,
-    blocks::{BlockHistory, OpenRequest, ShowRequest},
+    blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest, ShowRequest},
     embed::blocks::Call,
     ops::{OpError, OpId, Outcome, Reply, Serialize, encode},
 };
 use uuid::Uuid;
 
 use super::{ContentLink, EditorInstanceId, Instance, Instances};
+use crate::{EditorAction, events::InstanceEvent};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Subject {
@@ -18,6 +19,18 @@ pub(super) enum Subject {
     Shows,
     /// A full-text search, named by its watch: `Instance::searches` holds what it asks.
     Search(OpId),
+}
+
+impl From<BlockSubject> for Subject {
+    fn from(subject: BlockSubject) -> Self {
+        match subject {
+            BlockSubject::Blocks(query) => Self::Blocks(query),
+            BlockSubject::History(block) => Self::History(Uuid::from_bytes(block)),
+            BlockSubject::Head(block) => Self::Head(Uuid::from_bytes(block)),
+            BlockSubject::Artifact(block) => Self::Artifact(Uuid::from_bytes(block)),
+            BlockSubject::Version => Self::Version,
+        }
+    }
 }
 
 pub(super) struct Watch {
@@ -143,12 +156,18 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return self.acknowledge(reply, None);
                 };
-                entry.opens.push(super::OpenRequest {
+                let open = super::OpenRequest {
                     id: Uuid::from_bytes(request.block_id),
                     block_type: Uuid::from_bytes(request.block_type),
                     via: request.via.map(Uuid::from_bytes),
                     editor: request.editor.map(Uuid::from_bytes),
-                });
+                };
+                let _ = entry;
+                crate::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::OpenBlock(open)),
+                );
                 self.acknowledge(reply, Some(true))
             }
             Call::Act {
@@ -159,9 +178,13 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return self.acknowledge(reply, None);
                 };
-                entry
-                    .block_commands
-                    .push((Uuid::from_bytes(block), command));
+                let _ = entry;
+                let id = Uuid::from_bytes(block);
+                crate::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::Command { id, command }),
+                );
                 self.acknowledge(reply, Some(true))
             }
             Call::Version {
@@ -222,14 +245,14 @@ impl Instances {
             } => {
                 let block = Uuid::from_bytes(block);
                 let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
-                    self.refuse_block(instance, block);
+                    self.refuse_block_gift(instance, block);
                     return self.acknowledge(reply, None);
                 };
                 if parent.block().is_some_and(|parent| !self.editable(parent))
                     || (owner_only && !own_settings(parent))
                     || be_host_stack::node(block).is_some()
                 {
-                    self.refuse_block(instance, block);
+                    self.refuse_block_gift(instance, block);
                     return self.acknowledge(reply, None);
                 }
                 let mut defined = be_host_stack::app_graph::entries_of(defined);
@@ -307,24 +330,9 @@ impl Instances {
                     None => false,
                 }
             }
-            Call::BlocksWatchNew { resource, query } => {
-                self.watch(instance, resource.op(), Subject::Blocks(query))
+            Call::BlockWatchNew { resource, subject } => {
+                self.watch(instance, resource.op(), subject.into())
             }
-            Call::HistoryWatchNew { resource, block } => self.watch(
-                instance,
-                resource.op(),
-                Subject::History(Uuid::from_bytes(block)),
-            ),
-            Call::HeadWatchNew { resource, block } => self.watch(
-                instance,
-                resource.op(),
-                Subject::Head(Uuid::from_bytes(block)),
-            ),
-            Call::ArtifactWatchNew { resource, block } => self.watch(
-                instance,
-                resource.op(),
-                Subject::Artifact(Uuid::from_bytes(block)),
-            ),
             Call::SearchWatchNew {
                 resource,
                 text,
@@ -342,36 +350,18 @@ impl Instances {
                 }
                 self.watch(instance, op, Subject::Search(op))
             }
-            Call::VersionWatchNew { resource } => {
-                self.watch(instance, resource.op(), Subject::Version)
-            }
             Call::ShowRequestsNew { resource } => {
                 self.watch(instance, resource.op(), Subject::Shows)
             }
             call @ (Call::ReplicaFrames { .. }
-            | Call::BlocksWatchNext { .. }
-            | Call::HistoryWatchNext { .. }
-            | Call::HeadWatchNext { .. }
+            | Call::BlockWatchNext { .. }
             | Call::SearchWatchNext { .. }
-            | Call::ArtifactWatchNext { .. }
-            | Call::VersionWatchNext { .. }
             | Call::ShowRequestsNext { .. }) => {
                 self.services
                     .answers
                     .push(call.refuse(OpError::Unsupported));
                 false
             }
-        }
-    }
-
-    /// Notes that the host refused to make `block` for the instance, so a gift of the keyboard
-    /// to the child that would have shown it never starts.
-    fn refuse_block(&mut self, instance: EditorInstanceId, block: Uuid) {
-        if let Some(entry) = self.entries.get_mut(&instance) {
-            entry.block_focus.retain(|asked| *asked != block);
-            entry.block_refused.push(block);
-            let extra = entry.block_refused.len().saturating_sub(8);
-            entry.block_refused.drain(..extra);
         }
     }
 
@@ -390,10 +380,14 @@ impl Instances {
         self.owners.insert(op, instance);
         entry.watches.insert(op, Watch::new(watched));
         match watched {
-            Subject::Blocks(_) => entry.blocks_seen = None,
-            Subject::Search(_) => entry.searches_seen = None,
+            Subject::Blocks(_) => entry.blocks_due = true,
+            Subject::Search(_) => entry.searches_due = true,
             Subject::Head(block) => entry.heads.watch(block),
-            Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
+            Subject::Artifact(_) => crate::events::emit(
+                &self.app_id,
+                instance,
+                InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
+            ),
             Subject::Version => entry.version_sent = None,
             Subject::History(_) | Subject::Shows => {}
         }
@@ -453,7 +447,11 @@ impl Instances {
                         entry.heads.unwatch(block);
                     }
                 }
-                Subject::Artifact(_) => entry.artifact_watch = Some(entry.artifact_blocks()),
+                Subject::Artifact(_) => crate::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ArtifactWatch(entry.artifact_blocks()),
+                ),
                 Subject::Search(op) => {
                     entry.searches.remove(&op);
                 }
@@ -586,7 +584,7 @@ impl Instances {
             if let Some(state) = &mut state {
                 Self::translated(scope, false, |visit| state.visit_block_ids(visit));
             }
-            entry.offer(Subject::Artifact(block), &state);
+            entry.offer(Subject::Artifact(block), &BlockValue::Artifact(state));
         }
     }
 }

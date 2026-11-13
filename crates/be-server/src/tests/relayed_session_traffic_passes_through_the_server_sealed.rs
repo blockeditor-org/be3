@@ -26,7 +26,9 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
         "the relayed payload carried its plaintext"
     );
 
-    let response = peer.relay(block, Some(owner_id), sealed.clone()).await;
+    let response = peer
+        .relay(block, Some(owner_id), RelayKind::Edit, sealed.clone())
+        .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
     let joined = owner.notification().await;
@@ -41,6 +43,7 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
         block: on,
         from,
         payload,
+        ..
     } = relayed
     else {
         panic!("the relay never arrived: {relayed:?}");
