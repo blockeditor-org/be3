@@ -1334,11 +1334,27 @@ impl<S: ObjectStore> Peer<S> {
         self.server_summary(block).await
     }
 
+    /// `summary` as the server answered it, with what this device's outbox still has to tell it
+    /// of the block: where a move waiting there puts it, and the metadata a definition gives it.
+    /// Kept as the server said it, a read answered before those reach the server would undo
+    /// them here until they did.
+    fn with_pending(&self, mut summary: BlockSummary) -> BlockSummary {
+        for (_, op) in self.refs.pending_for(summary.id) {
+            match op {
+                Op::Move(moving) => summary.parent = Some(moving.parent),
+                Op::Define(defining) => summary.metadata = defining.metadata,
+                Op::Create(_) | Op::Publish(_) => {}
+            }
+        }
+        summary
+    }
+
     /// What the server says of a block, or offline what this device last heard.
     pub(super) async fn server_summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         let response = crate::ask(client::blocks::read_block(&self.connection(), block)).await;
         match response {
             Ok(block) => {
+                let block = self.with_pending(block);
                 self.note(&block);
                 Ok(block)
             }
