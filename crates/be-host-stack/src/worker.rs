@@ -1367,8 +1367,14 @@ impl Session<'_> {
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             step(shared, Some("the search index"));
-            let now = self.config.clock.now();
-            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0, now).await;
+            moved |= super::search::step(
+                peer,
+                shared,
+                self.replicas,
+                &self.tasks.0,
+                &self.config.clock,
+            )
+            .await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())

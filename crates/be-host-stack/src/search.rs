@@ -260,7 +260,9 @@ impl Searching {
 
     /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
     /// written or a wanted search is not answered yet. The index counts in the size of the
-    /// tree it is under, so a painting taken before it is named would change.
+    /// tree it is under, so a painting taken before it is named would change. A batch held back
+    /// for an index whose head kept moving (`moving`) waits on another device, so it is not
+    /// busy; until it is written, searches answer that they are not complete (`indexed`).
     /// What keeps search busy (`busy`), named for the block store's busy reason.
     pub(crate) fn busy_with(&self, unindexed: bool) -> Option<&'static str> {
         let indexing = !self.off;
@@ -511,32 +513,36 @@ impl Searching {
         self.parked.push((index, blocks));
     }
 
-    /// Holds back a batch given back for an index whose head kept moving (`moving`), at the
-    /// heads it was given back at.
-    pub(crate) fn hold_moving(&mut self, index: Uuid, blocks: Vec<Uuid>, heads: IndexHeads) {
+    /// Holds back a batch given back at `now` for an index whose head kept moving (`moving`),
+    /// at the heads it was given back at, for a delay that doubles with each batch given back
+    /// in a row.
+    pub(crate) fn hold_moving(
+        &mut self,
+        index: Uuid,
+        blocks: Vec<Uuid>,
+        heads: IndexHeads,
+        now: Duration,
+    ) {
         let runs = self.moved.entry(index).or_default();
         *runs = runs.saturating_add(1);
         self.moving.push(Moving {
             index,
             blocks,
             heads,
-            due: None,
+            due: now + moving_delay(*runs),
         });
     }
 
     /// Queues again the batches held back for an index whose head moved on, that no root names
-    /// any more or whose delay is up, and times the rest from `now`, a delay that doubles with
-    /// each batch given back in a row.
+    /// any more or whose delay is up at `now`.
     pub(crate) fn release_moving(
         &mut self,
         now: Duration,
         heads: impl Fn(Uuid) -> IndexHeads,
         named: impl Fn(Uuid) -> bool,
     ) {
-        for mut moving in std::mem::take(&mut self.moving) {
-            let runs = self.moved.get(&moving.index).copied().unwrap_or(1);
-            let due = *moving.due.get_or_insert_with(|| now + moving_delay(runs));
-            match due <= now || heads(moving.index) != moving.heads || !named(moving.index) {
+        for moving in std::mem::take(&mut self.moving) {
+            match moving.due <= now || heads(moving.index) != moving.heads || !named(moving.index) {
                 true => self.dirty.extend(moving.blocks),
                 false => self.moving.push(moving),
             }
@@ -545,7 +551,7 @@ impl Searching {
 
     /// When the first batch held back is due, for the worker to wake at.
     pub(crate) fn moving_due(&self) -> Option<Duration> {
-        self.moving.iter().filter_map(|moving| moving.due).min()
+        self.moving.iter().map(|moving| moving.due).min()
     }
 
     /// The indexes batches are held back for, which are watched for their next head.
@@ -568,8 +574,8 @@ struct Moving {
     index: Uuid,
     blocks: Vec<Uuid>,
     heads: IndexHeads,
-    /// When it is tried again whatever the heads: set the first round after it is held back.
-    due: Option<Duration>,
+    /// When it is tried again whatever the heads.
+    due: Duration,
 }
 
 /// The first delay before a batch given back is tried again whatever the index's heads.
@@ -639,12 +645,12 @@ pub(crate) async fn step(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     tasks: &Tasks,
-    now: Duration,
+    clock: &be_block_client::Clock,
 ) -> bool {
     name_indexes(peer, shared, replicas, tasks).await;
     confirm_names(peer, shared, tasks);
     start_catch_ups(peer, shared, tasks);
-    let mut moved = index(peer, shared, replicas, tasks, now).await;
+    let mut moved = index(peer, shared, replicas, tasks, clock).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
     moved
@@ -655,7 +661,7 @@ async fn index(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     tasks: &Tasks,
-    now: Duration,
+    clock: &be_block_client::Clock,
 ) -> bool {
     let (batches, roots) = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -678,7 +684,7 @@ async fn index(
             |index| roots_naming.contains(&index),
         );
         state.search.release_moving(
-            now,
+            clock.now(),
             |index| index_heads(peer, graph, index),
             |index| roots_naming.contains(&index),
         );
@@ -801,6 +807,7 @@ async fn index(
             }
         }
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        let clock = clock.clone();
         tasks.spawn(async move {
             let written = write(&peer, index, batch).await;
             // Sent before the batch stops counting as busy, so the host is never idle with the
@@ -831,7 +838,7 @@ async fn index(
                     // of heads already let go again.
                     Err(Unwritten::Moved(_)) => {
                         let heads = index_heads(&peer, &held.graph, index);
-                        held.search.hold_moving(index, blocks, heads);
+                        held.search.hold_moving(index, blocks, heads, clock.now());
                     }
                     Err(Unwritten::Failed(error)) => {
                         held.error = Some(format!("Indexing for search failed: {error}"))
