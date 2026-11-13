@@ -2459,6 +2459,16 @@ where
         }
     }
 
+    /// Whether a seal now would leave this replica owing less: an owner with sequenced work not
+    /// sealed, and no merge waiting for parts it could not read. What it holds back (behind a
+    /// part being put, or edits made during a seal) is not sealed until it is sequenced, and a
+    /// seal on the old base while a merge waits is rejected (as `commit_at`): either way the host,
+    /// which seals what is owed on every hurried frame, would ask again on each one.
+    fn seal_would_settle(&self) -> bool {
+        matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
+            && self.merge_failures == 0
+    }
+
     fn has_unsealed_work(&self) -> bool {
         matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
             || !self.held.is_empty()
@@ -3062,7 +3072,7 @@ where
                 Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
                 Role::Follower(_) => self.is_clean(),
             },
-            owes_seal: self.loaded && self.is_owner() && !self.is_clean(),
+            owes_seal: self.loaded && self.seal_would_settle(),
             incompatible: self.incompatible,
             diverged: self.diverged,
             unreadable: self.unreadable.clone(),
