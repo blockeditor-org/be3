@@ -104,11 +104,7 @@ port 50052.
   be-lib-geometry change writes about 10 GB, and at 15 GB workers evicted the libraries the next actions needed.
 - **Scheduling**: actions go to the worker running the fewest (`allocation_strategy: "least_loaded"`); the default,
   least recently used, gave a worker already running several 3-4 GB links as much new work as an idle one, and its
-  links then took minutes. Memory is reserved only by actions that ask: each worker advertises `memory_kb` (its
-  memory less 2 GiB, `worker-direct.json5`), a `minimum` property the scheduler takes each running action's request
-  off, and be-host's fat LTO link, which peaks at 10 GB, asks for 12 GiB through the execution platform
-  buck/platforms:large_memory, so a 16 GB worker runs one at a time (two on one worker were killed). Deploy the two
-  configs together: an action asking for a `minimum` property no worker advertises is never scheduled. A worker that sends nothing for 30 s (`worker_timeout_s`; it sends a keepalive every
+  links then took minutes. A worker that sends nothing for 30 s (`worker_timeout_s`; it sends a keepalive every
   2.5 s) is dropped and its actions go to another.
 - **Rust objects carry no LLVM bitcode** (`-Cembed-bitcode=no` in buck/toolchains/BUCK, except under
   buck/constraints:lto): it was most of an rlib's bytes, and every worker that compiles or links against one fetches
