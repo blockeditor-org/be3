@@ -291,10 +291,16 @@ index and search it locally.
   and hands each index one batch in a task, which applies it to the index's
   newest head and seals the commit into the outbox: it is saved offline-first,
   published by the next drain, and two devices' batches meet as a diverged
-  block that merges by parts. Each batch adds a segment; past `COMPACT_AT`
-  segments the writing device compacts them (`Index::compact`) in the same
-  commit and forgets what it retired before the oldest state of the index the
-  server still keeps (`Index::forget_before`, read from the block's history). A workspace (`WORKSPACE_TYPE` at the top) with no
+  block that merges by parts. Each batch adds a segment, and the writing
+  device compacts in the same commit (`Index::compact`, tiered: it merges only
+  once a tier fills). A catch-up's batch also forgets what the index retired
+  and masked before the lowest watermark among the states the server keeps,
+  merges' parents left out (`search::forget`, `Index::forget_before`); an
+  edit's batch never asks the server. A state it cannot see, another device's
+  unpublished commit on a state since dropped, heals when merged in: a segment
+  it brings back is masked and dropped by the next compaction, and a block it
+  brings back is masked again by the next catch-up and filtered by `show`
+  meanwhile. A workspace (`WORKSPACE_TYPE` at the top) with no
   index gets one as soon as a device that may edit it sees it in the mirror:
   made in a task, then named in the root's metadata from the loop once the
   root's open replica has sealed its edits, as a define command is, so the

@@ -56,9 +56,6 @@ const SHOWN: usize = 20;
 /// start.
 pub(crate) const MAX_TEXT: usize = 1 << 20;
 
-/// Segments an index holds before the device that writes it compacts it (`Index::compact`).
-const COMPACT_AT: usize = 8;
-
 /// Texts kept for snippets, by document and head, before they are all let go.
 const TEXTS: usize = 256;
 
@@ -1378,12 +1375,18 @@ pub async fn write<S: ObjectStore>(
     };
     let mut content = load(peer, head).await?;
     outdate_ancestors(peer, &content, &mut batch).await?;
+    let catch_up = batch.watermark.is_some();
     content
         .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch)
         .await
         .map_err(|error| error.to_string())?;
-    if content.index().segment_count() > COMPACT_AT {
-        compact(peer, index, &mut content).await?;
+    // Tiered: it merges only once a tier fills, and otherwise reads and writes nothing.
+    content
+        .compact(&PeerParts(peer), Uuid::new_v4().into_bytes())
+        .await
+        .map_err(|error| error.to_string())?;
+    if catch_up && content.index().remembered() > 0 {
+        forget(peer, index, &mut content).await;
     }
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
         .described(Vec::new(), be_block::derived_metadata(&content));
@@ -1393,28 +1396,38 @@ pub async fn write<S: ObjectStore>(
     Ok(true)
 }
 
-/// Merges the index's segments, then forgets the segments and blocks it retired before the
-/// oldest state of the index the server still keeps (be-server's `retention`): no state that
-/// could still be merged in predates them. Offline, it compacts and forgets nothing.
-async fn compact<S: ObjectStore>(
-    peer: &Peer<S>,
-    index: Uuid,
-    content: &mut SearchIndexContent,
-) -> Result<(), String> {
-    content
-        .compact(&PeerParts(peer), Uuid::new_v4().into_bytes())
-        .await
-        .map_err(|error| error.to_string())?;
+/// Forgets the segments the index retired and the blocks it masked before every state of it
+/// that could still be merged in: the lowest watermark among the states the server keeps
+/// (be-server's `retention`), leaving out the parents of merges, which the server pins for good
+/// but which are already merged. It asks the server, so it runs with a catch-up's batch (one
+/// that moves the watermark), which reads the server anyway, never with an edit's; offline it
+/// forgets nothing.
+///
+/// A state this device cannot see can still predate the watermark: another device's commit not
+/// published yet, built on a state retention since dropped. Merging it in heals itself: a
+/// segment it brings back holds only documents the index has newer entries for, so it is
+/// masked, and the next compaction drops it; a removed block it brings back is masked again by
+/// the next catch-up (`changed-since`), and `show` filters it from answers meanwhile.
+async fn forget<S: ObjectStore>(peer: &Peer<S>, index: Uuid, content: &mut SearchIndexContent) {
     let Ok(history) = peer.history(index).await else {
-        return Ok(());
+        return;
     };
-    let Some(oldest) = history.iter().min_by_key(|entry| entry.time) else {
-        return Ok(());
-    };
-    if let Ok(kept) = load(peer, oldest.commit).await {
-        content.forget_before(kept.index().watermark());
+    let merged: HashSet<CommitId> = history
+        .iter()
+        .filter(|entry| entry.parents.len() > 1)
+        .flat_map(|entry| entry.parents.iter().copied())
+        .collect();
+    let mut lowest: Option<u64> = None;
+    for entry in history.iter().filter(|entry| !merged.contains(&entry.commit)) {
+        // One the server dropped since it listed it is no longer a state to merge in.
+        if let Ok(kept) = load(peer, entry.commit).await {
+            let watermark = kept.index().watermark();
+            lowest = Some(lowest.map_or(watermark, |lowest| lowest.min(watermark)));
+        }
     }
-    Ok(())
+    if let Some(lowest) = lowest {
+        content.forget_before(lowest);
+    }
 }
 
 /// A put wins over the entry the index holds for its document only when its commit is the

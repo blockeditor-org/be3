@@ -320,6 +320,12 @@ impl Index {
         self.segments.len()
     }
 
+    /// How many retired segments and removed blocks the header still records
+    /// (`forget_before` lets them go).
+    pub fn remembered(&self) -> usize {
+        self.retired.len() + self.removed_blocks.len()
+    }
+
     /// Forgets retired segments and removed blocks recorded before
     /// `watermark`, once no index that predates them can still be merged in
     /// (the index block's history retention says when).
