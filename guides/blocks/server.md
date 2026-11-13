@@ -225,8 +225,9 @@ counts and records nothing: `upload-urls` did before it signed.
   round trip; only a chain where each needs the last one's answer costs more.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
   `Rejected` with the head to merge against. A head moves only to a commit that
-  descends from it: a publish lists the expected head among its parents, and a
-  first commit lists none, or it is refused (`InvalidRequest`). These are the
+  descends from it: a publish lists the expected head among its parents, or it
+  is refused (`InvalidRequest`); one onto no head may list any (a merge onto a
+  block with no commit yet carries the commit refused before it). These are the
   parents the client declares, not the commit's own, which the server cannot
   read: a guard against a buggy or stale client, not against an editor who
   lies. A merge's other parent may be a commit the server never held, carried in. It carries what changed since the

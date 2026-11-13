@@ -221,22 +221,16 @@ fn require_parent_of(
 }
 
 /// A head moves only to a commit that descends from it: a publish onto a head lists that head
-/// among its parents, and a block's first commit lists none. A merge's other parents need not
-/// be on the server yet: a merge carries a commit the server refused, objects and all.
+/// among its parents. A publish onto no head may list parents: a merge onto a block with no
+/// commit yet carries the commit the server refused it. Other parents need not be on the server
+/// yet either: a merge carries them, objects and all.
 fn require_descends(expected: Option<CommitId>, parents: &[CommitId]) -> Result<(), ServerError> {
-    let descends = match expected {
-        Some(expected) => parents.contains(&expected),
-        None => parents.is_empty(),
-    };
-    match descends {
-        true => Ok(()),
-        false => Err(ServerError::Refused(
+    match expected {
+        Some(expected) if !parents.contains(&expected) => Err(ServerError::Refused(
             ErrorCode::InvalidRequest,
-            match expected {
-                Some(expected) => format!("a commit onto {expected} lists it among its parents"),
-                None => "a block's first commit has no parents".into(),
-            },
+            format!("a commit onto {expected} lists it among its parents"),
         )),
+        _ => Ok(()),
     }
 }
 

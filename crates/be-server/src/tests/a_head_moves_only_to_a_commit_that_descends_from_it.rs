@@ -47,6 +47,7 @@ async fn a_head_moves_only_to_a_commit_that_descends_from_it() {
             .upload(&author.store, &author.objects_of(commit, chunks))
             .await;
     }
+    // A merge onto a block with no commit yet carries the commit the server refused before it.
     let response = publish_onto(
         &mut client,
         block,
@@ -58,24 +59,10 @@ async fn a_head_moves_only_to_a_commit_that_descends_from_it() {
     )
     .await;
     assert!(
-        refused_as(&response, ErrorCode::InvalidRequest),
-        "a block's first commit named a parent: {response:?}"
-    );
-    assert_eq!(client.read_block(block).await.head, None);
-    let response = publish_onto(
-        &mut client,
-        block,
-        base,
-        None,
-        Vec::new(),
-        (&[], base_chunks.clone()),
-        1_000,
-    )
-    .await;
-    assert!(
         matches!(response, Ok(PublishOutcome::Published(_))),
-        "{response:?}"
+        "a publish onto no head that carries a parent was refused: {response:?}"
     );
+    assert_eq!(client.read_block(block).await.head, Some(base));
 
     let (ours, ours_chunks) = author.compose(b"ours\n", 2_000, Some(base));
     client
