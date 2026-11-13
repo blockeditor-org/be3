@@ -1,2 +1,3 @@
 use super::*;
 mod a_png_becomes_a_bottom_up_bgra_bitmap;
+mod a_copy_adds_its_be3_formats_and_the_image_arboard_did_not_write;

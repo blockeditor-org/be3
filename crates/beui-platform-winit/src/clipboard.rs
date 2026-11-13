@@ -11,15 +11,21 @@ use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 ))]
 mod x11;
 
+#[cfg(target_os = "macos")]
+use macos as system;
+#[cfg(target_os = "windows")]
+use windows as system;
+
 /// The system clipboard. A copy puts its plain text and its PNG there
 /// together: on X11 (and Wayland, through XWayland) by owning the selection
-/// itself (`x11`), on Windows as `CF_UNICODETEXT` beside `CF_DIB` and a
-/// registered `PNG` format, elsewhere through arboard, which carries one of
-/// them. Pastes from other programs read through arboard.
+/// itself (`x11`); on Windows and macOS through arboard, with what it does not
+/// write added beside (`beside`); elsewhere through arboard, which carries
+/// one of them. Pastes from other programs read through arboard.
 /// The clip a copy wrote stays held, so pastes in this program get its other
 /// representations until another program copies: on Windows the clipboard's
-/// sequence number says so, and be3 formats are registered formats there too;
-/// elsewhere the text on the clipboard is compared with the text written.
+/// sequence number says so and on macOS the pasteboard's change count, and
+/// be3 formats go there too, as their `stored` bytes; elsewhere the text on
+/// the clipboard is compared with the text written.
 #[derive(Default)]
 pub struct Clipboard {
     #[cfg(not(target_os = "ios"))]
@@ -30,8 +36,8 @@ pub struct Clipboard {
     ))]
     x11: Option<x11::Owner>,
     held: HeldClip,
-    #[cfg(target_os = "windows")]
-    sequence: Option<u32>,
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    sequence: Option<i64>,
 }
 
 impl Clipboard {
@@ -51,10 +57,10 @@ impl Clipboard {
     pub fn copy(&mut self, clip: Clip) {
         #[cfg(not(target_os = "ios"))]
         self.write(&clip);
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
-            windows::write(&clip.ready_items(), clip.plain_text().is_some());
-            self.sequence = windows::sequence();
+            system::write(&clip.ready_items(), clip.plain_text().is_some());
+            self.sequence = system::sequence();
         }
         self.held.copy(clip);
     }
@@ -71,11 +77,11 @@ impl Clipboard {
         if !self.held.holds() {
             return false;
         }
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
-            windows::sequence() == self.sequence
+            system::sequence() == self.sequence
         }
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             let now = self.text();
             self.held.wrote(now.as_deref())
@@ -109,8 +115,8 @@ impl Clipboard {
             match format {
                 formats::TEXT => self.text().map(ClipItem::text),
                 formats::PNG => self.image().map(ClipItem::png),
-                #[cfg(target_os = "windows")]
-                format if formats::is_be3(format) => windows::read(format),
+                #[cfg(any(target_os = "windows", target_os = "macos"))]
+                format if formats::is_be3(format) => system::read(format),
                 _ => None,
             }
         }
@@ -187,25 +193,15 @@ fn set_image(clipboard: &mut arboard::Clipboard, png: &[u8]) {
 #[cfg(target_os = "windows")]
 mod windows {
     use beui_types::ClipItem;
-    use beui_types::clipboard::formats;
 
     const CF_DIB: u32 = 8;
 
-    pub(super) fn sequence() -> Option<u32> {
-        clipboard_win::raw::seq_num().map(u32::from)
+    pub(super) fn sequence() -> Option<i64> {
+        clipboard_win::raw::seq_num().map(|sequence| i64::from(u32::from(sequence)))
     }
 
-    /// Adds to what arboard wrote: be3 formats, and the PNG when arboard
-    /// wrote the `text` instead of it.
     pub(super) fn write(items: &[ClipItem], text: bool) {
-        let be3 = items
-            .iter()
-            .filter(|item| formats::is_be3(&item.format))
-            .collect::<Vec<_>>();
-        let png = items
-            .iter()
-            .find(|item| item.format == formats::PNG)
-            .filter(|_| text);
+        let super::Beside { be3, png } = super::beside(items, text);
         if be3.is_empty() && png.is_none() {
             return;
         }
@@ -236,6 +232,72 @@ mod windows {
         let mut data = Vec::new();
         clipboard_win::raw::get_vec(id, &mut data).ok()?;
         ClipItem::from_stored(format, &data)
+    }
+}
+
+/// What a copy adds beside what arboard wrote: its be3 formats, and its PNG
+/// when arboard wrote the text instead of it (arboard writes one of the two).
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+struct Beside<'a> {
+    be3: Vec<&'a ClipItem>,
+    png: Option<&'a ClipItem>,
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
+fn beside(items: &[ClipItem], text: bool) -> Beside<'_> {
+    Beside {
+        be3: items
+            .iter()
+            .filter(|item| formats::is_be3(&item.format))
+            .collect(),
+        png: items
+            .iter()
+            .find(|item| item.format == formats::PNG)
+            .filter(|_| text),
+    }
+}
+
+/// be3 formats as pasteboard types named by their format id, holding their
+/// `stored` bytes, and a PNG beside the text arboard wrote as `public.png`;
+/// and the change count that moves with every copy. Written without a Mac to
+/// run it on: only its compiling is checked.
+#[cfg(target_os = "macos")]
+#[allow(unused_unsafe)]
+mod macos {
+    use beui_types::ClipItem;
+    use objc2::rc::Retained;
+    use objc2_app_kit::NSPasteboard;
+    use objc2_foundation::{NSArray, NSData, NSString};
+
+    pub(super) fn sequence() -> Option<i64> {
+        let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
+        Some(unsafe { pasteboard.changeCount() } as i64)
+    }
+
+    pub(super) fn write(items: &[ClipItem], text: bool) {
+        let super::Beside { be3, png } = super::beside(items, text);
+        let mut typed: Vec<(Retained<NSString>, Vec<u8>)> = be3
+            .into_iter()
+            .map(|item| (NSString::from_str(&item.format), item.stored()))
+            .collect();
+        if let Some(png) = png {
+            typed.push((NSString::from_str("public.png"), png.data.clone()));
+        }
+        if typed.is_empty() {
+            return;
+        }
+        let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
+        let types = typed.iter().map(|(kind, _)| &**kind).collect::<Vec<_>>();
+        unsafe { pasteboard.addTypes_owner(&NSArray::from_slice(&types), None) };
+        for (kind, data) in &typed {
+            unsafe { pasteboard.setData_forType(Some(&NSData::with_bytes(data)), kind) };
+        }
+    }
+
+    pub(super) fn read(format: &str) -> Option<ClipItem> {
+        let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
+        let data = unsafe { pasteboard.dataForType(&NSString::from_str(format)) }?;
+        ClipItem::from_stored(format, &data.to_vec())
     }
 }
 
