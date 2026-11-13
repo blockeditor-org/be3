@@ -299,6 +299,10 @@ impl EditorSession {
         self.host.set_focused_block(focused);
     }
 
+    pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) {
+        self.host.reveal(at);
+    }
+
     pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.host.show_dialog(block_id, dialog);
     }

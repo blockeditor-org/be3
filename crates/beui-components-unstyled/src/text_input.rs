@@ -7,6 +7,7 @@ use accesskit::{Node, Role};
 use beui_text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_view::types::Color;
+use beui_view::types::PickedFile;
 use beui_view::types::{CursorIcon, FontId, Pos2, Rect};
 
 use crate::ContextMenuApi;
@@ -125,6 +126,9 @@ pub fn TextInput(
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
     on_focus_change: Callback<bool>,
+    /// An image pasted into the field (PNG), which it takes only when this is given; the text
+    /// is left as it was. Not on the browser's own field (`browser`).
+    on_image_paste: Callback<PickedFile>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let TextInputStyle {
@@ -333,6 +337,7 @@ pub fn TextInput(
             accessibility
             on_toolbar={open_menu}
             on_submit={submit}
+            on_image_paste={on_image_paste}
             on_focus_change={move |focused: bool| {
                 if focused && select_on_focus.get_untracked() {
                     state.execute(EditorCommand::SelectAll);

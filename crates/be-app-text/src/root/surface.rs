@@ -1,4 +1,4 @@
-use be_sdk_beui::{Drag, be_sdk_ui::BlockLabel};
+use be_sdk_beui::{Drag, Pushed, SearchLocation, be_sdk_ui::BlockLabel};
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
@@ -76,6 +76,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
         });
     });
 
+    select_where_opened(state);
     caret_when_given_the_keyboard(state);
     let typing = state.typing;
     view! {
@@ -88,7 +89,6 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(state, widget)}
             on_focus_change={typing}
-            pastes_images=true
             on_image_paste={move |image: PickedFile| paste_image(state, image)}
             block={embed_row}
             selected_widget={open_row}
@@ -220,4 +220,71 @@ fn paste_image(state: State, file: PickedFile) {
     let id = state.create_image_block(&image);
     state.insert_image_embed(id, &source_name);
     state.import_error.set(None);
+}
+
+/// Opened at a search hit's place (`editor-event.reveal`), the text selects the first place its
+/// matched words occur and brings it into view, once the content has loaded and the position it
+/// was left at is back, so the place it was opened at wins over it.
+fn select_where_opened(state: State) {
+    let revealed = state.editor.pushed(Pushed::Reveal);
+    let wanted = create_signal(None::<SearchLocation>);
+    create_effect(move || {
+        revealed.get();
+        if let Some(at) = untrack(|| state.editor.host().take_reveal()) {
+            wanted.set(Some(at));
+        }
+    });
+    let loaded = state.loaded;
+    let restored = state.position_restored;
+    let content = state.text.content();
+    create_effect(move || {
+        content.get();
+        let Some(at) = wanted.get() else {
+            return;
+        };
+        // The text must be read and in the editor (its snapshot loaded), and its saved position
+        // back; then the place is taken once, found or not, so a later edit never selects it.
+        if !loaded.get() || !restored.get() {
+            return;
+        }
+        untrack(|| {
+            if !state.text.loaded() {
+                return;
+            }
+            wanted.set(None);
+            // A text block is one document: a hit in any other is not this editor's to show.
+            if !at.key.is_empty() {
+                return;
+            }
+            if let Some(found) = find_words(&state.text.bytes(), &at.text) {
+                state.text.select(found);
+                state.text.reveal_cursor();
+            }
+        });
+    });
+}
+
+/// Where `words` first occur in `text` as whole words, compared as the search index compares
+/// them (`be_lib_search::fold`: Unicode case and compatibility folded), so a hit on "late" never
+/// selects inside "chocolate".
+pub(crate) fn find_words(text: &[u8], words: &str) -> Option<std::ops::Range<usize>> {
+    let wanted: Vec<String> = be_lib_graphemes::words(words.as_bytes())
+        .map(|range| be_lib_search::fold(&words[range]))
+        .collect();
+    if wanted.is_empty() {
+        return None;
+    }
+    let text = std::str::from_utf8(text).ok()?;
+    let found: Vec<(std::ops::Range<usize>, String)> = be_lib_graphemes::words(text.as_bytes())
+        .map(|range| {
+            let folded = be_lib_search::fold(&text[range.clone()]);
+            (range, folded)
+        })
+        .collect();
+    found.windows(wanted.len()).find_map(|run| {
+        run.iter()
+            .zip(&wanted)
+            .all(|((_, folded), wanted)| folded == wanted)
+            .then(|| run[0].0.start..run[run.len() - 1].0.end)
+    })
 }

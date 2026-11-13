@@ -17,6 +17,8 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-search:be-lib-search",
                 "//crates/be-sdk-beui:be-sdk-beui",
                 "//crates/be-sdk-text:be-sdk-text",
                 "//crates/be-type-image:be-type-image",
