@@ -2529,6 +2529,7 @@ dependencies = [
  "be-block-model",
  "be-block-store",
  "be-sdk-type-guest",
+ "pollster",
  "postcard",
  "serde",
  "serde_bytes",
@@ -2544,6 +2545,7 @@ dependencies = [
  "be-block-commit",
  "be-block-model",
  "be-sdk-type-guest",
+ "pollster",
  "uuid",
 ]
 
@@ -2555,6 +2557,7 @@ dependencies = [
  "be-block-commit",
  "be-block-model",
  "be-sdk-type-guest",
+ "pollster",
  "serde",
  "uuid",
 ]
@@ -2636,6 +2639,7 @@ dependencies = [
  "be-block-model",
  "be-sdk-type-guest",
  "be-type-database",
+ "pollster",
  "serde",
  "uuid",
 ]

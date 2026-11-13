@@ -63,6 +63,12 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   and its edit does no more than remove those messages and add the entry. The
   journal bounds how many closes a session carries (`MAX_JOURNAL_BYTES`, 4 MiB:
   about a dozen).
+- **Search** (`search-text`): a document of the recent messages (key
+  `recent`) and one per closed segment, keyed by its hash, each message as it
+  reads now on a line. A segment's source is its saved part only while no edit
+  or deletion in the header may name one of its messages (its Bloom filter
+  says), so the index keeps an untouched segment's text and reads an edited
+  one again.
 - **Limits.** A segment's Bloom filter can name a message it does not hold
   (unread counts may read one segment too many, never too few). A replica
   holds a closed segment's bytes in memory until it reloads

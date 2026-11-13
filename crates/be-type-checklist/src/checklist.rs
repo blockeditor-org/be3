@@ -1,7 +1,7 @@
 use be_block_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use uuid::Uuid;
 
-use be_block::Root;
+use be_block::{Root, SearchDocument};
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Checklist {
@@ -51,6 +51,17 @@ impl Checklist {
 
 impl Root for Checklist {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x6368_6563_6b6c_6973_742d_626c_6f63_6b31);
+
+    /// One document: each item's text on a line of its own, in order.
+    fn search_text_in(document: &Document<Self>) -> Vec<SearchDocument> {
+        let root = document.root();
+        let items: Vec<&str> = root
+            .items
+            .iter()
+            .map(|item| item.text.as_str())
+            .collect();
+        vec![SearchDocument::whole(items.join("\n"))]
+    }
 }
 
 pub type ChecklistContent = Document<Checklist>;
