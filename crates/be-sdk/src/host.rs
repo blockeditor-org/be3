@@ -16,16 +16,14 @@ use be_sdk_api::OfferedClipItem;
 use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
-use be_sdk_api::shell_types::{
-    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, DragStart, ShellMessage,
-};
+use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, DragStart, ShellMessage};
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BlockAgent,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
     HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Signer, Size, TerminalHostBe,
-    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    PerformanceMeasurement, Revision, ShellDialog, Signer, Size, TerminalHostBe, ViewChange,
+    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -541,9 +539,7 @@ pub struct EditorHost {
     /// Each search watched, with how many watch it.
     watched_searches: Rc<RefCell<std::collections::BTreeMap<crate::Search, usize>>>,
     reported_searches: Rc<RefCell<Option<Vec<crate::Search>>>>,
-    block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
-    version_commands: Rc<RefCell<Vec<(Uuid, be_sdk_api::VersionCommand)>>>,
     version_status: Rc<RefCell<Option<be_sdk_api::VersionStatus>>>,
     version_watched: Rc<Cell<bool>>,
     shows_watched: Rc<Cell<bool>>,
@@ -1061,15 +1057,11 @@ impl EditorHost {
     }
 
     pub fn undo(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Undo));
+        self.command(block_id, BlockCommand::Undo);
     }
 
     pub fn redo(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Redo));
+        self.command(block_id, BlockCommand::Redo);
     }
 
     pub fn set_artifact(&self, block_id: Uuid, state: Option<ArtifactState>) {
@@ -1091,13 +1083,11 @@ impl EditorHost {
     }
 
     fn artifact_command(&self, block_id: Uuid, action: ArtifactAction) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Artifact { action }));
+        self.command(block_id, BlockCommand::Artifact { action });
     }
 
     pub fn close_editor(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::CloseEditor);
+        self.command(block_id, BlockCommand::CloseEditor);
     }
 
     pub fn simulate_access(&self, block_id: Uuid, access: AccessLevel) {
@@ -1108,11 +1098,13 @@ impl EditorHost {
         std::mem::take(&mut self.simulated_access.borrow_mut())
     }
 
-    fn shell_command(&self, block_id: Uuid, command: ShellCommand) {
-        self.tell(ShellMessage::Act(BlockAct {
-            block: block_id.into_bytes(),
+    /// Asks the host to act on a block (`blocks.act`), after everything the editor asked of
+    /// the graph before, which goes in the same queue.
+    fn command(&self, block_id: Uuid, command: BlockCommand) {
+        self.graph.push(crate::GraphCommand::Act {
+            id: block_id,
             command,
-        }));
+        });
     }
 
     /// Tells the shell `message`, after what the editor told it before.
@@ -1148,43 +1140,39 @@ impl EditorHost {
     }
 
     pub fn share_block(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::Share);
+        self.command(block_id, BlockCommand::Share);
     }
 
     pub fn leave_block(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::Leave);
+        self.command(block_id, BlockCommand::Leave);
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Unlink {
                 container: container.into_bytes(),
             },
-        ));
+        );
     }
 
     /// Asks the host to show the block's version history, at `commit` when named.
     pub fn show_history(&self, block_id: Uuid, commit: Option<[u8; 32]>) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::History(commit)));
+        self.command(block_id, BlockCommand::History(commit));
     }
 
     pub fn restore_block(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Restore));
+        self.command(block_id, BlockCommand::Restore);
     }
 
     pub fn delete_block(&self, block_id: Uuid, block_type: Uuid, source: BlockParent) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Delete {
                 block_type: block_type.into_bytes(),
                 source: source.encode(),
             },
-        ));
+        );
     }
 
     pub fn move_block(
@@ -1195,7 +1183,7 @@ impl EditorHost {
         destination: Uuid,
         is_reference: bool,
     ) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Move {
                 block_type: block_type.into_bytes(),
@@ -1203,36 +1191,32 @@ impl EditorHost {
                 destination: destination.into_bytes(),
                 is_reference,
             },
-        ));
+        );
     }
 
     pub fn reorder_block(&self, block_id: Uuid, parent: Uuid, after: Option<Uuid>) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Reorder {
                 parent: parent.into_bytes(),
                 after: after.map(Uuid::into_bytes),
             },
-        ));
+        );
     }
 
     pub fn place_block(&self, block_id: Uuid, block_type: Uuid, parent: Uuid, linked: bool) {
-        self.block_commands.borrow_mut().push((
+        self.command(
             block_id,
             BlockCommand::Place {
                 block_type: block_type.into_bytes(),
                 parent: parent.into_bytes(),
                 linked,
             },
-        ));
+        );
     }
 
     pub fn version(&self, block_id: Uuid, command: be_sdk_api::VersionCommand) {
-        self.version_commands.borrow_mut().push((block_id, command));
-    }
-
-    pub fn take_version_commands(&self) -> Vec<(Uuid, be_sdk_api::VersionCommand)> {
-        std::mem::take(&mut self.version_commands.borrow_mut())
+        self.command(block_id, BlockCommand::Version(command));
     }
 
     pub fn set_version_status(&self, status: be_sdk_api::VersionStatus) {
@@ -1248,13 +1232,15 @@ impl EditorHost {
 
     /// Everything the editor watches through `block-watch`, once it changed since the last
     /// call.
-    pub(crate) fn take_block_subjects(&self) -> Option<Vec<crate::link::Subject>> {
+    pub(crate) fn take_block_subjects(
+        &self,
+    ) -> Option<std::collections::BTreeSet<crate::link::Subject>> {
         use crate::link::Subject;
         let graph = self.graph.take_watch_changed();
         if !(self.subjects_changed.replace(false) || graph) {
             return None;
         }
-        let mut subjects: Vec<Subject> = self
+        let mut subjects: std::collections::BTreeSet<Subject> = self
             .graph
             .watched()
             .into_iter()
@@ -1282,7 +1268,7 @@ impl EditorHost {
                 .map(Subject::Artifact),
         );
         if self.version_watched.get() {
-            subjects.push(Subject::Version);
+            subjects.insert(Subject::Version);
         }
         Some(subjects)
     }
@@ -1293,10 +1279,6 @@ impl EditorHost {
 
     pub fn version_known(&self) -> bool {
         self.version_status.borrow().is_some()
-    }
-
-    pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
-        std::mem::take(&mut self.block_commands.borrow_mut())
     }
 
     pub fn block_types_known(&self) -> bool {

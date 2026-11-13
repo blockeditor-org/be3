@@ -40,11 +40,13 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     );
     call(
         &mut instances,
-        Call::Define {
+        Call::Act {
             reply: reply(next_op()),
             block: made.into_bytes(),
-            key: be_block::CREATED_BY.id.into_bytes(),
-            value: claimed.defined.get(&be_block::CREATED_BY.id).cloned(),
+            command: be_sdk_api::BlockCommand::Define {
+                key: be_block::CREATED_BY.id.into_bytes(),
+                value: claimed.defined.get(&be_block::CREATED_BY.id).cloned(),
+            },
         },
     );
     be_host_stack::flush_and_send();

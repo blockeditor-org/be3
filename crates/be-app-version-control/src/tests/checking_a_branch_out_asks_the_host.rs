@@ -20,12 +20,12 @@ fn checking_a_branch_out_asks_the_host() {
     editor.run();
 
     assert_eq!(
-        editor.take_version_commands(),
+        editor.take_block_commands(),
         vec![(
             own(&editor),
-            VersionCommand::NewCheckout {
+            BlockCommand::Version(VersionCommand::NewCheckout {
                 branch: "main".into()
-            }
+            })
         )]
     );
     editor.snapshot("checking_a_branch_out_asks_the_host");

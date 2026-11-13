@@ -13,8 +13,7 @@ use be_sdk_api::{
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
     ops::{OpError, Outcome},
     shell_types::{
-        BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage,
-        ViewEnd,
+        ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
     },
 };
 use be_sdk_type_guest::editor::{FromEditor, Gesture};
@@ -405,7 +404,7 @@ impl Instance {
                 complete: found.complete,
             };
             Instances::translated(scope, false, |visit| results.visit_block_ids(visit));
-            self.offer(Subject::Search(op), &results);
+            self.offer_search(op, &results);
         }
     }
 
@@ -3699,14 +3698,6 @@ impl Instances {
                 let changed = entry.intrinsic != intrinsic;
                 entry.intrinsic = intrinsic;
                 return changed;
-            }
-            ShellMessage::Act(BlockAct { block, command }) => {
-                let id = Uuid::from_bytes(block);
-                super::events::emit(
-                    &self.app_id,
-                    instance,
-                    InstanceEvent::Action(EditorAction::Shell { id, command }),
-                );
             }
             ShellMessage::LeaveFrame => {
                 super::events::emit(&self.app_id, instance, InstanceEvent::Leaving);
