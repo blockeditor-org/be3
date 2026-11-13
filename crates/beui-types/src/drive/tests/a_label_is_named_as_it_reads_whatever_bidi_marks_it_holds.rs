@@ -25,9 +25,6 @@ fn a_label_is_named_as_it_reads_whatever_bidi_marks_it_holds() {
         "Leave \u{201c}Te\u{200b}am",
     ] {
         assert!(waited(&lines, named, None).is_some(), "{named:?}");
-        assert!(
-            crate::target::line_with(named, &lines).is_ok(),
-            "{named:?}"
-        );
+        assert!(crate::target::line_with(named, &lines).is_ok(), "{named:?}");
     }
 }

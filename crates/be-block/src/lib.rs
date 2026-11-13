@@ -34,11 +34,11 @@ pub use be_block_model;
 pub use be_block_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
 pub use device_class::{ClassDefault, DeviceClass};
+pub use display::quoted_name;
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
-pub use display::quoted_name;
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
     EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
