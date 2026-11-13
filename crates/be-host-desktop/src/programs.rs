@@ -1,5 +1,6 @@
 mod files;
 mod installed;
+#[cfg(windows)]
 pub(crate) use installed::SHELL;
 #[cfg(target_os = "linux")]
 mod watch;

@@ -28,5 +28,8 @@ fn switching_middle_click_paste_on_again_keeps_the_selection() {
         !client::primary_cancelled(),
         "a setting that did not change leaves the selection alone"
     );
-    assert!(client::primary().is_some(), "the window is still offered it");
+    assert!(
+        client::primary().is_some(),
+        "the window is still offered it"
+    );
 }
