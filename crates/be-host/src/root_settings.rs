@@ -154,6 +154,13 @@ impl RootSettings {
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
         if self.find().is_none() && be_host_stack::ready(be_host_stack::Query::Roots) {
+            // The stack answers `ready` as it is now, while `owned` may still be what was read
+            // before the roots were listed, until the host hears that the graph changed: read
+            // them again from the listing that made them ready before making a second settings.
+            self.cache.borrow_mut().owned = None;
+            if let Some(found) = self.find() {
+                return Some(found);
+            }
             let block = Uuid::now_v7();
             be_host_stack::create(
                 block,
