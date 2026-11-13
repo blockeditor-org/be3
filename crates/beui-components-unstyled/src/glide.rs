@@ -5,6 +5,7 @@ use beui_view::measure::measure;
 use beui_view::primitives::Frame;
 use beui_view::reactive::*;
 use beui_view::types::{Direction, Pos2, Spring, Vec2};
+use beui_view::{CORE, Core};
 
 /// The spring a glide settles by.
 pub const GLIDE_SPRING: Spring = Spring {
@@ -123,13 +124,15 @@ impl GlideApi {
 /// starts a glide from a window point (an item dropped from elsewhere). The glide is
 /// two frames: the outer one is laid out in place and measured, the inner one is drawn
 /// offset by the spring, timed on the frame clock. `raised` paints it above its
-/// siblings.
+/// siblings. A glide drawn inside another names it `within`, so that glide's offset
+/// (a row held under a finger) is no move of its own.
 #[component]
 pub fn Glide(
     #[prop(default = ComponentRef::new())] api: ComponentRef<GlideApi>,
     #[prop(default = 0)] arm: Prop<u64>,
     #[prop(default = None)] from: Prop<Option<Pos2>>,
     #[prop(default = false)] raised: Prop<bool>,
+    #[prop(default = None)] within: Option<ComponentRef<GlideApi>>,
     children: Child,
 ) -> NodeId {
     let stored = store(Motion::default());
@@ -167,6 +170,23 @@ pub fn Glide(
         </Frame>
     };
     let measured = measure(node);
+    // An arm whose layout moved nothing is spent once that layout has been measured: natively
+    // in the frame it was armed, on HTML a frame later. Kept, it would turn the next move it
+    // did not ask for (a parent glide's offset carrying this one) into a glide.
+    let waited = StoredCell::new(0_u8);
+    let disarm = create_animation(
+        move |_| {
+            waited.update(|frames| frames + 1);
+            let measured_by = match CORE {
+                Core::Html => 2,
+                Core::Native => 1,
+            };
+            waited.get() < measured_by
+        },
+        move || {
+            stored.try_with(|state| state.armed.set(None));
+        },
+    );
     let first = Cell::new(true);
     create_effect(move || {
         arm.get();
@@ -174,6 +194,9 @@ pub fn Glide(
             return;
         }
         stored.with(|state| state.armed.set(state.resting.get()));
+        waited.set(0);
+        disarm.stop();
+        disarm.start();
     });
     create_effect(move || {
         if let Some(from) = from.get() {
@@ -185,6 +208,10 @@ pub fn Glide(
         let Some(resting) = measured.get().map(|measured| measured.rect.min) else {
             return;
         };
+        let carried = within
+            .and_then(|within| within.try_get())
+            .map_or(Vec2::ZERO, GlideApi::displacement);
+        let resting = resting - carried;
         let mut moved = Vec2::ZERO;
         if let Some(from) = state.from.take() {
             moved += from - resting;

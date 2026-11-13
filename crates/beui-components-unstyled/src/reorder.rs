@@ -1243,8 +1243,9 @@ where
         Prop::Static(false) => Callback::empty(),
         _ => Callback::new(long_pressed),
     };
+    let api = ComponentRef::<GlideApi>::new();
     let inner = view! {
-        <Glide arm={arm}>
+        <Glide arm={arm} within={Some(api)}>
             <Interactive
                 cursor
                 capture_presses
@@ -1261,7 +1262,6 @@ where
         </Glide>
     };
     let row = NodeRef::new();
-    let api = ComponentRef::<GlideApi>::new();
     let glide = view! {
         <Glide @node_ref=&row api arm={arm} from={from} raised={raised}>
             <Frame padding={padding}>{inner}</Frame>
