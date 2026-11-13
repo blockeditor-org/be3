@@ -44,12 +44,6 @@ not (its connections stay open and carry nothing), which is what blocking the po
 under a request is noticed once an early ping goes unanswered, about 25 s (`ANSWER_WAIT` plus
 `PONG_WAIT`, be-block-client connection.rs), and everything below waits that long.
 
-5. **Version commands and merging still wait in the block store's loop.** Create, define, move
-   and duplicate are kept on the device and sent by the drain, and the commands that need only
-   the server run in a lane (guides/blocks/host.md). Version commands and merges read the server
-   between steps on the open replicas (sealing them, checking content out into them): split each
-   into its loop part and its server part, ordered by what they depend on.
-
 What already works, and must keep working:
 - an edit made during a drop came through a reconnect once, with no duplicate, and synced;
 - edits survive `kill -9`, even straight after typing.

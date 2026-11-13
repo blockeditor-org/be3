@@ -364,9 +364,9 @@ impl ModuleRunner {
         active: Option<ViewRef>,
     ) {
         use be_sdk_api::WindowRequest as Ask;
-        let to_region = |size: Vec2| be_sdk_api::Size {
-            width: size.x / ratio,
-            height: size.y / ratio,
+        let to_region = |size: Vec2| be_sdk_api::Vec2 {
+            x: size.x / ratio,
+            y: size.y / ratio,
         };
         let window = request.window();
         match request {

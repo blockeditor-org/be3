@@ -154,7 +154,7 @@ fn a_docked_editors_bar_declares_its_size_and_asks_the_root_to_place_and_move_it
         .last()
         .expect("the editor declares again once its bar is measured");
     let size = sized.bars[0].size;
-    assert_eq!((size.width, size.height), (24.0, 120.0));
+    assert_eq!((size.x, size.y), (24.0, 120.0));
 
     control.place(Placement::Beside(Edge::Bottom, Align::Center));
     control.pop_out();

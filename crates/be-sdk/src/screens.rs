@@ -2,8 +2,8 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, HostTransform,
     HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, OpeningKind, Pos2, ScreenId,
-    ScreenLayout, ScreenPlacement, ScreenRequest, Size, SurfaceSpec, TemplateCategory, Vec2,
-    ViewId, ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
+    ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory, Vec2, ViewId,
+    ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
 use be_sdk_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use beui_lucide::Glyph;
@@ -808,7 +808,10 @@ fn anchored_request(
         view,
         placement: ViewPlacement::Anchored,
         metrics: ViewportMetrics {
-            logical: Size { width, height },
+            logical: Vec2 {
+                x: width,
+                y: height,
+            },
             visible: Pos2::ZERO,
             pixel_width: pixels(width, density.x),
             pixel_height: pixels(height, density.y),
@@ -831,12 +834,12 @@ fn anchored_request(
     }
 }
 
-fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Size) -> ScreenRequest {
+fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Vec2) -> ScreenRequest {
     let side = |points: f32| match points.is_finite() {
         true => points.clamp(1.0, LARGEST_WINDOW),
         false => 1.0,
     };
-    let (width, height) = (side(size.width), side(size.height));
+    let (width, height) = (side(size.x), side(size.y));
     let scale_factor = match region.scale_factor.is_finite() && region.scale_factor > 0.0 {
         true => region.scale_factor,
         false => 1.0,
@@ -852,7 +855,10 @@ fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Size)
         view,
         placement: ViewPlacement::Host(HostView::Window),
         metrics: ViewportMetrics {
-            logical: Size { width, height },
+            logical: Vec2 {
+                x: width,
+                y: height,
+            },
             visible: Pos2::ZERO,
             pixel_width: pixels(width),
             pixel_height: pixels(height),

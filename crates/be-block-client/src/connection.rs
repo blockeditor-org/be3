@@ -87,6 +87,8 @@ pub enum Event {
         /// What the server checked the sender may send (`relayed.kind`).
         kind: RelayKind,
         payload: Vec<u8>,
+        /// When the server took it, by its clock (`relayed.received`).
+        received: i64,
     },
     Paired(PairingMessage),
     ContactsChanged,
@@ -414,11 +416,13 @@ impl Connection {
                             from,
                             kind,
                             payload,
+                            received,
                         } => Event::Relayed {
                             block,
                             from,
                             kind,
                             payload,
+                            received,
                         },
                         SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,
                     });

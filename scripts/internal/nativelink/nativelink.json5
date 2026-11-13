@@ -1,6 +1,6 @@
 // NativeLink for be3 on one Hetzner server: the cache (CAS and action cache), the scheduler and the worker in one
 // process, inside the image worker_properties (buck/tools/defs.bzl) names, so that the worker runs actions in it.
-// Everything is on the server's local disk, which survives a reboot: no Bunny, no small-object tier, no pack.
+// Everything is on the server's local disk, which survives a reboot.
 // Caddy (Caddyfile) is the only thing reachable from outside; NativeLink listens on 127.0.0.1.
 {
   stores: [
@@ -59,8 +59,7 @@
         cas_fast_slow_store: "CAS",
         upload_action_result: { ac_store: "AC" },
         work_directory: "/work/run",
-        // One per CPU: at two per CPU the big compiles every other action waits for ran on half a CPU
-        // (scripts/internal/nativelink/worker/worker-direct.json5).
+        // One per CPU: at two per CPU the big compiles every other action waits for ran on half a CPU.
         max_inflight_tasks: 16,
         // Actions start with an empty environment; the toolchain scripts use `env bash`.
         additional_environment: { PATH: { value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" } },

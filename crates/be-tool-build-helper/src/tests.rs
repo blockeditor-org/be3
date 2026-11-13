@@ -2,30 +2,22 @@ use std::{
     collections::HashSet,
     fs,
     net::SocketAddr,
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Mutex, mpsc},
 };
 
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     sync::{mpsc::UnboundedReceiver, mpsc::UnboundedSender, oneshot},
-    time::Duration,
 };
 
 use super::*;
-use crate::{
-    namespace::Probe,
-    queue::{Backend, Log},
-};
+use crate::queue::{Backend, Log};
 
 mod a_failed_build_says_why_and_is_built_again_when_asked;
-mod a_kept_answer_is_handed_out_until_its_executor_stops_answering;
 mod a_published_manifest_answers_succeeded_without_queueing;
 mod asking_twice_queues_one_build;
 mod commits_not_on_a_branch_are_refused;
-mod namespace_is_served_only_with_a_token;
-mod namespace_wakes_the_cluster_once_for_callers_together;
 mod the_log_waits_for_new_bytes_and_says_the_final_state;
 mod the_position_counts_the_builds_ahead;
 mod unknown_products_and_commits_are_not_found;
@@ -99,7 +91,6 @@ impl Response {
 struct Running {
     directory: PathBuf,
     address: SocketAddr,
-    waker: Arc<Waker>,
     fake: Arc<Fake>,
     started: UnboundedReceiver<String>,
     finish: mpsc::Sender<Result<(), String>>,
@@ -107,34 +98,15 @@ struct Running {
     server: tokio::task::JoinHandle<io::Result<()>>,
 }
 
-async fn start(name: &str, probe: Option<Probe>) -> Running {
-    start_with(name, probe, true, &[]).await
+async fn start(name: &str) -> Running {
+    start_with(name, &[]).await
 }
 
-async fn start_with(name: &str, probe: Option<Probe>, token: bool, refused: &[&str]) -> Running {
+async fn start_with(name: &str, refused: &[&str]) -> Running {
     let directory =
         std::env::temp_dir().join(format!("build-helper-test-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir_all(&directory).unwrap();
-    let nsc = directory.join("nsc");
-    fs::write(
-        &nsc,
-        "#!/bin/sh\n\
-         echo \"$NS_DO_NOT_UPDATE $*\" >> \"$(dirname \"$0\")/runs\"\n\
-         while [ $# -gt 0 ]; do\n\
-           if [ \"$1\" = --config ]; then\n\
-             printf 'engine_address = grpcs://reapih.example:443\\ncas_address = grpcs://storageh.example:443\\nhttp_headers = x-nsc-ingress-auth:secret\\n' > \"$2\"\n\
-           fi\n\
-           shift\n\
-         done\n",
-    )
-    .unwrap();
-    fs::set_permissions(&nsc, fs::Permissions::from_mode(0o755)).unwrap();
-    let mut waker = Waker::new(nsc, directory.join("token.json"), directory.join("work"));
-    if let Some(probe) = probe {
-        waker.probe = probe;
-    }
-    let waker = Arc::new(waker);
     let (started_sender, started) = tokio::sync::mpsc::unbounded_channel();
     let (finish, finishing) = mpsc::channel();
     let fake = Arc::new(Fake {
@@ -149,20 +121,15 @@ async fn start_with(name: &str, probe: Option<Probe>, token: bool, refused: &[&s
         &directory.join("state"),
         "https://cdn.example".into(),
     );
-    let service = Arc::new(Service {
-        waker: token.then(|| Arc::clone(&waker)),
-        builds: Some(builds),
-    });
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let (stop, stopped) = oneshot::channel::<()>();
-    let server = tokio::spawn(serve(listener, service, async {
+    let server = tokio::spawn(serve(listener, builds, async {
         let _ = stopped.await;
     }));
     Running {
         directory,
         address,
-        waker,
         fake,
         started,
         finish,
@@ -192,12 +159,6 @@ impl Running {
             headers,
             body: body.to_owned(),
         }
-    }
-
-    async fn get(&self, method: &str) -> (String, Option<u64>, String) {
-        let response = self.request(method, "/build/namespace").await;
-        let age = response.header("age").map(|age| age.parse().unwrap());
-        (response.status, age, response.body)
     }
 
     async fn product(&self, method: &str, product: &str, commit: &str) -> Response {
@@ -231,19 +192,6 @@ impl Running {
 
     fn built(&self) -> Vec<String> {
         self.fake.built.lock().unwrap().clone()
-    }
-
-    fn runs(&self) -> usize {
-        fs::read_to_string(self.directory.join("runs"))
-            .unwrap_or_default()
-            .lines()
-            .count()
-    }
-
-    async fn age_by(&self, by: Duration) {
-        let mut answer = self.waker.answer.lock().await;
-        let (at, _) = answer.as_mut().unwrap();
-        *at = at.checked_sub(by).unwrap();
     }
 
     async fn stop(self) {
