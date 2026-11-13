@@ -28,10 +28,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
 - **Android.** be3 formats stay in memory there, matched by plain text. Done:
   they travel as `ClipData` MIME types, checked on an Android emulator
   (guides/running/android.md).
-- **macOS.** The same. Done: macOS writes them as custom pasteboard types and
-  knows another program copied by the pasteboard's change count. No Mac is
-  available, so this is written blind: done when it compiles for macOS and
-  shares its logic with tested code where it can.
 
 ## 7. Sessions
 
