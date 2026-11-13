@@ -45,9 +45,7 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
     flush();
     let unsent = crate::wait_until(|shared| {
         let peer = shared.peer.as_ref()?;
-        peer.pending_commits(versioned.note)
-            .last()
-            .copied()
+        peer.pending_commits(versioned.note).last().copied()
     });
 
     let (reached, held) = tokio::sync::oneshot::channel();
@@ -93,6 +91,13 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
         (text, after)
     });
     let text = text.expect("the note holds text");
-    assert_eq!(text.matches("Oh").count(), 1, "the typed line once: {text:?}");
-    assert!(after, "what the switch wrote follows the edit it waited for");
+    assert_eq!(
+        text.matches("Oh").count(),
+        1,
+        "the typed line once: {text:?}"
+    );
+    assert!(
+        after,
+        "what the switch wrote follows the edit it waited for"
+    );
 }

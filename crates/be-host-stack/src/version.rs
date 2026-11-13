@@ -2243,6 +2243,9 @@ struct Written<'a> {
 /// a block coming back into the tree takes what the tree says.
 struct Read<'a> {
     head: Option<CommitId>,
+    /// The content the command read, the base of a merge when its head is not known (the
+    /// mirror does not always know the head of a block not open here).
+    content: Option<Manifest>,
     defined: &'a be_block::Entries,
 }
 
@@ -2289,6 +2292,7 @@ async fn publish(
     }
     let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
     let mut made_from = read.as_ref().map_or(expected, |read| read.head);
+    let mut read_content = read.as_ref().and_then(|read| read.content.clone());
     let (mut manifest, mut references, mut derived) = (
         manifest,
         written.references,
@@ -2300,19 +2304,30 @@ async fn publish(
         if let Some(theirs) = expected
             && made_from != expected
         {
-            match merge_over(context, block, made_from, &manifest, theirs).await? {
+            match merge_over(
+                context,
+                block,
+                (made_from, read_content.as_ref()),
+                &manifest,
+                theirs,
+            )
+            .await?
+            {
                 Some(merged) => {
                     (manifest, references, derived) = merged;
                     made_from = expected;
+                    read_content = None;
                 }
                 None => {
                     // What this was made from is this device's edit, not sent yet, on top of
                     // `expected`: what this writes holds it already. Once it is sent, it is the
                     // head this writes over, so nothing of it is merged in twice.
                     if waited == 2 {
-                        return Err("This device's edit of a block could not be sent. Try again \
+                        return Err(
+                            "This device's edit of a block could not be sent. Try again \
                                     once it is."
-                            .into());
+                                .into(),
+                        );
                     }
                     waited += 1;
                     let ctx = (context.peer, context.shared);
@@ -2384,13 +2399,14 @@ fn merge_defined(
     merged
 }
 
-/// `ours`, made from `block`'s content at `made_from`, merged with its content at `theirs`:
+/// `ours`, made from `block`'s content at `made_from` (or from `read_content`, when that head
+/// is not known or shares no history with `theirs`), merged with its content at `theirs`:
 /// the merge written, its references and derived metadata. `None` when there is nothing to
 /// merge: `theirs` is what `made_from` was built on, an edit of this device not sent yet.
 async fn merge_over(
     context: &mut Context<'_>,
     block: Uuid,
-    made_from: Option<CommitId>,
+    (made_from, read_content): (Option<CommitId>, Option<&Manifest>),
     ours: &Manifest,
     theirs: CommitId,
 ) -> Result<Option<(Manifest, Vec<Uuid>, be_block::Entries)>, String> {
@@ -2420,10 +2436,10 @@ async fn merge_over(
                         .map_err(failed)?
                         .manifest,
                 ),
-                None => None,
+                None => read_content.cloned(),
             }
         }
-        None => None,
+        None => read_content.cloned(),
     };
     let theirs = context
         .peer
@@ -2499,6 +2515,7 @@ async fn materialize(
                     false => {
                         let read = Read {
                             head: working.heads.get(&block).copied().flatten(),
+                            content: current.content.clone(),
                             defined: &current.metadata.defined,
                         };
                         publish(
@@ -2521,6 +2538,7 @@ async fn materialize(
                     create(context, block, entry.content_type, parent, metadata.clone()).await?;
                 let read = existing.as_ref().map(|(head, defined)| Read {
                     head: *head,
+                    content: None,
                     defined,
                 });
                 publish(
@@ -2626,6 +2644,7 @@ async fn version_block(
         .collect();
     let read = existing.as_ref().map(|(head, defined)| Read {
         head: *head,
+        content: None,
         defined,
     });
     publish(
