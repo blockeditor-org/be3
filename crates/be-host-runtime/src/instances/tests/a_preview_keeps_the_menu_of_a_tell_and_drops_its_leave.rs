@@ -12,13 +12,19 @@ fn a_preview_keeps_the_menu_of_a_tell_and_drops_its_leave() {
     assert!(!preview_may_tell(&leave), "a preview acts on nothing");
 
     let mut instances = placed();
+    let (_mailbox, heard) = hearing();
     assert!(instances.shell_call(ShellCall::Tell {
         reply: reply(next_op()),
         instance: INSTANCE,
         messages: vec![menu, leave],
     }));
+    host::deliver();
+    let left = heard
+        .borrow()
+        .iter()
+        .any(|event| matches!(event, InstanceEvent::Leaving));
     assert!(
-        instances.take_leaving(INSTANCE),
+        left,
         "a block that is not a preview takes every message of a tell"
     );
 }

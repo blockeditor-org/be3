@@ -1678,14 +1678,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.extension_calls.clear();
     }
 
-    /// Every copy the editor made: its serial and the items it offered.
-    pub fn take_copies(&mut self) -> Vec<(u64, Vec<be_sdk_api::OfferedClipItem>)> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::Copy(ClipOffer { serial, items }) => Some((*serial, items.clone())),
-            _ => None,
-        })
-    }
-
     /// The `format` data of each copy that offered it ready.
     pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
         self.take_shell_messages(|call| match call {
@@ -1703,10 +1695,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .into_iter()
             .map(|text| String::from_utf8_lossy(&text).into_owned())
             .collect()
-    }
-
-    pub fn take_copied_images(&mut self) -> Vec<Vec<u8>> {
-        self.take_copied(be_sdk_api::clipboard::formats::PNG)
     }
 
     pub fn placed_picker(&self) -> Option<ChildPlacement> {
@@ -2072,13 +2060,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             None => true,
         });
         taken
-    }
-
-    pub fn take_version_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::VersionCommand)> {
-        self.take_sent_calls(|sent| match sent {
-            Sent::Version(block, command) => Some((*block, command.clone())),
-            _ => None,
-        })
     }
 
     fn take_frames<T>(&mut self, pick: impl Fn(Uuid, FromEditor) -> Option<T>) -> Vec<T> {

@@ -58,10 +58,12 @@ bars, focus, resizes, drags, dialogs), is a list in one `hear`, and the
 methods besides it (creating, regenerating, replacing, rendering) are the
 calls that answer;
 the screens and their configure, `draw`, whose answer is the frame,
-description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
-`block-command` changes the block (undo, redo, its artifact, unlink, delete,
-move, place, restore), and `shell-message.act` with a `shell-command` asks the host
-around it (share, leave, close the editor). Shapes shared by several
+description, and shutdown. Everything an editor asks the host to do with a
+block is one call, `blocks.act`, with a `block-command`: undo, redo, history,
+its artifact, unlink, delete, move, reorder, place, restore, a version control
+command (`version`), `share`, `leave`, `close-editor`, `set-parent` and
+`define`; only `create-block`, which names a block that does not exist yet, is
+a call of its own. Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
 Every call an app makes about an editor instance is made under that editor's
@@ -206,7 +208,7 @@ actually holds at the boundary, in both directions and for every call. An
 app never sees the translation and needs nothing to take part in it.
 
 An editor of a repository or a checkout asks the host to act on it with a
-version control command naming that block: adopting a block as the tree to
+`version` block command naming that block: adopting a block as the tree to
 version, saving the working change with a description, bringing the branch's
 changes in, switching, making a branch or a checkout, combining another branch
 in, resolving a conflict by taking one side or keeping the block as it is,
@@ -315,7 +317,9 @@ artifact or to unlink it from the source it was generated from; to hold a block 
 level, which is what shows a block as an account with less access would see
 it; to reveal one client's presence cursor, which only the editor of that
 block can scroll to; and to close a block's editor, which is what a tab
-closing means to the host. None of them is answered either.
+closing means to the host. The host takes `close-editor` only for the editor's
+own block or a child it placed, or from the shell, and asks the person to
+confirm a `leave`. None of them is answered either.
 
 An instance may ask the host to tell it about the dynamic artifacts of the
 blocks it names, which the host answers with, and repeats whenever any of it

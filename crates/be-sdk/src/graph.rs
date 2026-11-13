@@ -279,6 +279,11 @@ pub enum GraphCommand {
         key: Uuid,
         value: Option<Vec<u8>>,
     },
+    /// Any other `blocks.act`, kept in order with the graph changes around it.
+    Act {
+        id: Uuid,
+        command: be_sdk_api::BlockCommand,
+    },
 }
 
 pub(crate) struct GraphState {
@@ -459,6 +464,18 @@ impl GraphState {
 
     pub(crate) fn take_commands(&self) -> Vec<GraphCommand> {
         std::mem::take(&mut self.commands.borrow_mut())
+    }
+
+    pub(crate) fn take_acts(&self) -> Vec<(Uuid, be_sdk_api::BlockCommand)> {
+        let mut acts = Vec::new();
+        self.commands.borrow_mut().retain(|command| match command {
+            GraphCommand::Act { id, command } => {
+                acts.push((*id, command.clone()));
+                false
+            }
+            _ => true,
+        });
+        acts
     }
 }
 

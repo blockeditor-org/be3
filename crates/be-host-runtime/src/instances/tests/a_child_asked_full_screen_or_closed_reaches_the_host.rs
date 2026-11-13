@@ -14,10 +14,16 @@ fn a_child_asked_full_screen_or_closed_reaches_the_host() {
         "the host reads that its placer shows it full screen"
     );
 
+    let (_mailbox, heard) = hearing();
     tell(&mut instances, ShellMessage::CloseChild(ChildId(1)));
-    assert_eq!(instances.take_child_closes(INSTANCE), vec![ChildId(1)]);
-    assert!(
-        instances.take_child_closes(INSTANCE).is_empty(),
-        "each close is taken once"
-    );
+    host::deliver();
+    let closed: Vec<ChildId> = heard
+        .borrow()
+        .iter()
+        .filter_map(|event| match event {
+            InstanceEvent::ChildClosed(child) => Some(*child),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(closed, vec![ChildId(1)], "the close reaches the host once");
 }
