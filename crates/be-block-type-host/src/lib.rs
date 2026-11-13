@@ -16,9 +16,7 @@ pub use modules::{
     Kind, Modules, OUTSIDE_REQUEST, PartRead, Scope, Source, Under, in_process, is_known, kind_of,
     plain_of, started, tag_of,
 };
-pub use replicas::{
-    Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Owing, Replicas, Searched,
-};
+pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Owing, Replicas, Searched};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Conflict {

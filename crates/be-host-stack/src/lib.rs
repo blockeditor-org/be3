@@ -991,8 +991,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.reconnect.is_some(),
                 held.pending,
                 held.owing,
-                held
-                    .owing_blocks
+                held.owing_blocks
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>(),
