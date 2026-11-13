@@ -41,7 +41,6 @@ x11rb::atom_manager! {
         CLIPBOARD_MANAGER,
         SAVE_TARGETS,
         BEUI_SAVED,
-        BEUI_PASTE,
         TARGETS,
         INCR,
         UTF8_STRING,
@@ -56,11 +55,22 @@ x11rb::atom_manager! {
 /// against checking, after a SelectionClear, who has it.
 type Offered = Arc<Mutex<Vec<(Atom, Arc<[u8]>)>>>;
 
-/// A paste reading the selection as `target` from another program, answered
-/// on the server thread, which hears the owner's SelectionNotify; `data`
-/// gathers a transfer in pieces.
+/// The events this program's own window hears: its destruction, which ends
+/// the server thread, and its properties, which a paste reads.
+fn own_events() -> EventMask {
+    EventMask::STRUCTURE_NOTIFY | EventMask::PROPERTY_CHANGE
+}
+
+/// How many property atoms pastes take in turn, so a late answer to one that
+/// timed out cannot answer the next.
+const PASTE_PROPERTIES: u64 = 16;
+
+/// A paste reading the selection as `target` into `property` of this
+/// program's window, answered on the server thread, which hears the owner's
+/// SelectionNotify; `data` gathers a transfer in pieces.
 struct Reading {
     target: Atom,
+    property: Atom,
     data: Option<Vec<u8>>,
     answer: Sender<Option<Vec<u8>>>,
 }
@@ -79,6 +89,10 @@ pub struct Owner {
     offered: Offered,
     saved: Receiver<()>,
     reading: Pending,
+    serving: Option<std::thread::JoinHandle<()>>,
+    interned: Mutex<std::collections::HashMap<String, Atom>>,
+    named: Mutex<std::collections::HashMap<Atom, String>>,
+    pastes: std::sync::atomic::AtomicU64,
 }
 
 impl Owner {
@@ -100,8 +114,7 @@ impl Owner {
                 0,
                 WindowClass::INPUT_ONLY,
                 COPY_FROM_PARENT,
-                &CreateWindowAux::new()
-                    .event_mask(EventMask::STRUCTURE_NOTIFY | EventMask::PROPERTY_CHANGE),
+                &CreateWindowAux::new().event_mask(own_events()),
             )
             .ok()?;
         let atoms = Atoms::new(&connection).ok()?.reply().ok()?;
@@ -119,7 +132,7 @@ impl Owner {
             save,
             reading: Arc::clone(&reading),
         };
-        std::thread::Builder::new()
+        let serving = std::thread::Builder::new()
             .name("beui-x11-clipboard".to_owned())
             .spawn(move || server.run())
             .ok()?;
@@ -130,6 +143,10 @@ impl Owner {
             offered,
             saved,
             reading,
+            serving: Some(serving),
+            interned: Mutex::default(),
+            named: Mutex::default(),
+            pastes: std::sync::atomic::AtomicU64::new(0),
         })
     }
 
@@ -175,34 +192,75 @@ impl Owner {
             .map(|cookie| cookie.reply());
     }
 
-    /// Reads a be3 format another program offers, waiting `READ_WAIT` at
-    /// most for it to answer.
+    /// The targets the selection's owner offers, by name: what a paste asks
+    /// once before reading any of them.
+    pub fn targets(&self) -> Vec<String> {
+        let Some(data) = self.fetch(self.atoms.TARGETS) else {
+            return Vec::new();
+        };
+        data.chunks_exact(4)
+            .filter_map(|atom| Some(u32::from_ne_bytes(atom.try_into().ok()?)))
+            .filter_map(|atom| self.name(atom))
+            .collect()
+    }
+
+    /// Reads a be3 format the selection's owner offers, waiting `READ_WAIT`
+    /// at most for it to answer.
     pub fn read(&self, format: &str) -> Option<ClipItem> {
-        let target = self.atom(format)?;
+        let data = self.fetch(self.atom(format)?)?;
+        ClipItem::from_stored(format, &data)
+    }
+
+    /// The selection as `target`, read into the next of the paste properties.
+    fn fetch(&self, target: Atom) -> Option<Vec<u8>> {
+        let serial = self
+            .pastes
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            % PASTE_PROPERTIES;
+        let property = self.atom(&format!("BEUI_PASTE_{serial}"))?;
         let (answer, answered) = channel();
         *lock(&self.reading) = Some(Reading {
             target,
+            property,
             data: None,
             answer,
         });
-        self.connection
+        let asked = self
+            .connection
             .convert_selection(
                 self.window,
                 self.atoms.CLIPBOARD,
                 target,
-                self.atoms.BEUI_PASTE,
+                property,
                 CURRENT_TIME,
             )
-            .ok()?;
-        self.connection.flush().ok()?;
-        let data = answered.recv_timeout(READ_WAIT).ok().flatten();
+            .is_ok()
+            && self.connection.flush().is_ok();
+        let data = asked
+            .then(|| answered.recv_timeout(READ_WAIT).ok().flatten())
+            .flatten();
         lock(&self.reading).take();
-        ClipItem::from_stored(format, &data?)
+        data
     }
 
     fn atom(&self, name: &str) -> Option<Atom> {
+        if let Some(atom) = lock(&self.interned).get(name) {
+            return Some(*atom);
+        }
         let cookie = self.connection.intern_atom(false, name.as_bytes()).ok()?;
-        Some(cookie.reply().ok()?.atom)
+        let atom = cookie.reply().ok()?.atom;
+        lock(&self.interned).insert(name.to_owned(), atom);
+        Some(atom)
+    }
+
+    fn name(&self, atom: Atom) -> Option<String> {
+        if let Some(name) = lock(&self.named).get(&atom) {
+            return Some(name.clone());
+        }
+        let cookie = self.connection.get_atom_name(atom).ok()?;
+        let name = String::from_utf8(cookie.reply().ok()?.name).ok()?;
+        lock(&self.named).insert(atom, name.clone());
+        Some(name)
     }
 
     /// Asks a clipboard manager, if one runs, to copy what this program
@@ -239,11 +297,14 @@ impl Owner {
 
 impl Drop for Owner {
     /// Hands the clip to a clipboard manager, then destroys the window,
-    /// which ends the thread serving it.
+    /// which ends the thread serving it, and waits for that thread.
     fn drop(&mut self) {
         self.hand_over();
-        let _ = self.connection.destroy_window(self.window);
-        let _ = self.connection.flush();
+        let destroyed = self.connection.destroy_window(self.window).is_ok()
+            && self.connection.flush().is_ok();
+        if let Some(serving) = self.serving.take().filter(|_| destroyed) {
+            let _ = serving.join();
+        }
     }
 }
 
@@ -373,11 +434,9 @@ impl Server {
                     self.read_answered(notify.target, notify.property)
                 }
                 Event::PropertyNotify(notify)
-                    if notify.window == self.window
-                        && notify.atom == self.atoms.BEUI_PASTE
-                        && notify.state == Property::NEW_VALUE =>
+                    if notify.window == self.window && notify.state == Property::NEW_VALUE =>
                 {
-                    self.read_piece()
+                    self.read_piece(notify.atom)
                 }
                 Event::PropertyNotify(notify) if notify.state == Property::DELETE => {
                     self.send_next(notify.window, notify.atom, now)
@@ -397,13 +456,15 @@ impl Server {
     /// pieces, or nothing.
     fn read_answered(&self, target: Atom, property: Atom) {
         let mut reading = lock(&self.reading);
-        if reading
+        let Some(asked) = reading
             .as_ref()
-            .is_none_or(|reading| reading.target != target)
-        {
+            .filter(|reading| reading.target == target)
+            .filter(|reading| property == NONE || property == reading.property)
+            .map(|reading| reading.property)
+        else {
             return;
-        }
-        let taken = (property != NONE).then(|| self.take_paste()).flatten();
+        };
+        let taken = (property != NONE).then(|| self.take_paste(asked)).flatten();
         match taken {
             Some((kind, _)) if kind == self.atoms.INCR => {
                 if let Some(reading) = reading.as_mut() {
@@ -419,15 +480,15 @@ impl Server {
     }
 
     /// A piece of a transfer to a paste arrived; an empty one ends it.
-    fn read_piece(&self) {
+    fn read_piece(&self, property: Atom) {
         let mut reading = lock(&self.reading);
         if reading
             .as_ref()
-            .is_none_or(|reading| reading.data.is_none())
+            .is_none_or(|reading| reading.data.is_none() || reading.property != property)
         {
             return;
         }
-        let Some((_, piece)) = self.take_paste() else {
+        let Some((_, piece)) = self.take_paste(property) else {
             return;
         };
         if piece.is_empty() {
@@ -440,13 +501,13 @@ impl Server {
     }
 
     /// Reads and deletes the paste's property: its type and bytes.
-    fn take_paste(&self) -> Option<(Atom, Vec<u8>)> {
+    fn take_paste(&self, property: Atom) -> Option<(Atom, Vec<u8>)> {
         let reply = self
             .connection
             .get_property(
                 true,
                 self.window,
-                self.atoms.BEUI_PASTE,
+                property,
                 AtomEnum::ANY,
                 0,
                 u32::MAX,
@@ -534,11 +595,16 @@ impl Server {
                 .change_property8(PropMode::REPLACE, requestor, property, kind, &data)
                 .is_ok();
         }
-        let _ = self.connection.change_window_attributes(
-            requestor,
-            &ChangeWindowAttributesAux::new()
-                .event_mask(EventMask::PROPERTY_CHANGE | EventMask::STRUCTURE_NOTIFY),
-        );
+        // This program's own window, a paste of its own selection, already
+        // hears both; another client's mask is set per client, so setting
+        // it here takes nothing from that client.
+        if requestor != self.window {
+            let _ = self.connection.change_window_attributes(
+                requestor,
+                &ChangeWindowAttributesAux::new()
+                    .event_mask(EventMask::PROPERTY_CHANGE | EventMask::STRUCTURE_NOTIFY),
+            );
+        }
         let size = u32::try_from(data.len()).unwrap_or(u32::MAX);
         if self
             .connection
@@ -573,8 +639,12 @@ impl Server {
         }
     }
 
-    /// Stops hearing a requestor's events once no transfer needs them.
+    /// Stops hearing a requestor's events once no transfer needs them; never
+    /// this program's own window's, which it always needs.
     fn stop_watching(&self, requestor: Window) {
+        if requestor == self.window {
+            return;
+        }
         let _ = self.connection.change_window_attributes(
             requestor,
             &ChangeWindowAttributesAux::new().event_mask(EventMask::NO_EVENT),

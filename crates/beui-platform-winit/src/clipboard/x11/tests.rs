@@ -10,6 +10,7 @@ mod a_transfer_in_pieces_ends_with_an_empty_one;
 mod closing_hands_the_clip_to_a_clipboard_manager;
 mod idle_and_abandoned_transfers_are_dropped;
 mod one_copy_offers_its_text_and_its_image;
+mod reading_its_own_selection_leaves_the_program_able_to_close;
 
 /// Fails the whole test binary, stopping its Xvfb first, if a test that talks
 /// to an X server has not finished within a minute: a broken owner otherwise
