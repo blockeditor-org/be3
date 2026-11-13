@@ -3896,11 +3896,15 @@ async fn list(
         // As the outbox stands now, not when the request went: a creation or move kept since,
         // whose block is no longer pending in the graph, is in it (no await from here on).
         let summaries = peer.with_outbox(listing, summaries);
-        // A block set aside among the unsent edits left the files (`Graph::forget` when it was
-        // drained), though its summary still answers from this device (`Peer::summary`).
+        // A block the server refused to make left the files (`Graph::forget` when it was set
+        // aside), though its summary still answers from this device (`Peer::summary`), as do
+        // the blocks made in it. One whose edits were set aside for lost access is still on the
+        // server, and stays listed.
         let nodes = summaries
             .iter()
-            .filter(|summary| summary.access.can_know_exists() && !peer.is_unsent(summary.id))
+            .filter(|summary| {
+                summary.access.can_know_exists() && peer.refusal(summary.id).is_none()
+            })
             .map(|summary| node_of(peer, summary))
             .collect();
         shared
