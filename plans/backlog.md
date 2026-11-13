@@ -28,17 +28,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
 - **Android.** be3 formats stay in memory there, matched by plain text. Done:
   they travel as `ClipData` MIME types, checked on an Android emulator
   (guides/running/android.md).
-- **macOS.** The same. Done: macOS writes them as custom pasteboard types and
-  knows another program copied by the pasteboard's change count. No Mac is
-  available, so this is written blind: done when it compiles for macOS and
-  shares its logic with tested code where it can.
-- **Rich text marks in text fragments**, with `text/html` written from marks
-  and read back into them. Marks travel as byte ranges within each chunk of
-  `TextFragment` (`be-lib-ui-types/src/clipboard.rs`, a format change, which
-  is fine). Marks whose keys belong to another schema are dropped on paste;
-  embeds cross in the clip's `refs`, translated like any other. Done: a
-  paste between two rich texts keeps bold, links and an embed, and pasting
-  from a browser's `text/html` gives bold and links.
 
 ## 7. Sessions
 
