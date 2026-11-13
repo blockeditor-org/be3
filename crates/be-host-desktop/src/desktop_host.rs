@@ -163,3 +163,6 @@ pub fn PlacedWindow(window: HostWindowId, focus: Memo<u64>) -> NodeId {
         </WindowBody>
     }
 }
+
+#[cfg(test)]
+mod tests;

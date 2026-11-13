@@ -124,7 +124,11 @@ pub(super) fn ProgramSearch(
                 .programs
                 .iter()
                 .map(item)
-                .chain((!query.trim().is_empty()).then(|| run_item(&query)))
+                // A typed line runs through the shell the host names, so only once it has.
+                .chain(
+                    (!query.trim().is_empty() && !catalog.shell.is_empty())
+                        .then(|| run_item(&query)),
+                )
                 .collect::<Vec<_>>()
         })
     });

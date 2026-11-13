@@ -412,6 +412,19 @@ impl DesktopHost for Win32 {
         if !Win32::running() || arguments.is_empty() {
             return false;
         }
+        // A line typed to run through the host's shell runs as the Run dialog runs it: its
+        // first word is shell-executed with the rest as parameters, so App Paths, documents
+        // and URLs open as they do there, with no console and the program's own process.
+        let shell = crate::programs::SHELL;
+        let arguments = match arguments.split_at_checked(shell.len()) {
+            Some((head, [line])) if head.iter().eq(shell.iter()) => {
+                be_host_win32::command_line::split_arguments(line)
+            }
+            _ => arguments,
+        };
+        if arguments.is_empty() {
+            return false;
+        }
         spawn_launch(move || be_host_win32::exec(&arguments, launch));
         true
     }

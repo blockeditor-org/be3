@@ -10,11 +10,13 @@ use uuid::Uuid;
 
 pub(super) const WAITING_ICON_SIZE: u32 = 64;
 const ICON_BUDGET: usize = be_sdk_api::MAX_BLOB_BYTES / 2;
-/// What a typed command line runs through: the line follows as one more argument.
+/// What a typed command line runs through: the line follows as one more argument. On Windows
+/// the host runs a command that starts with it as the Run dialog does (`Win32::exec`), not
+/// through cmd.exe.
 #[cfg(not(windows))]
-const SHELL: [&str; 2] = ["sh", "-c"];
+pub(crate) const SHELL: [&str; 2] = ["sh", "-c"];
 #[cfg(windows)]
-const SHELL: [&str; 3] = ["cmd.exe", "/D", "/C"];
+pub(crate) const SHELL: [&str; 3] = ["cmd.exe", "/D", "/C"];
 
 pub struct Opener {
     pub id: String,

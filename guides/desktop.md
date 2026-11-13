@@ -194,7 +194,8 @@ When the shell app stops (panic, trap, hang, session failure, or Kill in Running
 `watch_shell` closes it and its editors, and shows the host's session and profile picker
 (`Screen::Sessions`) with a Copy report toast. Every stop goes through `Runtime::stopped`, which
 reports it once to `take_stopped`. Choosing a session opens a fresh shell; the program windows
-stay. On Linux `Compositor::set_owned(false)`, set whenever no shell is on screen, takes input from
+stay. On Linux `Compositor::set_owned(false)`, set through `desktop_host::configure` whenever no
+shell is on screen, takes input from
 the clients and pings them every `PING_TIMEOUT`, so a client that froze meanwhile is shown as not
 responding. The new shell restores each window into the tab that last held its `HostWindowId`. To
 try it: Apps panel > Menu > Running Apps, then Crash or Kill beside `be3.desktop`.

@@ -16,7 +16,13 @@ fn a_program_that_is_not_found_is_reported() {
     harness
         .compositor()
         .windows()
-        .launch("be-wayland-test-no-such-program".to_owned());
+        .run(crate::Launch {
+            arguments: ["sh", "-c", "be-wayland-test-no-such-program"]
+                .map(str::to_owned)
+                .to_vec(),
+            working_dir: None,
+            tag: None,
+        });
     harness.frame(Vec::new());
     wake.recv()
         .expect("the program's exit wakes the compositor");
