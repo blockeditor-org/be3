@@ -50,14 +50,25 @@ fn revision_history_editors_cannot_mutate_any_block() {
                 replace: true,
             }
         ));
-        assert!(!call(
-            &mut instances,
-            wire::Call::Act {
-                reply: reply(next_op()),
-                block: target.into_bytes(),
-                command: BlockCommand::Undo
-            }
-        ));
+        for command in [
+            BlockCommand::Undo,
+            BlockCommand::Share,
+            BlockCommand::Leave,
+        ] {
+            assert!(!call(
+                &mut instances,
+                wire::Call::Act {
+                    reply: reply(next_op()),
+                    block: target.into_bytes(),
+                    command,
+                }
+            ));
+        }
+        assert_eq!(
+            instances.take_block_command(INSTANCE),
+            None,
+            "a preview's acts never reach the host"
+        );
         instances.take_answers();
         instances.serve(crate::wire::Service {
             instance: INSTANCE,

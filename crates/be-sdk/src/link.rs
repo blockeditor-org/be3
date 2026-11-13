@@ -174,9 +174,6 @@ impl Link {
         for open in host.take_opens() {
             self.under(|| blocks::open_block(request_of(open)).detach());
         }
-        for (block, command) in host.take_block_commands() {
-            self.under(|| blocks::act(block.into_bytes(), command).detach());
-        }
     }
 
     fn change_graph(&self, host: &EditorHost) {
@@ -209,6 +206,9 @@ impl Link {
                     },
                 )
                 .detach(),
+                GraphCommand::Act { id, command } => {
+                    blocks::act(id.into_bytes(), command).detach();
+                }
             });
         }
     }

@@ -3028,7 +3028,11 @@ impl HostCore {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
             BlockCommand::Leave => self.leaving = Some(id),
             BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
-            BlockCommand::CloseEditor => self.close_editor(id),
+            BlockCommand::CloseEditor => {
+                if may_close(from, id, self.shell, self.editors.parent_of(id)) {
+                    self.close_editor(id);
+                }
+            }
             // The runtime does these itself (`Instances::act`).
             BlockCommand::Version(_) | BlockCommand::SetParent(_) | BlockCommand::Define { .. } => {
             }
@@ -4174,6 +4178,12 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
         BlockLocation::Block(id) if is_unfiled(Uuid::from_bytes(id)) => SidebarDragSource::Unfiled,
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
+}
+
+/// Whether the editor showing `from` may close the editor of `id`, which it does not show: the
+/// shell closes any (a tab), and an editor only a child it placed, never one elsewhere.
+fn may_close(from: Option<Uuid>, id: Uuid, shell: Option<Uuid>, parent: Option<Uuid>) -> bool {
+    from.is_some() && (from == shell || parent == from)
 }
 
 #[cfg(test)]

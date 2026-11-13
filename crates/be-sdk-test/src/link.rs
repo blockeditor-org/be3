@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use be_sdk_api::{
-    BlockCommand, EditorInstanceId, Encoded, VersionCommand,
+    BlockCommand, EditorInstanceId, Encoded,
     blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest},
     embed::blocks::Call,
     ops::{Connection, OpError, OpId, Outcome, Producer, encode, wire},
@@ -33,7 +33,6 @@ struct Watch {
 pub(crate) enum Sent {
     Open(OpenRequest),
     Command(Uuid, BlockCommand),
-    Version(Uuid, VersionCommand),
     Define(Uuid, Uuid, Option<Vec<u8>>),
     Frame(Uuid, FromEditor),
 }
@@ -122,7 +121,6 @@ impl Link {
                 reply.send(connection, &());
                 let id = block(id);
                 match command {
-                    BlockCommand::Version(command) => self.sent.push(Sent::Version(id, command)),
                     BlockCommand::SetParent(parent) => store.set_parent(id, parent),
                     BlockCommand::Define { key, value } => {
                         store.define(id, block(key), value.clone());

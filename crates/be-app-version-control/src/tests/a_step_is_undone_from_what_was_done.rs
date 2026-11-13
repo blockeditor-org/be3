@@ -36,7 +36,7 @@ fn a_step_is_undone_from_what_was_done() {
     editor.run();
 
     assert_eq!(
-        editor.take_version_commands(),
-        vec![(own(&editor), VersionCommand::Undo { operation: [2; 16] })]
+        editor.take_block_commands(),
+        vec![(own(&editor), BlockCommand::Version(VersionCommand::Undo { operation: [2; 16] }))]
     );
 }

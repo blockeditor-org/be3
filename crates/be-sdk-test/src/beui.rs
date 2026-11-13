@@ -1995,13 +1995,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         taken
     }
 
-    pub fn take_version_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::VersionCommand)> {
-        self.take_sent_calls(|sent| match sent {
-            Sent::Version(block, command) => Some((*block, command.clone())),
-            _ => None,
-        })
-    }
-
     fn take_frames<T>(&mut self, pick: impl Fn(Uuid, FromEditor) -> Option<T>) -> Vec<T> {
         self.take_sent_calls(|sent| match sent {
             Sent::Frame(block, frame) => pick(*block, frame.clone()),
