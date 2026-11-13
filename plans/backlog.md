@@ -29,6 +29,12 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   knows another program copied by the pasteboard's change count. No Mac is
   available, so this is written blind: done when it compiles for macOS and
   shares its logic with tested code where it can.
+- **A copy too large for Android's clipboard.** Plain text beyond about
+  450 KB (a Parcel holds it as UTF-16, under Binder's ~1 MB) makes
+  `setPrimaryClip` throw, and the copy is lost without a word
+  (`beui-platform-android/src/clipboard.rs`). Done: such a copy puts its
+  text there cut short with a notice, or says it is too large to copy, and
+  pastes in the program still get it whole from the held clip.
 - **Rich text marks in text fragments**, with `text/html` written from marks
   and read back into them. Marks travel as byte ranges within each chunk of
   `TextFragment` (`be-lib-ui-types/src/clipboard.rs`, a format change, which

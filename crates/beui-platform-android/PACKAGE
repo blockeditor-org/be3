@@ -29,6 +29,7 @@ write_package_value("be3.cargo", {
                 "//third-party/rust:ndk-context-0.1.1",
                 "//third-party/rust:ndk-sys-0.6.0+11769913",
                 "//third-party/rust:raw-window-handle-0.6.2",
+                "//third-party/rust:uuid-1.29.1",
             ],
             "examples": {},
             "features": [],
