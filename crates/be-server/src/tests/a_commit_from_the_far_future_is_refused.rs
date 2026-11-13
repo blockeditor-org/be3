@@ -24,7 +24,9 @@ async fn a_commit_from_the_far_future_is_refused() {
 
     let soon = be_block_commit::now_milliseconds() + be_block_commit::retention::MINUTE;
     let (fast, chunks) = author.compose(b"from a fast clock\n", soon, None);
-    let published = client.publish(&author, block, fast, chunks, None, soon).await;
+    let published = client
+        .publish(&author, block, fast, chunks, None, soon)
+        .await;
     assert!(published.is_ok(), "{published:?}");
     harness.stop().await;
 }

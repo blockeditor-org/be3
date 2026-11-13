@@ -180,7 +180,11 @@ impl ServerStore {
                 .prepare_cached("SELECT bytes FROM object_sizes WHERE hash = ?1")?
                 .query_row([hash.to_hex()], |row| row.get(0))
                 .optional()?;
-            total = total.saturating_add(stored.and_then(|bytes| u64::try_from(bytes).ok()).unwrap_or(0));
+            total = total.saturating_add(
+                stored
+                    .and_then(|bytes| u64::try_from(bytes).ok())
+                    .unwrap_or(0),
+            );
         }
         Ok(total)
     }
