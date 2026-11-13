@@ -7,7 +7,7 @@ click '#covering.open-menu'
 wait '#covering.Menu'
 wait 'Menu covers true, within true'
 key Escape
-gone '#covering.Menu'
+wait not '#covering.Menu'
 click '#covering.open-below'
 wait '#covering.Below'
 wait 'Below covers false'

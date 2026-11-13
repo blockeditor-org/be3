@@ -21,6 +21,10 @@ struct OffsetAnchor {
 pub struct OffsetNode {
     pub direction: Direction,
     pub child: Option<NodeId>,
+    /// The scroll the Offset is steered to: what layout places its content by, and what
+    /// layout may change again after placing it (holding an anchor, revealing a focused node,
+    /// snapping to the end), for the next layout to apply. It is not where the content was
+    /// placed, so code outside the Offset does not read it for that.
     pub offset: f32,
     pub fits: bool,
     pub position: Option<ScrollPosition>,
@@ -34,6 +38,9 @@ pub struct OffsetNode {
     pinned: bool,
     to_end: bool,
     reached_end: Option<u64>,
+    /// The shift the last layout applied to the content (minus `offset`, snapped to the pixel
+    /// grid, in the Offset's own space). Code outside the Offset reads it, in window units,
+    /// through `Document::scrolled_by`.
     translation: Vec2,
     host: Option<NodeId>,
 }
@@ -497,6 +504,24 @@ impl Document {
         handler: impl FnMut(()) + 'static,
     ) {
         self.arena.touch_mut_as::<OffsetNode>(offset).on_steer = Callback::new(handler);
+    }
+
+    /// How far the `Offset`s around `node` scrolled it in the last layout, in window units:
+    /// the shift each applied to its content, scaled as the space it sits in is, summed.
+    pub fn scrolled_by(&self, node: NodeId) -> Vec2 {
+        let mut by = Vec2::ZERO;
+        let mut at = self.arena.parent(node);
+        while let Some(id) = at {
+            if let Some(offset) = self.arena.kind_of::<OffsetNode>(id) {
+                let scale = self
+                    .rects
+                    .placed(&id)
+                    .map_or(1.0, |placed| self.rects.transform(placed.space).scale);
+                by -= self.arena.get_as::<OffsetNode>(offset).translation * scale;
+            }
+            at = self.arena.parent(id);
+        }
+        by
     }
 
     pub fn first_offset_within(&self, id: NodeId) -> Option<NodeOf<OffsetNode>> {

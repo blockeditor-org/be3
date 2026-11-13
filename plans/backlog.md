@@ -32,13 +32,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   knows another program copied by the pasteboard's change count. No Mac is
   available, so this is written blind: done when it compiles for macOS and
   shares its logic with tested code where it can.
-- **Images beside text on desktops.** arboard (`beui-platform-winit`) sets
-  either the plain text or a PNG, not both, so this needs per-platform code:
-  X11 and Wayland selections offering both targets, and Windows clipboard
-  formats. Done: on Linux, a test against a headless Wayland or X server
-  (Xvfb, installed with apt on the test machine and started by the test,
-  skipping with a message when absent) reads both targets from one clip;
-  Windows compiles.
 - **Rich text marks in text fragments**, with `text/html` written from marks
   and read back into them. Marks travel as byte ranges within each chunk of
   `TextFragment` (`be-lib-ui-types/src/clipboard.rs`, a format change, which
@@ -55,11 +48,10 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   answers one sender at most once per interval, shown by a be-sdk-type-guest
   test where a viewer's repeated `Catchup`s get one `Snapshot`.
 
-## 8. The dock bars page's centre status bar fits its band
+## 8. Input
 
-On beui-demo's dock bars page, the page's centre status bar (`DockAlign::Center` along the
-bottom) is narrower than its tools even at rest, so it scrolls in its band, on main too, and
-which of its tools show depends on how earlier drags squeezed it. Done when, with the two tool
-bars docked beside it, it shows all its tools, or the band gives the centre group room before the
-start and end groups, and `a_tool_bar_dropped_before_another_along_the_edge_takes_its_place`
-shows no scroll thumb.
+- **Touches per window.** beui-core's `InputState::touches` is one list across
+  the windows an input serves, so fingers on two touch displays at once read as
+  one gesture, as a click in one window once counted toward a double-click in
+  another (`ClickCounter`). Done: a touch in one window never joins a gesture in
+  another, shown by a beui-core test with two windows' touches.

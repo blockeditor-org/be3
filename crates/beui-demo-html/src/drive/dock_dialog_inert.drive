@@ -9,5 +9,5 @@ click '#demo.dialog.modal'
 wait '#dock.dialog.1099511627776'
 role button 'Open a modal dialog' inert
 click '#demo.dialog.1099511627776.close'
-gone '#dock.dialog.1099511627776'
+wait not '#dock.dialog.1099511627776'
 role button 'Open a modal dialog' not-inert

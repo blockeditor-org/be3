@@ -1202,9 +1202,9 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
-    let counted = store(Cell::new(false));
+    let counted = StoredCell::new(false);
     let count = move || {
-        if counted.with(Cell::get) {
+        if counted.get() {
             return;
         }
         let shown = editors().with(|open| match open.get_mut(&block) {
@@ -1214,7 +1214,7 @@ fn BlockFrame(
             }
             None => false,
         });
-        counted.with(|counted| counted.set(shown));
+        counted.set(shown);
     };
     count();
     create_effect(move || {
@@ -1222,7 +1222,7 @@ fn BlockFrame(
         count();
     });
     on_cleanup(move || {
-        if counted.with(Cell::get) {
+        if counted.get() {
             editors().with(|open| {
                 if let Some(editor) = open.get_mut(&block) {
                     editor.shown(false);

@@ -418,6 +418,57 @@ struct Open {
     early: Vec<Replayed>,
     unreported: bool,
     reporting: Option<CommitId>,
+    /// Why its last publish failed, if it did: what a host stuck owing a seal names.
+    publish_error: Option<String>,
+}
+
+/// An open block that owes a seal, and what its seal may be waiting on: what a host names when
+/// it stays busy sealing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Owing {
+    pub block: Uuid,
+    pub content_type: Uuid,
+    /// Why its last publish failed, if it did.
+    pub publish_error: Option<String>,
+    pub journaled: bool,
+    /// Whether an editor sent it something its module has not reported on yet.
+    pub unreported: bool,
+    /// Publishes of it not yet answered.
+    pub publishing: usize,
+    pub joining: bool,
+    pub closing: bool,
+}
+
+impl Owing {
+    fn of(open: &Open) -> Self {
+        Self {
+            block: open.block,
+            content_type: open.content_type,
+            publish_error: open.publish_error.clone(),
+            journaled: open.status.journaled,
+            unreported: open.unreported,
+            publishing: open.publishing,
+            joining: open.joining,
+            closing: open.closing,
+        }
+    }
+}
+
+impl std::fmt::Display for Owing {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} of type {} (journaled: {}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
+            self.block,
+            self.content_type,
+            self.journaled,
+            self.unreported,
+            self.publishing,
+            self.joining,
+            self.closing,
+            self.publish_error
+        )
+    }
 }
 
 /// How many commits sealed here `Replicas` remembers per block.
@@ -641,13 +692,34 @@ impl<H: Host> Replicas<H> {
         ticket: Ticket<T, E>,
         mut answered: tokio::sync::oneshot::Receiver<Outcome>,
     ) -> Result<T, OpError> {
+        let (_, shared) = ctx;
         loop {
             self.drain(ctx).await;
             if let Some(outcome) = answer_in(&mut answered) {
+                H::asking(shared, Vec::new());
                 return outcome.and_then(|outcome| ticket.decode(outcome));
             }
+            H::asking(shared, self.asking());
             self.woken().await;
         }
+    }
+
+    /// What is asked of the modules and not yet answered, by block.
+    fn asking(&self) -> Vec<String> {
+        self.asked
+            .values()
+            .map(|(replica, asked)| {
+                let block = self.open.get(replica).map(|open| open.block);
+                let what = match asked {
+                    Asked::Content => "its content".to_owned(),
+                    Asked::Seal(force) => format!("a seal (forced: {force})"),
+                };
+                match block {
+                    Some(block) => format!("{block}: {what}"),
+                    None => format!("a closed replica: {what}"),
+                }
+            })
+            .collect()
     }
 
     fn ask_later<T, E: Decode<T>>(
@@ -659,6 +731,11 @@ impl<H: Host> Replicas<H> {
         let (answer, answered) = tokio::sync::oneshot::channel();
         self.replies.insert((module, ticket.op()), answer);
         Some((ticket, answered))
+    }
+
+    /// Whether a module on this device has the type, whether or not it runs.
+    pub fn has_module(&self, content_type: Uuid) -> bool {
+        self.modules.module_of(content_type).is_some()
     }
 
     pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
@@ -901,6 +978,7 @@ impl<H: Host> Replicas<H> {
                 early: Vec::new(),
                 unreported: false,
                 reporting: None,
+                publish_error: None,
             },
         );
         if reader {
@@ -1442,6 +1520,7 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
+        open.publish_error = result.as_ref().err().cloned();
         if open.epoch != epoch {
             return;
         }
@@ -2475,10 +2554,16 @@ impl<H: Host> Replicas<H> {
         replica: ReplicaId,
         call: Call,
     ) -> bool {
-        let Some((block, content_type, made_up, joining)) = self
-            .open
-            .get(&replica)
-            .map(|open| (open.block, open.content_type, open.made_up, open.joining))
+        let Some((block, content_type, made_up, joining, current)) =
+            self.open.get(&replica).map(|open| {
+                (
+                    open.block,
+                    open.content_type,
+                    open.made_up,
+                    open.joining,
+                    open.session.generation,
+                )
+            })
         else {
             return false;
         };
@@ -2593,7 +2678,11 @@ impl<H: Host> Replicas<H> {
                     sequence: base.sequence,
                     state: base.state,
                 };
-                let online = !made_up && peer.is_attached();
+                // A rebase the module made in a session that has since been replaced (the
+                // made-up one it journals in while joining, or a lease that passed) is kept on
+                // this device only: the server keeps a journal for its current generation alone,
+                // and the module rebases again in the session that replaced it before it appends.
+                let online = !made_up && peer.is_attached() && generation == current;
                 // An own commit: one a replica of this host sealed, or one this device's outbox
                 // keeps.
                 let own = base.commit.is_some_and(|commit| {
@@ -2969,7 +3058,7 @@ impl<H: Host> Replicas<H> {
     /// hold edits that are not yet durable: not in the journal on this device (still with the
     /// module, or not yet appended). A journaled edit survives a restart, so it is only waiting
     /// for its commit.
-    pub fn counts(&self) -> (usize, usize, usize) {
+    pub fn counts(&self) -> (usize, Vec<Owing>, Vec<Owing>) {
         let unsealed = self
             .open
             .values()
@@ -2979,12 +3068,14 @@ impl<H: Host> Replicas<H> {
             .open
             .values()
             .filter(|open| open.status.owes_seal)
-            .count();
+            .map(Owing::of)
+            .collect();
         let undurable = self
             .open
             .values()
             .filter(|open| open.unreported || (!open.status.clean && !open.status.journaled))
-            .count();
+            .map(Owing::of)
+            .collect();
         (unsealed, owing, undurable)
     }
 

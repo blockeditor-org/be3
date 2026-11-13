@@ -592,12 +592,31 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(key) = summary.key {
             self.make_current(summary.id, key);
         }
-        let _ = self.refs.observe(std::slice::from_ref(summary));
+        self.observe(std::slice::from_ref(summary));
         let _ = self
             .refs
             .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
             let _ = self.move_to_unsent(summary.id, None);
+        }
+    }
+
+    /// Keeps the server's heads `summaries` name (`behind`).
+    fn observe(&self, summaries: &[BlockSummary]) {
+        let _ = self.refs.observe(summaries, self.behind());
+    }
+
+    /// Whether a remote head this device hears of is behind the one it knows. The server's head
+    /// only ever moves on to a new commit, so a head the known one descends from was heard of
+    /// late: a summary read before this device published the newer one and answered after, or
+    /// a merge of a divergence a later merge already settled.
+    pub(crate) fn behind(&self) -> impl Fn(CommitId, CommitId) -> bool + '_ {
+        |head, known| match self.commits.try_get(head) {
+            // The common case, a publish or a merge on the known head: the newer, at once.
+            Ok(Some(commit)) if commit.parents.contains(&known) => false,
+            Ok(Some(_)) => self.commits.is_ancestor(head, known).unwrap_or(false),
+            // A head this device does not hold is no ancestor of one it does.
+            Ok(None) | Err(_) => false,
         }
     }
 
@@ -1139,9 +1158,32 @@ impl<S: ObjectStore> Peer<S> {
         expected: Option<CommitId>,
     ) -> Result<BlockMetadata, ClientError> {
         match expected {
-            Some(head) => self.metadata_of(head).await,
+            Some(head) => self.base_metadata(block, head).await,
             None => self.metadata_of_summary(&self.summary(block).await?).await,
         }
+    }
+
+    /// The metadata of `head`, a commit `block`'s next commit goes on: from the commit when this
+    /// device holds it, else from the block's summary when that names `head` and nothing sealed
+    /// here since has revised it (its sealed metadata is then the head's own, as its publisher
+    /// sealed it), else fetched. A device that knows a block's head only from its summary can
+    /// seal on it offline.
+    async fn base_metadata(
+        &self,
+        block: Uuid,
+        head: CommitId,
+    ) -> Result<BlockMetadata, ClientError> {
+        if let Some(commit) = self.commits.try_get(head)? {
+            return Ok(BlockMetadata::decode(&commit.metadata)?);
+        }
+        if self.pending_commits(block).is_empty()
+            && let Some(summary) = self.refs.summary(block)
+            && summary.head == Some(head)
+            && let Ok(metadata) = self.open_metadata(&summary)
+        {
+            return Ok(metadata);
+        }
+        self.metadata_of(head).await
     }
 
     pub fn metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
@@ -1248,7 +1290,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
             Ok(be_block_protocol::Listed { revision, blocks }) => {
-                let _ = self.refs.observe(&blocks);
+                self.observe(&blocks);
                 let blocks = self.with_outbox(listing, blocks);
                 let _ = self.refs.listed(listing, &blocks, revision);
                 Ok(blocks)
@@ -1603,8 +1645,14 @@ impl<S: ObjectStore> Peer<S> {
             sealed_through,
             ..
         } = write;
+        // The commit it goes on, to tell a write that changes nothing: unknown offline when only
+        // its summary is held, and then the write is sealed all the same.
         let previous = match expected {
-            Some(head) => Some(self.load_commit(head).await?),
+            Some(head) => match self.load_commit(head).await {
+                Ok(previous) => Some(previous),
+                Err(error) if offline::unreachable(&error) => None,
+                Err(error) => return Err(error),
+            },
             None => None,
         };
         let time = now_milliseconds();
@@ -1759,7 +1807,7 @@ impl<S: ObjectStore> Peer<S> {
             PublishOutcome::Published(head) => Ok(Saved::Published(head)),
             PublishOutcome::Rejected(head) => {
                 if let Some(head) = head {
-                    self.refs.set_remote(block, head)?;
+                    self.refs.set_remote(block, head, self.behind())?;
                 }
                 Ok(Saved::Rejected { head })
             }

@@ -195,11 +195,14 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 # A test that paints (guides/testing_a_gui.md) reads and accepts the paintings
 # in the crate's snapshots/, as app tests do (buck/wasm/defs.bzl).
 # crates/be-host-tests is one: be-host with its apps, driven headless. With
-# run_apart, each file under src/tests/ is a :test-<file> of its own, so a test
-# that fails costs only its own paintings rather than every one the crate
-# accepts, since a failed action keeps no outputs, and :test runs them all;
-# apart_env adds to run_env for the files it names, as crates/be-host-tests
-# names each test's own app.
+# run_apart, each test file is a :test-<file> of its own, so the files run
+# side by side on workers rather than in one process, and a test that fails
+# costs only its own paintings rather than every one the crate accepts, since a
+# failed action keeps no outputs; :test runs them all. A file under src/tests/
+# is named by its stem, one in a module's tests/ by its path, such as
+# :test-graph-tests-<file> for src/graph/tests/<file>.rs. apart_env adds to
+# run_env for the files it names, as crates/be-host-tests names each test's own
+# app.
 def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, apart_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
@@ -231,15 +234,21 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
     run_env = compile_env | env | run_env
     parts = {}
     if run_apart:
-        tests = [path.removeprefix("src/tests/").removesuffix(".rs") for path in native.glob(["src/tests/*.rs"])]
+        tests = {}
+        for file in native.glob(["src/**/tests/*.rs"]):
+            module = file.removeprefix("src/").removesuffix(".rs")
+            part = module.removeprefix("tests/").replace("/", "-")
+            stem = module.split("/")[-1]
+            tests[part] = "{}::{}".format(module.replace("/", "::"), stem)
         for part in apart_env:
             if part not in tests:
                 fail("apart_env names {}, which is not a file under src/tests/".format(part))
-        for part in tests:
+        for part, libtest in tests.items():
             be_test(
                 name = "{}-{}".format(name, part),
-                args = ["--exact", "tests::{}::{}".format(part, part)],
+                args = ["--exact", libtest],
                 env = run_env | apart_env.get(part, {}),
+                libtest = libtest,
                 part_of = ":" + name,
                 **test,
             )

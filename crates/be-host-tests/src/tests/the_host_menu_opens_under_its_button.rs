@@ -21,6 +21,9 @@ fn the_host_menu_opens_under_its_button() {
         !host.shown("#sheet.handle"),
         "a click opens the menu as a dropdown"
     );
+    // The menu's first row says whether everything is saved: the edits the host made opening
+    // the workspace may still be on their way to the server.
+    host.synced();
     host.snapshot("the_host_menu_opens_under_its_button");
     host.key("Escape");
     host.gone("#host.menu.status");
