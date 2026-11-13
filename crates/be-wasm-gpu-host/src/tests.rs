@@ -81,7 +81,6 @@ impl Caller for Guest {
 }
 
 mod a_buffer_range_past_the_end_of_its_buffer_is_reported;
-mod a_map_cut_short_settles_failed_once_and_never_settles_a_later_one;
 mod a_compute_pass_is_recorded_on_its_encoder;
 mod a_configured_surface_alternates_between_two_textures;
 mod a_configured_surface_keeps_its_texture_until_its_size_changes;
@@ -90,6 +89,7 @@ mod a_device_offers_only_the_features_browser_webgpu_has;
 mod a_device_the_gpu_owns_tells_the_app_when_it_is_lost;
 mod a_dropped_handle_is_reported_not_reused;
 mod a_malformed_descriptor_is_refused;
+mod a_map_cut_short_settles_failed_once_and_never_settles_a_later_one;
 mod a_mapped_range_is_read_raw_and_only_while_mapped;
 mod a_new_instances_surfaces_never_share_a_generation_with_an_old_ones;
 mod a_rejected_shader_module_is_kept_and_says_why;
