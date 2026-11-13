@@ -917,7 +917,9 @@ impl BlockContent for ChatContent {
     /// its part's hash, which never changes), each message as it reads now on a line of its own.
     /// A segment's source is its saved part only while no edit or deletion in the header may
     /// name one of its messages: the index then keeps its text until the part changes, and a
-    /// segment edited since it closed is read again.
+    /// segment edited since it closed is read again (at every reindex, since the header keeps
+    /// the edit). Content that holds a segment neither as bytes nor as a part (an editor sent
+    /// the header alone) answers an error rather than leave the segment out.
     fn search_text(
         &self,
         keys: Option<&std::collections::HashSet<String>>,
@@ -962,8 +964,13 @@ impl BlockContent for ChatContent {
             let read = match held {
                 Held::Bytes(bytes) => Read::Bytes(bytes.clone()),
                 Held::Saved(part) => Read::Part(*part),
-                // An editor sent only the header has nothing of the segment to answer.
-                Held::Absent => continue,
+                // An editor sent only the header has nothing of the segment: an answer without it
+                // would have the index drop the segment's text, so there is none.
+                Held::Absent => {
+                    return Box::pin(std::future::ready(Err(
+                        "a closed segment's part is not held here".to_owned(),
+                    )));
+                }
             };
             reads.push((documents.len(), segment, source, read));
             documents.push(be_block::SearchDocument {

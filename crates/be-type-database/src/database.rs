@@ -523,9 +523,10 @@ impl Database {
 impl Root for Database {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x0064_6174_6162_6173_652d_626c_6f63_6b01);
 
-    /// One document per row, keyed by its id and named by its short id: its text cells, in
-    /// field order, one per line. The schema that names the fields is another block, so the
-    /// body holds only values; a tracker's issues are rows and answer the same way.
+    /// One document per row, keyed by its id and named by its short id: its non-empty text
+    /// (`String`) cells, one per line, in the order of their field ids (the schema that orders
+    /// and names the fields is another block). Other cells are not indexed. A tracker's issues
+    /// are rows and answer the same way.
     fn search_text_in(document: &Document<Self>) -> Vec<be_block::SearchDocument> {
         let database = document.root();
         database

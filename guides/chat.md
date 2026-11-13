@@ -68,7 +68,10 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   reads now on a line. A segment's source is its saved part only while no edit
   or deletion in the header may name one of its messages (its Bloom filter
   says), so the index keeps an untouched segment's text and reads an edited
-  one again.
+  one again. Since the header keeps the edit, an edited segment is read at
+  every reindex of the chat (once per seal) until a segment rewrite exists
+  (plans/deferred/chat_segment_rewrite.md). Content holding a segment neither
+  as bytes nor as a part answers an error, so the index keeps what it has.
 - **Limits.** A segment's Bloom filter can name a message it does not hold
   (unread counts may read one segment too many, never too few). A replica
   holds a closed segment's bytes in memory until it reloads

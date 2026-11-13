@@ -263,6 +263,15 @@ impl Scope {
         self.allowed.contains(&part)
     }
 
+    /// The handed parts whose hash is one of `hashes`.
+    pub fn with_hashes(&self, hashes: &[[u8; 32]]) -> Vec<be_block_store::PartRef> {
+        self.allowed
+            .iter()
+            .copied()
+            .filter(|part| hashes.contains(part.hash().as_bytes()))
+            .collect()
+    }
+
     /// Whether every part `written` reuses is one of these, so an answer cannot have this
     /// block's commit take a part of another.
     pub fn admits(&self, written: &Written) -> bool {

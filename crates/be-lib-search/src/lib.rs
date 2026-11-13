@@ -200,6 +200,18 @@ pub struct Text {
     pub body: String,
 }
 
+impl Text {
+    /// SHA-256 of the name's length, the name and the body.
+    pub fn digest(&self) -> Hash {
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update((self.name.len() as u64).to_le_bytes());
+        hasher.update(self.name.as_bytes());
+        hasher.update(self.body.as_bytes());
+        hasher.finalize().into()
+    }
+}
+
 /// A document indexed at a commit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Put {
@@ -234,6 +246,9 @@ pub struct Entry {
     /// `Put` without text moved only `commit`.
     pub indexed: Commit,
     pub source: Option<Hash>,
+    /// The digest of the text its postings hold (`Text::digest`), so a put of the same text
+    /// moves only its commit and source. None for a removed document.
+    pub digest: Option<Hash>,
     /// None for a removed document.
     place: Option<Place>,
 }
@@ -249,6 +264,7 @@ impl Entry {
             commit,
             indexed: commit,
             source: None,
+            digest: None,
             place: None,
         }
     }
@@ -429,6 +445,22 @@ impl Index {
                     masks.extend(old_place);
                     table.put(Entry::tombstone(doc, commit));
                 }
+                // Text the index already holds for it: only its commit and source move.
+                Change::Put(Put {
+                    text: Some(text),
+                    commit,
+                    source,
+                    ..
+                }) if old.as_ref().is_some_and(|old| {
+                    !old.is_removed() && old.digest == Some(text.digest())
+                }) =>
+                {
+                    if let Some(mut entry) = old {
+                        entry.commit = commit;
+                        entry.source = source;
+                        table.put(entry);
+                    }
+                }
                 Change::Put(Put {
                     text: Some(text),
                     commit,
@@ -460,12 +492,13 @@ impl Index {
                     .iter()
                     .map(|(doc, commit, _, text)| (doc, *commit, text)),
             );
-            for ((doc, commit, source, _), local) in fresh.into_iter().zip(places) {
+            for ((doc, commit, source, text), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
                     doc,
                     commit,
                     indexed: commit,
                     source,
+                    digest: Some(text.digest()),
                     place: Some(Place {
                         segment: origin,
                         local,

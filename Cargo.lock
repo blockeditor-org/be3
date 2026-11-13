@@ -1633,6 +1633,7 @@ dependencies = [
  "be-type-bundle",
  "be-type-chat",
  "be-type-checklist",
+ "be-type-database",
  "be-type-example-counter",
  "be-type-image",
  "be-type-presentation",
@@ -1803,6 +1804,7 @@ dependencies = [
  "caseless",
  "postcard",
  "serde",
+ "sha2 0.10.9",
  "unicode-normalization",
 ]
 

@@ -186,6 +186,9 @@ pub struct Searching {
     /// How often a block's commit could not be read: held back a few times, then counted as
     /// put, since a catch-up that lists it again would otherwise never end.
     failures: HashMap<Uuid, u8>,
+    /// How many parts the types read to answer `search-text` for indexing, since the start: a
+    /// part whose text an index holds is not read again.
+    pub(crate) parts_read: u64,
     /// Roots just defined, until their define is sent and the mirror has read the root again,
     /// so the size it shows is the server's with the define in it.
     confirming: HashMap<Uuid, Confirm>,
@@ -631,10 +634,24 @@ async fn index(
     if let Some((index, blocks)) = batches {
         let mut batch = Batch::default();
         let mut put_blocks = Vec::new();
+        // What the index holds now, read once a batch: each block's entries say which documents
+        // it answered before and which parts' text is held.
+        let content = match head_of(peer, index).await {
+            Some(head) => load(peer, head).await.ok(),
+            None => None,
+        };
         for block in &blocks {
+            let held = match &content {
+                Some(content) => content
+                    .entries_of(&PeerParts(peer), block.as_bytes())
+                    .await
+                    .unwrap_or_default(),
+                None => Vec::new(),
+            };
             // None: held back (a commit or part that could not be read), so not put.
-            match puts_of(peer, shared, replicas, *block).await {
-                Some(puts) => {
+            match puts_of(peer, shared, replicas, *block, &held).await {
+                Some((puts, removed)) => {
+                    batch.removed.extend(removed);
                     // Failures count the reads in a row that failed.
                     shared
                         .lock()
@@ -790,12 +807,16 @@ fn make_indexes(
 
 /// What a block's documents hold at its head: its name, and each document its type answers
 /// `search-text` with. A type that answers nothing is found by its name alone.
+/// A block's documents to put at its head, and those the index holds for it that its type no
+/// longer answers, to remove. `held` is what the index holds for the block: the parts whose text
+/// it has are handed to the type as indexed, so it does not read them again.
 async fn puts_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     block: Uuid,
-) -> Option<Vec<Put>> {
+    held: &[be_lib_search::Entry],
+) -> Option<(Vec<Put>, Vec<(DocId, be_lib_search::Commit)>)> {
     let Some((content_type, name, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match held.graph.get(block) {
@@ -812,7 +833,7 @@ async fn puts_of(
         }
     }) else {
         // Gone from the mirror and from what a catch-up named: nothing to index.
-        return Some(Vec::new());
+        return Some((Vec::new(), Vec::new()));
     };
     let caught_head = shared
         .lock()
@@ -837,7 +858,7 @@ async fn puts_of(
     };
     let Some(head) = head else {
         // A block no one has written to has nothing to index.
-        return Some(Vec::new());
+        return Some((Vec::new(), Vec::new()));
     };
     // A commit that cannot be fetched now (a connection, a key) is held back: the block is not
     // put, and a catch-up that listed it does not move its watermark past it.
@@ -861,9 +882,22 @@ async fn puts_of(
         true => replicas.kind(content_type).await.is_some(),
         false => crate::kind_of(content_type).is_some(),
     };
-    let mut documents = match known {
-        true => documents_of(peer, shared, replicas, content_type, &commit, None).await?,
-        false => Vec::new(),
+    let indexed: Vec<[u8; 32]> = held
+        .iter()
+        .filter(|entry| !entry.is_removed())
+        .filter_map(|entry| entry.source)
+        .collect();
+    // Whether the type answered every document: only then is one it no longer answers removed.
+    let (mut documents, answered) = match known {
+        true => {
+            match documents_of(peer, shared, replicas, content_type, &commit, None, &indexed)
+                .await?
+            {
+                Some(documents) => (documents, true),
+                None => (Vec::new(), false),
+            }
+        }
+        false => (Vec::new(), false),
     };
     if !documents.iter().any(|document| document.key.is_empty()) {
         documents.push(be_sdk_type_api::SearchDocument {
@@ -873,26 +907,48 @@ async fn puts_of(
             body: Some(String::new()),
         });
     }
-    Some(
-        documents
-            .into_iter()
-            .map(|document| Put {
+    let removed = match answered {
+        true => {
+            let answers: HashSet<&str> = documents
+                .iter()
+                .map(|document| document.key.as_str())
+                .collect();
+            held.iter()
+                .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
+                .map(|entry| (entry.doc.clone(), at))
+                .collect()
+        }
+        false => Vec::new(),
+    };
+    let puts = documents
+        .into_iter()
+        .map(|document| {
+            let text = match (document.key.is_empty(), document.body) {
+                (true, body) => Some(Text {
+                    name: name.clone(),
+                    body: capped(body.unwrap_or_default()),
+                }),
+                (false, Some(body)) => Some(Text {
+                    name: document.name.unwrap_or_default(),
+                    body: capped(body),
+                }),
+                // Its source is a part whose text the index holds.
+                (false, None) => None,
+            };
+            Put {
                 doc: DocId {
                     block: block.as_bytes().to_vec(),
-                    key: document.key.clone(),
+                    key: document.key,
                 },
                 commit: at,
-                source: None,
-                text: Some(Text {
-                    name: match document.key.is_empty() {
-                        true => name.clone(),
-                        false => document.name.unwrap_or_default(),
-                    },
-                    body: capped(document.body.unwrap_or_default()),
-                }),
-            })
-            .collect(),
-    )
+                source: document
+                    .source
+                    .map(|source| *be_block_store::PartRef::from(source).hash().as_bytes()),
+                text,
+            }
+        })
+        .collect();
+    Some((puts, removed))
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
@@ -908,7 +964,9 @@ pub(crate) fn capped(mut text: String) -> String {
 }
 
 /// A commit's searchable documents, as its type answers `search-text` (only `keys`, when
-/// some are named); none when the type answers nothing or could not be asked.
+/// some are named; no body for one whose source is in `indexed`, part hashes): `Some(None)`
+/// when the type breaks the rules or cannot be asked, so the block is found by its name alone,
+/// and None when a part could not be read.
 async fn documents_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
@@ -916,16 +974,23 @@ async fn documents_of(
     content_type: Uuid,
     commit: &be_block_commit::Commit,
     keys: Option<Vec<String>>,
-) -> Option<Vec<be_sdk_type_api::SearchDocument>> {
+    indexed: &[[u8; 32]],
+) -> Option<Option<Vec<be_sdk_type_api::SearchDocument>>> {
     match replicas
-        .search_text((peer, shared), content_type, &commit.manifest, keys, &[])
+        .search_text((peer, shared), content_type, &commit.manifest, keys, indexed)
         .await
     {
-        Ok(searched) => Some(searched.documents),
+        Ok(searched) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .search
+                .parts_read += searched.read.len() as u64;
+            Some(Some(searched.documents))
+        }
         // A part that could not be read (offline, a key): held back, as a commit is.
         Err(be_block_type_host::NotSearched::Read(_)) => None,
-        // A type that answers nothing, or breaks the rules: found by its name alone.
-        Err(_) => Some(Vec::new()),
+        Err(_) => Some(None),
     }
 }
 
@@ -941,8 +1006,8 @@ async fn text_of(
     let head = peer.newest_head(block).await.ok().flatten()?;
     let commit = peer.load_commit(head).await.ok()?;
     let keys = Some(vec![key.to_owned()]);
-    documents_of(peer, shared, replicas, content_type, &commit, keys)
-        .await?
+    documents_of(peer, shared, replicas, content_type, &commit, keys, &[])
+        .await??
         .into_iter()
         .find(|document| document.key == key)?
         .body
@@ -1387,43 +1452,63 @@ pub async fn write<S: ObjectStore>(
     Ok(true)
 }
 
-/// A put wins over the entry the index holds for its document only when its commit is the
-/// later: by time, then by id. Commits made in the same millisecond tie on time and the id
-/// is arbitrary, so a put that descends from the held commit takes the time after it: a
+/// A put or removal wins over the entry the index holds for its document only when its commit
+/// is the later: by time, then by id. Commits made in the same millisecond tie on time and the
+/// id is arbitrary, so a change that descends from the held commit takes the time after it: a
 /// descendant is always the newer.
 async fn outdate_ancestors<S: ObjectStore>(
     peer: &Peer<S>,
     content: &SearchIndexContent,
     batch: &mut Batch,
 ) -> Result<(), String> {
-    for put in &mut batch.put {
-        let held = content
-            .entries_of(&PeerParts(peer), &put.doc.block)
-            .await
-            .map_err(|error| error.to_string())?;
+    // Each block's entries by key, read once however many of its documents the batch changes.
+    let mut entries: HashMap<Vec<u8>, HashMap<String, be_lib_search::Entry>> = HashMap::new();
+    let changes = batch
+        .put
+        .iter_mut()
+        .map(|put| (&put.doc, &mut put.commit))
+        .chain(
+            batch
+                .removed
+                .iter_mut()
+                .map(|(doc, commit)| (&*doc, commit)),
+        );
+    for (doc, commit) in changes {
+        if !entries.contains_key(&doc.block) {
+            let read = content
+                .entries_of(&PeerParts(peer), &doc.block)
+                .await
+                .map_err(|error| error.to_string())?;
+            entries.insert(
+                doc.block.clone(),
+                read.into_iter()
+                    .map(|entry| (entry.doc.key.clone(), entry))
+                    .collect(),
+            );
+        }
         // A block that left and came back is put at a commit the index masked: it is stamped
         // after the removal, which is only an order.
-        if let Some(removal) = content.index().removed_at(&put.doc.block)
-            && removal >= put.commit
+        if let Some(removal) = content.index().removed_at(&doc.block)
+            && removal >= *commit
         {
-            put.commit.time = removal.time.saturating_add(1);
+            commit.time = removal.time.saturating_add(1);
         }
-        let Some(old) = held.iter().find(|entry| entry.doc == put.doc) else {
+        let Some(old) = entries[&doc.block].get(&doc.key) else {
             continue;
         };
-        if old.commit < put.commit || old.commit.id == put.commit.id {
+        if old.commit < *commit || old.commit.id == commit.id {
             continue;
         }
         let (old_id, new_id) = (
             CommitId::from_hash(be_block_store::Hash::from_bytes(old.commit.id)),
-            CommitId::from_hash(be_block_store::Hash::from_bytes(put.commit.id)),
+            CommitId::from_hash(be_block_store::Hash::from_bytes(commit.id)),
         );
         if peer
             .descends(new_id, old_id)
             .await
             .map_err(|error| error.to_string())?
         {
-            put.commit.time = old.commit.time.saturating_add(1);
+            commit.time = old.commit.time.saturating_add(1);
         }
     }
     Ok(())
