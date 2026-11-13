@@ -324,5 +324,5 @@ web_host_test(
     bundle = ":web",
     caddyfile = ":Caddyfile",
     server = "//crates/be-server-bin:bin",
-    test = "web-test/signs_in.mjs",
+    test = "web-test/a_child_placed_in_a_popover_shows_above_it.mjs",
 )
