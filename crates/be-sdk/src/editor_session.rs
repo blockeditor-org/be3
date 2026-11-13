@@ -5,13 +5,13 @@ use be_sdk_api::WebViewCommand;
 use be_sdk_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use be_sdk_api::guest::{debug::debug, shell};
 use be_sdk_api::ops::guest::{Sender, spawn};
-use be_sdk_api::shell_types::{ChildMenuChoice, MenuSet, ShellMessage, ViewEnd};
+use be_sdk_api::shell_types::{MenuSet, ShellMessage, ViewEnd};
 use be_sdk_api::{
-    AnchorSpace, AnchoredPlacement, ArtifactDescription, BarAction, ChildContent, ChildId,
-    ChildPlacement, ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId,
-    Failure, FrameChrome, FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry,
-    Occluder, ParentView, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View,
-    ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewId,
+    AnchorSpace, AnchoredPlacement, ArtifactDescription, ChildContent, ChildId, ChildPlacement,
+    ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId, Failure, FrameChrome,
+    FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View, ViewId, ViewPlacement,
+    ViewSize, ViewportMetrics, WebViewId,
 };
 use be_sdk_ui::BlockCatalog;
 use std::{
@@ -147,6 +147,7 @@ impl EditorSession {
 
     pub fn adopt(instance: EditorInstanceId, editor: Box<dyn Instance>, host: EditorHost) -> Self {
         host.set_instance(instance);
+        host.tell_focus();
         let module = host.module().unwrap_or_default();
         module.enter(instance, &host);
         Self {
@@ -191,6 +192,20 @@ impl EditorSession {
             let placed = state.children.iter().find(|placed| placed.child == child)?;
             self.host_anchor(*view, placed.anchor)
         })
+    }
+
+    /// Hands the host where each placed child is, so a pick from a child's menu
+    /// carries its anchor when the editor makes it.
+    fn share_child_anchors(&self) {
+        let mut anchors = HashMap::default();
+        for (view, state) in &self.views {
+            for placed in &state.children {
+                if let Some(anchor) = self.host_anchor(*view, placed.anchor) {
+                    anchors.entry(placed.child).or_insert(anchor);
+                }
+            }
+        }
+        self.host.set_child_anchors(anchors);
     }
 
     fn dock_tab_anchor(&self, child: ChildId, tab: &DockTabPath) -> Option<Rect> {
@@ -416,6 +431,7 @@ impl EditorSession {
             state.origin = request.origin;
             state.anchor_space.clone_from(&request.anchor_space);
         }
+        self.share_child_anchors();
     }
 
     pub fn commit(&mut self, commit: &mut be_sdk_api::LayoutCommit) {
@@ -446,11 +462,12 @@ impl EditorSession {
                 debug::simulate_access(block.into_bytes(), access).detach();
             }
         });
+        if self.host.plays_audio() {
+            // Opened before the first command is sent, so its status is not missed.
+            self.watch_audio();
+        }
         let mut tell: Vec<ShellMessage> = self.host.take_told();
         self.report_stopped(&mut tell);
-        if let Some(accepted) = self.host.take_drag_accepted() {
-            tell.push(ShellMessage::DragAccepted(accepted));
-        }
         let intrinsic = self.editor.intrinsic_size();
         if intrinsic != self.intrinsic {
             self.intrinsic = intrinsic;
@@ -458,9 +475,6 @@ impl EditorSession {
                 width: size.x,
                 height: size.y,
             })));
-        }
-        if let Some(handles) = self.host.take_handles_dismiss() {
-            tell.push(ShellMessage::HandlesDismiss(handles));
         }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
@@ -482,9 +496,6 @@ impl EditorSession {
                 regenerated.send(result.map_err(Failure::Failed));
             }
         }
-        if self.host.take_leave_frame() {
-            tell.push(ShellMessage::LeaveFrame);
-        }
         let menus = self.host.menus();
         if self.sent_menus != menus {
             for (view, menu) in &menus {
@@ -505,44 +516,21 @@ impl EditorSession {
             }
             self.sent_menus = menus;
         }
-        for (child, id) in self.host.take_child_menu_picks() {
-            let anchor = self.child_anchor(child);
-            tell.push(ShellMessage::ChildMenuPick(ChildMenuChoice {
-                child,
-                id,
-                anchor,
-            }));
-        }
-        if self.host.take_paste_request() {
-            tell.push(ShellMessage::Paste);
-        }
         let card = self.host.card();
         if self.sent_card != card {
             tell.push(ShellMessage::ShowCard(card));
             self.sent_card = card;
-        }
-        if let Some(pick) = self.host.take_picked() {
-            tell.push(ShellMessage::Picked(pick));
         }
         flush(instance, &mut tell);
         for call in self.host.take_acts() {
             crate::asked::asking(Some(instance), call);
         }
         tell.extend(self.host.take_told());
-        for command in self.host.take_audio_commands() {
+        if self.host.plays_audio() {
             self.watch_audio();
-            tell.push(ShellMessage::PlayAudio(command));
         }
         for (web_view, command) in self.host.take_web_view_commands() {
             self.command_web_view(web_view, command);
-        }
-        if let Some(focused) = self.host.take_focus_report() {
-            tell.push(ShellMessage::Focused(be_sdk_api::shell_types::Focus {
-                block_id: focused.block_id.map(Uuid::into_bytes),
-                block_type: focused.block_type.into_bytes(),
-                editor: focused.editor.map(Uuid::into_bytes),
-                via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
-            }));
         }
         flush(instance, &mut tell);
         for opening in self.host.take_watch_openings() {
@@ -720,8 +708,8 @@ impl EditorSession {
         state.used = Some(vec2(used.x.round(), used.y.round()));
     }
 
-    pub(crate) fn child_bar_action(&self, child: ChildId, action: BarAction) {
-        self.host.push_child_bar_action(child, action);
+    pub(crate) fn child_details(&self, child: ChildId) {
+        self.host.push_child_details(child);
     }
 
     pub fn child_focused(&self, child: ChildId) {
@@ -1000,6 +988,7 @@ impl EditorSession {
                 backdrop: frame.backdrop,
             });
         }
+        self.share_child_anchors();
         frame
     }
 

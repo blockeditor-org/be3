@@ -15,7 +15,7 @@ use beui_components_unstyled::MenuItem;
 use beui_view::reactive::NodeId;
 
 use crate::list::List;
-use crate::tokens::{Padding, Size, Space, use_space};
+use crate::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
 use beui_view::types::{Align, Align2, Direction, Extent, Justify};
 
@@ -172,10 +172,10 @@ pub fn SettingsRow(
     });
     let narrow = unstyled::narrower_than(STACK_BELOW + 2.0 * ROW_PADDING_HORIZONTAL.px());
     let narrow = create_memo(move || !compact && narrow.get());
-    let spacing = use_space(create_memo(move || match narrow.get() {
-        true => STACKED_SPACING,
-        false => ROW_SPACING,
-    }));
+    let spacing = create_memo(move || match narrow.get() {
+        true => STACKED_SPACING.px(),
+        false => ROW_SPACING.px(),
+    });
     view! {
         <List spacing=Space::None>
             <Show condition={separated}>

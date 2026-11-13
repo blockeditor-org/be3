@@ -605,9 +605,15 @@ impl Host for Gpu {
         });
     }
 
-    fn poll(&mut self, wait: bool) {
+    fn poll(&mut self, wait: bool) -> abi::Settled {
         if let Err(error) = self.settling.poll(&self.device, wait) {
             self.report(format!("the gpu could not be polled: {error}"));
+        }
+        let (maps, work_done) = self.settling.take_settled();
+        abi::Settled {
+            maps,
+            work_done,
+            lost: self.lost_info(),
         }
     }
 
@@ -631,10 +637,17 @@ impl Host for Gpu {
         Gpu::take_error(self)
     }
 
-    fn buffer_map_async(&mut self, this: abi::Buffer, mode: abi::MapMode, offset: u64, size: u64) {
+    fn buffer_map_async(
+        &mut self,
+        this: abi::Buffer,
+        mode: abi::MapMode,
+        offset: u64,
+        size: u64,
+    ) -> u64 {
         if self.destroyed {
-            return;
+            return self.settling.failed_map();
         }
+        let mut ticket = None;
         self.guard(|gpu| {
             let buffer = gpu.buffers.get(this.0, "buffer")?.clone();
             let end = offset
@@ -646,13 +659,16 @@ impl Host for Gpu {
                         offset.saturating_add(size)
                     )
                 })?;
-            gpu.settling
-                .map(&gpu.device, &buffer, this.0, mode, offset..end)
+            ticket = Some(
+                gpu.settling
+                    .map(&gpu.device, &buffer, this.0, mode, offset..end)?,
+            );
+            Ok(())
         });
-    }
-
-    fn buffer_map_state(&mut self, this: abi::Buffer) -> abi::MapState {
-        self.settling.state(this.0)
+        match ticket {
+            Some(ticket) => ticket,
+            None => self.settling.failed_map(),
+        }
     }
 
     fn buffer_read_mapped(&mut self, this: abi::Buffer, offset: u64, size: u64) -> Vec<u8> {
@@ -831,26 +847,8 @@ impl Host for Gpu {
         self.settling.wake();
     }
 
-    fn device_lost(&mut self) -> Option<abi::DeviceLostInfo> {
-        if self.destroyed {
-            return Some(abi::DeviceLostInfo {
-                reason: abi::DeviceLostReason::Destroyed,
-                message: "the app destroyed its device".to_owned(),
-            });
-        }
-        self.settling.lost().map(|message| abi::DeviceLostInfo {
-            reason: abi::DeviceLostReason::Unknown,
-            message,
-        })
-    }
-
     fn on_submitted_work_done(&mut self) -> u64 {
         self.settling.work_done(&self.device, &self.queue)
-    }
-
-    fn submitted_work_done(&mut self, ticket: u64) -> bool {
-        let done = self.settling.is_work_done(ticket);
-        self.fail(done, true)
     }
 
     fn command_encoder_insert_debug_marker(&mut self, this: abi::CommandEncoder, label: &str) {

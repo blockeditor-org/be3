@@ -4,7 +4,7 @@ use beui_view::types::icons::Glyph;
 
 use crate::list::List;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::tokens::{Padding, Space, Stroke, use_space};
+use crate::tokens::{Padding, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_view::reactive::NodeId;
@@ -34,7 +34,7 @@ pub fn Accordion(
     view! {
         <unstyled::Disclosure
             api
-            spacing={use_space(SPACING).get_untracked()}
+            spacing={SPACING.px()}
             header={move |handle| view! {
                 <AccordionHeader handle title={title_text} detail size />
             }}
