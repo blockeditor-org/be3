@@ -3029,7 +3029,7 @@ impl HostCore {
             BlockCommand::Leave => self.leaving = Some(id),
             BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
             BlockCommand::CloseEditor => {
-                if may_close(from, id, self.shell, self.editors.parent_of(id)) {
+                if may_close(from, self.shell, self.editors.parent_of(id)) {
                     self.close_editor(id);
                 }
             }
@@ -4180,9 +4180,9 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
     }
 }
 
-/// Whether the editor showing `from` may close the editor of `id`, which it does not show: the
+/// Whether the editor showing `from` may close another editor, whose placer is `parent`: the
 /// shell closes any (a tab), and an editor only a child it placed, never one elsewhere.
-fn may_close(from: Option<Uuid>, id: Uuid, shell: Option<Uuid>, parent: Option<Uuid>) -> bool {
+fn may_close(from: Option<Uuid>, shell: Option<Uuid>, parent: Option<Uuid>) -> bool {
     from.is_some() && (from == shell || parent == from)
 }
 

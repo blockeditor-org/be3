@@ -50,11 +50,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
                 replace: true,
             }
         ));
-        for command in [
-            BlockCommand::Undo,
-            BlockCommand::Share,
-            BlockCommand::Leave,
-        ] {
+        for command in [BlockCommand::Undo, BlockCommand::Share, BlockCommand::Leave] {
             assert!(!call(
                 &mut instances,
                 wire::Call::Act {

@@ -1141,7 +1141,9 @@ impl EditorHost {
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
-        self.command(block_id, BlockCommand::Unlink {
+        self.command(
+            block_id,
+            BlockCommand::Unlink {
                 container: container.into_bytes(),
             },
         );
@@ -1157,7 +1159,9 @@ impl EditorHost {
     }
 
     pub fn delete_block(&self, block_id: Uuid, block_type: Uuid, source: BlockParent) {
-        self.command(block_id, BlockCommand::Delete {
+        self.command(
+            block_id,
+            BlockCommand::Delete {
                 block_type: block_type.into_bytes(),
                 source: source.encode(),
             },
@@ -1172,7 +1176,9 @@ impl EditorHost {
         destination: Uuid,
         is_reference: bool,
     ) {
-        self.command(block_id, BlockCommand::Move {
+        self.command(
+            block_id,
+            BlockCommand::Move {
                 block_type: block_type.into_bytes(),
                 source: source.encode(),
                 destination: destination.into_bytes(),
@@ -1182,7 +1188,9 @@ impl EditorHost {
     }
 
     pub fn reorder_block(&self, block_id: Uuid, parent: Uuid, after: Option<Uuid>) {
-        self.command(block_id, BlockCommand::Reorder {
+        self.command(
+            block_id,
+            BlockCommand::Reorder {
                 parent: parent.into_bytes(),
                 after: after.map(Uuid::into_bytes),
             },
@@ -1190,7 +1198,9 @@ impl EditorHost {
     }
 
     pub fn place_block(&self, block_id: Uuid, block_type: Uuid, parent: Uuid, linked: bool) {
-        self.command(block_id, BlockCommand::Place {
+        self.command(
+            block_id,
+            BlockCommand::Place {
                 block_type: block_type.into_bytes(),
                 parent: parent.into_bytes(),
                 linked,
