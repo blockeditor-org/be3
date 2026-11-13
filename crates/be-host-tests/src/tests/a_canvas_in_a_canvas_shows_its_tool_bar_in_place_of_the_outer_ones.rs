@@ -6,7 +6,7 @@ const BAR: &str = "GenericContainer #infinite-canvas.dock at";
 
 #[test]
 fn a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Canvas");
     host.click(GRIP);

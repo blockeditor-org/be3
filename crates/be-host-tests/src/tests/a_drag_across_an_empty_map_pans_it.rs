@@ -4,7 +4,7 @@ const TILE: &str = "#map.underlay.2.0.0";
 
 #[test]
 fn a_drag_across_an_empty_map_pans_it() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Map");
     host.wait(TILE);
     host.gone("#editor.loading");

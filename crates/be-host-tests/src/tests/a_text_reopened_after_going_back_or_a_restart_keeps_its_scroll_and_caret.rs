@@ -49,7 +49,7 @@ fn back(host: &mut HostTest) {
 
 #[test]
 fn a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.run(&["resize", "390x800"]);
     host.click("#text.surface");

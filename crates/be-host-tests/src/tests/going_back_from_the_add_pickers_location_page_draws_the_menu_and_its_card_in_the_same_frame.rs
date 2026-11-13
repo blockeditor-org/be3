@@ -4,7 +4,7 @@ const UNDRAWN: &str = "shows a view at a size it has yet to draw";
 
 #[test]
 fn going_back_from_the_add_pickers_location_page_draws_the_menu_and_its_card_in_the_same_frame() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_add_to_my_files(&mut host);
     host.wait("#picker.import");
     host.click("#picker.location");
