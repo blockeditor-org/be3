@@ -8,7 +8,10 @@
 //! index one batch in a task (`write`), which applies it to the index's local head and seals
 //! the commit into the outbox, so it is saved offline-first and published by the next drain;
 //! two devices' batches meet as a diverged block and merge by parts. A root with no index gets
-//! one, made under it and named by its `SEARCH_INDEX` metadata.
+//! one, made under it and named by its `SEARCH_INDEX` metadata. A batch or settle whose write
+//! fails is queued again; after `MAX_WRITE_FAILURES` in a row to one index, what it writes waits
+//! for the next connection or a growing delay, searches say they are not complete, and the host
+//! shows the error (`Searching::write_failed`).
 //!
 //! **Searching.** `want` names the searches an owner shows. A search runs in a task over the
 //! index of every root the account views in the open organization (`run`), reading only the
@@ -46,6 +49,13 @@ use crate::{
 /// How often a commit that cannot be read holds a catch-up's watermark back before it is let
 /// go (a history collected under the head it was listed at never reads).
 const MAX_READ_FAILURES: u8 = 3;
+/// Writes to an index that may fail in a row (`Unwritten::Failed`) before its batches and
+/// settles are set aside (`Searching::failing`).
+const MAX_WRITE_FAILURES: u32 = 3;
+/// How long the first batches set aside for an index wait before they are tried again, if no
+/// connection comes first; each time in a row doubles it, up to `FAILING_MOST`.
+const FAILING_FIRST: Duration = Duration::from_secs(30);
+const FAILING_MOST: Duration = Duration::from_secs(300);
 
 /// Hits a search reads from each index, the best first.
 const HITS: usize = 50;
@@ -225,6 +235,17 @@ pub struct Searching {
     moving: Vec<Moving>,
     /// Batches given back in a row, by index, for the delay before the next try.
     moved: HashMap<Uuid, u32>,
+    /// Writes that failed in a row (`Unwritten::Failed`), by index: each failed batch or settle
+    /// is queued again, until `MAX_WRITE_FAILURES`.
+    write_failures: HashMap<Uuid, u32>,
+    /// What was set aside after `MAX_WRITE_FAILURES` failed writes to an index in a row, by
+    /// index: queued again on the next connection or once its delay is up.
+    failing: HashMap<Uuid, Failing>,
+    /// Times in a row an index's writes were set aside, for the delay before the next try.
+    set_aside: HashMap<Uuid, u32>,
+    /// Writes a test makes fail before they start (`Unwritten::Failed`).
+    #[cfg(test)]
+    pub(crate) fail_writes: u32,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
@@ -242,6 +263,7 @@ impl Searching {
     /// The new connection watches nothing yet.
     pub(crate) fn reconnected(&mut self) {
         self.watching.clear();
+        self.release_failing(None);
     }
 
     /// Queues a block whose head this device's session moved.
@@ -338,6 +360,7 @@ impl Searching {
             && self.waiting.is_empty()
             && self.parked.is_empty()
             && self.moving.is_empty()
+            && self.failing.is_empty()
             && self.creating.is_empty()
     }
 
@@ -435,6 +458,12 @@ impl Searching {
                 drains,
             },
         );
+    }
+
+    /// Whether `block` is to be read whole next time (`reread`).
+    #[cfg(test)]
+    pub(crate) fn reads_whole(&self, block: Uuid) -> bool {
+        self.whole.contains(&block)
     }
 
     /// Takes the queued blocks (a test's way to see what `index` would look at).
@@ -549,9 +578,13 @@ impl Searching {
         }
     }
 
-    /// When the first batch held back is due, for the worker to wake at.
+    /// When the first batch held back or set aside is due, for the worker to wake at.
     pub(crate) fn moving_due(&self) -> Option<Duration> {
-        self.moving.iter().map(|moving| moving.due).min()
+        self.moving
+            .iter()
+            .map(|moving| moving.due)
+            .chain(self.failing.values().map(|failing| failing.due))
+            .min()
     }
 
     /// The indexes batches are held back for, which are watched for their next head.
@@ -559,10 +592,101 @@ impl Searching {
         self.moving.iter().map(|moving| moving.index)
     }
 
-    /// A batch was written to `index`: the next one given back waits the shortest delay.
+    /// A batch or settle was written to `index`: the next one given back waits the shortest
+    /// delay, and failures count from none.
     pub(crate) fn wrote(&mut self, index: Uuid) {
         self.moved.remove(&index);
+        self.write_failures.remove(&index);
+        self.set_aside.remove(&index);
     }
+
+    /// A batch of `blocks` could not be written to `index` at `now` (`Unwritten::Failed`):
+    /// queued again, those read whole (`whole`) to be read whole again. The
+    /// `MAX_WRITE_FAILURES`th failure in a row sets it aside instead (`failing`), and this says
+    /// so, for the host to show the error.
+    pub(crate) fn write_failed(
+        &mut self,
+        index: Uuid,
+        blocks: Vec<Uuid>,
+        whole: Vec<Uuid>,
+        now: Duration,
+    ) -> bool {
+        self.whole.extend(whole);
+        match self.failed_again(index, now) {
+            Some(failing) => {
+                failing.blocks.extend(blocks);
+                true
+            }
+            None => {
+                self.dirty.extend(blocks);
+                false
+            }
+        }
+    }
+
+    /// A settle could not be written to `index` at `now` (`Unwritten::Failed`): put back first,
+    /// as `write_failed` puts back a batch, and counted with the index's batches.
+    pub(crate) fn settle_failed(&mut self, index: Uuid, settle: Settle, now: Duration) -> bool {
+        match self.failed_again(index, now) {
+            Some(failing) => {
+                failing.settles.push(settle);
+                true
+            }
+            None => {
+                self.settle.entry(index).or_default().insert(0, settle);
+                false
+            }
+        }
+    }
+
+    /// Counts a failed write to `index`, and once that makes `MAX_WRITE_FAILURES` in a row,
+    /// gives what is set aside for it.
+    fn failed_again(&mut self, index: Uuid, now: Duration) -> Option<&mut Failing> {
+        let failures = self.write_failures.entry(index).or_default();
+        *failures += 1;
+        if *failures < MAX_WRITE_FAILURES {
+            return None;
+        }
+        self.write_failures.remove(&index);
+        let runs = self.set_aside.entry(index).or_default();
+        *runs = runs.saturating_add(1);
+        let due = now
+            + FAILING_FIRST
+                .saturating_mul(1 << (*runs - 1).min(16))
+                .min(FAILING_MOST);
+        let failing = self.failing.entry(index).or_default();
+        failing.due = due;
+        Some(failing)
+    }
+
+    /// Queues again what was set aside for failing writes: all of it, or what is due at `now`.
+    pub(crate) fn release_failing(&mut self, now: Option<Duration>) {
+        let due: Vec<Uuid> = self
+            .failing
+            .iter()
+            .filter(|(_, failing)| now.is_none_or(|now| failing.due <= now))
+            .map(|(index, _)| *index)
+            .collect();
+        for index in due {
+            let Some(failing) = self.failing.remove(&index) else {
+                continue;
+            };
+            self.dirty.extend(failing.blocks);
+            if !failing.settles.is_empty() {
+                let pages = self.settle.entry(index).or_default();
+                pages.splice(0..0, failing.settles);
+            }
+        }
+    }
+}
+
+/// What is set aside for an index whose writes kept failing (`Searching::failing`).
+#[derive(Default)]
+struct Failing {
+    blocks: Vec<Uuid>,
+    /// Its settles, oldest first, put back before any queued since.
+    settles: Vec<Settle>,
+    due: Duration,
 }
 
 /// The heads of an index a batch held back was given back at: the mirror's and the one the
@@ -683,6 +807,7 @@ async fn index(
             },
             |index| roots_naming.contains(&index),
         );
+        state.search.release_failing(Some(clock.now()));
         state.search.release_moving(
             clock.now(),
             |index| index_heads(peer, graph, index),
@@ -696,7 +821,7 @@ async fn index(
             held.search.writing.extend(settles.keys().copied());
             drop(held);
             make_indexes(peer, shared, tasks, roots);
-            settle_indexes(peer, shared, tasks, settles);
+            settle_indexes(peer, shared, tasks, settles, clock);
             return false;
         }
         let dirty = std::mem::take(&mut held.search.dirty);
@@ -757,6 +882,8 @@ async fn index(
     if let Some((index, blocks)) = batches {
         let mut batch = Batch::default();
         let mut put_blocks = Vec::new();
+        // Blocks read whole, read whole again if the batch is not written.
+        let mut read_whole = Vec::new();
         // What the index holds now, read once a batch: each block's entries say which documents
         // it answered before and which parts' text is held. An index that cannot be loaded
         // gives no entries, so each block is read whole and removes nothing.
@@ -790,6 +917,9 @@ async fn index(
                         .failures
                         .remove(block);
                     put_blocks.push(*block);
+                    if whole {
+                        read_whole.push(*block);
+                    }
                     batch.put.extend(puts);
                 }
                 None => {
@@ -809,7 +939,10 @@ async fn index(
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         let clock = clock.clone();
         tasks.spawn(async move {
-            let written = write(&peer, index, batch).await;
+            let written = match injected_failure(&shared) {
+                Some(failed) => Err(failed),
+                None => write(&peer, index, batch).await,
+            };
             // Sent before the batch stops counting as busy, so the host is never idle with the
             // sealed commit unsent.
             tasks_held.sync(&peer, &shared);
@@ -840,8 +973,16 @@ async fn index(
                         let heads = index_heads(&peer, &held.graph, index);
                         held.search.hold_moving(index, blocks, heads, clock.now());
                     }
+                    // Queued again: what failed may not fail twice. An index that fails every
+                    // write waits, and says why. Only the blocks read are: one whose commit
+                    // could not be read was left out above, and its read failures count apart.
                     Err(Unwritten::Failed(error)) => {
-                        held.error = Some(format!("Indexing for search failed: {error}"))
+                        if held
+                            .search
+                            .write_failed(index, put_blocks, read_whole, clock.now())
+                        {
+                            held.error = Some(format!("Indexing for search failed: {error}"));
+                        }
                     }
                 }
             }
@@ -849,6 +990,22 @@ async fn index(
         });
     }
     moved
+}
+
+/// A write a test makes fail (`Searching::fail_writes`).
+#[cfg(test)]
+fn injected_failure(shared: &Mutex<Shared>) -> Option<Unwritten> {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let left = &mut held.search.fail_writes;
+    (*left > 0).then(|| {
+        *left -= 1;
+        Unwritten::Failed("a write the test failed".to_owned())
+    })
+}
+
+#[cfg(not(test))]
+fn injected_failure(_: &Mutex<Shared>) -> Option<Unwritten> {
+    None
 }
 
 /// The workspaces in the mirror this device may edit that name no index yet, each marked as
@@ -1462,9 +1619,11 @@ fn settle_indexes(
     shared: &Arc<Mutex<Shared>>,
     tasks: &Tasks,
     settles: HashMap<Uuid, Settle>,
+    clock: &be_block_client::Clock,
 ) {
     for (index, settle) in settles {
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        let clock = clock.clone();
         tasks.spawn(async move {
             let at = be_lib_search::Commit {
                 time: be_block_commit::now_milliseconds(),
@@ -1481,12 +1640,16 @@ fn settle_indexes(
                 watermark: Some(settle.sequence),
                 ..Batch::default()
             };
-            let written = write(&peer, index, batch).await;
+            let written = match injected_failure(&shared) {
+                Some(failed) => Err(failed),
+                None => write(&peer, index, batch).await,
+            };
             tasks_held.sync(&peer, &shared);
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.search.writing.remove(&index);
             match written {
                 Ok(Some(needs_text)) => {
+                    held.search.wrote(index);
                     held.search.answers.clear();
                     held.search.reread(
                         needs_text
@@ -1503,8 +1666,11 @@ fn settle_indexes(
                         .or_default()
                         .insert(0, settle);
                 }
+                // Settled again, first, as a batch is written again.
                 Err(Unwritten::Failed(error)) => {
-                    held.error = Some(format!("Indexing for search failed: {error}"))
+                    if held.search.settle_failed(index, settle, clock.now()) {
+                        held.error = Some(format!("Indexing for search failed: {error}"));
+                    }
                 }
             }
             drop(held);
