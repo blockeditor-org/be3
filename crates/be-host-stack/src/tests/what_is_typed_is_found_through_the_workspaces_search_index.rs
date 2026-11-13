@@ -93,9 +93,11 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("figs", &[bananas]);
 
     harness.start_server(&address);
+    retry_now();
+    wait_until("reconnected first", |shared| shared.connected && shared.waiting == 0);
     let other = Device::online(&harness);
     let elderberries = Uuid::new_v4();
-    other.runtime.block_on(async {
+    let written = other.runtime.block_on(async {
         let peer = std::sync::Arc::clone(&other.peer.borrow());
         peer.create_with_id::<TextContent>(
             elderberries,
@@ -135,7 +137,18 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
         peer.drain(|_| false)
             .await
             .expect("the other device publishes its batch");
+        peer.local_head(index)
     });
+    eprintln!("PROBE other wrote index head {written:?}");
+    for _ in 0..50 {
+        let (graph_head, remote) = crate::wait_until(|shared| {
+            Some((shared.graph.get(index).and_then(|node| node.head), ()))
+        });
+        let _ = remote;
+        eprintln!("PROBE first graph head {graph_head:?}");
+        if graph_head == written { break; }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
     retry_now();
     wait_until("reconnected and sent what waited", |shared| {
         shared.connected && shared.waiting == 0

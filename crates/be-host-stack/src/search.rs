@@ -1155,7 +1155,7 @@ async fn catch_up(
     index: Uuid,
 ) -> Result<bool, be_block_client::ClientError> {
     const PAGE: u32 = 200;
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, None).await else {
         return Ok(false);
     };
     let Ok(content) = load(peer, head).await else {
@@ -1269,7 +1269,7 @@ fn settle_indexes(
 
 /// Which of `blocks` the index holds a document of.
 async fn held_blocks(peer: &Peer<Store>, index: Uuid, blocks: &[Uuid]) -> Vec<Uuid> {
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, None).await else {
         return Vec::new();
     };
     let Ok(content) = load(peer, head).await else {
@@ -1335,11 +1335,19 @@ impl<S: ObjectStore> AsyncRead for PeerParts<'_, S> {
 /// The head a batch applies to: the newest this device knows, so indexing never waits on the
 /// server; a batch on a head older than the server's meets the newer one as a diverged block and
 /// merges by parts. The server is asked only when the device knows no head.
-async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
+/// The head of `index` to read: this device's while it has edits to it not sent, otherwise the
+/// newest the server is known to hold. `listed` is the head the graph mirror last heard of
+/// (a listing, or the change stream while online), which the change stream moves before
+/// anything is fetched; a search reads it, as its answer is kept for the heads it watches.
+async fn head_of<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    listed: Option<CommitId>,
+) -> Option<CommitId> {
     let known = match peer.pending_commits(index).is_empty() {
         false => peer.local_head(index),
-        true => peer
-            .known_remote_head(index)
+        true => listed
+            .or_else(|| peer.known_remote_head(index))
             .or_else(|| peer.local_head(index)),
     };
     if known.is_some() {
@@ -1370,7 +1378,7 @@ pub async fn write<S: ObjectStore>(
     index: Uuid,
     mut batch: Batch,
 ) -> Result<bool, String> {
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, None).await else {
         return Ok(false);
     };
     let mut content = load(peer, head).await?;
@@ -1433,10 +1441,11 @@ async fn outdate_ancestors<S: ObjectStore>(
 pub async fn search_index<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
+    listed: Option<CommitId>,
     query: &Query,
     limit: usize,
 ) -> Result<Vec<be_lib_search::Hit>, String> {
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, listed).await else {
         return Ok(Vec::new());
     };
     load(peer, head)
@@ -1514,6 +1523,10 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         }
         held.search.running.insert(asked.clone());
         started = true;
+        let indexes: Vec<(Uuid, Option<CommitId>)> = indexes
+            .iter()
+            .map(|index| (*index, held.graph.get(*index).and_then(|node| node.head)))
+            .collect();
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         tasks.spawn(async move {
             let found = run(&peer, &asked, &indexes).await;
@@ -1549,11 +1562,17 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
 
 /// Every index's best hits, one per document: where two indexes hold a document, the later
 /// commit.
-async fn run(peer: &Peer<Store>, asked: &SearchAsk, indexes: &[Uuid]) -> Vec<Found> {
+/// Searches `indexes`, each at the head the graph listed when the search started (`listed`),
+/// which is what its answer is kept for (`heads`).
+async fn run(
+    peer: &Peer<Store>,
+    asked: &SearchAsk,
+    indexes: &[(Uuid, Option<CommitId>)],
+) -> Vec<Found> {
     let query = Query::parse(&asked.text);
     let mut best: HashMap<DocId, (f64, be_lib_search::Commit)> = HashMap::new();
-    for index in indexes {
-        let Ok(hits) = search_index(peer, *index, &query, HITS).await else {
+    for (index, listed) in indexes {
+        let Ok(hits) = search_index(peer, *index, *listed, &query, HITS).await else {
             continue;
         };
         for hit in hits {
