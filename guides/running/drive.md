@@ -97,7 +97,8 @@ controls. An app's anchored view (a menu or popover past its frame) is an untitl
 beside its `Pane`.
 
 - `ids` lists every test id and where it is, apps included. Test ids are the steadiest names.
-- `find`, `reveal` (scrolls into view first) and `shown` say where a target is.
+- `find TARGET` says where a target is; `find TARGET reveal` scrolls it into view first, and
+  `find TARGET shown` says where the part of it that shows is.
 - `hit TARGET` says what a press there would reach, innermost first, and what it would dismiss:
   use it when a press goes to the wrong place. It sees the host's document only.
 - `comps [--internals]` is the host document's component tree, as the inspector's Comp tab.
@@ -182,7 +183,7 @@ network` first, as crates/be-host-tests' `HostTest::online` does.
 
 Work the program cannot see is not waited for:
 
-- A server push: use `drive wait TEXT` or `drive gone TEXT`, which return once a line contains
+- A server push: use `drive wait TEXT` or `drive wait not TEXT`, which return once a line contains
   TEXT or none does. `wait TEXT over TARGET` also asks that the node cover a point, for
   something that grows, such as a stroke reaching the pen.
 - A hosted Wayland or X11 program redrawing after input (guides/desktop/wayland.md, Frame
@@ -197,7 +198,7 @@ the frames, not the time it names. With the clock stopped, it runs each frame on
 for, such as an app's answer to the one before, so what apps report across threads of their own
 does not depend on how fast they are. `drive clock run` restarts it. With the clock stopped:
 
-- a menu or sheet that closes stays in the tree until its animation ends, so `gone` after
+- a menu or sheet that closes stays in the tree until its animation ends, so `wait not` after
   closing it needs a `pause` first;
 - anything else timed (an app's frame timeout, a type module grouping edits into an undo step)
   waits for `pause` too.

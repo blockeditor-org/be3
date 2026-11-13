@@ -300,7 +300,7 @@ impl HostTest {
     }
 
     pub fn gone(&mut self, target: &str) {
-        self.run(&["gone", target]);
+        self.run(&["wait", "not", target]);
     }
 
     /// Clicks at once when the target is on screen, and otherwise waits for it first. A gesture

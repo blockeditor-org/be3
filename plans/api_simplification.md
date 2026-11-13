@@ -252,9 +252,6 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
   by the launcher. `DesktopHost`'s `set_owned`, `set_blank_after`,
   `set_lock_after` and `set_primary_selection` become
   `configure(DesktopSettings)`; `set_locked` stays, being state.
-- `drive` (`beui-layer-drive`): `find`, `reveal` and `shown` become
-  `find TARGET [reveal|shown]`, and `gone` becomes `wait not TEXT`. Update
-  guides/running/drive.md.
 
 ## Smaller cleanups found alongside
 

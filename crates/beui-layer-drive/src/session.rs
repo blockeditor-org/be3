@@ -59,10 +59,10 @@ pub const USAGE: &str = "Session:
 Reading the program:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
-  find TARGET               where TARGET is
-  reveal TARGET             scroll TARGET into view when a scroll cuts or hides it, as input does, and say
-                            where it shows, ending in revealed when it scrolled
-  shown TARGET              where the part of TARGET that shows is, without scrolling
+  find TARGET [reveal|shown]   where TARGET is; reveal scrolls it into view when a scroll cuts or
+                            hides it, as input does, and says where it shows, ending in revealed
+                            when it scrolled; shown says where the part of it that shows is,
+                            without scrolling
   comps [--internals]       component tree, optionally including component internals
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
@@ -70,9 +70,9 @@ Reading the program:
   act ID [PANE]             run the action ID as the command palette would, in PANE's app when given
   a11y TARGET               the node a screen reader would act on, and the actions it offers
   a11y TARGET ACTION [VALUE]   do what a screen reader does: click, focus, increment, set VALUE, ...
-  wait TEXT|#TEST_ID [over X,Y]   wait until a line of the tree contains TEXT, or the test id is on
-                            screen, with its node over the point X,Y if given
-  gone TEXT|#TEST_ID [over X,Y]   wait until it is not
+  wait [not] TEXT|#TEST_ID [over X,Y]   wait until a line of the tree contains TEXT, or the test id
+                            is on screen, with its node over the point X,Y if given; with not,
+                            until it is not
   env                       NAME=VALUE lines a program needs to show its windows inside the program,
                             such as WAYLAND_DISPLAY; empty when the program hosts no programs
   windows                   the program's windows, each one's number and size
@@ -170,8 +170,8 @@ fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" | "synced"
         | "offline" | "network" => Kind::Session,
-        "tree" | "ids" | "find" | "reveal" | "shown" | "comps" | "hit" | "actions" | "act"
-        | "a11y" | "wait" | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
+        "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait" | "env"
+        | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" | "xr" => Kind::Platform,
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
