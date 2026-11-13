@@ -161,9 +161,10 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         self.refs.commits_held(block, &commits)?;
-        self.refs.settle(block, &settled, head, self.behind(), |local| {
-            local.is_none_or(|local| commits.contains(&local))
-        })?;
+        self.refs
+            .settle(block, &settled, head, self.behind(), |local| {
+                local.is_none_or(|local| commits.contains(&local))
+            })?;
         Ok(())
     }
 
@@ -467,9 +468,10 @@ impl<S: ObjectStore> Peer<S> {
             .map(|(sequence, _)| *sequence)
             .collect();
         self.refs.commits_held(block, &reached)?;
-        self.refs.settle(block, &settled, head, self.behind(), |local| {
-            local.is_none_or(|local| local == head || reached.contains(&local))
-        })?;
+        self.refs
+            .settle(block, &settled, head, self.behind(), |local| {
+                local.is_none_or(|local| local == head || reached.contains(&local))
+            })?;
         Ok(())
     }
 
