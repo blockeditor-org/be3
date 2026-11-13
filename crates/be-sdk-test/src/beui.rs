@@ -1636,7 +1636,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.extension_calls.clear();
     }
 
-
     /// The `format` data of each copy that offered it ready.
     pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
         self.take_shell_messages(|call| match call {
