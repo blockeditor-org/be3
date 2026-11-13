@@ -1088,6 +1088,7 @@ where
             if let Job::Heard {
                 from,
                 wire: Some(wire),
+                ..
             } = &job
             {
                 if matches!(wire, Wire::Session(SessionMessage::Submit { .. }))
