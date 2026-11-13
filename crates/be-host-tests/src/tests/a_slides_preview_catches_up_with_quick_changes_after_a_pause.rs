@@ -4,7 +4,10 @@ const SHAPE: &str = "GenericContainer #infinite-canvas.entity.";
 
 #[test]
 fn a_slides_preview_catches_up_with_quick_changes_after_a_pause() {
-    let mut host = HostTest::start_drawing_previews();
+    let mut host = HostTest::start(Options {
+        previews: true,
+        ..Options::default()
+    });
     add_to_my_files(&mut host, "Presentation");
     host.click("#presentation.add");
     host.wait("#picker.slides");

@@ -656,7 +656,7 @@ impl ChatContent {
 
     /// The oldest recent messages as a segment to close, when the recent ones pass a size: the
     /// operation that closes them (an editor proposes it only while nothing of its device is
-    /// unconfirmed, plans/chat.md). At least `segment::SMALLEST` bytes of messages close at once, and at least
+    /// unconfirmed, guides/chat.md, "Segments"). At least `segment::SMALLEST` bytes of messages close at once, and at least
     /// `segment::KEPT_RECENT` stay recent.
     pub fn closing(&self) -> Option<ChatOp> {
         let recent: Vec<(ObjectId, Message)> = self

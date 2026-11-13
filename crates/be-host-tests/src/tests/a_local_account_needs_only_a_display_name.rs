@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_local_account_needs_only_a_display_name() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");
     host.click("#host.menu.accounts");
     host.click("Button \"Add account\"");

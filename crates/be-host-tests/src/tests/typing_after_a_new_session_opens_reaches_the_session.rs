@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn typing_after_a_new_session_opens_reaches_the_session() {
-    let mut host = HostTest::start_desktop();
+    let mut host = HostTest::start(Options {
+        desktop: true,
+        ..Options::default()
+    });
     host.click("#desktop.apps");
     host.click("#desktop.apps.sessions.new");
     host.wait("Pane \"Files\"");

@@ -17,7 +17,7 @@ fn assert_points_at(host: &mut HostTest, tab: (f32, f32, f32, f32), from: &str) 
 
 #[test]
 fn the_text_settings_point_at_the_tab_from_its_menu_and_the_palette() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     let tab = host.place("Tab \"Text\"");
 
