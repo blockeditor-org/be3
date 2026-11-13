@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -28,7 +29,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -533,6 +536,8 @@ func (t *tunnelServer) handler() http.Handler {
 	mux.HandleFunc("POST "+tunnelPath+"/up", t.up)
 	mux.HandleFunc("GET "+tunnelPath+"/down", t.down)
 	mux.HandleFunc("POST "+tunnelPath+"/close", t.close)
+	mux.HandleFunc("GET "+tunnelPath+"/probe-down", probeDown)
+	mux.HandleFunc("POST "+tunnelPath+"/probe-up", probeUp)
 	return mux
 }
 
@@ -769,5 +774,125 @@ func (t *tunnelServer) reap() {
 			}
 		}
 		t.mu.Unlock()
+	}
+}
+
+// ---- Probing the way through a proxy ----
+
+// Streams a line holding the server's clock, in Unix nanoseconds, every 100 ms for 10 s, padded to the size asked for:
+// what tunnel-probe times on its way down.
+func probeDown(w http.ResponseWriter, r *http.Request) {
+	size, _ := strconv.Atoi(r.URL.Query().Get("size"))
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-store, no-transform")
+	w.Header().Set("X-Accel-Buffering", "no")
+	flusher := w.(http.Flusher)
+	for range 100 {
+		line := strconv.FormatInt(time.Now().UnixNano(), 10)
+		line += strings.Repeat(" ", max(0, size-len(line)-1)) + "\n"
+		if _, err := io.WriteString(w, line); err != nil {
+			return
+		}
+		flusher.Flush()
+		select {
+		case <-r.Context().Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+// Answers with the server's clock when the request arrived, in Unix nanoseconds.
+func probeUp(w http.ResponseWriter, r *http.Request) {
+	arrived := time.Now().UnixNano()
+	io.Copy(io.Discard, r.Body)
+	fmt.Fprint(w, arrived)
+}
+
+// tunnel-probe: times each way between here and upstream's tunnel-server through the environment's proxy, one way
+// against the server's clock (both clocks are taken to be kept by NTP, so to a few milliseconds) and by how lines sent
+// 100 ms apart arrive. Authorization comes from BE3_NL_TOKEN, when set.
+func probeTunnel(upstream string) {
+	client := &http.Client{Transport: &http.Transport{
+		Proxy:              http.ProxyFromEnvironment,
+		DisableCompression: true,
+		TLSNextProto:       map[string]func(string, *tls.Conn) http.RoundTripper{},
+	}}
+	base := "https://" + upstream + tunnelPath
+	request := func(method, url string, body io.Reader) *http.Request {
+		r, err := http.NewRequest(method, url, body)
+		if err != nil {
+			fail("%v", err)
+		}
+		if token := os.Getenv("BE3_NL_TOKEN"); token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		return r
+	}
+	ms := func(d time.Duration) string { return fmt.Sprintf("%.0f ms", float64(d)/float64(time.Millisecond)) }
+	summary := func(what string, values []time.Duration) {
+		if len(values) == 0 {
+			fmt.Printf("%s: nothing\n", what)
+			return
+		}
+		sorted := append([]time.Duration(nil), values...)
+		slices.Sort(sorted)
+		fmt.Printf("%s: min %s, median %s, 90th %s, max %s (%d)\n", what, ms(sorted[0]), ms(sorted[len(sorted)/2]),
+			ms(sorted[len(sorted)*9/10]), ms(sorted[len(sorted)-1]), len(sorted))
+	}
+
+	var rtts, ups []time.Duration
+	for range 20 {
+		sent := time.Now()
+		resp, err := client.Do(request(http.MethodPost, base+"/probe-up", strings.NewReader("probe")))
+		if err != nil {
+			fail("%v", err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			fail("probe-up answered %s: %s", resp.Status, body)
+		}
+		arrived, _ := strconv.ParseInt(strings.TrimSpace(string(body)), 10, 64)
+		rtts = append(rtts, time.Since(sent))
+		ups = append(ups, time.Duration(arrived-sent.UnixNano()))
+	}
+	summary("POST round trip", rtts)
+	summary("POST one way up (server clock minus ours)", ups)
+
+	for _, size := range []int{32, 4096} {
+		resp, err := client.Do(request(http.MethodGet, fmt.Sprintf("%s/probe-down?size=%d", base, size), nil))
+		if err != nil {
+			fail("%v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			fail("probe-down answered %s: %s", resp.Status, body)
+		}
+		lines := bufio.NewReader(resp.Body)
+		var downs, gaps []time.Duration
+		bunched := 0
+		var last time.Time
+		for {
+			line, err := lines.ReadString('\n')
+			if err != nil {
+				break
+			}
+			now := time.Now()
+			sent, _ := strconv.ParseInt(strings.TrimSpace(line), 10, 64)
+			downs = append(downs, time.Duration(now.UnixNano()-sent))
+			if !last.IsZero() {
+				gap := now.Sub(last)
+				gaps = append(gaps, gap)
+				if gap < 20*time.Millisecond {
+					bunched++
+				}
+			}
+			last = now
+		}
+		resp.Body.Close()
+		fmt.Printf("GET lines of %d bytes, sent every 100 ms: %d arrived within 20 ms of the one before\n", size, bunched)
+		summary(fmt.Sprintf("  one way down, %d bytes (our clock minus the server's)", size), downs)
+		summary(fmt.Sprintf("  gap between arrivals, %d bytes", size), gaps)
 	}
 }

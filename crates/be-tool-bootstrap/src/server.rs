@@ -66,7 +66,7 @@ pub fn configure(buck2: &Path) -> Result<()> {
         epoch = connection.epoch;
         storage = engine.clone();
         (engine_address, storage_address) =
-            relay::ensure_epoch(&engine, &storage, true, 0, &epoch)?;
+            relay::ensure_epoch(&engine, &storage, true, false, &epoch)?;
         header = if connection.token.is_empty() {
             String::new()
         } else {
@@ -121,16 +121,12 @@ pub fn configure(buck2: &Path) -> Result<()> {
         tls = true;
     }
     if proxy.is_some() {
-        // nl.be3.pfg.pw's Caddy also serves re-relay's tunnels, which carry every call inside a few long requests
-        // for a proxy that handles few requests a second (a cloud session's): two, one for moving blobs and one for
-        // the rest. BE3_NL_TUNNEL=0 sends each call as its own request instead, and =1 everything through one tunnel.
-        let tunnels = match std::env::var("BE3_NL_TUNNEL").as_deref() {
-            _ if server != "nl.be3.pfg.pw" => 0,
-            Ok("0") => 0,
-            Ok("1") => 1,
-            _ => 2,
-        };
-        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage, false, tunnels)?;
+        // nl.be3.pfg.pw's Caddy also serves re-relay's tunnel, which carries every call inside a few long requests
+        // for a proxy that handles few requests a second (a cloud session's). BE3_NL_TUNNEL=0 sends each call as
+        // its own request instead.
+        let tunnel =
+            server == "nl.be3.pfg.pw" && std::env::var("BE3_NL_TUNNEL").as_deref() != Ok("0");
+        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage, false, tunnel)?;
         engine_address = engine_relay;
         storage_address = storage_relay;
         tls = false;
@@ -575,15 +571,15 @@ pub mod relay {
     }
 
     /// Starts, or finds running, a relay to each of `engine` and `storage` and returns their local addresses. `http1`
-    /// sends every call as HTTP/1.1 (re-relay's `-http1`); `tunnels`, when not 0, sends them all through that
-    /// many tunnels to the upstream (`-tunnels`).
+    /// sends every call as HTTP/1.1 (re-relay's `-http1`); `tunnel` sends them all through the upstream's tunnel
+    /// (`-tunnel`).
     pub fn ensure(
         engine: &str,
         storage: &str,
         http1: bool,
-        tunnels: u8,
+        tunnel: bool,
     ) -> Result<(String, String)> {
-        ensure_epoch(engine, storage, http1, tunnels, "")
+        ensure_epoch(engine, storage, http1, tunnel, "")
     }
 
     /// As `ensure`, replacing a relay that was started for another `epoch` of the server, which forgets what that
@@ -592,7 +588,7 @@ pub mod relay {
         engine: &str,
         storage: &str,
         http1: bool,
-        tunnels: u8,
+        tunnel: bool,
         epoch: &str,
     ) -> Result<(String, String)> {
         let (relay, version) = build()?;
@@ -610,10 +606,14 @@ pub mod relay {
                     "-upstream",
                     upstream,
                     if http1 { "-http1=true" } else { "-http1=false" },
+                    if tunnel {
+                        "-tunnel=true"
+                    } else {
+                        "-tunnel=false"
+                    },
                     "-version",
                 ])
-                .arg(format!("{version}-{upstream}-{http1}-{tunnels}-{epoch}"))
-                .arg(format!("-tunnels={tunnels}"))
+                .arg(format!("{version}-{upstream}-{http1}-{tunnel}-{epoch}"))
                 .arg("-log")
                 .arg(&log)
                 .status()
