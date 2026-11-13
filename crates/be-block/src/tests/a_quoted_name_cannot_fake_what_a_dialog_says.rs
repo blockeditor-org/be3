@@ -71,6 +71,14 @@ fn a_quoted_name_cannot_fake_what_a_dialog_says() {
         "a Thai stack is cut"
     );
     assert_eq!(
+        inside(&format!(
+            "\u{0e01}{}",
+            "\u{0e49}\u{0e49}\u{200b}".repeat(20)
+        )),
+        "\u{0e01}\u{0e49}\u{0e49}",
+        "characters dropped between marks do not start a new stack"
+    );
+    assert_eq!(
         inside(&format!("\u{0410}{}", "\u{0488}\u{0489}".repeat(10))),
         "\u{0410}\u{0488}\u{0489}",
         "Cyrillic enclosing marks are cut"

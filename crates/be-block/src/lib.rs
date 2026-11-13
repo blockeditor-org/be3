@@ -8,6 +8,7 @@ use uuid::Uuid;
 pub mod blob;
 pub mod block_url;
 pub mod device_class;
+pub mod display;
 pub mod display_settings;
 pub mod editor_view;
 pub mod history;
@@ -37,11 +38,12 @@ pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, Them
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
+pub use display::quoted_name;
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
     EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
     MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SEARCH_INDEX, SETTINGS, THUMBHASH, Thumbhash,
-    VIEW_EDITOR, quoted_name,
+    VIEW_EDITOR,
 };
 pub use model::Root;
 pub use organization::{

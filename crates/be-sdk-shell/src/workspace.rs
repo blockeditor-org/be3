@@ -504,11 +504,8 @@ impl Workspace {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
-        debug_assert_eq!(
-            share.block, block,
-            "a share action reached another block's share"
-        );
         // An action for a block the dialog no longer shows closes it, rather than act on either.
+        // Apps have no log to note it in.
         if share.block != block {
             self.close_dialog();
             return;
