@@ -213,8 +213,6 @@ pub struct Searching {
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
-    /// Counts answers that changed, for askers to read again.
-    pub revision: u64,
     /// Set by a test that writes as a device without an indexer.
     pub off: bool,
 }
@@ -1651,7 +1649,10 @@ async fn show(
             // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
             // out of what the search is within, or the mirror may now hold one it lacked.
             answer.missing = Some(graph);
-            held.search.revision += 1;
+            crate::changes::post(crate::Changes {
+                search: true,
+                ..crate::Changes::default()
+            });
             held.progressed += 1;
         }
     }

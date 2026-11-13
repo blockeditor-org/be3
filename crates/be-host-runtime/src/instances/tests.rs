@@ -196,7 +196,6 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
 }
 
 fn next_screens(instances: &mut Instances) -> NextScreens {
-    instances.touch(&be_host_stack::take_touched());
     instances.next_screens(PASS)
 }
 

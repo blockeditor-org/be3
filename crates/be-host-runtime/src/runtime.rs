@@ -1875,7 +1875,6 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
 
 pub fn poll() {
     let pass = host::pass();
-    let touched = be_host_stack::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {
@@ -1883,7 +1882,6 @@ pub fn poll() {
                 if std::mem::take(&mut runtime.restart_asked) {
                     runtime.restart();
                 }
-                runtime.instances.touch(&touched);
                 runtime.detect_error();
                 runtime.taking_in = true;
                 runtime.pump();

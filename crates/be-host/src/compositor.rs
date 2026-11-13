@@ -33,8 +33,9 @@ thread_local! {
     static HEARD: RefCell<Option<be_host_base::host::Mailbox>> = const { RefCell::new(None) };
     static OWNERS: RefCell<HashMap<(String, be_sdk_api::EditorInstanceId), Vec<(u64, Owner)>>> =
         RefCell::new(HashMap::new());
-    static STALE: Cell<u64> = const { Cell::new(0) };
     static SEARCHED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+    /// What the host stack changed: searches answered again, and stale blocks.
+    static STACK_CHANGES: be_host_stack::ChangeWatch = be_host_stack::ChangeWatch::new();
     static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
     static SHELL: RefCell<Option<Signal<Option<uuid::Uuid>>>> = const { RefCell::new(None) };
@@ -52,7 +53,7 @@ pub(crate) fn install() {
     SHELL.with(|held| *held.borrow_mut() = Some(shell));
     let asks = create_signal((0, Vec::new()));
     PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
-    let searched = create_signal(be_host_stack::search_revision());
+    let searched = create_signal(0);
     SEARCHED.with(|held| *held.borrow_mut() = Some(searched));
     let (mailbox, post) = be_host_base::host::mailbox(heard);
     be_host_runtime::listen(None, post);
@@ -98,7 +99,7 @@ fn heard(heard: be_host_runtime::Heard) {
     }
 }
 
-/// Moves whenever the block store answers a search again (`be_host_stack::search_revision`).
+/// Moves whenever the block store answers a search again (`be_host_stack::Changes::search`).
 pub(crate) fn searched() -> ReadSignal<u64> {
     SEARCHED.with(|held| {
         held.borrow()
@@ -262,14 +263,13 @@ pub(crate) fn owes_frame() -> Option<String> {
 }
 
 fn notify_apps() -> Option<Vec<String>> {
-    let searched = be_host_stack::search_revision();
-    if let Some(signal) = SEARCHED.with(|held| *held.borrow())
-        && signal.get_untracked() != searched
+    let changes = STACK_CHANGES.with(be_host_stack::ChangeWatch::take);
+    if changes.search
+        && let Some(signal) = SEARCHED.with(|held| *held.borrow())
     {
-        signal.set(searched);
+        signal.update(|searched| *searched += 1);
     }
-    let stale = be_host_stack::stale_revision();
-    if STALE.with(|seen| seen.replace(stale)) != stale {
+    if changes.stale {
         be_host_base::host::changed();
     }
     let mut changed = be_host_runtime::take_changed();

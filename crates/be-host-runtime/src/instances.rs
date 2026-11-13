@@ -79,7 +79,8 @@ pub(super) struct Instances {
     services: services::Services,
     fetches: network::Fetches,
     epoch: u64,
-    graph_seen: Option<u64>,
+    /// What the host stack changed since the last screens.
+    stack_changes: be_host_stack::ChangeWatch,
     mail: Mail,
     mailed: Vec<Outbound>,
     published: Published,
@@ -175,10 +176,12 @@ struct Instance {
     replicas: HashMap<Uuid, be_sdk_api::ops::OpId>,
     watches: HashMap<be_sdk_api::ops::OpId, blocks::Watch>,
     shows: Vec<be_sdk_api::blocks::ShowRequest>,
-    blocks_seen: Option<u64>,
+    /// Whether the answers to its block queries may have changed since they were offered.
+    blocks_due: bool,
     /// What each search watch asks (`Subject::Search`).
     searches: std::collections::BTreeMap<be_sdk_api::ops::OpId, be_host_stack::SearchAsk>,
-    searches_seen: Option<u64>,
+    /// Whether the answers to its searches may have changed since they were offered.
+    searches_due: bool,
     version_sent: Option<u64>,
     stale: bool,
 }
@@ -322,9 +325,9 @@ impl Instance {
             replicas: HashMap::default(),
             watches: HashMap::default(),
             shows: Vec::new(),
-            blocks_seen: None,
+            blocks_due: true,
             searches: std::collections::BTreeMap::new(),
-            searches_seen: None,
+            searches_due: true,
             version_sent: None,
             stale: true,
             content: match role {
@@ -344,11 +347,9 @@ fn own_content_type(block: EditorBlock) -> Option<Uuid> {
 
 impl Instance {
     fn offer_blocks(&mut self, scope: Option<be_host_stack::Scope>) {
-        let revision = be_host_stack::graph_revision();
-        if self.blocks_seen == Some(revision) {
+        if !std::mem::take(&mut self.blocks_due) {
             return;
         }
-        self.blocks_seen = Some(revision);
         let queries: Vec<_> = self
             .watching()
             .filter_map(|watched| match watched {
@@ -377,11 +378,9 @@ impl Instance {
     }
 
     fn offer_searches(&mut self, scope: Option<be_host_stack::Scope>) {
-        let revision = be_host_stack::search_revision();
-        if self.searches_seen == Some(revision) {
+        if !std::mem::take(&mut self.searches_due) {
             return;
         }
-        self.searches_seen = Some(revision);
         let asked: Vec<_> = self
             .searches
             .iter()
@@ -439,6 +438,19 @@ impl Instance {
         wants
     }
 
+    /// The versioned block whose status it watches, with its content type.
+    fn versions_wanted(&self) -> Vec<(Uuid, Uuid)> {
+        match self.role {
+            InstanceRole::Editor(_, block)
+                if be_host_stack::is_versioned(block.block_type)
+                    && self.watching().any(|watched| watched == Subject::Version) =>
+            {
+                vec![(block.id, block.block_type)]
+            }
+            _ => Vec::new(),
+        }
+    }
+
     fn offer_version(&mut self) {
         if !self.watching().any(|watched| watched == Subject::Version) {
             return;
@@ -446,7 +458,7 @@ impl Instance {
         if let InstanceRole::Editor(_, block) = self.role
             && be_host_stack::is_versioned(block.block_type)
             && let Some((revision, status)) =
-                be_host_stack::version_since(block.id, block.block_type, self.version_sent)
+                be_host_stack::version_since(block.id, self.version_sent)
         {
             self.version_sent = Some(revision);
             self.offer(Subject::Version, &BlockValue::Version(status));
@@ -932,6 +944,7 @@ impl Instances {
         self.owners.retain(|_, owner| *owner != instance);
         be_host_stack::want(be_host_stack::Owner::Editor(instance.0), Vec::new());
         be_host_stack::want_searches(be_host_stack::Owner::Editor(instance.0), Vec::new());
+        be_host_stack::want_versions(be_host_stack::Owner::Editor(instance.0), Vec::new());
         let mut entry = entry;
         for request in entry.renders.drain() {
             super::events::emit(
@@ -1989,7 +2002,7 @@ impl Instances {
             entry.replicas.clear();
             entry.shows.clear();
             entry.reported_size = None;
-            entry.blocks_seen = None;
+            entry.blocks_due = true;
             entry.version_sent = None;
             for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
                 link.delivered = false;
@@ -2023,8 +2036,9 @@ impl Instances {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
-        let graph = be_host_stack::graph_revision();
-        let graph_moved = self.graph_seen.replace(graph) != Some(graph);
+        let changes = self.stack_changes.take();
+        self.touch(&changes);
+        let graph_moved = changes.graph;
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
@@ -2048,6 +2062,10 @@ impl Instances {
             be_host_stack::want_searches(
                 be_host_stack::Owner::Editor(instance.0),
                 entry.search_asks(),
+            );
+            be_host_stack::want_versions(
+                be_host_stack::Owner::Editor(instance.0),
+                entry.versions_wanted(),
             );
             let docked = super::docks::docked(instance);
             let mut regions: Vec<_> = entry
@@ -3515,12 +3533,17 @@ impl Instances {
         }
     }
 
-    pub(super) fn touch(&mut self, blocks: &HashSet<Uuid>) {
-        if blocks.is_empty() {
-            return;
-        }
+    fn touch(&mut self, changes: &be_host_stack::Changes) {
         for entry in self.entries.values_mut() {
-            if !entry.stale && blocks.iter().any(|block| entry.follows(*block)) {
+            entry.blocks_due |= changes.graph;
+            entry.searches_due |= changes.search;
+            if changes.every_block {
+                // The stack started anew, and its version statuses count from the start again.
+                entry.version_sent = None;
+            }
+            if !entry.stale
+                && (changes.every_block || changes.blocks.iter().any(|block| entry.follows(*block)))
+            {
                 entry.stale = true;
             }
         }

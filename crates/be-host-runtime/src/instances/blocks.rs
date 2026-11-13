@@ -391,8 +391,8 @@ impl Instances {
         self.owners.insert(op, instance);
         entry.watches.insert(op, Watch::new(watched));
         match watched {
-            Subject::Blocks(_) => entry.blocks_seen = None,
-            Subject::Search(_) => entry.searches_seen = None,
+            Subject::Blocks(_) => entry.blocks_due = true,
+            Subject::Search(_) => entry.searches_due = true,
             Subject::Head(block) => entry.heads.watch(block),
             Subject::Artifact(_) => crate::events::emit(
                 &self.app_id,
