@@ -8,7 +8,7 @@ use crate::list::List;
 use crate::popover::PANEL_PADDING;
 use crate::text::{Icon, Text};
 use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
-use crate::tokens::{Padding, Size, Space, Stroke, use_size};
+use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_view::primitives::Spacer;
@@ -131,11 +131,7 @@ pub fn Scroll(
     if !bounded {
         return scroll;
     }
-    let length = use_size(max_length.map(|length| length.unwrap_or(Size::Custom(0.0))));
-    let bound = create_memo(move || match max_length.get() {
-        Some(_) => length.get(),
-        None => f32::INFINITY,
-    });
+    let bound = create_memo(move || max_length.get().map_or(f32::INFINITY, Size::px));
     view! {
         <List direction={direction} spacing=Space::None>
             <ListItem max=bound>{scroll}</ListItem>

@@ -6,7 +6,7 @@ use beui_view::types::{Align2, Corners, Outline};
 use beui_view::types::{Color, Sides, Vec2};
 
 use crate::theme::{ThemeStore, use_theme};
-use crate::tokens::{CornerSet, Length, Padding, Stroke, resolved};
+use crate::tokens::{CornerSet, Length, Padding, Stroke};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ColorRole {
@@ -355,9 +355,9 @@ pub fn Frame(
         (radius, Prop::Static(CornerSet::ALL)) => radius.map(Radius::corners),
         (radius, corners) => Prop::dynamic(move || corners.get().of(radius.get().corners())),
     };
-    let width = resolved(width, Length::resolve);
-    let height = resolved(height, Length::resolve);
-    let padding = resolved(padding, Padding::resolve);
+    let width = width.map(Length::px);
+    let height = height.map(Length::px);
+    let padding = padding.map(Padding::px);
     match children {
         Some(child) => view! {
             <primitives::Frame
