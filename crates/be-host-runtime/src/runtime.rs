@@ -399,6 +399,10 @@ struct Pacing {
     unseen: bool,
     animating: bool,
     paint_at: Option<Duration>,
+    /// The last frame asked for the next at once without animating: it has work due now (a
+    /// zero-delay timer, a second step of a scroll), which needs another frame but no time, so
+    /// it is drawn even while the clock stands still.
+    again: bool,
     drawn_at: Duration,
     requested_at: Option<Duration>,
     animated: u64,
@@ -417,6 +421,7 @@ impl Pacing {
         self.unseen = false;
         self.animating = false;
         self.paint_at = None;
+        self.again = false;
         self.requested_at = None;
         self.painting = false;
         self.needed_again = false;
@@ -435,7 +440,13 @@ impl Pacing {
     }
 
     fn asked_by(&self, now: Duration) -> bool {
-        self.paint_at.is_some_and(|at| at <= now) && now > self.drawn_at
+        self.paint_at.is_some_and(|at| at <= now) && (now > self.drawn_at || self.again)
+    }
+
+    /// Whether the app owes a frame it asked for at once, which no amount of waiting for the
+    /// clock would bring sooner.
+    fn owes_frame(&self) -> bool {
+        self.again && self.requested_at.is_none()
     }
 
     fn request(&mut self, now: Duration, pass: u64) {
@@ -468,6 +479,7 @@ impl Pacing {
         self.requested_at = None;
         self.drawn_at = now;
         self.paint_at = repaint_after.map(|delay| now + delay);
+        self.again = repaint_after == Some(Duration::ZERO) && !self.animating;
     }
 
     fn wake_after(&self, now: Duration, drawing: bool) -> Option<Duration> {
@@ -864,7 +876,10 @@ impl Runtime {
             return false;
         }
         let drawing = self.session.granted_surface().is_some();
-        drawing && (self.pacing.needed || self.pacing.requested_at.is_some())
+        drawing
+            && (self.pacing.needed
+                || self.pacing.requested_at.is_some()
+                || self.pacing.owes_frame())
     }
 
     fn request_frame(&mut self, held: bool) {

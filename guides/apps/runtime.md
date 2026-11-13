@@ -65,7 +65,11 @@ next present less the time the host's own work after settle has been taking.
 While a driven host's clock is stopped (guides/running/drive.md) it waits for
 every answer, up to `STOPPED_CLOCK_FRAME_BUDGET`, so a slow machine never
 changes which frame shows an answer, and an app that ran out of time is drawn
-again only once the clock moves.
+again only once the clock moves. So is an app that animates; one whose last
+frame asked for the next at once without animating (a zero-delay timer, the
+second step of a scroll it settles over two frames) has work due now that needs
+no time, so it is asked again while the clock stands still, and the host is
+busy until it draws it (`Pacing::again`).
 
 ### Layout and present commits
 

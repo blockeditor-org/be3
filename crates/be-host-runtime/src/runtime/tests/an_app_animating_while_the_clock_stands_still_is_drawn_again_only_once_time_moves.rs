@@ -6,7 +6,10 @@ fn ms(milliseconds: u64) -> Duration {
 
 #[test]
 fn an_app_animating_while_the_clock_stands_still_is_drawn_again_only_once_time_moves() {
-    let mut pacing = Pacing::default();
+    let mut pacing = Pacing {
+        animating: true,
+        ..Pacing::default()
+    };
     pacing.request(ms(1000), 1);
     pacing.ready(ms(1000), Some(Duration::ZERO));
     assert!(
