@@ -125,6 +125,8 @@ pub struct Connection {
     closed: watch::Receiver<bool>,
     due: watch::Receiver<Duration>,
     registry: Mutex<Registry>,
+    /// The clock the connection keeps time by (`Clock::real` for an offline one).
+    clock: Clock,
 }
 
 impl Caller for Connection {
@@ -182,6 +184,7 @@ impl Connection {
             closed,
             due: watched,
             registry: Mutex::new(Registry::default()),
+            clock: clock.clone(),
         });
         spawn(worker(
             Carried {
@@ -216,7 +219,13 @@ impl Connection {
             closed,
             due,
             registry: Mutex::new(Registry::default()),
+            clock: Clock::real(),
         })
+    }
+
+    /// The clock this connection keeps time by: monotonic, or a test's manual one.
+    pub fn clock(&self) -> &Clock {
+        &self.clock
     }
 
     fn registry(&self) -> std::sync::MutexGuard<'_, Registry> {

@@ -196,6 +196,10 @@ pub(crate) struct Session {
     pub pinned: Option<EscrowKey>,
     #[serde(default)]
     pub server: Option<be_block_protocol::ServerAccount>,
+    /// The server's clock less this device's, as last measured (`Peer::server_now`), for
+    /// stamping commits offline after a restart.
+    #[serde(default)]
+    pub server_offset: Option<i64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

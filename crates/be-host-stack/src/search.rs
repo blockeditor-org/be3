@@ -890,13 +890,12 @@ async fn puts_of(
     let Ok(commit) = peer.load_commit(head).await else {
         return None;
     };
-    // The commit's own time, which the server cannot read, so a forged one past this device's
-    // bound counts as the oldest (`Commit::believed`).
+    // The commit's own time, which the server cannot read: stored as it is, and compared as
+    // believed (`Commit::believed`).
     let at = be_lib_search::Commit {
         time: commit.time,
         id: *head.hash().as_bytes(),
-    }
-    .believed(latest());
+    };
     // Only a module already running is asked: starting one would hold up the worker's loop.
     // A block a catch-up named may be of a type this device has not run yet: its module is
     // started once, which is worth it to index what other devices wrote.
@@ -1477,12 +1476,6 @@ async fn load<S: ObjectStore>(
     SearchIndexContent::from_stored(&stored).map_err(|error| error.to_string())
 }
 
-/// The latest commit time this device believes: its clock plus how far ahead the server lets a
-/// commit be (`Commit::believed`).
-fn latest() -> i64 {
-    be_block_commit::now_milliseconds().saturating_add(be_block_commit::MAX_COMMIT_AHEAD)
-}
-
 /// What `index` holds for `block` at its newest head.
 #[cfg(test)]
 pub(crate) async fn entries<S: ObjectStore>(
@@ -1521,7 +1514,7 @@ pub async fn write<S: ObjectStore>(
             &PeerParts(peer),
             Uuid::new_v4().into_bytes(),
             batch,
-            latest(),
+            peer.latest_believed(),
         )
         .await
         .map_err(|error| error.to_string())?;
@@ -1554,6 +1547,7 @@ async fn outdate_ancestors<S: ObjectStore>(
                 .iter_mut()
                 .map(|(doc, commit)| (&*doc, commit)),
         );
+    let latest = peer.latest_believed();
     for (doc, commit) in changes {
         if !entries.contains_key(&doc.block) {
             let read = content
@@ -1569,16 +1563,16 @@ async fn outdate_ancestors<S: ObjectStore>(
         }
         // A block that left and came back is put at a commit the index masked: it is stamped
         // after the removal, which is only an order.
-        if let Some(removal) = content.index().removed_at(&doc.block, latest())
-            && removal >= *commit
+        if let Some(removal) = content.index().removed_at(&doc.block, latest)
+            && removal >= commit.believed(latest)
         {
             commit.time = removal.time.saturating_add(1);
         }
         let Some(old) = entries[&doc.block].get(&doc.key) else {
             continue;
         };
-        let old_commit = old.commit.believed(latest());
-        if old_commit < *commit || old_commit.id == commit.id {
+        let old_commit = old.commit.believed(latest);
+        if old_commit < commit.believed(latest) || old_commit.id == commit.id {
             continue;
         }
         let (old_id, new_id) = (
@@ -1608,7 +1602,7 @@ pub async fn search_index<S: ObjectStore>(
     };
     load(peer, head)
         .await?
-        .search(&PeerParts(peer), query, limit, latest())
+        .search(&PeerParts(peer), query, limit, peer.latest_believed())
         .await
         .map_err(|error| error.to_string())
 }

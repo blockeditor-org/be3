@@ -92,7 +92,9 @@ impl Commit {
     /// This commit as a reader whose clock allows times up to `latest` takes it: a time past
     /// that is not believed, and counts as the oldest. Any editor of a root may write its index
     /// and its blocks' commits, so a forged far-future time would otherwise win every
-    /// comparison, and its document could never be updated again.
+    /// comparison, and its document could never be updated again. Only a comparison key: an
+    /// index stores the time as it was given, so a reader whose `latest` is too early never
+    /// rewrites an honest one.
     pub fn believed(self, latest: i64) -> Self {
         match self.time > latest {
             true => Self {
@@ -384,7 +386,7 @@ impl Index {
         table.entries_of(parts, block).await
     }
 
-    /// The newest commit a block was removed from the index at, if it was.
+    /// The newest commit a block was removed from the index at, if it was, as believed.
     pub fn removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
         self.block_removed_at(block, latest)
     }
@@ -410,11 +412,12 @@ impl Index {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut masks: Vec<Place> = Vec::new();
+        // Commits are compared as believed and stored as they are, so a reader whose clock is
+        // behind never rewrites an honest time.
         for (block, commit) in batch.removed_blocks {
-            let commit = commit.believed(latest);
             if self
                 .block_removed_at(&block, latest)
-                .is_some_and(|known| known >= commit)
+                .is_some_and(|known| known >= commit.believed(latest))
             {
                 continue;
             }
@@ -425,39 +428,37 @@ impl Index {
                 at: self.watermark,
             });
             for entry in table.entries_of(parts, &block).await? {
-                if entry.commit.believed(latest) < commit {
+                if entry.commit.believed(latest) < commit.believed(latest) {
                     masks.extend(entry.place);
                     table.put(Entry::tombstone(entry.doc, commit));
                 }
             }
         }
         let mut newest: BTreeMap<DocId, Change> = BTreeMap::new();
-        for mut item in batch.put {
-            item.commit = item.commit.believed(latest);
+        for item in batch.put {
             newest
                 .entry(item.doc.clone())
                 .or_insert(Change::Put(item.clone()))
-                .newest(Change::Put(item));
+                .newest(Change::Put(item), latest);
         }
         for (doc, commit) in batch.removed {
-            let commit = commit.believed(latest);
             newest
                 .entry(doc.clone())
                 .or_insert(Change::Remove(commit))
-                .newest(Change::Remove(commit));
+                .newest(Change::Remove(commit), latest);
         }
         let mut fresh = Vec::new();
         for (doc, change) in newest {
             if self
                 .block_removed_at(&doc.block, latest)
-                .is_some_and(|removed| removed >= change.commit())
+                .is_some_and(|removed| removed >= change.commit().believed(latest))
             {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
             if old
                 .as_ref()
-                .is_some_and(|old| old.commit.believed(latest) >= change.commit())
+                .is_some_and(|old| old.commit.believed(latest) >= change.commit().believed(latest))
             {
                 continue;
             }
@@ -588,8 +589,8 @@ impl Change {
         }
     }
 
-    fn newest(&mut self, other: Change) {
-        if other.commit() > self.commit() {
+    fn newest(&mut self, other: Change, latest: i64) {
+        if other.commit().believed(latest) > self.commit().believed(latest) {
             *self = other;
         }
     }

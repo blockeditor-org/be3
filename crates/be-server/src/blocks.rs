@@ -754,8 +754,13 @@ impl ServerStore {
                     .get(block)
                     .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
                 {
-                    // The base's total in one query, then only what the change moves.
+                    // The base's total in one query, then only what the change moves: the
+                    // objects it adds that the base lacks, and those it drops that the base
+                    // held and it does not add back (`ObjectChange::apply` keeps those). An
+                    // object with no size recorded counts as nothing, so the total errs low
+                    // only for objects the server does not hold, which the publish refuses.
                     let base_set: BTreeSet<Hash> = base.iter().copied().collect();
+                    let added_set: BTreeSet<Hash> = change.added.iter().copied().collect();
                     let added: Vec<Hash> = std::iter::once(commit.hash())
                         .chain(change.added.iter().copied())
                         .filter(|hash| !base_set.contains(hash))
@@ -763,13 +768,9 @@ impl ServerStore {
                     let removed: Vec<Hash> = expected
                         .map(CommitId::hash)
                         .into_iter()
-                        .chain(
-                            change
-                                .removed
-                                .iter()
-                                .copied()
-                                .filter(|hash| base_set.contains(hash)),
-                        )
+                        .chain(change.removed.iter().copied().filter(|hash| {
+                            base_set.contains(hash) && !added_set.contains(hash)
+                        }))
                         .collect();
                     let base_bytes = match expected {
                         Some(expected) => {
