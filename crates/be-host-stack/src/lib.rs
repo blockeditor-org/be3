@@ -894,6 +894,8 @@ pub fn seal_owed() {
     }
 }
 
+/// Flushes without waiting, and deliberately keeps the flush's late settle (unlike
+/// `seal_owed`): edits made before the app is really suspended are sealed with it too.
 pub fn backgrounded() {
     let (done, _) = std::sync::mpsc::channel();
     send(Command::Flush(done));

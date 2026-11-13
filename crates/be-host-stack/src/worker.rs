@@ -3246,20 +3246,27 @@ async fn apply(
             false
         }
         Command::Flush(done) => {
-            replicas.keep_all(ctx).await;
-            if replicas.take_kept() {
-                tasks.sync(peer, shared);
-            }
+            seal_now(peer, shared, replicas, tasks).await;
             flushes.push(done);
             true
         }
         Command::SealOwed => {
-            replicas.keep_all(ctx).await;
-            if replicas.take_kept() {
-                tasks.sync(peer, shared);
-            }
+            seal_now(peer, shared, replicas, tasks).await;
             true
         }
+    }
+}
+
+/// Seals what the open blocks owe now and sends what that kept: a flush does this, then waits.
+async fn seal_now(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    replicas: &mut Replicas,
+    tasks: &Tasks,
+) {
+    replicas.keep_all((peer, shared)).await;
+    if replicas.take_kept() {
+        tasks.sync(peer, shared);
     }
 }
 
