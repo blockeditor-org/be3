@@ -10,9 +10,9 @@ use be_block::{
 };
 use be_block_commit::MergeResult;
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
-    Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome, ReorderChild,
-    ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
+    Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
+    Journal, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
+    ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
@@ -70,7 +70,9 @@ pub struct Registration {
     info: TypeInfo,
     open: fn(Opened) -> Box<dyn AnyReplica>,
     plain: fn(Opened) -> Box<dyn AnyReplica>,
-    blank: fn() -> Vec<u8>,
+    /// The type's default content and its description, which `Module::types` fills
+    /// `info` with once `start` has seeded the module's entropy.
+    blank: fn() -> (Vec<u8>, Description),
     merge: MergeFn,
     merge_parts: Option<MergePartsFn>,
     /// The replica's merge by parts, a `replica::PartsMerge` of the type's content.
@@ -98,10 +100,15 @@ impl Registration {
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
                 whole_bytes: C::WHOLE_BYTES,
+                blank: Vec::new(),
+                blank_description: Description::default(),
             },
             open: open::<C, NoHistory>,
             plain: open::<C, NoHistory>,
-            blank: || C::default().encode(),
+            blank: || {
+                let blank = C::default();
+                (blank.encode(), describe(&blank, Uuid::nil()))
+            },
             merge: merge::<C>,
             merge_parts: None,
             replica_merge: None,
@@ -310,7 +317,6 @@ pub(crate) fn be_child(change: ChildChange) -> be_block::ChildChange {
 
 pub fn describe<C: BlockContent>(content: &C, organization: Uuid) -> Description {
     Description {
-        name: content.name(),
         derived: be_block::derived_metadata(content),
         references: content.references_in(organization),
     }
@@ -395,7 +401,14 @@ impl Module {
             .types
             .borrow()
             .iter()
-            .map(|kind| kind.info.clone())
+            .map(|kind| {
+                let (blank, blank_description) = (kind.blank)();
+                TypeInfo {
+                    blank,
+                    blank_description,
+                    ..kind.info.clone()
+                }
+            })
             .collect()
     }
 
@@ -628,8 +641,13 @@ impl Module {
 
     fn effect(&self, effect: Effect) {
         match effect {
-            Effect::Send { replica, to, bytes } => {
-                ops::with_parent(replica, || host::send(to, bytes)).detach();
+            Effect::Send {
+                replica,
+                to,
+                kind,
+                bytes,
+            } => {
+                ops::with_parent(replica, || host::send(to, kind, bytes)).detach();
             }
             Effect::Publish {
                 replica,
@@ -791,9 +809,6 @@ impl Module {
                 replica,
                 description,
             } => ops::with_parent(replica, || host::described(description)).detach(),
-            Effect::History { replica, history } => {
-                ops::with_parent(replica, || host::history(history)).detach();
-            }
             Effect::Conflict {
                 replica,
                 ours,
@@ -852,13 +867,6 @@ impl replicas::Guest for Module {
             });
         }
         Box::pin(ready(self.types()))
-    }
-
-    fn blank(&self, content_type: Uuid) -> LocalFuture<Result<Vec<u8>, Failure>> {
-        Box::pin(ready(
-            self.with_kind(content_type, |kind| (kind.blank)())
-                .ok_or(Failure::UnknownType),
-        ))
     }
 
     fn merge3(
@@ -1023,9 +1031,22 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) -> LocalFuture<()> {
+    fn message(
+        &self,
+        from: Endpoint,
+        bytes: Vec<u8>,
+        at: u64,
+        delivery: Option<Delivery>,
+    ) -> LocalFuture<()> {
         self.module.tick(at);
-        self.module.input(self.id, Input::Message { from, bytes });
+        self.module.input(
+            self.id,
+            Input::Message {
+                from,
+                bytes,
+                delivery,
+            },
+        );
         Box::pin(ready(()))
     }
 

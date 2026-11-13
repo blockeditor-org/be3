@@ -1,6 +1,6 @@
 use super::*;
 use be_sdk_beui::beui::clipboard::{CanvasItems, formats};
-use be_sdk_beui::beui::{ClipItem, Input, Key, Modifiers};
+use be_sdk_beui::beui::{Input, Key, Modifiers};
 
 #[test]
 fn a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale() {
@@ -10,7 +10,7 @@ fn a_raster_layer_copied_into_another_canvas_keeps_its_pixels_and_scale() {
     let [copied] = &source.take_copied(formats::CANVAS_ITEMS)[..] else {
         panic!("Copy puts the layer on the clipboard as canvas items");
     };
-    let copied = ClipItem::new(formats::CANVAS_ITEMS, copied.clone());
+    let copied = copied.clone();
     let items = copied
         .decode::<CanvasItems>()
         .expect("the canvas items decode");

@@ -92,7 +92,11 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         top.contains("Agents") && top.contains("Issues") && !top.contains("Tracker"),
         "the agent sees the workspace and the database shared with it, and nothing else: {top}"
     );
-    assert!(run(&agent, "workspaces").await.unwrap().ends_with("Agents"));
+    assert!(
+        top.lines()
+            .any(|line| line.contains("may write") && line.contains("Agents")),
+        "{top}"
+    );
     run(&agent, "new-database Notes --prefix NO").await.unwrap();
     owner.invalidate().await;
     let notes = owner

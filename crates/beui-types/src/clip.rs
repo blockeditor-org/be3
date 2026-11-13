@@ -2,15 +2,18 @@
 
 use std::rc::Rc;
 
-use be_lib_ui_types::clipboard::{ClipItem, formats};
+use be_lib_ui_types::clipboard::{ClipBody, ClipItem, formats};
 
 /// Renders one representation of a clip when a paste asks for it; answers
 /// `None` once it can no longer (the app that copied stopped).
-pub type Render = Rc<dyn Fn(Box<dyn FnOnce(Option<Vec<u8>>)>)>;
+pub type Render = Rc<dyn Fn(RenderAnswer)>;
+
+/// Where a render answers: the data and the blocks it names (`ClipBody`).
+pub type RenderAnswer = Box<dyn FnOnce(Option<ClipBody>)>;
 
 #[derive(Clone)]
 pub enum ClipData {
-    Ready(Rc<[u8]>),
+    Ready(Rc<ClipBody>),
     Lazy(Render),
 }
 
@@ -47,8 +50,8 @@ impl Clip {
 
     pub fn with(mut self, item: ClipItem) -> Self {
         self.entries.push(ClipEntry {
-            format: item.format,
-            data: ClipData::Ready(item.data.into()),
+            format: item.format.clone(),
+            data: ClipData::Ready(Rc::new(item.into_body())),
         });
         self
     }
@@ -57,7 +60,7 @@ impl Clip {
     pub fn with_lazy(
         mut self,
         format: impl Into<String>,
-        render: impl Fn(Box<dyn FnOnce(Option<Vec<u8>>)>) + 'static,
+        render: impl Fn(RenderAnswer) + 'static,
     ) -> Self {
         self.entries.push(ClipEntry {
             format: format.into(),
@@ -77,7 +80,7 @@ impl Clip {
     /// The representation of `format` if it is held and already rendered.
     pub fn ready(&self, format: &str) -> Option<&[u8]> {
         self.entries.iter().find_map(|entry| match &entry.data {
-            ClipData::Ready(data) if entry.format == format => Some(&data[..]),
+            ClipData::Ready(body) if entry.format == format => Some(&body.data[..]),
             _ => None,
         })
     }
@@ -94,7 +97,10 @@ impl Clip {
         self.entries
             .iter()
             .filter_map(|entry| match &entry.data {
-                ClipData::Ready(data) => Some(ClipItem::new(entry.format.clone(), data.to_vec())),
+                ClipData::Ready(body) => Some(ClipItem::of_body(
+                    entry.format.clone(),
+                    ClipBody::clone(body),
+                )),
                 ClipData::Lazy(_) => None,
             })
             .collect()
@@ -122,11 +128,14 @@ fn resolve_in_order(mut chosen: Vec<ClipEntry>, answer: Box<dyn FnOnce(Option<Cl
     }
     let entry = chosen.remove(0);
     match entry.data {
-        ClipData::Ready(data) => answer(Some(ClipItem::new(entry.format, data.to_vec()))),
+        ClipData::Ready(body) => answer(Some(ClipItem::of_body(
+            entry.format,
+            ClipBody::clone(&body),
+        ))),
         ClipData::Lazy(render) => {
             let format = entry.format;
-            render(Box::new(move |data| match data {
-                Some(data) => answer(Some(ClipItem::new(format, data))),
+            render(Box::new(move |body| match body {
+                Some(body) => answer(Some(ClipItem::of_body(format, body))),
                 None => resolve_in_order(chosen, answer),
             }));
         }

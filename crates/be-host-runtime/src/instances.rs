@@ -1,13 +1,12 @@
 use be_lib_stable_hash::{HashMap, HashSet};
-use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
+use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::{
-    AccessLevel, AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockCommand,
-    BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
-    DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
-    OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View,
-    ViewAnchor, ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent,
-    WebViewId,
+    AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
+    EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
+    ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View, ViewAnchor, ViewId,
+    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -25,10 +24,11 @@ use std::{collections::BTreeMap, sync::Arc};
 use uuid::Uuid;
 
 use super::{
-    ChildCommit, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
+    ChildCommit, EditorAction, EditorBlock, HostAnchored, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     calls::{self, AppCall, BlockIds, EditorAnswer, EditorCall, Outbound},
+    events::InstanceEvent,
     heads::{HeadRead, Heads},
     input::{BlockDrag, DragEvent, InputForwarder, viewport_metrics},
     pieces,
@@ -38,6 +38,7 @@ use super::{
 use be_host_base::{host, performance};
 
 mod cuts;
+pub(crate) mod gift;
 mod network;
 mod services;
 
@@ -79,7 +80,8 @@ pub(super) struct Instances {
     services: services::Services,
     fetches: network::Fetches,
     epoch: u64,
-    graph_seen: Option<u64>,
+    /// What the host stack changed since the last screens.
+    stack_changes: be_host_stack::ChangeWatch,
     mail: Mail,
     mailed: Vec<Outbound>,
     published: Published,
@@ -123,26 +125,15 @@ struct Instance {
     role: InstanceRole,
     artifact: ArtifactState,
     dialog: DialogStatus,
-    child_dismissals: Vec<ChildId>,
-    child_closes: Vec<ChildId>,
-    child_focus: Vec<ChildId>,
-    /// Blocks the editor asked to give the keyboard to once a child shows them. A gift ends
-    /// when a child shows its block or when it is refused, never after a number of commits: how
-    /// long the editor takes to place the child (its content must change first) is not bounded.
-    block_focus: Vec<Uuid>,
+    /// The keyboard it gives to a child, and the keys held for it (`gift`).
+    gift: Option<gift::Gift>,
     /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
     /// after the failed call) ends at once.
     block_refused: Vec<Uuid>,
-    created: Option<Result<Uuid, String>>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
     opened: bool,
     deferred: Vec<Outbound>,
-    opens: Vec<OpenRequest>,
-    block_drags: Vec<BlockDrag>,
-    block_commands: Vec<(Uuid, BlockCommand)>,
-    shell_commands: Vec<(Uuid, ShellCommand)>,
-    simulated: Vec<(Uuid, AccessLevel)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
     /// The actions each view last described (`frame-report.actions`), kept while nothing asks
@@ -153,8 +144,6 @@ struct Instance {
     /// The backdrop its views last reported (`FrameReport::backdrop`), which a view it has not
     /// reported yet is filled with.
     backdrop: Option<be_sdk_api::accessibility::Color>,
-    focus_reports: Vec<Focus>,
-    artifact_watch: Option<Vec<Uuid>>,
     heads: Heads,
     revision_previews: HashSet<Uuid>,
     drag_accepted: bool,
@@ -163,14 +152,10 @@ struct Instance {
     reported_size: Option<Vec2>,
     picked: Option<BlockPick>,
     card: bool,
-    child_commits: Vec<ChildCommit>,
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
     views: Sent<EditorView>,
-    view_changes: Vec<ViewChange>,
-    bar_actions: Vec<be_sdk_api::BarAction>,
     menus: BTreeMap<ViewId, Vec<be_sdk_api::MenuEntry>>,
-    child_menu_picks: Vec<(ChildId, String, Option<Rect>)>,
     presenting: bool,
     presented: bool,
     reported_presenting: bool,
@@ -181,19 +166,20 @@ struct Instance {
     next_replacement: u64,
     /// Renders of copied representations asked of the instance, by request:
     /// `None` until it answers.
-    renders: HashMap<u64, Option<Option<Vec<u8>>>>,
+    renders: HashSet<u64>,
     next_render: u64,
-    leaving: bool,
     content: Option<ContentLink>,
     watched: HashMap<Uuid, ContentLink>,
     shown: be_lib_stable_hash::HashSet<(Uuid, Uuid)>,
     replicas: HashMap<Uuid, be_sdk_api::ops::OpId>,
     watches: HashMap<be_sdk_api::ops::OpId, blocks::Watch>,
     shows: Vec<be_sdk_api::blocks::ShowRequest>,
-    blocks_seen: Option<u64>,
+    /// Whether the answers to its block queries may have changed since they were offered.
+    blocks_due: bool,
     /// What each search watch asks (`Subject::Search`).
     searches: std::collections::BTreeMap<be_sdk_api::ops::OpId, be_host_stack::SearchAsk>,
-    searches_seen: Option<u64>,
+    /// Whether the answers to its searches may have changed since they were offered.
+    searches_due: bool,
     version_sent: Option<u64>,
     stale: bool,
 }
@@ -256,7 +242,7 @@ impl ContentLink {
 
 pub(super) type OpenRequest = crate::BlockOpen;
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Focus {
     pub block: Option<(Uuid, Uuid)>,
     /// The editor the block is shown with when one was asked for by id.
@@ -286,7 +272,6 @@ struct ArtifactState {
     data: Vec<u8>,
     description: Option<ArtifactDescription>,
     draft: Option<Vec<u8>>,
-    outcome: Option<Result<(), String>>,
 }
 
 mod blocks;
@@ -299,28 +284,17 @@ impl Instance {
             role,
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
-            child_dismissals: Vec::new(),
-            child_closes: Vec::new(),
-            child_focus: Vec::new(),
-            block_focus: Vec::new(),
+            gift: None,
             block_refused: Vec::new(),
-            created: None,
             screens: HashMap::default(),
             anchored: Vec::new(),
             opened: false,
             deferred: Vec::new(),
-            opens: Vec::new(),
-            block_drags: Vec::new(),
-            block_commands: Vec::new(),
-            shell_commands: Vec::new(),
-            simulated: Vec::new(),
             reported_focus: None,
             reported_editable: None,
             actions: HashMap::default(),
             menu_picked: None,
             backdrop: None,
-            focus_reports: Vec::new(),
-            artifact_watch: None,
             heads: Heads::default(),
             revision_previews: HashSet::default(),
             drag_accepted: false,
@@ -329,14 +303,10 @@ impl Instance {
             reported_size: None,
             picked: None,
             card: false,
-            child_commits: Vec::new(),
             view: None,
             reported_view: None,
             views: Sent::default(),
-            view_changes: Vec::new(),
-            bar_actions: Vec::new(),
             menus: BTreeMap::new(),
-            child_menu_picks: Vec::new(),
             presenting: false,
             presented: false,
             reported_presenting: false,
@@ -345,17 +315,16 @@ impl Instance {
             presence_visible: None,
             replacements: HashMap::default(),
             next_replacement: 0,
-            renders: HashMap::default(),
+            renders: HashSet::default(),
             next_render: 0,
-            leaving: false,
             watched: HashMap::default(),
             shown: be_lib_stable_hash::HashSet::default(),
             replicas: HashMap::default(),
             watches: HashMap::default(),
             shows: Vec::new(),
-            blocks_seen: None,
+            blocks_due: true,
             searches: std::collections::BTreeMap::new(),
-            searches_seen: None,
+            searches_due: true,
             version_sent: None,
             stale: true,
             content: match role {
@@ -375,11 +344,9 @@ fn own_content_type(block: EditorBlock) -> Option<Uuid> {
 
 impl Instance {
     fn offer_blocks(&mut self, scope: Option<be_host_stack::Scope>) {
-        let revision = be_host_stack::graph_revision();
-        if self.blocks_seen == Some(revision) {
+        if !std::mem::take(&mut self.blocks_due) {
             return;
         }
-        self.blocks_seen = Some(revision);
         let queries: Vec<_> = self
             .watching()
             .filter_map(|watched| match watched {
@@ -408,11 +375,9 @@ impl Instance {
     }
 
     fn offer_searches(&mut self, scope: Option<be_host_stack::Scope>) {
-        let revision = be_host_stack::search_revision();
-        if self.searches_seen == Some(revision) {
+        if !std::mem::take(&mut self.searches_due) {
             return;
         }
-        self.searches_seen = Some(revision);
         let asked: Vec<_> = self
             .searches
             .iter()
@@ -470,6 +435,19 @@ impl Instance {
         wants
     }
 
+    /// The versioned block whose status it watches, with its content type.
+    fn versions_wanted(&self) -> Vec<(Uuid, Uuid)> {
+        match self.role {
+            InstanceRole::Editor(_, block)
+                if be_host_stack::is_versioned(block.block_type)
+                    && self.watching().any(|watched| watched == Subject::Version) =>
+            {
+                vec![(block.id, block.block_type)]
+            }
+            _ => Vec::new(),
+        }
+    }
+
     fn offer_version(&mut self) {
         if !self.watching().any(|watched| watched == Subject::Version) {
             return;
@@ -477,7 +455,7 @@ impl Instance {
         if let InstanceRole::Editor(_, block) = self.role
             && be_host_stack::is_versioned(block.block_type)
             && let Some((revision, status)) =
-                be_host_stack::version_since(block.id, block.block_type, self.version_sent)
+                be_host_stack::version_since(block.id, self.version_sent)
         {
             self.version_sent = Some(revision);
             self.offer(Subject::Version, &BlockValue::Version(status));
@@ -653,7 +631,6 @@ struct Screen {
     used: Option<Vec2>,
     report: Option<FrameReport>,
     accessibility: Embedded,
-    focus_requested: bool,
     dragging: Option<DragKind>,
     window: WindowRequests,
     stopped: Option<Stopped>,
@@ -687,7 +664,6 @@ impl Screen {
             used: None,
             report: None,
             accessibility: Embedded::new(beui::native::accessibility::next_document_id()),
-            focus_requested: false,
             dragging: None,
             window: WindowRequests::default(),
             stopped: None,
@@ -840,6 +816,26 @@ pub(super) struct NextScreens {
     pub(super) screens: Vec<ScreenRequest>,
 }
 
+impl Drop for Instances {
+    /// Answers the renders still asked of instances that go with their app, and says they
+    /// closed.
+    fn drop(&mut self) {
+        for (instance, entry) in &mut self.entries {
+            for request in entry.renders.drain() {
+                super::events::emit(
+                    &self.app_id,
+                    *instance,
+                    InstanceEvent::Rendered {
+                        request,
+                        body: None,
+                    },
+                );
+            }
+            super::events::emit(&self.app_id, *instance, InstanceEvent::Closed);
+        }
+    }
+}
+
 impl Instances {
     pub(super) fn translate(&self, message: &mut impl BlockIds, inward: bool) {
         let mut carries = false;
@@ -935,6 +931,7 @@ impl Instances {
     }
 
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
+        self.end_gift(instance, gift::Keys::Drop);
         self.withdraw_all(instance);
         self.waiting.remove(&instance);
         self.gone.insert(instance);
@@ -945,7 +942,19 @@ impl Instances {
         self.owners.retain(|_, owner| *owner != instance);
         be_host_stack::want(be_host_stack::Owner::Editor(instance.0), Vec::new());
         be_host_stack::want_searches(be_host_stack::Owner::Editor(instance.0), Vec::new());
+        be_host_stack::want_versions(be_host_stack::Owner::Editor(instance.0), Vec::new());
         let mut entry = entry;
+        for request in entry.renders.drain() {
+            super::events::emit(
+                &self.app_id,
+                instance,
+                InstanceEvent::Rendered {
+                    request,
+                    body: None,
+                },
+            );
+        }
+        super::events::emit(&self.app_id, instance, InstanceEvent::Closed);
         let shown: Vec<(Uuid, Uuid)> = entry.shown.iter().copied().collect();
         let shown_on = |block: Uuid| -> Vec<Uuid> {
             shown
@@ -1841,16 +1850,6 @@ impl Instances {
         )]
     }
 
-    pub(super) fn take_bar_actions(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<be_sdk_api::BarAction> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.bar_actions))
-            .unwrap_or_default()
-    }
-
     pub(super) fn menu(&self, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
         self.entries
             .get(&instance)
@@ -1879,28 +1878,6 @@ impl Instances {
             instance,
             EditorEvent::MenuPick(MenuChoice { view, id, anchor }),
         )]
-    }
-
-    pub(super) fn take_child_menu_picks(
-        &mut self,
-        instance: EditorInstanceId,
-        children: &[ChildId],
-    ) -> Vec<(ChildId, String, Option<Rect>)> {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return Vec::new();
-        };
-        let (taken, kept) = std::mem::take(&mut entry.child_menu_picks)
-            .into_iter()
-            .partition(|(child, _, _)| children.contains(child));
-        entry.child_menu_picks = kept;
-        taken
-    }
-
-    pub(super) fn take_view_changes(&mut self, instance: EditorInstanceId) -> Vec<ViewChange> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.view_changes))
-            .unwrap_or_default()
     }
 
     pub(super) fn report_creation(
@@ -1970,21 +1947,13 @@ impl Instances {
         instance: EditorInstanceId,
         data: &[u8],
     ) -> Vec<Outbound> {
-        let Some(entry) = self.entries.get_mut(&instance) else {
+        let Some(_) = self.entries.get(&instance) else {
             return Vec::new();
         };
-        entry.artifact.outcome = None;
         vec![Outbound::Editor(
             instance,
             EditorCall::RegenerateArtifact(data.to_vec()),
         )]
-    }
-
-    pub(super) fn take_artifact_outcome(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Option<Result<(), String>> {
-        self.entries.get_mut(&instance)?.artifact.outcome.take()
     }
 
     pub(super) fn allow_network(&mut self, hosts: Vec<String>) {
@@ -2003,8 +1972,18 @@ impl Instances {
         self.heard.forget();
         self.sent_block_types = None;
         self.announced.clear();
-        for entry in self.entries.values_mut() {
+        for (instance, entry) in &mut self.entries {
             entry.opened = false;
+            for request in entry.renders.drain() {
+                super::events::emit(
+                    &self.app_id,
+                    *instance,
+                    InstanceEvent::Rendered {
+                        request,
+                        body: None,
+                    },
+                );
+            }
             entry.deferred.clear();
             entry.reported_focus = None;
             entry.reported_editable = None;
@@ -2012,12 +1991,16 @@ impl Instances {
             entry.reported_presenting = false;
             entry.published.forget_reported();
             entry.heads = Heads::default();
-            entry.artifact_watch = Some(Vec::new());
+            super::events::emit(
+                &self.app_id,
+                *instance,
+                InstanceEvent::ArtifactWatch(Vec::new()),
+            );
             entry.watches.clear();
             entry.replicas.clear();
             entry.shows.clear();
             entry.reported_size = None;
-            entry.blocks_seen = None;
+            entry.blocks_due = true;
             entry.version_sent = None;
             for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
                 link.delivered = false;
@@ -2051,8 +2034,9 @@ impl Instances {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
-        let graph = be_host_stack::graph_revision();
-        let graph_moved = self.graph_seen.replace(graph) != Some(graph);
+        let changes = self.stack_changes.take();
+        self.touch(&changes);
+        let graph_moved = changes.graph;
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
@@ -2076,6 +2060,10 @@ impl Instances {
             be_host_stack::want_searches(
                 be_host_stack::Owner::Editor(instance.0),
                 entry.search_asks(),
+            );
+            be_host_stack::want_versions(
+                be_host_stack::Owner::Editor(instance.0),
+                entry.versions_wanted(),
             );
             let docked = super::docks::docked(instance);
             let mut regions: Vec<_> = entry
@@ -2751,10 +2739,6 @@ impl Instances {
                 }),
                 sheet: layer.is_some_and(|layer| layer.edge),
                 anchor,
-                focus_asked: self
-                    .entries
-                    .get(&instance)
-                    .is_some_and(|entry| entry.child_focus.contains(&child.child)),
                 fullscreen: child.fullscreen,
             });
         }
@@ -2776,12 +2760,6 @@ impl Instances {
             }
         }
         revoked
-    }
-
-    pub(super) fn take_leaving(&mut self, instance: EditorInstanceId) -> bool {
-        self.entries
-            .get_mut(&instance)
-            .is_some_and(|entry| std::mem::take(&mut entry.leaving))
     }
 
     pub(super) fn content_view(&self, instance: EditorInstanceId) -> ViewId {
@@ -2947,101 +2925,6 @@ impl Instances {
         self.entries.get(&instance).is_some_and(|entry| entry.card)
     }
 
-    pub(super) fn take_child_dismissals(&mut self, instance: EditorInstanceId) -> Vec<ChildId> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.child_dismissals))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn take_child_closes(&mut self, instance: EditorInstanceId) -> Vec<ChildId> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.child_closes))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn ask_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) {
-        if let Some(entry) = self.entries.get_mut(&instance)
-            && !entry.child_focus.contains(&child)
-        {
-            entry.child_focus.push(child);
-        }
-    }
-
-    pub(super) fn child_focus_pending(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_some_and(|entry| {
-            if !entry.block_focus.is_empty() {
-                return true;
-            }
-            let anchored = entry.anchored.iter().map(|held| &held.screen);
-            let screens: Vec<&Screen> = entry.screens.values().chain(anchored).collect();
-            entry.child_focus.iter().any(|asked| {
-                screens.iter().any(|screen| {
-                    screen
-                        .children
-                        .children
-                        .iter()
-                        .any(|placed| placed.child == *asked && placed.mode != ChildMode::Preview)
-                })
-            })
-        })
-    }
-
-    pub(super) fn refuse_child_focus(&mut self, instance: EditorInstanceId) {
-        if let Some(entry) = self.entries.get_mut(&instance) {
-            entry.child_focus.clear();
-            entry.block_focus.clear();
-        }
-    }
-
-    pub(super) fn take_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
-        };
-        let asked = entry.child_focus.contains(&child);
-        entry.child_focus.retain(|asked| *asked != child);
-        asked
-    }
-
-    /// After a layout commit: a block gift whose block a child now shows becomes a gift to that
-    /// child. One whose block no child shows yet stays, as the editor may still be placing it,
-    /// unless the editor has no view left.
-    pub(super) fn settle_block_focus(&mut self) {
-        for entry in self.entries.values_mut() {
-            if entry.block_focus.is_empty() {
-                continue;
-            }
-            if entry.screens.is_empty() && entry.anchored.is_empty() {
-                // No view of the editor is left to give the keyboard from.
-                entry.block_focus.clear();
-                continue;
-            }
-            let anchored = entry.anchored.iter().map(|held| &held.screen);
-            let shown: Vec<(ChildId, Uuid)> = entry
-                .screens
-                .values()
-                .chain(anchored)
-                .flat_map(|screen| &screen.children.children)
-                .filter(|placed| placed.mode != ChildMode::Preview)
-                .filter_map(|placed| Some((placed.child, shown_block(&placed.content)?)))
-                .collect();
-            let mut given = Vec::new();
-            entry.block_focus.retain(|block| {
-                let Some((child, _)) = shown.iter().find(|(_, shows)| shows == block) else {
-                    return true;
-                };
-                given.push(*child);
-                false
-            });
-            for child in given {
-                if !entry.child_focus.contains(&child) {
-                    entry.child_focus.push(child);
-                }
-            }
-        }
-    }
-
     /// Whether the instance's block content, if it edits one, has reached it.
     pub(super) fn content_delivered(&self, instance: EditorInstanceId) -> bool {
         self.entries.get(&instance).is_none_or(|entry| {
@@ -3050,13 +2933,6 @@ impl Instances {
                 .as_ref()
                 .is_none_or(|link| link.attached.is_none() || link.delivered)
         })
-    }
-
-    pub(super) fn take_child_commits(&mut self, instance: EditorInstanceId) -> Vec<ChildCommit> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.child_commits))
-            .unwrap_or_default()
     }
 
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
@@ -3149,13 +3025,6 @@ impl Instances {
             return Vec::new();
         }
         vec![Outbound::Editor(instance, EditorCall::CommitCreation)]
-    }
-
-    pub(super) fn take_created(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Option<Result<Uuid, String>> {
-        self.entries.get_mut(&instance)?.created.take()
     }
 
     pub(super) fn intrinsic_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
@@ -3380,24 +3249,17 @@ impl Instances {
     }
 
     pub(super) fn request_focus(&mut self, screen: ScreenId) {
-        for entry in self.entries.values_mut() {
-            for placed in entry.screens.values_mut() {
+        for (instance, entry) in &self.entries {
+            for (view, placed) in &entry.screens {
                 if placed.request.screen == screen {
-                    placed.focus_requested = true;
+                    super::events::emit(
+                        &self.app_id,
+                        *instance,
+                        InstanceEvent::FocusRequested(*view),
+                    );
                 }
             }
         }
-    }
-
-    pub(super) fn take_focus_request(
-        &mut self,
-        instance: EditorInstanceId,
-        region: ViewId,
-    ) -> bool {
-        self.entries
-            .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&region))
-            .is_some_and(|screen| std::mem::take(&mut screen.focus_requested))
     }
 
     pub(super) fn drive_web_views(&mut self) -> Vec<Outbound> {
@@ -3431,24 +3293,8 @@ impl Instances {
         vec![Outbound::Event(instance, EditorEvent::Presence(visible))]
     }
 
-    pub(super) fn child_bar_actions(
-        &mut self,
-        instance: EditorInstanceId,
-        actions: Vec<(ChildId, be_sdk_api::BarAction)>,
-    ) -> Vec<Outbound> {
-        actions
-            .into_iter()
-            .map(|(child, action)| {
-                Outbound::Event(
-                    instance,
-                    EditorEvent::ChildBar(ChildBarPress { child, action }),
-                )
-            })
-            .collect()
-    }
-
     /// Asks the instance to render representation `format` of its copy
-    /// `serial`; `take_rendered` with the request answers.
+    /// `serial`; an `InstanceEvent::Rendered` with the request answers.
     pub(super) fn render_clip(
         &mut self,
         instance: EditorInstanceId,
@@ -3460,7 +3306,7 @@ impl Instances {
         };
         entry.next_render += 1;
         let request_id = entry.next_render;
-        entry.renders.insert(request_id, None);
+        entry.renders.insert(request_id);
         (
             vec![Outbound::Editor(
                 instance,
@@ -3472,23 +3318,6 @@ impl Instances {
             )],
             Some(request_id),
         )
-    }
-
-    /// The render of `request_id` once answered: `Some(None)` when the
-    /// instance rendered nothing or is gone.
-    pub(super) fn take_rendered(
-        &mut self,
-        instance: EditorInstanceId,
-        request_id: u64,
-    ) -> Option<Option<Vec<u8>>> {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return Some(None);
-        };
-        match entry.renders.get(&request_id) {
-            Some(None) => None,
-            Some(Some(_)) => entry.renders.remove(&request_id).flatten(),
-            None => Some(None),
-        }
     }
 
     pub(super) fn replace_child(
@@ -3578,6 +3407,48 @@ impl Instances {
         screens
     }
 
+    fn instance_of_screen(&self, id: ScreenId) -> Option<EditorInstanceId> {
+        self.entries.iter().find_map(|(instance, entry)| {
+            entry
+                .screens
+                .values()
+                .any(|screen| screen.request.screen == id)
+                .then_some(*instance)
+        })
+    }
+
+    /// Translates the blocks a paste into a screen names into the ids of the
+    /// instance that owns the screen, as `translate` does for messages that
+    /// name their instance.
+    pub(super) fn translate_pastes(&self, message: &mut Outbound) {
+        let Outbound::App(AppCall::Input(batch)) = message else {
+            return;
+        };
+        let pastes = batch
+            .events
+            .iter_mut()
+            .filter_map(|timed| match &mut timed.input {
+                beui::Input::Paste(item) | beui::Input::PastePiece(item)
+                    if !item.refs.is_empty() =>
+                {
+                    Some(item)
+                }
+                _ => None,
+            });
+        let mut pastes = pastes.peekable();
+        if pastes.peek().is_none() {
+            return;
+        }
+        let Some(instance) = self.instance_of_screen(batch.screen) else {
+            return;
+        };
+        let mut pasted = super::calls::Pasted {
+            instance,
+            items: pastes.collect(),
+        };
+        self.translate(&mut pasted, false);
+    }
+
     fn is_screen(&self, id: ScreenId) -> bool {
         self.entries
             .values()
@@ -3617,12 +3488,17 @@ impl Instances {
         }
     }
 
-    pub(super) fn touch(&mut self, blocks: &HashSet<Uuid>) {
-        if blocks.is_empty() {
-            return;
-        }
+    fn touch(&mut self, changes: &be_host_stack::Changes) {
         for entry in self.entries.values_mut() {
-            if !entry.stale && blocks.iter().any(|block| entry.follows(*block)) {
+            entry.blocks_due |= changes.graph;
+            entry.searches_due |= changes.search;
+            if changes.every_block {
+                // The stack started anew, and its version statuses count from the start again.
+                entry.version_sent = None;
+            }
+            if !entry.stale
+                && (changes.every_block || changes.blocks.iter().any(|block| entry.follows(*block)))
+            {
                 entry.stale = true;
             }
         }
@@ -3752,9 +3628,9 @@ impl Instances {
             return false;
         };
         match message {
-            ShellMessage::BarAction(action) => {
-                if !super::docks::bar(instance, action) {
-                    entry.bar_actions.push(action);
+            ShellMessage::Details => {
+                if !super::docks::details(instance) {
+                    super::events::emit(&self.app_id, instance, InstanceEvent::Details);
                 }
             }
             ShellMessage::Menu(MenuSet { view, items }) => match MenuEntry::nest(items.clone()) {
@@ -3768,7 +3644,24 @@ impl Instances {
                 Err(_) => return false,
             },
             ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, anchor }) => {
-                entry.child_menu_picks.push((child, id, anchor));
+                let anchored = entry.anchored.iter().map(|held| &held.screen);
+                let block = entry
+                    .screens
+                    .values()
+                    .chain(anchored)
+                    .flat_map(|screen| &screen.children.children)
+                    .find(|placed| placed.child == child)
+                    .and_then(|placed| shown_block(&placed.content));
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ChildMenuPick {
+                        child,
+                        block,
+                        id,
+                        anchor,
+                    },
+                );
             }
             ShellMessage::Copy(ClipOffer { serial, items }) => {
                 host::copy(host::CopiedClip {
@@ -3787,10 +3680,11 @@ impl Instances {
                 block_id,
                 block_type,
             }) => {
-                entry.block_drags.push(BlockDrag {
+                let drag = BlockDrag {
                     block_id: Uuid::from_bytes(block_id),
                     block_type: Uuid::from_bytes(block_type),
-                });
+                };
+                super::events::emit(&self.app_id, instance, InstanceEvent::BlockDrag(drag));
             }
             ShellMessage::DragAccepted(accepted) => {
                 let changed = entry.drag_accepted != accepted;
@@ -3807,12 +3701,15 @@ impl Instances {
                 return changed;
             }
             ShellMessage::Act(BlockAct { block, command }) => {
-                entry
-                    .shell_commands
-                    .push((Uuid::from_bytes(block), command));
+                let id = Uuid::from_bytes(block);
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::Shell { id, command }),
+                );
             }
             ShellMessage::LeaveFrame => {
-                entry.leaving = true;
+                super::events::emit(&self.app_id, instance, InstanceEvent::Leaving);
             }
             ShellMessage::ViewStopped(ViewEnd { view, stopped }) => {
                 let Some(screen) = entry.screens.get_mut(&view) else {
@@ -3822,10 +3719,10 @@ impl Instances {
             }
             ShellMessage::Present(presenting) => return self.set_presenting(instance, presenting),
             ShellMessage::ChangeView(change) => {
-                entry.view_changes.push(change);
+                super::events::emit(&self.app_id, instance, InstanceEvent::ViewChange(change));
             }
             ShellMessage::Focused(focus) => {
-                entry.focus_reports.push(Focus {
+                let focus = Focus {
                     block: focus.block_id.map(|block_id| {
                         (
                             Uuid::from_bytes(block_id),
@@ -3834,7 +3731,8 @@ impl Instances {
                     }),
                     editor: focus.editor.map(Uuid::from_bytes),
                     via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
-                });
+                };
+                super::events::emit(&self.app_id, instance, InstanceEvent::Focused(focus));
             }
             ShellMessage::HandlesDismiss(handles) => {
                 let changed = entry.dialog.handles_dismiss != handles;
@@ -3848,29 +3746,18 @@ impl Instances {
                 entry.dialog.answer = Some(answer);
             }
             ShellMessage::DismissChild(child) => {
-                entry.child_dismissals.push(child);
+                super::events::emit(&self.app_id, instance, InstanceEvent::ChildDismissed(child));
             }
             ShellMessage::CloseChild(child) => {
-                entry.child_closes.push(child);
+                super::events::emit(&self.app_id, instance, InstanceEvent::ChildClosed(child));
             }
             ShellMessage::FocusChild(child) => {
-                self.ask_child_focus(instance, child);
+                self.ask_gift(instance, gift::GiftTo::Child(child));
             }
             // The runtime opens the palette before it hands the call here.
             ShellMessage::OpenPalette(_) => {}
             ShellMessage::FocusBlockChild(block) => {
-                let block = Uuid::from_bytes(block);
-                if let Some(at) = entry
-                    .block_refused
-                    .iter()
-                    .position(|refused| *refused == block)
-                {
-                    entry.block_refused.remove(at);
-                } else {
-                    // Only the latest ask stands: the person can type into one place.
-                    entry.block_focus.clear();
-                    entry.block_focus.push(block);
-                }
+                self.ask_block_gift(instance, Uuid::from_bytes(block));
             }
             ShellMessage::ShowCard(card) => {
                 if entry.card == card {
@@ -3889,11 +3776,16 @@ impl Instances {
                 parent,
                 name,
             }) => {
-                entry.child_commits.push(ChildCommit {
+                let commit = ChildCommit {
                     child,
                     parent,
                     name,
-                });
+                };
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ChildCommitted(commit),
+                );
             }
             ShellMessage::ArtifactDescribed(description) => {
                 entry.artifact.description = Some(description);
@@ -3924,18 +3816,29 @@ impl Instances {
         };
         match answer {
             EditorAnswer::Created(created) => {
-                entry.created = Some(
-                    created
-                        .map(Uuid::from_bytes)
-                        .map_err(|failure| failure.to_string()),
-                )
+                let created = created
+                    .map(Uuid::from_bytes)
+                    .map_err(|failure| failure.to_string());
+                super::events::emit(&self.app_id, instance, InstanceEvent::Created(created));
             }
             EditorAnswer::Regenerated(outcome) => {
-                entry.artifact.outcome = Some(outcome.map_err(|failure| failure.to_string()))
+                let outcome = outcome.map_err(|failure| failure.to_string());
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::ArtifactOutcome(outcome),
+                );
             }
-            EditorAnswer::Rendered { request_id, data } => {
-                if let Some(pending) = entry.renders.get_mut(&request_id) {
-                    *pending = Some(data);
+            EditorAnswer::Rendered { request_id, body } => {
+                if entry.renders.remove(&request_id) {
+                    super::events::emit(
+                        &self.app_id,
+                        instance,
+                        InstanceEvent::Rendered {
+                            request: request_id,
+                            body,
+                        },
+                    );
                 }
             }
             EditorAnswer::Replaced {
@@ -3958,22 +3861,6 @@ impl Instances {
             }
         }
         true
-    }
-
-    pub(super) fn take_open(&mut self, instance: EditorInstanceId) -> Option<OpenRequest> {
-        let entry = self.entries.get_mut(&instance)?;
-        if entry.opens.is_empty() {
-            None
-        } else {
-            Some(entry.opens.remove(0))
-        }
-    }
-
-    pub(super) fn take_block_drags(&mut self, instance: EditorInstanceId) -> Vec<BlockDrag> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.block_drags))
-            .unwrap_or_default()
     }
 
     pub(super) fn debug_call(&mut self, instance: EditorInstanceId, call: DebugCall) -> bool {
@@ -4005,14 +3892,19 @@ impl Instances {
                 block,
                 access,
             } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
+                let Some(_) = self.entries.get(&instance) else {
                     self.services
                         .answers
                         .push((reply.into_op(), Outcome::Err(OpError::Canceled)));
                     return false;
                 };
                 self.services.answers.push(reply.answer(&()));
-                entry.simulated.push((Uuid::from_bytes(block), access));
+                let id = Uuid::from_bytes(block);
+                super::events::emit(
+                    &self.app_id,
+                    instance,
+                    InstanceEvent::Action(EditorAction::SimulateAccess { id, access }),
+                );
                 true
             }
             call @ (DebugCall::DebugTemplatesWatchNew { .. }
@@ -4023,51 +3915,6 @@ impl Instances {
                 false
             }
         }
-    }
-
-    pub(super) fn take_shell_commands(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<(Uuid, ShellCommand)> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.shell_commands))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn take_simulated_access(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<(Uuid, AccessLevel)> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.simulated))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn take_block_command(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Option<(Uuid, BlockCommand)> {
-        let entry = self.entries.get_mut(&instance)?;
-        if entry.block_commands.is_empty() {
-            None
-        } else {
-            Some(entry.block_commands.remove(0))
-        }
-    }
-
-    pub(super) fn take_focus_report(&mut self, instance: EditorInstanceId) -> Option<Focus> {
-        let entry = self.entries.get_mut(&instance)?;
-        if entry.focus_reports.is_empty() {
-            None
-        } else {
-            Some(entry.focus_reports.remove(0))
-        }
-    }
-
-    pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
-        self.entries.get_mut(&instance)?.artifact_watch.take()
     }
 
     pub(super) fn show_dialog(

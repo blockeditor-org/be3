@@ -19,7 +19,7 @@ fn a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent() {
         false,
     );
     flush_and_send();
-    version_since(repository, be_block::RepositoryContent::CONTENT_TYPE, None);
+    show_version(repository, be_block::RepositoryContent::CONTENT_TYPE);
 
     ask_for(vec![Query::Roots, Query::Subtree(folder)]);
     let mut listing = be_type_workspace::FolderContent::default();

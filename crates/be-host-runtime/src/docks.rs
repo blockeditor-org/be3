@@ -2,10 +2,10 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use std::{cell::RefCell, collections::BTreeMap};
 
 use be_sdk_api::{
-    BarAction, ChildId, DockBarPlacement, DockChild, DockChildRequest, DockClosedTab,
-    DockDeclaration, DockDeclaredChild, DockHold, DockHosted, DockHostedView, DockMessage,
-    DockPlacedBar, DockRequest, DockTabPath, DockTree, DockUpdate, EditorInstanceId,
-    MAX_DOCK_NESTING, MenuItem, ViewId, dock_prefix,
+    ChildId, DockBarPlacement, DockChild, DockChildRequest, DockClosedTab, DockDeclaration,
+    DockDeclaredChild, DockHold, DockHosted, DockHostedView, DockMessage, DockPlacedBar,
+    DockRequest, DockTabPath, DockTree, DockUpdate, EditorInstanceId, MAX_DOCK_NESTING, MenuItem,
+    ViewId, dock_prefix,
 };
 use uuid::Uuid;
 
@@ -45,6 +45,10 @@ pub(super) struct Docks {
     declared: HashMap<EditorInstanceId, DockDeclaration>,
     hosting: HashMap<(EditorInstanceId, ChildId), Hosting>,
     delivered: HashMap<(EditorInstanceId, ChildId), DockDeclaration>,
+    /// The `epoch` of the last declaration or withdrawal sent for each docked child, from one
+    /// count that only grows, so a child placed again never repeats an earlier one.
+    epochs: HashMap<(EditorInstanceId, ChildId), u64>,
+    epoch: u64,
     hosted: HashMap<EditorInstanceId, DockHosted>,
     docked: HashSet<EditorInstanceId>,
     offscreen: HashSet<EditorInstanceId>,
@@ -52,7 +56,7 @@ pub(super) struct Docks {
     parked: HashMap<(EditorInstanceId, u64), (DockBarPlacement, bool)>,
     shown_bars: HashSet<(EditorInstanceId, u64)>,
     outbox: Vec<(EditorInstanceId, DockUpdate)>,
-    bars: Vec<(EditorInstanceId, ViewId, ChildId, BarAction)>,
+    details: Vec<(EditorInstanceId, ChildId)>,
     menus: HashMap<(EditorInstanceId, ViewId), Vec<MenuItem>>,
     picks: Vec<Pick>,
     changed: HashSet<String>,
@@ -78,6 +82,7 @@ impl Docks {
         self.hosted.remove(&instance);
         self.hosting.retain(|(root, _), _| *root != instance);
         self.delivered.retain(|(root, _), _| *root != instance);
+        self.epochs.retain(|(root, _), _| *root != instance);
         self.outbox.retain(|(to, _)| *to != instance);
         self.parked.retain(|(held, _), _| *held != instance);
         self.shown_bars.retain(|(held, _)| *held != instance);
@@ -98,6 +103,7 @@ impl Docks {
             self.hosted.remove(&instance);
             self.hosting.retain(|(root, _), _| *root != instance);
             self.delivered.retain(|(root, _), _| *root != instance);
+            self.epochs.retain(|(root, _), _| *root != instance);
             self.outbox.retain(|(to, _)| *to != instance);
         }
         self.refresh();
@@ -187,7 +193,7 @@ impl Docks {
                 }
                 DockMessage::Host(host) => {
                     if self.owns(app, host.child.instance) {
-                        self.host(host.child, host.hold);
+                        self.host(host.child, host.hold, host.seen);
                     }
                 }
                 DockMessage::Close(close) => {
@@ -258,33 +264,28 @@ impl Docks {
         taken
     }
 
-    pub(super) fn bar(&mut self, instance: EditorInstanceId, action: BarAction) -> bool {
+    /// Passes a docked child's ask for its details to its placer when the host
+    /// spliced its dock, so no frame of its shows a bar; whether it did.
+    pub(super) fn details(&mut self, instance: EditorInstanceId) -> bool {
         if !self.docked(instance) || !self.declared.contains_key(&instance) {
             return false;
         }
-        let Some((placer, child, record)) = self.placer_of(instance) else {
+        let Some((placer, child, _)) = self.placer_of(instance) else {
             return false;
         };
         if let Some(app) = self.apps.get(&placer) {
             self.changed.insert(app.clone());
         }
-        let view = match self.docked(placer) {
-            true => ViewId(record.tab),
-            false => ViewId::MAIN,
-        };
-        self.bars.push((placer, view, child, action));
+        self.details.push((placer, child));
         true
     }
 
-    pub(super) fn take_bars(
-        &mut self,
-        app: &str,
-    ) -> Vec<(EditorInstanceId, ViewId, ChildId, BarAction)> {
+    pub(super) fn take_details(&mut self, app: &str) -> Vec<(EditorInstanceId, ChildId)> {
         let apps = &self.apps;
-        let (taken, kept) = std::mem::take(&mut self.bars)
+        let (taken, kept) = std::mem::take(&mut self.details)
             .into_iter()
-            .partition(|(to, _, _, _)| apps.get(to).is_some_and(|held| held == app));
-        self.bars = kept;
+            .partition(|(to, _)| apps.get(to).is_some_and(|held| held == app));
+        self.details = kept;
         taken
     }
 
@@ -460,6 +461,7 @@ impl Docks {
                     }
                 }
                 self.hosting.remove(&(placer, child));
+                self.epochs.remove(&(placer, child));
             }
             docked = self.docked_set();
         }
@@ -515,11 +517,13 @@ impl Docks {
             if self.hosting.get(&(root, child)) == Some(&Hosting::Awaited) {
                 self.hosting.remove(&(root, child));
             }
+            let epoch = self.next_epoch(root, child);
             self.send(
                 root,
                 DockUpdate::Child(DockDeclaredChild {
                     child,
                     declaration: None,
+                    epoch,
                 }),
             );
         }
@@ -537,14 +541,22 @@ impl Docks {
             if *hosting == Hosting::Placing {
                 *hosting = Hosting::Awaited;
             }
+            let epoch = self.next_epoch(root, child);
             self.send(
                 root,
                 DockUpdate::Child(DockDeclaredChild {
                     child,
                     declaration: Some(declaration),
+                    epoch,
                 }),
             );
         }
+    }
+
+    fn next_epoch(&mut self, root: EditorInstanceId, child: ChildId) -> u64 {
+        self.epoch += 1;
+        self.epochs.insert((root, child), self.epoch);
+        self.epoch
     }
 
     fn spliced(&self, instance: EditorInstanceId, depth: usize) -> Option<DockDeclaration> {
@@ -663,7 +675,7 @@ impl Docks {
         }
     }
 
-    fn host(&mut self, child: DockChild, hold: DockHold) {
+    fn host(&mut self, child: DockChild, hold: DockHold, seen: u64) {
         let DockChild {
             instance: root,
             child,
@@ -679,6 +691,15 @@ impl Docks {
         else {
             return;
         };
+        // Awaited is answered only by a hold sent after the root heard that declaration: one
+        // sent before it says nothing of it, and taking it (a `Placing` while the child was
+        // still placed, say) would leave a child the root is about to host unawaited, dropped
+        // before its answer lands.
+        if self.hosting.get(&(root, child)) == Some(&Hosting::Awaited)
+            && self.epochs.get(&(root, child)).copied().unwrap_or(0) != seen
+        {
+            return;
+        }
         let hosted = match hold {
             DockHold::Hosted(hosted) => {
                 self.hosting.insert((root, child), Hosting::Hosted);
@@ -914,12 +935,12 @@ pub(super) fn is_bar(instance: EditorInstanceId, view: u64) -> bool {
     })
 }
 
-pub(super) fn bar(instance: EditorInstanceId, action: BarAction) -> bool {
-    with(|docks| docks.bar(instance, action))
+pub(super) fn details(instance: EditorInstanceId) -> bool {
+    with(|docks| docks.details(instance))
 }
 
-pub(super) fn take_bars(app: &str) -> Vec<(EditorInstanceId, ViewId, ChildId, BarAction)> {
-    DOCKS.with(|docks| docks.borrow_mut().take_bars(app))
+pub(super) fn take_details(app: &str) -> Vec<(EditorInstanceId, ChildId)> {
+    DOCKS.with(|docks| docks.borrow_mut().take_details(app))
 }
 
 pub(super) fn set_menu(instance: EditorInstanceId, view: ViewId, items: Vec<MenuItem>) {
