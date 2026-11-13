@@ -622,6 +622,13 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
             }
+            // The server will never take this commit as it is: what this device made of the
+            // block is set aside with the reason, to be restored or discarded, rather than
+            // sent again every round.
+            Err(ClientError::Refused(code, _)) if never_taken(code) => {
+                self.move_to_unsent(block, Some(code))?;
+                Ok(Drained::SetAside { block, code })
+            }
             Err(error) => Err(error),
         }
     }
@@ -811,4 +818,11 @@ pub(crate) fn unreachable(error: &ClientError) -> bool {
 
 pub(super) fn lost_access(code: ErrorCode) -> bool {
     matches!(code, ErrorCode::PermissionDenied | ErrorCode::BlockNotFound)
+}
+
+/// A refusal sending the same change again cannot get past: the change itself is wrong (a
+/// malformed request, an object over the size limit), where a quota, a missing key or the
+/// store may come right by the next try.
+fn never_taken(code: ErrorCode) -> bool {
+    matches!(code, ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge)
 }

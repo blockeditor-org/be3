@@ -8,7 +8,10 @@
 //! index one batch in a task (`write`), which applies it to the index's local head and seals
 //! the commit into the outbox, so it is saved offline-first and published by the next drain;
 //! two devices' batches meet as a diverged block and merge by parts. A root with no index gets
-//! one, made under it and named by its `SEARCH_INDEX` metadata.
+//! one, made under it and named by its `SEARCH_INDEX` metadata. A batch or settle whose write
+//! fails is queued again; after `MAX_WRITE_FAILURES` in a row to one index, what it writes waits
+//! for the next connection or a growing delay, searches say they are not complete, and the host
+//! shows the error (`Searching::write_failed`).
 //!
 //! **Searching.** `want` names the searches an owner shows. A search runs in a task over the
 //! index of every root the account views in the open organization (`run`), reading only the
@@ -46,6 +49,13 @@ use crate::{
 /// How often a commit that cannot be read holds a catch-up's watermark back before it is let
 /// go (a history collected under the head it was listed at never reads).
 const MAX_READ_FAILURES: u8 = 3;
+/// Writes to an index that may fail in a row (`Unwritten::Failed`) before its batches and
+/// settles are set aside (`Searching::failing`).
+const MAX_WRITE_FAILURES: u32 = 3;
+/// How long the first batches set aside for an index wait before they are tried again, if no
+/// connection comes first; each time in a row doubles it, up to `FAILING_MOST`.
+const FAILING_FIRST: Duration = Duration::from_secs(30);
+const FAILING_MOST: Duration = Duration::from_secs(300);
 
 /// Hits a search reads from each index, the best first.
 const HITS: usize = 50;
@@ -139,7 +149,6 @@ struct Confirm {
 struct Caught {
     root: Uuid,
     content_type: Uuid,
-    name: String,
     head: Option<CommitId>,
 }
 
@@ -225,6 +234,17 @@ pub struct Searching {
     moving: Vec<Moving>,
     /// Batches given back in a row, by index, for the delay before the next try.
     moved: HashMap<Uuid, u32>,
+    /// Writes that failed in a row (`Unwritten::Failed`), by index: each failed batch or settle
+    /// is queued again, until `MAX_WRITE_FAILURES`.
+    write_failures: HashMap<Uuid, u32>,
+    /// What was set aside after `MAX_WRITE_FAILURES` failed writes to an index in a row, by
+    /// index: queued again on the next connection or once its delay is up.
+    failing: HashMap<Uuid, Failing>,
+    /// Times in a row an index's writes were set aside, for the delay before the next try.
+    set_aside: HashMap<Uuid, u32>,
+    /// Writes a test makes fail before they start (`Unwritten::Failed`).
+    #[cfg(test)]
+    pub(crate) fail_writes: u32,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
@@ -234,6 +254,12 @@ pub struct Searching {
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
+    /// Types whose module a test has fail to start (`held_off`).
+    #[cfg(test)]
+    pub(crate) not_running: HashSet<Uuid>,
+    /// Types a test has no module for on this device (`has_module`).
+    #[cfg(test)]
+    pub(crate) no_module: HashSet<Uuid>,
     /// Set by a test that writes as a device without an indexer.
     pub off: bool,
 }
@@ -242,6 +268,7 @@ impl Searching {
     /// The new connection watches nothing yet.
     pub(crate) fn reconnected(&mut self) {
         self.watching.clear();
+        self.release_failing(None);
     }
 
     /// Queues a block whose head this device's session moved.
@@ -338,6 +365,7 @@ impl Searching {
             && self.waiting.is_empty()
             && self.parked.is_empty()
             && self.moving.is_empty()
+            && self.failing.is_empty()
             && self.creating.is_empty()
     }
 
@@ -435,6 +463,12 @@ impl Searching {
                 drains,
             },
         );
+    }
+
+    /// Whether `block` is to be read whole next time (`reread`).
+    #[cfg(test)]
+    pub(crate) fn reads_whole(&self, block: Uuid) -> bool {
+        self.whole.contains(&block)
     }
 
     /// Takes the queued blocks (a test's way to see what `index` would look at).
@@ -549,9 +583,13 @@ impl Searching {
         }
     }
 
-    /// When the first batch held back is due, for the worker to wake at.
+    /// When the first batch held back or set aside is due, for the worker to wake at.
     pub(crate) fn moving_due(&self) -> Option<Duration> {
-        self.moving.iter().map(|moving| moving.due).min()
+        self.moving
+            .iter()
+            .map(|moving| moving.due)
+            .chain(self.failing.values().map(|failing| failing.due))
+            .min()
     }
 
     /// The indexes batches are held back for, which are watched for their next head.
@@ -559,10 +597,101 @@ impl Searching {
         self.moving.iter().map(|moving| moving.index)
     }
 
-    /// A batch was written to `index`: the next one given back waits the shortest delay.
+    /// A batch or settle was written to `index`: the next one given back waits the shortest
+    /// delay, and failures count from none.
     pub(crate) fn wrote(&mut self, index: Uuid) {
         self.moved.remove(&index);
+        self.write_failures.remove(&index);
+        self.set_aside.remove(&index);
     }
+
+    /// A batch of `blocks` could not be written to `index` at `now` (`Unwritten::Failed`):
+    /// queued again, those read whole (`whole`) to be read whole again. The
+    /// `MAX_WRITE_FAILURES`th failure in a row sets it aside instead (`failing`), and this says
+    /// so, for the host to show the error.
+    pub(crate) fn write_failed(
+        &mut self,
+        index: Uuid,
+        blocks: Vec<Uuid>,
+        whole: Vec<Uuid>,
+        now: Duration,
+    ) -> bool {
+        self.whole.extend(whole);
+        match self.failed_again(index, now) {
+            Some(failing) => {
+                failing.blocks.extend(blocks);
+                true
+            }
+            None => {
+                self.dirty.extend(blocks);
+                false
+            }
+        }
+    }
+
+    /// A settle could not be written to `index` at `now` (`Unwritten::Failed`): put back first,
+    /// as `write_failed` puts back a batch, and counted with the index's batches.
+    pub(crate) fn settle_failed(&mut self, index: Uuid, settle: Settle, now: Duration) -> bool {
+        match self.failed_again(index, now) {
+            Some(failing) => {
+                failing.settles.push(settle);
+                true
+            }
+            None => {
+                self.settle.entry(index).or_default().insert(0, settle);
+                false
+            }
+        }
+    }
+
+    /// Counts a failed write to `index`, and once that makes `MAX_WRITE_FAILURES` in a row,
+    /// gives what is set aside for it.
+    fn failed_again(&mut self, index: Uuid, now: Duration) -> Option<&mut Failing> {
+        let failures = self.write_failures.entry(index).or_default();
+        *failures += 1;
+        if *failures < MAX_WRITE_FAILURES {
+            return None;
+        }
+        self.write_failures.remove(&index);
+        let runs = self.set_aside.entry(index).or_default();
+        *runs = runs.saturating_add(1);
+        let due = now
+            + FAILING_FIRST
+                .saturating_mul(1 << (*runs - 1).min(16))
+                .min(FAILING_MOST);
+        let failing = self.failing.entry(index).or_default();
+        failing.due = due;
+        Some(failing)
+    }
+
+    /// Queues again what was set aside for failing writes: all of it, or what is due at `now`.
+    pub(crate) fn release_failing(&mut self, now: Option<Duration>) {
+        let due: Vec<Uuid> = self
+            .failing
+            .iter()
+            .filter(|(_, failing)| now.is_none_or(|now| failing.due <= now))
+            .map(|(index, _)| *index)
+            .collect();
+        for index in due {
+            let Some(failing) = self.failing.remove(&index) else {
+                continue;
+            };
+            self.dirty.extend(failing.blocks);
+            if !failing.settles.is_empty() {
+                let pages = self.settle.entry(index).or_default();
+                pages.splice(0..0, failing.settles);
+            }
+        }
+    }
+}
+
+/// What is set aside for an index whose writes kept failing (`Searching::failing`).
+#[derive(Default)]
+struct Failing {
+    blocks: Vec<Uuid>,
+    /// Its settles, oldest first, put back before any queued since.
+    settles: Vec<Settle>,
+    due: Duration,
 }
 
 /// The heads of an index a batch held back was given back at: the mirror's and the one the
@@ -683,6 +812,7 @@ async fn index(
             },
             |index| roots_naming.contains(&index),
         );
+        state.search.release_failing(Some(clock.now()));
         state.search.release_moving(
             clock.now(),
             |index| index_heads(peer, graph, index),
@@ -696,7 +826,7 @@ async fn index(
             held.search.writing.extend(settles.keys().copied());
             drop(held);
             make_indexes(peer, shared, tasks, roots);
-            settle_indexes(peer, shared, tasks, settles);
+            settle_indexes(peer, shared, tasks, settles, clock);
             return false;
         }
         let dirty = std::mem::take(&mut held.search.dirty);
@@ -757,6 +887,8 @@ async fn index(
     if let Some((index, blocks)) = batches {
         let mut batch = Batch::default();
         let mut put_blocks = Vec::new();
+        // Blocks read whole, read whole again if the batch is not written.
+        let mut read_whole = Vec::new();
         // What the index holds now, read once a batch: each block's entries say which documents
         // it answered before and which parts' text is held. An index that cannot be loaded
         // gives no entries, so each block is read whole and removes nothing.
@@ -790,6 +922,9 @@ async fn index(
                         .failures
                         .remove(block);
                     put_blocks.push(*block);
+                    if whole {
+                        read_whole.push(*block);
+                    }
                     batch.put.extend(puts);
                 }
                 None => {
@@ -809,7 +944,10 @@ async fn index(
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
         let clock = clock.clone();
         tasks.spawn(async move {
-            let written = write(&peer, index, batch).await;
+            let written = match injected_failure(&shared) {
+                Some(failed) => Err(failed),
+                None => write(&peer, index, batch).await,
+            };
             // Sent before the batch stops counting as busy, so the host is never idle with the
             // sealed commit unsent.
             tasks_held.sync(&peer, &shared);
@@ -840,8 +978,16 @@ async fn index(
                         let heads = index_heads(&peer, &held.graph, index);
                         held.search.hold_moving(index, blocks, heads, clock.now());
                     }
+                    // Queued again: what failed may not fail twice. An index that fails every
+                    // write waits, and says why. Only the blocks read are: one whose commit
+                    // could not be read was left out above, and its read failures count apart.
                     Err(Unwritten::Failed(error)) => {
-                        held.error = Some(format!("Indexing for search failed: {error}"))
+                        if held
+                            .search
+                            .write_failed(index, put_blocks, read_whole, clock.now())
+                        {
+                            held.error = Some(format!("Indexing for search failed: {error}"));
+                        }
                     }
                 }
             }
@@ -849,6 +995,22 @@ async fn index(
         });
     }
     moved
+}
+
+/// A write a test makes fail (`Searching::fail_writes`).
+#[cfg(test)]
+fn injected_failure(shared: &Mutex<Shared>) -> Option<Unwritten> {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let left = &mut held.search.fail_writes;
+    (*left > 0).then(|| {
+        *left -= 1;
+        Unwritten::Failed("a write the test failed".to_owned())
+    })
+}
+
+#[cfg(not(test))]
+fn injected_failure(_: &Mutex<Shared>) -> Option<Unwritten> {
+    None
 }
 
 /// The workspaces in the mirror this device may edit that name no index yet, each marked as
@@ -955,7 +1117,10 @@ fn make_indexes(
 }
 
 /// What a block's documents hold at its head: its name, and each document its type answers
-/// `search-text` with. A type that answers nothing is found by its name alone.
+/// `search-text` with. A type that answers nothing is found by its name alone. The name is the
+/// one the indexed commit carries: a rename is a commit of its own, which reaches the indexer
+/// before the mirror reads the block's new name, and the index keeps only one entry for a
+/// commit, so a name read anywhere else could be the old one for good.
 /// A block's documents to put at its head, and those the index holds for it that its type no
 /// longer answers, to remove. `held` is what the index holds for the block: the parts whose text
 /// it has are handed to the type as indexed, so it does not read them again.
@@ -967,19 +1132,15 @@ async fn puts_of(
     held: &[be_lib_search::Entry],
     whole: bool,
 ) -> Option<(Vec<Put>, Vec<(DocId, be_lib_search::Commit)>)> {
-    let Some((content_type, name, head)) = ({
+    let Some((content_type, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match held.graph.get(block) {
-            Some(node) => Some((
-                node.content_type,
-                node.metadata.name().unwrap_or_default(),
-                node.head,
-            )),
+            Some(node) => Some((node.content_type, node.head)),
             None => held
                 .search
                 .caught
                 .get(&block)
-                .map(|caught| (caught.content_type, caught.name.clone(), caught.head)),
+                .map(|caught| (caught.content_type, caught.head)),
         }
     }) else {
         // Gone from the mirror and from what a catch-up named: nothing to index.
@@ -1019,43 +1180,52 @@ async fn puts_of(
         time: commit.time,
         id: *head.hash().as_bytes(),
     };
-    // Only a module already running is asked: starting one would hold up the worker's loop.
-    // A block a catch-up named may be of a type this device has not run yet: its module is
-    // started once, which is worth it to index what other devices wrote.
-    let from_catch_up = shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .search
-        .caught
-        .contains_key(&block);
-    let known = match from_catch_up {
-        true => replicas.kind(content_type).await.is_some(),
-        false => crate::kind_of(content_type).is_some(),
-    };
+    let name = BlockMetadata::decode(&commit.metadata)
+        .ok()
+        .and_then(|metadata| metadata.name())
+        .unwrap_or_default();
+    // Its module is started if it is not running, as for a block opened, to read the text. A
+    // type no module on this device has (an app not installed here), or whose module does not
+    // start, is put by its name alone, marked partial: a device whose module reads it puts the
+    // same commit in full, which replaces it (`Put::partial`), and searches here stay complete.
+    let readable = has_module(shared, replicas, content_type)
+        && !held_off(shared, content_type)
+        && replicas.kind(content_type).await.is_some();
+    if !readable {
+        let put = Put {
+            doc: DocId {
+                block: block.as_bytes().to_vec(),
+                key: String::new(),
+            },
+            commit: at,
+            source: None,
+            text: Some(Text {
+                name,
+                body: String::new(),
+            }),
+            partial: true,
+        };
+        return Some((vec![put], Vec::new()));
+    }
     let indexed: Vec<[u8; 32]> = held
         .iter()
         .filter(|entry| !whole && !entry.is_removed())
         .filter_map(|entry| entry.source)
         .collect();
-    // Whether the type answered every document: only then is one it no longer answers removed.
-    let (mut documents, answered) = match known {
-        true => {
-            match documents_of(
-                peer,
-                shared,
-                replicas,
-                content_type,
-                &commit,
-                None,
-                &indexed,
-            )
-            .await?
-            {
-                Some(documents) => (documents, true),
-                None => (Vec::new(), false),
-            }
-        }
-        false => (Vec::new(), false),
+    // A type that cannot be asked, or breaks the rules, is held back as a part that could not
+    // be read is: its text is never put in part.
+    let Some(Some(mut documents)) = documents_of(
+        peer,
+        shared,
+        replicas,
+        content_type,
+        &commit,
+        None,
+        &indexed,
+    )
+    .await
+    else {
+        return None;
     };
     if !documents.iter().any(|document| document.key.is_empty()) {
         documents.push(be_sdk_type_api::SearchDocument {
@@ -1065,19 +1235,16 @@ async fn puts_of(
             body: Some(String::new()),
         });
     }
-    let removed = match answered {
-        true => {
-            let answers: HashSet<&str> = documents
-                .iter()
-                .map(|document| document.key.as_str())
-                .collect();
-            held.iter()
-                .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
-                .map(|entry| (entry.doc.clone(), at))
-                .collect()
-        }
-        false => Vec::new(),
-    };
+    // The type answered every document, so one it no longer answers is removed.
+    let answers: HashSet<&str> = documents
+        .iter()
+        .map(|document| document.key.as_str())
+        .collect();
+    let removed = held
+        .iter()
+        .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
+        .map(|entry| (entry.doc.clone(), at))
+        .collect();
     let puts = documents
         .into_iter()
         .map(|document| {
@@ -1103,10 +1270,46 @@ async fn puts_of(
                     .source
                     .map(|source| *be_block_store::PartRef::from(source).hash().as_bytes()),
                 text,
+                partial: false,
             }
         })
         .collect();
     Some((puts, removed))
+}
+
+/// Whether this device has a module for `content_type`, running or not; a test can say it has
+/// none (`Searching::no_module`).
+fn has_module(shared: &Mutex<Shared>, replicas: &Replicas, content_type: Uuid) -> bool {
+    #[cfg(test)]
+    if shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .no_module
+        .contains(&content_type)
+    {
+        return false;
+    }
+    #[cfg(not(test))]
+    let _ = shared;
+    replicas.has_module(content_type)
+}
+
+/// Whether a test has the indexer take `content_type`'s module as not running
+/// (`Searching::not_running`).
+#[cfg(test)]
+fn held_off(shared: &Mutex<Shared>, content_type: Uuid) -> bool {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .not_running
+        .contains(&content_type)
+}
+
+#[cfg(not(test))]
+fn held_off(_: &Mutex<Shared>, _: Uuid) -> bool {
+    false
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
@@ -1123,8 +1326,7 @@ pub(crate) fn capped(mut text: String) -> String {
 
 /// A commit's searchable documents, as its type answers `search-text` (only `keys`, when
 /// some are named; no body for one whose source is in `indexed`, part hashes): `Some(None)`
-/// when the type breaks the rules or cannot be asked, so the block is found by its name alone,
-/// and None when a part could not be read.
+/// when the type breaks the rules or cannot be asked, and None when a part could not be read.
 async fn documents_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
@@ -1409,17 +1611,11 @@ async fn catch_up(
                     && !EDIT_KINDS.contains(&summary.content_type)
             })
             .map(|summary| {
-                let name = peer
-                    .metadata(summary)
-                    .ok()
-                    .and_then(|metadata| metadata.name())
-                    .unwrap_or_default();
                 (
                     summary.id,
                     Caught {
                         root,
                         content_type: summary.content_type,
-                        name,
                         head: summary.head,
                     },
                 )
@@ -1462,9 +1658,11 @@ fn settle_indexes(
     shared: &Arc<Mutex<Shared>>,
     tasks: &Tasks,
     settles: HashMap<Uuid, Settle>,
+    clock: &be_block_client::Clock,
 ) {
     for (index, settle) in settles {
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        let clock = clock.clone();
         tasks.spawn(async move {
             let at = be_lib_search::Commit {
                 time: be_block_commit::now_milliseconds(),
@@ -1481,12 +1679,16 @@ fn settle_indexes(
                 watermark: Some(settle.sequence),
                 ..Batch::default()
             };
-            let written = write(&peer, index, batch).await;
+            let written = match injected_failure(&shared) {
+                Some(failed) => Err(failed),
+                None => write(&peer, index, batch).await,
+            };
             tasks_held.sync(&peer, &shared);
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.search.writing.remove(&index);
             match written {
                 Ok(Some(needs_text)) => {
+                    held.search.wrote(index);
                     held.search.answers.clear();
                     held.search.reread(
                         needs_text
@@ -1503,8 +1705,11 @@ fn settle_indexes(
                         .or_default()
                         .insert(0, settle);
                 }
+                // Settled again, first, as a batch is written again.
                 Err(Unwritten::Failed(error)) => {
-                    held.error = Some(format!("Indexing for search failed: {error}"))
+                    if held.search.settle_failed(index, settle, clock.now()) {
+                        held.error = Some(format!("Indexing for search failed: {error}"));
+                    }
                 }
             }
             drop(held);

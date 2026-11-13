@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::*;
 use crate::embedded_server;
+use crate::search::Searching;
 
 mod a_batch_given_back_waits_for_its_index_to_move_on_or_a_growing_delay;
 mod a_batch_on_an_index_head_the_server_let_go_is_written_on_the_newer_one;
@@ -16,16 +17,20 @@ mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
 mod a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside;
 mod a_block_file_brings_a_tree_back_as_a_copy;
+mod a_block_is_indexed_by_the_name_its_commit_carries;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
 mod a_block_made_while_a_listing_is_answered_stays_listed;
 mod a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
+mod a_block_of_a_type_without_a_module_is_found_by_its_name_until_a_full_put;
 mod a_block_opens_from_what_this_device_saved_before_its_session_is_joined;
 mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits;
+mod a_block_whose_module_does_not_start_is_found_by_its_name_then_its_text;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
+mod a_catch_up_settle_that_fails_to_write_is_settled_again_first;
 mod a_chat_is_reindexed_without_reading_its_closed_segments_again;
 mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
 mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
@@ -72,6 +77,9 @@ mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
 mod a_search_finds_what_another_device_indexes_while_this_one_is_online;
 mod a_search_index_is_tried_again_when_the_reason_it_failed_has_passed;
 mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_error;
+mod a_search_index_set_aside_is_tried_again_after_a_growing_delay;
+mod a_search_index_that_fails_every_write_waits_for_the_next_connection;
+mod a_search_index_write_that_fails_is_queued_again;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
@@ -100,6 +108,7 @@ mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner;
+mod an_owner_whose_lease_lapsed_journals_on_without_an_error;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
@@ -1065,6 +1074,7 @@ impl Device {
                         name: "Note".to_owned(),
                         body: text.to_owned(),
                     }),
+                    partial: false,
                 }],
                 ..be_lib_search::Batch::default()
             };

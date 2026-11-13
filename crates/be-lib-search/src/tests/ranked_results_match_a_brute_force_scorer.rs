@@ -27,6 +27,7 @@ impl Random {
                 name: self.words(3),
                 body: self.words(25),
             }),
+            partial: false,
         }
     }
 }

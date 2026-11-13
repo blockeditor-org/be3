@@ -141,6 +141,7 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
                 commit: later(2),
                 source: segment.source,
                 text: None,
+                partial: false,
             }],
             ..be_lib_search::Batch::default()
         };

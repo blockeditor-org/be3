@@ -7,8 +7,11 @@ fn revision_history_previews_and_restores_a_text_file() {
     host.click("#text.surface");
     host.type_text("Original revision");
     // History keeps one state per minute, the last: read the original once its minute is over,
-    // and make the next edit a minute after that.
+    // and make the next edit a minute after that. It is the server's history, so read it once
+    // every seal of the typing has reached the server: one still on its way lands in the same
+    // minute and takes the original's place in its row.
     host.pause(60_000);
+    host.synced();
     host.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
     host.click("Tab \"History\"");
     host.wait("UTC · Current");

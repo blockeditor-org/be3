@@ -731,6 +731,11 @@ impl<H: Host> Replicas<H> {
         Some((ticket, answered))
     }
 
+    /// Whether a module on this device has the type, whether or not it runs.
+    pub fn has_module(&self, content_type: Uuid) -> bool {
+        self.modules.module_of(content_type).is_some()
+    }
+
     pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
         if let Some(module) = self.modules.module_of(content_type) {
             self.modules.load(module).await;
@@ -2539,10 +2544,16 @@ impl<H: Host> Replicas<H> {
         replica: ReplicaId,
         call: Call,
     ) -> bool {
-        let Some((block, content_type, made_up, joining)) = self
-            .open
-            .get(&replica)
-            .map(|open| (open.block, open.content_type, open.made_up, open.joining))
+        let Some((block, content_type, made_up, joining, current)) =
+            self.open.get(&replica).map(|open| {
+                (
+                    open.block,
+                    open.content_type,
+                    open.made_up,
+                    open.joining,
+                    open.session.generation,
+                )
+            })
         else {
             return false;
         };
@@ -2657,7 +2668,11 @@ impl<H: Host> Replicas<H> {
                     sequence: base.sequence,
                     state: base.state,
                 };
-                let online = !made_up && peer.is_attached();
+                // A rebase the module made in a session that has since been replaced (the
+                // made-up one it journals in while joining, or a lease that passed) is kept on
+                // this device only: the server keeps a journal for its current generation alone,
+                // and the module rebases again in the session that replaced it before it appends.
+                let online = !made_up && peer.is_attached() && generation == current;
                 // An own commit: one a replica of this host sealed, or one this device's outbox
                 // keeps.
                 let own = base.commit.is_some_and(|commit| {
