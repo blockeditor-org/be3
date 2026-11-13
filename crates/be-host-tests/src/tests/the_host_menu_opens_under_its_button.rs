@@ -4,8 +4,12 @@ use super::*;
 fn the_host_menu_opens_under_its_button() {
     let mut host = HostTest::start(Options::default());
     let button = "#file-tree.host-menu";
+    // The menu's first row is the sync status: a host just started may still be sending what it
+    // made, which the painting would show as syncing.
+    host.synced();
     host.click(button);
     host.wait("#host.menu.status");
+    host.wait("All changes saved");
     let (button_x, button_y, button_width, button_height) = host.place(button);
     let (menu_x, menu_y, menu_width, _) = host.place("#host.menu.status");
     let below = button_y + button_height;
