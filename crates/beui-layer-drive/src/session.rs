@@ -173,6 +173,8 @@ fn kind(command: &str) -> Option<Kind> {
         | "offline" | "network" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait" | "env"
         | "windows" | "paint" | "overflows" => Kind::Reading,
+        // Old names, here only so the parser refuses them with a pointer to the new forms.
+        "gone" | "reveal" | "shown" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" | "xr" => Kind::Platform,
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
