@@ -12,7 +12,6 @@ fn renaming_a_row_edits_its_name_in_place() {
     let notes = Uuid::from_u128(5);
     let kind = Uuid::from_u128(1);
     fixture.test.catalog(Catalog {
-        plain_files: Vec::new(),
         types: vec![BlockTypeDescriptor {
             block_type: kind.into_bytes(),
             display_name: "Note".to_owned(),
@@ -20,6 +19,7 @@ fn renaming_a_row_edits_its_name_in_place() {
             icon_codepoint: ICON_FILE_TEXT.as_str().to_owned(),
             children: ChildOperations::default(),
             press: be_sdk_beui::Press::Open,
+            plain_file: false,
         }],
         ..Catalog::default()
     });

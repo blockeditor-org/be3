@@ -13,7 +13,6 @@ fn icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() 
     let kind = Uuid::from_u128(1);
     let block = Uuid::from_u128(5);
     fixture.test.catalog(Catalog {
-        plain_files: Vec::new(),
         types: vec![BlockTypeDescriptor {
             block_type: kind.into_bytes(),
             display_name: "Note".to_owned(),
@@ -21,6 +20,7 @@ fn icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() 
             icon_codepoint: ICON_FILE_TEXT.as_str().to_owned(),
             children: ChildOperations::default(),
             press: be_sdk_beui::Press::Open,
+            plain_file: false,
         }],
         ..Catalog::default()
     });

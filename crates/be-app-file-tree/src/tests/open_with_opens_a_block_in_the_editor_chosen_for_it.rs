@@ -11,7 +11,6 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
     let block = Uuid::from_u128(2);
     let (built_in, debug) = (Uuid::from_u128(3), Uuid::from_u128(4));
     fixture.test.catalog(Catalog {
-        plain_files: Vec::new(),
         types: vec![BlockTypeDescriptor {
             block_type: block_type.into_bytes(),
             display_name: "Note".to_owned(),
@@ -19,6 +18,7 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
             press: be_sdk_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![

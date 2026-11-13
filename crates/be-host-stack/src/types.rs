@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 pub use be_block_type_host::Source;
 pub(super) use be_block_type_host::{Modules, in_process};
-pub use be_block_type_host::{Plain, is_known, kind_of, kinds_revision, plain_of};
+pub use be_block_type_host::{is_known, kind_of};
 
 fn described(content_type: Uuid, name: &str, icon: &str, color: [u8; 3]) -> BlockTypeDescriptor {
     BlockTypeDescriptor {
@@ -21,6 +21,7 @@ fn described(content_type: Uuid, name: &str, icon: &str, color: [u8; 3]) -> Bloc
         icon_codepoint: icon.to_owned(),
         children: ChildOperations::default(),
         press: Press::Open,
+        plain_file: false,
     }
 }
 

@@ -38,8 +38,8 @@ fn a_file_with_no_editor_of_its_own_opens_in_the_program_for_its_extension() {
         icon_codepoint: String::new(),
         children: be_sdk_api::ChildOperations::default(),
         press: be_sdk_api::Press::Open,
+        plain_file: true,
     });
-    catalog.plain_files.push(BOOK_TYPE.into_bytes());
     catalog.editors = vec![be_sdk_beui::EditorDescriptor {
         editor: READER.into_bytes(),
         edits: be_sdk_beui::Edits::Any,

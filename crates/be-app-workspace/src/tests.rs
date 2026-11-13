@@ -530,10 +530,10 @@ fn catalog() -> be_sdk_beui::Catalog {
                 reorder: holds,
             },
             press: be_sdk_api::Press::Open,
+            plain_file: false,
         }
     };
     be_sdk_beui::Catalog {
-        plain_files: Vec::new(),
         types: vec![
             kind(FolderContent::CONTENT_TYPE, "Folder", "\u{e0d7}"),
             kind(WorkspaceContent::CONTENT_TYPE, "Workspace", "\u{e2d0}"),

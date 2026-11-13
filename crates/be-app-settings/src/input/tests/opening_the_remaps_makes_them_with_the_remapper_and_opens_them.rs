@@ -9,7 +9,6 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
     editor.set_size(Vec2::new(800.0, 1400.0));
     let remapper = Uuid::new_v4();
     editor.catalog(Catalog {
-        plain_files: Vec::new(),
         types: Vec::new(),
         templates: Vec::new(),
         editors: vec![EditorDescriptor {

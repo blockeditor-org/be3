@@ -520,8 +520,12 @@ process in tests:
   `Source` (in process, wasmtime, or a web worker), and answers clocks and
   sleeps. A source that declares its types starts lazily, on the first call
   to it, so a host runs only the modules its blocks use; what a host must
-  know without running one (names, icons) comes from the manifest; the
-  catalog apps watch gains a type's plain-file form once its module started. `started(sources)` starts all, as `be` and `be sync` do. A
+  know without running one (names, icons, `plain_file`) comes from the
+  manifest, and be-tool-cli's
+  `a_manifest_says_which_of_its_types_have_a_plain_file` holds `plain_file`
+  to the module's `type-info.plain`, which `be` and `be sync` read without
+  manifests (decisions/plain_file_stays_in_the_manifest.md).
+  `started(sources)` starts all, as `be` and `be sync` do. A
   module's types are taken only if its manifest declares them
   (`Source::declaring`).
 - `replicas`: `Replicas<H: Host>`, the replica IO of

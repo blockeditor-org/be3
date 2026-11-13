@@ -185,10 +185,6 @@ interface shell-types {
     /// The block types, templates and editors the host has.
     record catalog {
         types: list<block-type-descriptor>,
-        /// The types with a plain-file form (`read-plain-file`), as their
-        /// modules said once they started; a type whose module has not
-        /// started yet joins when it does.
-        plain-files: list<block-type-id>,
         templates: list<template-descriptor>,
         editors: list<editor-descriptor>,
     }

@@ -106,6 +106,10 @@ pub struct BlockTypeDocument {
     /// so its database never leaves without it).
     #[serde(default)]
     pub exported_whole: bool,
+    /// The type has a plain-file form, so the file tree offers export before the module has
+    /// run. A be-tool-cli test holds every manifest to its module.
+    #[serde(default)]
+    pub plain_file: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -260,6 +264,7 @@ impl BlockTypeDocument {
                 icon_codepoint: self.icon,
                 children: self.children,
                 press: self.press,
+                plain_file: self.plain_file,
             },
             module: self.module,
             exported_whole: self.exported_whole,

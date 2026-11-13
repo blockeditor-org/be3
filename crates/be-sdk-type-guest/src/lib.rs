@@ -70,6 +70,9 @@ pub struct Registration {
     info: TypeInfo,
     open: fn(Opened) -> Box<dyn AnyReplica>,
     plain: fn(Opened) -> Box<dyn AnyReplica>,
+    /// The type's default content and its description, which `Module::types` fills
+    /// `info` with once `start` has seeded the module's entropy.
+    blank: fn() -> (Vec<u8>, Description),
     merge: MergeFn,
     merge_parts: Option<MergePartsFn>,
     /// The replica's merge by parts, a `replica::PartsMerge` of the type's content.
@@ -97,11 +100,15 @@ impl Registration {
                 first_part: C::LOADS == Loads::FirstPart,
                 merges_parts: false,
                 whole_bytes: C::WHOLE_BYTES,
-                blank: C::default().encode(),
-                blank_description: describe(&C::default(), Uuid::nil()),
+                blank: Vec::new(),
+                blank_description: Description::default(),
             },
             open: open::<C, NoHistory>,
             plain: open::<C, NoHistory>,
+            blank: || {
+                let blank = C::default();
+                (blank.encode(), describe(&blank, Uuid::nil()))
+            },
             merge: merge::<C>,
             merge_parts: None,
             replica_merge: None,
@@ -394,7 +401,14 @@ impl Module {
             .types
             .borrow()
             .iter()
-            .map(|kind| kind.info.clone())
+            .map(|kind| {
+                let (blank, blank_description) = (kind.blank)();
+                TypeInfo {
+                    blank,
+                    blank_description,
+                    ..kind.info.clone()
+                }
+            })
             .collect()
     }
 

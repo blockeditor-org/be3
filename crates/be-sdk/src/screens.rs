@@ -734,7 +734,7 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
                 icon: Glyph::from_codepoint(&descriptor.icon_codepoint),
                 children: descriptor.children,
                 press: descriptor.press,
-                plain_file: catalog.plain_files.contains(&descriptor.block_type),
+                plain_file: descriptor.plain_file,
             },
         )
     }))

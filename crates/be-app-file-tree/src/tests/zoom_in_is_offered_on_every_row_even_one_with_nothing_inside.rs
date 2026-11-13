@@ -18,6 +18,7 @@ fn zoom_in_is_offered_on_every_row_even_one_with_nothing_inside() {
             icon_codepoint: String::new(),
             children,
             press,
+            plain_file: false,
         }
     };
     let holds = ChildOperations {
@@ -27,7 +28,6 @@ fn zoom_in_is_offered_on_every_row_even_one_with_nothing_inside() {
         reorder: false,
     };
     fixture.test.catalog(Catalog {
-        plain_files: Vec::new(),
         types: vec![
             kind(
                 WorkspaceContent::CONTENT_TYPE,

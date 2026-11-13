@@ -9,7 +9,6 @@ fn a_link_to_a_deleted_block_is_marked_and_can_restore_it() {
     let mut fixture = editor();
     let text_type = Uuid::from_u128(7);
     fixture.test.catalog(Catalog {
-        plain_files: Vec::new(),
         types: vec![BlockTypeDescriptor {
             block_type: text_type.into_bytes(),
             display_name: "Text".to_owned(),
@@ -17,6 +16,7 @@ fn a_link_to_a_deleted_block_is_marked_and_can_restore_it() {
             icon_codepoint: be_sdk_beui::beui::icons::ICON_FILE_TEXT.as_str().to_owned(),
             children: ChildOperations::default(),
             press: be_sdk_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: Vec::new(),
