@@ -12,12 +12,14 @@ use crate::{
     Text, Written,
 };
 
+mod a_commit_time_past_the_readers_bound_counts_as_the_oldest;
 mod a_full_put_replaces_a_partial_one_at_the_same_commit;
 mod a_long_run_of_batches_compacted_a_few_merges_at_a_time_stays_few_segments;
 mod a_merge_over_the_byte_cap_is_not_made;
 mod a_put_of_the_text_already_indexed_moves_only_its_commit;
 mod a_put_without_text_survives_a_merge_with_compaction_or_reindexing;
 mod a_query_reads_few_blocks_while_skipping_a_common_term;
+mod a_reader_whose_clock_is_behind_keeps_honest_times;
 mod a_reindexed_document_no_longer_matches_its_old_words;
 mod a_removal_from_a_clock_far_behind_is_remembered_from_when_it_was_applied;
 mod a_snippet_cuts_at_wide_whitespace_without_splitting_a_character;
@@ -130,7 +132,7 @@ pub(crate) fn put(n: u32, version: u32, time: i64) -> Put {
 }
 
 pub(crate) fn apply(index: &mut Index, store: &mut Store, origin: Id, batch: Batch) {
-    let written = run(index.apply(store, origin, batch)).unwrap();
+    let written = run(index.apply(store, origin, batch, i64::MAX)).unwrap();
     store.keep(&written);
 }
 
@@ -149,7 +151,7 @@ pub(crate) fn from_scratch(documents: &BTreeMap<u32, (u32, i64)>, store: &mut St
 }
 
 pub(crate) fn found(index: &Index, store: &Store, query: &str) -> BTreeSet<DocId> {
-    run(index.search(store, &Query::parse(query), 10_000))
+    run(index.search(store, &Query::parse(query), 10_000, i64::MAX))
         .unwrap()
         .into_iter()
         .map(|hit| hit.doc)
@@ -188,7 +190,7 @@ pub(crate) fn same_answers(a: (&Index, &Store), b: (&Index, &Store), count: u32)
 
 /// Hits in order with their scores.
 pub(crate) fn ranked(index: &Index, store: &Store, query: &str, limit: usize) -> Vec<(DocId, f64)> {
-    run(index.search(store, &Query::parse(query), limit))
+    run(index.search(store, &Query::parse(query), limit, i64::MAX))
         .unwrap()
         .into_iter()
         .map(|hit| (hit.doc, hit.score))

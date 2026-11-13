@@ -87,6 +87,6 @@ fn a_put_without_text_survives_a_merge_with_compaction_or_reindexing() {
 
     // A put without text for a document the index has nothing for.
     let mut index = base.clone();
-    let written = run(index.apply(&store, id(80), unchanged(77, 5))).unwrap();
+    let written = run(index.apply(&store, id(80), unchanged(77, 5), i64::MAX)).unwrap();
     assert_eq!(written.needs_text, [doc(77)]);
 }

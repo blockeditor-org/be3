@@ -26,8 +26,9 @@ trusts `SSL_CERT_FILE`, which is what a cloud environment's proxy needs.
 (`server`, `organization`, `token`, `recovery_phrase`; all secret). `./scripts/be` fetches it
 on first use into `external/.tracker-credentials` (git-ignored) and passes it on. The bundle
 overrides the separate `BE3_SERVER`, `BE3_ORGANIZATION`, `BE3_TOKEN` and `BE3_RECOVERY_PHRASE`.
-`BE3_AUTHORIZATION` sets the gateway header; without it `./scripts/be` sends the key
-`./scripts/buck` saved (guides/build_server.md), and a cloud proxy may add it itself. A bundle
+`BE3_AUTHORIZATION` sets the gateway header; without it `./scripts/be` sends the one in
+`.gateway-authorization` at the checkout's root or `~/.config/be3/gateway-authorization`, and a
+cloud proxy may add it itself. A bundle
 with `"authentication": "proxy"` has no token: the proxy injects it (guides/hosting.md, Proxy
 account credentials).
 

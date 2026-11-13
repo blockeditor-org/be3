@@ -12,14 +12,6 @@ interface host-services {
     use account.{notify-mode};
     use be3:ui/types@0.1.0.{file-filter, file-pick, saved-file, file-save};
 
-    /// What the instance that draws the window does for a block it shows:
-    /// shows its sharing dialog, or closes it (the editor showing the block
-    /// asked to close itself).
-    variant shell-dialog {
-        share,
-        close,
-    }
-
     /// A saved revision of a block: its commit, when it was saved in
     /// milliseconds since the epoch, and whether it is the block's head.
     record revision {
@@ -62,15 +54,16 @@ interface host-services {
     /// The block's saved revisions, newest first.
     list-revisions: async func(block: block-id) -> result<list<revision>, failure>;
 
-    /// Opens a read-only block showing `block` as it was at `commit`, which the
-    /// editor shows until it releases it.
-    preview-revision: async func(block: block-id, commit: commit-id) -> result<block-id, failure>;
+    /// A read-only block showing `block` as it was at `commit`, which the
+    /// editor shows while it holds this. Dropping it closes the preview.
+    resource revision-preview {
+        constructor(block: block-id, commit: commit-id);
+        /// The preview's block once it opened, or why it did not.
+        opened: async func() -> result<block-id, failure>;
+    }
 
     /// Makes `commit`'s content the block's newest revision.
     restore-revision: async func(block: block-id, commit: commit-id) -> result<_, failure>;
-
-    /// Closes a preview `preview-revision` opened.
-    release-revision: async func(preview: block-id);
 
     /// Asks the user for a file to open.
     pick-file: async func(filter: file-filter) -> file-pick;

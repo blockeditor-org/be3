@@ -97,13 +97,14 @@ rebuilds nothing else:
 
 - **buck2 itself**, the release pinned in `scripts/internal/pins`, in `target/tools/`. A `buck2`
   on `PATH` is not used, since each carries its own prelude.
-- **The build server's** hosts and key in `target/build-server.buckconfig`, which `.buckconfig`
-  includes if it exists (guides/build_server.md). `.buckconfig.local` is only ever a person's,
-  such as a local build's (guides/running/local_buck2.md).
+- **The build server's** address and key, or this machine's settings for a local build, in
+  `target/build-server.buckconfig`, which `.buckconfig` includes if it exists
+  (guides/build_server.md). `.buckconfig.local` is only ever a person's
+  (guides/running/local_buck2.md).
 - **An HTTPS proxy relay.** buck2's remote execution client never reads `HTTPS_PROXY`, so when it
   is set `./scripts/buck` builds `scripts/internal/re-relay` with Go (1.24+) and runs two relays
-  on ports picked from the checkout's path; errors go to `target/re-relay.log`. The `nativelink`
-  server always goes through them, with `-http1` (guides/build_server.md). A relay remembers which blobs the
+  on ports picked from the checkout's path, which carry every call through nl.be3.pfg.pw's tunnel
+  (guides/build_server.md); errors go to `target/re-relay.log`. A relay remembers which blobs the
   server holds and answers `FindMissingBlobs` about them itself, and holds back a caller asking
   about a blob another is uploading, so a slow link carries each blob once (`cas.go`).
 - **Retries.** buck2 exits 2 on an infrastructure error, such as a reset partway through a

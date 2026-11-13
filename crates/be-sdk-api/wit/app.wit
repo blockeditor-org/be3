@@ -2,12 +2,11 @@ package be3:app@0.1.0;
 
 /// What an app offers its host.
 interface app {
-    use types.{child-id, opening, present-commit, screen-id, screen-request, size, view-id};
+    use types.{child-id, opening, present-commit, screen-id, screen-request, view-id};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
     use shell-types.{drag-over, focus};
-    use be3:ui/types@0.1.0.{clip-body, rect};
-    use host-services.{shell-dialog};
+    use be3:ui/types@0.1.0.{clip-body, rect, vec2};
     use types.{failure};
     use blocks.{search-location};
 
@@ -26,6 +25,14 @@ interface app {
     record view-frame {
         view: rect,
         scale: f32,
+    }
+
+    /// What the instance that draws the window does for a block it shows:
+    /// shows its sharing dialog, or closes it (the editor showing the block
+    /// asked to close itself).
+    variant shell-dialog {
+        share,
+        close,
     }
 
     /// A dialog the instance that draws the window draws.
@@ -52,7 +59,7 @@ interface app {
         /// Where the focus of the host is.
         focus-changed(focus),
         /// The user resized the editor.
-        resized(size),
+        resized(vec2),
         /// A block or files are dragged over the editor, or dropped on it; none
         /// when what was dragged over it left without being dropped.
         drag(option<drag-over>),

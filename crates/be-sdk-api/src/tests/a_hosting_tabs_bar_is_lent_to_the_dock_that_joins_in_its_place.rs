@@ -13,10 +13,7 @@ fn a_hosting_tabs_bar_is_lent_to_the_dock_that_joins_in_its_place() {
             edge: DockEdge::Top,
             align: DockAlign::Center,
         }),
-        size: Size {
-            width: 200.0,
-            height: 40.0,
-        },
+        size: Vec2 { x: 200.0, y: 40.0 },
         pane: None,
     };
     let mut spliced = declaration();

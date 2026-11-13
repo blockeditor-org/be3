@@ -392,9 +392,9 @@ impl Fixture {
                 held.fullscreen = status.fullscreen;
                 held.notice = status.notice;
                 held.menu_asked = status.menu;
-                held.intrinsic = status.intrinsic.map(|size| be_sdk_beui::Size {
-                    width: size.x,
-                    height: size.y,
+                held.intrinsic = status.intrinsic.map(|size| be_sdk_beui::Vec2 {
+                    x: size.x,
+                    y: size.y,
                 });
             });
             reported = true;

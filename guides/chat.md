@@ -136,11 +136,11 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   refused the commit holding it (`ContentProjection::lacking`,
   guides/blocks/apps.md "Sending"): the replica keeps those edits until the
   server holds them, across editors and replicas. For an owner alone that is
-  every send for `APPEND_INTERVAL` (250 ms) and a round trip, even online. A
-  host or type module restart keeps a commit still in the outbox as sending,
-  but loses edits not yet in a commit (a journal entry the server lacks).
-  be-host-stack tests and chat's editor tests cover it; `drive` cannot cut the
-  server.
+  every send for `APPEND_INTERVAL` (250 ms) and a round trip, even online.
+  After a host or type module restart, the messages the device's own
+  commits in the outbox add over the server's last head show as sending
+  (`ChatContent::unsent_over`) until they drain. be-host-stack tests and
+  chat's editor tests cover it; `drive` cannot cut the server.
 - **Authorship.** It signs each message, edit, deletion and reaction record
   (kept or taken back) through the host's `sign` before writing it, and marks
   a message whose records `verify` does not answer verified: "not verified",

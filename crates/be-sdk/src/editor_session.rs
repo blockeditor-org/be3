@@ -10,7 +10,7 @@ use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, ChildContent, ChildId, ChildPlacement,
     ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId, Failure, FrameChrome,
     FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, View, ViewId, ViewPlacement,
+    ScreenPlacement, ScreenRequest, ScreenWindow, TimedInput, View, ViewId, ViewPlacement,
     ViewSize, ViewportMetrics, WebViewId,
 };
 use be_sdk_ui::BlockCatalog;
@@ -480,9 +480,9 @@ impl EditorSession {
         let intrinsic = self.editor.intrinsic_size();
         if intrinsic != self.intrinsic {
             self.intrinsic = intrinsic;
-            tell.push(ShellMessage::IntrinsicSize(intrinsic.map(|size| Size {
-                width: size.x,
-                height: size.y,
+            tell.push(ShellMessage::IntrinsicSize(intrinsic.map(|size| Vec2 {
+                x: size.x,
+                y: size.y,
             })));
         }
         if let Some(artifact) = &mut self.artifact {
@@ -687,9 +687,9 @@ impl EditorSession {
             state.reported = Some(used);
             sizes.push(ViewSize {
                 screen: placement.screen,
-                logical: Size {
-                    width: used.x,
-                    height: used.y,
+                logical: Vec2 {
+                    x: used.x,
+                    y: used.y,
                 },
             });
         }
@@ -782,10 +782,7 @@ impl EditorSession {
 
     fn rect(&self, view: ViewId) -> Rect {
         self.metrics(view).map_or(Rect::ZERO, |metrics| {
-            Rect::from_min_size(
-                Pos2::ZERO,
-                vec2(metrics.logical.width, metrics.logical.height),
-            )
+            Rect::from_min_size(Pos2::ZERO, metrics.logical)
         })
     }
 
