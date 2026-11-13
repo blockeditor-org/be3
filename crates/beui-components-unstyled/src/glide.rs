@@ -50,7 +50,7 @@ impl GlideMotion {
 #[derive(Default)]
 struct Motion {
     motion: Cell<GlideMotion>,
-    armed: Cell<Option<Pos2>>,
+    armed: Cell<bool>,
     from: Cell<Option<Pos2>>,
     hold: Cell<Option<GlideHold>>,
     resting: Cell<Option<Pos2>>,
@@ -122,7 +122,8 @@ impl GlideApi {
 
 /// Animates its child from where it was to where layout puts it. Bumping `arm`
 /// before a change (a reorder) makes the next move glide rather than jump; `from`
-/// starts a glide from a window point (an item dropped from elsewhere). The glide is
+/// starts a glide from a window point (an item dropped from elsewhere), at once if it is
+/// already placed. The glide is
 /// two frames: the outer one is laid out in place and measured, the inner one is drawn
 /// offset by the spring, timed on the frame clock. `raised` paints it above its
 /// siblings. A glide drawn inside another names it `within`: its moves are then measured
@@ -174,17 +175,50 @@ pub fn Glide(
         </Frame>
     };
     let measured = measure(node);
+    // An arm lasts until a layout has run, and every move that layout makes glides: a frame
+    // can lay out more than once, and moves that cancel out then net to nothing. It ends there,
+    // or it would turn the next move it did not ask for into a glide. An animation's first step
+    // can come in the frame that armed it, before that frame's layout, so it ends at its second.
+    let waited = StoredCell::new(0_u8);
+    let disarm = create_animation(
+        move |_| {
+            waited.update(|steps| steps + 1);
+            waited.get() < 2
+        },
+        move || {
+            stored.try_with(|state| state.armed.set(false));
+        },
+    );
+    let arm_now = move || {
+        stored.with(|state| state.armed.set(true));
+        waited.set(0);
+        disarm.stop();
+        disarm.start();
+    };
     let first = Cell::new(true);
     create_effect(move || {
         arm.get();
         if first.replace(false) {
             return;
         }
-        stored.with(|state| state.armed.set(state.placed.get()));
+        arm_now();
     });
     create_effect(move || {
-        if let Some(from) = from.get() {
-            stored.with(|state| state.from.set(Some(from)));
+        let Some(from) = from.get() else {
+            return;
+        };
+        let state = stored.value();
+        match state.resting.get() {
+            // Placed already, it starts from there now, and is armed so that a move this
+            // same update makes is added on.
+            Some(resting) => {
+                arm_now();
+                let mut motion = state.motion.get();
+                motion.displacement += from - resting;
+                state.motion.set(motion);
+                glide.start();
+            }
+            None => state.from.set(Some(from)),
         }
     });
     create_effect(move || {
@@ -194,17 +228,19 @@ pub fn Glide(
         };
         // Inside another glide, a move is one against that glide's drawn content, which this
         // layout measured with the same offset as this one.
-        let origin = within
+        let content = within
             .and_then(|within| within.try_get())
-            .and_then(|within| within.content.get_untracked())
-            .map_or(Pos2::ZERO, |content| content.rect.min);
-        let placed = Pos2::ZERO + (resting - origin);
+            .and_then(|within| within.content.get_untracked());
+        let placed = match content {
+            Some(content) => Pos2::ZERO + (resting - content.rect.min),
+            None => resting,
+        };
         let mut moved = Vec2::ZERO;
         if let Some(from) = state.from.take() {
             moved += from - resting;
         }
-        if let Some(armed) = state.armed.take() {
-            moved += armed - placed;
+        if let Some(was) = state.placed.get().filter(|_| state.armed.get()) {
+            moved += was - placed;
         }
         state.resting.set(Some(resting));
         state.placed.set(Some(placed));
