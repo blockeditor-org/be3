@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn on_a_narrow_window_the_add_menu_from_the_files_rises_as_a_sheet() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.run(&["resize", "390x800"]);
     open_add_to_my_files(&mut host);
     host.wait("#picker.more");

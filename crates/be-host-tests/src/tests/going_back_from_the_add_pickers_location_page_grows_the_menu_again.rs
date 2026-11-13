@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn going_back_from_the_add_pickers_location_page_grows_the_menu_again() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_add_to_my_files(&mut host);
     host.wait("#picker.import");
     let (_, _, _, full) = host.place("#picker.child");
