@@ -33,6 +33,7 @@ be_wasm_ops_bindgen::generate!({
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
         "host-contact", "host-image", "window-origin", "remap-state", "input-capture", "input-reach", "keyboard-layout", "keyboard-layouts",
+        "screen-input-state", "screen-wall-state", "screen-region-state",
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
@@ -108,7 +109,10 @@ pub use account::{BlockNotifyMode, NotifyMode, PushDevice};
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
-    displays::{HostDisplay, ScreenEdge, ScreenEdgeState, ScreenSide},
+    displays::{
+        HostDisplay, ScreenInput, ScreenInputState, ScreenRegion, ScreenRegionState, ScreenSide,
+        ScreenWall, ScreenWallState,
+    },
     input::{
         CapturedChord, CapturedTrigger, HostInputDevice, InputCapture, InputReach, KeyboardLayout,
         KeyboardLayouts, Pointing, RemapState, WheelTurn,
@@ -132,7 +136,7 @@ pub use guest::account::{
 };
 pub use guest::contacts::ContactsWatch;
 pub use guest::desktop::{
-    displays::{DesktopBarWatch, DisplaysWatch, ScreenEdgesWatch},
+    displays::{DesktopBarWatch, DisplaysWatch, ScreenInputWatch},
     epaper::EpaperWatch,
     input::{
         InputCaptureWatch, InputDevicesWatch, InputReachWatch, KeyboardLayoutsWatch, RemapsWatch,

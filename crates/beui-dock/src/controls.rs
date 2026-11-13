@@ -307,7 +307,6 @@ pub trait DockBarDriver {
     fn moving(&self, bar: TabId) -> bool;
     fn place(&self, bar: TabId, placement: DockBarPlacement);
     fn pop_out(&self, bar: TabId);
-    fn hold_band(&self, bar: TabId, held: bool);
     fn begin_move(&self, bar: TabId, press: PointerPress);
 }
 
@@ -438,14 +437,6 @@ impl DockBarControl {
 
     pub fn direction(&self) -> Direction {
         self.placement().direction()
-    }
-
-    /// Keeps the bar's band out while `held`, where the band hides until revealed (an open panel
-    /// of the bar's, so it does not slide away from under it). Nothing for a hosted bar.
-    pub fn hold_band(&self, held: bool) {
-        if let Some(driver) = self.driver() {
-            driver.hold_band(self.bar, held);
-        }
     }
 
     pub fn menu(&self) -> Memo<Vec<MenuNode>> {

@@ -225,8 +225,10 @@ alone even inside another dock's tab.
   (`DockHostLayout::reveal`). Only a dock whose owner calls `offer_hidden_bands` (the desktop)
   shows Auto-hide in a dock bar's grip menu, and hides every band while a fullscreen tab or
   `set_covered` covers it. The owner hears each band's rect, whether it is covered and whether a
-  bar holds it out (`hidden_bands`; `DockBarControl::hold_band`, which a bar's open panel calls), and
-  decides when to reveal it.
+  bar holds it out (`hidden_bands`), and decides when to reveal it. A bar holds its band out while any
+  overlay opened from inside it, other than an inert one, is open: the dock provides an
+  `OverlaysWithin` (`beui-view/src/components/overlay.rs`) around each bar's content, so a menu, its
+  grip's menu or a panel never has the band slide away from under it.
 - **Fullscreen**: one tab at a time (`DockState::set_fullscreen`) moves its panel into an overlay,
   or a hosted `Window`, over an area; leaving puts it back without rebuilding. The dock binds no key
   to leave: whoever enters offers the way out.

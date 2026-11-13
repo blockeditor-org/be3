@@ -5,16 +5,17 @@ use be_sdk_beui::be_block::{
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
 use be_sdk_beui::beui::native::Document;
-use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
+use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2, pos2};
 use be_sdk_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, ChildId, DisplaysWatch, EditorHost,
     EndingAnswer, EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
     IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
     MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest,
     NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction,
-    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, ScreenEdge,
-    ScreenEdgeState, ScreenEdgesWatch, ScreenSide, SessionEnd, WifiLink, WifiNetwork, WifiRequest,
-    WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, ScreenInput,
+    ScreenInputState, ScreenInputWatch, ScreenRegion, ScreenRegionState, ScreenSide, ScreenWall,
+    ScreenWallState, SessionEnd, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
+    WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
 };
 
 use be_sdk_beui::be_block::{EditorView, EditorViewContent};
@@ -26,7 +27,7 @@ use uuid::Uuid;
 use crate::root::DesktopRoot;
 use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
-mod a_band_over_a_full_screen_window_comes_out_only_for_a_deliberate_push;
+mod a_band_over_a_full_screen_window_comes_out_only_for_a_long_push;
 mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
 mod a_bar_panel_opens_just_past_its_bar_on_any_edge;
@@ -104,7 +105,8 @@ mod alt_f4_closes_the_focused_window_its_focused_dialog_or_a_block_window;
 mod alt_tab_brings_forward_only_the_window_it_ends_on;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
-mod an_auto_hidden_band_comes_out_past_half_a_push_and_goes_once_the_pointer_leaves;
+mod an_auto_hidden_band_comes_out_for_a_long_push_and_goes_as_the_pointer_leaves;
+mod an_auto_hidden_band_stays_out_while_a_menu_from_its_grip_is_open;
 mod arrow_keys_walk_the_status_bar_item_by_item;
 mod bars_docked_down_the_left_lay_their_parts_out_down_it;
 mod bars_of_other_displays_that_cannot_be_read_are_kept_until_reset;
@@ -747,26 +749,37 @@ impl Fixture {
             .and_then(|state| state.refs.first().copied())
     }
 
-    /// Offers the screen edges watch on one 800 by 600 display and auto-hides the bottom band.
+    /// Offers the screen input watch on one 800 by 600 display and auto-hides the bottom band.
     fn auto_hidden(&mut self) -> Rect {
         self.report_screens(vec![monitor("main", SCREEN, 1.0)]);
-        self.edges(&[]);
+        self.screen_input(ScreenInputState {
+            walls: Vec::new(),
+            regions: Vec::new(),
+            touch_downs: 0,
+        });
         let band = self.test.rect_of("dock.bar.band.bottom");
         self.bar_menu(STATUS_BAR, &["auto-hide"]);
-        self.edges(&[bottom_edge(0.0, false)]);
+        self.screen_input(at_foot(0.0, false, false));
         band
     }
 
-    fn edges(&mut self, states: &[ScreenEdgeState]) {
-        self.test.set_watched::<ScreenEdgesWatch>(&states.to_vec());
+    /// Rests the pointer against the foot, having pushed `pushed` in all, long enough for the
+    /// pushes after to count.
+    fn rest_on_foot(&mut self, pushed: f32) {
+        self.screen_input(at_foot(pushed, true, false));
+        self.wait(200);
+    }
+
+    fn screen_input(&mut self, state: ScreenInputState) {
+        self.test.set_watched::<ScreenInputWatch>(&state);
         self.settle();
     }
 
-    fn sent_edges(&mut self) -> Vec<ScreenEdge> {
+    fn sent_input(&mut self) -> ScreenInput {
         self.test
-            .take_host_calls(be_sdk_test::requested::set_edges)
+            .take_host_calls(be_sdk_test::requested::set_screen_input)
             .pop()
-            .expect("the desktop told the host its edges")
+            .expect("the desktop told the host its walls and regions")
     }
 
     /// Paints frame after frame for about `millis` of the frame clock, a frame interval each.
@@ -1197,14 +1210,37 @@ fn tray_click(fixture: &Fixture, id: &str) -> be_sdk_beui::TrayClick {
     }
 }
 
-fn bottom_edge(pushed: f32, near: bool) -> ScreenEdgeState {
-    ScreenEdgeState {
-        id: 1,
-        pushed,
-        near,
-        pull: None,
-        pulls: 0,
-        pulled: 0.0,
-        taps_away: 0,
+/// What the host says of the bottom band of the only display: its wall, pushed `pushed` in all
+/// and with the pointer `against` it, and whether the pointer is `near` the band once it is out.
+fn at_foot(pushed: f32, against: bool, near: bool) -> ScreenInputState {
+    ScreenInputState {
+        walls: vec![ScreenWallState {
+            id: 1,
+            against,
+            pushed,
+        }],
+        regions: vec![
+            foot_region(FOOT_SWIPE),
+            ScreenRegionState {
+                pointer: near,
+                ..foot_region(FOOT_KEEP)
+            },
+        ],
+        touch_downs: 0,
+    }
+}
+
+/// The swipe strip and the band's keep region of the bottom band of the only display.
+const FOOT_SWIPE: u32 = 2;
+const FOOT_KEEP: u32 = 3;
+
+fn foot_region(id: u32) -> ScreenRegionState {
+    ScreenRegionState {
+        id,
+        pointer: false,
+        touch_downs: 0,
+        touch: None,
+        lifts: 0,
+        lifted: None,
     }
 }
