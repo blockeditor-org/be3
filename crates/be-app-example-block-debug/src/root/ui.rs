@@ -43,15 +43,16 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                 })
         })
     });
+    // The block's first child, in an editor of its own: a block is never placed inside itself.
+    let children = editor.watch_blocks(BlockQuery::Children(editor.block_id()));
     let target = create_memo(move || {
-        listed.with(|listed| {
+        children.with(|listed| {
             listed
                 .as_ref()
                 .ok()
                 .and_then(|list| list.first())
                 .map(|info| {
-                    // The block in an editor of its own, never this one: placed with the editor
-                    // that holds it, a child would share this very view.
+                    // Never this editor: a child placed with the editor holding it shares its view.
                     let types = editor.block_types();
                     ChildTarget {
                         editor: types
@@ -103,8 +104,8 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
     }
 }
 
-/// The block in its own editor, in a popover: a child placed above an anchored view, which
-/// every host shows over it (guides/running/web.md, Apps on the page).
+/// The block's first child in its own editor, in a popover: a child placed above an anchored
+/// view, which every host shows over it (guides/running/web.md, Apps on the page).
 #[component]
 fn Preview(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
     view! {
