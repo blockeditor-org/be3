@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use crate::choice::{Collapsing, Kind, SegmentFace, Wide};
 use crate::frame::{Border, Frame, Radius};
 use crate::list::List;
-use crate::tokens::{Space, use_space};
+use crate::tokens::Space;
 use beui_components_unstyled::{Choice, ChoiceOption};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -34,7 +34,7 @@ pub fn SegmentedControl(
                         selected={wide.selected}
                         kind=Kind::Radio
                         direction=Direction::Horizontal
-                        spacing={use_space(SEGMENT_SPACING).get_untracked()}
+                        spacing={SEGMENT_SPACING.px()}
                         label
                     >|handle|
                         <SegmentFace handle />
