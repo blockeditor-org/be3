@@ -270,6 +270,13 @@ pub struct TextModel {
     revision: Cell<u64>,
     pub(crate) decor: RefCell<Decor>,
     pub(crate) overlay: RefCell<Option<(Rc<dyn SlotHost<Node>>, SlotId)>>,
+    /// The layout pass drawing the decoration, held by the model rather than a scope, since a
+    /// selection hook may first decorate a text from an event handler, outside any scope.
+    #[cfg_attr(
+        not(target_arch = "wasm32"),
+        expect(dead_code, reason = "only the browser lays decoration out")
+    )]
+    decorating: RefCell<Option<Rc<dyn Fn() -> bool>>>,
 }
 
 thread_local! {
@@ -299,6 +306,7 @@ impl TextModel {
             revision: Cell::new(0),
             decor: RefCell::default(),
             overlay: RefCell::default(),
+            decorating: RefCell::default(),
         });
         MODELS.with(|models| models.borrow_mut().insert(node, model.clone()));
         on_cleanup(move || {
@@ -431,9 +439,10 @@ impl TextModel {
         #[cfg(target_arch = "wasm32")]
         {
             let model = Rc::downgrade(self);
-            crate::frame::on_layout(Rc::new(move || {
-                model.upgrade().is_some_and(|model| web::decorate(&model))
-            }));
+            let pass: Rc<dyn Fn() -> bool> =
+                Rc::new(move || model.upgrade().is_some_and(|model| web::decorate(&model)));
+            crate::frame::hold_layout(&pass);
+            *self.decorating.borrow_mut() = Some(pass);
         }
     }
 

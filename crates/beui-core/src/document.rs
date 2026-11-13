@@ -122,6 +122,11 @@ pub struct Document {
     pub(crate) back_handlers: crate::back::BackHandlers,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: Rc<RefCell<crate::timer::Timers>>,
+    /// Counts the frames that ran timers, so a frame fires each timer at most once.
+    timer_frame: Cell<u64>,
+    /// From the frame's timers until it asks for a frame for the next one due: a timer started
+    /// meanwhile is fired late in the frame or asked for then, so it asks for nothing itself.
+    timers_open: Cell<bool>,
     scale: ::beui_reactive::OwnedSignal<f32>,
     attached: ::beui_reactive::OwnedSignal<u64>,
     focus_visible: ::beui_reactive::OwnedSignal<bool>,
@@ -377,6 +382,8 @@ impl Document {
             back_handlers: crate::back::BackHandlers::default(),
             back_gesture: None,
             timers: Rc::default(),
+            timer_frame: Cell::new(0),
+            timers_open: Cell::new(false),
             scale: ::beui_reactive::OwnedSignal::new(1.0),
             attached: ::beui_reactive::OwnedSignal::new(0),
             focus_visible: ::beui_reactive::OwnedSignal::new(false),
@@ -568,6 +575,19 @@ impl Document {
 
     pub fn context(&self) -> Option<&Context> {
         self.viewport.as_ref().map(|(context, _, _)| context)
+    }
+
+    /// Asks for a frame once `delay` has passed for a timer started now, armed in `armed`,
+    /// unless it is this document's and this frame will still fire it or ask for it. A timer
+    /// of another document on the thread (an inspector's, a keyboard host's) asks as before.
+    pub(crate) fn timer_started(
+        &self,
+        armed: &Rc<RefCell<crate::timer::Timers>>,
+        delay: std::time::Duration,
+    ) {
+        if !(self.timers_open.get() && Rc::ptr_eq(armed, &self.timers)) {
+            self.request_repaint_after(delay);
+        }
     }
 
     pub fn request_repaint_after(&self, delay: std::time::Duration) {
@@ -787,7 +807,16 @@ impl Document {
             self.attached.update(|attached| *attached += 1);
         }
         self.publish_pointer_lock(reattached);
+        self.timer_frame.set(self.timer_frame.get() + 1);
+        self.timers_open.set(true);
+        self.fire_due_timers();
+    }
+
+    /// Fires the timers due by the frame's time that have not fired in this frame, and says
+    /// whether any did.
+    fn fire_due_timers(&self) -> bool {
         let now = self.now;
+        let frame = self.timer_frame.get();
         let mut timers = self.timers.borrow_mut();
         timers.retain(|timer| {
             timer
@@ -797,12 +826,13 @@ impl Document {
         let due: Vec<_> = timers
             .iter()
             .filter_map(Weak::upgrade)
-            .filter(|timer| timer.due().is_some_and(|due| due <= now))
+            .filter(|timer| timer.due().is_some_and(|due| due <= now) && timer.fired_in() != frame)
             .collect();
         drop(timers);
-        for timer in due {
-            timer.fire(now);
+        for timer in &due {
+            timer.fire(now, frame);
         }
+        !due.is_empty()
     }
 
     fn next_timer(&self) -> Option<Instant> {
@@ -1548,7 +1578,19 @@ impl Document {
         }
         measurement.layout_passes =
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                self.update_layout(ctx, rect)
+                let mut passes = self.update_layout(ctx, rect);
+                // A timer started during the frame and due already (a zero-delay one, started
+                // by what the frame's input, effects or layout changed) is work due now: the
+                // frame fires it once laid out and lays out what it changed, rather than
+                // leaving it to a frame that asks for no time and so, with the clock stopped,
+                // to whatever else draws one.
+                for _ in 0..LATE_TIMER_ROUNDS {
+                    if !crate::current::run_in(self, |document| document.fire_due_timers()) {
+                        break;
+                    }
+                    passes += self.update_layout(ctx, rect);
+                }
+                passes
             });
         self.sync_escapes();
         crate::current::run_in(self, Document::refresh_inert_embeds);
@@ -1687,6 +1729,7 @@ impl Document {
         if let Some(deadline) = self.next_paint {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
+        self.timers_open.set(false);
         if let Some(deadline) = self.next_timer() {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
@@ -3044,6 +3087,7 @@ fn failing_unsettled_layout() -> bool {
 }
 
 const LAYOUTS_PER_FRAME: usize = 8;
+const LATE_TIMER_ROUNDS: usize = 4;
 const HOOK_RUNS_PER_FRAME: usize = 64;
 
 impl Document {

@@ -25,7 +25,7 @@ fn of_type(content_type: Uuid) -> Option<RetentionPolicy> {
                     interval: 6 * HOUR,
                 },
             ],
-            drop_after: Some(DAY),
+            drop_after: Some(be_block::search_index::SEARCH_INDEX_KEPT),
         }),
         _ => None,
     }

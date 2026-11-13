@@ -602,6 +602,15 @@ pub struct Shared {
     pub unsealed: usize,
     pub saves: u64,
     pub owing: usize,
+    /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
+    pub owing_blocks: Vec<be_block_type_host::Owing>,
+    /// The blocks `undurable` counts, for `busy` to name.
+    pub undurable_blocks: Vec<be_block_type_host::Owing>,
+    /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
+    /// host keeps asking.
+    pub seals_owed: u64,
+    /// What the worker waits on the type modules for (`Host::asking`), for `busy` to name.
+    pub asking: Vec<String>,
     /// Open replicas with edits that are not in the device's journal yet.
     pub undurable: usize,
     pub connected: bool,
@@ -701,6 +710,36 @@ impl Wall {
 }
 
 impl Shared {
+    /// Logs each child that dropped out of its parent's references after they had taken it in
+    /// (`Graph::take_dropped`), with what this device knows of the parent: such a block reads
+    /// as deleted, and the parent as missing it, which would lose it for the person. Nothing is
+    /// logged, or computed, while nothing dropped.
+    pub(crate) fn log_dropped(&mut self) {
+        for dropped in self.graph.take_dropped() {
+            let parent = self.graph.get(dropped.parent);
+            let replica = self
+                .owing_blocks
+                .iter()
+                .chain(&self.undurable_blocks)
+                .find(|owing| owing.block == dropped.parent)
+                .map_or_else(|| "none owing or undurable".to_owned(), ToString::to_string);
+            eprintln!(
+                "be-host: {child} dropped out of its parent {parent}'s references, set by {by}, \
+                 after they had held it: parent head {head:?}, references {references:?}, open \
+                 here: {open}, its replica: {replica}, connected: {connected}",
+                child = dropped.child,
+                parent = dropped.parent,
+                by = dropped.by,
+                head = parent.and_then(|node| node.head),
+                references = parent
+                    .map(|node| node.references.clone())
+                    .unwrap_or_default(),
+                open = self.blocks.contains_key(&dropped.parent),
+                connected = self.connected,
+            );
+        }
+    }
+
     /// What apps are told of a block depends on whether the host is connected
     /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
     fn set_connected(&mut self, connected: bool) {
@@ -764,11 +803,6 @@ impl Shared {
             ),
             (self.typing, "a block type module has yet to settle"),
             (self.uploading > 0, "the block store uploads files"),
-            (self.owing > 0, "the block store owes edits a seal"),
-            (
-                self.undurable > 0,
-                "the block store keeps edits the device's journal does not hold yet",
-            ),
             (
                 self.graph.fetching(),
                 "the block store loads the organization's graph",
@@ -777,6 +811,25 @@ impl Shared {
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
         .collect();
+        if self.undurable > 0 {
+            let blocks: Vec<String> = self
+                .undurable_blocks
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            reasons.push(format!(
+                "the block store keeps edits the device's journal does not hold yet, for {}",
+                blocks.join(", ")
+            ));
+        }
+        if self.owing > 0 {
+            let blocks: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
+            reasons.push(format!(
+                "the block store owes edits a seal, for {} (sealed what was owed {} time(s))",
+                blocks.join(", "),
+                self.seals_owed
+            ));
+        }
         if let Some(searching) = self.search.busy_with(super::search::wants_index(self)) {
             reasons.push(format!("the block store's search is busy: {searching}"));
         }
@@ -784,6 +837,12 @@ impl Shared {
             && let Some(step) = self.step
         {
             reasons.push(format!("the block store's loop is busy with {step}"));
+        }
+        if !self.asking.is_empty() {
+            reasons.push(format!(
+                "the block store waits on its type modules for {}",
+                self.asking.join(", ")
+            ));
         }
         reasons
     }
@@ -1136,10 +1195,19 @@ impl Session<'_> {
                 self.replicas.modules.wake_at(),
                 self.retry_at(),
                 self.versions_due,
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .search
+                    .moving_due(),
             ]
             .into_iter()
             .flatten()
             .min();
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .log_dropped();
             step(shared, None);
             let woken = {
                 let waited = std::pin::pin!(wait(
@@ -1240,7 +1308,7 @@ impl Session<'_> {
                         match command {
                             Command::Import(blocks) => {
                                 self.uploads.add(blocks);
-                                ran.done();
+                                ran.done(false);
                             }
                             command => {
                                 let runs = self
@@ -1350,7 +1418,14 @@ impl Session<'_> {
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             step(shared, Some("the search index"));
-            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
+            moved |= super::search::step(
+                peer,
+                shared,
+                self.replicas,
+                &self.tasks.0,
+                &self.config.clock,
+            )
+            .await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
@@ -2114,7 +2189,7 @@ impl Ran<'_> {
         if command.served() && self.peer.is_attached() {
             self.served
                 .start(self.peer, self.shared, self.tasks, command);
-            self.done();
+            self.done(false);
             return false;
         }
         // Boxed: the loop awaits this in several places, and `run`'s future is large.
@@ -2127,9 +2202,10 @@ impl Ran<'_> {
             false => refuse_offline(command, self.shared),
         };
         let Some(command) = command else {
-            self.done();
+            self.done(false);
             return false;
         };
+        let sealed_owed = matches!(command, Command::SealOwed);
         if let Some(block) = command.asks_server_of() {
             self.tasks.sent(self.peer, self.shared, Some(block)).await;
         }
@@ -2254,15 +2330,22 @@ impl Ran<'_> {
                 .await
             }
         };
-        self.done();
+        self.done(sealed_owed);
         applied
     }
 
-    fn done(&self) {
+    fn done(&self, sealed_owed: bool) {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.log_dropped();
             held.pending = held.pending.saturating_sub(1);
-            (held.unsealed, held.owing, held.undurable) = self.replicas.counts();
+            let (owing, undurable);
+            (held.unsealed, owing, undurable) = self.replicas.counts();
+            held.owing = owing.len();
+            held.owing_blocks = owing;
+            held.undurable = undurable.len();
+            held.undurable_blocks = undurable;
+            held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
             held.typing = !self.replicas.modules.settled();
         }
@@ -3246,6 +3329,16 @@ async fn apply(
             {
                 replicas.moved_here(block, head);
             }
+            // A new name is a commit of the block's that its search index has yet to take, as an
+            // edit an open block seals is (`Searching::sealed`), though no session of it is open
+            // (a rename in the files).
+            if defined.is_ok() && changes.iter().any(|(key, _)| *key == be_block::NAME.id) {
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .search
+                    .sealed(block);
+            }
             if let Err(error) = settled(peer, shared, Some(tasks), block, defined).await {
                 record(shared, error);
             }
@@ -3896,9 +3989,15 @@ async fn list(
         // As the outbox stands now, not when the request went: a creation or move kept since,
         // whose block is no longer pending in the graph, is in it (no await from here on).
         let summaries = peer.with_outbox(listing, summaries);
+        // A block the server refused to make left the files (`Graph::forget` when it was set
+        // aside), though its summary still answers from this device (`Peer::summary`), as do
+        // the blocks made in it. One whose edits were set aside for lost access is still on the
+        // server, and stays listed.
         let nodes = summaries
             .iter()
-            .filter(|summary| summary.access.can_know_exists())
+            .filter(|summary| {
+                summary.access.can_know_exists() && peer.refusal(summary.id).is_none()
+            })
             .map(|summary| node_of(peer, summary))
             .collect();
         shared
