@@ -2,9 +2,11 @@ use super::*;
 
 mod a_character_key_is_its_letter_or_digit_or_else_its_place;
 mod a_layout_from_the_config_moves_the_letters;
+mod a_press_whose_release_was_lost_is_let_go_by_the_next_press_and_release;
 mod a_shifted_letter_types_its_capital;
 mod an_unknown_layout_does_not_compile;
 mod control_alt_and_a_function_key_switch_terminals;
+mod held_keys_outlast_a_new_keymap_and_are_released_together;
 mod super_is_its_own_modifier;
 mod the_active_layout_types_its_letters_and_a_switch_keeps_held_modifiers;
 

@@ -1115,6 +1115,10 @@ impl State {
         let focus = id.and_then(|id| self.keyboard_focus(id));
         let keyboard = self.keyboard();
         keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
+        if id.is_none() {
+            // The keys held now reach no window, so their releases will not come here.
+            self.release_keys();
+        }
         self.settle_inhibitors();
         self.settle_constraints();
         if let Some(id) = id {
@@ -1159,12 +1163,20 @@ impl State {
         });
     }
 
+    /// Presses or releases a key in the window with the keyboard. xkb counts the presses of a key
+    /// and lets its modifier go only once as many releases came, so a press of a key already held
+    /// (its release went elsewhere) is dropped, as is a release of a key not held: pressing and
+    /// releasing a key always lets it go.
     pub fn key(&mut self, code: u32, pressed: bool) {
         let keyboard = self.keyboard();
+        let keycode = Keycode::new(code + 8);
+        if keyboard.pressed_keys().contains(&keycode) == pressed {
+            return;
+        }
         let time = self.time();
         keyboard.input::<(), _>(
             self,
-            Keycode::new(code + 8),
+            keycode,
             if pressed {
                 smithay::backend::input::KeyState::Pressed
             } else {
