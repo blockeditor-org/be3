@@ -710,6 +710,36 @@ impl Wall {
 }
 
 impl Shared {
+    /// Logs each child that dropped out of its parent's references after they had taken it in
+    /// (`Graph::take_dropped`), with what this device knows of the parent: such a block reads
+    /// as deleted, and the parent as missing it, which would lose it for the person. Nothing is
+    /// logged, or computed, while nothing dropped.
+    pub(crate) fn log_dropped(&mut self) {
+        for dropped in self.graph.take_dropped() {
+            let parent = self.graph.get(dropped.parent);
+            let replica = self
+                .owing_blocks
+                .iter()
+                .chain(&self.undurable_blocks)
+                .find(|owing| owing.block == dropped.parent)
+                .map_or_else(|| "none owing or undurable".to_owned(), ToString::to_string);
+            eprintln!(
+                "be-host: {child} dropped out of its parent {parent}'s references, set by {by}, \
+                 after they had held it: parent head {head:?}, references {references:?}, open \
+                 here: {open}, its replica: {replica}, connected: {connected}",
+                child = dropped.child,
+                parent = dropped.parent,
+                by = dropped.by,
+                head = parent.and_then(|node| node.head),
+                references = parent
+                    .map(|node| node.references.clone())
+                    .unwrap_or_default(),
+                open = self.blocks.contains_key(&dropped.parent),
+                connected = self.connected,
+            );
+        }
+    }
+
     /// What apps are told of a block depends on whether the host is connected
     /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
     fn set_connected(&mut self, connected: bool) {
@@ -1174,6 +1204,10 @@ impl Session<'_> {
             .into_iter()
             .flatten()
             .min();
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .log_dropped();
             step(shared, None);
             let woken = {
                 let waited = std::pin::pin!(wait(
@@ -2303,6 +2337,7 @@ impl Ran<'_> {
     fn done(&self, sealed_owed: bool) {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.log_dropped();
             held.pending = held.pending.saturating_sub(1);
             let (owing, undurable);
             (held.unsealed, owing, undurable) = self.replicas.counts();
