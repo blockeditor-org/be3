@@ -1,4 +1,4 @@
-use be_sdk_beui::{Drag, be_sdk_ui::BlockLabel};
+use be_sdk_beui::{Drag, Pushed, SearchLocation, be_sdk_ui::BlockLabel};
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
@@ -76,6 +76,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
         });
     });
 
+    select_where_opened(state);
     caret_when_given_the_keyboard(state);
     let typing = state.typing;
     view! {
@@ -220,4 +221,50 @@ fn paste_image(state: State, file: PickedFile) {
     let id = state.create_image_block(&image);
     state.insert_image_embed(id, &source_name);
     state.import_error.set(None);
+}
+
+/// Opened at a search hit's place (`editor-event.reveal`), the text selects the first place its
+/// matched words occur and brings it into view, once the content has loaded.
+fn select_where_opened(state: State) {
+    let revealed = state.editor.pushed(Pushed::Reveal);
+    let wanted = create_signal(None::<SearchLocation>);
+    create_effect(move || {
+        revealed.get();
+        if let Some(at) = untrack(|| state.editor.host().take_reveal()) {
+            wanted.set(Some(at));
+        }
+    });
+    let content = state.text.content();
+    create_effect(move || {
+        content.get();
+        let Some(at) = wanted.get() else {
+            return;
+        };
+        untrack(|| {
+            if !state.text.loaded() {
+                return;
+            }
+            wanted.set(None);
+            // A text block is one document: a hit in any other is not this editor's to show.
+            if !at.key.is_empty() {
+                return;
+            }
+            if let Some(found) = find_words(&state.text.bytes(), &at.text) {
+                state.text.select(found);
+                state.text.reveal_cursor();
+            }
+        });
+    });
+}
+
+/// Where `words` first occur in `text`: as written, else ignoring ASCII case.
+pub(crate) fn find_words(text: &[u8], words: &str) -> Option<std::ops::Range<usize>> {
+    let words = words.as_bytes();
+    if words.is_empty() || words.len() > text.len() {
+        return None;
+    }
+    let at = |same: &dyn Fn(&[u8]) -> bool| text.windows(words.len()).position(same);
+    at(&|window| window == words)
+        .or_else(|| at(&|window| window.eq_ignore_ascii_case(words)))
+        .map(|start| start..start + words.len())
 }

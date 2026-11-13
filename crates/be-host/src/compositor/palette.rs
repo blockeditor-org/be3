@@ -40,6 +40,8 @@ enum Run {
         block: Uuid,
         block_type: Uuid,
         from: Option<Uuid>,
+        /// Where in the block, for a search hit.
+        at: Option<be_sdk_api::SearchLocation>,
     },
 }
 
@@ -52,6 +54,8 @@ pub(crate) struct OpenableBlock {
     /// What the row says under the name: where the block is (the name of the block holding
     /// it), or a search hit's matched text.
     pub(crate) detail: String,
+    /// Where in the block its search hit is, which opening it shows.
+    pub(crate) at: Option<be_sdk_api::SearchLocation>,
 }
 
 /// Where quick open's rows come from. Handed what is typed into quick open and which opening of
@@ -181,6 +185,7 @@ fn choose(rows: Memo<Rc<Vec<Row>>>, key: &str) {
             block,
             block_type,
             from,
+            at,
         }) => super::act(
             from,
             be_host_runtime::EditorAction::OpenBlock(be_host_runtime::BlockOpen {
@@ -188,6 +193,7 @@ fn choose(rows: Memo<Rc<Vec<Row>>>, key: &str) {
                 block_type,
                 via: None,
                 editor: None,
+                at,
             }),
         ),
         None => {}
@@ -221,6 +227,7 @@ fn block_rows(blocks: Vec<OpenableBlock>, from: Option<Uuid>) -> Vec<Row> {
                 block: block.id,
                 block_type: block.block_type,
                 from,
+                at: block.at,
             },
         })
         .collect()
@@ -266,6 +273,10 @@ fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBloc
                 id: node.id,
                 block_type: node.content_type,
                 name: node.metadata.name().unwrap_or_else(|| type_name.to_owned()),
+                at: hit.matches.first().map(|range| be_sdk_api::SearchLocation {
+                    key: hit.key.clone(),
+                    text: hit.snippet[range.clone()].to_owned(),
+                }),
                 detail: hit.snippet,
             });
         }
@@ -329,6 +340,7 @@ fn graph_blocks() -> Vec<OpenableBlock> {
                     block_type: node.content_type,
                     name,
                     detail,
+                    at: None,
                 })
             })
             .collect()

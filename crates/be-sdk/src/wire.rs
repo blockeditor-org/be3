@@ -312,6 +312,9 @@ impl OpenEditor {
                 let block = uuid::Uuid::from_bytes(block);
                 wire.call(instance, move |session| session.show_dialog(block, dialog));
             }
+            EditorEvent::Reveal(at) => {
+                wire.call(instance, move |session| session.reveal(at));
+            }
         }
     }
 }

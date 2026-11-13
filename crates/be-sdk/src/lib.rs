@@ -73,6 +73,7 @@ pub use be_sdk_api::{
     WebViewEvent, WebViewId, WheelTurn, WifiLink, WifiNetwork, WifiRequest, WifiSecurity,
     WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowRequests, WindowsWatch,
 };
+pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, HostTransform, HostView, PaletteMode, ParentView, Scrim, View,
     ViewAnchor, ViewEdge, ViewId, ViewPlacement, ViewRef,

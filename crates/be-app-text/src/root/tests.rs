@@ -13,6 +13,7 @@ use crate::root::embeds::{image_embed_directive, parse_embeds};
 use be_type_text::{TextBlock, TextContent};
 
 mod a_link_to_a_block_you_cannot_see_reads_no_access_beside_one_you_can;
+mod a_text_opened_at_a_search_hit_selects_its_words;
 mod a_long_text_fades_at_the_edges_it_scrolls_past_beside_its_scrollbar;
 mod a_paste_soon_after_typing_is_undone_on_its_own;
 mod a_peers_caret_and_selection_are_drawn_in_their_color;

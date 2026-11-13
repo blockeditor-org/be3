@@ -143,12 +143,14 @@ impl Dragged {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct OpenRequest {
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub via: Option<Uuid>,
     pub editor: Option<Uuid>,
+    /// Where in the block to show it (a search hit's place).
+    pub at: Option<be_sdk_api::SearchLocation>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -469,10 +471,12 @@ pub enum Pushed {
     Heads,
     Docks,
     Searches,
+    /// The editor was opened at a place in its block (`take_reveal`).
+    Reveal,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -487,6 +491,7 @@ impl Pushed {
         Self::Heads,
         Self::Docks,
         Self::Searches,
+        Self::Reveal,
     ];
 }
 
@@ -524,6 +529,7 @@ pub struct EditorHost {
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
     reads: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
+    reveal: Rc<RefCell<Option<be_sdk_api::SearchLocation>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
@@ -684,24 +690,48 @@ impl EditorHost {
     }
 
     pub fn open_block(&self, block_id: Uuid, block_type: Uuid) {
-        self.push_open(block_id, block_type, None, None);
+        self.push_open(block_id, block_type, None, None, None);
     }
 
     pub fn open_block_with(&self, block_id: Uuid, block_type: Uuid, editor: Uuid) {
-        self.push_open(block_id, block_type, None, Some(editor));
+        self.push_open(block_id, block_type, None, Some(editor), None);
     }
 
     pub fn open_block_via(&self, block_id: Uuid, block_type: Uuid, container: Uuid) {
-        self.push_open(block_id, block_type, Some(container), None);
+        self.push_open(block_id, block_type, Some(container), None, None);
     }
 
-    fn push_open(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>, editor: Option<Uuid>) {
+    /// Opens a block at a place in it, a search hit's, which its editor selects where it can.
+    pub fn open_block_at(&self, block_id: Uuid, block_type: Uuid, at: be_sdk_api::SearchLocation) {
+        self.push_open(block_id, block_type, None, None, Some(at));
+    }
+
+    fn push_open(
+        &self,
+        block_id: Uuid,
+        block_type: Uuid,
+        via: Option<Uuid>,
+        editor: Option<Uuid>,
+        at: Option<be_sdk_api::SearchLocation>,
+    ) {
         self.opens.borrow_mut().push(OpenRequest {
             block_id,
             block_type,
             via,
             editor,
+            at,
         });
+    }
+
+    /// The editor was opened at this place in its block (`Pushed::Reveal`): the latest, taken
+    /// once.
+    pub fn take_reveal(&self) -> Option<be_sdk_api::SearchLocation> {
+        self.reveal.borrow_mut().take()
+    }
+
+    pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) {
+        *self.reveal.borrow_mut() = Some(at);
+        self.push(Pushed::Reveal);
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {

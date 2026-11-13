@@ -70,7 +70,7 @@ pub use runtime::{
     preview_image, record_pacing, regenerate_artifact, render_clip, replace_child, replace_gpu,
     report_child_details, report_child_focus, report_children, request_painting, resized,
     restart_app, revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
-    set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
+    reveal, set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
     start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
 };
 pub use runtime::{
@@ -95,12 +95,14 @@ pub fn exiting() {
 
 pub const MAX_LIVE_CHILDREN: usize = 16;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BlockOpen {
     pub id: Uuid,
     pub block_type: Uuid,
     pub via: Option<Uuid>,
     pub editor: Option<Uuid>,
+    /// Where in the block to show, which the host hands its editor once it opens.
+    pub at: Option<be_sdk_api::SearchLocation>,
 }
 
 #[derive(Clone, Debug)]

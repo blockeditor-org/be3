@@ -65,8 +65,14 @@ fn the_filter_lists_what_the_search_index_finds_in_content() {
 
     fixture.test.click(format!("file-tree.hit.{plan}"));
     fixture.settle();
+    let opened = fixture.test.take_opens();
     assert!(
-        fixture.opened().contains(&plan),
-        "choosing a hit opens its block"
+        opened.iter().any(|open| open.block_id == plan
+            && open.at
+                == Some(be_sdk_beui::SearchLocation {
+                    key: String::new(),
+                    text: "launch".to_owned(),
+                })),
+        "choosing a hit opens its block at the words it matched: {opened:?}"
     );
 }

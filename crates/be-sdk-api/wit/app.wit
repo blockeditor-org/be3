@@ -9,6 +9,7 @@ interface app {
     use be3:ui/types@0.1.0.{clip-body, rect};
     use host-services.{shell-dialog};
     use types.{failure};
+    use blocks.{search-location};
 
     /// The user picked command `id` of the menu of the editor's view `view`
     /// (`shell-message.menu`), wherever the menu was shown. `anchor`, in host
@@ -63,6 +64,9 @@ interface app {
         dismiss,
         /// Shows one of the dialogs the instance that draws the window draws.
         show-dialog(dialog-request),
+        /// The block the editor shows was opened at a place in it: the editor
+        /// selects it and brings it into view, where it supports a location.
+        reveal(search-location),
     }
 
     /// An editor instance. Dropping it closes it.

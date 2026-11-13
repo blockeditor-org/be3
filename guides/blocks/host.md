@@ -343,6 +343,14 @@ index and search it locally.
   head, and drops hits the mirror shows
   detached, unviewable or outside `within`; it lists each hit block
   (`Owner::Search`) and shows a hit only once the mirror holds it.
+- **Opening a hit.** Quick open (`OpenableBlock::at`) and the file tree's hit
+  rows (`EditorHost::open_block_at`) open a hit's block with a
+  `search-location`: its document key and the words its first match covers.
+  be-host keeps it (`reveals`) until the editor showing that block is open,
+  then sends it `editor-event.reveal`; be-sdk hands it on as
+  `Pushed::Reveal` and `EditorHost::take_reveal`. The text app selects the
+  first place the words occur, as written or ignoring ASCII case, once its
+  content has loaded; an editor that supports no location ignores it.
 - **Apps** watch a search with `search-watch` (`Editor::search` in
   be-sdk-beui); the file tree's filter lists the hits under "In content", and
   be-host's quick open (`found_blocks` in `compositor/palette.rs`) lists them
