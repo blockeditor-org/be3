@@ -38,11 +38,12 @@ fn a_quoted_name_cannot_fake_what_a_dialog_says() {
     assert!(long.ends_with('\u{2026}'), "{long}");
     let flags = inside(&format!(
         "{}{}",
-        "a".repeat(58),
+        "a".repeat(57),
         "\u{1f1eb}\u{1f1f7}\u{1f1e9}\u{1f1ea}"
     ));
-    assert!(
-        flags.ends_with(&format!("{}\u{1f1eb}\u{1f1f7}\u{2026}", "a")),
+    assert_eq!(
+        flags,
+        format!("{}\u{1f1eb}\u{1f1f7}\u{2026}", "a".repeat(57)),
         "the cut falls between whole characters as drawn: {flags}"
     );
     assert_eq!(
