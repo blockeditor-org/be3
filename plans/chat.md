@@ -15,14 +15,21 @@ counts are built (guides/chat.md). What is left:
   add or show them.
 - **Unread counts outside the editor.** No sidebar or block row shows a chat's
   count yet.
-- **Arrival time.** The server stamps each relay with when it took it
-  (`relayed.received`), and the owner hands that to `LiveEdit::arrived` for a
-  follower's operation; chat keeps it in the message (the owner's own messages
-  and those that travel as a part get none; commits have
-  `block_commits.received`). A message shows its claimed time; once stamped, if
-  it arrived well after that, it says it was sent offline and when it arrived. A
-  dishonest session owner could alter stored content, which plans/authorship.md
-  accepts.
+- **Arrival time.** The protocol half is built (guides/type_modules.md,
+  "Arrival time"): the owner stamps a follower's operation through
+  `LiveEdit::arrived`, and drops one that claims a stamp. Left for chat: keep the
+  stamp in the message op (`arrived` and `claimed_arrival` for `ChatContent`); a
+  message shows its claimed time and, once stamped, if it arrived well after
+  that, says it was sent offline and when it arrived. A message without a stamp
+  shows no arrival, never its claimed time. A dishonest session owner could
+  alter stored content, which plans/authorship.md accepts.
+- **The owner's own messages unstamped.** The owner applies its own operation
+  before the server has seen it, so it carries no stamp. Stamping it needs
+  `append` to answer the server time it took the entries at, the same time it
+  stamps their relays with, and a session message (`Stamped`, say) so every
+  replica, and the snapshots and journal the owner hands on, hold the same
+  stamp; otherwise replicas would disagree on content. Done: an owner's message
+  shows when the server took it on every replica, checked by a guest test.
 - **Edits lost on a restart.** A host or type module restart loses edits not
   yet in a commit (a journal entry the server lacks), so they no longer show as
   sending; a content-level answer (what the local head adds over the server's)

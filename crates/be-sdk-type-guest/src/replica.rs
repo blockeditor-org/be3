@@ -78,11 +78,12 @@ pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 
 
 const JOURNAL_LIMIT: usize = 1024;
 /// An operation whose bytes pass this goes by the part they were put as (`Payload::Part`).
-const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
+pub(crate) const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 const REPLACE_ATTEMPTS: u8 = 4;
 /// How many commits a follower kept the owner remembers having saved.
 const SAVED_KEPT: usize = 64;
 const DIVERGED: &str = "an edit from a peer running a different version";
+const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
 
 pub(crate) struct Opened {
     pub(crate) replica: ReplicaId,
@@ -2559,6 +2560,13 @@ where
             self.error(DIVERGED);
             return false;
         }
+        // Only the owner stamps an arrival: taken from the editor and shown as it was, so it
+        // is never sent and never waits to be accepted.
+        if C::claimed_arrival(&operation).is_some() {
+            self.error(CLAIMED_ARRIVAL);
+            self.reproject();
+            return true;
+        }
         self.visible.apply(&operation);
         // Asked as the edit is made, so the host keeps it with the edit from here on.
         let announcements = self.visible.announcements(&operation);
@@ -3214,12 +3222,21 @@ where
                     None if payload.part().is_some() => return,
                     None => return self.unreadable_message(),
                 };
-                // An operation large enough to travel as a part keeps no stamp: it would
-                // need a new part.
-                if let (Some(received), Payload::Inline(_)) = (received, &payload)
-                    && C::arrived(&mut operation, received)
-                {
-                    payload = Payload::Inline(C::encode_operation(&operation));
+                // A replica never sends a stamp of its own (`edit`), so one was forged.
+                if C::claimed_arrival(&operation).is_some() {
+                    return;
+                }
+                // An operation that travels as a part keeps no stamp, as one that stamping
+                // would take past what is relayed inline: either would need a new part.
+                if let (Some(received), Payload::Inline(_)) = (received, &payload) {
+                    let mut stamped = operation.clone();
+                    if C::arrived(&mut stamped, received) {
+                        let bytes = C::encode_operation(&stamped);
+                        if bytes.len() <= LARGEST_RELAYED_OPERATION {
+                            payload = Payload::Inline(bytes);
+                            operation = stamped;
+                        }
+                    }
                 }
                 let Role::Owner(sequencer) = &mut self.role else {
                     return;

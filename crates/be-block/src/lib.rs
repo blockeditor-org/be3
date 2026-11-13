@@ -255,12 +255,21 @@ pub trait LiveEdit: BlockContent {
         Vec::new()
     }
 
+    /// When `operation` says the server took it, if it carries such a stamp (`arrived`). An
+    /// edit made on a device never carries one: the replica refuses an edit that does, and the
+    /// owner drops a participant's operation that does, so only the owner's stamp is ever
+    /// held. Content that keeps no arrival time answers none.
+    fn claimed_arrival(operation: &Self::Op) -> Option<i64> {
+        let _ = operation;
+        None
+    }
+
     /// Stamps `operation`, which a participant handed this device as the session's owner, with
     /// when the server took it (`received`, milliseconds since the Unix epoch by the server's
-    /// clock), which its sender cannot claim. Answers whether it changed `operation`, which the
-    /// owner then sequences, relays and saves stamped. Content that shows when an edit arrived
-    /// keeps it here; an operation that travels as a part is not stamped, nor one the owner
-    /// made itself.
+    /// clock). Answers whether it changed `operation`, which the owner then sequences, relays
+    /// and saves stamped. Some operations stay unstamped, meaning their arrival is unknown:
+    /// the owner's own, one that travels as a part, and one that stamping would make too large
+    /// to relay inline. Content shows no time for those, never a time the edit claims.
     fn arrived(operation: &mut Self::Op, received: i64) -> bool {
         let _ = (operation, received);
         false
