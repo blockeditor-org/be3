@@ -130,10 +130,12 @@ impl Clipboard {
             // A be3 format goes with the blocks it names, as other system
             // clipboards carry it (`ClipItem::stored`).
             let data: Arc<[u8]> = item
-                .map(|item| match beui::clipboard::formats::is_be3(&item.format) {
-                    true => item.stored(),
-                    false => item.data,
-                })
+                .map(
+                    |item| match beui::clipboard::formats::is_be3(&item.format) {
+                        true => item.stored(),
+                        false => item.data,
+                    },
+                )
                 .unwrap_or_default()
                 .into();
             for (_, fd) in self.asked.extract_if(.., |(asked, _)| *asked == format) {

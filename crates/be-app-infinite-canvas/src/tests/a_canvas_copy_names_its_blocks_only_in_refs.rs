@@ -39,7 +39,9 @@ fn a_canvas_copy_names_its_blocks_only_in_refs() {
         panic!("Copy puts the card on the clipboard as canvas items");
     };
     let item = item.clone();
-    let items = item.decode::<CanvasItems>().expect("the canvas items decode");
+    let items = item
+        .decode::<CanvasItems>()
+        .expect("the canvas items decode");
     assert_eq!(items.blocks, [shown, schema, value, related, linked]);
     let json = String::from_utf8_lossy(&items.entities);
     for id in [shown, schema, value, related, linked] {
@@ -48,13 +50,17 @@ fn a_canvas_copy_names_its_blocks_only_in_refs() {
             "the copied bytes hold no block id, only the refs do: {id} in {json}"
         );
     }
-    assert!(json.contains(&row.to_string()), "a row id is not a block's and stays");
+    assert!(
+        json.contains(&row.to_string()),
+        "a row id is not a block's and stays"
+    );
 
     let mut pasted = editor(&[]);
     pasted.click(pasted.rect_of("infinite-canvas.canvas").center());
     pasted.run();
     let mut translated = item.clone();
-    let swap = [shown, schema, value, related, linked].map(|id| (id, Uuid::from_u128(id.as_u128() + 1)));
+    let swap =
+        [shown, schema, value, related, linked].map(|id| (id, Uuid::from_u128(id.as_u128() + 1)));
     for held in &mut translated.refs {
         if let Some((_, to)) = swap.iter().find(|(from, _)| from == held) {
             *held = *to;
@@ -85,8 +91,15 @@ fn a_canvas_copy_names_its_blocks_only_in_refs() {
     };
     let mut expected = copied.clone();
     for block in expected.blocks_mut() {
-        *block = swap.iter().find(|(from, _)| from == block).expect("named").1;
+        *block = swap
+            .iter()
+            .find(|(from, _)| from == block)
+            .expect("named")
+            .1;
     }
     assert_eq!(placed.block, expected.block);
-    assert_eq!(placed.components, expected.components, "every id comes from the refs");
+    assert_eq!(
+        placed.components, expected.components,
+        "every id comes from the refs"
+    );
 }
