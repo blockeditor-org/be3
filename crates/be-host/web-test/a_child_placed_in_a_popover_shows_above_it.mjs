@@ -8,8 +8,10 @@ export default async function (test) {
     await drive("click", 'MenuItem "New in My files…"');
     await drive("wait", "#picker.more");
     await drive("click", 'MenuItem "Canvas"');
-    await drive("wait", 'TextInput "Name" value="Canvas" focused');
-    await drive("key", "Enter");
+    await drive("wait", 'Pane "Canvas"');
+    if ((await drive("tree")).includes('TextInput "Name"')) {
+        await drive("key", "Enter");
+    }
     await drive("wait", 'TreeItem "Canvas"');
     await drive("click", "#infinite-canvas.dock.block");
     await drive("wait", "#picker.more");

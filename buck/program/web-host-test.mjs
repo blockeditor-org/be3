@@ -164,7 +164,10 @@ try {
             },
             { words, timeout: TIMEOUT * 1000 },
         );
-        if (error !== undefined) throw new Error(`drive ${words.join(" ")}: ${error}`);
+        if (error !== undefined) {
+            const shown = words[0] === "tree" ? "" : await drive("--no-settle", "tree").catch(() => "");
+            throw new Error(`drive ${words.join(" ")}: ${error}\nWhat the host shows:\n${shown}`);
+        }
         return text;
     };
     await drive("wait", 'TreeItem "My files"');
