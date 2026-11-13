@@ -27,7 +27,7 @@ impl Index {
         origin: Id,
     ) -> Result<(Index, Written), Error> {
         let mut written = Written::default();
-        let mut retired: BTreeMap<Id, u64> = BTreeMap::new();
+        let mut retired: BTreeMap<Id, i64> = BTreeMap::new();
         for Retired { id, at } in self.retired.iter().chain(&other.retired) {
             let kept = retired.entry(*id).or_insert(*at);
             *kept = (*kept).max(*at);

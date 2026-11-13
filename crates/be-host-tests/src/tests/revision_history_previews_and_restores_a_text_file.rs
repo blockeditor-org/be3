@@ -29,6 +29,9 @@ fn revision_history_previews_and_restores_a_text_file() {
     host.type_text("Latest revision");
     host.wait("Latest revision");
     host.wait(&format!("UTC\" {original}"));
+    // The list is asked for again as the edit is sealed and sent: click it once every answer is
+    // in, or the row may move under the click.
+    host.synced();
     host.click(&original);
     host.wait("#workspace.revision.current");
     host.wait("Original revision");
