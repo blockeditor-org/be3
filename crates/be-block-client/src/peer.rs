@@ -288,6 +288,22 @@ pub struct Peer<S: ObjectStore> {
     /// a hash of the bytes and signature, for the connection that answered: asked again, they
     /// cost no round trip until the device reconnects (`authorship::Forged`).
     forged: Mutex<authorship::Forged>,
+    /// The server's clock as measured when the session opened, which commits are stamped by
+    /// (`commit_time`, `server_now`).
+    server_clock: Mutex<ServerClock>,
+}
+
+/// What this device knows of the server's clock (`Peer::server_now`).
+struct ServerClock {
+    anchor: Option<Anchor>,
+    offset: Option<i64>,
+}
+
+/// The server's clock when this run's session opened, and the connection's clock then.
+struct Anchor {
+    server: i64,
+    at: std::time::Duration,
+    clock: crate::Clock,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -385,6 +401,10 @@ impl<S: ObjectStore> Peer<S> {
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
             forged: Mutex::new(authorship::Forged::default()),
+            server_clock: Mutex::new(ServerClock {
+                anchor: None,
+                offset: session.as_ref().and_then(|session| session.server_offset),
+            }),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -404,6 +424,61 @@ impl<S: ObjectStore> Peer<S> {
         self.open_session().await
     }
 
+    /// The time a commit made now is stamped with: this device's clock, held to the server's
+    /// plus a little once a session measured it, and not before `parent`'s
+    /// (`be_block_commit::commit_time`).
+    pub fn commit_time(&self, parent: Option<&Commit>) -> i64 {
+        be_block_commit::commit_time(
+            now_milliseconds(),
+            self.server_now(),
+            parent.map(|parent| parent.time),
+        )
+    }
+
+    /// The latest commit time this device believes (`be_block_commit::latest_believed`).
+    pub fn latest_believed(&self) -> i64 {
+        be_block_commit::latest_believed(now_milliseconds(), self.server_now())
+    }
+
+    /// The server's clock now, as estimated: from when this run's session opened by the
+    /// connection's monotonic clock, so a jump of the wall clock after that changes nothing;
+    /// before that (offline since a restart) from the offset last measured; none if never
+    /// measured. A pinned clock (`be_block_commit::pin_now`) is the test's, which an embedded
+    /// server reads too, so it is used with the offset.
+    pub fn server_now(&self) -> Option<i64> {
+        let held = self.server_clock.lock().unwrap();
+        match &held.anchor {
+            Some(anchor) if !be_block_commit::is_pinned() => {
+                let elapsed = anchor.clock.now().saturating_sub(anchor.at);
+                Some(
+                    anchor
+                        .server
+                        .saturating_add(i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)),
+                )
+            }
+            _ => held
+                .offset
+                .map(|offset| now_milliseconds().saturating_add(offset)),
+        }
+    }
+
+    /// Takes the server's clock it answered with as the session opened, unless it would pull
+    /// commit times back too far (`be_block_commit::trusts_measurement`).
+    fn measured_server(&self, server: i64, clock: &crate::Clock) {
+        let local = now_milliseconds();
+        if !be_block_commit::trusts_measurement(local, server) {
+            return;
+        }
+        *self.server_clock.lock().unwrap() = ServerClock {
+            anchor: Some(Anchor {
+                server,
+                at: clock.now(),
+                clock: clock.clone(),
+            }),
+            offset: Some(server.saturating_sub(local)),
+        };
+    }
+
     pub fn detach(&self) {
         *self.connection.lock().unwrap() = Connection::offline();
     }
@@ -421,8 +496,10 @@ impl<S: ObjectStore> Peer<S> {
             escrows,
             pinned,
             server,
+            time,
             ..
         } = client::organizations::open_organization(&connection, organization).await??;
+        self.measured_server(time, connection.clock());
         *self.session.lock().unwrap() = (role, kind);
         self.keys
             .set_server(server.account, RecoveryPublic(server.public));
@@ -527,6 +604,7 @@ impl<S: ObjectStore> Peer<S> {
             escrows: self.keys.escrows(),
             pinned: self.keys.pinned(),
             server: self.server(),
+            server_offset: self.server_clock.lock().unwrap().offset,
         })?)
     }
 
@@ -1635,7 +1713,10 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn stash(&self, block: Uuid, mut write: Write<'_>) -> Result<CommitId, ClientError> {
         let (manifest, _, metadata) = self.prepare_write(block, &mut write).await?;
         let key = self.sealing_key(block).await?;
-        let commit = Commit::new(manifest, self.account, now_milliseconds())
+        let parent = write
+            .expected
+            .and_then(|expected| self.commits.get(expected).ok());
+        let commit = Commit::new(manifest, self.account, self.commit_time(parent.as_ref()))
             .with_parent(write.expected)
             .with_references(write.references)
             .with_metadata(metadata.encode());
@@ -1668,7 +1749,7 @@ impl<S: ObjectStore> Peer<S> {
             },
             None => None,
         };
-        let time = now_milliseconds();
+        let time = self.commit_time(previous.as_ref());
         let encoded = metadata.encode();
         if extra_parents.is_empty()
             && bookmark.is_none()

@@ -455,7 +455,19 @@ organizations created, open contact links, contacts, invitations outstanding and
 escrow keys per organization (refused as `OverQuota`); and per connection,
 sessions, listings and streams. Names, metadata (held in the graph and sent in
 every summary), sealed blobs, pairing messages and relayed session messages
-have byte limits (refused as `InvalidRequest`). A relay is shared by every
+have byte limits (refused as `InvalidRequest`). A commit of a search index may
+hold at most `MAX_INDEX_BYTES` (refused as `OverQuota`), since any editor of its
+root writes what every viewer's search reads, and no commit's time may be more
+than `MAX_COMMIT_AHEAD` (an hour) past the server's clock (refused as
+`InvalidRequest`), since a far-future time wins every comparison by commit time
+and escapes history's thinning by age. `open-organization` answers the server's
+clock, and a peer stamps its commits no later than that plus
+`COMMIT_CLOCK_SLACK` (`Peer::commit_time`), so a device whose clock runs fast is
+not refused: it keeps the measurement by its monotonic clock, and the offset in
+its refs for offline use after a restart, and ignores one that would pull its
+stamps back more than a day (`MAX_CLOCK_PULLBACK`). The index cap sums the base
+commit's objects in one query and adds and removes only what the publish
+changes. A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
 client that has left the session (or never joined) is dropped without an error:
 it is best-effort, and the sender cannot know the other left. Each relay, and

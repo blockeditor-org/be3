@@ -41,7 +41,7 @@ const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
-    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_METADATA_BYTES},
+    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_METADATA_BYTES},
     store::{
         Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
         usage::{forget_objects, payer_for_new, persist_sizes},
@@ -732,6 +732,13 @@ impl ServerStore {
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        let latest = be_block_commit::now_milliseconds().saturating_add(MAX_COMMIT_AHEAD);
+        if time > latest {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!("a commit's time may be at most {latest}, not {time}: is this clock fast?"),
+            ));
+        }
         let change = held;
         let mut sent = vec![commit.hash()];
         sent.extend(change.added.iter().copied());
@@ -758,6 +765,45 @@ impl ServerStore {
                 };
                 let mut held = vec![commit.hash()];
                 held.extend(change.apply(&base));
+                if graph
+                    .get(block)
+                    .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
+                {
+                    // The base's total in one query, then only what the change moves: the
+                    // objects it adds that the base lacks, and those it drops that the base
+                    // held and it does not add back (`ObjectChange::apply` keeps those). An
+                    // object with no size recorded counts as nothing, so the total errs low
+                    // only for objects the server does not hold, which the publish refuses.
+                    let base_set: BTreeSet<Hash> = base.iter().copied().collect();
+                    let added_set: BTreeSet<Hash> = change.added.iter().copied().collect();
+                    let added: Vec<Hash> = std::iter::once(commit.hash())
+                        .chain(change.added.iter().copied())
+                        .filter(|hash| !base_set.contains(hash))
+                        .collect();
+                    let removed: Vec<Hash> =
+                        expected
+                            .map(CommitId::hash)
+                            .into_iter()
+                            .chain(change.removed.iter().copied().filter(|hash| {
+                                base_set.contains(hash) && !added_set.contains(hash)
+                            }))
+                            .collect();
+                    let base_bytes = match expected {
+                        Some(expected) => {
+                            store.commit_bytes(database, identity.organization, block, expected)?
+                        }
+                        None => 0,
+                    };
+                    let bytes = base_bytes
+                        .saturating_add(store.stored_bytes(database, &added)?)
+                        .saturating_sub(store.stored_bytes(database, &removed)?);
+                    if bytes > store.max_index_bytes() {
+                        return Err(crate::limits::too_many(
+                            "a search index's bytes",
+                            store.max_index_bytes(),
+                        ));
+                    }
+                }
                 // A first commit lists every reference, replacing any its block was made with.
                 let listed = match expected {
                     Some(_) => graph.references(block),

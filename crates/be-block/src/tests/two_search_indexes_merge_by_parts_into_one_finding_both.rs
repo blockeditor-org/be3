@@ -45,7 +45,7 @@ fn put(block: u8, time: i64, body: &str) -> Put {
 }
 
 fn found(index: &SearchIndexContent, text: &str) -> Vec<u8> {
-    let hits = run(index.search(&unread(), &Query::parse(text), 10)).unwrap();
+    let hits = run(index.search(&unread(), &Query::parse(text), 10, i64::MAX)).unwrap();
     hits.iter().map(|hit| hit.doc.block[0]).collect()
 }
 
@@ -56,7 +56,7 @@ fn applied(base: &SearchIndexContent, origin: u8, puts: Vec<Put>) -> SearchIndex
         ..Batch::default()
     };
     assert_eq!(
-        run(index.apply(&unread(), [origin; 16], batch)),
+        run(index.apply(&unread(), [origin; 16], batch, i64::MAX)),
         Ok(Vec::new())
     );
     index
