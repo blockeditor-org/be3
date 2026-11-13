@@ -218,7 +218,10 @@ impl TestClient {
                 answered(
                     client::objects::upload_urls(
                         peer,
-                        vec![be_block_protocol::ObjectLength { hash, length: 9 }],
+                        vec![be_block_protocol::ObjectLength {
+                            hash,
+                            length: Some(9),
+                        }],
                     )
                     .await,
                 ),

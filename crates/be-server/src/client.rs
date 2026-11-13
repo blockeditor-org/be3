@@ -1524,12 +1524,22 @@ impl Client {
                         .store
                         .held_objects(identity, objects.iter().map(|object| object.hash).collect())
                         .await?;
-                    let missing = objects
-                        .iter()
-                        .zip(&held)
-                        .filter(|(_, held)| !**held)
-                        .map(|(object, _)| (object.hash, object.length))
-                        .collect();
+                    // An object the caller cannot upload (no length) must be one it holds: any
+                    // other is refused as not found, the same whether or not someone stored it,
+                    // so its size and existence stay private and nothing is reserved for it.
+                    let mut missing = Vec::new();
+                    for (object, held) in objects.iter().zip(&held) {
+                        match (held, object.length) {
+                            (true, _) => {}
+                            (false, Some(length)) => missing.push((object.hash, length)),
+                            (false, None) => {
+                                return Err(ServerError::Refused(
+                                    ErrorCode::ObjectNotFound,
+                                    format!("object {} is not held", object.hash),
+                                ));
+                            }
+                        }
+                    }
                     connection.store.reserve_uploads(identity, missing).await?;
                     let lifetime = connection.store.transfer_lifetime();
                     Ok(objects
@@ -1539,7 +1549,10 @@ impl Client {
                             if held {
                                 return None;
                             }
-                            let length = usize::try_from(object.length).unwrap_or(usize::MAX);
+                            let length = object
+                                .length
+                                .and_then(|length| usize::try_from(length).ok())
+                                .unwrap_or(usize::MAX);
                             let signed =
                                 connection
                                     .transfers

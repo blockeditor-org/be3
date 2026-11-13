@@ -69,8 +69,8 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Uploads `hashes` from this device's store, those the server answers it holds already
     /// left out (`upload-urls`). An object this device does not hold (a part it reuses by its
-    /// ref alone) is asked for with length 0, so nothing is reserved for it: the server must
-    /// hold it, and answering a URL for it means neither does, `MissingObject`.
+    /// ref alone) is asked for with no length: the server must hold it for this account, and
+    /// refuses it as not found otherwise, which is `MissingObject`.
     pub(super) async fn upload(&self, hashes: &[Hash]) -> Result<(), ClientError> {
         let store = self.commits.vault().store();
         for batch in hashes.chunks(MAX_OBJECT_URLS) {
@@ -79,12 +79,21 @@ impl<S: ObjectStore> Peer<S> {
                 .map(|hash| {
                     Ok(ObjectLength {
                         hash: *hash,
-                        length: store.len(*hash)?.unwrap_or(0) as u64,
+                        length: store.len(*hash)?.map(|length| length as u64),
                     })
                 })
                 .collect::<Result<Vec<_>, ClientError>>()?;
-            let urls =
-                crate::ask(client::objects::upload_urls(&self.connection(), lengths)).await?;
+            let absent = lengths
+                .iter()
+                .find(|object| object.length.is_none())
+                .map(|object| object.hash);
+            let asked = crate::ask(client::objects::upload_urls(&self.connection(), lengths)).await;
+            let urls = match (asked, absent) {
+                (Err(ClientError::Refused(ErrorCode::ObjectNotFound, _)), Some(hash)) => {
+                    return Err(ClientError::MissingObject(hash));
+                }
+                (urls, _) => urls?,
+            };
             if urls.len() != batch.len() {
                 return Err(ClientError::Unexpected);
             }

@@ -17,7 +17,7 @@ async fn objects_move_through_the_servers_own_s3_endpoint() {
         .iter()
         .map(|hash| be_block_protocol::ObjectLength {
             hash: *hash,
-            length: 1,
+            length: Some(1),
         })
         .collect();
     let urls = crate::ask(be_block_protocol::client::objects::upload_urls(

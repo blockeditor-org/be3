@@ -106,7 +106,12 @@ Clients move object bytes only through presigned S3 URLs (decisions/objects_live
 `objects.upload-urls` takes (hash, length) pairs and answers, per object, none
 for one the caller holds already (`held_objects`: it uploaded it, or may read
 it) and otherwise a presigned PUT (`upload-url`: the URL and the headers to
-send with it), reserving only those as an upload (below, "Storage"); `objects.download-urls` answers a
+send with it), reserving only those as an upload (below, "Storage"). An object
+with no length (one the caller reuses by its ref and does not hold) asks only
+whether the caller holds it: it is answered none if so, and otherwise refuses the
+call as `object-not-found`, alike whether another organization stored it or no
+one did, with nothing reserved, so a real uploader is never held to a length no
+one gave and the answer leaks nothing. `objects.download-urls` answers a
 presigned GET for each object the caller may read (`may_read_objects`) and none
 for the rest. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
 Only `publish`'s carried objects and `read-contents`' objects travel inside

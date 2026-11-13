@@ -69,7 +69,10 @@ Bulk object bytes never travel inside frames (guides/blocks/server.md,
 with no URL, or one the store answers 404 for, is missing, and bytes that do
 not hash to what was asked are `ClientError::Tampered`. `push` and imports ask
 `upload-urls` with each object's length and PUT the bytes of each one it answers a
-URL for (none for one the server holds already) with the headers given, natively and from the web build alike (`crate::http`: in the browser a
+URL for (none for one the server holds already) with the headers given; an
+object the device does not hold (a part reused by its ref) is asked for with no
+length, which the server answers none for or refuses as not found, which is
+`ClientError::MissingObject`. Uploads go natively and from the web build alike (`crate::http`: in the browser a
 `fetch` without credentials). An import uploads a batch's objects before
 sending its creates and publishes, since those are sent as soon as they are
 made. A transfer that may succeed later (`http::Error::Failed`: unreachable,

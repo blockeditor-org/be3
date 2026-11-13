@@ -103,6 +103,7 @@ mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
+mod an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
 mod an_owner_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
@@ -693,7 +694,7 @@ impl TestClient {
             .iter()
             .map(|bytes| ObjectLength {
                 hash: Hash::of(bytes),
-                length: bytes.len() as u64,
+                length: Some(bytes.len() as u64),
             })
             .collect();
         self.call(|peer| client::objects::upload_urls(peer, lengths))
