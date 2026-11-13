@@ -27,10 +27,7 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
 }
 
 async fn access_of(client: &mut TestClient, block: Uuid) -> Access {
-    match client
-        .call(|peer| client::blocks::read_block(peer, block))
-        .await
-    {
+    match client.try_read_block(block).await {
         Ok(block) => block.access,
         _ => Access::None,
     }

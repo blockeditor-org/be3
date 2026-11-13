@@ -64,22 +64,22 @@ impl<S: ObjectStore> Peer<S> {
     /// Uploads the objects among `hashes` the server lacks.
     pub async fn push(&self, hashes: &[Hash]) -> Result<(), ClientError> {
         self.commits.vault().store().sync()?;
-        let missing =
-            client::objects::missing_objects(&self.connection(), hashes.to_vec()).await??;
-        self.upload(&missing).await
+        self.upload(hashes).await
     }
 
-    /// Uploads `hashes` from this device's store, whether or not the server has them.
+    /// Uploads `hashes` from this device's store, those the server answers it holds already
+    /// left out (`upload-urls`). An object this device does not hold (a part it reuses by its
+    /// ref alone) is asked for with length 0, so nothing is reserved for it: the server must
+    /// hold it, and answering a URL for it means neither does, `MissingObject`.
     pub(super) async fn upload(&self, hashes: &[Hash]) -> Result<(), ClientError> {
         let store = self.commits.vault().store();
         for batch in hashes.chunks(MAX_OBJECT_URLS) {
             let lengths = batch
                 .iter()
                 .map(|hash| {
-                    let length = store.len(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
                     Ok(ObjectLength {
                         hash: *hash,
-                        length: length as u64,
+                        length: store.len(*hash)?.unwrap_or(0) as u64,
                     })
                 })
                 .collect::<Result<Vec<_>, ClientError>>()?;
@@ -88,19 +88,22 @@ impl<S: ObjectStore> Peer<S> {
             if urls.len() != batch.len() {
                 return Err(ClientError::Unexpected);
             }
-            let mut uploads =
-                futures_util::stream::iter(batch.iter().zip(urls).map(|(hash, url)| async move {
-                    let bytes = store.get(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
-                    let headers: Vec<(String, String)> = url
-                        .headers
-                        .into_iter()
-                        .map(|header| (header.name, header.value))
-                        .collect();
-                    http::put(&url.url, &headers, bytes)
-                        .await
-                        .map_err(transfer_failed)
-                }))
-                .buffer_unordered(TRANSFERS);
+            let wanted = batch
+                .iter()
+                .zip(urls)
+                .filter_map(|(hash, url)| Some((hash, url?)));
+            let mut uploads = futures_util::stream::iter(wanted.map(|(hash, url)| async move {
+                let bytes = store.get(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
+                let headers: Vec<(String, String)> = url
+                    .headers
+                    .into_iter()
+                    .map(|header| (header.name, header.value))
+                    .collect();
+                http::put(&url.url, &headers, bytes)
+                    .await
+                    .map_err(transfer_failed)
+            }))
+            .buffer_unordered(TRANSFERS);
             while let Some(sent) = uploads.next().await {
                 sent?;
             }

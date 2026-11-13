@@ -915,22 +915,19 @@ impl ServerStore {
         .await
     }
 
-    /// Which of `hashes` the caller lacks, as far as it may know: an object it neither uploaded
-    /// nor may read is missing to it whether or not someone else stored it.
-    pub async fn missing_objects(
+    /// Whether the caller holds each of `hashes`, as far as it may know: an object it neither
+    /// uploaded nor may read is not held by it whether or not someone else stored it.
+    pub async fn held_objects(
         &self,
         identity: Identity,
         hashes: Vec<Hash>,
-    ) -> Result<Vec<Hash>, ServerError> {
+    ) -> Result<Vec<bool>, ServerError> {
         self.confirm_uploads(identity, hashes.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
-            let mut missing = Vec::new();
-            for hash in hashes {
-                if !store.holdable(graph, database, identity, hash)? {
-                    missing.push(hash);
-                }
-            }
-            Ok(missing)
+            hashes
+                .into_iter()
+                .map(|hash| store.holdable(graph, database, identity, hash))
+                .collect()
         })
         .await
     }

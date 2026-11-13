@@ -68,8 +68,8 @@ Bulk object bytes never travel inside frames (guides/blocks/server.md,
 `MAX_OBJECT_BYTES` and `TRANSFERS` at once (`peer/transfers.rs`); an object
 with no URL, or one the store answers 404 for, is missing, and bytes that do
 not hash to what was asked are `ClientError::Tampered`. `push` and imports ask
-`upload-urls` with each object's length and PUT the bytes with the headers
-given, natively and from the web build alike (`crate::http`: in the browser a
+`upload-urls` with each object's length and PUT the bytes of each one it answers a
+URL for (none for one the server holds already) with the headers given, natively and from the web build alike (`crate::http`: in the browser a
 `fetch` without credentials). An import uploads a batch's objects before
 sending its creates and publishes, since those are sent as soon as they are
 made. A transfer that may succeed later (`http::Error::Failed`: unreachable,
@@ -150,7 +150,7 @@ with the block key; the server keeps it beside history, never in it
   (written with the seal's commit in one refs write, dropped by the next rebase:
   `Peer::sealing`) and holds the seal's last entry in its generation
   (`reaches_seal`; guides/type_modules.md, Peers).
-- Joining (`Peer::join_session`) answers the journal as of joining, so a
+- Joining (`Connection::join_session`) answers the journal as of joining, so a
   replica opening on its base needs no state from the owner
   (`be_block_type_host::Replicas` picks the server's or the device's,
   whichever holds more). `read_contents` answers each block's journal
@@ -186,8 +186,9 @@ real head, the device merges against it (`Peer::reconcile`) and the published
 merge moves the remote head on. A record that no
 longer decodes is skipped on load.
 
-It keeps one summary per block, the newest revision winning, and a listing is
-the ids it held: a copy kept per listing went stale offline (a listing fetched
+`Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
+only shorthands). The refs database keeps one summary per block, the newest
+revision winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 listing answers as the summaries place its blocks now:
 

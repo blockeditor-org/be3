@@ -788,6 +788,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     ))
     .await?
     .pop()
+    .flatten()
     .ok_or("the server answered no upload URL")?;
     let headers: Vec<(String, String)> = upload
         .headers

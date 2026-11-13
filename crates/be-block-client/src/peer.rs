@@ -13,7 +13,7 @@ use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
     HistoryEntry, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
-    PublishOutcome, ReferenceChange, RelayKind, ServerAccount, SessionState, WrappedBy, client,
+    PublishOutcome, ReferenceChange, RelayKind, ServerAccount, WrappedBy, client,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -1258,7 +1258,18 @@ impl<S: ObjectStore> Peer<S> {
 
     /// What the server says of a block, or offline what this device last heard.
     pub(super) async fn server_summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
-        let response = crate::ask(client::blocks::read_block(&self.connection(), block)).await;
+        let response = crate::ask(client::blocks::list_blocks(
+            &self.connection(),
+            Listing::Block(block),
+        ))
+        .await
+        .and_then(|listed| {
+            listed
+                .blocks
+                .into_iter()
+                .next()
+                .ok_or(ClientError::Unexpected)
+        });
         match response {
             Ok(block) => {
                 self.note(&block);
@@ -1282,7 +1293,9 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    async fn listed(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
+    /// The blocks of `listing`, which this connection follows from then on (`unlist` stops
+    /// it); offline, what this device last heard.
+    pub async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
         if let Some(block) = about(listing)
             && self.refs.creating(block)
         {
@@ -2202,16 +2215,8 @@ impl<S: ObjectStore> Peer<S> {
         Ok(keys)
     }
 
-    pub async fn shared(&self) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Shared).await
-    }
-
     pub async fn children(&self, parent: BlockParent) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Children(parent)).await
-    }
-
-    pub async fn deleted(&self) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Deleted).await
+        self.list(Listing::Children(parent)).await
     }
 
     pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
@@ -2220,18 +2225,6 @@ impl<S: ObjectStore> Peer<S> {
             Err(error) if offline::unreachable(&error) => Ok(()),
             Err(error) => Err(error),
         }
-    }
-
-    pub async fn backrefs(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Backrefs(block)).await
-    }
-
-    pub async fn open_settings(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::OpenSettings(block)).await
-    }
-
-    pub async fn referenced(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::References(block)).await
     }
 
     pub async fn collect_detached(&self) -> Result<Vec<Uuid>, ClientError> {
@@ -2252,50 +2245,6 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn list_access(&self, block: Uuid) -> Result<AccessList, ClientError> {
         Ok(client::blocks::list_access(&self.connection(), block).await??)
-    }
-
-    /// Joins a block's session: this connection's id, the session's state, and the block's
-    /// journal as of joining, sealed (`open_journal`).
-    pub fn join_session(
-        &self,
-        block: Uuid,
-    ) -> Result<
-        impl Future<
-            Output = Result<
-                (ClientId, SessionState, Option<be_block_protocol::Journal>),
-                ClientError,
-            >,
-        > + Send
-        + use<S>,
-        ClientError,
-    > {
-        Ok(self.connection().join_session(block))
-    }
-
-    pub fn leave_session(
-        &self,
-        block: Uuid,
-    ) -> Result<impl Future<Output = Result<(), ClientError>> + Send + use<S>, ClientError> {
-        Ok(self.connection().leave_session(block))
-    }
-
-    pub fn claim_ownership(
-        &self,
-        block: Uuid,
-        generation: u64,
-    ) -> Result<impl Future<Output = Result<SessionState, ClientError>> + Send + use<S>, ClientError>
-    {
-        Ok(self.connection().claim_ownership(block, generation))
-    }
-
-    pub fn heartbeat(
-        &self,
-        block: Uuid,
-        generation: u64,
-        clean_at: Option<CommitId>,
-    ) -> Result<impl Future<Output = Result<SessionState, ClientError>> + Send + use<S>, ClientError>
-    {
-        Ok(self.connection().heartbeat(block, generation, clean_at))
     }
 
     pub async fn relay(
