@@ -260,6 +260,9 @@ pub struct Searching {
     /// Blocks queued that the mirror cannot place, with the first block on their way up it
     /// does not hold, which `Owner::Search` asks it for: queued again once it is listed.
     unplaced: BTreeMap<Uuid, Uuid>,
+    /// The connection is not attached: `unplaced` waits for the mirror, which cannot list
+    /// anything until it is, so the blocks in it leave a search complete meanwhile.
+    offline: bool,
     /// Blocks dropped from indexing because the mirror could not place them even once it had
     /// listed what they wait on (no access, gone): counted, and logged.
     pub(crate) unplaceable: u64,
@@ -367,7 +370,9 @@ impl Searching {
         Some(shown)
     }
 
-    /// Nothing this device could index is queued, parked, being made or being written.
+    /// Nothing this device could index is queued, parked, being made or being written. Offline,
+    /// blocks waiting for the mirror to place them (`unplaced`) do not count: they are queued
+    /// again once it lists what they wait on.
     pub(crate) fn indexed(&self) -> bool {
         self.dirty.is_empty()
             && self.writing.is_empty()
@@ -375,7 +380,7 @@ impl Searching {
             && self.parked.is_empty()
             && self.moving.is_empty()
             && self.failing.is_empty()
-            && self.unplaced.is_empty()
+            && (self.offline || self.unplaced.is_empty())
             && self.creating.is_empty()
     }
 
@@ -496,6 +501,16 @@ impl Searching {
             self.dirty.extend(std::mem::take(blocks));
             false
         });
+    }
+
+    /// Holds `block` until the mirror lists `missing`, the first block on its way up it lacks.
+    pub(crate) fn wait_to_place(&mut self, block: Uuid, missing: Uuid) {
+        self.unplaced.insert(block, missing);
+    }
+
+    /// Whether the connection is attached (`offline`).
+    pub(crate) fn set_attached(&mut self, attached: bool) {
+        self.offline = !attached;
     }
 
     /// Queues again the blocks waiting on a block the mirror has now listed (`held`), and drops
@@ -790,10 +805,10 @@ enum Place {
     Root(Uuid),
 }
 
-/// The root whose index holds `block`'s text.
+/// The root whose index holds `block`'s text, within `PLACE_DEPTH` steps.
 fn place(graph: &Graph, block: Uuid) -> Place {
     let mut current = block;
-    for _ in 0..=graph.nodes().count() {
+    for _ in 0..PLACE_DEPTH {
         let Some(node) = graph.get(current) else {
             return Place::Unknown;
         };
@@ -812,10 +827,15 @@ fn place(graph: &Graph, block: Uuid) -> Place {
     Place::Skip
 }
 
-/// The first block on `block`'s way up that the mirror does not hold, itself included.
+/// How far up `place` and `missing_above` look: deeper than any tree a person makes, and a bound on a
+/// cycle the mirror holds for a moment.
+const PLACE_DEPTH: usize = 256;
+
+/// The first block on `block`'s way up that the mirror does not hold, itself included, within
+/// `PLACE_DEPTH` steps.
 fn missing_above(graph: &Graph, block: Uuid) -> Option<Uuid> {
     let mut current = block;
-    for _ in 0..=graph.nodes().count() {
+    for _ in 0..PLACE_DEPTH {
         match graph.get(current) {
             None => return Some(current),
             Some(node) => match node.parent? {
@@ -891,6 +911,7 @@ async fn index(
         );
         held.search
             .release_partial(|content_type| crate::kind_of(content_type).is_some());
+        held.search.set_attached(peer.is_attached());
         {
             let state = &mut *held;
             let graph = &state.graph;
@@ -927,7 +948,7 @@ async fn index(
                 // and the block waits for it rather than leaving the index for good.
                 Place::Unknown => {
                     if let Some(missing) = missing_above(&held.graph, block) {
-                        held.search.unplaced.insert(block, missing);
+                        held.search.wait_to_place(block, missing);
                     }
                     continue;
                 }
