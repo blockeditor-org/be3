@@ -34,7 +34,11 @@ fn a_put_of_the_text_already_indexed_moves_only_its_commit() {
         "one segment, for the changed row"
     );
     let entry = run(index.entry(&store, &doc(8))).unwrap().unwrap();
-    assert_eq!(entry.commit, commit(2), "an unchanged row moves to the new commit");
+    assert_eq!(
+        entry.commit,
+        commit(2),
+        "an unchanged row moves to the new commit"
+    );
     assert_eq!(
         entry.indexed,
         commit(1),

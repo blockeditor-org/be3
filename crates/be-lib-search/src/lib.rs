@@ -451,9 +451,9 @@ impl Index {
                     commit,
                     source,
                     ..
-                }) if old.as_ref().is_some_and(|old| {
-                    !old.is_removed() && old.digest == Some(text.digest())
-                }) =>
+                }) if old
+                    .as_ref()
+                    .is_some_and(|old| !old.is_removed() && old.digest == Some(text.digest())) =>
                 {
                     if let Some(mut entry) = old {
                         entry.commit = commit;

@@ -890,8 +890,16 @@ async fn puts_of(
     // Whether the type answered every document: only then is one it no longer answers removed.
     let (mut documents, answered) = match known {
         true => {
-            match documents_of(peer, shared, replicas, content_type, &commit, None, &indexed)
-                .await?
+            match documents_of(
+                peer,
+                shared,
+                replicas,
+                content_type,
+                &commit,
+                None,
+                &indexed,
+            )
+            .await?
             {
                 Some(documents) => (documents, true),
                 None => (Vec::new(), false),
@@ -977,7 +985,13 @@ async fn documents_of(
     indexed: &[[u8; 32]],
 ) -> Option<Option<Vec<be_sdk_type_api::SearchDocument>>> {
     match replicas
-        .search_text((peer, shared), content_type, &commit.manifest, keys, indexed)
+        .search_text(
+            (peer, shared),
+            content_type,
+            &commit.manifest,
+            keys,
+            indexed,
+        )
         .await
     {
         Ok(searched) => {
