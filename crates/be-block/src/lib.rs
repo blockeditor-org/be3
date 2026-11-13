@@ -41,7 +41,7 @@ pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,
     EXECUTABLE, Entries, ICON, ICON_COLOR, INTRINSIC_NAME, LOCAL_ID, MATERIAL_ICON, MY_FILES,
     MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, SEARCH_INDEX, SETTINGS, THUMBHASH, Thumbhash,
-    VIEW_EDITOR,
+    VIEW_EDITOR, quoted_name,
 };
 pub use model::Root;
 pub use organization::{
@@ -183,8 +183,9 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 /// A searchable document of a block's content (`BlockContent::search_text`).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SearchDocument {
-    /// Stable across edits and rekeys, unlike a part's ref: a chat segment's number, a long
-    /// text's section id, or empty for a block that is one document.
+    /// Stable across edits and rekeys, unlike a part's ref: a chat segment's part hash (of its
+    /// plaintext, so a rekey keeps it), a database row's id, a long text's section id, or empty
+    /// for a block that is one document.
     pub key: String,
     /// The part the document's text came from, if it is one part.
     pub source: Option<PartRef>,

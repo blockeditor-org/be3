@@ -1,9 +1,10 @@
 use be_sdk::accesskit::TreeUpdate;
 use be_sdk::driver::HostServices;
-use beui_core::clipboard::{Clip, ClipData, PasteAnswer};
+use beui_core::clipboard::{Clip, ClipData, PasteAnswer, RenderAnswer};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_runner::PlatformServices;
+use beui_types::clipboard::ClipBody;
 
 pub(crate) struct HostPlatform<'a>(pub(crate) &'a mut HostServices);
 
@@ -14,17 +15,17 @@ impl PlatformServices for HostPlatform<'_> {
             .iter()
             .map(|entry| be_sdk_api::OfferedClipItem {
                 format: entry.format.clone(),
-                data: match &entry.data {
-                    ClipData::Ready(data) => Some(data.to_vec()),
+                body: match &entry.data {
+                    ClipData::Ready(body) => Some(ClipBody::clone(body)),
                     ClipData::Lazy(_) => None,
                 },
             })
             .collect();
-        let render = move |format: &str, answer: Box<dyn FnOnce(Option<Vec<u8>>)>| {
+        let render = move |format: &str, answer: RenderAnswer| {
             let entry = clip.entries.iter().find(|entry| entry.format == format);
             match entry.map(|entry| &entry.data) {
                 Some(ClipData::Lazy(render)) => render(answer),
-                Some(ClipData::Ready(data)) => answer(Some(data.to_vec())),
+                Some(ClipData::Ready(body)) => answer(Some(ClipBody::clone(body))),
                 None => answer(None),
             }
         };

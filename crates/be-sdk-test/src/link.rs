@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use be_sdk_api::{
-    BlockCommand, EditorInstanceId, Encoded, VersionCommand,
+    BlockCommand, EditorInstanceId, Encoded,
     blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest},
     embed::blocks::Call,
     ops::{Connection, OpError, OpId, Outcome, Producer, encode, wire},
@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::ContentStore;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Subject {
+pub(crate) enum Subject {
     Blocks(be_sdk_beui::BlockQuery),
     History(Uuid),
     Head(Uuid),
@@ -33,7 +33,6 @@ struct Watch {
 pub(crate) enum Sent {
     Open(OpenRequest),
     Command(Uuid, BlockCommand),
-    Version(Uuid, VersionCommand),
     Define(Uuid, Uuid, Option<Vec<u8>>),
     Frame(Uuid, FromEditor),
 }
@@ -120,16 +119,18 @@ impl Link {
                 command,
             } => {
                 reply.send(connection, &());
-                store.command(block(id), command);
-                self.sent.push(Sent::Command(block(id), command));
-            }
-            Call::Version {
-                reply,
-                block: id,
-                command,
-            } => {
-                reply.send(connection, &());
-                self.sent.push(Sent::Version(block(id), command));
+                let id = block(id);
+                match command {
+                    BlockCommand::SetParent(parent) => store.set_parent(id, parent),
+                    BlockCommand::Define { key, value } => {
+                        store.define(id, block(key), value.clone());
+                        self.sent.push(Sent::Define(id, block(key), value));
+                    }
+                    command => {
+                        store.command(id, &command);
+                        self.sent.push(Sent::Command(id, command));
+                    }
+                }
             }
             Call::CreateBlock {
                 reply,
@@ -144,24 +145,6 @@ impl Link {
                 store.create_block(
                     block, block_type, parent, defined, content, owner_only, author,
                 );
-            }
-            Call::SetParent {
-                reply,
-                block: id,
-                parent,
-            } => {
-                reply.send(connection, &());
-                store.set_parent(block(id), parent);
-            }
-            Call::Define {
-                reply,
-                block: id,
-                key,
-                value,
-            } => {
-                reply.send(connection, &());
-                store.define(block(id), block(key), value.clone());
-                self.sent.push(Sent::Define(block(id), block(key), value));
             }
             Call::WriteContent {
                 reply,
@@ -236,6 +219,21 @@ impl Link {
         let value = encode(&BlockValue::History(*history));
         self.values.insert(Subject::History(block), value.clone());
         self.offer(Subject::History(block), value);
+    }
+
+    pub(crate) fn offer_artifact(&mut self, block: Uuid, state: Option<be_sdk_api::ArtifactState>) {
+        let value = encode(&BlockValue::Artifact(state));
+        self.values.insert(Subject::Artifact(block), value.clone());
+        self.offer(Subject::Artifact(block), value);
+    }
+
+    /// Each watch the editor holds open, by its op, with what it watches.
+    #[cfg(test)]
+    pub(crate) fn watching(&self) -> Vec<(OpId, Subject)> {
+        self.watches
+            .iter()
+            .map(|(op, watch)| (*op, watch.subject))
+            .collect()
     }
 
     pub(crate) fn offer_version(&mut self, status: &be_sdk_api::VersionStatus) {

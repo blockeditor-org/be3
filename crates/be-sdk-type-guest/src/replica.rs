@@ -8,8 +8,8 @@ use be_block_session::{
 };
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Recipients, ReplicaId, SessionTag, Status, UndoState, Written,
+    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
+    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
 };
 use uuid::Uuid;
 
@@ -130,6 +130,8 @@ pub(crate) enum Input {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
+        /// What the server says of a peer's message.
+        delivery: Option<Delivery>,
     },
     Attach {
         editor: EditorId,
@@ -216,6 +218,8 @@ enum Job<C> {
     Heard {
         from: ClientId,
         wire: Option<Wire>,
+        /// What the server checked the sender may send.
+        kind: RelayKind,
     },
     Seal {
         sealing: Sealing,
@@ -470,7 +474,6 @@ enum Wait<C> {
 #[derive(Default)]
 struct Reported {
     status: Option<Status>,
-    history: Option<UndoState>,
 }
 
 pub(crate) struct Replica<C: LiveEdit, H> {
@@ -570,6 +573,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Senders whose owner-only messages a follower ignored because the lease it knew named
     /// another owner: when one becomes the owner, the follower asks to be caught up.
     ignored_owners: Vec<ClientId>,
+    /// The last owners this replica knew of, the newest last: an owner takes over the
+    /// `Accepted` only of one of them, whose lease lapsed before it noticed.
+    past_owners: Vec<ClientId>,
     /// How many times the owner told this follower to submit again since one of its edits was
     /// last accepted.
     resends: u32,
@@ -609,9 +615,11 @@ where
             Input::Message {
                 from: Endpoint::Peer(from),
                 bytes,
+                delivery,
             } => self.jobs.push_back(Job::Heard {
                 from,
                 wire: Wire::decode(&bytes),
+                kind: delivery.map_or(RelayKind::Peer, |delivery| delivery.kind),
             }),
             Input::Appended {
                 from,
@@ -808,6 +816,7 @@ where
             catch_up_failures: 0,
             catch_up_at: None,
             ignored_owners: Vec::new(),
+            past_owners: Vec::new(),
             resends: 0,
             put_failures: 0,
             lacking: Lacking::default(),
@@ -835,10 +844,11 @@ where
             if let Job::Heard {
                 from,
                 wire: Some(wire),
+                kind,
             } = job
             {
                 let (from, wire) = (*from, wire.clone());
-                if self.not_heeded(from, &wire) {
+                if !wire.sent_as(*kind) || self.not_heeded(from, &wire) {
                     self.jobs.pop_front();
                     continue;
                 }
@@ -1081,6 +1091,7 @@ where
             if let Job::Heard {
                 from,
                 wire: Some(wire),
+                ..
             } = &job
             {
                 if matches!(wire, Wire::Session(SessionMessage::Submit { .. }))
@@ -1132,6 +1143,7 @@ where
             | SessionMessage::Snapshot { .. }
             | SessionMessage::Sealed { .. }
             | SessionMessage::Replaced { .. }
+            | SessionMessage::Saved { .. }
             | SessionMessage::Resend => {
                 let ignored = Some(from) != self.state.owner;
                 if ignored && !self.ignored_owners.contains(&from) {
@@ -1360,7 +1372,7 @@ where
         }
         match job {
             Job::Input(input) => self.handle(input),
-            Job::Heard { from, wire } => self.heard(from, wire),
+            Job::Heard { from, wire, .. } => self.heard(from, wire),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
             Job::Replace {
@@ -1423,6 +1435,7 @@ where
             Input::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
+                ..
             } => {
                 if let Some(message) = FromEditor::decode(&bytes) {
                     self.handle_editor(editor, message);
@@ -2959,6 +2972,7 @@ where
         self.out.push(Effect::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
+            kind: RelayKind::Peer,
             bytes: message.encode(),
         });
     }
@@ -3034,6 +3048,12 @@ where
     }
 
     fn report(&mut self) {
+        let undo = (self.loaded && !self.released).then(|| UndoState {
+            can_undo: self.history.can_undo(),
+            can_redo: self.history.can_redo(),
+            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
+            lost_edits: self.lost_edits,
+        });
         let status = Status {
             head: self.base,
             owner: self.is_owner(),
@@ -3046,6 +3066,7 @@ where
             incompatible: self.incompatible,
             diverged: self.diverged,
             unreadable: self.unreadable.clone(),
+            undo,
         };
         self.owes_since = match status.owes_seal {
             true => self.owes_since.or(Some(self.now)),
@@ -3060,19 +3081,6 @@ where
         }
         if !self.loaded || self.released {
             return;
-        }
-        let history = UndoState {
-            can_undo: self.history.can_undo(),
-            can_redo: self.history.can_redo(),
-            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
-            lost_edits: self.lost_edits,
-        };
-        if self.reported.history.as_ref() != Some(&history) {
-            self.reported.history = Some(history.clone());
-            self.out.push(Effect::History {
-                replica: self.id,
-                history,
-            });
         }
         if std::mem::take(&mut self.described) {
             self.out.push(Effect::Described {
@@ -3129,6 +3137,7 @@ where
                 Some(client) => Recipients::One(Endpoint::Peer(client)),
                 None => Recipients::Peers,
             },
+            kind: wire.kind(),
             bytes: wire.encode(),
         });
     }
@@ -3197,7 +3206,9 @@ where
                 self.sequenced(op);
             }
             SessionMessage::Accepted { op } => match self.role {
-                Role::Owner(_) => self.inherit_accepted(&op),
+                // Only from an earlier owner: any other editor may not sequence.
+                Role::Owner(_) if self.past_owners.contains(&from) => self.inherit_accepted(&op),
+                Role::Owner(_) => {}
                 Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
                 Role::Follower(_) => {}
             },
@@ -3525,6 +3536,17 @@ where
         self.presence
             .retain(|(client, _), _| state.participants.contains(client));
         self.presence_changed |= self.presence.len() != before;
+        // The owner it opened with is known before any lease change, so both are kept.
+        for owner in [self.state.owner, state.owner].into_iter().flatten() {
+            if self.past_owners.last() == Some(&owner) {
+                continue;
+            }
+            self.past_owners.retain(|past| *past != owner);
+            if self.past_owners.len() >= 8 {
+                self.past_owners.remove(0);
+            }
+            self.past_owners.push(owner);
+        }
         self.state = state;
         if !self.alone() {
             self.append_unappended();

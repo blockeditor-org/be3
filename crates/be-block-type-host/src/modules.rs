@@ -1,10 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     convert::Infallible,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
-    },
+    sync::{Arc, atomic::AtomicBool},
     time::{Duration, Instant},
 };
 
@@ -78,18 +75,11 @@ pub fn is_known(content_type: Uuid) -> bool {
             .contains_key(&content_type)
 }
 
-static KINDS: AtomicU64 = AtomicU64::new(0);
-
 pub fn register(kind: Kind) {
     REGISTRY
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
-    KINDS.fetch_add(1, Ordering::Relaxed);
-}
-
-pub fn kinds_revision() -> u64 {
-    KINDS.load(Ordering::Relaxed)
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
@@ -214,6 +204,10 @@ pub struct Modules {
     described: HashSet<Uuid>,
     clock: Clock,
     held: Option<Instant>,
+    /// Told whenever a module's hello registers kinds, on whichever path it started on (asked
+    /// for, launched eagerly, restarted): blocks of a type the host can now read may stop being
+    /// stale.
+    kinds_changed: fn(),
 }
 
 const RESTART_LIMIT: usize = 8;
@@ -261,6 +255,15 @@ impl Scope {
 
     pub fn allows(&self, part: be_block_store::PartRef) -> bool {
         self.allowed.contains(&part)
+    }
+
+    /// The handed parts whose hash is one of `hashes`.
+    pub fn with_hashes(&self, hashes: &[[u8; 32]]) -> Vec<be_block_store::PartRef> {
+        self.allowed
+            .iter()
+            .copied()
+            .filter(|part| hashes.contains(part.hash().as_bytes()))
+            .collect()
     }
 
     /// Whether every part `written` reuses is one of these, so an answer cannot have this
@@ -367,7 +370,14 @@ impl Claim {
 }
 
 impl Modules {
+    /// Modules whose registered kinds no host hears of (a tool, a test).
     pub fn new(sources: Vec<Source>, clock: Clock) -> Self {
+        Self::with_kinds_changed(sources, clock, || {})
+    }
+
+    /// Modules that tell `kinds_changed` of each kind they register, set before any of them
+    /// launches.
+    pub fn with_kinds_changed(sources: Vec<Source>, clock: Clock, kinds_changed: fn()) -> Self {
         let mut modules = Self {
             modules: sources
                 .into_iter()
@@ -395,6 +405,7 @@ impl Modules {
             described: HashSet::new(),
             clock,
             held: None,
+            kinds_changed,
         };
         for module in 0..modules.modules.len() {
             match modules.modules[module].source.declared.clone() {
@@ -560,39 +571,8 @@ impl Modules {
             })
             .filter(|info| !self.described.contains(&info.content_type))
             .collect();
-        let blanks = self
-            .ask_all(
-                module,
-                types
-                    .iter()
-                    .map(|info| {
-                        let content_type = info.content_type;
-                        move |connection: &mut Connection| replicas::blank(connection, content_type)
-                    })
-                    .collect(),
-            )
-            .await;
-        let mut blank = Vec::new();
-        for (info, reply) in types.into_iter().zip(blanks) {
-            if let Ok(Ok(bytes)) = reply {
-                blank.push((info, bytes));
-            }
-        }
-        let described = self
-            .ask_all(
-                module,
-                blank
-                    .iter()
-                    .map(|(info, bytes)| {
-                        let (content_type, bytes) = (info.content_type, bytes.clone());
-                        move |connection: &mut Connection| {
-                            replicas::describe(connection, content_type, bytes, Uuid::nil())
-                        }
-                    })
-                    .collect(),
-            )
-            .await;
-        for ((info, blank), described) in blank.into_iter().zip(described) {
+        let registered = !types.is_empty();
+        for info in types {
             self.routes.insert(info.content_type, module);
             self.described.insert(info.content_type);
             register(Kind {
@@ -603,12 +583,12 @@ impl Modules {
                 first_part: info.first_part,
                 merges_parts: info.merges_parts,
                 whole_bytes: info.whole_bytes,
-                blank,
-                described: match described {
-                    Ok(Ok(description)) => description,
-                    _ => Description::default(),
-                },
+                blank: info.blank,
+                described: info.blank_description,
             });
+        }
+        if registered {
+            (self.kinds_changed)();
         }
     }
 
@@ -1020,13 +1000,6 @@ impl Modules {
             Ok(replayed) => Some(replayed),
             Err(_) => bytes,
         }
-    }
-
-    pub async fn blank(&mut self, content_type: Uuid) -> Result<Vec<u8>, String> {
-        self.ask_type(content_type, |connection| {
-            replicas::blank(connection, content_type)
-        })
-        .await
     }
 
     pub async fn merge3(

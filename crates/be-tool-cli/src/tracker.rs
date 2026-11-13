@@ -610,7 +610,24 @@ impl<S: ObjectStore> Tracker<S> {
         }
     }
 
+    /// Refuses to move or delete a row's page apart from its row, which would leave the row
+    /// naming a page that is not beside it.
+    async fn refuse_row_page(&self, entry: &Entry) -> Result<(), String> {
+        let Some(parent) = entry.parent.block() else {
+            return Ok(());
+        };
+        let in_database = self
+            .entry(parent)
+            .await
+            .is_ok_and(|parent| parent.block_type == DatabaseContent::CONTENT_TYPE);
+        if in_database && self.row_pages(parent).await?.contains(&entry.id) {
+            return Err("a row's page goes with its row: `be ROW delete`".to_owned());
+        }
+        Ok(())
+    }
+
     pub async fn move_block(&self, entry: &Entry, to: &Entry) -> Result<String, String> {
+        self.refuse_row_page(entry).await?;
         let moved = &self.outermost(entry).await?;
         let from = self.peer.summary(moved.id).await.map_err(explain)?.parent;
         let into = BlockParent::Block(to.id);
@@ -639,6 +656,7 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
+        self.refuse_row_page(entry).await?;
         let deleted = &self.outermost(entry).await?;
         match self.peer.summary(deleted.id).await.map_err(explain)?.parent {
             Some(BlockParent::Block(parent)) => {
@@ -1124,7 +1142,7 @@ impl<S: ObjectStore> Tracker<S> {
         option: &str,
         settings: &[Assignment],
         adding: bool,
-    ) -> Result<(), String> {
+    ) -> Result<Option<String>, String> {
         let loaded = self.load(database).await?;
         let schema = loaded
             .database
@@ -1156,7 +1174,7 @@ impl<S: ObjectStore> Tracker<S> {
         let mut edits = Vec::new();
         let id = match (named(option), adding) {
             (Ok(id), false) => id,
-            (Err(error), false) => return Err(error),
+            (Err(error), false) => return Err(format!("{error}; add it with --new")),
             (Ok(_), true) => {
                 return Err(format!("{} already has {}", field.name, option.trim()));
             }
@@ -1199,7 +1217,16 @@ impl<S: ObjectStore> Tracker<S> {
                     false => continue,
                 },
                 "name" if value.is_empty() => return Err("an option needs a name".to_owned()),
-                "name" => DatabaseSchema::rename_enum_option(id, value),
+                "name" => {
+                    let clash = field
+                        .enum_options
+                        .iter()
+                        .any(|other| other.id != id && other.name.eq_ignore_ascii_case(value));
+                    if clash {
+                        return Err(format!("{} already has {value}", field.name));
+                    }
+                    DatabaseSchema::rename_enum_option(id, value)
+                }
                 "after" => match named(value)? {
                     after if after == id => continue,
                     after => DatabaseSchema::move_enum_option(field.id, id, Some(after)),
@@ -1219,7 +1246,7 @@ impl<S: ObjectStore> Tracker<S> {
         self.change::<DatabaseSchemaContent>(schema, |_| Ok(edits.clone()))
             .await?;
         self.invalidate().await;
-        Ok(())
+        Ok(adding.then(|| format!("added {} to {}", option.trim(), field.name)))
     }
 
     pub async fn closed_option(
@@ -1853,12 +1880,28 @@ impl<S: ObjectStore> Tracker<S> {
                 {
                     return Err(format!("the page {page} was saved by someone else first"));
                 }
-                self.change::<DatabaseContent>(database, |_| {
-                    Ok(vec![Database::set_page(row, Some(page))])
+                let mut first = None;
+                self.change::<DatabaseContent>(database, |content| {
+                    first = content.root().rows.get(row).and_then(|row| row.page());
+                    Ok(match first {
+                        Some(_) => Vec::new(),
+                        None => vec![Database::set_page(row, Some(page))],
+                    })
                 })
                 .await?;
                 self.invalidate().await;
-                page
+                match first {
+                    // Another writer gave the row its page first: write there, and let go of
+                    // the one made here.
+                    Some(first) => {
+                        self.peer
+                            .set_parent(page, BlockParent::Detached)
+                            .await
+                            .map_err(explain)?;
+                        first
+                    }
+                    None => page,
+                }
             }
         };
         self.write_text(page, &body).await

@@ -49,7 +49,8 @@ impl DockDeclaration {
 
 /// `owner` is `None` for a dock bar: the root gives it to the hosting tab. `kind` is what the root
 /// places bars by: the declaring dock's `key()` in-process, `{block type}/{key}` across apps, so the
-/// same bar of every instance of an editor shares one placement.
+/// same bar of every instance of an editor shares one placement. `placement` and `pane`
+/// (`DockState::place_bar_on`) are where it starts.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockDeclaredBar {
     pub tab: TabId,
@@ -57,6 +58,7 @@ pub struct DockDeclaredBar {
     pub kind: String,
     pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
+    pub pane: Option<TabId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

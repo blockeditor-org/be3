@@ -31,7 +31,7 @@ fn a_type_module_answers_on_a_thread_of_its_own() {
     let mut host = Connection::new(Side::Host);
     let started = replicas::start(&mut host, vec![3; 32]);
     assert_eq!(worker.queue(host.take_outbound()), None);
-    let mut blank = None;
+    let mut described = None;
     loop {
         for frame in worker.take_received() {
             host.receive(&frame).unwrap();
@@ -40,14 +40,19 @@ fn a_type_module_answers_on_a_thread_of_its_own() {
             match event {
                 Incoming::Completed { op, outcome } if op == started.op() => {
                     let types = started.decode(outcome).expect("the module lists its types");
-                    let content_type = types.first().expect("it has a type").content_type;
-                    blank = Some(replicas::blank(&mut host, content_type));
+                    let info = types.first().expect("it has a type");
+                    described = Some(replicas::describe(
+                        &mut host,
+                        info.content_type,
+                        info.blank.clone(),
+                        uuid::Uuid::nil(),
+                    ));
                     assert_eq!(worker.queue(host.take_outbound()), None);
                 }
                 Incoming::Completed { op, outcome }
-                    if blank.is_some_and(|blank| blank.op() == op) =>
+                    if described.is_some_and(|described| described.op() == op) =>
                 {
-                    let answered = blank.unwrap().decode(outcome);
+                    let answered = described.unwrap().decode(outcome);
                     assert!(matches!(answered, Ok(Ok(_))), "{answered:?}");
                     return;
                 }

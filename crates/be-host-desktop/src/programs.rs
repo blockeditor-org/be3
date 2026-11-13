@@ -1,5 +1,7 @@
 mod files;
 mod installed;
+#[cfg(windows)]
+pub(crate) use installed::SHELL;
 #[cfg(target_os = "linux")]
 mod watch;
 
@@ -269,9 +271,6 @@ impl Programs {
                 }
                 ProgramAction::Launch { program, launch } if running => {
                     self.programs.launch(&program, launch);
-                }
-                ProgramAction::Run(line) => {
-                    Host::launch(line);
                 }
                 ProgramAction::Exec { command, launch } => {
                     Host::exec(command, launch);

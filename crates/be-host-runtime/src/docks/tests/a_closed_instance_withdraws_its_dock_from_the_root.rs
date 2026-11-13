@@ -13,6 +13,7 @@ fn a_closed_instance_withdraws_its_dock_from_the_root() {
             DockUpdate::Child(DockDeclaredChild {
                 child: OUTER_CHILD,
                 declaration: Some(outer()),
+                epoch: 0,
             })
         )]
     );

@@ -1,11 +1,11 @@
 use be_sdk_api::app::EditorEvent;
-use be_sdk_api::clipboard::{Blocks, ClipFormat as _, formats};
+use be_sdk_api::clipboard::ClipBody;
 use be_sdk_api::{
     AudioStatus, BlockIdRole, BlockLocation, Catalog, ChildStatus, EditorInstanceId, Failure,
     Fonts, Hello, InputBatch, LayoutCommit, Opening, PickedBlock, Preferences, ScreenId,
     ScreenLayout, ScreenRequest, WebViewEvent, WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    shell_types::{BlockAct, ChildCreation, ClipOffer, DragStart, Focus, ShellMessage},
+    shell_types::{ChildCreation, ClipOffer, DragStart, Focus, ShellMessage},
 };
 use uuid::Uuid;
 
@@ -83,7 +83,7 @@ pub(super) enum EditorAnswer {
     },
     Rendered {
         request_id: u64,
-        data: Option<Vec<u8>>,
+        body: Option<ClipBody>,
     },
 }
 
@@ -162,28 +162,28 @@ impl BlockIds for LayoutCommit {
     }
 }
 
-/// Visits the ids of a `be3/blocks` item, which cross the protocol inside
-/// clips copied and dragged.
-fn visit_blocks(
-    instance: EditorInstanceId,
-    format: &str,
-    data: &mut Vec<u8>,
-    visit: &mut Visit<'_>,
-) {
-    if format != formats::BLOCKS {
-        return;
-    }
-    let Some(mut blocks) =
-        Blocks::decode(&be_sdk_api::ClipItem::new(formats::BLOCKS, data.clone()))
-    else {
-        return;
-    };
-    for block in &mut blocks.blocks {
-        let mut id = block.id.into_bytes();
+/// Visits the blocks a clip item names, which cross the protocol in its
+/// `refs` whatever its format: copied, dragged, rendered or pasted.
+pub(super) fn visit_refs(instance: EditorInstanceId, refs: &mut [Uuid], visit: &mut Visit<'_>) {
+    for block in refs {
+        let mut id = block.into_bytes();
         visit(instance, BlockIdRole::Existing, &mut id);
-        block.id = Uuid::from_bytes(id);
+        *block = Uuid::from_bytes(id);
     }
-    *data = blocks.encode().data;
+}
+
+/// The items pasted into an instance's screen, whose refs cross into it.
+pub(super) struct Pasted<'a> {
+    pub(super) instance: EditorInstanceId,
+    pub(super) items: Vec<&'a mut be_sdk_api::ClipItem>,
+}
+
+impl BlockIds for Pasted<'_> {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
+        for item in &mut self.items {
+            visit_refs(self.instance, &mut item.refs, visit);
+        }
+    }
 }
 
 fn focus_ids(instance: EditorInstanceId, focus: &mut Focus, visit: &mut Visit<'_>) {
@@ -204,7 +204,7 @@ impl BlockIds for Outbound {
             }
             Self::Event(instance, EditorEvent::Drag(Some(drag))) => {
                 for item in &mut drag.items {
-                    visit_blocks(*instance, &item.format, &mut item.data, visit);
+                    visit_refs(*instance, &mut item.refs, visit);
                 }
             }
             Self::Editor(instance, EditorCall::ReplaceChild { old, new, .. }) => {
@@ -234,10 +234,9 @@ impl BlockIds for ShellCall {
         };
         for message in messages {
             match message {
-                ShellMessage::DragBlock(DragStart { block_id, .. })
-                | ShellMessage::Act(BlockAct {
-                    block: block_id, ..
-                }) => visit(instance, BlockIdRole::Existing, block_id),
+                ShellMessage::DragBlock(DragStart { block_id, .. }) => {
+                    visit(instance, BlockIdRole::Existing, block_id)
+                }
                 ShellMessage::Focused(focus) => focus_ids(instance, focus, visit),
                 ShellMessage::CommitChild(ChildCreation {
                     parent: BlockLocation::Block(block_id),
@@ -248,8 +247,8 @@ impl BlockIds for ShellCall {
                 }
                 ShellMessage::Copy(ClipOffer { items, .. }) => {
                     for item in items {
-                        if let Some(data) = &mut item.data {
-                            visit_blocks(instance, &item.format, data, visit);
+                        if let Some(body) = &mut item.body {
+                            visit_refs(instance, &mut body.refs, visit);
                         }
                     }
                 }
@@ -265,6 +264,12 @@ impl BlockIds for (EditorInstanceId, EditorAnswer) {
             (instance, EditorAnswer::Created(Ok(block_id))) => {
                 visit(*instance, BlockIdRole::Existing, block_id)
             }
+            (
+                instance,
+                EditorAnswer::Rendered {
+                    body: Some(body), ..
+                },
+            ) => visit_refs(*instance, &mut body.refs, visit),
             _ => {}
         }
     }

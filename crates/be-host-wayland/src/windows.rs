@@ -295,14 +295,6 @@ impl Windows {
         }
     }
 
-    pub fn launch(&self, line: String) {
-        self.run(Launch {
-            arguments: vec!["sh".to_owned(), "-c".to_owned(), line],
-            working_dir: None,
-            tag: None,
-        });
-    }
-
     pub fn run(&self, launch: Launch) {
         self.push(Command::Launch(launch));
     }

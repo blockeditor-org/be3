@@ -8,8 +8,8 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use be_sdk_beui::{
-    ArtifactState, BarAction, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget,
-    Editor, TopBar,
+    ArtifactState, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget, Editor,
+    TopBar,
 };
 use uuid::Uuid;
 
@@ -280,9 +280,7 @@ pub(crate) fn BlockPanel(
                                                 menu={child_menu}
                                                 docked_tab
                                                 top_bar={top_bar}
-                                                on_bar={move |action: BarAction| match action {
-                                                    BarAction::Details => on_details.call(()),
-                                                }}
+                                                on_details={on_details}
                                             />
                                         </ListItem>
                                     },
@@ -317,7 +315,7 @@ fn BlockChild(
     menu: Signal<Vec<MenuNode>>,
     docked_tab: RenderFn<ChildDockTab, NodeId>,
     top_bar: Memo<TopBar>,
-    on_bar: be_sdk_beui::beui::reactive::Callback<BarAction>,
+    on_details: be_sdk_beui::beui::reactive::Callback<()>,
 ) -> NodeId {
     let target = create_memo(move || {
         info.with(|info| {
@@ -338,7 +336,7 @@ fn BlockChild(
             mode=ChildMode::Live
             own_frame=true
             top_bar={top_bar}
-            on_bar={on_bar}
+            on_details={on_details}
             docked_tab={docked_tab}
             @test_id={"workspace.block"}
         >|handle: ChildBlockHandle| {

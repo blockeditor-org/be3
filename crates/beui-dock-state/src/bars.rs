@@ -3,7 +3,7 @@ use beui_types::{Direction, Pos2};
 use super::joined::joined_host;
 
 const MAX_HOSTING_DEPTH: usize = 16;
-use super::{DockState, Entry, GroupId, TabId, Tree};
+use super::{DockState, Entry, GroupId, LeafId, TabId, Tree};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DockEdge {
@@ -118,12 +118,15 @@ impl DockBarPlacement {
     }
 }
 
+/// `pane` is a tab of the joined dock its owner hosts: the bar shows on the pane that holds that
+/// tab, else on the joined dock's first pane.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Bar {
     pub(super) bar: TabId,
     pub(super) owner: Option<TabId>,
     pub(super) placement: DockBarPlacement,
     pub(super) hidden: bool,
+    pub(super) pane: Option<TabId>,
 }
 
 impl DockState {
@@ -170,12 +173,39 @@ impl DockState {
     pub fn add_bar(&mut self, bar: TabId, owner: Option<TabId>, placement: DockBarPlacement) {
         match self.bars.iter_mut().find(|held| held.bar == bar) {
             Some(held) => held.owner = owner,
-            None => self.bars.push(Bar {
-                bar,
-                owner,
-                placement,
-                hidden: false,
-            }),
+            None => {
+                let added = Bar {
+                    bar,
+                    owner,
+                    placement,
+                    hidden: false,
+                    pane: None,
+                };
+                let at = self.layer_place(&added);
+                self.bars.insert(at, added);
+            }
+        }
+    }
+
+    /// Where a bar new to a pane goes among the pane's bars: after the last of its own layer or a
+    /// layer outside it, else before the layers inside it, so outer layers sit nearer the edge
+    /// until someone drops a bar among another layer's.
+    fn layer_place(&self, added: &Bar) -> usize {
+        let Some((tab, depth)) = self.bar_pane(added) else {
+            return self.bars.len();
+        };
+        let on_pane = |at: &usize| {
+            self.bar_pane(&self.bars[*at])
+                .is_some_and(|(shown, _)| shown == tab)
+        };
+        let depth_of = |at: usize| self.bar_pane(&self.bars[at]).map_or(0, |(_, held)| held);
+        let mut held = (0..self.bars.len()).filter(on_pane);
+        match (0..self.bars.len())
+            .filter(on_pane)
+            .rfind(|at| depth_of(*at) >= depth)
+        {
+            Some(last) => last + 1,
+            None => held.next().unwrap_or(self.bars.len()),
         }
     }
 
@@ -238,28 +268,52 @@ impl DockState {
     }
 
     pub fn bar_tab(&self, bar: TabId) -> Option<TabId> {
-        self.owner_pane(self.bar_owner(bar)?).map(|(tab, _)| tab)
+        self.bar_pane(self.bar(bar)?).map(|(tab, _)| tab)
     }
 
     pub fn bar_depth(&self, bar: TabId) -> Option<usize> {
         if self.is_dock_bar(bar) {
             return Some(0);
         }
-        self.owner_pane(self.bar_owner(bar)?)
-            .map(|(_, depth)| depth)
+        self.bar_pane(self.bar(bar)?).map(|(_, depth)| depth)
     }
 
+    /// The tabs whose panes a bar may show on: every pane of the joined dock its owner hosts (at
+    /// any depth), else its owner's own pane. Empty for the dock's own bars.
+    pub fn bar_panes(&self, bar: TabId) -> Vec<TabId> {
+        let Some(owner) = self.bar_owner(bar) else {
+            return Vec::new();
+        };
+        let Some(group) = self.hosted_group(owner) else {
+            return self
+                .owner_pane(owner)
+                .map(|(tab, _)| tab)
+                .into_iter()
+                .collect();
+        };
+        let mut panes = Vec::new();
+        self.group_panes(group, 0, &mut panes);
+        panes
+    }
+
+    /// A pane's bars stay with the pane: when `left` leaves its pane, the bars shown there by it
+    /// are shown by `staying`, a tab still in that pane.
+    pub(super) fn repoint_bars(&mut self, left: TabId, staying: TabId) {
+        for held in &mut self.bars {
+            if held.pane == Some(left) {
+                held.pane = Some(staying);
+            }
+        }
+    }
+
+    /// The bars a pane shows, in order from its edges: bars of every layer joined there, outer
+    /// layers first unless a bar was dropped among another layer's.
     pub fn pane_bars(&self, tab: TabId) -> Vec<TabId> {
-        let mut found: Vec<(usize, TabId)> = self
-            .bars
+        self.bars
             .iter()
-            .filter_map(|held| {
-                let (shown, depth) = self.owner_pane(held.owner?)?;
-                (shown == tab).then_some((depth, held.bar))
-            })
-            .collect();
-        found.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
-        found.into_iter().map(|(_, bar)| bar).collect()
+            .filter(|held| self.bar_pane(held).is_some_and(|(shown, _)| shown == tab))
+            .map(|held| held.bar)
+            .collect()
     }
 
     pub fn bars_with(&self, bar: TabId) -> Vec<TabId> {
@@ -271,26 +325,34 @@ impl DockState {
             .unwrap_or_default()
     }
 
-    pub fn place_bar_at(&mut self, bar: TabId, placement: DockBarPlacement, slot: usize) {
+    /// Moves a bar to `placement`, `slot` places in among the bars already there. `pane`, one of
+    /// `bar_panes`, moves it to the pane holding that tab (a tab that is none of them, to its
+    /// joined dock's first pane); `None` keeps it on its pane.
+    pub fn place_bar_on(
+        &mut self,
+        bar: TabId,
+        pane: Option<TabId>,
+        placement: DockBarPlacement,
+        slot: usize,
+    ) {
         let Some(from) = self.bars.iter().position(|held| held.bar == bar) else {
             return;
         };
         let mut moved = self.bars.remove(from);
         moved.placement = placement;
-        let pane = |owner: Option<TabId>| {
-            owner
-                .and_then(|owner| self.owner_pane(owner))
-                .map(|(tab, _)| tab)
-        };
-        let tab = pane(moved.owner);
+        if let (Some(pane), Some(owner)) = (pane, moved.owner) {
+            moved.pane = self.pane_under(owner, pane).is_some().then_some(pane);
+        }
+        let pane = |held: &Bar| self.bar_pane(held).map(|(tab, _)| tab);
+        let tab = pane(&moved);
         let siblings: Vec<usize> = self
             .bars
             .iter()
             .enumerate()
             .filter(|(_, held)| {
-                held.owner == moved.owner
+                held.owner.is_some() == moved.owner.is_some()
                     && held.placement.same_place(placement)
-                    && pane(held.owner) == tab
+                    && pane(held) == tab
             })
             .map(|(at, _)| at)
             .collect();
@@ -306,19 +368,15 @@ impl DockState {
         let Some(held) = self.bar(bar) else {
             return 0;
         };
-        let pane = |owner: Option<TabId>| {
-            owner
-                .and_then(|owner| self.owner_pane(owner))
-                .map(|(tab, _)| tab)
-        };
-        let tab = pane(held.owner);
+        let pane = |held: &Bar| self.bar_pane(held).map(|(tab, _)| tab);
+        let tab = pane(held);
         self.bars
             .iter()
             .take_while(|other| other.bar != bar)
             .filter(|other| {
-                other.owner == held.owner
+                other.owner.is_some() == held.owner.is_some()
                     && other.placement.same_place(held.placement)
-                    && pane(other.owner) == tab
+                    && pane(other) == tab
             })
             .count()
     }
@@ -385,17 +443,78 @@ impl DockState {
         }
     }
 
+    /// The tab whose pane shows a bar, and how many joined docks deep that pane is.
+    fn bar_pane(&self, held: &Bar) -> Option<(TabId, usize)> {
+        let owner = held.owner?;
+        held.pane
+            .and_then(|pane| self.pane_under(owner, pane))
+            .or_else(|| self.owner_pane(owner))
+    }
+
     fn owner_pane(&self, owner: TabId) -> Option<(TabId, usize)> {
         if self.contains(owner) {
             return Some((owner, 0));
         }
-        let group = self
-            .groups
-            .iter()
-            .find(|group| group.key.as_deref().and_then(joined_host) == Some(owner))?
-            .id;
+        let group = self.hosted_group(owner)?;
         let (tab, depth) = self.first_pane_tab(group, 0)?;
         Some((tab, depth + 1))
+    }
+
+    fn hosted_group(&self, owner: TabId) -> Option<GroupId> {
+        self.groups
+            .iter()
+            .find(|group| group.key.as_deref().and_then(joined_host) == Some(owner))
+            .map(|group| group.id)
+    }
+
+    fn is_joined(&self, group: GroupId) -> bool {
+        self.group(group)
+            .and_then(|held| held.key.as_deref())
+            .and_then(joined_host)
+            .is_some()
+    }
+
+    /// The pane holding `pane` inside the joined dock `owner` hosts: the tab it shows, and how
+    /// many joined docks deep it is.
+    fn pane_under(&self, owner: TabId, pane: TabId) -> Option<(TabId, usize)> {
+        let group = self.hosted_group(owner)?;
+        let leaf = self.find(pane)?.leaf;
+        let mut depth = 0;
+        let mut at = leaf;
+        for _ in 0..=MAX_HOSTING_DEPTH {
+            let Tree::Group(within) = self.tree_of(at)? else {
+                return None;
+            };
+            depth += usize::from(self.is_joined(within));
+            if within == group {
+                return self.leaf_pane(leaf, depth);
+            }
+            at = self.holder(within)?.0;
+        }
+        None
+    }
+
+    fn leaf_pane(&self, leaf: LeafId, depth: usize) -> Option<(TabId, usize)> {
+        match self.active_entry(leaf)? {
+            Entry::Tab(tab) => Some((tab, depth)),
+            Entry::Group(inner) => {
+                let (tab, nested) = self.first_pane_tab(inner, 0)?;
+                Some((tab, depth + nested + usize::from(self.is_joined(inner))))
+            }
+        }
+    }
+
+    fn group_panes(&self, group: GroupId, nested: usize, out: &mut Vec<TabId>) {
+        if nested > MAX_HOSTING_DEPTH {
+            return;
+        }
+        for leaf in self.tree_leaves(Tree::Group(group)) {
+            match self.active_entry(leaf) {
+                Some(Entry::Tab(tab)) => out.push(tab),
+                Some(Entry::Group(inner)) => self.group_panes(inner, nested + 1, out),
+                None => {}
+            }
+        }
     }
 
     fn first_pane_tab(&self, group: GroupId, nested: usize) -> Option<(TabId, usize)> {
