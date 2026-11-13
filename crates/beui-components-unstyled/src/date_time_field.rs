@@ -160,7 +160,7 @@ pub fn DateTimeField(
     let disabled = create_memo(move || disabled.get());
     let left_state = StoredCell::new(None::<State>);
     let left = create_timer(move || {
-        if let Some(state) = left_state.is_alive().then(|| left_state.get()).flatten() {
+        if let Some(state) = left_state.try_get().flatten() {
             left_field(state);
         }
         None

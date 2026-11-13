@@ -44,6 +44,12 @@ struct Metrics {
     glyph: TextSize,
 }
 
+/// A comfortable row: tall enough to tap, the tree's own step between `Size::Xl` and
+/// `Size::TouchRow`.
+const COMFORTABLE_ROW: f32 = 44.0;
+/// A comfortable chevron's hit area, square across most of a comfortable row.
+const COMFORTABLE_CHEVRON: f32 = 36.0;
+
 /// The tree's sizes at each density. Density sizes the tree alone: under
 /// `Density::Comfortable` its rows are tall enough to tap.
 fn metrics(density: Density) -> Metrics {
@@ -57,10 +63,10 @@ fn metrics(density: Density) -> Metrics {
             glyph: TextSize::Xs,
         },
         Density::Comfortable => Metrics {
-            row: 44.0,
-            indent: 16.0,
-            spacing: 8.0,
-            chevron: 36.0,
+            row: COMFORTABLE_ROW,
+            indent: Space::Xl.px(),
+            spacing: Space::Md.px(),
+            chevron: COMFORTABLE_CHEVRON,
             menu: Size::Xl.px(),
             glyph: TextSize::Lg,
         },

@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use beui_macros::component;
 use beui_reactive::{
-    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Stored, create_binding,
+    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Stored, StoredCell, create_binding,
     create_signal, store,
 };
 
@@ -101,9 +101,9 @@ where
         });
         let content = store((host, scope));
         let shown = store(RefCell::new(None::<(Pending, C::Stored, Scope)>));
-        let revealed = store(std::cell::Cell::new(false));
+        let revealed = StoredCell::new(false);
         create_binding(move || {
-            if revealed.value().get() {
+            if revealed.get() {
                 return;
             }
             let state = boundary.state().and_then(|()| {
@@ -114,7 +114,7 @@ where
             let mut shown = shown.borrow_mut();
             match state {
                 Ok(()) => {
-                    revealed.value().set(true);
+                    revealed.set(true);
                     boundary.reveal();
                     drop(shown.take());
                     let content = content.value();
