@@ -254,6 +254,12 @@ pub struct Searching {
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
+    /// Types whose module a test has fail to start (`held_off`).
+    #[cfg(test)]
+    pub(crate) not_running: HashSet<Uuid>,
+    /// Types a test has no module for on this device (`has_module`).
+    #[cfg(test)]
+    pub(crate) no_module: HashSet<Uuid>,
     /// Set by a test that writes as a device without an indexer.
     pub off: bool,
 }
@@ -1178,43 +1184,48 @@ async fn puts_of(
         .ok()
         .and_then(|metadata| metadata.name())
         .unwrap_or_default();
-    // Only a module already running is asked: starting one would hold up the worker's loop.
-    // A block a catch-up named may be of a type this device has not run yet: its module is
-    // started once, which is worth it to index what other devices wrote.
-    let from_catch_up = shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .search
-        .caught
-        .contains_key(&block);
-    let known = match from_catch_up {
-        true => replicas.kind(content_type).await.is_some(),
-        false => crate::kind_of(content_type).is_some(),
-    };
+    // Its module is started if it is not running, as for a block opened, to read the text. A
+    // type no module on this device has (an app not installed here), or whose module does not
+    // start, is put by its name alone, marked partial: a device whose module reads it puts the
+    // same commit in full, which replaces it (`Put::partial`), and searches here stay complete.
+    let readable = has_module(shared, replicas, content_type)
+        && !held_off(shared, content_type)
+        && replicas.kind(content_type).await.is_some();
+    if !readable {
+        let put = Put {
+            doc: DocId {
+                block: block.as_bytes().to_vec(),
+                key: String::new(),
+            },
+            commit: at,
+            source: None,
+            text: Some(Text {
+                name,
+                body: String::new(),
+            }),
+            partial: true,
+        };
+        return Some((vec![put], Vec::new()));
+    }
     let indexed: Vec<[u8; 32]> = held
         .iter()
         .filter(|entry| !whole && !entry.is_removed())
         .filter_map(|entry| entry.source)
         .collect();
-    // Whether the type answered every document: only then is one it no longer answers removed.
-    let (mut documents, answered) = match known {
-        true => {
-            match documents_of(
-                peer,
-                shared,
-                replicas,
-                content_type,
-                &commit,
-                None,
-                &indexed,
-            )
-            .await?
-            {
-                Some(documents) => (documents, true),
-                None => (Vec::new(), false),
-            }
-        }
-        false => (Vec::new(), false),
+    // A type that cannot be asked, or breaks the rules, is held back as a part that could not
+    // be read is: its text is never put in part.
+    let Some(Some(mut documents)) = documents_of(
+        peer,
+        shared,
+        replicas,
+        content_type,
+        &commit,
+        None,
+        &indexed,
+    )
+    .await
+    else {
+        return None;
     };
     if !documents.iter().any(|document| document.key.is_empty()) {
         documents.push(be_sdk_type_api::SearchDocument {
@@ -1224,19 +1235,16 @@ async fn puts_of(
             body: Some(String::new()),
         });
     }
-    let removed = match answered {
-        true => {
-            let answers: HashSet<&str> = documents
-                .iter()
-                .map(|document| document.key.as_str())
-                .collect();
-            held.iter()
-                .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
-                .map(|entry| (entry.doc.clone(), at))
-                .collect()
-        }
-        false => Vec::new(),
-    };
+    // The type answered every document, so one it no longer answers is removed.
+    let answers: HashSet<&str> = documents
+        .iter()
+        .map(|document| document.key.as_str())
+        .collect();
+    let removed = held
+        .iter()
+        .filter(|entry| !entry.is_removed() && !answers.contains(entry.doc.key.as_str()))
+        .map(|entry| (entry.doc.clone(), at))
+        .collect();
     let puts = documents
         .into_iter()
         .map(|document| {
@@ -1262,10 +1270,46 @@ async fn puts_of(
                     .source
                     .map(|source| *be_block_store::PartRef::from(source).hash().as_bytes()),
                 text,
+                partial: false,
             }
         })
         .collect();
     Some((puts, removed))
+}
+
+/// Whether this device has a module for `content_type`, running or not; a test can say it has
+/// none (`Searching::no_module`).
+fn has_module(shared: &Mutex<Shared>, replicas: &Replicas, content_type: Uuid) -> bool {
+    #[cfg(test)]
+    if shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .no_module
+        .contains(&content_type)
+    {
+        return false;
+    }
+    #[cfg(not(test))]
+    let _ = shared;
+    replicas.has_module(content_type)
+}
+
+/// Whether a test has the indexer take `content_type`'s module as not running
+/// (`Searching::not_running`).
+#[cfg(test)]
+fn held_off(shared: &Mutex<Shared>, content_type: Uuid) -> bool {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .search
+        .not_running
+        .contains(&content_type)
+}
+
+#[cfg(not(test))]
+fn held_off(_: &Mutex<Shared>, _: Uuid) -> bool {
+    false
 }
 
 /// `text` cut at `MAX_TEXT` bytes, on a character.
@@ -1282,8 +1326,7 @@ pub(crate) fn capped(mut text: String) -> String {
 
 /// A commit's searchable documents, as its type answers `search-text` (only `keys`, when
 /// some are named; no body for one whose source is in `indexed`, part hashes): `Some(None)`
-/// when the type breaks the rules or cannot be asked, so the block is found by its name alone,
-/// and None when a part could not be read.
+/// when the type breaks the rules or cannot be asked, and None when a part could not be read.
 async fn documents_of(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,

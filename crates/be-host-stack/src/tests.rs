@@ -22,9 +22,12 @@ mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
 mod a_block_made_while_a_listing_is_answered_stays_listed;
 mod a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
+mod a_block_of_a_type_without_a_module_is_found_by_its_name_until_a_full_put;
 mod a_block_opens_from_what_this_device_saved_before_its_session_is_joined;
+mod a_block_renamed_in_the_files_is_found_by_its_new_name;
 mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits;
+mod a_block_whose_module_does_not_start_is_found_by_its_name_then_its_text;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
@@ -106,7 +109,6 @@ mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner;
-mod an_owner_whose_lease_lapsed_journals_on_without_an_error;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
@@ -1073,6 +1075,7 @@ impl Device {
                         name: "Note".to_owned(),
                         body: text.to_owned(),
                     }),
+                    partial: false,
                 }],
                 ..be_lib_search::Batch::default()
             };
