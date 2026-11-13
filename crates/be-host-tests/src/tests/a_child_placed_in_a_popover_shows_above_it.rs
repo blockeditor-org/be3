@@ -15,7 +15,9 @@ fn a_child_placed_in_a_popover_shows_above_it() {
     host.wait("#block-debug.preview");
     host.click("#block-debug.preview");
     host.wait("#block-debug.preview.child");
-    host.wait("Pane \"Shown above the popover\"");
+    host.run(&["pause", "500"]);
+    let tree = host.tree();
+    assert!(tree.is_empty(), "{tree}");
     host.crop("#workspace.block");
     host.snapshot("a_child_placed_in_a_popover_shows_above_it");
     host.close();
