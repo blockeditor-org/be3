@@ -19,5 +19,5 @@ went: `take_copies` (no callers) and `take_copied_images`, which was
 ## Rejected
 
 - Removing the wrappers in favour of `take_shell_messages(pick)` at every call
-  site (plans/api_simplification.md §15, tried on the child focus and dialog
-  tests): longer tests with no fewer concepts.
+  site (plans/api_simplification.md §15, written out for the child focus and
+  dialog tests): longer tests with no fewer concepts.
