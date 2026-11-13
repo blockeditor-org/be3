@@ -636,6 +636,7 @@ impl<K: DockKey> DockingLayout<K> {
                     kind,
                     owner,
                     placement: bar.placement,
+                    pane: bar.pane.and_then(|pane| spec.owner_tab(pane)),
                 })
             })
             .collect()
@@ -745,6 +746,7 @@ impl<K: DockKey> DockingLayout<K> {
                     owner,
                     placement: *placement,
                     hidden: false,
+                    pane: None,
                 });
             }
         }
@@ -950,6 +952,7 @@ impl<K: DockKey> DockingLayout<K> {
                 owner: Some(owner),
                 placement: declared.placement,
                 hidden: false,
+                pane: declared.pane.map(|pane| self.mint_foreign(host, pane)),
             });
         }
         for window in &spec.windows {

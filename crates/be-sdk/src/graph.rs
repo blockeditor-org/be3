@@ -279,6 +279,11 @@ pub enum GraphCommand {
         key: Uuid,
         value: Option<Vec<u8>>,
     },
+    /// Any other `blocks.act`, kept in order with the graph changes around it.
+    Act {
+        id: Uuid,
+        command: be_sdk_api::BlockCommand,
+    },
 }
 
 pub(crate) struct GraphState {

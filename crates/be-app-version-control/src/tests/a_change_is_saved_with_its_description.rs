@@ -28,12 +28,12 @@ fn a_change_is_saved_with_its_description() {
     editor.run();
 
     assert_eq!(
-        editor.take_version_commands(),
+        editor.take_block_commands(),
         vec![(
             own(&editor),
-            VersionCommand::Finish {
+            BlockCommand::Version(VersionCommand::Finish {
                 description: "Say more".into()
-            }
+            })
         )]
     );
     editor.snapshot("a_change_is_saved_with_its_description");

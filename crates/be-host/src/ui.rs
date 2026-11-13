@@ -299,6 +299,16 @@ pub(crate) struct AgentsView {
     pub(crate) created: Option<CreatedAgent>,
 }
 
+/// The block the leave dialog asks about, named from the host's graph, never from what the
+/// asking editor says.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LeavingView {
+    pub(crate) block: Uuid,
+    pub(crate) name: String,
+    /// The name of the block it sits in, when it sits in one.
+    pub(crate) within: Option<String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DiscardView {
     pub(crate) title: String,
@@ -338,7 +348,7 @@ pub(crate) struct HostUi {
     pub(crate) about: bool,
     pub(crate) unsent: Option<UnsentView>,
     pub(crate) discard: Option<DiscardView>,
-    pub(crate) leaving: bool,
+    pub(crate) leaving: Option<LeavingView>,
     pub(crate) leave_busy: bool,
     /// Why leaving was refused (offline, it needs the server).
     pub(crate) leave_refused: String,
@@ -408,7 +418,8 @@ pub(crate) enum UiCommand {
     OpenContactLink(String),
     AcceptContact,
     DeclineContact,
-    ConfirmLeave,
+    /// Leave the block the dialog showed, unless another one is pending by then.
+    ConfirmLeave(Uuid),
     CancelLeave,
     RemoveContact(Uuid),
     ConfirmRemoveContact,

@@ -86,10 +86,10 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
     assert_eq!(format!("{created:?}"), format!("{:?}", create(copy)));
 
     let outside = placed_on(elsewhere, TextContent::CONTENT_TYPE);
-    let set_parent = || Call::SetParent {
+    let set_parent = || Call::Act {
         reply: reply(0),
         block: copy.into_bytes(),
-        parent: BlockLocation::Block(checkout.into_bytes()),
+        command: be_sdk_api::BlockCommand::SetParent(BlockLocation::Block(checkout.into_bytes())),
     };
     let mut unscoped = set_parent();
     Instances::translated(outside.scope(INSTANCE), true, |visit| {
