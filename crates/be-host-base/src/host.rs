@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     rc::Rc,
-    sync::{Mutex, OnceLock, PoisonError},
+    sync::{Condvar, Mutex, OnceLock, PoisonError},
     thread::{self, ThreadId},
     time::{Duration, Instant},
 };
@@ -20,6 +20,8 @@ type Letter = (u64, Box<dyn Any + Send>);
 type Receive = Rc<dyn Fn(&mut dyn Any, Box<dyn Any + Send>)>;
 
 static POSTED: Mutex<Vec<(ThreadId, Letter)>> = Mutex::new(Vec::new());
+/// Told whenever a letter is posted (`wait_for_letter`).
+static POSTED_SIGNAL: Condvar = Condvar::new();
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
@@ -86,8 +88,23 @@ impl<T: Send + 'static> Post<T> {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push((self.thread, (self.mailbox, Box::new(value))));
+        POSTED_SIGNAL.notify_all();
         wake();
     }
+}
+
+/// Waits until a letter for this thread is posted, up to `limit`, and answers whether one was:
+/// for a test that waits on work another thread answers through a mailbox. It takes no letter;
+/// a desk's `deliver` does.
+pub fn wait_for_letter(limit: Duration) -> bool {
+    let here = thread::current().id();
+    let posted = POSTED.lock().unwrap_or_else(PoisonError::into_inner);
+    let (_posted, waited) = POSTED_SIGNAL
+        .wait_timeout_while(posted, limit, |posted| {
+            !posted.iter().any(|(thread, _)| *thread == here)
+        })
+        .unwrap_or_else(PoisonError::into_inner);
+    !waited.timed_out()
 }
 
 fn next_mailbox() -> u64 {

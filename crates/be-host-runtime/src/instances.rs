@@ -1992,6 +1992,13 @@ impl Instances {
             entry.reported_presenting = false;
             entry.published.forget_reported();
             entry.heads = Heads::default();
+            // The old app's previews close with it: the new one numbers its ops afresh, so a
+            // preview kept here could answer to an op of the new app's.
+            for (_, preview) in entry.revision_previews.drain() {
+                if let Some(block) = preview.block() {
+                    be_host_stack::revisions::release(block);
+                }
+            }
             super::events::emit(
                 &self.app_id,
                 *instance,

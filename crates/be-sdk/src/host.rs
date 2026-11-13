@@ -1821,6 +1821,9 @@ impl EditorHost {
                     _held: held,
                 })),
                 Ok(Err(failure)) => Some(Err(failure)),
+                // Canceled means the editor or the app is going away (the host ended the wait
+                // or the resource with it): no one is left to tell, so the ask answers nothing,
+                // as `Asked` does for every canceled call.
                 Err(OpError::Canceled) => None,
                 Err(error) => Some(Err(Failure::from(error))),
             }
@@ -2058,6 +2061,9 @@ impl EditorHost {
             match head.await {
                 Ok(Ok(head)) => Some(Ok(Response::new(head, fetch))),
                 Ok(Err(failure)) => Some(Err(failure)),
+                // Canceled means the editor or the app is going away (the host ended the wait
+                // or the resource with it): no one is left to tell, so the ask answers nothing,
+                // as `Asked` does for every canceled call.
                 Err(OpError::Canceled) => None,
                 Err(error) => Some(Err(Failure::from(error))),
             }

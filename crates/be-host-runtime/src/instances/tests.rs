@@ -210,6 +210,90 @@ thread_local! {
         be_sdk_api::ops::Connection::new(be_sdk_api::ops::Side::Host);
 }
 
+/// A counter block with one saved head, for revision previews: the block and that head.
+fn saved_counter() -> (Uuid, [u8; 32]) {
+    use be_block::{BlockContent, LiveEdit};
+    let block = Uuid::new_v4();
+    be_host_stack::hold(block, be_type_example_counter::CounterContent::CONTENT_TYPE);
+    be_host_stack::operate(
+        block,
+        be_type_example_counter::CounterContent::encode_operation(
+            &be_type_example_counter::Counter::add(1),
+        ),
+    );
+    be_host_stack::flush_and_send();
+    let head =
+        be_host_stack::wait_until(|shared| shared.graph.get(block).and_then(|node| node.head));
+    (block, *head.hash().as_bytes())
+}
+
+/// The editor opens a `revision-preview` of `block` at `commit` as `preview`, and waits on its
+/// `opened` as `opened` when it names one.
+fn preview_revision(
+    instances: &mut Instances,
+    preview: OpId,
+    opened: Option<OpId>,
+    block: Uuid,
+    commit: [u8; 32],
+) {
+    use be_sdk_api::embed::host_services::Call as Services;
+    instances.serve(crate::wire::Service {
+        instance: INSTANCE,
+        call: Services::RevisionPreviewNew {
+            resource: wire::RevisionPreview(preview),
+            block: block.into_bytes(),
+            commit,
+        },
+    });
+    if let Some(opened) = opened {
+        instances.serve(crate::wire::Service {
+            instance: INSTANCE,
+            call: Services::RevisionPreviewOpened {
+                this: wire::RevisionPreview(preview),
+                reply: reply(opened),
+            },
+        });
+    }
+}
+
+/// The previews the stack opened of `block`, each with how many times it was let go.
+fn previews_of(block: Uuid) -> Vec<(Uuid, usize)> {
+    be_host_stack::wait_until(|shared| {
+        Some(
+            shared
+                .revision_previews
+                .iter()
+                .filter(|(id, preview)| preview.source == block && preview.root == **id)
+                .map(|(id, _)| {
+                    let released = shared.released_previews.iter().filter(|gone| *gone == id).count();
+                    (*id, released)
+                })
+                .collect(),
+        )
+    })
+}
+
+/// What the instance answers until `done` holds of everything it answered and the previews of
+/// `block`, waiting on what the stack sends back between tries.
+fn answered_until(
+    instances: &mut Instances,
+    block: Uuid,
+    done: impl Fn(&[(OpId, Outcome)], &[(Uuid, usize)]) -> bool,
+) -> Vec<(OpId, Outcome)> {
+    let mut answers = Vec::new();
+    loop {
+        answers.extend(instances.take_answers());
+        if done(&answers, &previews_of(block)) {
+            return answers;
+        }
+        assert!(
+            be_host_base::host::wait_for_letter(std::time::Duration::from_secs(30)),
+            "nothing more came back: {answers:?} {:?}",
+            previews_of(block)
+        );
+    }
+}
+
 fn reply<T, S>(op: OpId) -> be_sdk_api::ops::Reply<T, S> {
     HOST.with(|host| be_sdk_api::ops::Reply::new(host, op))
 }
@@ -518,6 +602,10 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
 }
 
 mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
+mod a_revision_preview_dropped_before_it_opens_is_let_go_once_it_opens;
+mod a_revision_preview_dropped_once_open_is_let_go;
+mod an_editor_closing_lets_go_of_its_revision_previews_once_each;
+mod a_restarted_app_lets_go_of_its_revision_previews_and_numbers_them_afresh;
 mod a_block_gift_becomes_a_gift_to_the_child_that_shows_its_block;
 mod a_block_gift_ends_when_the_instance_goes;
 mod a_block_gift_for_a_block_the_host_refused_to_make_never_starts;

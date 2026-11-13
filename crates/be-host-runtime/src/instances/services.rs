@@ -684,7 +684,7 @@ impl Instances {
     }
 
     pub fn withdraw(&mut self, op: OpId) {
-        if self.fetch_ended(op) {
+        if self.fetch_ended(op) || self.preview_ended(op) {
             return;
         }
         let Some(work) = self.services.serving.remove(&op) else {
