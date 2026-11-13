@@ -2221,15 +2221,12 @@ async fn set_parent(
 
 /// Holds the next version command's write of a block, once, until the test lets it go: what a
 /// test does meanwhile, the loop still running, lands between the command reading the block and
-/// writing it.
+/// writing it (`Shared::before_write`).
 #[cfg(test)]
 pub(crate) type HeldWrite = (
     tokio::sync::oneshot::Sender<Uuid>,
     tokio::sync::oneshot::Receiver<()>,
 );
-
-#[cfg(test)]
-pub(crate) static BEFORE_WRITE: std::sync::Mutex<Option<HeldWrite>> = std::sync::Mutex::new(None);
 
 /// What a block holds when version control writes it.
 struct Written<'a> {
@@ -2281,9 +2278,11 @@ async fn publish(
         return Ok(summary.head);
     };
     #[cfg(test)]
-    let hook = BEFORE_WRITE
+    let hook = context
+        .shared
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
+        .before_write
         .take();
     #[cfg(test)]
     if let Some((reached, go)) = hook {

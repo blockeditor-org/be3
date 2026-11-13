@@ -627,6 +627,13 @@ pub struct Shared {
     pub reconnect: Option<(be_block_client::Clock, Duration)>,
     #[cfg(test)]
     pub parked: Option<Option<Duration>>,
+    /// Set by a test (`hold_drains`): the outbox is not drained until it is cleared.
+    #[cfg(test)]
+    pub hold_drains: bool,
+    /// Set by a test: the next version command's write of a block waits on it
+    /// (`version::HeldWrite`).
+    #[cfg(test)]
+    pub before_write: Option<super::version::HeldWrite>,
     /// Set by `crash`: the worker ends at its next pass without keeping what open replicas
     /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
     #[cfg(any(test, feature = "testing"))]
@@ -2952,8 +2959,13 @@ async fn apply(
         | Command::SetNotifyMode { .. }
         | Command::Push(_)
         | Command::Authorship(_)
-        | Command::Storage
-        | Command::Sync => false,
+        | Command::Storage => false,
+        // Also starts a drain of what waits in the outbox, which otherwise waits for the
+        // loop's retry.
+        Command::Sync => {
+            tasks.sync(peer, shared);
+            false
+        }
         Command::WatchVersion(block) => {
             Versions::watch(shared, block);
             false
@@ -3749,11 +3761,6 @@ pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>
     tasks.spawn(async move { list(&peer, &shared, unlisted, wanted).await });
 }
 
-/// Set by a test: the outbox is not drained until it is cleared, and something asks again.
-#[cfg(test)]
-pub(crate) static HOLD_DRAINS: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
 #[derive(Clone)]
 pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
@@ -3800,7 +3807,11 @@ impl Tasks {
             return;
         }
         #[cfg(test)]
-        if HOLD_DRAINS.load(std::sync::atomic::Ordering::SeqCst) {
+        if shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .hold_drains
+        {
             return;
         }
         {

@@ -40,7 +40,7 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
     });
 
     // This device types a line at the top of the note and seals it, but the outbox holds it.
-    crate::worker::HOLD_DRAINS.store(true, std::sync::atomic::Ordering::SeqCst);
+    crate::hold_drains(true);
     type_text(versioned.note, 0, "Oh\n");
     flush();
     let unsent = crate::wait_until(|shared| {
@@ -50,9 +50,7 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
 
     let (reached, held) = tokio::sync::oneshot::channel();
     let (go, gone) = tokio::sync::oneshot::channel();
-    *crate::version::BEFORE_WRITE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((reached, gone));
+    crate::hold_next_version_write((reached, gone));
     version(
         versioned.checkout,
         VersionCommand::Switch {
@@ -64,7 +62,7 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
         Ok(versioned.note),
         "the switch reached writing the note"
     );
-    crate::worker::HOLD_DRAINS.store(false, std::sync::atomic::Ordering::SeqCst);
+    crate::hold_drains(false);
     go.send(()).expect("the switch waits");
 
     wait_until("finished the switch", |shared| {

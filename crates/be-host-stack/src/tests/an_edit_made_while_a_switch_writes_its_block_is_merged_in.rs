@@ -47,9 +47,7 @@ fn an_edit_made_while_a_switch_writes_its_block_is_merged_in() {
     });
     let (reached, held) = tokio::sync::oneshot::channel();
     let (go, gone) = tokio::sync::oneshot::channel();
-    *crate::version::BEFORE_WRITE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((reached, gone));
+    crate::hold_next_version_write((reached, gone));
     version(
         versioned.checkout,
         VersionCommand::Switch {
