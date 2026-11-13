@@ -51,8 +51,6 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
 
     fn wake() {}
 
-    fn kinds_changed() {}
-
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
         held(shared).errors.push(explain(error));
     }

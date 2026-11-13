@@ -32,10 +32,6 @@ pub trait Host: Sized + 'static {
 
     fn wake();
 
-    /// A module registered a content type this host can now read, on any path it started on:
-    /// blocks of that type may stop being stale, and the host should look again.
-    fn kinds_changed();
-
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError);
 
     /// Records what went wrong sending to the server, such as a refused append to a session's

@@ -822,7 +822,9 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     let mut replicas = Replicas::new(Modules::with_kinds_changed(
         types::sources().await,
         config.clock.clone(),
-        <Shared as be_block_type_host::Host>::kinds_changed,
+        // A kind this host can now read may make blocks stop being stale; posting wakes the
+        // host's frame, which takes the notice.
+        super::changes::stale,
     ));
     replicas.modules.hold_clock(super::held_clock());
     replicas.modules.ready().await;

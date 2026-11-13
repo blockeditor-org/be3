@@ -205,7 +205,8 @@ pub struct Modules {
     clock: Clock,
     held: Option<Instant>,
     /// Told whenever a module's hello registers kinds, on whichever path it started on (asked
-    /// for, launched eagerly, restarted): the host's `Host::kinds_changed`.
+    /// for, launched eagerly, restarted): blocks of a type the host can now read may stop being
+    /// stale.
     kinds_changed: fn(),
 }
 

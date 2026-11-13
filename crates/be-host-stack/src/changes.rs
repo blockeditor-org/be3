@@ -22,7 +22,7 @@ pub struct Changes {
     /// The account's storage (`storage_usage`).
     pub storage: bool,
     /// Which blocks are stale, have conflicts, or have a kind this host can read
-    /// (`be_block_type_host::Host::kinds_changed`).
+    /// (`Modules::with_kinds_changed`).
     pub stale: bool,
     /// The answers to searches (`searched`).
     pub search: bool,
