@@ -10,11 +10,18 @@ fn idle_and_abandoned_transfers_are_dropped() {
     transfers.start(3, 5, 9, Arc::clone(&data), start);
 
     transfers.forget(3);
-    assert!(!transfers.names(3), "a requestor that went away is forgotten");
+    assert!(
+        !transfers.names(3),
+        "a requestor that went away is forgotten"
+    );
 
     let later = start + IDLE / 2;
     assert!(transfers.next(2, 5, later).is_some());
-    assert_eq!(transfers.expire(later), [], "nothing has been idle long enough");
+    assert_eq!(
+        transfers.expire(later),
+        [],
+        "nothing has been idle long enough"
+    );
 
     let stale = start + IDLE;
     assert_eq!(

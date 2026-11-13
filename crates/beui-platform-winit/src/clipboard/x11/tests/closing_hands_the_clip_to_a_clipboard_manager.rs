@@ -15,7 +15,11 @@ fn closing_hands_the_clip_to_a_clipboard_manager() {
         let manager = Reader::connect(&display);
         manager
             .connection
-            .set_selection_owner(manager.window, manager.atom("CLIPBOARD_MANAGER"), CURRENT_TIME)
+            .set_selection_owner(
+                manager.window,
+                manager.atom("CLIPBOARD_MANAGER"),
+                CURRENT_TIME,
+            )
             .expect("the manager takes its selection");
         manager
             .connection

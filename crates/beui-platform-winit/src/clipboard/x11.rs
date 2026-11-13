@@ -214,7 +214,14 @@ struct Transfers {
 }
 
 impl Transfers {
-    fn start(&mut self, requestor: Window, property: Atom, kind: Atom, data: Arc<[u8]>, now: Instant) {
+    fn start(
+        &mut self,
+        requestor: Window,
+        property: Atom,
+        kind: Atom,
+        data: Arc<[u8]>,
+        now: Instant,
+    ) {
         self.sending
             .retain(|sending| (sending.requestor, sending.property) != (requestor, property));
         self.sending.push(Sending {
@@ -252,7 +259,8 @@ impl Transfers {
 
     /// Drops every transfer to a requestor that went away.
     fn forget(&mut self, requestor: Window) {
-        self.sending.retain(|sending| sending.requestor != requestor);
+        self.sending
+            .retain(|sending| sending.requestor != requestor);
     }
 
     /// Drops transfers idle since before `IDLE` ago, answering the
@@ -398,7 +406,13 @@ impl Server {
         let size = u32::try_from(data.len()).unwrap_or(u32::MAX);
         if self
             .connection
-            .change_property32(PropMode::REPLACE, requestor, property, self.atoms.INCR, &[size])
+            .change_property32(
+                PropMode::REPLACE,
+                requestor,
+                property,
+                self.atoms.INCR,
+                &[size],
+            )
             .is_err()
         {
             return false;
