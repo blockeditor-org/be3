@@ -21,7 +21,9 @@ counts are built (guides/chat.md). What is left:
   stamp in the message op (`arrival` for `ChatContent`); its inverse operations
   (undoing a delete, anything else derived from held content) must leave the
   stamp off, since undo goes through `edit`, which refuses a claimed arrival, so a
-  restored message shows its arrival as unknown; a
+  restored message shows its arrival as unknown. Its `transform` must never copy
+  another operation's arrival stamp into the one it rebases: the owner would take
+  that rebased operation as claiming an arrival. A
   message shows its claimed time and, once stamped, if it arrived well after
   that, says it was sent offline and when it arrived. A message without a stamp
   shows no arrival, never its claimed time. A dishonest session owner could

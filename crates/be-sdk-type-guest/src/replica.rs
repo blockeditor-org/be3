@@ -83,12 +83,12 @@ const REPLACE_ATTEMPTS: u8 = 4;
 /// How many commits a follower kept the owner remembers having saved.
 const SAVED_KEPT: usize = 64;
 const DIVERGED: &str = "an edit from a peer running a different version";
+const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
+
 /// Whether `operation` already holds an arrival stamp (`LiveEdit::arrival`).
 fn claims_arrival<C: LiveEdit>(operation: &mut C::Op) -> bool {
     C::arrival(operation).is_some_and(|slot| slot.is_some())
 }
-
-const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
 
 pub(crate) struct Opened {
     pub(crate) replica: ReplicaId,
