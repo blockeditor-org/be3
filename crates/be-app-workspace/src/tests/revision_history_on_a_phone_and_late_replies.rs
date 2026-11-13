@@ -31,24 +31,21 @@ fn revision_history_on_a_phone_and_late_replies() {
     fixture.settle();
     let request = fixture
         .test
-        .take_requests()
-        .into_iter()
-        .find_map(|call| match call {
-            HostCall::PreviewRevision { reply, .. } => Some(reply),
-            _ => None,
-        })
-        .unwrap();
+        .take_revision_previews()
+        .pop()
+        .expect("selecting asks for a preview")
+        .reply;
     let second = Uuid::new_v4();
     show(&mut fixture, second, None);
     let preview = Uuid::new_v4();
     fixture.test.answer(request, Ok(preview.into_bytes()));
     fixture.settle();
     assert!(!fixture.shown().contains(&preview));
-    let released = fixture.test.take_requests_where(|call| match call {
-        HostCall::ReleaseRevision { preview, .. } => Ok(preview),
-        call => Err(call),
-    });
-    assert_eq!(released, vec![preview.into_bytes()]);
+    assert_eq!(
+        fixture.test.take_closed_previews(),
+        vec![[3; 32]],
+        "a preview that opens too late is closed"
+    );
     fixture.test.set_size(Vec2::new(390.0, 720.0));
     fixture.settle();
     fixture.test.click("dock.switch");

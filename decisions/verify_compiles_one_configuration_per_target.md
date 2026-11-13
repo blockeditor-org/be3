@@ -11,8 +11,8 @@ by hand: on no push or pull request, so it costs a change nothing.
 ## Why
 
 Each of those would be a second compile of every target, which doubled what a change cost,
-and the build server is slow. Windows and the HTML core's libraries were checked until the
-move off Namespace, and dropped then for the same reason.
+and the build server is slow. Windows and the HTML core's libraries were once checked in
+verify too, and dropped for the same reason.
 
 ## Rejected
 

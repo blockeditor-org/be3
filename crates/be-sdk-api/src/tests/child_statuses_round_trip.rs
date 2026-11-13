@@ -8,10 +8,7 @@ fn child_statuses_round_trip() {
             view: ViewId::MAIN,
             child: ChildId(1),
             available: true,
-            intrinsic: Some(Size {
-                width: 320.0,
-                height: 180.0,
-            }),
+            intrinsic: Some(Vec2 { x: 320.0, y: 180.0 }),
             active: false,
             interaction: InteractionMode::Live,
             capabilities: EditorCapabilities::default(),

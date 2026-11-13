@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn a_published_manifest_answers_succeeded_without_queueing() {
-    let running = start("published", None).await;
+    let running = start("published").await;
     running
         .fake
         .published

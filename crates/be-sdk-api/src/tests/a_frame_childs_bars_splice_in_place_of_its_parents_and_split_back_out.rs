@@ -11,10 +11,7 @@ fn bar(tab: u64, key: &str, owner: u64, edge: DockEdge) -> DockBar {
             edge,
             align: DockAlign::Center,
         }),
-        size: Size {
-            width: 200.0,
-            height: 32.0,
-        },
+        size: Vec2 { x: 200.0, y: 32.0 },
         pane: None,
     }
 }

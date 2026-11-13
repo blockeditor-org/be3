@@ -3,10 +3,10 @@ use std::{
     collections::HashMap,
 };
 
-use be_sdk_beui::Revision;
 use be_sdk_beui::beui::datetime::DateTime;
 use be_sdk_beui::beui::{NodeId, dock::TabId, reactive::*, styled::*};
 use be_sdk_beui::{ChildTarget, Editor, Failure, Pushed, Task};
+use be_sdk_beui::{Revision, RevisionPreview};
 use uuid::Uuid;
 
 use be_sdk_shell::{TabItem, Workspace};
@@ -39,6 +39,8 @@ pub(crate) struct RevisionHistory {
 struct Requests {
     generation: Cell<u64>,
     listing: RefCell<Option<Task>>,
+    /// The preview of the selected revision, closed when dropped.
+    preview: RefCell<Option<RevisionPreview>>,
 }
 
 impl RevisionHistory {
@@ -74,11 +76,6 @@ impl RevisionHistory {
             });
             if previous.replace(head) != head {
                 untrack(|| history.load());
-            }
-        });
-        on_cleanup(move || {
-            if let Some(selected) = history.selected.get_untracked() {
-                editor.host().release_revision(selected.preview);
             }
         });
         history
@@ -185,19 +182,19 @@ impl RevisionHistory {
         let asked = self.editor.host().preview_revision(block, revision.commit);
         self.editor.then(asked, move |result| {
             if !self.state.is_alive() || generation != self.state.value().generation.get() {
-                if let Ok(preview) = result {
-                    self.editor.host().release_revision(preview);
-                }
                 return;
             }
             self.busy.set(false);
             match result {
-                Ok(preview) => self.selected.set(Some(Selected {
-                    block,
-                    commit: revision.commit,
-                    preview,
-                    time: revision.time,
-                })),
+                Ok(preview) => {
+                    self.selected.set(Some(Selected {
+                        block,
+                        commit: revision.commit,
+                        preview: preview.block,
+                        time: revision.time,
+                    }));
+                    self.state.value().preview.replace(Some(preview));
+                }
                 Err(error) => self.error.set(Some(error.to_string())),
             }
         });
@@ -208,10 +205,10 @@ impl RevisionHistory {
         state.generation.set(state.generation.get() + 1);
         self.loading.set(false);
         self.busy.set(false);
-        if let Some(selected) = self.selected.get_untracked() {
+        if self.selected.get_untracked().is_some() {
             self.selected.set(None);
-            self.editor.host().release_revision(selected.preview);
         }
+        state.preview.take();
         self.confirm.set(false);
     }
 

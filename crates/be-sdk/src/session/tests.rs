@@ -55,10 +55,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
         placement: ViewPlacement::Parent(ParentView::Main),
         frame: None,
         metrics: ViewportMetrics {
-            logical: be_sdk_api::Size {
-                width: 100.0,
-                height: 100.0,
-            },
+            logical: be_sdk_api::Vec2 { x: 100.0, y: 100.0 },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: 100,
             pixel_height: 100,

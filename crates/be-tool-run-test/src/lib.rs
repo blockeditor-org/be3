@@ -11,8 +11,7 @@
 //!   longer than a socket's path may be (SUN_LEN), which failed every test that
 //!   listens on one (a Wayland server, a D-Bus daemon, an OpenXR runtime).
 //! - `--library-path` is the test's LD_LIBRARY_PATH, set for the test alone:
-//!   Namespace's workers replace an action's own LD_LIBRARY_PATH with theirs,
-//!   and a sysroot's libc in it would load into the launcher.
+//!   a sysroot's libc in it would load into the launcher.
 //! - `--time-limit` stops the test, and everything it started, once it has run
 //!   that long (`90s`, `20m`, `1h`). A test that hangs would otherwise hold its
 //!   worker until the build server gives up on it, and every later run of the

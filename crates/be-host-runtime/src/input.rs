@@ -1,5 +1,5 @@
 use be_sdk_api::clipboard::{ClipFile, Files};
-use be_sdk_api::{Input, InputBatch, ScreenId, ScreenPlacement, Size, TimedInput, ViewportMetrics};
+use be_sdk_api::{Input, InputBatch, ScreenId, ScreenPlacement, TimedInput, ViewportMetrics};
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use uuid::Uuid;
 
@@ -149,9 +149,9 @@ pub(super) fn viewport_metrics(
     scale_factor: f32,
     raster: f32,
 ) -> ViewportMetrics {
-    let logical = Size {
-        width: size.x.max(0.0),
-        height: size.y.max(0.0),
+    let logical = Vec2 {
+        x: size.x.max(0.0),
+        y: size.y.max(0.0),
     };
     let visible = visible.intersect(Rect::from_min_size(Pos2::ZERO, size));
     ViewportMetrics {
