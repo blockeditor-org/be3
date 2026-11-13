@@ -30,6 +30,7 @@ fn a_program_group_comes_from_a_window_open_now() {
                 ..HostProgram::default()
             },
         ],
+        shell: Vec::new(),
     });
     editor.run();
 
