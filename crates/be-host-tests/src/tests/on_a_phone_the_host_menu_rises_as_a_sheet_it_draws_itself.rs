@@ -7,6 +7,8 @@ fn on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself() {
     host.click("#file-tree.host-menu");
     host.wait("#host.menu.status");
     host.run(&["pause", "600"]);
+    // The sheet's first row says whether everything is saved.
+    host.synced();
     host.snapshot("on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself");
     let (_, handle_y, _, _) = host.place("#sheet.handle");
     let (row_x, row_y, row_width, _) = host.place("#host.menu.status");

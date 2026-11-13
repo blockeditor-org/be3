@@ -49,44 +49,6 @@ numbers are from when this plan was written.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
 
-## 12. beui: one form per concept
-
-- `StoredCell::new(x)` is the one form for `Copy` values; migrate the
-  `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
-  non-`Copy` values (a callback, a state struct) or read the cell with
-  `with`/`try_with`, so each needs its own look (`StoredCell` has `replace`,
-  `take` and `set`; add what a use needs).
-
-Update beui-demo for every component that merges or goes.
-
-## 13. beui: `Glide` and `Selectable` leave the base layer
-
-`Glide` and `Selectable` (`beui-view/src/primitives.rs`) are single-child
-pass-through base nodes, which decisions/beui_base_layer_kept_small.md rules
-out, each with a body per core (`beui-view/src/components/`,
-`beui-view/src/html/`). Move them up:
-
-- `Glide` (used only by `beui-components-unstyled/src/reorder.rs`) becomes
-  unstyled code. It animates a node from where it was to where layout puts it;
-  build it from what the base layer already offers, a frame's paint offset and
-  the node's laid-out rect, with timing on the frame clock. Add a `Frame`
-  prop only where neither is enough. `set_raised`, `hold_glide` and
-  `glide_displacement` move with it.
-- `Selectable` (used only by `beui-components-styled/src/selectable_text.rs`)
-  becomes an unstyled component: the selection state, gestures, copy and
-  select-all live there, over the base `Text`'s hit testing and its selection
-  highlight. Styled `SelectableText` keeps its look.
-
-Both cores lose their implementations; tests that use the base nodes directly
-(`beui-host/src/tests.rs`, `beui-demo/src/base_pages.rs`) move to the new
-components.
-
-## 15. Host, CLI and test harness
-
-- `drive` (`beui-layer-drive`): `find`, `reveal` and `shown` become
-  `find TARGET [reveal|shown]`, and `gone` becomes `wait not TEXT`. Update
-  guides/running/drive.md.
-
 ## Smaller cleanups found alongside
 
 - `shell-dialog` is defined in `host-services.wit` but used only by `app.wit`;

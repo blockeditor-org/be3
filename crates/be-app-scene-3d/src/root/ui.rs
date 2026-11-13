@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::time::Duration;
 
 use beui::accesskit::{Node, Role};
@@ -52,8 +51,8 @@ impl Walking {
 pub(crate) fn Scene3DView() -> NodeId {
     let scene = Scene::default();
     let camera = create_signal(Camera::default());
-    let walking = store(Cell::new(Walking::default()));
-    let clock = store(Cell::new(now()));
+    let walking = StoredCell::new(Walking::default());
+    let clock = StoredCell::new(now());
     let drawing = create_memo(move || Some(scene.drawing(camera.get())));
     let looking = create_signal(false);
     let idle = create_memo(move || !looking.get());
@@ -61,10 +60,10 @@ pub(crate) fn Scene3DView() -> NodeId {
     let stepping = create_timer(move || {
         let stepped = now();
         let elapsed = stepped
-            .saturating_duration_since(clock.with(|clock| clock.replace(stepped)))
+            .saturating_duration_since(clock.replace(stepped))
             .as_secs_f32()
             .min(LONGEST_STEP);
-        let walk = walking.with(Cell::get);
+        let walk = walking.get();
         if !looking.get_untracked() || !walk.moving() {
             return None;
         }
@@ -76,18 +75,18 @@ pub(crate) fn Scene3DView() -> NodeId {
         camera.update(|camera| camera.look([motion.x, motion.y]));
     };
     let walked = move |press: KeyPress| {
-        let mut held = walking.with(Cell::get);
+        let mut held = walking.get();
         let handled = held.hold(press.key, press.pressed);
-        walking.with(|walking| walking.set(held));
+        walking.set(held);
         if held.moving() && !stepping.running() {
-            clock.with(|clock| clock.set(now()));
+            clock.set(now());
             stepping.start(Duration::ZERO);
         }
         handled
     };
     let released = move |next: bool| {
         if !next {
-            walking.with(|walking| walking.set(Walking::default()));
+            walking.set(Walking::default());
         }
         looking.set(next);
     };

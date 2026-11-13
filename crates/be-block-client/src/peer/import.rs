@@ -325,7 +325,7 @@ impl<S: ObjectStore> Peer<S> {
         };
         self.refs.remove(&ready.queued)?;
         if let Some(head) = head {
-            self.refs.set_remote(block, head)?;
+            self.refs.set_remote(block, head, self.behind())?;
             self.remember(block, head)?;
         }
         match summary {

@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::dock::{DockAlign, DockBarPlacement, DockEdge};
 use be_sdk_beui::beui::dock::{
@@ -329,28 +327,28 @@ fn GridCanvas(session: Session) -> NodeId {
     });
     let zoom = create_memo(move || camera.get().scale);
 
-    let last = store(Cell::new(None::<[f32; 2]>));
+    let last = StoredCell::new(None::<[f32; 2]>);
     let at = move |press: PointerPress| {
         let world = camera.get_untracked().to_canvas(press.pos);
         [world.x, world.y]
     };
     let on_press = move |press: PointerPress| {
         let world = at(press);
-        last.value().set(Some(world));
+        last.set(Some(world));
         session.pointer.set(Some(world));
         let additive = press.modifiers.shift;
         session.edit(|model| model.press(world, additive));
     };
     let on_drag = move |press: PointerPress| {
         let world = at(press);
-        last.value().set(Some(world));
+        last.set(Some(world));
         session.pointer.set(Some(world));
     };
     let on_active_change = move |active: bool| {
         if active {
             return;
         }
-        let Some(world) = last.value().take() else {
+        let Some(world) = last.take() else {
             return;
         };
         if session.read_untracked(|model| model.gesture.is_some()) {
@@ -365,7 +363,7 @@ fn GridCanvas(session: Session) -> NodeId {
         session.pointer.set(Some(at(press)));
     };
     let on_hover_change = move |hovered: bool| {
-        if !hovered && last.value().get().is_none() {
+        if !hovered && last.get().is_none() {
             session.pointer.set(None);
         }
     };

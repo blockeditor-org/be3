@@ -27,6 +27,7 @@ pub mod fling;
 pub mod floating;
 pub mod form;
 pub mod gestures;
+pub mod glide;
 pub mod list_row;
 pub mod menu;
 pub mod menu_button;
@@ -111,6 +112,7 @@ pub use drag_board::{Board, drag_board};
 pub use first_fit::FirstFit;
 pub use floating::{Edge, Floating};
 pub use form::Form;
+pub use glide::{GLIDE_SPRING, Glide, GlideApi, GlideHold};
 pub use list_row::ListRow;
 pub use menu::{
     MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,

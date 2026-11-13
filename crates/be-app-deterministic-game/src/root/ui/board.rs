@@ -1,5 +1,5 @@
 use be_sdk_beui::beui::CanvasView;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_sdk_beui::Editor;
@@ -94,7 +94,7 @@ pub(crate) fn Stage(
     };
 
     let motion = Motion::new();
-    let dropped = store(Cell::new(None::<(ItemId, Rect, Spot)>));
+    let dropped = StoredCell::new(None::<(ItemId, Rect, Spot)>);
     let previous = store(RefCell::new(None::<(Layout, Vec<HandCard>)>));
     create_effect(move || {
         let now_drawn = drawn.get();
@@ -102,7 +102,7 @@ pub(crate) fn Stage(
         let earlier = previous
             .value()
             .replace(Some((now_drawn.clone(), now_hand.clone())));
-        let dropped = dropped.value().take().filter(|(id, _, onto)| {
+        let dropped = dropped.take().filter(|(id, _, onto)| {
             now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
         });
         let Some((was_drawn, was_hand)) = earlier else {
@@ -163,9 +163,7 @@ pub(crate) fn Stage(
         if let (Some(from), Some(to)) = (from, hit(pos))
             && from != to
         {
-            dropped
-                .value()
-                .set(carried.map(|carried| (carried.id, carried.rect, to)));
+            dropped.set(carried.map(|carried| (carried.id, carried.rect, to)));
             play.dropped(from, to);
         }
     };

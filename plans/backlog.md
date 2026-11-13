@@ -48,11 +48,10 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   answers one sender at most once per interval, shown by a be-sdk-type-guest
   test where a viewer's repeated `Catchup`s get one `Snapshot`.
 
-## 8. The dock bars page's centre status bar fits its band
+## 8. Input
 
-On beui-demo's dock bars page, the page's centre status bar (`DockAlign::Center` along the
-bottom) is narrower than its tools even at rest, so it scrolls in its band, on main too, and
-which of its tools show depends on how earlier drags squeezed it. Done when, with the two tool
-bars docked beside it, it shows all its tools, or the band gives the centre group room before the
-start and end groups, and `a_tool_bar_dropped_before_another_along_the_edge_takes_its_place`
-shows no scroll thumb.
+- **Touches per window.** beui-core's `InputState::touches` is one list across
+  the windows an input serves, so fingers on two touch displays at once read as
+  one gesture, as a click in one window once counted toward a double-click in
+  another (`ClickCounter`). Done: a touch in one window never joins a gesture in
+  another, shown by a beui-core test with two windows' touches.

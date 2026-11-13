@@ -169,6 +169,7 @@ mod a_driver_moves_a_locked_pointer;
 mod a_driver_paints_a_target_a_scroll_cuts_once_it_has_revealed_it;
 mod a_driver_pastes_the_headless_clipboard_with_ctrl_v;
 mod a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad;
+mod a_driver_points_an_old_command_name_at_its_new_form;
 mod a_driver_reads_the_environment_a_program_gives_its_programs;
 mod a_driver_reports_the_longest_frame_since_it_last_asked;
 mod a_driver_resizes_a_headless_window_and_reads_its_state;
@@ -407,6 +408,8 @@ mod a_scroll_bounded_by_a_signal_follows_it;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_in_a_scaled_canvas_item_follows_the_finger_and_reveals_what_is_focused;
+mod a_scroll_in_a_zoomed_canvas_in_the_update_that_arms_a_glide_moves_no_row;
+mod a_scroll_in_the_update_that_arms_a_glide_moves_no_row;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_its_place_when_a_container_above_reflows_after_a_resize;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
@@ -508,6 +511,7 @@ mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
 mod a_text_input_that_selects_on_focus_selects_text_that_arrives_after_it_is_focused;
 mod a_text_of_spans_takes_its_alignment_and_line_height;
 mod a_text_says_whether_it_is_cut_short_whenever_that_changes;
+mod a_text_scrolled_to_a_far_line_from_cold_settles_in_one_frame;
 mod a_text_with_breaks_draws_its_lines_apart_but_keeps_its_text_whole;
 mod a_texts_label_leaves_out_clear_spans_and_inline_items;
 mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
@@ -570,6 +574,7 @@ mod a_wrapper_provides_a_container_to_every_child_written_between_its_tags;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_label_in_a_row_keeps_its_longest_word_whole;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
+mod a_zero_delay_timer_started_during_a_frame_fires_in_that_frame;
 mod a_zoomed_text_area_tells_the_window_where_its_caret_is_in_window_coordinates;
 mod accessibility_exposes_and_operates_a_button;
 mod accessibility_reports_and_steps_a_slider;
@@ -3138,15 +3143,39 @@ pub(crate) fn gliding_rows(
         view! {
             <List spacing=0.0>
                 <ForEach keys={order}>|key: u64|
-                    <Glide @test_id={format!("slot.{key}")} arm={arm}>
+                    <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
                         <Frame
                             @test_id={format!("row.{key}")}
                             height=GLIDE_ROW
                             fill={Color32::from_rgb((key * 40 % 256) as u8, 90, 160)}
                         />
-                    </Glide>
+                    </unstyled::Glide>
                 </ForEach>
             </List>
+        }
+    })
+}
+
+pub(crate) fn scrolled_gliding_rows(
+    order: crate::reactive::Signal<Vec<u64>>,
+    arm: crate::reactive::Signal<u64>,
+    scrolled: crate::reactive::Signal<f32>,
+) -> Document {
+    use crate::primitives::*;
+    use crate::reactive::*;
+    build_node(move || {
+        view! {
+            <Frame height={2.0 * GLIDE_ROW}>
+                <Offset offset={scrolled}>
+                    <List spacing=0.0>
+                        <ForEach keys={order}>|key: u64|
+                            <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
+                                <Frame @test_id={format!("row.{key}")} height=GLIDE_ROW />
+                            </unstyled::Glide>
+                        </ForEach>
+                    </List>
+                </Offset>
+            </Frame>
         }
     })
 }
