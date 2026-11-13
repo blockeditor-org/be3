@@ -736,7 +736,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         leaving.with(|leaving| match leaving {
             Some(leaving) => format!(
                 "Leave \u{201c}{}\u{201d}?",
-                be_block_content::quoted_name(&leaving.name)
+                be_block::quoted_name(&leaving.name)
             ),
             None => String::new(),
         })
@@ -747,7 +747,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         let from = match within {
             Some(within) => format!(
                 "You will no longer see it, in \u{201c}{}\u{201d}, or anything inside it",
-                be_block_content::quoted_name(&within)
+                be_block::quoted_name(&within)
             ),
             None => "You will no longer see it or anything inside it".to_owned(),
         };

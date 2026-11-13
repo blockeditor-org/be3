@@ -5,6 +5,7 @@ use crate::{
 use be_block_content::*;
 use uuid::Uuid;
 
+mod a_quoted_name_cannot_fake_what_a_dialog_says;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
 mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;

@@ -3,6 +3,7 @@
 //! which type modules use alone, is be-block-content.
 
 pub mod device_class;
+pub mod display;
 pub mod display_settings;
 pub mod input_remapper;
 pub mod input_settings;
@@ -16,6 +17,7 @@ pub mod workspace_settings;
 
 pub use be_block_graph::{ANYONE_INSIDE, WORKSPACE_TYPE};
 pub use device_class::{ClassDefault, DeviceClass};
+pub use display::quoted_name;
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
