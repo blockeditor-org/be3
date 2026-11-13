@@ -15,6 +15,7 @@ struct PageSignals {
 }
 
 thread_local! {
+    static HELD: std::cell::RefCell<beui_types::clip::HeldClip> = std::cell::RefCell::default();
     static SIGNALS: PageSignals = PageSignals {
         theme: crate::global_signal(None),
         layers: crate::global_signal(PreferenceLayers::default()),
@@ -134,15 +135,28 @@ pub fn use_font_revision() -> ReadSignal<u64> {
     signals().font_revision.read_only()
 }
 
-/// Writes the clip's plain text: a page holds no clip of its own, so its
-/// other representations stay with the program.
+/// Writes the clip's plain text to the system clipboard (empty when it has
+/// none, so another program's text does not stay to drop it) and keeps the
+/// clip, so a paste in this page answers its other representations (be3
+/// formats, lazy ones) from it while the clipboard's text is still what it
+/// wrote.
 pub fn copy(clip: &beui_types::Clip) {
     #[cfg(target_arch = "wasm32")]
-    if let (Some(window), Some(text)) = (crate::dom::window(), clip.plain_text()) {
+    if let Some(window) = crate::dom::window() {
+        let text = clip.plain_text().unwrap_or_default();
         let _ = window.navigator().clipboard().write_text(&text);
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    let _ = clip;
+    HELD.with(|held| held.borrow_mut().copy(clip.clone()));
+}
+
+/// The clip this page copied, while `text`, the plain text a paste carries,
+/// is still what it wrote; dropped once another program has copied.
+pub fn held(text: Option<&str>) -> Option<beui_types::Clip> {
+    HELD.with(|held| {
+        let mut held = held.borrow_mut();
+        let ours = held.wrote(text);
+        held.current(ours).cloned()
+    })
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -274,3 +288,6 @@ pub fn set_background(color: beui_types::Color32) {
     #[cfg(not(target_arch = "wasm32"))]
     let _ = color;
 }
+
+#[cfg(test)]
+mod tests;
