@@ -38,6 +38,7 @@ use super::{
 use be_host_base::{host, performance};
 
 mod cuts;
+pub(crate) mod gift;
 mod network;
 mod services;
 
@@ -124,11 +125,8 @@ struct Instance {
     role: InstanceRole,
     artifact: ArtifactState,
     dialog: DialogStatus,
-    child_focus: Vec<ChildId>,
-    /// Blocks the editor asked to give the keyboard to once a child shows them. A gift ends
-    /// when a child shows its block or when it is refused, never after a number of commits: how
-    /// long the editor takes to place the child (its content must change first) is not bounded.
-    block_focus: Vec<Uuid>,
+    /// The keyboard it gives to a child, and the keys held for it (`gift`).
+    gift: Option<gift::Gift>,
     /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
     /// after the failed call) ends at once.
     block_refused: Vec<Uuid>,
@@ -286,8 +284,7 @@ impl Instance {
             role,
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
-            child_focus: Vec::new(),
-            block_focus: Vec::new(),
+            gift: None,
             block_refused: Vec::new(),
             screens: HashMap::default(),
             anchored: Vec::new(),
@@ -934,6 +931,7 @@ impl Instances {
     }
 
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
+        self.end_gift(instance, gift::Keys::Drop);
         self.withdraw_all(instance);
         self.waiting.remove(&instance);
         self.gone.insert(instance);
@@ -2741,10 +2739,6 @@ impl Instances {
                 }),
                 sheet: layer.is_some_and(|layer| layer.edge),
                 anchor,
-                focus_asked: self
-                    .entries
-                    .get(&instance)
-                    .is_some_and(|entry| entry.child_focus.contains(&child.child)),
                 fullscreen: child.fullscreen,
             });
         }
@@ -2929,87 +2923,6 @@ impl Instances {
 
     pub(super) fn card(&self, instance: EditorInstanceId) -> bool {
         self.entries.get(&instance).is_some_and(|entry| entry.card)
-    }
-
-    pub(super) fn ask_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) {
-        if let Some(entry) = self.entries.get_mut(&instance)
-            && !entry.child_focus.contains(&child)
-        {
-            entry.child_focus.push(child);
-        }
-    }
-
-    pub(super) fn child_focus_pending(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_some_and(|entry| {
-            if !entry.block_focus.is_empty() {
-                return true;
-            }
-            let anchored = entry.anchored.iter().map(|held| &held.screen);
-            let screens: Vec<&Screen> = entry.screens.values().chain(anchored).collect();
-            entry.child_focus.iter().any(|asked| {
-                screens.iter().any(|screen| {
-                    screen
-                        .children
-                        .children
-                        .iter()
-                        .any(|placed| placed.child == *asked && placed.mode != ChildMode::Preview)
-                })
-            })
-        })
-    }
-
-    pub(super) fn refuse_child_focus(&mut self, instance: EditorInstanceId) {
-        if let Some(entry) = self.entries.get_mut(&instance) {
-            entry.child_focus.clear();
-            entry.block_focus.clear();
-        }
-    }
-
-    pub(super) fn take_child_focus(&mut self, instance: EditorInstanceId, child: ChildId) -> bool {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return false;
-        };
-        let asked = entry.child_focus.contains(&child);
-        entry.child_focus.retain(|asked| *asked != child);
-        asked
-    }
-
-    /// After a layout commit: a block gift whose block a child now shows becomes a gift to that
-    /// child. One whose block no child shows yet stays, as the editor may still be placing it,
-    /// unless the editor has no view left.
-    pub(super) fn settle_block_focus(&mut self) {
-        for entry in self.entries.values_mut() {
-            if entry.block_focus.is_empty() {
-                continue;
-            }
-            if entry.screens.is_empty() && entry.anchored.is_empty() {
-                // No view of the editor is left to give the keyboard from.
-                entry.block_focus.clear();
-                continue;
-            }
-            let anchored = entry.anchored.iter().map(|held| &held.screen);
-            let shown: Vec<(ChildId, Uuid)> = entry
-                .screens
-                .values()
-                .chain(anchored)
-                .flat_map(|screen| &screen.children.children)
-                .filter(|placed| placed.mode != ChildMode::Preview)
-                .filter_map(|placed| Some((placed.child, shown_block(&placed.content)?)))
-                .collect();
-            let mut given = Vec::new();
-            entry.block_focus.retain(|block| {
-                let Some((child, _)) = shown.iter().find(|(_, shows)| shows == block) else {
-                    return true;
-                };
-                given.push(*child);
-                false
-            });
-            for child in given {
-                if !entry.child_focus.contains(&child) {
-                    entry.child_focus.push(child);
-                }
-            }
-        }
     }
 
     /// Whether the instance's block content, if it edits one, has reached it.
@@ -3797,23 +3710,12 @@ impl Instances {
                 super::events::emit(&self.app_id, instance, InstanceEvent::ChildClosed(child));
             }
             ShellMessage::FocusChild(child) => {
-                self.ask_child_focus(instance, child);
+                self.ask_gift(instance, gift::GiftTo::Child(child));
             }
             // The runtime opens the palette before it hands the call here.
             ShellMessage::OpenPalette(_) => {}
             ShellMessage::FocusBlockChild(block) => {
-                let block = Uuid::from_bytes(block);
-                if let Some(at) = entry
-                    .block_refused
-                    .iter()
-                    .position(|refused| *refused == block)
-                {
-                    entry.block_refused.remove(at);
-                } else {
-                    // Only the latest ask stands: the person can type into one place.
-                    entry.block_focus.clear();
-                    entry.block_focus.push(block);
-                }
+                self.ask_block_gift(instance, Uuid::from_bytes(block));
             }
             ShellMessage::ShowCard(card) => {
                 if entry.card == card {

@@ -245,14 +245,14 @@ impl Instances {
             } => {
                 let block = Uuid::from_bytes(block);
                 let Some(parent) = be_host_stack::app_graph::parent_of(parent) else {
-                    self.refuse_block(instance, block);
+                    self.refuse_block_gift(instance, block);
                     return self.acknowledge(reply, None);
                 };
                 if parent.block().is_some_and(|parent| !self.editable(parent))
                     || (owner_only && !own_settings(parent))
                     || be_host_stack::node(block).is_some()
                 {
-                    self.refuse_block(instance, block);
+                    self.refuse_block_gift(instance, block);
                     return self.acknowledge(reply, None);
                 }
                 let mut defined = be_host_stack::app_graph::entries_of(defined);
@@ -362,17 +362,6 @@ impl Instances {
                     .push(call.refuse(OpError::Unsupported));
                 false
             }
-        }
-    }
-
-    /// Notes that the host refused to make `block` for the instance, so a gift of the keyboard
-    /// to the child that would have shown it never starts.
-    fn refuse_block(&mut self, instance: EditorInstanceId, block: Uuid) {
-        if let Some(entry) = self.entries.get_mut(&instance) {
-            entry.block_focus.retain(|asked| *asked != block);
-            entry.block_refused.push(block);
-            let extra = entry.block_refused.len().saturating_sub(8);
-            entry.block_refused.drain(..extra);
         }
     }
 
