@@ -534,8 +534,8 @@ mod web {
 
     /// The first of `taken` that a paste's `data` holds: a file of that type, or text
     /// under it. be3's own formats are skipped: a paste event's `DataTransfer` never
-    /// carries the browser's custom `web ` formats, which only the async clipboard reads
-    /// (and this core's own copying writes text only).
+    /// carries the browser's custom `web ` formats, which only the async clipboard reads;
+    /// a clip this page copied answers them from `page::held` before this is asked.
     fn pasted(data: &web_sys::DataTransfer, taken: &[String]) -> Option<Pasted> {
         taken
             .iter()
@@ -1009,6 +1009,20 @@ mod web {
                     (true, false) => vec![formats::TEXT.to_owned()],
                     (true, true) => return,
                 };
+                let text = data.get_data("text").ok();
+                let ours = crate::page::held(text.as_deref())
+                    .filter(|clip| clip.formats().any(|format| taken.iter().any(|t| t == format)));
+                if let Some(clip) = ours {
+                    handled(&event, true);
+                    let on_paste = held.handlers.on_paste;
+                    clip.resolve(&taken, move |item| {
+                        if let Some(item) = item {
+                            on_paste.call(item);
+                            beui_reactive::flush();
+                        }
+                    });
+                    return;
+                }
                 let Some(clip) = pasted(&data, &taken) else {
                     return;
                 };
