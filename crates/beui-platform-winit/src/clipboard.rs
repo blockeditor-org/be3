@@ -138,7 +138,8 @@ impl Clipboard {
                 ))]
                 format
                     if formats::is_be3(format)
-                        && offered.is_some_and(|offered| offered.iter().any(|held| held == format)) =>
+                        && offered
+                            .is_some_and(|offered| offered.iter().any(|held| held == format)) =>
                 {
                     self.x11.as_ref()?.read(format)
                 }

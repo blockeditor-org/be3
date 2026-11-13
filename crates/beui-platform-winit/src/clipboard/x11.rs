@@ -300,8 +300,8 @@ impl Drop for Owner {
     /// which ends the thread serving it, and waits for that thread.
     fn drop(&mut self) {
         self.hand_over();
-        let destroyed = self.connection.destroy_window(self.window).is_ok()
-            && self.connection.flush().is_ok();
+        let destroyed =
+            self.connection.destroy_window(self.window).is_ok() && self.connection.flush().is_ok();
         if let Some(serving) = self.serving.take().filter(|_| destroyed) {
             let _ = serving.join();
         }
@@ -504,14 +504,7 @@ impl Server {
     fn take_paste(&self, property: Atom) -> Option<(Atom, Vec<u8>)> {
         let reply = self
             .connection
-            .get_property(
-                true,
-                self.window,
-                property,
-                AtomEnum::ANY,
-                0,
-                u32::MAX,
-            )
+            .get_property(true, self.window, property, AtomEnum::ANY, 0, u32::MAX)
             .ok()?
             .reply()
             .ok()?;
