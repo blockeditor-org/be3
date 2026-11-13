@@ -1,5 +1,5 @@
 use beui_types::ClipItem;
-pub use beui_types::clip::{Clip, ClipData, ClipEntry, HeldClip, Render};
+pub use beui_types::clip::{Clip, ClipData, ClipEntry, HeldClip, Render, RenderAnswer};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PasteRequest {

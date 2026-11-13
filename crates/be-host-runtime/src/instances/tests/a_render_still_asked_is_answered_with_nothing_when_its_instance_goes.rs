@@ -2,7 +2,7 @@ use super::*;
 
 fn unanswered(heard: &[InstanceEvent], asked: u64) -> bool {
     heard.iter().any(|event| {
-        matches!(event, InstanceEvent::Rendered { request, data: None } if *request == asked)
+        matches!(event, InstanceEvent::Rendered { request, body: None } if *request == asked)
     })
 }
 
