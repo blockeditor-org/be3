@@ -93,11 +93,12 @@ impl SessionRegistry {
         }
     }
 
-    pub async fn join(&self, block: Place, client: ClientId) -> SessionState {
+    /// `client` joins `block`'s session, taking the lease if no one holds it and it `may_edit`.
+    pub async fn join(&self, block: Place, client: ClientId, may_edit: bool) -> SessionState {
         let mut sessions = self.sessions.lock().await;
         let now = now_milliseconds();
         let lease = sessions.lease(block, self.lease);
-        lease.join(client, now);
+        lease.join(client, may_edit, now);
         let state = lease.state().clone();
         sessions.joined(block, client);
         sessions.settle(block, now);
@@ -159,6 +160,16 @@ impl SessionRegistry {
         let lease = sessions.leases.get_mut(&block)?;
         lease
             .heartbeat(client, generation, clean_at, now_milliseconds())
+            .then(|| lease.state().clone())
+    }
+
+    /// `client` may no longer edit `block`: answers the session's state if that took the lease
+    /// from it.
+    pub async fn demote(&self, block: Place, client: ClientId) -> Option<SessionState> {
+        let mut sessions = self.sessions.lock().await;
+        let lease = sessions.leases.get_mut(&block)?;
+        lease
+            .demote(client, now_milliseconds())
             .then(|| lease.state().clone())
     }
 

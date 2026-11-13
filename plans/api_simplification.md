@@ -25,26 +25,6 @@ host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
 whether `set-parent` and the existing `move-command`/`reorder-command` are one
 thing, and keep one.
 
-## 7. The host's per-instance queues are one pushed stream
-
-`be-host-runtime/src/runtime.rs` has 19 `take_*` functions that be-host polls
-every frame, 14 of them per instance (`take_child_focus`,
-`take_child_dismissals`, `take_child_closes`, `take_child_commits`,
-`take_focus_report`, `take_artifact_watch`, `take_child_menu_picks`,
-`take_artifact_outcome`, `take_created`, `take_leaving`, `take_rendered`,
-`take_view_changes`, `take_details`, `take_focus_request`,
-`take_view_actions`, `take_block_drags`), each with one caller in be-host.
-
-Replace them with one `InstanceEvent` enum delivered to its owner through
-`host::Desk<Instances>` (`be-host-runtime/src/instances.rs`) rather than
-polled, so nothing checks each frame. Keyed queries (`take_child_focus(child)`,
-`take_focus_request(region)`) become matches on the event. Most events are a
-`ShellMessage` plus the instance.
-
-`host::push_command` / `take_commands` / `HostCommand { RestartApp }`
-(`be-host-base/src/host.rs`) is a second queue with one producer and one
-consumer; it becomes a `Desk<Instances>` message too.
-
 ## 8. The stack pushes its changes
 
 `be-host-stack/src/lib.rs` pairs getters with counters be-host polls every
@@ -153,13 +133,6 @@ components.
 
 ## 15. Host, CLI and test harness
 
-- `BeuiTest` (`be-sdk-test/src/beui.rs`): remove the one-line `take_*`
-  wrappers that only pick a `ShellMessage` variant (about 15, with 3 to 17
-  callers each across the app tests) in favour of `take_shell_messages(pick)`,
-  keeping those that decode something. Remove `take_copies`,
-  `take_copied_text` and `take_copied_images` in favour of
-  `take_copied(format)`, with the serial of a copy in a separate accessor if a
-  test needs it (`take_copies` has two callers in be-sdk-beui-platform).
 - `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
   become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
   WIT `launch`) goes; a typed line is wrapped as the platform's shell command
