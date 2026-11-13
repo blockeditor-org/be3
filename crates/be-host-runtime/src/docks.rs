@@ -684,8 +684,13 @@ impl Docks {
                 self.hosting.insert((root, child), Hosting::Hosted);
                 Some(hosted)
             }
+            // A declaration delivered since the root sent this is `Awaited` until the root
+            // answers it, hosting it or not: kept, or the root stopping placing the child to
+            // host it would leave it neither placed nor awaited, dead before its answer lands.
             DockHold::Placing if record.placed => {
-                self.hosting.remove(&(root, child));
+                if self.hosting.get(&(root, child)) != Some(&Hosting::Awaited) {
+                    self.hosting.remove(&(root, child));
+                }
                 None
             }
             DockHold::Placing => {
