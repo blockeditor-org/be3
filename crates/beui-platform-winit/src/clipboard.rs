@@ -89,7 +89,7 @@ impl Clipboard {
             not(any(target_os = "android", target_os = "macos", target_os = "ios"))
         ))]
         if let Some(owner) = &self.x11 {
-            return owner.offer(clip.plain_text().as_deref(), clip.ready(formats::PNG));
+            return owner.offer(&clip.ready_items());
         }
         let Some(clipboard) = &mut self.inner else {
             return;
@@ -111,6 +111,11 @@ impl Clipboard {
                 formats::PNG => self.image().map(ClipItem::png),
                 #[cfg(target_os = "windows")]
                 format if formats::is_be3(format) => windows::read(format),
+                #[cfg(all(
+                    unix,
+                    not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+                ))]
+                format if formats::is_be3(format) => self.x11.as_ref()?.read(format),
                 _ => None,
             }
         }

@@ -1,26 +1,33 @@
 use super::*;
 use std::io::BufRead as _;
 use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
+use beui_types::ClipItem;
+
+mod a_be3_format_crosses_to_another_program_with_its_refs;
 mod a_transfer_in_pieces_ends_with_an_empty_one;
 mod closing_hands_the_clip_to_a_clipboard_manager;
 mod idle_and_abandoned_transfers_are_dropped;
 mod one_copy_offers_its_text_and_its_image;
 
-/// Fails the whole test binary if a test that talks to an X server has not
-/// finished within a minute: a broken owner otherwise hangs the read.
+/// Fails the whole test binary, stopping its Xvfb first, if a test that talks
+/// to an X server has not finished within a minute: a broken owner otherwise
+/// hangs the read.
 struct Watchdog {
     _alive: std::sync::mpsc::Sender<()>,
 }
 
 impl Watchdog {
-    fn start() -> Self {
+    fn start(server: &Xvfb) -> Self {
         let (alive, watched) = std::sync::mpsc::channel::<()>();
+        let child = Arc::clone(&server.child);
         std::thread::spawn(move || {
             if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
                 watched.recv_timeout(Duration::from_secs(60))
             {
                 eprintln!("an X clipboard test did not finish within a minute");
+                let _ = lock(&child).kill();
                 std::process::abort();
             }
         });
@@ -31,7 +38,7 @@ impl Watchdog {
 /// An Xvfb server of the test's own, stopped when dropped; `None`, with a
 /// message, where Xvfb is not installed.
 struct Xvfb {
-    child: Child,
+    child: Arc<Mutex<Child>>,
     display: String,
 }
 
@@ -69,15 +76,16 @@ impl Xvfb {
         }
         Some(Self {
             display: format!(":{}", line.trim()),
-            child,
+            child: Arc::new(Mutex::new(child)),
         })
     }
 }
 
 impl Drop for Xvfb {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        let mut child = lock(&self.child);
+        let _ = child.kill();
+        let _ = child.wait();
     }
 }
 
