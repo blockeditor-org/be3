@@ -72,8 +72,8 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
 - An app with an anchored view (crates/be-sdk-api/PROTOCOL.md, Anchored views) gets one overlay
   canvas in `#layers` above `#block`, with `pointer-events: none` (`web/overlay.rs`); input
   still lands on the host's canvas, which routes it. Scrims are drawn by the host, below every
-  overlay. A child placed in an anchored view shows under it on the web, since child screens
-  are behind `#block`.
+  overlay. A screen painted after an anchored view (a child placed in one) goes into `#layers`
+  too, stacked with the overlays by paint order, so it shows above the view as it does natively.
 - Screens and overlays are placed from the host's last frame, so on the web they follow the host
   by one frame.
 

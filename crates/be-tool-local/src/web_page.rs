@@ -56,6 +56,7 @@ html, body {
     position: absolute;
     left: 0;
     top: 0;
+    transform-origin: 0 0;
     pointer-events: none;
 }
 #block {
