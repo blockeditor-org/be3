@@ -15,7 +15,10 @@ use be_sdk_beui::beui::reactive::toggle_keyboard;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
-use be_sdk_beui::{DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, SavedDockLayout, WifiWatch, utc_offset};
+use be_sdk_beui::{
+    DisplaysWatch, Editor, EpaperWatch, MediaWatch, PowerWatch, SavedDockLayout, WifiWatch,
+    utc_offset,
+};
 use be_sdk_shell::{SHELL_BARS, Workspace};
 
 use super::clock::ClockButton;

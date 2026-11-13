@@ -1,5 +1,8 @@
 use be_sdk_beui::be_block::settings::{Settings, SettingsProfile};
-use be_sdk_beui::be_block::{DisplaySettings, DisplaySettingsContent, InputSettingsContent, OfflineSettings, OfflineSettingsContent, SettingsContent, SettingsProfileContent, TagsContent, WORKSPACE_TYPE};
+use be_sdk_beui::be_block::{
+    DisplaySettings, DisplaySettingsContent, InputSettingsContent, OfflineSettings,
+    OfflineSettingsContent, SettingsContent, SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
+};
 use be_sdk_beui::be_block_content::{BlockContent, LiveEdit};
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::icons::{
@@ -10,7 +13,10 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};
 use be_sdk_beui::root_settings::is_own_settings;
-use be_sdk_beui::{BlockParent, BlockQuery, ContentProjection, Editor, LayeredSettings, PushDevice, PushDeviceWatch};
+use be_sdk_beui::{
+    BlockParent, BlockQuery, ContentProjection, Editor, LayeredSettings, PushDevice,
+    PushDeviceWatch,
+};
 use be_type_settings::EditorSettingsContent;
 use beui::Overflow;
 use uuid::Uuid;

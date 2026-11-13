@@ -1,4 +1,7 @@
-use be_sdk_beui::be_block::{Allowance, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies, Settings, SettingsContent, WhoMay};
+use be_sdk_beui::be_block::{
+    Allowance, LostAccess, OfflinePolicy, OfflineSettings, OrganizationPolicies, Settings,
+    SettingsContent, WhoMay,
+};
 use be_sdk_beui::be_block_content::be_block_model::Document;
 use be_sdk_beui::be_block_content::{
     BlockContent, BlockMetadata, Edit, Layered, LiveEdit, Root, Setting,

@@ -1,4 +1,6 @@
-use be_block::{TAGGED, Tag, TagColor, TagContent, Tags, TagsContent, workspace_settings::retagged};
+use be_block::{
+    TAGGED, Tag, TagColor, TagContent, Tags, TagsContent, workspace_settings::retagged,
+};
 use be_block_content::BlockMetadata;
 use beui::reactive::*;
 use uuid::Uuid;

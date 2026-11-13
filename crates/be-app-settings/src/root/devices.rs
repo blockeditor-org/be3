@@ -2,7 +2,10 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use be_sdk_beui::be_block::display_settings::Rotation;
-use be_sdk_beui::be_block::{DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettings, InputSettingsContent, SettingsContent, SettingsProfileContent};
+use be_sdk_beui::be_block::{
+    DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettings, InputSettingsContent,
+    SettingsContent, SettingsProfileContent,
+};
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_block_content::setting::Setting;
 use be_sdk_beui::beui::NodeId;

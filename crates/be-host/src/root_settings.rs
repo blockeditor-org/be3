@@ -2,7 +2,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
-use be_block::{DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, SettingsContent, SettingsProfileContent, UNFILED_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE, organization_settings};
+use be_block::{
+    DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, OfflineSettings, OfflineSettingsContent,
+    Resolution, ResolutionLayers, SettingsContent, SettingsProfileContent, UNFILED_TYPE,
+    WORKSPACE_EDITOR, WORKSPACE_TYPE, organization_settings,
+};
 use be_block_content::{BlockContent, BlockMetadata, LiveEdit, NAME, Root, VIEW_EDITOR, VIEW_TYPE};
 use be_block_graph::BlockParent;
 use uuid::Uuid;

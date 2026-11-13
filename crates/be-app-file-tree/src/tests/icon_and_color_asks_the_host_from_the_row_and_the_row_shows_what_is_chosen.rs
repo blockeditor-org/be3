@@ -1,7 +1,9 @@
 use be_sdk_beui::be_block_content::metadata::{ICON, ICON_COLOR};
 use be_sdk_beui::beui::Key;
 use be_sdk_beui::beui::icons::ICON_FILE_TEXT;
-use be_sdk_beui::{BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildContent, ChildOperations};
+use be_sdk_beui::{
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildContent, ChildOperations,
+};
 
 use super::*;
 
