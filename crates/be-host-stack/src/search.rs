@@ -1818,6 +1818,7 @@ fn heads(peer: &Peer<Store>, graph: &Graph, indexes: &[Uuid]) -> u64 {
         peer.local_head(*index).hash(&mut hasher);
         peer.known_remote_head(*index).hash(&mut hasher);
         peer.pending_commits(*index).is_empty().hash(&mut hasher);
+        peer.is_unsent(*index).hash(&mut hasher);
         graph
             .get(*index)
             .and_then(|node| node.head)
