@@ -36,6 +36,21 @@ impl Held {
     }
 }
 
+/// How long the server keeps an index block's old states (`be_server::retention`).
+pub const SEARCH_INDEX_KEPT: i64 = be_block_commit::retention::DAY;
+
+/// How long a retired segment or a removed block is remembered (`SearchIndexContent::compact`):
+/// several times `SEARCH_INDEX_KEPT`, for a device that comes back after longer than that with
+/// a batch written on an old head, and for clocks that disagree.
+const REMEMBERED: i64 = 7 * SEARCH_INDEX_KEPT;
+
+/// The segment merges one compaction makes at most, so no one batch rewrites the index.
+const MERGES_PER_PASS: usize = 2;
+
+/// The most bytes of parts one merge reads. Segments whose merge would read more are left as
+/// they are: no pass lifts the cap yet (plans/backlog.md, "Search").
+const MERGE_BYTES: u64 = 8 << 20;
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct Header {
     index: Vec<u8>,
@@ -87,6 +102,39 @@ impl SearchIndexContent {
         let needs_text = written.needs_text.clone();
         *self = Self::rebuilt(index, written, [&*self]);
         Ok(needs_text)
+    }
+
+    /// Compacts a few segments (`Index::compact`, `MERGES_PER_PASS`, none reading more than
+    /// `MERGE_BYTES`) and forgets the retired segments and removed blocks recorded longer than
+    /// `REMEMBERED` before `now` (milliseconds): what the device that writes a batch does with
+    /// it, so the segments a query reads stay few.
+    pub async fn compact<F: AsyncRead>(
+        &mut self,
+        read: &F,
+        origin: Id,
+        now: i64,
+    ) -> Result<(), Error> {
+        let mut index = self.index.clone();
+        let length = |name: &PartName| {
+            self.parts
+                .iter()
+                .find(|(held, _)| held == name)
+                // A part it does not hold counts as too big to merge.
+                .map_or(u64::MAX, |(_, part)| part.length())
+        };
+        let written = index
+            .compact(
+                &self.reader([self], read),
+                origin,
+                now,
+                MERGES_PER_PASS,
+                MERGE_BYTES,
+                length,
+            )
+            .await?;
+        index.forget_before(now - REMEMBERED);
+        *self = Self::rebuilt(index, written, [&*self]);
+        Ok(())
     }
 
     /// The best `limit` hits of `query` (`Index::search`).

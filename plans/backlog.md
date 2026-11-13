@@ -56,7 +56,14 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   another (`ClickCounter`). Done: a touch in one window never joins a gesture in
   another, shown by a beui-core test with two windows' touches.
 
-## 9. Commit times
+## 9. Search
+
+- **Compaction past the byte cap.** A writer's compaction makes no merge reading more than
+  `MERGE_BYTES` (`SearchIndexContent::compact`), so a large index's biggest segments are never
+  merged. An idle-time pass (the device idle, on power) could lift the cap. Done: a stack test
+  where an index whose tier is over the cap is merged by an idle pass and answers the same.
+
+## 10. Commit times
 
 - **A refused far-future commit is stuck.** A device stamps commits by the
   server's clock it measured, kept in its refs across restarts
