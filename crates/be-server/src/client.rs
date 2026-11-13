@@ -122,9 +122,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
         },
         Call::Objects(call) => match call {
             objects::Call::HoldObjects { block: held, .. } => block(*held, Access::Edit),
-            objects::Call::UploadUrls { .. }
-            | objects::Call::DownloadUrls { .. }
-            | objects::Call::MissingObjects { .. } => Rule::Organization,
+            objects::Call::UploadUrls { .. } | objects::Call::DownloadUrls { .. } => {
+                Rule::Organization
+            }
         },
         Call::Blocks(call) => match call {
             blocks::Call::CreateBlock { parent, .. } => match parent {
@@ -142,8 +142,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
             // before the store answers, which refuses less than `KnowExists` as not found.
-            blocks::Call::ReadBlock { .. }
-            | blocks::Call::ListBlocks { .. }
+            blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::CollectDetached { .. } => Rule::Organization,
             blocks::Call::Changes { .. } => Rule::SignedIn,
@@ -251,8 +250,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
         Call::Objects(call) => match call {
             objects::Call::HoldObjects { .. }
             | objects::Call::UploadUrls { .. }
-            | objects::Call::DownloadUrls { .. }
-            | objects::Call::MissingObjects { .. } => true,
+            | objects::Call::DownloadUrls { .. } => true,
         },
         Call::Blocks(call) => match call {
             // Opening a block makes it first unless it exists (`Peer::ensure_type`), so making
@@ -268,7 +266,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
 
             blocks::Call::SetMetadata { .. }
             | blocks::Call::Publish { .. }
-            | blocks::Call::ReadBlock { .. }
             | blocks::Call::ReadContents { .. }
             | blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
@@ -1523,21 +1520,44 @@ impl Client {
                     prelude?;
                     let identity = connection.identity()?;
                     at_most_urls(objects.len())?;
-                    let sized = objects
-                        .iter()
-                        .map(|object| (object.hash, object.length))
-                        .collect();
-                    connection.store.reserve_uploads(identity, sized).await?;
+                    let held = connection
+                        .store
+                        .held_objects(identity, objects.iter().map(|object| object.hash).collect())
+                        .await?;
+                    // An object the caller cannot upload (no length) must be one it holds: any
+                    // other is refused as not found, the same whether or not someone stored it,
+                    // so its size and existence stay private and nothing is reserved for it.
+                    let mut missing = Vec::new();
+                    for (object, held) in objects.iter().zip(&held) {
+                        match (held, object.length) {
+                            (true, _) => {}
+                            (false, Some(length)) => missing.push((object.hash, length)),
+                            (false, None) => {
+                                return Err(ServerError::Refused(
+                                    ErrorCode::ObjectNotFound,
+                                    format!("object {} is not held", object.hash),
+                                ));
+                            }
+                        }
+                    }
+                    connection.store.reserve_uploads(identity, missing).await?;
                     let lifetime = connection.store.transfer_lifetime();
                     Ok(objects
                         .into_iter()
-                        .map(|object| {
-                            let length = usize::try_from(object.length).unwrap_or(usize::MAX);
+                        .zip(held)
+                        .map(|(object, held)| {
+                            if held {
+                                return None;
+                            }
+                            let length = object
+                                .length
+                                .and_then(|length| usize::try_from(length).ok())
+                                .unwrap_or(usize::MAX);
                             let signed =
                                 connection
                                     .transfers
                                     .presign_put(object.hash, length, lifetime);
-                            UploadUrl {
+                            Some(UploadUrl {
                                 url: signed.url,
                                 headers: signed
                                     .headers
@@ -1547,7 +1567,7 @@ impl Client {
                                         value,
                                     })
                                     .collect(),
-                            }
+                            })
                         })
                         .collect())
                 }
@@ -1575,17 +1595,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, signed);
-            }
-            Call::MissingObjects { reply, hashes } => {
-                let missing = async {
-                    prelude?;
-                    connection
-                        .store
-                        .missing_objects(connection.identity()?, hashes)
-                        .await
-                }
-                .await;
-                self.reply(reply, missing);
             }
             Call::HoldObjects {
                 reply,
@@ -1729,19 +1738,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, published);
-            }
-            Call::ReadBlock { reply, block } => {
-                let read = async {
-                    prelude?;
-                    connection
-                        .list(Listing::Block(block))
-                        .await?
-                        .blocks
-                        .pop()
-                        .ok_or(ServerError::Corrupt)
-                }
-                .await;
-                self.reply(reply, read);
             }
             Call::ReadContents {
                 reply,
