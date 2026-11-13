@@ -67,15 +67,25 @@ fn replay_typing(container: &web_sys::Node) {
     let Some(container) = container.dyn_ref::<web_sys::Element>() else {
         return;
     };
-    let Ok(fields) = container.query_selector_all("input, textarea") else {
+    // Through js_sys, which every target that builds this crate has.
+    let Ok(query) = js_sys::Reflect::get(container, &"querySelectorAll".into()) else {
         return;
     };
-    for index in 0..fields.length() {
-        let Some(field) = fields.item(index) else {
-            continue;
+    let Some(query) = query.dyn_ref::<js_sys::Function>() else {
+        return;
+    };
+    let Ok(fields) = query.call1(container, &"input, textarea".into()) else {
+        return;
+    };
+    let fields = js_sys::Array::from(&fields);
+    for field in fields.iter() {
+        let property = |name: &str| {
+            js_sys::Reflect::get(&field, &name.into())
+                .ok()
+                .and_then(|value| value.as_string())
         };
-        let property = |name: &str| js_sys::Reflect::get(&field, &name.into()).ok().and_then(|value| value.as_string());
         if property("value") != property("defaultValue")
+            && let Some(field) = field.dyn_ref::<web_sys::EventTarget>()
             && let Ok(event) = web_sys::Event::new("input")
         {
             let _ = field.dispatch_event(&event);
