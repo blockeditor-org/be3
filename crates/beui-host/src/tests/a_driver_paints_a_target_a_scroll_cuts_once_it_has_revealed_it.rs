@@ -34,7 +34,9 @@ fn a_driver_paints_a_target_a_scroll_cuts_once_it_has_revealed_it() {
         .expect("row 2 shows in part");
     assert_eq!(height(&cut), 20.0, "{cut}");
     let painting = driven.painting_of("#row.2");
-    let row = driven.ask(&["find", "#row.2", "shown"]).expect("row 2 shows");
+    let row = driven
+        .ask(&["find", "#row.2", "shown"])
+        .expect("row 2 shows");
     assert_eq!(
         height(&row),
         40.0,
@@ -46,7 +48,9 @@ fn a_driver_paints_a_target_a_scroll_cuts_once_it_has_revealed_it() {
         .ask(&["find", "#row.9", "shown"])
         .expect_err("row 9 is scrolled out of view");
     let painting = driven.painting_of("#row.9");
-    let row = driven.ask(&["find", "#row.9", "shown"]).expect("row 9 shows");
+    let row = driven
+        .ask(&["find", "#row.9", "shown"])
+        .expect("row 9 shows");
     assert_eq!(height(&row), 40.0, "{row}");
     assert_eq!(painting.frame.size[1] as f32, height(&row));
 }
