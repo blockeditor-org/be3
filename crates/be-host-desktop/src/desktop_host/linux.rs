@@ -2,7 +2,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::OnceLock;
-use std::time::Duration;
 
 use super::{DesktopHost, DesktopSettings};
 use crate::known_window::KnownWindow;
@@ -247,7 +246,6 @@ impl DesktopHost for Linux {
     fn set_locked(locked: bool) {
         with(|running| running.compositor.set_locked(locked));
     }
-
 
     fn replace_gpu(setup: &Setup) {
         let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {

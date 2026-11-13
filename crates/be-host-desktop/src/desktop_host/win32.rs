@@ -17,12 +17,12 @@ use beui::{
 use crate::programs::ProgramSource;
 use crate::window_body::WindowStatus;
 
-use super::{DesktopHost, DesktopSettings};
 use super::win32_map::{
     self, ContentPress, HotkeyState, Notes, ProgramNames, Recovery, Refusal, entry_id,
 };
 use super::win32_overlay::EntryOverlay;
 use super::win32_shape::Shaping;
+use super::{DesktopHost, DesktopSettings};
 
 const HOST_FOREGROUND_REFUSED: &str =
     "Windows did not let be-host come back to the front. Click be-host's window to use it again.";
