@@ -1,6 +1,7 @@
 # Declarative dragging: drags as the places they can lead to
 
-Depends on: plans/glide_in_unstyled.md and plans/for_each_handle.md, before step 2.
+Depends on: plans/glide_in_unstyled.md and plans/for_each_handle.md, before step 2;
+plans/tentative_gestures.md, before a site previews by holding a tentative gesture.
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from
 *Declarative Dragging* (Horowitz, Blinn, Heer, UIST 2026; https://declarative-dragging.github.io/).
@@ -37,13 +38,20 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
   block. A list's rests are read from its children's laid-out rects (`slots_in`, below); the dock
   runs `beui_dock_state::layout_tree` on the state after a drop, a pure function; a canvas or
   timeline computes them from its model. One O(n) pass when the item is lifted.
-- **Show, never apply.** A site draws the chosen place and touches nothing until the release
-  commits it; Escape or a release nowhere just stops showing it. One mode, so every site works
-  the same way. Peers still see the drag as it happens: the board publishes each frame
+- **Nothing is written before release** (decisions/tentative_edits_wait_for_release.md). The
+  board reports the chosen place (`over`) and ends with a commit or a cancel; how a site previews
+  is its own choice of rendering, never a second drag mode:
+  - **from `over`:** it draws the chosen place itself (a list's gap, the dock's parted layout, a
+    drop caret). For a site whose content is not a block, or where applying would cost too much
+    (the dock: every app in a pane would lay out each frame).
+  - **in a tentative gesture:** inside the block the drag started in, it applies the chosen place
+    as a tentative edit (plans/tentative_gestures.md), so every view of the block follows: a
+    canvas's bound lines, its z-order while a layer is dragged in the sidebar, a builder's layout.
+    The edit is sent and saved only on commit; Escape, a crash or a closed instance leave nothing.
+
+  Peers see the drag as it happens either way: the board publishes each frame
   (`{ payload key, chosen place, item rect }`) as presence (`editor.show`, guides/apps/editor.md,
-  Presence), and their copy of the site draws the same preview from it. This narrows
-  decisions/editors_write_every_change_as_it_happens.md for drags: a drag is shown through
-  presence and written once, on release (step 8 records it).
+  Presence), and their copy of the site draws the same preview from it.
 - **Choosing and resting are separate.** Nearest rest is the default way to choose, but a
   candidate may give a zone instead. A split's rest is a whole half of a pane, far from the edge
   the pointer is at, so the dock chooses by edge bands. Zones and rests are measured against the
@@ -62,6 +70,10 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
 - **Candidates are relative to a node.** Each frame the board maps them through `Space::placed`,
   so edge scrolling, a resized window or a second window move them without recomputing.
   Recomputing happens only on chaining or when the site's content changes underneath it.
+- **One carry per pointer.** Carries are keyed by what carries them: the mouse, each finger, each
+  controller, the keyboard. Escape cancels every carry; an item already carried cannot be lifted
+  again (a site may turn a second finger on it into its own gesture, a canvas's rotate). Several
+  drags in one block join one tentative gesture, committed when the last ends (the decision).
 - **Keys reach the same places.** A focused item is lifted with a key, arrow keys walk to the
   nearest candidate in that direction, Enter commits, Escape cancels. A candidate's `label` is
   what a screen reader announces. Every drag becomes doable from the keyboard.
@@ -221,6 +233,10 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    - **infinite canvas:** item moves become `free`.
    - **game editor:** each `Gesture::Drag { from, to }` is a fixed candidate at `to`'s spot;
      `drag` answers `None` off a piece, so the same press pans.
+   - **between blocks:** an item dragged into another block of a type that takes it (canvas to
+     canvas, list to list) moves on a plain drop and copies with a modifier, through the
+     clipboard's typed formats, so a drop is a paste. Without write access to the source it copies.
+     The source holds a tentative removal; on drop it commits and the target writes the insert.
    - **settings' display arrangement:** every touching position is a candidate, `when_far(free)`.
    - **bottom sheet:** detents are `closest(detents).thrown()`.
 6. **Across apps.** Each app region is an `Into` candidate on the host's board. While the drag is
@@ -229,19 +245,21 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    so the host glides the item there on release. The app protocol carries only points, rects and
    opaque ids (guides/apps/host_services.md). `Editor::drag` and `accept_drag` become this handoff.
    The dock has no app boundary, so it stays one level.
-7. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
+7. **Several carries at once.** Allow more than one carry, one per pointer, when the VR layer's two
+   controllers (or touch) need it; steps 1 to 6 key carries by pointer but carry one at a time.
+8. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
    quantised. Move each only if it is as good as today.
-8. **Remove the rest.** Delete the old API. Rewrite components.md's Drag and drop, docking.md's
+9. **Remove the rest.** Delete the old API. Rewrite components.md's Drag and drop, docking.md's
    Dragging, Dialogs and tool bars sections, and host_services.md. Record
    decisions/beui_drags_are_reachable_places.md with what was rejected (building speculative
-   states, blending view trees, a numeric optimiser, applying a drag before release, implicit
-   context arming glides) and amend decisions/editors_write_every_change_as_it_happens.md for drags.
+   states, blending view trees, a numeric optimiser, a drag mode that writes before release,
+   implicit context arming glides).
 
 ## Open questions
 
-- **Moving between sites.** The receiving site's `commit` inserts the item; who removes it from
-  the source? A `moved_away` callback on `Carry` is simplest; a payload that carries its own
-  removal keeps the move one undo step. Decide in step 2.
+- **Moving between sites.** The receiving site's `commit` inserts the item; the source's removal
+  is a tentative edit it commits on the drop. Whether `Carry` hears that through a `moved_away`
+  callback or the payload carries its own removal is decided in step 2.
 - **A carried item far from every site:** does its home keep the gap (no jump when it comes back)
   or close it (today a flicked-out row leaves at once)? Decide in step 2.
 - **Rows a `VirtualList` has not built** have no rects. Either `slots_in` uses its estimates, or
