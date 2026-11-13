@@ -50,8 +50,8 @@ A database (or a view of one):
                                       Add a row, with a page when --body is given
   schema                              Its columns, and each choice's colour, icon, whether
                                       it closes a row and which is the default
-  option FIELD OPTION [SETTING=VALUE]...
-                                      Change a choice, adding it if there is none: color=blue,
+  option FIELD OPTION [SETTING=VALUE]... [--new]
+                                      Change a choice, or add it with --new: color=blue,
                                       icon=done, closed=yes, default=yes, name=NEW,
                                       after=OPTION or first=yes
   add-column NAME TYPE [--options A,B] [--links DATABASE] [--multiple] [--inverse NAME]
@@ -67,8 +67,9 @@ A row (be ROW-ID [VERB], or be DATABASE row ROW-ID [VERB]):
   set [FIELD=VALUE]...                FIELD+=VALUE adds a link to a relation of several
                                       rows and FIELD-=VALUE removes one; an empty VALUE
                                       clears the field
-  page [VERB]                         Its page, a text block target made the first time it is
-                                      written: `be ROW page append TEXT`
+  page [cat | write TEXT | append TEXT | edit | info | download [FILE]]
+                                      Its page, a text block (bare, it prints it); write,
+                                      append and edit make it the first time
   delete                              Delete the row and its page
 
 A text block:
@@ -101,6 +102,7 @@ pub struct Options {
     pub column: NewColumn,
     pub command: Vec<String>,
     pub watch: Option<u64>,
+    pub new: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -164,6 +166,10 @@ pub fn parse(
                 options.watch = Some(seconds);
             }
             "--multiple" => options.column.multiple = true,
+            "--new" => options.new = true,
+            "--append" => {
+                return Err("--append is gone; `be ROW page append TEXT`".to_owned());
+            }
             "--body" => options.body = Some(Body::Replace(text(value()?)?)),
             "--page" => options.page = Some(value()?),
             "--prefix" => options.prefix = Some(value()?),
@@ -541,10 +547,20 @@ async fn block_verb<S: ObjectStore>(
                     entry.short
                 ));
             };
-            tracker
-                .set_option(database, field, option, &assignments(settings)?)
+            let added = tracker
+                .set_option(
+                    database,
+                    field,
+                    option,
+                    &assignments(settings)?,
+                    invocation.options.new,
+                )
                 .await?;
-            print(tracker.schema(database).await?.join("\n"))
+            let schema = tracker.schema(database).await?.join("\n");
+            print(match added {
+                Some(added) => format!("{added}\n{schema}"),
+                None => schema,
+            })
         }
         ("add-column", _, Some(database)) => {
             let [name, kind] = arguments.as_slice() else {

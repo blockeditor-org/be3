@@ -91,6 +91,36 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         text.contains("Steps to reproduce.") && text.ends_with("Seen twice."),
         "{text}"
     );
+    for refused in [
+        format!("{id} page delete"),
+        format!("{id} page move Tracker"),
+        format!("{page} delete"),
+    ] {
+        let refused = run(&tracker, &refused)
+            .await
+            .expect_err("a row's page goes with its row");
+        assert!(refused.contains("goes with its row"), "{refused}");
+    }
+    assert!(
+        run(&tracker, &format!("{id} page"))
+            .await
+            .unwrap()
+            .ends_with("Seen twice."),
+        "the refused page stays where it was"
+    );
+    let bare = run(&tracker, &format!("{view} new Bare_row"))
+        .await
+        .unwrap();
+    let bare = bare.split_whitespace().next().unwrap().to_owned();
+    let refused = run(&tracker, &format!("{bare} page info"))
+        .await
+        .expect_err("a row with no page has nothing to describe");
+    assert!(refused.contains("has no page yet"), "{refused}");
+    assert_eq!(run(&tracker, &format!("{bare} page")).await.unwrap(), "");
+    let refused = run(&tracker, &format!("{bare} set --append More"))
+        .await
+        .expect_err("set no longer appends");
+    assert!(refused.contains("page append"), "{refused}");
     let wrong = run(&tracker, &format!("{page} rows")).await.unwrap_err();
     assert!(wrong.contains("is a text"), "{wrong}");
     assert!(run(&tracker, "Nothing_like_this").await.is_err());
