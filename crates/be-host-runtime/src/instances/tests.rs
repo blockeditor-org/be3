@@ -240,7 +240,7 @@ fn preview_revision(
     instances.serve(crate::wire::Service {
         instance: INSTANCE,
         call: Services::RevisionPreviewNew {
-            resource: wire::RevisionPreview(preview),
+            resource: be_sdk_api::embed::host_services::RevisionPreview(preview),
             block: block.into_bytes(),
             commit,
         },
@@ -249,7 +249,7 @@ fn preview_revision(
         instances.serve(crate::wire::Service {
             instance: INSTANCE,
             call: Services::RevisionPreviewOpened {
-                this: wire::RevisionPreview(preview),
+                this: be_sdk_api::embed::host_services::RevisionPreview(preview),
                 reply: reply(opened),
             },
         });
@@ -265,7 +265,11 @@ fn previews_of(block: Uuid) -> Vec<(Uuid, usize)> {
                 .iter()
                 .filter(|(id, preview)| preview.source == block && preview.root == **id)
                 .map(|(id, _)| {
-                    let released = shared.released_previews.iter().filter(|gone| *gone == id).count();
+                    let released = shared
+                        .released_previews
+                        .iter()
+                        .filter(|gone| *gone == id)
+                        .count();
                     (*id, released)
                 })
                 .collect(),
@@ -602,10 +606,6 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
 }
 
 mod a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise;
-mod a_revision_preview_dropped_before_it_opens_is_let_go_once_it_opens;
-mod a_revision_preview_dropped_once_open_is_let_go;
-mod an_editor_closing_lets_go_of_its_revision_previews_once_each;
-mod a_restarted_app_lets_go_of_its_revision_previews_and_numbers_them_afresh;
 mod a_block_gift_becomes_a_gift_to_the_child_that_shows_its_block;
 mod a_block_gift_ends_when_the_instance_goes;
 mod a_block_gift_for_a_block_the_host_refused_to_make_never_starts;
@@ -639,7 +639,10 @@ mod a_render_still_asked_is_answered_with_nothing_when_its_instance_goes;
 mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_app_hears_its_childrens_statuses_again;
 mod a_restarted_app_is_sent_its_content_and_blocks_again;
+mod a_restarted_app_lets_go_of_its_revision_previews_and_numbers_them_afresh;
 mod a_restarted_app_no_longer_shows_its_views_stopped;
+mod a_revision_preview_dropped_before_it_opens_is_let_go_once_it_opens;
+mod a_revision_preview_dropped_once_open_is_let_go;
 mod a_screen_asked_to_take_the_keyboard_reaches_its_view;
 mod a_stale_input_method_does_not_release_owed_keys;
 mod a_tap_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
@@ -659,6 +662,7 @@ mod an_app_makes_an_agent_for_a_block_it_made_only_while_it_sits_alone_in_unfile
 mod an_app_reaches_only_the_hosts_its_manifest_names;
 mod an_app_seeds_only_blocks_it_holds;
 mod an_editor_can_read_and_edit_a_block_it_watches;
+mod an_editor_closing_lets_go_of_its_revision_previews_once_each;
 mod an_editor_is_only_sent_messages_its_app_session_accepts;
 mod an_input_capture_opened_again_is_not_told_the_earlier_chord;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;

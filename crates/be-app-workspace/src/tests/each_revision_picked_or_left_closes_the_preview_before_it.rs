@@ -11,9 +11,10 @@ fn revision(commit: u8, current: bool) -> Revision {
 }
 
 fn preview(fixture: &mut Fixture, commit: u8) {
-    fixture
-        .test
-        .click(format!("workspace.revision.{}", format!("{commit:02x}").repeat(32)));
+    fixture.test.click(format!(
+        "workspace.revision.{}",
+        format!("{commit:02x}").repeat(32)
+    ));
     fixture.settle();
     let asked = fixture
         .test
@@ -21,7 +22,9 @@ fn preview(fixture: &mut Fixture, commit: u8) {
         .pop()
         .expect("picking a revision asks for its preview");
     assert_eq!(asked.commit, [commit; 32]);
-    fixture.test.answer(asked.reply, Ok(Uuid::new_v4().into_bytes()));
+    fixture
+        .test
+        .answer(asked.reply, Ok(Uuid::new_v4().into_bytes()));
     fixture.settle();
 }
 
@@ -40,7 +43,11 @@ fn each_revision_picked_or_left_closes_the_preview_before_it() {
         .expect("the active file lists its history");
     fixture.test.answer(
         listing,
-        Ok(vec![revision(1, false), revision(2, false), revision(3, true)]),
+        Ok(vec![
+            revision(1, false),
+            revision(2, false),
+            revision(3, true),
+        ]),
     );
     fixture.settle();
     fixture.show_history();

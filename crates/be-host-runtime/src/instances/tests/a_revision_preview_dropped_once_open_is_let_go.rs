@@ -14,14 +14,20 @@ fn a_revision_preview_dropped_once_open_is_let_go() {
         panic!("the preview opens: {answers:?}");
     };
     assert_eq!(
-        previews_of(block).iter().map(|(_, released)| *released).collect::<Vec<_>>(),
+        previews_of(block)
+            .iter()
+            .map(|(_, released)| *released)
+            .collect::<Vec<_>>(),
         [0],
         "open while it is held"
     );
     instances.ended(40);
     instances.ended(40);
     assert_eq!(
-        previews_of(block).iter().map(|(_, released)| *released).collect::<Vec<_>>(),
+        previews_of(block)
+            .iter()
+            .map(|(_, released)| *released)
+            .collect::<Vec<_>>(),
         [1],
         "dropping it lets it go, once"
     );

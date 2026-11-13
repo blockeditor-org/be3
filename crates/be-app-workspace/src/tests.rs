@@ -17,7 +17,6 @@ use crate::rename::RenameRoot;
 use crate::root::WorkspaceUiRoot;
 
 mod a_block_in_a_tab_points_its_dialogs_at_the_tab;
-mod each_revision_picked_or_left_closes_the_preview_before_it;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
@@ -72,6 +71,7 @@ mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
+mod each_revision_picked_or_left_closes_the_preview_before_it;
 mod escape_closes_the_add_menu_and_only_its_cards_ask_to_be_framed;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
