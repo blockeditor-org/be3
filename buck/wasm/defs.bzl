@@ -89,6 +89,10 @@ def role_link_flags(role):
 # wasm-opt over it: after rustc, -O2 takes a further tenth off an app's code
 # and a third off a game, where -Oz takes a little more at twice the time. -g
 # keeps the name section, which is what a guest's backtrace is read with.
+# --one-caller-inline-max-function-size stops it inlining every function with
+# one caller however large: it merged the gallery's components into one 925 KB
+# function and put back together the relocation function the linker splits,
+# past what Windows on ARM64 compiles (guides/app_libraries.md, Function size).
 def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
     shared = ctx.attrs.library[DefaultInfo].sub_targets["shared"][DefaultInfo].default_outputs[0]
     name = (ctx.attrs.module or ctx.attrs.name) + ".wasm"
@@ -105,6 +109,7 @@ def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
         cmd_args(
             ctx.attrs._wasm_opt[RunInfo],
             "-O2",
+            "--one-caller-inline-max-function-size=1000",
             "-g",
             "--detect-features",
             shared,

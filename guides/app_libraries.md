@@ -137,12 +137,15 @@ refuse. What grew past it, and what keeps it down:
   data into one function, `__wasm_apply_data_relocs` (1.5 MB of wasm in beui's
   library). The linker splits it into functions of at most 64 KB that it calls
   in order (`crates/be-wasm-link/src/relocations.rs`).
-- A component builder's `build` is `#[inline(never)]` (beui-macros): inlined,
-  a view's whole tree of components merged into one closure (925 KB of wasm in
-  the beui gallery).
+- A release build's wasm-opt inlines a function with one caller only up to
+  1000 of its nodes (`--one-caller-inline-max-function-size` in
+  `buck/wasm/defs.bzl`); unbounded, its default, it merged a view's whole tree
+  of components into one closure (925 KB of wasm in the beui gallery) and
+  undid the split above. A component builder's `build` is also
+  `#[inline(never)]` (beui-macros), which keeps LLVM from doing the same.
 - wasmtime compiles a module's element segments, one table store for each
   function whose address is taken (mostly vtables), into the module's
-  `module_start` function, about 60 bytes of ARM64 code an entry: 962 KB in
+  `module_start` function, about 60 bytes of ARM64 code an entry: 810 KB in
   beui's release library. Past the limit, wasmtime must emit it as a loop or
   split it; nothing here can.
 
