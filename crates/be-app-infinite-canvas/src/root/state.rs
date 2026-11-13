@@ -51,7 +51,7 @@ struct Pasting {
     entities: Vec<CanvasEntity>,
 }
 
-type RenderAnswer = Box<dyn FnOnce(Option<Vec<u8>>)>;
+use beui::clip::RenderAnswer;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum CommonValue<T> {
@@ -2139,7 +2139,14 @@ impl CanvasState {
         if entities.is_empty() {
             return false;
         }
-        let encoded = match serde_json::to_vec(&entities) {
+        let mut blank = entities.clone();
+        let mut blocks = Vec::new();
+        for entity in &mut blank {
+            for block in entity.blocks_mut() {
+                blocks.push(std::mem::take(block));
+            }
+        }
+        let encoded = match serde_json::to_vec(&blank) {
             Ok(encoded) => encoded,
             Err(error) => {
                 self.import_error
@@ -2149,6 +2156,7 @@ impl CanvasState {
         };
         let items = CanvasItems {
             canvas: self.block_id(),
+            blocks,
             entities: encoded,
         };
         let mut clip = Clip::new().with(items.encode());
@@ -2200,7 +2208,20 @@ impl CanvasState {
     /// blocks may be pasted here; the rest are left out.
     fn paste_items(&self, items: CanvasItems) {
         match serde_json::from_slice::<Vec<CanvasEntity>>(&items.entities) {
-            Ok(entities) if !entities.is_empty() => {
+            Ok(mut entities) if !entities.is_empty() => {
+                let mut named = entities
+                    .iter_mut()
+                    .flat_map(CanvasEntity::blocks_mut)
+                    .collect::<Vec<_>>();
+                if named.len() != items.blocks.len() {
+                    return self.import_error.set(Some(
+                        "Could not paste canvas objects: the clip names the wrong number of blocks"
+                            .to_owned(),
+                    ));
+                }
+                for (block, from) in named.iter_mut().zip(items.blocks) {
+                    **block = from;
+                }
                 let canvas = items.canvas;
                 let pasting = self.cells.value().pasting;
                 let blocks = entities

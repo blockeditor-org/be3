@@ -826,7 +826,7 @@ impl Drop for Instances {
                     *instance,
                     InstanceEvent::Rendered {
                         request,
-                        data: None,
+                        body: None,
                     },
                 );
             }
@@ -949,7 +949,7 @@ impl Instances {
                 instance,
                 InstanceEvent::Rendered {
                     request,
-                    data: None,
+                    body: None,
                 },
             );
         }
@@ -1979,7 +1979,7 @@ impl Instances {
                     *instance,
                     InstanceEvent::Rendered {
                         request,
-                        data: None,
+                        body: None,
                     },
                 );
             }
@@ -3406,6 +3406,48 @@ impl Instances {
         screens
     }
 
+    fn instance_of_screen(&self, id: ScreenId) -> Option<EditorInstanceId> {
+        self.entries.iter().find_map(|(instance, entry)| {
+            entry
+                .screens
+                .values()
+                .any(|screen| screen.request.screen == id)
+                .then_some(*instance)
+        })
+    }
+
+    /// Translates the blocks a paste into a screen names into the ids of the
+    /// instance that owns the screen, as `translate` does for messages that
+    /// name their instance.
+    pub(super) fn translate_pastes(&self, message: &mut Outbound) {
+        let Outbound::App(AppCall::Input(batch)) = message else {
+            return;
+        };
+        let pastes = batch
+            .events
+            .iter_mut()
+            .filter_map(|timed| match &mut timed.input {
+                beui::Input::Paste(item) | beui::Input::PastePiece(item)
+                    if !item.refs.is_empty() =>
+                {
+                    Some(item)
+                }
+                _ => None,
+            });
+        let mut pastes = pastes.peekable();
+        if pastes.peek().is_none() {
+            return;
+        }
+        let Some(instance) = self.instance_of_screen(batch.screen) else {
+            return;
+        };
+        let mut pasted = super::calls::Pasted {
+            instance,
+            items: pastes.collect(),
+        };
+        self.translate(&mut pasted, false);
+    }
+
     fn is_screen(&self, id: ScreenId) -> bool {
         self.entries
             .values()
@@ -3778,14 +3820,14 @@ impl Instances {
                     InstanceEvent::ArtifactOutcome(outcome),
                 );
             }
-            EditorAnswer::Rendered { request_id, data } => {
+            EditorAnswer::Rendered { request_id, body } => {
                 if entry.renders.remove(&request_id) {
                     super::events::emit(
                         &self.app_id,
                         instance,
                         InstanceEvent::Rendered {
                             request: request_id,
-                            data,
+                            body,
                         },
                     );
                 }

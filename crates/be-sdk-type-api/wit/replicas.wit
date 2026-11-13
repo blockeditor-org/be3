@@ -107,10 +107,9 @@ interface replicas {
         drained: async func(refused: bool, commits: list<commit-id>);
     }
 
-    /// Seeds the module's entropy, starts its clock and lists its types.
+    /// Seeds the module's entropy, starts its clock and lists its types, each with
+    /// its blank content and that content's description.
     start: async func(entropy: list<u8>) -> list<type-info>;
-
-    blank: async func(content-type: content-type-id) -> result<list<u8>, failure>;
 
     /// Content bytes (none for the type's default) with a journal of this
     /// build replayed on top, for a reader outside the session.

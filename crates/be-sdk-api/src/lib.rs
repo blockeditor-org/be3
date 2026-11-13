@@ -798,14 +798,15 @@ pub fn paste_events(item: ClipItem) -> Vec<Input> {
 }
 
 fn paste_pieces(item: ClipItem, limit: usize) -> Vec<Input> {
-    let ClipItem { format, data } = item;
+    let ClipItem { format, data, refs } = item;
     let mut pieces = data
         .chunks(limit)
         .map(|piece| ClipItem::new(format.clone(), piece.to_vec()))
         .collect::<Vec<_>>();
-    let last = pieces
+    let mut last = pieces
         .pop()
         .unwrap_or_else(|| ClipItem::new(format, Vec::new()));
+    last.refs = refs;
     pieces
         .into_iter()
         .map(Input::PastePiece)

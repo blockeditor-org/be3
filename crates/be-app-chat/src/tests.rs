@@ -12,6 +12,7 @@ use crate::root::ChatRoot;
 mod a_conversation_shows_each_message_with_its_author_and_time;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_forged_deletion_of_a_closed_message_shows_where_it_was;
 mod a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_request;
 mod a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed;
 mod a_message_kept_offline_is_sent_once_the_drain_publishes_it_while_the_chat_is_closed;
@@ -25,6 +26,7 @@ mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_message_shows_whether_its_author_signed_it;
 mod a_message_the_server_refuses_shows_as_not_sent;
 mod a_refused_message_tells_nobody_and_a_reply_mentions_its_author;
+mod a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_show_as_forged;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
 mod a_revision_preview_verifies_what_the_chat_signed;
@@ -62,6 +64,19 @@ fn signed_by(content: &ChatContent, signer: Uuid, message: Message) -> Edit {
         &Message {
             signature: Signature(signature),
             ..message
+        },
+    )
+}
+
+/// `message` deleted by `author`, who signed the deletion.
+fn deleted_by(content: &ChatContent, message: ObjectId, author: Uuid, time: i64) -> Edit {
+    let deletion = content.deletion(message, author, time);
+    let signature = be_sdk_test::signature(author, &deletion.signed_bytes(CHAT, message));
+    content.put_deletion(
+        message,
+        &be_type_chat::Deletion {
+            signature: Signature(signature),
+            ..deletion
         },
     )
 }

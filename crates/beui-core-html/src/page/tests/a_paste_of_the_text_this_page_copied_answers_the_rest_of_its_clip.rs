@@ -24,7 +24,7 @@ fn a_paste_of_the_text_this_page_copied_answers_the_rest_of_its_clip() {
 
     copy(
         &beui_types::Clip::new()
-            .with_lazy(blocks, |answer| answer(Some(b"rendered".to_vec())))
+            .with_lazy(blocks, |answer| answer(Some(b"rendered".to_vec().into())))
             .with(ClipItem::text("plain")),
     );
     let clip = held(Some("plain")).expect("the clipboard still holds what this page wrote");

@@ -92,6 +92,7 @@ fn a_root_gives_a_tab_two_levels_down_its_owners_menu_block_and_dialog() {
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
             child,
             declaration: Some(middle),
+            epoch: 1,
         })]);
     for _ in 0..3 {
         show_docked(&mut session, &[(View::MAIN, 0)], false);

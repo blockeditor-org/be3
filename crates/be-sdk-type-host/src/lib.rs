@@ -2,26 +2,22 @@ use be_block::{
     CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
     InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent,
     PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent,
-    TagsContent,
+    TagsContent, search_index::SearchIndexContent,
 };
-use be_sdk_type_guest::Registration;
 
-pub fn registrations() -> Vec<Registration> {
-    vec![
-        Registration::of::<DisplaySettingsContent>(),
-        Registration::of::<InputSettingsContent>(),
-        Registration::of::<InputRemapperContent>(),
-        Registration::of::<SettingsContent>().undo::<SettingsContent>(),
-        Registration::of::<SettingsProfileContent>().undo::<SettingsProfileContent>(),
-        Registration::of::<RepositoryContent>(),
-        Registration::of::<CheckoutContent>(),
-        Registration::of::<PrefixRegistryContent>(),
-        Registration::of::<TagsContent>().undo::<TagsContent>(),
-        Registration::of::<TagContent>().undo::<TagContent>(),
-        Registration::of::<HomeContent>().undo::<HomeContent>(),
-        Registration::of::<OrganizationPoliciesContent>(),
-        Registration::of::<OfflineSettingsContent>(),
-        Registration::of::<be_block::search_index::SearchIndexContent>()
-            .merge_parts::<be_block::search_index::SearchIndexContent>(),
-    ]
-}
+be_sdk_type_guest::be_block_types![
+    DisplaySettingsContent,
+    InputSettingsContent,
+    InputRemapperContent,
+    SettingsContent { undo },
+    SettingsProfileContent { undo },
+    RepositoryContent,
+    CheckoutContent,
+    PrefixRegistryContent,
+    TagsContent { undo },
+    TagContent { undo },
+    HomeContent { undo },
+    OrganizationPoliciesContent,
+    OfflineSettingsContent,
+    SearchIndexContent { merge_parts },
+];

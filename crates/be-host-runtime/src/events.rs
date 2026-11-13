@@ -48,7 +48,10 @@ pub enum InstanceEvent {
     /// The person created the block of a creation dialog it placed.
     ChildCommitted(ChildCommit),
     /// Its answer to `render_clip`'s `request`: none when it rendered nothing or is gone.
-    Rendered { request: u64, data: Option<Vec<u8>> },
+    Rendered {
+        request: u64,
+        body: Option<be_sdk_api::clipboard::ClipBody>,
+    },
     /// The view `ViewId` was asked to take the keyboard.
     FocusRequested(ViewId),
     /// It gives the keyboard to this child, whose view takes it (`take_gift`) once it can; none
