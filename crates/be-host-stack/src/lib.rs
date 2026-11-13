@@ -982,7 +982,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         if left.is_zero() {
             let state = format!(
                 "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
-                 commands not run: {}, edits owed: {} {:?} (sealed what was owed {} time(s)), not yet durable: {}, draining the outbox: {}\n  \
+                 commands not run: {}, edits owed: {} {:?} (sealed what was owed {} time(s)), asking the modules for {:?}, not yet durable: {}, draining the outbox: {}\n  \
                  listings loading: {}, listings failed: {}\n  \
                  progressed: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
                 held.connected,
@@ -996,6 +996,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                     .map(ToString::to_string)
                     .collect::<Vec<_>>(),
                 held.seals_owed,
+                held.asking,
                 held.undurable,
                 held.draining,
                 held.graph.fetching(),
