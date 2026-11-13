@@ -90,8 +90,8 @@ pub struct Owner {
     saved: Receiver<()>,
     reading: Pending,
     serving: Option<std::thread::JoinHandle<()>>,
-    interned: Mutex<std::collections::HashMap<String, Atom>>,
-    named: Mutex<std::collections::HashMap<Atom, String>>,
+    interned: Mutex<std::collections::BTreeMap<String, Atom>>,
+    named: Mutex<std::collections::BTreeMap<Atom, String>>,
     pastes: std::sync::atomic::AtomicU64,
 }
 
