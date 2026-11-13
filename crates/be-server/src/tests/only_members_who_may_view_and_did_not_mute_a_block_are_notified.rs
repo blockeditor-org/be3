@@ -49,7 +49,7 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
     let (mut viewer, _) = viewer_of(&harness, &mut owner, block, "viewer@example.com").await;
     let sealed = b"sealed".to_vec();
     let notified = viewer
-        .call(|peer| client::notifications::notify(peer, block, sealed, Vec::new()))
+        .call(|peer| client::notifications::notify(peer, block, sealed, Vec::new(), Vec::new()))
         .await;
     assert!(
         refused_as(&notified, ErrorCode::PermissionDenied),
