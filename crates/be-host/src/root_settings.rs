@@ -130,6 +130,9 @@ impl RootSettings {
         self.shell
     }
 
+    /// The account's settings at the root, told by their author: a listing answered offline from
+    /// what the device keeps carries it too, as the server gave it or as this device made the
+    /// block (be-host-stack's `roots_listed_offline_after_a_restart_keep_their_author`).
     fn owned(&self) -> Option<Vec<Uuid>> {
         let account = be_host_stack::account()?;
         let mut cache = self.cache.borrow_mut();

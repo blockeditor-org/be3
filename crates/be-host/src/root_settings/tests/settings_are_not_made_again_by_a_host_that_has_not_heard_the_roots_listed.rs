@@ -22,4 +22,10 @@ fn settings_are_not_made_again_by_a_host_that_has_not_heard_the_roots_listed() {
     restarted.cache.borrow_mut().owned = Some(Vec::new());
     assert_eq!(restarted.ensure(), Some(made));
     assert_eq!(restarted.created, None, "it made no settings of its own");
+    let settings: Vec<Uuid> = be_host_stack::query(be_host_stack::Query::Roots)
+        .into_iter()
+        .filter(|node| node.content_type == Settings::CONTENT_TYPE)
+        .map(|node| node.id)
+        .collect();
+    assert_eq!(settings, vec![made], "the account has one settings");
 }
