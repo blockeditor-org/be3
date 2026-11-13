@@ -168,6 +168,23 @@ impl ServerStore {
     /// The size of an object the server holds, from `object_sizes`, which has a row for every
     /// object from its upload until it is forgotten (`forget_objects`), so nothing asks the
     /// object store, which may be a bucket a round trip away.
+    /// The bytes of the stored objects among `hashes`, each counted once.
+    pub(crate) fn stored_bytes(
+        &self,
+        connection: &Connection,
+        hashes: &[Hash],
+    ) -> Result<u64, ServerError> {
+        let mut total = 0u64;
+        for hash in distinct(hashes) {
+            let stored: Option<i64> = connection
+                .prepare_cached("SELECT bytes FROM object_sizes WHERE hash = ?1")?
+                .query_row([hash.to_hex()], |row| row.get(0))
+                .optional()?;
+            total = total.saturating_add(stored.and_then(|bytes| u64::try_from(bytes).ok()).unwrap_or(0));
+        }
+        Ok(total)
+    }
+
     fn object_bytes(&self, connection: &Connection, hash: Hash) -> Result<u64, ServerError> {
         let stored: Option<i64> = connection
             .prepare_cached("SELECT bytes FROM object_sizes WHERE hash = ?1")?

@@ -442,7 +442,12 @@ organizations created, open contact links, contacts, invitations outstanding and
 escrow keys per organization (refused as `OverQuota`); and per connection,
 sessions, listings and streams. Names, metadata (held in the graph and sent in
 every summary), sealed blobs, pairing messages and relayed session messages
-have byte limits (refused as `InvalidRequest`). A relay is shared by every
+have byte limits (refused as `InvalidRequest`). A commit of a search index may
+hold at most `MAX_INDEX_BYTES` (refused as `OverQuota`), since any editor of its
+root writes what every viewer's search reads, and no commit's time may be more
+than `MAX_COMMIT_AHEAD` (an hour) past the server's clock (refused as
+`InvalidRequest`), since a far-future time wins every comparison by commit time
+and escapes history's thinning by age. A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one client that has left the
 session (or never joined) is dropped without an error: it is best-effort, and the
 sender cannot know the other left.

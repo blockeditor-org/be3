@@ -28,10 +28,10 @@ More types answering `search-text` are in plans/search_library.md.
   counted as indexed (`MAX_READ_FAILURES`), so a catch-up ends: its entry in the index is
   stale or missing until the block next changes. Answers are filtered by the mirror, so
   only snippets and ranking use the stale text.
-- **A forged index.** Any editor of a root is enough to write arbitrary content into its
-  index: forged entries, an unbounded size that every viewer's search reads, and a
-  far-future commit time that wins the merge by commit time in a query. Cap an
-  index's size and refuse commit times in the future when it is cheap.
+- **A forged index.** Any editor of a root is enough to write forged entries into its
+  index. The server bounds a commit of an index (`MAX_INDEX_BYTES`) and refuses a
+  commit time more than `MAX_COMMIT_AHEAD` past its clock, so what is left is the
+  content itself, which only the root's editors can forge.
 - **The writer only.** The device whose session seals a commit indexes it
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.

@@ -41,7 +41,7 @@ const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
-    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_METADATA_BYTES},
+    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_INDEX_BYTES, MAX_METADATA_BYTES},
     store::{
         Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
         usage::{forget_objects, payer_for_new, persist_sizes},
@@ -718,6 +718,13 @@ impl ServerStore {
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        let latest = be_block_commit::now_milliseconds().saturating_add(MAX_COMMIT_AHEAD);
+        if time > latest {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!("a commit's time may be at most {latest}, not {time}: is this clock fast?"),
+            ));
+        }
         let change = held;
         let mut sent = vec![commit.hash()];
         sent.extend(change.added.iter().copied());
@@ -743,6 +750,18 @@ impl ServerStore {
                 };
                 let mut held = vec![commit.hash()];
                 held.extend(change.apply(&base));
+                if graph
+                    .get(block)
+                    .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
+                {
+                    let bytes = store.stored_bytes(database, &held)?;
+                    if bytes > MAX_INDEX_BYTES {
+                        return Err(crate::limits::too_many(
+                            "a search index's bytes",
+                            MAX_INDEX_BYTES,
+                        ));
+                    }
+                }
                 // A first commit lists every reference, replacing any its block was made with.
                 let listed = match expected {
                     Some(_) => graph.references(block),
