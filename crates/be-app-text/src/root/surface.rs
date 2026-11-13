@@ -224,7 +224,8 @@ fn paste_image(state: State, file: PickedFile) {
 }
 
 /// Opened at a search hit's place (`editor-event.reveal`), the text selects the first place its
-/// matched words occur and brings it into view, once the content has loaded.
+/// matched words occur and brings it into view, once the content has loaded and the position it
+/// was left at is back, so the place it was opened at wins over it.
 fn select_where_opened(state: State) {
     let revealed = state.editor.pushed(Pushed::Reveal);
     let wanted = create_signal(None::<SearchLocation>);
@@ -235,11 +236,15 @@ fn select_where_opened(state: State) {
         }
     });
     let content = state.text.content();
+    let restored = state.position_restored;
     create_effect(move || {
         content.get();
         let Some(at) = wanted.get() else {
             return;
         };
+        if !restored.get() {
+            return;
+        }
         untrack(|| {
             if !state.text.loaded() {
                 return;

@@ -161,6 +161,7 @@ pub(crate) fn keep_position(state: State) {
         }
         let Some(view) = editor.view_content() else {
             restored.set(true);
+            state.position_restored.set(true);
             return;
         };
         let Ok(position) = view.read(|held| {
@@ -174,6 +175,7 @@ pub(crate) fn keep_position(state: State) {
         if let Some(position) = &position {
             untrack(|| position.restore(state));
         }
+        state.position_restored.set(true);
         *saved.value().borrow_mut() = position;
     });
     let save = move || {
