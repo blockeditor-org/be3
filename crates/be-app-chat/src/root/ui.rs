@@ -13,7 +13,10 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{BlockFilter, BlockLink, BlockQuery, ChildTarget, ContentProjection, Editor, KeptEdit, LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label};
+use be_sdk_beui::{
+    BlockFilter, BlockLink, BlockQuery, ChildTarget, ContentProjection, Editor, KeptEdit,
+    LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
+};
 use be_type_chat::{
     ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey, ReadPlace,
     Segment, Shown, Signature,

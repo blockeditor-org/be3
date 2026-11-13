@@ -1,6 +1,9 @@
 use be_sdk_beui::be_block_content::{BlockContent, Edit, LiveEdit, ObjectId};
 use be_sdk_beui::beui::vec2;
-use be_sdk_beui::{BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost, OwnedEditor, PickedBlock, Press, Signer};
+use be_sdk_beui::{
+    BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost,
+    OwnedEditor, PickedBlock, Press, Signer,
+};
 use be_sdk_test::BeuiTest;
 use be_type_chat::{ChatContent, ChatOp, Message, Signature};
 use uuid::Uuid;

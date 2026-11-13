@@ -827,6 +827,7 @@ dependencies = [
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-chat",
+ "be-type-image",
  "beui",
  "uuid",
 ]
@@ -2075,7 +2076,6 @@ dependencies = [
 name = "be-sdk-text"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-content",
  "be-block-model",
  "be-sdk",

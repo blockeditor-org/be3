@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-sdk-beui:be-sdk-beui",
                 "//crates/be-type-chat:be-type-chat",
+                "//crates/be-type-image:be-type-image",
                 "//crates/beui:beui",
                 "//third-party/rust:uuid-1.29.1",
             ],

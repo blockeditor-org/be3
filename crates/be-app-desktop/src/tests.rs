@@ -1,10 +1,22 @@
 use be_sdk_beui::be_block::display_settings::{DisplayMode, Rotation};
-use be_sdk_beui::be_block::{DESKTOP_EDITOR, DisplaySettings, DisplaySettingsContent, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, WORKSPACE_EDITOR};
+use be_sdk_beui::be_block::{
+    DESKTOP_EDITOR, DisplaySettings, DisplaySettingsContent, Settings, SettingsContent,
+    SettingsProfile, SettingsProfileContent, WORKSPACE_EDITOR,
+};
 use be_sdk_beui::be_block_content::BlockMetadata;
 use be_sdk_beui::be_block_content::{Root, VIEW_EDITOR};
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
-use be_sdk_beui::{AudioOutput, BlockInfo, BlockParent, ChildContent, ChildId, DisplaysWatch, EditorHost, EndingAnswer, EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest, NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction, PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, ScreenEdge, ScreenEdgeState, ScreenEdgesWatch, ScreenSide, SessionEnd, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowsWatch};
+use be_sdk_beui::{
+    AudioOutput, BlockInfo, BlockParent, ChildContent, ChildId, DisplaysWatch, EditorHost,
+    EndingAnswer, EpaperWatch, HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId,
+    IncomingNotification, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch, MediaLevel,
+    MediaLevels, MediaRequest, MediaWatch, MenuAsk, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, Picture, PlayerCommand, PowerAction,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramCatalog, ProgramsWatch, ScreenEdge,
+    ScreenEdgeState, ScreenEdgesWatch, ScreenSide, SessionEnd, WifiLink, WifiNetwork, WifiRequest,
+    WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
+};
 
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_shell::{SHELL_BARS, SavedProgram, saved_programs};

@@ -18,7 +18,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -36,7 +35,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -54,7 +52,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -72,7 +69,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -90,7 +86,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -108,7 +103,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -124,7 +118,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -142,7 +135,6 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-content:be-block-content",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
