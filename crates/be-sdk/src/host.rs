@@ -16,13 +16,15 @@ use be_sdk_api::OfferedClipItem;
 use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
-use be_sdk_api::shell_types::{ChildCreation, ClipOffer, DragStart, ShellMessage};
+use be_sdk_api::shell_types::{
+    ChildCreation, ChildMenuChoice, ClipOffer, DragStart, ShellMessage,
+};
 use be_sdk_api::{
-    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
-    BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
-    ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
-    FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
-    ParentView, PerformanceMeasurement, Revision, ShellDialog, Signer, Size, TerminalHostBe,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BlockAgent,
+    BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
+    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
+    HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder, ParentView,
+    PerformanceMeasurement, Revision, ShellDialog, Signer, Size, TerminalHostBe,
     ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
@@ -515,7 +517,7 @@ pub struct EditorHost {
     watches: Rc<RefCell<Watches>>,
     picker: Rc<RefCell<Option<PickerRequest>>>,
     renaming: Rc<Cell<Option<RenameRequest>>>,
-    picked: Rc<RefCell<Option<BlockPick>>>,
+    picked: Rc<Cell<bool>>,
     card: Rc<Cell<bool>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     history_requests: Rc<RefCell<Vec<HistoryRequest>>>,
@@ -546,7 +548,6 @@ pub struct EditorHost {
     shows_watched: Rc<Cell<bool>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
     block_types_known: Rc<Cell<bool>>,
-    drag_accepted: Rc<Cell<Option<bool>>>,
     instance: Rc<Cell<Option<EditorInstanceId>>>,
     tasks: Rc<RefCell<Vec<Task>>>,
     editable: Rc<Cell<bool>>,
@@ -555,7 +556,6 @@ pub struct EditorHost {
     view_block: Rc<Cell<Option<Uuid>>>,
     view: Rc<Cell<Option<View>>>,
     handles_dismiss: Rc<Cell<bool>>,
-    handles_dismiss_changed: Rc<Cell<bool>>,
     dismiss_requested: Rc<Cell<bool>>,
     host_palette: Rc<Cell<bool>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
@@ -563,24 +563,22 @@ pub struct EditorHost {
     drops: Rc<RefCell<HashMap<ViewId, ViewDrops>>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
-    audio_commands: Rc<RefCell<Vec<AudioCommand>>>,
+    plays_audio: Rc<Cell<bool>>,
     audio_status: Rc<RefCell<AudioStatus>>,
     web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
     presenting: Rc<Cell<bool>>,
-    child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
+    child_details: Rc<RefCell<HashSet<ChildId>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
     menus: Rc<RefCell<std::collections::BTreeMap<ViewId, Vec<MenuEntry>>>>,
     menu_picks: Rc<RefCell<Vec<(ViewId, String)>>>,
-    child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
+    child_anchors: Rc<RefCell<HashMap<ChildId, Rect>>>,
     chrome: Rc<Cell<Option<bool>>>,
     placed_content: Rc<Cell<Option<Rect>>>,
     frame_anchor: Rc<Cell<Option<Rect>>>,
     spec_anchor: Rc<Cell<Option<Option<Rect>>>>,
     held_clip: Rc<RefCell<Option<(u64, ClipRender)>>>,
     next_copy: Rc<Cell<u64>>,
-    paste_requested: Rc<Cell<bool>>,
-    leaving: Rc<Cell<bool>>,
     next_frame: Rc<RefCell<HashMap<Option<ViewId>, Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
     followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
@@ -757,12 +755,10 @@ impl EditorHost {
     }
 
     pub fn answer_pick(&self, answer: BlockPick) {
-        let mut picked = self.picked.borrow_mut();
-        if picked.is_none() {
-            *picked = Some(answer);
+        if !self.picked.replace(true) {
+            self.tell(ShellMessage::Picked(answer));
+            self.changed();
         }
-        drop(picked);
-        self.changed();
     }
 
     pub fn show_card(&self, card: bool) {
@@ -774,11 +770,6 @@ impl EditorHost {
     pub(crate) fn card(&self) -> bool {
         self.read();
         self.card.get()
-    }
-
-    pub(crate) fn take_picked(&self) -> Option<BlockPick> {
-        self.read();
-        self.picked.borrow_mut().take()
     }
 
     pub fn commit_child(&self, child: ChildId, parent: BlockParent, name: Option<String>) {
@@ -939,17 +930,25 @@ impl EditorHost {
         }
         *self.focused.borrow_mut() = focused;
         self.push(Pushed::Focus);
+        self.tell_focus();
         self.waker.wake();
     }
 
-    pub(crate) fn take_focus_report(&self) -> Option<FocusedBlock> {
+    /// Tells the shell where the editor's focus is, unless it was the last it told.
+    pub(crate) fn tell_focus(&self) {
         let focused = self.focused.borrow().clone();
         let mut reported = self.reported_focus.borrow_mut();
         if reported.as_ref().is_some_and(|last| last.same(&focused)) {
-            return None;
+            return;
         }
         *reported = Some(focused.clone());
-        Some(focused)
+        drop(reported);
+        self.tell_latest(ShellMessage::Focused(be_sdk_api::shell_types::Focus {
+            block_id: focused.block_id.map(Uuid::into_bytes),
+            block_type: focused.block_type.into_bytes(),
+            editor: focused.editor.map(Uuid::into_bytes),
+            via: focused.via.into_iter().map(Uuid::into_bytes).collect(),
+        }));
     }
 
     pub fn watch_artifacts(&self, blocks: impl IntoIterator<Item = Uuid>) {
@@ -1118,6 +1117,15 @@ impl EditorHost {
         self.told.borrow_mut().push(message);
     }
 
+    /// Tells the shell `message` in place of one of its kind still waiting to be sent, where
+    /// only the latest matters (where the focus is, whether a drag is taken, a paste asked).
+    fn tell_latest(&self, message: ShellMessage) {
+        let kind = std::mem::discriminant(&message);
+        let mut told = self.told.borrow_mut();
+        told.retain(|waiting| std::mem::discriminant(waiting) != kind);
+        told.push(message);
+    }
+
     /// Takes what the editor told the shell, in the order it told it.
     pub fn take_told(&self) -> Vec<ShellMessage> {
         std::mem::take(&mut self.told.borrow_mut())
@@ -1126,6 +1134,7 @@ impl EditorHost {
     pub(crate) fn set_focused_block(&self, focused: FocusedBlock) {
         *self.focused.borrow_mut() = focused;
         self.push(Pushed::Focus);
+        self.tell_focus();
     }
 
     pub fn drag_block(&self, block_id: Uuid, block_type: Uuid) {
@@ -1758,7 +1767,7 @@ impl EditorHost {
     }
 
     pub fn accept_drag(&self, accepted: bool) {
-        self.drag_accepted.set(Some(accepted));
+        self.tell_latest(ShellMessage::DragAccepted(accepted));
     }
 
     pub(crate) fn set_instance(&self, instance: EditorInstanceId) {
@@ -1998,28 +2007,32 @@ impl EditorHost {
     }
 
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
-        self.audio_commands
-            .borrow_mut()
-            .push(AudioCommand::Load(AudioSource {
-                media_type: media_type.into(),
-                bytes,
-            }));
+        self.command_audio(AudioCommand::Load(AudioSource {
+            media_type: media_type.into(),
+            bytes,
+        }));
     }
 
     pub fn play_audio(&self) {
-        self.audio_commands.borrow_mut().push(AudioCommand::Toggle);
+        self.command_audio(AudioCommand::Toggle);
     }
 
     pub fn reset_audio(&self) {
-        self.audio_commands.borrow_mut().push(AudioCommand::Reset);
+        self.command_audio(AudioCommand::Reset);
+    }
+
+    fn command_audio(&self, command: AudioCommand) {
+        self.plays_audio.set(true);
+        self.tell(ShellMessage::PlayAudio(command));
+    }
+
+    /// Whether the editor ever played audio, so its status is worth watching.
+    pub(crate) fn plays_audio(&self) -> bool {
+        self.plays_audio.get()
     }
 
     pub fn audio(&self) -> AudioStatus {
         self.audio_status.borrow().clone()
-    }
-
-    pub(crate) fn take_audio_commands(&self) -> Vec<AudioCommand> {
-        std::mem::take(&mut self.audio_commands.borrow_mut())
     }
 
     pub fn set_audio(&self, status: AudioStatus) {
@@ -2166,11 +2179,7 @@ impl EditorHost {
     }
 
     pub fn request_paste(&self) {
-        self.paste_requested.set(true);
-    }
-
-    pub fn take_paste_request(&self) -> bool {
-        self.paste_requested.take()
+        self.tell_latest(ShellMessage::Paste);
     }
 
     pub fn join_module(&self, module: &crate::Module) {
@@ -2216,15 +2225,12 @@ impl EditorHost {
     }
 
     pub fn leave_frame(&self) {
-        self.leaving.set(true);
+        self.tell(ShellMessage::LeaveFrame);
     }
 
-    pub fn take_leave_frame(&self) -> bool {
-        self.leaving.take()
-    }
-
-    pub fn bar_action(&self, action: BarAction) {
-        self.tell(ShellMessage::BarAction(action));
+    /// Asks the host to show the details of what the editor shows.
+    pub fn show_details(&self) {
+        self.tell(ShellMessage::Details);
         self.changed();
     }
 
@@ -2300,12 +2306,19 @@ impl EditorHost {
     }
 
     pub fn pick_child_menu(&self, child: ChildId, id: String) {
-        self.child_menu_picks.borrow_mut().push((child, id));
+        let anchor = self.child_anchors.borrow().get(&child).copied();
+        self.tell(ShellMessage::ChildMenuPick(ChildMenuChoice {
+            child,
+            id,
+            anchor,
+        }));
         self.changed();
     }
 
-    pub(crate) fn take_child_menu_picks(&self) -> Vec<(ChildId, String)> {
-        std::mem::take(&mut self.child_menu_picks.borrow_mut())
+    /// Where, in host coordinates, the children the editor placed are, for the
+    /// anchor of a pick from a child's menu.
+    pub(crate) fn set_child_anchors(&self, anchors: HashMap<ChildId, Rect>) {
+        *self.child_anchors.borrow_mut() = anchors;
     }
 
     pub fn presenting(&self) -> bool {
@@ -2403,7 +2416,7 @@ impl EditorHost {
             return;
         }
         self.handles_dismiss.set(handles);
-        self.handles_dismiss_changed.set(true);
+        self.tell(ShellMessage::HandlesDismiss(handles));
         self.changed();
     }
 
@@ -2548,10 +2561,6 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn take_drag_accepted(&self) -> Option<bool> {
-        self.drag_accepted.take()
-    }
-
     pub fn in_view<R>(&self, view: be_sdk_api::View, within: impl FnOnce() -> R) -> R {
         let held = self.showing.replace(Some(view));
         let done = within();
@@ -2606,12 +2615,9 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
+    pub fn take_child_details(&self, child: ChildId) -> bool {
         self.read();
-        self.child_bars
-            .borrow_mut()
-            .remove(&child)
-            .unwrap_or_default()
+        self.child_details.borrow_mut().remove(&child)
     }
 
     pub fn take_child_focus(&self, child: ChildId) -> bool {
@@ -2624,19 +2630,9 @@ impl EditorHost {
         self.changed();
     }
 
-    pub(crate) fn push_child_bar_action(&self, child: ChildId, action: BarAction) {
-        self.child_bars
-            .borrow_mut()
-            .entry(child)
-            .or_default()
-            .push(action);
+    pub(crate) fn push_child_details(&self, child: ChildId) {
+        self.child_details.borrow_mut().insert(child);
         self.changed();
-    }
-
-    pub(crate) fn take_handles_dismiss(&self) -> Option<bool> {
-        self.handles_dismiss_changed
-            .take()
-            .then(|| self.handles_dismiss.get())
     }
 
     /// Whether the host draws the command palette (`open-block.host-palette`), so the frame

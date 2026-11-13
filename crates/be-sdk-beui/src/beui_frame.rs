@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use be_sdk_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
+use be_sdk_api::{MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 use beui::NodeId;
 use beui::icons::{
     ICON_INFO, ICON_PENCIL_LINE, ICON_REDO_2, ICON_SHARE_2, ICON_TERMINAL, ICON_UNDO_2, ICON_X,
@@ -448,7 +448,7 @@ fn frame_actions(
         .enabled(can(|state| state.can_share))
         .register(),
         details: Action::new("editor.details", "File details", move || {
-            editor.host().bar_action(BarAction::Details)
+            editor.host().show_details()
         })
         .glyph(ICON_INFO)
         .register(),

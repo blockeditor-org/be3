@@ -1,13 +1,13 @@
-use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame};
+use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
 use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
-    HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
-    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View,
-    ViewId, ViewportMetrics,
+    BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
+    InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock, OpenCreation,
+    ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, View, ViewId,
+    ViewportMetrics,
 };
 use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::{
@@ -124,6 +124,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     completed: std::collections::HashMap<be_sdk_api::ops::OpId, be_sdk_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
     docked: bool,
+    anchor_space: Option<be_sdk_api::AnchorSpace>,
     docks: Vec<be_sdk_api::DockMessage>,
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
@@ -426,6 +427,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             completed: std::collections::HashMap::new(),
             menu: Vec::new(),
             docked: false,
+            anchor_space: None,
             docks: Vec::new(),
             output: None,
             shown_window: None,
@@ -513,7 +515,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 host_place: None,
                 origin: None,
                 docked: self.docked,
-                anchor_space: None,
+                anchor_space: self.anchor_space.clone(),
                 fit: false,
             }]
         });
@@ -735,12 +737,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
+    /// The host asks for the details of `child`, from the child's bar.
+    pub fn child_details(&mut self, child: ChildId) {
         self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::ChildBar(ChildBarPress { child, action })],
-            );
+            editor.hear(connection, vec![EditorEvent::ChildDetails(child)]);
         });
     }
 
@@ -804,6 +804,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.call(|editor, connection| {
             editor.hear(connection, vec![EditorEvent::Drag(Some(drag))]);
         });
+    }
+
+    /// Lays the view out as if its points sat at `origin` in the host, unscaled, so what it
+    /// anchors reaches the host there.
+    pub fn at_host_origin(mut self, origin: Pos2) -> Self {
+        self.anchor_space = Some(be_sdk_api::AnchorSpace {
+            to_host: be_sdk_api::HostTransform {
+                origin,
+                scale: Vec2::splat(1.0),
+            },
+            bounds: Rect::from_min_size(Pos2::ZERO, Vec2::splat(4096.0)),
+        });
+        self.place();
+        self.run();
+        self
     }
 
     pub fn docked(mut self) -> Self {
@@ -1885,20 +1900,20 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn take_child_menu_picks(&mut self) -> Vec<(ChildId, String)> {
+    pub fn take_child_menu_picks(&mut self) -> Vec<ChildMenuChoice> {
         self.take_shell_messages(|call| match call {
-            ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, .. }) => {
-                Some((*child, id.clone()))
-            }
+            ShellMessage::ChildMenuPick(choice) => Some(choice.clone()),
             _ => None,
         })
     }
 
-    pub fn take_bar_actions(&mut self) -> Vec<BarAction> {
+    /// How many times the editor asked to show its details.
+    pub fn take_details(&mut self) -> usize {
         self.take_shell_messages(|call| match call {
-            ShellMessage::BarAction(action) => Some(*action),
+            ShellMessage::Details => Some(()),
             _ => None,
         })
+        .len()
     }
 
     pub fn has_requests(&self) -> bool {
