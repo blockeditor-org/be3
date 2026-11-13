@@ -661,19 +661,33 @@ impl Refs {
     }
 
     /// Keeps the heads `summaries` name as the server's, but not one `behind` the remote head
-    /// already known (`set_remote`).
+    /// already known (`set_remote`). Where `summaries` name a block more than once, only the
+    /// newest head is judged, from the latest summary and, between two of one revision, the one
+    /// the other is `behind`: an older one judged against the same known head could otherwise
+    /// land after it.
     pub fn observe(
         &self,
         summaries: &[BlockSummary],
         behind: impl Fn(CommitId, CommitId) -> bool,
     ) -> Result<(), StoreError> {
-        let heads: Vec<(Uuid, CommitId)> = summaries
-            .iter()
-            .filter_map(|summary| Some((summary.id, summary.head?)))
+        let mut latest: HashMap<Uuid, (u64, CommitId)> = HashMap::new();
+        for summary in summaries {
+            let Some(head) = summary.head else { continue };
+            let newest = latest.get(&summary.id).is_none_or(|(revision, kept)| {
+                *revision < summary.revision
+                    || (*revision == summary.revision && behind(*kept, head))
+            });
+            if newest {
+                latest.insert(summary.id, (summary.revision, head));
+            }
+        }
+        let heads: Vec<(Uuid, CommitId)> = latest
+            .into_iter()
+            .map(|(block, (_, head))| (block, head))
             .collect();
         let mut rows = Vec::new();
         {
-            let (mut state, news) = self.judged(&heads, behind);
+            let (mut state, news) = self.judged(&heads, &behind);
             for (block, head) in heads {
                 if news.contains(&block) && state.remotes.insert(block, head) != Some(head) {
                     rows.push(row(Table::Remote, block.as_bytes().to_vec(), &head));

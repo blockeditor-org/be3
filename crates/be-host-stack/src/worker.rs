@@ -1148,6 +1148,11 @@ impl Session<'_> {
                 self.replicas.modules.wake_at(),
                 self.retry_at(),
                 self.versions_due,
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .search
+                    .moving_due(),
             ]
             .into_iter()
             .flatten()
@@ -1362,7 +1367,8 @@ impl Session<'_> {
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             step(shared, Some("the search index"));
-            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
+            let now = self.config.clock.now();
+            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0, now).await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())

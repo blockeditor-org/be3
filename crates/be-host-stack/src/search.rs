@@ -20,6 +20,7 @@ use std::{
     hash::{Hash as _, Hasher as _},
     ops::Range,
     sync::{Arc, PoisonError},
+    time::Duration,
 };
 
 use be_block::{
@@ -217,6 +218,13 @@ pub struct Searching {
     /// Blocks whose index has no head on this device yet (made by another device, not
     /// arrived): queued again once it has one, not every round.
     parked: Vec<(Uuid, Vec<Uuid>)>,
+    /// Batches given back after `WRITE_ATTEMPTS` heads in a row were let go while they were
+    /// written (`Unwritten::Moved`): another device keeps publishing the index. Queued again
+    /// once the index's head moves on from the one it was given back at, which a watch on it
+    /// reports, or once its delay is up.
+    moving: Vec<Moving>,
+    /// Batches given back in a row, by index, for the delay before the next try.
+    moved: HashMap<Uuid, u32>,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
@@ -327,6 +335,7 @@ impl Searching {
             && self.writing.is_empty()
             && self.waiting.is_empty()
             && self.parked.is_empty()
+            && self.moving.is_empty()
             && self.creating.is_empty()
     }
 
@@ -501,6 +510,85 @@ impl Searching {
     pub(crate) fn park(&mut self, index: Uuid, blocks: Vec<Uuid>) {
         self.parked.push((index, blocks));
     }
+
+    /// Holds back a batch given back for an index whose head kept moving (`moving`), at the
+    /// heads it was given back at.
+    pub(crate) fn hold_moving(&mut self, index: Uuid, blocks: Vec<Uuid>, heads: IndexHeads) {
+        let runs = self.moved.entry(index).or_default();
+        *runs = runs.saturating_add(1);
+        self.moving.push(Moving {
+            index,
+            blocks,
+            heads,
+            due: None,
+        });
+    }
+
+    /// Queues again the batches held back for an index whose head moved on, that no root names
+    /// any more or whose delay is up, and times the rest from `now`, a delay that doubles with
+    /// each batch given back in a row.
+    pub(crate) fn release_moving(
+        &mut self,
+        now: Duration,
+        heads: impl Fn(Uuid) -> IndexHeads,
+        named: impl Fn(Uuid) -> bool,
+    ) {
+        for mut moving in std::mem::take(&mut self.moving) {
+            let runs = self.moved.get(&moving.index).copied().unwrap_or(1);
+            let due = *moving.due.get_or_insert_with(|| now + moving_delay(runs));
+            match due <= now || heads(moving.index) != moving.heads || !named(moving.index) {
+                true => self.dirty.extend(moving.blocks),
+                false => self.moving.push(moving),
+            }
+        }
+    }
+
+    /// When the first batch held back is due, for the worker to wake at.
+    pub(crate) fn moving_due(&self) -> Option<Duration> {
+        self.moving.iter().filter_map(|moving| moving.due).min()
+    }
+
+    /// The indexes batches are held back for, which are watched for their next head.
+    fn moving_indexes(&self) -> impl Iterator<Item = Uuid> + '_ {
+        self.moving.iter().map(|moving| moving.index)
+    }
+
+    /// A batch was written to `index`: the next one given back waits the shortest delay.
+    pub(crate) fn wrote(&mut self, index: Uuid) {
+        self.moved.remove(&index);
+    }
+}
+
+/// The heads of an index a batch held back was given back at: the mirror's and the one the
+/// server last told this device of.
+pub(crate) type IndexHeads = (Option<CommitId>, Option<CommitId>);
+
+/// A batch held back for an index whose head kept moving (`Searching::moving`).
+struct Moving {
+    index: Uuid,
+    blocks: Vec<Uuid>,
+    heads: IndexHeads,
+    /// When it is tried again whatever the heads: set the first round after it is held back.
+    due: Option<Duration>,
+}
+
+/// The first delay before a batch given back is tried again whatever the index's heads.
+const MOVING_FIRST: Duration = Duration::from_secs(1);
+/// The longest.
+const MOVING_MOST: Duration = Duration::from_secs(60);
+
+/// The delay before a batch given back `runs` times in a row is tried again.
+fn moving_delay(runs: u32) -> Duration {
+    MOVING_FIRST
+        .saturating_mul(1 << runs.saturating_sub(1).min(16))
+        .min(MOVING_MOST)
+}
+
+fn index_heads(peer: &Peer<Store>, graph: &Graph, index: Uuid) -> IndexHeads {
+    (
+        graph.get(index).and_then(|node| node.head),
+        peer.known_remote_head(index),
+    )
 }
 
 enum Place {
@@ -551,11 +639,12 @@ pub(crate) async fn step(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     tasks: &Tasks,
+    now: Duration,
 ) -> bool {
     name_indexes(peer, shared, replicas, tasks).await;
     confirm_names(peer, shared, tasks);
     start_catch_ups(peer, shared, tasks);
-    let mut moved = index(peer, shared, replicas, tasks).await;
+    let mut moved = index(peer, shared, replicas, tasks, now).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
     moved
@@ -566,6 +655,7 @@ async fn index(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     tasks: &Tasks,
+    now: Duration,
 ) -> bool {
     let (batches, roots) = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -585,6 +675,11 @@ async fn index(
                 peer.local_head(index).is_some()
                     || graph.get(index).is_some_and(|node| node.head.is_some())
             },
+            |index| roots_naming.contains(&index),
+        );
+        state.search.release_moving(
+            now,
+            |index| index_heads(peer, graph, index),
             |index| roots_naming.contains(&index),
         );
         if held.search.dirty.is_empty() {
@@ -717,6 +812,7 @@ async fn index(
                 match written {
                     // Every answer is read again, whichever index it read.
                     Ok(Some(needs_text)) => {
+                        held.search.wrote(index);
                         for block in &put_blocks {
                             held.search.caught.remove(block);
                         }
@@ -730,8 +826,13 @@ async fn index(
                     }
                     // Not on this device yet: made by a command still queued.
                     Ok(None) => held.search.park(index, blocks),
-                    // Written again on the next pass, at whatever head the index has then.
-                    Err(Unwritten::Moved(_)) => held.search.dirty.extend(blocks),
+                    // Written again once the index's head moves on, or after a while: another
+                    // device keeps publishing it, and trying at once would only read the parts
+                    // of heads already let go again.
+                    Err(Unwritten::Moved(_)) => {
+                        let heads = index_heads(&peer, &held.graph, index);
+                        held.search.hold_moving(index, blocks, heads);
+                    }
                     Err(Unwritten::Failed(error)) => {
                         held.error = Some(format!("Indexing for search failed: {error}"))
                     }
@@ -1890,6 +1991,10 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         .collect();
     followed.extend(hits.into_iter().map(GraphQuery::Block));
     let held = &mut *held;
+    // An index a batch is held back for is followed too, for its next head (`moving`).
+    let moving: Vec<Uuid> = held.search.moving_indexes().collect();
+    searched.extend(moving.iter().copied());
+    followed.extend(moving.into_iter().map(GraphQuery::Block));
     watch(peer, &held.graph, &mut held.search.watching, &searched);
     let mut seen = HashSet::new();
     followed.retain(|query| seen.insert(*query));
