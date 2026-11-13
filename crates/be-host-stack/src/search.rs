@@ -139,7 +139,6 @@ struct Confirm {
 struct Caught {
     root: Uuid,
     content_type: Uuid,
-    name: String,
     head: Option<CommitId>,
 }
 
@@ -955,7 +954,10 @@ fn make_indexes(
 }
 
 /// What a block's documents hold at its head: its name, and each document its type answers
-/// `search-text` with. A type that answers nothing is found by its name alone.
+/// `search-text` with. A type that answers nothing is found by its name alone. The name is the
+/// one the indexed commit carries: a rename is a commit of its own, which reaches the indexer
+/// before the mirror reads the block's new name, and the index keeps only one entry for a
+/// commit, so a name read anywhere else could be the old one for good.
 /// A block's documents to put at its head, and those the index holds for it that its type no
 /// longer answers, to remove. `held` is what the index holds for the block: the parts whose text
 /// it has are handed to the type as indexed, so it does not read them again.
@@ -967,19 +969,15 @@ async fn puts_of(
     held: &[be_lib_search::Entry],
     whole: bool,
 ) -> Option<(Vec<Put>, Vec<(DocId, be_lib_search::Commit)>)> {
-    let Some((content_type, name, head)) = ({
+    let Some((content_type, head)) = ({
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         match held.graph.get(block) {
-            Some(node) => Some((
-                node.content_type,
-                node.metadata.name().unwrap_or_default(),
-                node.head,
-            )),
+            Some(node) => Some((node.content_type, node.head)),
             None => held
                 .search
                 .caught
                 .get(&block)
-                .map(|caught| (caught.content_type, caught.name.clone(), caught.head)),
+                .map(|caught| (caught.content_type, caught.head)),
         }
     }) else {
         // Gone from the mirror and from what a catch-up named: nothing to index.
@@ -1019,6 +1017,10 @@ async fn puts_of(
         time: commit.time,
         id: *head.hash().as_bytes(),
     };
+    let name = BlockMetadata::decode(&commit.metadata)
+        .ok()
+        .and_then(|metadata| metadata.name())
+        .unwrap_or_default();
     // Only a module already running is asked: starting one would hold up the worker's loop.
     // A block a catch-up named may be of a type this device has not run yet: its module is
     // started once, which is worth it to index what other devices wrote.
@@ -1409,17 +1411,11 @@ async fn catch_up(
                     && !EDIT_KINDS.contains(&summary.content_type)
             })
             .map(|summary| {
-                let name = peer
-                    .metadata(summary)
-                    .ok()
-                    .and_then(|metadata| metadata.name())
-                    .unwrap_or_default();
                 (
                     summary.id,
                     Caught {
                         root,
                         content_type: summary.content_type,
-                        name,
                         head: summary.head,
                     },
                 )

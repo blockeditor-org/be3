@@ -625,6 +625,15 @@ impl Graph {
         self.nodes.get(&block)
     }
 
+    /// Forgets a block's name, as a mirror that has not read a rename yet holds it (a test's
+    /// way to hold the mirror back).
+    #[cfg(test)]
+    pub(crate) fn forget_name(&mut self, block: Uuid) {
+        if let Some(node) = self.nodes.get_mut(&block) {
+            node.metadata.remove(&be_block::NAME);
+        }
+    }
+
     /// Every block the host has loaded, in no order.
     pub fn nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes.values()
