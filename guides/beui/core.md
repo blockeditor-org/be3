@@ -254,7 +254,8 @@ element already in the page puts its anchors there at once, which re-places the
 element's children: O(children), so open slots while building, not per frame.
 Hydration walks tree and page in serialization order and trusts the server's
 attributes; a mismatch warns in debug builds and builds that node fresh, never
-panics. Handlers are `Callback<beui_html::Event>`, whose methods compile on
+panics. A text field typed into before the page hydrated gets an `input` event
+once its handlers are attached, so its signal holds what was typed. Handlers are `Callback<beui_html::Event>`, whose methods compile on
 both backends; the string backend ignores them. The live backend flushes after
 each handler; signals set elsewhere need a flush the host installs with
 `beui_reactive::wake_with`.

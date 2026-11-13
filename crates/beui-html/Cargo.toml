@@ -20,6 +20,7 @@ web-sys = { version = "0.3", features = [
     "EventTarget",
     "KeyboardEvent",
     "Node",
+    "NodeList",
     "Text",
     "Window",
     "console",

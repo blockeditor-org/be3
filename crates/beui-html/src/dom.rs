@@ -44,7 +44,9 @@ pub fn mount<C: IntoSegment<Node>>(
 /// serialization order: elements by tag, text by content, and the `<!--[-->` /
 /// `<!--]-->` markers around each control-flow run. Trusts the server's
 /// attributes. A mismatch warns in debug builds, builds that node fresh and drops
-/// the unclaimed server nodes in that element or run; it never panics.
+/// the unclaimed server nodes in that element or run; it never panics. A field a
+/// person typed into before the page hydrated is sent an `input` event once its
+/// handlers are attached, so what they typed reaches the view.
 pub fn hydrate<C: IntoSegment<Node>>(
     container: &web_sys::Node,
     build: impl FnOnce() -> C,
@@ -52,9 +54,32 @@ pub fn hydrate<C: IntoSegment<Node>>(
     let (root, scope) = build_root(build);
     attach(&root, container.clone());
     claim_children(&root, container);
+    replay_typing(container);
     Mounted {
         _root: root,
         _scope: scope,
+    }
+}
+
+/// Sends `input` to each text field and text area under `container` whose value is
+/// no longer the one the server rendered: typing that landed before its listener.
+fn replay_typing(container: &web_sys::Node) {
+    let Some(container) = container.dyn_ref::<web_sys::Element>() else {
+        return;
+    };
+    let Ok(fields) = container.query_selector_all("input, textarea") else {
+        return;
+    };
+    for index in 0..fields.length() {
+        let Some(field) = fields.item(index) else {
+            continue;
+        };
+        let property = |name: &str| js_sys::Reflect::get(&field, &name.into()).ok().and_then(|value| value.as_string());
+        if property("value") != property("defaultValue")
+            && let Ok(event) = web_sys::Event::new("input")
+        {
+            let _ = field.dispatch_event(&event);
+        }
     }
 }
 
