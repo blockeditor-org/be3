@@ -126,17 +126,19 @@ the server must serve `.wasm` as `application/wasm` for that.
 
 Windows on ARM64's unwind information gives a function's length in 18 bits of
 4-byte words, so wasmtime cannot compile a function of more than 1 MiB of
-machine code for it: Cranelift panics ("function too large"). Every
-precompile, for every target, refuses a module with such a function and names
-it (`LARGEST_FUNCTION` in `crates/be-wasm-host/src/precompile.rs`, read from
-the symbols of the compiled object); code for other targets is no larger, so
-the deploy's Linux and Android ARM64 precompiles name what Windows' would
+machine code for it: Cranelift panics ("function too large"), which the
+Windows ARM64 precompile reports as such. A release precompile for ARM64
+refuses a module with such a function and names it (`LARGEST_FUNCTION` in
+`crates/be-wasm-host/src/precompile.rs`, read from the symbols of the compiled
+object), so the deploy's Linux and Android ARM64 precompiles, whose code is
+Windows ARM64's but for its unwind information, name what Windows' would
 refuse. What grew past it, and what keeps it down:
 
 - wasm-ld writes a store for each pointer in a position-independent module's
   data into one function, `__wasm_apply_data_relocs` (1.5 MB of wasm in beui's
   library). The linker splits it into functions of at most 64 KB that it calls
-  in order (`crates/be-wasm-link/src/relocations.rs`).
+  in order (`crates/be-wasm-link/src/relocations.rs`). Only a module that
+  exports it is split; any other long function is left to the guard above.
 - A release build's wasm-opt inlines a function with one caller only up to
   1000 of its nodes (`--one-caller-inline-max-function-size` in
   `buck/wasm/defs.bzl`); unbounded, its default, it merged a view's whole tree

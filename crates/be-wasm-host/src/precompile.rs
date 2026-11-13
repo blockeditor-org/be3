@@ -12,13 +12,22 @@ use crate::{Flavor, PRECOMPILED_EXTENSION, Stored, configuration, module};
 struct Engines {
     app: Engine,
     pure: Engine,
+    /// Whether to refuse a function past [`LARGEST_FUNCTION`]: in a release
+    /// precompile for ARM64, whose code is what the limit is about.
+    guarded: bool,
+    /// Whether Cranelift panics on a function past the limit, compiling for
+    /// Windows on ARM64.
+    panics_on_size: bool,
 }
 
 impl Engines {
     fn new(target: Option<&str>, quick: bool) -> Result<Self, String> {
+        let arm64 = target.unwrap_or(std::env::consts::ARCH).starts_with("aarch64");
         Ok(Self {
             app: compiler(Flavor::App, target, quick)?,
             pure: compiler(Flavor::Pure, target, quick)?,
+            guarded: arm64 && !quick,
+            panics_on_size: target.is_some_and(|target| target.starts_with("aarch64-pc-windows")),
         })
     }
 
@@ -90,10 +99,9 @@ pub fn precompile_to(
 
 /// The most machine code one compiled function may hold. Windows on ARM64's
 /// unwind information gives a function's length in 18 bits of 4-byte words,
-/// and Cranelift panics compiling for it past that, so every precompile, for
-/// whichever target, refuses a module with a function past it and names it.
-/// Other targets' code is no larger than ARM64's, so the Linux and Android
-/// ARM64 precompiles, which build beside Windows', name what grew.
+/// and Cranelift panics compiling for it past that, so a release precompile
+/// for ARM64 refuses a module with a function past it and names it: the Linux
+/// and Android ARM64 ones, which build beside Windows', name what grew.
 pub const LARGEST_FUNCTION: u64 = 1 << 20;
 
 /// The functions in a precompiled module, an ELF object with a symbol for each
@@ -144,11 +152,26 @@ fn precompile_file(engines: &Engines, wasm: &Path) -> Result<(), String> {
 fn write_precompiled(engines: &Engines, wasm: &Path, artifact: &Path) -> Result<(), String> {
     let bytes = std::fs::read(wasm)
         .map_err(|error| format!("{} could not be read: {error}", wasm.display()))?;
-    let compiled = engines
-        .for_module(&bytes)
-        .precompile_module(&bytes)
-        .map_err(|error| format!("{} could not be compiled: {error}", wasm.display()))?;
-    let oversized = oversized(&compiled, LARGEST_FUNCTION)?;
+    let engine = engines.for_module(&bytes);
+    let compile = || engine.precompile_module(&bytes);
+    let compiled = if engines.panics_on_size {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(compile)).map_err(|_| {
+            format!(
+                "{} could not be compiled: Cranelift panicked, as it does on a function of more \
+                 than {LARGEST_FUNCTION} bytes of code for Windows on ARM64 (guides/app_libraries.md, \
+                 Function size; the Linux ARM64 precompile names it)",
+                wasm.display()
+            )
+        })?
+    } else {
+        compile()
+    }
+    .map_err(|error| format!("{} could not be compiled: {error}", wasm.display()))?;
+    let oversized = if engines.guarded {
+        oversized(&compiled, LARGEST_FUNCTION)?
+    } else {
+        Vec::new()
+    };
     if !oversized.is_empty() {
         let listed: Vec<String> = oversized
             .iter()

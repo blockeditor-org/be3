@@ -2,17 +2,29 @@ use super::*;
 
 // A module like wasm-ld's, exporting a __wasm_apply_data_relocs of 20,000
 // stores (about 360 KB), comes back with that function calling functions of at
-// most relocations::CHUNK bytes that hold the same stores in the same order.
+// most relocations::CHUNK bytes that hold the same stores in the same order:
+// with 32-bit addresses, and with 64-bit ones (i64.const, i64.add, i64.store).
 #[test]
 fn a_long_relocation_function_is_split_into_calls() {
+    split_and_check(false);
+    split_and_check(true);
+}
+
+fn split_and_check(wide: bool) {
+    // (the globals' type, const, add, store)
+    let (global, constant, add, store) = if wide {
+        (0x7e, 0x42, 0x7c, 0x37)
+    } else {
+        (0x7f, 0x41, 0x6a, 0x36)
+    };
     let mut stores = Vec::new();
     for at in 0..20_000u64 {
         stores.extend([0x23, 0]);
-        stores.push(0x41);
+        stores.push(constant);
         stores.extend(signed(at as i64 * 4));
-        stores.extend([0x6a, 0x23, 1, 0x41]);
+        stores.extend([add, 0x23, 1, constant]);
         stores.extend(signed(at as i64));
-        stores.extend([0x6a, 0x36, 2, 0]);
+        stores.extend([add, store, 2, 0]);
     }
     let mut body = vec![0];
     body.extend(&stores);
@@ -23,10 +35,10 @@ fn a_long_relocation_function_is_split_into_calls() {
     code.extend([2, 0, 0x0b]);
 
     let mut imports = vec![2];
-    for global in ["__memory_base", "__table_base"] {
+    for name in ["__memory_base", "__table_base"] {
         imports.extend(named("env"));
-        imports.extend(named(global));
-        imports.extend([3, 0x7f, 0]);
+        imports.extend(named(name));
+        imports.extend([3, global, 0]);
     }
     let mut exports = vec![1];
     exports.extend(named("__wasm_apply_data_relocs"));
