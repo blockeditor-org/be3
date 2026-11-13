@@ -886,8 +886,8 @@ fn DockBarBody(
         pushed.get();
         untrack(|| host.child_dock(child))
             .and_then(|declaration| declaration.bar(&path).map(|bar| bar.size))
-            .filter(|size| size.width > 0.0 && size.height > 0.0)
-            .map_or(EMPTY_BAR, |size| beui::vec2(size.width, size.height))
+            .filter(|size| size.x > 0.0 && size.y > 0.0)
+            .unwrap_or(EMPTY_BAR)
     });
     let width =
         create_memo(move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x)));
@@ -1294,7 +1294,7 @@ fn declaration_from_api(
             parent: paths.tab(&dialog.parent),
             title: dialog.title.clone(),
             icon: Glyph::from_codepoint(&dialog.glyph),
-            size: beui::vec2(dialog.size.width, dialog.size.height),
+            size: dialog.size,
             modal: dialog.modal,
             dismiss_on_outside_press: dialog.dismiss_on_outside_press,
             closable: dialog.closable,

@@ -839,7 +839,7 @@ fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Vec2)
         true => points.clamp(1.0, LARGEST_WINDOW),
         false => 1.0,
     };
-    let (width, height) = (side(size.width), side(size.height));
+    let (width, height) = (side(size.x), side(size.y));
     let scale_factor = match region.scale_factor.is_finite() && region.scale_factor > 0.0 {
         true => region.scale_factor,
         false => 1.0,

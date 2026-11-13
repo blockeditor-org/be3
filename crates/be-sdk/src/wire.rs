@@ -296,7 +296,7 @@ impl OpenEditor {
             }
             EditorEvent::Resized(size) => {
                 wire.call(instance, move |session| {
-                    session.resized(be_lib_geometry::vec2(size.width, size.height))
+                    session.resized(size)
                 });
             }
             EditorEvent::Drag(drag) => {

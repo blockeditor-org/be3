@@ -1639,7 +1639,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     ShellMessage::LeaveFrame => self.exited = true,
                     ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
                     ShellMessage::IntrinsicSize(size) => {
-                        self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
+                        self.intrinsic = size;
                     }
                     _ => {}
                 }

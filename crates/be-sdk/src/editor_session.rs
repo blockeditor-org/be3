@@ -775,7 +775,7 @@ impl EditorSession {
         self.metrics(view).map_or(Rect::ZERO, |metrics| {
             Rect::from_min_size(
                 Pos2::ZERO,
-                vec2(metrics.logical.width, metrics.logical.height),
+                metrics.logical,
             )
         })
     }

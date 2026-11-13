@@ -679,8 +679,8 @@ impl Screen {
         let fitted = match self.request.fit {
             true => Vec2::splat(1.0),
             false => vec2(
-                ratio(rect.width(), metrics.logical.width),
-                ratio(rect.height(), metrics.logical.height),
+                ratio(rect.width(), metrics.logical.x),
+                ratio(rect.height(), metrics.logical.y),
             ),
         };
         fitted * ratio(painted, metrics.scale_factor)
@@ -1463,8 +1463,8 @@ impl Instances {
                 .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
-        let zoom = match screen.request.metrics.logical.width > 0.0 && !screen.request.fit {
-            true => input.rect.width() / screen.request.metrics.logical.width,
+        let zoom = match screen.request.metrics.logical.x > 0.0 && !screen.request.fit {
+            true => input.rect.width() / screen.request.metrics.logical.x,
             false => 1.0,
         };
         let every_sample = screen.window.every_sample;
@@ -2353,7 +2353,7 @@ impl Instances {
     pub(super) fn set_view_sizes(&mut self, sizes: Vec<ViewSize>) -> bool {
         let mut changed = false;
         for size in sizes {
-            let used = vec2(size.logical.width, size.logical.height);
+            let used = size.logical;
             for entry in self.entries.values_mut() {
                 let Some(screen) = entry
                     .screens
@@ -2705,8 +2705,8 @@ impl Instances {
                 clip: child_clip,
                 layer: child.layer,
                 mode,
-                intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
-                fit: child.fit.map(|size| vec2(size.width, size.height) * scale),
+                intrinsic: child.intrinsic,
+                fit: child.fit.map(|size| size * scale),
                 rotation: child.rotation,
                 opacity: child.opacity,
                 corner_radius: match layer {
@@ -3025,7 +3025,7 @@ impl Instances {
                         super::ScreenStatus {
                             screen: screen.request.screen,
                             view: screen.request.view,
-                            logical: vec2(metrics.logical.width, metrics.logical.height),
+                            logical: metrics.logical,
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
                             raster: metrics.raster,
@@ -3123,7 +3123,7 @@ impl Instances {
         {
             return;
         }
-        let size = vec2(open.size.width, open.size.height);
+        let size = open.size;
         let shown = Rect::from_min_size(beui::Pos2::ZERO, size);
         entry.screens.insert(
             open.view,
@@ -3718,7 +3718,7 @@ impl Instances {
                 if entry.screens.values().any(|screen| screen.request.fit) {
                     return false;
                 }
-                let intrinsic = size.map(|size| vec2(size.width, size.height));
+                let intrinsic = size;
                 let changed = entry.intrinsic != intrinsic;
                 entry.intrinsic = intrinsic;
                 return changed;

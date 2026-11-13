@@ -129,7 +129,7 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
         resized
             .sizes
             .iter()
-            .map(|size| size.logical.height)
+            .map(|size| size.logical.y)
             .collect::<Vec<_>>(),
         [60.0]
     );
