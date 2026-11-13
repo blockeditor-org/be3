@@ -1353,6 +1353,18 @@ impl Root for Canvas {
 
     fn describe_in(_: &be_block_model::Document<Self>, _: &mut be_block::BlockMetadata) {}
 
+    /// One document: the text of each item that holds some, back to front, one per line.
+    fn search_text_in(document: &be_block_model::Document<Self>) -> Vec<be_block::SearchDocument> {
+        let texts: Vec<String> = document
+            .root()
+            .entities
+            .iter()
+            .map(|entity| entity.text.to_str_lossy().trim().to_owned())
+            .filter(|text| !text.is_empty())
+            .collect();
+        vec![be_block::SearchDocument::whole(texts.join("\n"))]
+    }
+
     fn undoable(change: &Change) -> bool {
         !matches!(
             change,
