@@ -14,10 +14,7 @@ fn a_joined_docks_own_bar_is_lent_to_its_first_tab_and_comes_back_as_its_own() {
             edge: DockEdge::Bottom,
             align: DockAlign::Center,
         }),
-        size: Vec2 {
-            x: 40.0,
-            y: 40.0,
-        },
+        size: Vec2 { x: 40.0, y: 40.0 },
         pane: None,
     });
     assert_eq!(
