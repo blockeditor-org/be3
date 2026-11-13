@@ -32,7 +32,7 @@ pub mod version_control;
 
 pub use beui_frame::phone_layout;
 pub use block_link::{BlockDisplay, BlockLink, label_glyph, watch_block_label};
-pub use child::{ChildBlock, ChildDockTab, ChildHandle as ChildBlockHandle, Subregion};
+pub use child::{ChildBlock, ChildBlockHandle, ChildDockTab, Subregion};
 pub use chrome::{NARROW_WIDTH, SIDE_PANEL_WIDTH, Toolbar, narrow_chrome};
 pub use content::{ContentProjection, Lacking, OwnedContentProjection, Payload};
 pub use docked::SavedDockLayout;
