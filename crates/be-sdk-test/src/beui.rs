@@ -2,9 +2,7 @@ use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
-use be_sdk_api::shell_types::{
-    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
-};
+use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
     BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
     InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock, OpenCreation,
@@ -994,6 +992,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
+    /// The state of an artifact block the editor watches (`EditorHost::watch_artifacts`).
+    pub fn set_artifact(&mut self, block: Uuid, state: Option<be_sdk_api::ArtifactState>) {
+        self.link.offer_artifact(block, state);
+    }
+
+    /// Each block watch the editor holds open, by its op, with what it follows.
+    #[cfg(test)]
+    pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, crate::link::Subject)> {
+        self.link.watching()
+    }
+
     pub fn set_version_status(&mut self, status: be_sdk_beui::VersionStatus) {
         self.block_id()
             .expect("a version status is about the editor's own block");
@@ -1627,22 +1636,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.extension_calls.clear();
     }
 
-    pub fn take_shell_commands(&mut self) -> Vec<(Uuid, be_sdk_api::ShellCommand)> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::Act(BlockAct { block, command }) => {
-                Some((Uuid::from_bytes(*block), *command))
-            }
-            _ => None,
-        })
-    }
-
-    /// The `format` data of each copy that offered it ready.
-    pub fn take_copied(&mut self, format: &str) -> Vec<Vec<u8>> {
+    /// The `format` item of each copy that offered it ready.
+    pub fn take_copied(&mut self, format: &str) -> Vec<be_sdk_api::ClipItem> {
         self.take_shell_messages(|call| match call {
             ShellMessage::Copy(ClipOffer { items, .. }) => items
                 .iter()
                 .find(|item| item.format == format)
-                .and_then(|item| item.data.clone()),
+                .and_then(|item| Some(be_sdk_api::ClipItem::of_body(format, item.body.clone()?))),
             _ => None,
         })
     }
@@ -1651,7 +1651,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_copied_text(&mut self) -> Vec<String> {
         self.take_copied(be_sdk_api::clipboard::formats::TEXT)
             .into_iter()
-            .map(|text| String::from_utf8_lossy(&text).into_owned())
+            .map(|text| String::from_utf8_lossy(&text.data).into_owned())
             .collect()
     }
 
@@ -1978,7 +1978,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_block_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::BlockCommand)> {
         self.take_sent_calls(|sent| match sent {
-            Sent::Command(block, command) => Some((*block, *command)),
+            Sent::Command(block, command) => Some((*block, command.clone())),
             _ => None,
         })
     }
@@ -1996,13 +1996,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
             None => true,
         });
         taken
-    }
-
-    pub fn take_version_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::VersionCommand)> {
-        self.take_sent_calls(|sent| match sent {
-            Sent::Version(block, command) => Some((*block, command.clone())),
-            _ => None,
-        })
     }
 
     fn take_frames<T>(&mut self, pick: impl Fn(Uuid, FromEditor) -> Option<T>) -> Vec<T> {

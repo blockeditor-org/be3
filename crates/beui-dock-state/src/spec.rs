@@ -31,6 +31,9 @@ pub struct DockSpecBar {
     pub owner: Option<TabId>,
     pub placement: DockBarPlacement,
     pub hidden: bool,
+    /// The tab of the owner's joined dock whose pane shows the bar (`DockState::place_bar_on`);
+    /// `None` is its first pane.
+    pub pane: Option<TabId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -356,6 +359,7 @@ impl DockState {
                     owner: declared.owner,
                     placement: declared.placement,
                     hidden: declared.hidden,
+                    pane: declared.pane,
                 },
             );
         }

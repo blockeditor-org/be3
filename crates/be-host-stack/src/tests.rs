@@ -22,6 +22,7 @@ mod a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
+mod a_chat_is_reindexed_without_reading_its_closed_segments_again;
 mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
 mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
 mod a_chat_message_sent_with_two_editors_open_notifies_once;
@@ -29,6 +30,7 @@ mod a_chat_message_told_before_a_restart_is_not_told_again;
 mod a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting;
 mod a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported;
 mod a_checklist_and_a_counter_are_held_by_one_peer;
+mod a_checkout_no_longer_shown_lets_go_of_what_its_status_read;
 mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_child_reordered_in_a_folder_is_listed_in_its_new_place;
 mod a_commit_in_one_checkout_is_brought_into_another;
@@ -37,6 +39,7 @@ mod a_connection_the_server_drops_is_retried_without_moving_a_manual_clock_by_ha
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
+mod a_deleted_database_row_is_no_longer_found;
 mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
@@ -699,6 +702,15 @@ struct Versioned {
     checkout: Uuid,
 }
 
+/// Shows a versioned block's status, as an editor watching it would, each block as its own
+/// owner.
+fn show_version(block: Uuid, content_type: Uuid) {
+    want_versions(
+        Owner::Editor(block.as_u64_pair().0),
+        vec![(block, content_type)],
+    );
+}
+
 fn start_versioning(text: &str) -> Versioned {
     wait_until("loaded the graph", |shared| {
         shared.graph.ready(super::graph::Query::Roots)
@@ -735,7 +747,7 @@ fn start_versioning(text: &str) -> Versioned {
         Some(be_block::RepositoryContent::default().encode()),
         false,
     );
-    version_since(repository, be_block::RepositoryContent::CONTENT_TYPE, None);
+    show_version(repository, be_block::RepositoryContent::CONTENT_TYPE);
     version(
         repository,
         be_sdk_api::VersionCommand::Adopt {

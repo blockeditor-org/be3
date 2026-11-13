@@ -141,7 +141,7 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
         };
         assert_eq!(
             crate::search::write(peer.as_ref(), index, batch).await,
-            Ok(true),
+            Ok(Some(Vec::new())),
             "the other device indexes its note"
         );
         peer.drain(|_| false)

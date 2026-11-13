@@ -1,6 +1,6 @@
 use be_block_commit::CommitId;
 use be_sdk_type_api::{
-    Description, JournalBase, JournalEntry, Merging, Recipients, ReplicaId, Status, UndoState,
+    Description, JournalBase, JournalEntry, Merging, Recipients, RelayKind, ReplicaId, Status,
     Written,
 };
 
@@ -12,6 +12,7 @@ pub(crate) enum Effect {
     Send {
         replica: ReplicaId,
         to: Recipients,
+        kind: RelayKind,
         bytes: Vec<u8>,
     },
     Publish {
@@ -92,10 +93,6 @@ pub(crate) enum Effect {
     Described {
         replica: ReplicaId,
         description: Description,
-    },
-    History {
-        replica: ReplicaId,
-        history: UndoState,
     },
     Conflict {
         replica: ReplicaId,

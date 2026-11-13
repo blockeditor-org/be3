@@ -27,6 +27,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
         },
@@ -43,6 +44,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
         },
@@ -59,6 +61,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
         },
@@ -75,6 +78,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
         },
@@ -91,6 +95,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
         },
@@ -135,6 +140,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
         },
@@ -151,6 +157,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
         },

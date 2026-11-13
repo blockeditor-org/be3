@@ -441,11 +441,10 @@ impl beui::native::Program for Shell {
             self.document.open_inspector();
         }
         let view = self.core.view();
-        Host::set_owned(
-            self.core.desktop
-                && view.screen == ui::Screen::Organization
-                && self.core.shell.is_some(),
-        );
+        let owned = self.core.desktop
+            && view.screen == ui::Screen::Organization
+            && self.core.shell.is_some();
+        be_host_desktop::desktop_host::configure(|desktop| desktop.owned = owned);
         let store = self.view;
         compositor::notify();
         beui::native::enter(&mut self.document, || {
@@ -594,16 +593,15 @@ struct HostCore {
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
-    storage_published: Option<u64>,
-    /// The `be_host_stack::notify_modes_revision` the notify modes watch last published.
-    notify_modes_published: Option<u64>,
+    /// What the host stack changed since the last frame.
+    stack_changes: be_host_stack::ChangeWatch,
     /// The `be_host_base::push_device::revision` the push device watch last published.
     push_device_published: Option<u64>,
     /// What a pressed notification's block last waited on (the open organization, how many
-    /// there are, the graph's revision, the changes unsaved), so it is tried again only when
-    /// that changes.
+    /// there are, the changes unsaved), so it is tried again only when that or the graph
+    /// changes.
     #[cfg(target_arch = "wasm32")]
-    pressed_waiting_on: Option<(Option<Uuid>, usize, u64, usize)>,
+    pressed_waiting_on: Option<(Option<Uuid>, usize, usize)>,
     /// The organization this browser's push subscription was last registered for.
     #[cfg(target_arch = "wasm32")]
     push_synced: Option<Uuid>,
@@ -915,8 +913,7 @@ impl HostCore {
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
-            storage_published: None,
-            notify_modes_published: None,
+            stack_changes: be_host_stack::ChangeWatch::new(),
             push_device_published: None,
             #[cfg(target_arch = "wasm32")]
             pressed_waiting_on: None,
@@ -2541,18 +2538,19 @@ impl HostCore {
     /// loaded, or changes are unsaved) is held until the organizations, the graph or the
     /// unsaved changes change, and dropped after `web_push::OPENING_PATIENCE`.
     #[cfg(target_arch = "wasm32")]
-    fn open_pressed_notifications(&mut self) {
+    fn open_pressed_notifications(&mut self, changes: &be_host_stack::Changes) {
         let waiting = |host: &Self| {
             (
                 host.organization
                     .as_ref()
                     .map(|organization| organization.id),
                 host.organizations.len(),
-                be_host_stack::graph_revision(),
                 be_host_stack::status().unsaved,
             )
         };
-        if !web_push::has_openings() || self.pressed_waiting_on == Some(waiting(self)) {
+        if !web_push::has_openings()
+            || (!changes.graph && self.pressed_waiting_on == Some(waiting(self)))
+        {
             return;
         }
         self.pressed_waiting_on = None;
@@ -3029,24 +3027,8 @@ impl HostCore {
     fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
             EditorAction::OpenBlock(open) => self.show_block(from, open),
-            EditorAction::Command { id, command } => self.handle_block_command(id, command),
-            EditorAction::Shell { id, command } => self.handle_shell_command(from, id, command),
+            EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
             EditorAction::SimulateAccess { id, access } => self.simulate_access(id, access),
-        }
-    }
-
-    fn handle_shell_command(
-        &mut self,
-        from: Option<Uuid>,
-        id: Uuid,
-        command: be_sdk_api::ShellCommand,
-    ) {
-        use be_sdk_api::ShellCommand;
-        match command {
-            ShellCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            ShellCommand::Leave => self.leaving = Some(id),
-            ShellCommand::CloseEditor if from == Some(id) => self.close_itself(id),
-            ShellCommand::CloseEditor => self.close_editor(id),
         }
     }
 
@@ -3091,8 +3073,19 @@ impl HostCore {
         };
     }
 
-    fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
+    fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
+            BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            BlockCommand::Leave => ask_to_leave(&mut self.leaving, id),
+            BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
+            BlockCommand::CloseEditor => {
+                if may_close(from, self.shell, self.editors.parent_of(id)) {
+                    self.close_editor(id);
+                }
+            }
+            // The runtime does these itself (`Instances::act`).
+            BlockCommand::Version(_) | BlockCommand::SetParent(_) | BlockCommand::Define { .. } => {
+            }
             BlockCommand::Undo if self.editor_access(id).can_edit() => be_host_stack::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be_host_stack::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
@@ -3292,6 +3285,10 @@ impl HostCore {
             performance::end_frame();
             return;
         }
+        let changes = self.stack_changes.take();
+        self.root_settings.heard(&changes);
+        self.input.heard(&changes);
+        self.display.heard(&changes);
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
@@ -3301,14 +3298,18 @@ impl HostCore {
         });
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
-        self.contacts.publish();
+        if changes.contacts {
+            self.contacts.publish();
+        }
         #[cfg(target_arch = "wasm32")]
         {
-            self.open_pressed_notifications();
+            self.open_pressed_notifications(&changes);
             self.sync_push_subscription();
         }
-        self.publish_storage();
-        self.publish_notify_modes();
+        self.publish_storage(changes.storage);
+        if changes.notify_modes {
+            self.publish_notify_modes();
+        }
         self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
@@ -3412,15 +3413,13 @@ impl HostCore {
     }
 
     /// Follows the account's storage while an editor watches it, and publishes each answer.
-    fn publish_storage(&mut self) {
+    fn publish_storage(&mut self, changed: bool) {
         be_host_stack::watch_storage(be_host_base::watches::watched::<
             be_sdk_api::StorageUsageWatch,
         >());
-        let revision = Some(be_host_stack::storage_revision());
-        if self.storage_published == revision {
+        if !changed {
             return;
         }
-        self.storage_published = revision;
         let usage = be_host_stack::storage_usage().map(|usage| be_sdk_api::AccountStorage {
             held: usage.held,
             pending: usage.pending,
@@ -3429,13 +3428,8 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
     }
 
-    /// Publishes the account's notification modes whenever the host stack read them anew.
+    /// Publishes the account's notification modes, which the host stack read anew.
     fn publish_notify_modes(&mut self) {
-        let revision = Some(be_host_stack::notify_modes_revision());
-        if self.notify_modes_published == revision {
-            return;
-        }
-        self.notify_modes_published = revision;
         let modes = be_host_stack::notify_modes().map(|modes| {
             modes
                 .into_iter()
@@ -3777,8 +3771,8 @@ impl HostCore {
             }
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
-            UiCommand::ConfirmLeave => {
-                if let Some(block) = self.leaving
+            UiCommand::ConfirmLeave(shown) => {
+                if let Some(block) = confirmed_leave(self.leaving, shown)
                     && self.leave_answers.is_none()
                 {
                     let (answers, post) = desk().mailbox(HostCore::left);
@@ -4046,7 +4040,7 @@ impl HostCore {
                 discarding: self.discarding_unsent,
             }),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
-            leaving: self.leaving.is_some(),
+            leaving: self.leaving.map(leaving_view),
             leave_busy: self.leave_answers.is_some(),
             leave_refused: self.leave_refused.clone().unwrap_or_default(),
             presenting: self
@@ -4247,6 +4241,44 @@ fn drag_source(location: BlockLocation) -> SidebarDragSource {
         BlockLocation::Block(id) if is_unfiled(Uuid::from_bytes(id)) => SidebarDragSource::Unfiled,
         BlockLocation::Block(id) => SidebarDragSource::Block(Uuid::from_bytes(id)),
     }
+}
+
+/// An editor asked to leave `block`: the dialog asks about it, unless it already asks about
+/// another, which a second ask never swaps out from under the person.
+fn ask_to_leave(pending: &mut Option<Uuid>, block: Uuid) {
+    if pending.is_none() {
+        *pending = Some(block);
+    }
+}
+
+/// The block a confirm in the leave dialog leaves: the one it showed, and only while that is
+/// still the one pending.
+fn confirmed_leave(pending: Option<Uuid>, shown: Uuid) -> Option<Uuid> {
+    pending.filter(|pending| *pending == shown)
+}
+
+/// The leave dialog's view of `block`, named from the host's graph.
+fn leaving_view(block: Uuid) -> ui::LeavingView {
+    let node = be_host_stack::node(block);
+    let name = node
+        .as_ref()
+        .and_then(|node| node.metadata.name())
+        .unwrap_or_else(|| "Untitled".to_owned());
+    let within = node
+        .and_then(|node| node.parent?.block())
+        .and_then(be_host_stack::node)
+        .and_then(|parent| parent.metadata.name());
+    ui::LeavingView {
+        block,
+        name,
+        within,
+    }
+}
+
+/// Whether the editor showing `from` may close another editor, whose placer is `parent`: the
+/// shell closes any (a tab), and an editor only a child it placed, never one elsewhere.
+fn may_close(from: Option<Uuid>, shell: Option<Uuid>, parent: Option<Uuid>) -> bool {
+    from.is_some() && (from == shell || parent == from)
 }
 
 #[cfg(test)]

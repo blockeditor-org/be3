@@ -10,7 +10,8 @@ use be_lib_prompt::{Choice, Saved, choose, config_directory, interactive, save_p
 
 use crate::{Result, repository};
 
-const SERVERS: [&str; 6] = [
+const SERVERS: [&str; 7] = [
+    "nl.be3.pfg.pw",
     "nativelink",
     "api.be3.pfg.pw",
     "blocks.pfg.pw",
@@ -64,7 +65,8 @@ pub fn configure(buck2: &Path) -> Result<()> {
         engine = connection.host;
         epoch = connection.epoch;
         storage = engine.clone();
-        (engine_address, storage_address) = relay::ensure_epoch(&engine, &storage, true, &epoch)?;
+        (engine_address, storage_address) =
+            relay::ensure_epoch(&engine, &storage, true, false, &epoch)?;
         header = if connection.token.is_empty() {
             String::new()
         } else {
@@ -86,6 +88,12 @@ pub fn configure(buck2: &Path) -> Result<()> {
             engine = config.host("engine_address");
             storage = config.host("cas_address");
             header = config.header();
+        } else if server == "nl.be3.pfg.pw" {
+            // Caddy in front of NativeLink checks `Authorization: Bearer TOKEN` (scripts/internal/nativelink/hetzner).
+            // With no key buck2 sends no header, for a cloud session's proxy, which adds it.
+            engine = server.clone();
+            storage = engine.clone();
+            header = bearer_header(&server);
         } else if server == "buildbuddy" {
             let key = key(&server)?;
             engine = "remote.buildbuddy.io".to_owned();
@@ -113,7 +121,12 @@ pub fn configure(buck2: &Path) -> Result<()> {
         tls = true;
     }
     if proxy.is_some() {
-        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage, false)?;
+        // nl.be3.pfg.pw's Caddy also serves re-relay's tunnel, which carries every call inside a few long requests
+        // for a proxy that handles few requests a second (a cloud session's). BE3_NL_TUNNEL=0 sends each call as
+        // its own request instead.
+        let tunnel =
+            server == "nl.be3.pfg.pw" && std::env::var("BE3_NL_TUNNEL").as_deref() != Ok("0");
+        let (engine_relay, storage_relay) = relay::ensure(&engine, &storage, false, tunnel)?;
         engine_address = engine_relay;
         storage_address = storage_relay;
         tls = false;
@@ -199,7 +212,10 @@ fn ask_for_server(saved: &Path) -> Option<String> {
         .map(|server| Choice {
             label: server,
             detail: match *server {
-                "nativelink" => "our NativeLink build server on boat (needs its address and token)",
+                "nl.be3.pfg.pw" => "our NativeLink build server (needs its token)",
+                "nativelink" => {
+                    "our old NativeLink build server on boat (needs its address and token)"
+                }
                 "namespace" => "Namespace's remote execution",
                 "api.be3.pfg.pw" => "our own NativeLink server",
                 "blocks.pfg.pw" => "our NativeLink build VM, behind blocks.pfg.pw",
@@ -301,6 +317,28 @@ fn key(server: &str) -> Result<String> {
          checkout or to ~/.config/be3/{name}. Run ./scripts/buck from a terminal\n\
          to be asked for it. guides/build_server.md has more."
     ))
+}
+
+/// `Authorization: Bearer` with nl.be3.pfg.pw's token (BE3_NL_TOKEN, `.nl-token` or ~/.config/be3/nl-token), asking at
+/// a terminal; empty when there is none.
+fn bearer_header(server: &str) -> String {
+    let what = format!("{server} token");
+    let saved = Saved {
+        variable: "BE3_NL_TOKEN",
+        name: "nl-token",
+        what: &what,
+        checkout: Some(repository()),
+    };
+    let why = format!(
+        "buck2 builds on {server}, which needs its token (guides/build_server.md says where to get one)."
+    );
+    saved
+        .stored()
+        .or_else(|| saved.ask(&why))
+        .map_or_else(String::new, |key| {
+            let key = key.strip_prefix("Bearer ").unwrap_or(&key).trim();
+            format!("Authorization:Bearer {key}")
+        })
 }
 
 fn gateway_header(server: &str, saved: &Saved) -> String {
@@ -533,9 +571,15 @@ pub mod relay {
     }
 
     /// Starts, or finds running, a relay to each of `engine` and `storage` and returns their local addresses. `http1`
-    /// sends every call as HTTP/1.1 (re-relay's `-http1`).
-    pub fn ensure(engine: &str, storage: &str, http1: bool) -> Result<(String, String)> {
-        ensure_epoch(engine, storage, http1, "")
+    /// sends every call as HTTP/1.1 (re-relay's `-http1`); `tunnel` sends them all through the upstream's tunnel
+    /// (`-tunnel`).
+    pub fn ensure(
+        engine: &str,
+        storage: &str,
+        http1: bool,
+        tunnel: bool,
+    ) -> Result<(String, String)> {
+        ensure_epoch(engine, storage, http1, tunnel, "")
     }
 
     /// As `ensure`, replacing a relay that was started for another `epoch` of the server, which forgets what that
@@ -544,6 +588,7 @@ pub mod relay {
         engine: &str,
         storage: &str,
         http1: bool,
+        tunnel: bool,
         epoch: &str,
     ) -> Result<(String, String)> {
         let (relay, version) = build()?;
@@ -561,9 +606,14 @@ pub mod relay {
                     "-upstream",
                     upstream,
                     if http1 { "-http1=true" } else { "-http1=false" },
+                    if tunnel {
+                        "-tunnel=true"
+                    } else {
+                        "-tunnel=false"
+                    },
                     "-version",
                 ])
-                .arg(format!("{version}-{upstream}-{http1}-{epoch}"))
+                .arg(format!("{version}-{upstream}-{http1}-{tunnel}-{epoch}"))
                 .arg("-log")
                 .arg(&log)
                 .status()

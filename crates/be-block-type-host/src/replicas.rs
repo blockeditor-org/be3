@@ -309,6 +309,8 @@ enum Replayed {
         from: Endpoint,
         bytes: Vec<u8>,
         at: u64,
+        /// What the server says of a peer's message.
+        delivery: Option<be_sdk_type_api::Delivery>,
     },
     Moved {
         head: CommitId,
@@ -339,8 +341,13 @@ impl Replayed {
             Replayed::Change { change, .. } => {
                 return Some(replica.change(connection, change).op());
             }
-            Replayed::Message { from, bytes, at } => {
-                replica.message(connection, from, bytes, at);
+            Replayed::Message {
+                from,
+                bytes,
+                at,
+                delivery,
+            } => {
+                replica.message(connection, from, bytes, at, delivery);
             }
             Replayed::Moved { head } => {
                 replica.head_moved(connection, head);
@@ -653,12 +660,8 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
-        let before = types::kinds_revision();
         if let Some(module) = self.modules.module_of(content_type) {
             self.modules.load(module).await;
-        }
-        if types::kinds_revision() != before {
-            H::wake();
         }
         types::kind_of(content_type)
     }
@@ -1168,6 +1171,7 @@ impl<H: Host> Replicas<H> {
                 from: Endpoint::Editor(editor),
                 bytes,
                 at,
+                delivery: None,
             },
         );
     }
@@ -1536,7 +1540,8 @@ impl<H: Host> Replicas<H> {
     /// A commit's searchable text (`be_block::BlockContent::search_text`), as the indexer can
     /// trust it whatever the type answered: only the documents `keys` names (none for every
     /// one), each key once, a `source` only if it is a part of this commit, and no body for a
-    /// document whose source is in `indexed`. The type is handed the commit as it loads it and
+    /// document whose source is in `indexed`, the hashes of parts whose text the index holds
+    /// (those that are parts of this commit). The type is handed the commit as it loads it and
     /// reads only parts of it.
     pub async fn search_text(
         &mut self,
@@ -1544,7 +1549,7 @@ impl<H: Host> Replicas<H> {
         content_type: Uuid,
         manifest: &be_block_store::Manifest,
         keys: Option<Vec<String>>,
-        indexed: &[be_block_store::PartRef],
+        indexed: &[[u8; 32]],
     ) -> Result<Searched, NotSearched> {
         let peer = ctx.0;
         let no_module =
@@ -1554,6 +1559,7 @@ impl<H: Host> Replicas<H> {
         let content = kind.load(peer, manifest).await.map_err(NotSearched::Read)?;
         let scope = types::Scope::of([&content]);
         let asked = keys.clone();
+        let indexed = scope.with_hashes(indexed);
         let wire_indexed = indexed.iter().copied().map(Into::into).collect();
         let (answer, mut scope) = self
             .ask_reading(ctx, module, scope, |connection| {
@@ -1823,6 +1829,7 @@ impl<H: Host> Replicas<H> {
             Event::Relayed {
                 block,
                 from,
+                kind,
                 payload,
             } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
@@ -1847,6 +1854,7 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Peer(*from),
                     bytes,
                     at: self.modules.now(),
+                    delivery: Some(be_sdk_type_api::Delivery { kind: *kind }),
                 };
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining
@@ -2466,7 +2474,12 @@ impl<H: Host> Replicas<H> {
         };
         match call {
             Call::Clock { .. } | Call::SleepUntil { .. } | Call::InStepAt { .. } => false,
-            Call::Send { reply, to, bytes } => {
+            Call::Send {
+                reply,
+                to,
+                kind,
+                bytes,
+            } => {
                 self.acknowledge(module, reply);
                 match to {
                     Recipients::One(Endpoint::Editor(editor)) => {
@@ -2475,11 +2488,11 @@ impl<H: Host> Replicas<H> {
                     Recipients::One(Endpoint::Host) => false,
                     _ if made_up => false,
                     Recipients::One(Endpoint::Peer(client)) => {
-                        self.relay(shared, peer.relay(block, Some(client), &bytes).await);
+                        self.relay(shared, peer.relay(block, Some(client), kind, &bytes).await);
                         false
                     }
                     Recipients::Peers => {
-                        self.relay(shared, peer.relay(block, None, &bytes).await);
+                        self.relay(shared, peer.relay(block, None, kind, &bytes).await);
                         false
                     }
                 }
@@ -2914,11 +2927,6 @@ impl<H: Host> Replicas<H> {
                             .insert((module, ticket.op()), (replica, ticket));
                     }
                 }
-                true
-            }
-            Call::History { reply, history } => {
-                self.acknowledge(module, reply);
-                H::history(shared, block, history);
                 true
             }
             Call::Conflict {

@@ -10,12 +10,14 @@ fn a_bar_keeps_its_placement_wherever_its_tab_goes() {
             owner: Some(TabId::new(1)),
             placement: DockBarPlacement::Over(DockEdge::Left, DockAlign::Center),
             hidden: false,
+            pane: None,
         },
         DockSpecBar {
             bar: TabId::new(21),
             owner: Some(TabId::new(1)),
             placement: DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
             hidden: false,
+            pane: None,
         },
     ];
     let declared = DockSpec {
