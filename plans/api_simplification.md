@@ -175,26 +175,6 @@ Both cores lose their implementations; tests that use the base nodes directly
 (`beui-host/src/tests.rs`, `beui-demo/src/base_pages.rs`) move to the new
 components.
 
-## 14. beui: density only sizes the tree
-
-Density is not ready to support everywhere. Today `Space` and `Size` resolve
-through `use_density()`, `use_space` and `use_size` build a dynamic prop when
-the two densities differ (`resolved` in
-`beui-components-styled/src/tokens.rs`), and `.px()` resolves at Compact,
-so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
-`use_space`).
-
-- `Space`, `Padding`, `Size` and `Length` resolve to one value each: remove
-  `resolve(density)`, `resolved` and the Comfortable tables, and keep one way
-  to get pixels (`.px()`; `use_space` and `use_size` go).
-- The styled `Tree` (`beui-components-styled/src/tree.rs`) keeps reading
-  `use_density()` and owns its Comfortable metrics (row height, indent,
-  spacing, glyph and chevron sizes) as its own table. be-app-file-tree's tree
-  rows keep reading it too.
-- `provide_density` (`be-sdk-beui/src/beui_frame.rs`) stays: it is how a
-  phone frame reaches the tree.
-- Update guides/beui/components.md: density sizes the tree only.
-
 ## 15. Host, CLI and test harness
 
 - `BeuiTest` (`be-sdk-test/src/beui.rs`): remove the one-line `take_*`
