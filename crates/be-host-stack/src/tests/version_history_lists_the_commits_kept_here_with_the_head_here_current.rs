@@ -43,6 +43,11 @@ fn version_history_lists_the_commits_kept_here_with_the_head_here_current() {
     let shown = listed(&server, &[(commit(3), 2_000)], Some(commit(3)));
     assert_eq!(current(&shown), [(3, true), (2, false), (1, false)]);
 
+    // A head here that lags the server's, with nothing kept: another device published since,
+    // and the server's head is current.
+    let shown = listed(&server, &[], Some(commit(2)));
+    assert_eq!(current(&shown), [(3, true), (2, false), (1, false)]);
+
     // A block this device does not hold: the server's head is current.
     let shown = listed(&server, &[], None);
     assert_eq!(current(&shown), [(3, true), (2, false), (1, false)]);

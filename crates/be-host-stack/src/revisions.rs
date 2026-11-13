@@ -243,13 +243,15 @@ pub(super) async fn list(peer: &Arc<Peer<Store>>, block: Uuid) -> Result<Vec<Rev
 /// A block's version history to show: the server's (`server`), and the commits this device
 /// keeps and has not sent yet (`kept`, with their times), which reach the server later with the
 /// head where it is. Listed only from the server, it would show a commit before them as current
-/// until something else listed it again. The current one is the head here (`local`), else the
-/// server's. Newest first.
+/// until something else listed it again. The current one is the head here (`local`) while this
+/// device keeps commits, else the server's: a head here with nothing kept can only lag the
+/// server's, when another device published since. Newest first.
 pub(crate) fn listed(
     server: &[be_block_protocol::HistoryEntry],
     kept: &[(CommitId, i64)],
     local: Option<CommitId>,
 ) -> Vec<Revision> {
+    let local = local.filter(|_| !kept.is_empty());
     let is_current = |commit: CommitId, server_head: bool| match local {
         Some(local) => commit == local,
         None => server_head,
