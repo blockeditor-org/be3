@@ -20,13 +20,6 @@ pub(crate) fn BarPopup(
 ) -> NodeId {
     let direction = bar_direction();
     let bar = use_dock_bar();
-    if let Some(bar) = bar {
-        create_effect(move || {
-            let shown = open.get();
-            untrack(|| bar.hold_band(shown));
-        });
-        on_cleanup(move || bar.hold_band(false));
-    }
     let band = bar.map(|bar| bar.surface());
     let bounds = bar_bounds();
     let max_length = create_memo(move || {

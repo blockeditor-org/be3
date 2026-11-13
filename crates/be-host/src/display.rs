@@ -19,7 +19,7 @@ mod linux;
 #[cfg(target_os = "linux")]
 use linux::apply;
 #[cfg(target_os = "linux")]
-pub(crate) use linux::{epaper, run_edges, run_epaper, start, stop};
+pub(crate) use linux::{epaper, run_epaper, run_screen_input, start, stop};
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn start(_setup: &beui::native::Setup) {}

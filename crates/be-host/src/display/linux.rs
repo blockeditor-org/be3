@@ -3,10 +3,10 @@ use std::cell::RefCell;
 use be_block::DisplaySettings;
 use be_block::display_settings::ScreenUse;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
-use be_sdk_api::{HostDisplay, ScreenEdge, ScreenEdgeState, ScreenSide};
+use be_sdk_api::{HostDisplay, ScreenInputState, ScreenRegionState, ScreenSide, ScreenWallState};
 use beui_platform_drm::{
-    Display, DisplayConfig, DisplayControl, DisplayUse, Displays, EdgeState, Epaper, Monitor,
-    ScreenEdges, Side,
+    Display, DisplayConfig, DisplayControl, DisplayUse, Displays, Epaper, Monitor, Region,
+    ScreenInput, Side, Wall,
 };
 
 use super::Screen;
@@ -17,7 +17,7 @@ thread_local! {
     static EPAPER: RefCell<Option<Epaper>> = const { RefCell::new(None) };
     static MONITORS: RefCell<Vec<Monitor>> = const { RefCell::new(Vec::new()) };
     static DISPLAYS: RefCell<Vec<Display>> = const { RefCell::new(Vec::new()) };
-    static EDGES: RefCell<Option<ScreenEdges>> = const { RefCell::new(None) };
+    static SCREEN_INPUT: RefCell<Option<ScreenInput>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn start(setup: &beui::native::Setup) {
@@ -58,19 +58,18 @@ pub(crate) fn start(setup: &beui::native::Setup) {
         be_host_base::watches::publish::<be_sdk_api::EpaperWatch>(&true);
     }
     EPAPER.with(|slot| *slot.borrow_mut() = epaper);
-    let edges = setup.get::<ScreenEdges>().cloned();
-    if let Some(edges) = &edges {
-        let watched = edges.clone();
+    let input = setup.get::<ScreenInput>().cloned();
+    if let Some(input) = &input {
+        let watched = input.clone();
         let publish = move || {
-            let states: Vec<ScreenEdgeState> =
-                watched.states().into_iter().map(edge_state).collect();
-            be_host_base::watches::publish::<be_sdk_api::ScreenEdgesWatch>(&states);
+            let state = screen_input_state(watched.state());
+            be_host_base::watches::publish::<be_sdk_api::ScreenInputWatch>(&state);
             be_host_base::host::wake();
         };
         publish();
-        edges.watch(publish);
+        input.watch(publish);
     }
-    EDGES.with(|slot| *slot.borrow_mut() = edges);
+    SCREEN_INPUT.with(|slot| *slot.borrow_mut() = input);
 }
 
 pub(crate) fn epaper() -> bool {
@@ -82,50 +81,73 @@ pub(crate) fn stop() {
     drop(control);
     let epaper = EPAPER.with(|slot| slot.borrow_mut().take());
     drop(epaper);
-    let edges = EDGES.with(|slot| slot.borrow_mut().take());
-    drop(edges);
+    let input = SCREEN_INPUT.with(|slot| slot.borrow_mut().take());
+    drop(input);
 }
 
-/// Hands the shell's screen edges to the platform, which walls the pointer at them.
-pub(crate) fn run_edges() {
-    let Some(edges) = be_host_base::watches::take_calls(be_sdk_api::requested::set_edges).pop()
+/// Hands the shell's walls and regions to the platform.
+pub(crate) fn run_screen_input() {
+    let Some(input) =
+        be_host_base::watches::take_calls(be_sdk_api::requested::set_screen_input).pop()
     else {
         return;
     };
-    EDGES.with(|slot| {
+    let walls = input
+        .walls
+        .into_iter()
+        .map(|wall| Wall {
+            id: wall.id,
+            display: wall.display,
+            side: match wall.side {
+                ScreenSide::Top => Side::Top,
+                ScreenSide::Bottom => Side::Bottom,
+                ScreenSide::Left => Side::Left,
+                ScreenSide::Right => Side::Right,
+            },
+            start: wall.start,
+            end: wall.end,
+        })
+        .collect();
+    let regions = input
+        .regions
+        .into_iter()
+        .map(|region| Region {
+            id: region.id,
+            rect: region.rect,
+            captures_touch: region.captures_touch,
+        })
+        .collect();
+    SCREEN_INPUT.with(|slot| {
         if let Some(held) = slot.borrow().as_ref() {
-            held.set(edges.into_iter().map(screen_edge).collect());
+            held.set(walls, regions);
         }
     });
 }
 
-fn screen_edge(edge: ScreenEdge) -> beui_platform_drm::ScreenEdge {
-    beui_platform_drm::ScreenEdge {
-        id: edge.id,
-        display: edge.display,
-        side: match edge.side {
-            ScreenSide::Top => Side::Top,
-            ScreenSide::Bottom => Side::Bottom,
-            ScreenSide::Left => Side::Left,
-            ScreenSide::Right => Side::Right,
-        },
-        start: edge.start,
-        end: edge.end,
-        wall: edge.wall,
-        deliberate: edge.deliberate,
-        keep: edge.keep,
-    }
-}
-
-fn edge_state(state: EdgeState) -> ScreenEdgeState {
-    ScreenEdgeState {
-        id: state.id,
-        pushed: state.pushed,
-        near: state.near,
-        pull: state.pull,
-        pulls: state.pulls,
-        pulled: state.pulled,
-        taps_away: state.taps_away,
+fn screen_input_state(state: beui_platform_drm::ScreenInputState) -> ScreenInputState {
+    ScreenInputState {
+        walls: state
+            .walls
+            .into_iter()
+            .map(|wall| ScreenWallState {
+                id: wall.id,
+                against: wall.against,
+                pushed: wall.pushed,
+            })
+            .collect(),
+        regions: state
+            .regions
+            .into_iter()
+            .map(|region| ScreenRegionState {
+                id: region.id,
+                pointer: region.pointer,
+                touch_downs: region.touch_downs,
+                touch: region.touch,
+                lifts: region.lifts,
+                lifted: region.lifted,
+            })
+            .collect(),
+        touch_downs: state.touch_downs,
     }
 }
 

@@ -267,11 +267,12 @@ window. `Displays::screenshot` reads every desktop display's last drawn picture
 back (`Screen::capture`) and joins them into one (`screenshot.rs`). Tests make a `Displays` of their own with `Displays::new` and change
 it with `set`.
 
-**Screen edges** (`edges.rs`, a `ScreenEdges` handle through `Setup`): the program sets edges of
-displays (`ScreenEdges::set`) and hears `EdgeState`s back (`watch`). A `wall` edge stops relative
-pointer motion even where another display begins, and counts the pointer's push on past it,
-except the motion that brought the pointer there (and, for a `deliberate` edge, anything until it
-has rested there a moment); a finger landing just inside it is the edge's (`pull`, `pulls`) and
-never reaches a window. An open edge reports whether the pointer is in its `keep` (`near`) and
-counts fingers landing outside it (`taps_away`). Absolute pointers (tablets) and a locked pointer
-pass every wall. The logic is plain (`Edges`), tested in `edges/tests/`.
+**Screen input** (`screen_input.rs`, a `ScreenInput` handle through `Setup`): the program sets
+walls and regions (`ScreenInput::set`) and hears what happened at each (`state`, `watch`); it
+holds no policy of its own. A `Wall`, a stretch of a display's side, stops relative pointer motion
+even where another display begins, and says whether the pointer rests `against` it and how far
+motion that began there ran on past it (`pushed`, which only grows). A `Region` says whether the
+pointer is in it and counts fingers landing in it; one that `captures_touch` takes a finger landing
+in it until it lifts (`touch`, `lifts`, `lifted`), and the finger never reaches a window. Every
+finger landing anywhere is counted too (`touch_downs`). Absolute pointers (tablets) and a locked
+pointer pass every wall. The logic is plain (`Input`), tested in `screen_input/tests/`.
