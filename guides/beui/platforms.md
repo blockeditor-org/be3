@@ -157,7 +157,7 @@ types encoded with postcard: `TextFragment`, `Blocks`, `CanvasItems`, `Files`)
 are in `be-lib-ui-types/src/clipboard.rs`; standard ones keep their MIME type
 (`text/plain`, `text/html`, `image/png`). An item names blocks only in its
 `refs`, beside its bytes, which index them by position (a format's
-`ClipFormat::refs` and `set_refs`; its ids are `#[serde(skip)]`), so whoever
+`ClipFormat::refs` and `set_refs`; its ids are `#[serde(skip)]`, as a `TextFragment`'s embeds are), so whoever
 carries a clip translates them without decoding it: be-host-runtime does for an
 instance in a checkout on every path a clip crosses (a copy, a render on
 request, a drag, a paste into a screen). `reactive::copy(Clip)` or
