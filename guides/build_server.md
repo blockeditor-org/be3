@@ -71,7 +71,10 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   runs with `-tunnel` (scripts/internal/re-relay/tunnel.go): HTTP/2 inside one byte stream carried by a long GET for
   what the server sends and POSTs for what the relay sends, each POST carrying everything written while the ones
   before it were out. Caddy passes `/__be3-tunnel/*` to re-relay's `tunnel-server` (`nl-tunnel.service`), which joins
-  each tunnel to NativeLink. `BE3_NL_TUNNEL=0` sends each call as its own request instead, to compare.
+  each tunnel to NativeLink. HTTP/2's own frames (WINDOW_UPDATE as a download is read, PING, SETTINGS) wait up to
+  50 ms and take at most 2 of the 16 POSTs, so a download cannot keep calls waiting for one. Every 30 s each tunnel
+  writes its POSTs' count and times, and how long calls waited for one, to `target/re-relay.log`. `BE3_NL_TUNNEL=0`
+  sends each call as its own request instead, to compare.
 - **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
   and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
 - **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB

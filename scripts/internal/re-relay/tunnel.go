@@ -42,7 +42,12 @@ const (
 	upChunk  = 4 << 20
 	// POSTs on their way at once. Each costs the proxy one request; while they are all out, what is written next
 	// waits for one to come back and goes with everything else written meanwhile.
-	upInFlight = 8
+	upInFlight = 16
+	// What HTTP/2 writes for itself (WINDOW_UPDATE as a download is read, PING, SETTINGS) waits up to lazyDelay for
+	// something more to go with it, and takes at most lazyInFlight POSTs: a download sends a stream of them, which
+	// would otherwise keep every POST busy and hold each new call back for a POST's round trip.
+	lazyInFlight = 2
+	lazyDelay    = 50 * time.Millisecond
 	// The most the client holds unread, and the most the server keeps sent and not yet received, before each stops
 	// reading what feeds it.
 	downBuffer = 64 << 20
@@ -107,6 +112,21 @@ type tunnelConn struct {
 	down     []byte // received and not yet read
 	received int64  // bytes received in all
 	err      error  // why the tunnel ended
+
+	// Whether up holds more than HTTP/2's housekeeping, and since when it held anything, or anything more.
+	urgent, timing         bool
+	lazySince, urgentSince time.Time
+	preface, frameLeft     int // HTTP/2's frames in what is written: the preface and frame body still to come
+	header                 []byte
+	stats                  tunnelStats
+}
+
+// What a tunnel did since it last said, for re-relay's log.
+type tunnelStats struct {
+	posts, lazyPosts, gets int
+	postTime, maxPost      time.Duration
+	waitTime, maxWait      time.Duration
+	sent                   int64
 }
 
 func dialTunnel(ctx context.Context, transport http.RoundTripper, base string, authorization *atomic.Pointer[string]) (net.Conn, error) {
@@ -119,6 +139,7 @@ func dialTunnel(ctx context.Context, transport http.RoundTripper, base string, a
 		base:          base,
 		session:       hex.EncodeToString(id),
 		authorization: authorization,
+		preface:       len("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"),
 	}
 	c.changed = sync.NewCond(&c.mu)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
@@ -128,7 +149,66 @@ func dialTunnel(ctx context.Context, transport http.RoundTripper, base string, a
 	}
 	go c.send()
 	go c.receive()
+	go c.report()
 	return c, nil
+}
+
+// Writes what the tunnel did to re-relay's log every 30 s that it did anything.
+func (c *tunnelConn) report() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		c.mu.Lock()
+		s := c.stats
+		c.stats = tunnelStats{}
+		received := c.received
+		c.mu.Unlock()
+		if s.posts == 0 {
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "re-relay: %s tunnel %s: %d POSTs (%d only HTTP/2's own), each %v on average and %v at most; "+
+			"calls waited %v on average and %v at most for one; %d GETs; %d bytes sent, %d received in all\n",
+			time.Now().Format(time.RFC3339), c.session[:8], s.posts, s.lazyPosts,
+			(s.postTime / time.Duration(s.posts)).Round(time.Millisecond), s.maxPost.Round(time.Millisecond),
+			(s.waitTime / time.Duration(max(1, s.posts-s.lazyPosts))).Round(time.Millisecond), s.maxWait.Round(time.Millisecond),
+			s.gets, s.sent, received)
+	}
+}
+
+// Notes whether p, written after what came before, holds more than HTTP/2's housekeeping frames. Called with c.mu
+// held.
+func (c *tunnelConn) scan(p []byte) {
+	for len(p) > 0 {
+		switch {
+		case c.preface > 0:
+			n := min(c.preface, len(p))
+			c.preface -= n
+			p = p[n:]
+			c.urgent = true
+		case c.frameLeft > 0:
+			n := min(c.frameLeft, len(p))
+			c.frameLeft -= n
+			p = p[n:]
+		default:
+			n := min(9-len(c.header), len(p))
+			c.header = append(c.header, p[:n]...)
+			p = p[n:]
+			if len(c.header) == 9 {
+				c.frameLeft = int(c.header[0])<<16 | int(c.header[1])<<8 | int(c.header[2])
+				switch c.header[3] {
+				case 0x4, 0x6, 0x8: // SETTINGS, PING, WINDOW_UPDATE
+				default:
+					c.urgent = true
+				}
+				c.header = c.header[:0]
+			}
+		}
+	}
 }
 
 // A request to the tunnel-server that should be made again when it fails, and why it is not worth making again.
@@ -208,11 +288,39 @@ func (c *tunnelConn) fail(err error) {
 	c.cancel()
 }
 
+// Whether what was written goes in a POST now. Called with c.mu held; when it is only HTTP/2's housekeeping, too
+// new to send, it wakes send when it will be old enough.
+func (c *tunnelConn) ready() bool {
+	if len(c.up) == 0 {
+		return false
+	}
+	if c.urgent {
+		return c.inFlight < upInFlight
+	}
+	if c.inFlight >= lazyInFlight {
+		return false
+	}
+	wait := lazyDelay - time.Since(c.lazySince)
+	if wait <= 0 {
+		return true
+	}
+	if !c.timing {
+		c.timing = true
+		time.AfterFunc(wait, func() {
+			c.mu.Lock()
+			c.timing = false
+			c.changed.Broadcast()
+			c.mu.Unlock()
+		})
+	}
+	return false
+}
+
 // Hands what was written to POSTs, upInFlight at a time.
 func (c *tunnelConn) send() {
 	for {
 		c.mu.Lock()
-		for (len(c.up) == 0 || c.inFlight >= upInFlight) && c.err == nil {
+		for !c.ready() && c.err == nil {
 			c.changed.Wait()
 		}
 		if c.err != nil {
@@ -225,12 +333,30 @@ func (c *tunnelConn) send() {
 		offset := c.upOffset
 		c.upOffset += int64(n)
 		c.inFlight++
+		c.stats.posts++
+		c.stats.sent += int64(n)
+		if c.urgent {
+			wait := time.Since(c.urgentSince)
+			c.stats.waitTime += wait
+			c.stats.maxWait = max(c.stats.maxWait, wait)
+		} else {
+			c.stats.lazyPosts++
+		}
+		if len(c.up) == 0 {
+			c.urgent = false
+		} else {
+			c.lazySince, c.urgentSince = time.Now(), time.Now()
+		}
 		c.changed.Broadcast()
 		c.mu.Unlock()
 		go func() {
+			start := time.Now()
 			err := c.post(c.ctx, "up", offset, chunk)
+			took := time.Since(start)
 			c.mu.Lock()
 			c.inFlight--
+			c.stats.postTime += took
+			c.stats.maxPost = max(c.stats.maxPost, took)
 			c.changed.Broadcast()
 			c.mu.Unlock()
 			if err != nil {
@@ -253,6 +379,9 @@ func (c *tunnelConn) receive() {
 			c.fail(err)
 			return
 		}
+		c.mu.Lock()
+		c.stats.gets++
+		c.mu.Unlock()
 		resp, err := c.client.Do(r)
 		if err == nil && resp.StatusCode != http.StatusOK {
 			err = statusError(resp)
@@ -322,6 +451,14 @@ func (c *tunnelConn) Write(p []byte) (int, error) {
 	if c.err != nil {
 		return 0, c.err
 	}
+	if len(c.up) == 0 {
+		c.lazySince = time.Now()
+	}
+	wasUrgent := c.urgent
+	c.scan(p)
+	if c.urgent && !wasUrgent {
+		c.urgentSince = time.Now()
+	}
 	c.up = append(c.up, p...)
 	c.changed.Broadcast()
 	return len(p), nil
@@ -362,13 +499,13 @@ type tunnelSession struct {
 	next    int64      // the stream offset written up to
 	early   map[int64][]byte
 
-	mu       sync.Mutex
-	changed  *sync.Cond
-	down     []byte // sent or to send, from offset base
-	base     int64
-	ended    bool // conn has nothing more to say
-	gets     int  // the GET streaming now, by number
-	seen     time.Time
+	mu        sync.Mutex
+	changed   *sync.Cond
+	down      []byte // sent or to send, from offset base
+	base      int64
+	ended     bool // conn has nothing more to say
+	gets      int  // the GET streaming now, by number
+	seen      time.Time
 	streaming bool
 }
 
@@ -555,8 +692,10 @@ func (t *tunnelServer) down(w http.ResponseWriter, r *http.Request) {
 	s.streaming = true
 	s.mu.Unlock()
 
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Cache-Control", "no-store")
+	// What proxies stream as it comes rather than collect first.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-store, no-transform")
+	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	flusher := w.(http.Flusher)
 	flusher.Flush()

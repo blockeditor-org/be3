@@ -126,8 +126,36 @@ func TestTunnelMultiplexesHTTP2Calls(t *testing.T) {
 	for err := range errs {
 		t.Fatal(err)
 	}
-	t.Logf("%d calls took %d requests to the tunnel-server", calls, requests.Load())
-	if n := requests.Load(); n >= calls/2 {
+	if n := requests.Load(); n >= calls {
 		t.Fatalf("%d calls took %d requests to the tunnel-server", calls, n)
+	}
+}
+
+func TestOnlyHTTP2HousekeepingIsLeftToWait(t *testing.T) {
+	frame := func(kind byte, length int) []byte {
+		return append([]byte{byte(length >> 16), byte(length >> 8), byte(length), kind, 0, 0, 0, 0, 1}, make([]byte, length)...)
+	}
+	c := &tunnelConn{preface: 24}
+	c.scan([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
+	if !c.urgent {
+		t.Fatal("the preface waited")
+	}
+	c.urgent = false
+	windowUpdate := frame(0x8, 4)
+	c.scan(windowUpdate[:5])
+	c.scan(windowUpdate[5:])
+	c.scan(frame(0x6, 8))
+	c.scan(frame(0x4, 0))
+	if c.urgent {
+		t.Fatal("WINDOW_UPDATE, PING and SETTINGS went at once")
+	}
+	headers := frame(0x1, 30)
+	c.scan(headers[:3])
+	if c.urgent {
+		t.Fatal("half a frame header was taken for a call")
+	}
+	c.scan(headers[3:])
+	if !c.urgent {
+		t.Fatal("a HEADERS frame waited")
 	}
 }
