@@ -849,6 +849,7 @@ where
                 from,
                 wire: Some(wire),
                 kind,
+                ..
             } = job
             {
                 let (from, wire) = (*from, wire.clone());
