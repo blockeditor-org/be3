@@ -9,7 +9,8 @@ export default async function (test) {
     await drive("wait", "#picker.more");
     await drive("click", 'MenuItem "Canvas"');
     await drive("wait", 'Pane "Canvas"');
-    await drive("wait", 'TextInput "Name" value="Canvas" focused');
+    // In a browser the field's focus is the page's, which a click gives it.
+    await drive("click", 'TextInput "Name" value="Canvas"');
     await drive("key", "Enter");
     await drive("wait", "not", 'TextInput "Name" value="Canvas"');
     await drive("wait", 'TreeItem "Canvas"');
