@@ -167,9 +167,7 @@ impl<K: Ord, V> LatestMap<K, V> {
 
     /// Every key ever written, with its value, or none for a key removed since.
     pub fn written_entries(&self) -> impl Iterator<Item = (&K, Option<&V>)> {
-        self.stamps
-            .keys()
-            .map(|key| (key, self.entries.get(key)))
+        self.stamps.keys().map(|key| (key, self.entries.get(key)))
     }
 }
 

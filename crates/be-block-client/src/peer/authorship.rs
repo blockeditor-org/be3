@@ -114,7 +114,9 @@ impl<S: ObjectStore> Peer<S> {
                 "who signed this is known once the server is reachable".to_owned(),
             ));
         }
-        let found = self.ask_about(account, block, bytes, signature, contact).await?;
+        let found = self
+            .ask_about(account, block, bytes, signature, contact)
+            .await?;
         if found == Signer::Bad {
             self.forged.lock().unwrap().insert(&connection, asked);
         }

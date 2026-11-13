@@ -26,9 +26,17 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     // Someone with Edit puts the first edit back: it is the latest, and it is one replaced.
     let replayed = edited(
         &chat,
-        [chat.put_edit(lunch, &MessageEdit { time: 7, ..once.clone() })],
+        [chat.put_edit(
+            lunch,
+            &MessageEdit {
+                time: 7,
+                ..once.clone()
+            },
+        )],
     );
-    let shown = replayed.edit_of(lunch).expect("the replayed edit is the latest");
+    let shown = replayed
+        .edit_of(lunch)
+        .expect("the replayed edit is the latest");
     assert!(
         replayed
             .superseded_of(lunch)
@@ -39,7 +47,10 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let chat = edited(&chat, [chat.react(lunch, BO, "heart", 8)]);
     assert_eq!(chat.reactions(lunch), [("heart".to_owned(), vec![BO])]);
     let chat = edited(&chat, [chat.unreact(lunch, BO, "heart", 9)]);
-    assert!(chat.reactions(lunch).is_empty(), "a reaction taken back is not shown");
+    assert!(
+        chat.reactions(lunch).is_empty(),
+        "a reaction taken back is not shown"
+    );
     let records = chat.reaction_records(lunch);
     assert_eq!(records.len(), 1);
     assert!(

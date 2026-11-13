@@ -124,8 +124,7 @@ pub fn Chat(editor: Editor) -> NodeId {
     create_effect(move || {
         let _ = chat.revision();
         let forged = forged.get();
-        if let Ok(rows_now) =
-            chat.read(|content| row_list(content, &content.shown(), me, &forged))
+        if let Ok(rows_now) = chat.read(|content| row_list(content, &content.shown(), me, &forged))
         {
             rows.reconcile_owned(rows_now);
         }

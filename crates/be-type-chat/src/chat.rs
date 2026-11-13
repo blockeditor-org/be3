@@ -553,9 +553,10 @@ impl ChatContent {
         time: i64,
         body: impl Into<String>,
     ) -> MessageEdit {
-        let previous = self.edit_of(message).zip(self.hash(chat, message)).map(
-            |(edit, of)| edit.hash(chat, message, of),
-        );
+        let previous = self
+            .edit_of(message)
+            .zip(self.hash(chat, message))
+            .map(|(edit, of)| edit.hash(chat, message, of));
         MessageEdit {
             author,
             time,

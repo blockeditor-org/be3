@@ -35,7 +35,10 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
     assert_eq!(chat.row(lunch), "Member 7e1a 09:00 edited Lunch at two?");
     // Someone with Edit puts her first edit back: its signature is hers, but it was replaced.
     chat.arrive(chat.content().put_edit(lunch, &first));
-    assert_eq!(chat.row(lunch), "Member 7e1a 09:00 edited forged Lunch at one?");
+    assert_eq!(
+        chat.row(lunch),
+        "Member 7e1a 09:00 edited forged Lunch at one?"
+    );
 
     // Rosa deletes a message herself: it goes without a trace.
     let content = chat.content();
@@ -67,8 +70,7 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
     };
     chat.arrive(chat.content().put_reaction(&key, &reaction));
     assert_eq!(chat.row(who), "Member 7e1a 09:06 Who is in? 1");
-    let (key, taken_back) =
-        ChatContent::reaction(who, ROSA, "heart", MORNING + 35 * MINUTE, false);
+    let (key, taken_back) = ChatContent::reaction(who, ROSA, "heart", MORNING + 35 * MINUTE, false);
     let taken_back = Reaction {
         signature: sign(sam, &key.signed_bytes(CHAT, &taken_back)),
         ..taken_back
