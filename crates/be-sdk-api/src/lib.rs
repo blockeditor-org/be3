@@ -70,7 +70,7 @@ pub use host_services::{
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
 pub use shell_types::{
-    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
+    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
     OfferedClipItem, PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange,
     WebViewEvent,

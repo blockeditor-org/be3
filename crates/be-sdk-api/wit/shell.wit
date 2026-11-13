@@ -8,11 +8,6 @@ interface shell-types {
     use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use be3:ui/types@0.1.0.{clip-item, key-chord, pos2, rect, vec2};
 
-    /// An action of the bar the host draws above a frame or a child.
-    enum bar-action {
-        details,
-    }
-
     /// A representation an editor copies: its data, or none when it renders
     /// it on request.
     record offered-clip-item {
@@ -284,12 +279,13 @@ interface shell-types {
     }
 
     /// What an editor tells the shell around it. One `tell` carries a pass's
-    /// messages in a fixed order by kind, not the order the editor made them in.
+    /// messages in the order the editor made them in.
     variant shell-message {
         /// The menu of one view, replacing its last.
         menu(menu-set),
-        /// The editor asks the host to run an action of its bar.
-        bar-action(bar-action),
+        /// The editor asks to show the details of what it shows, as the
+        /// details action of the bar the host draws above its frame.
+        details,
         child-menu-pick(child-menu-choice),
         copy(clip-offer),
         /// The editor asks for the clipboard; it arrives as input.

@@ -65,7 +65,12 @@ fn on_a_phone_tapping_a_files_name_runs_its_rename() {
     fixture.test.click("dock.title");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_child_menu_picks(),
+        fixture
+            .test
+            .take_child_menu_picks()
+            .into_iter()
+            .map(|pick| (pick.child, pick.id))
+            .collect::<Vec<_>>(),
         [(child, "editor.rename".to_owned())],
         "tapping the name runs the block's rename"
     );

@@ -1,4 +1,4 @@
-use be_sdk_beui::{BarAction, BlockLocation, ChildContent};
+use be_sdk_beui::{BlockLocation, ChildContent};
 
 use super::*;
 
@@ -24,7 +24,7 @@ fn a_new_file_beside_a_workspace_on_a_phone_goes_to_unfiled() {
         .find(|placement| placement.content.block_id() == Some(notes.into_bytes()))
         .expect("the block is on show")
         .child;
-    fixture.test.child_bar(child, BarAction::Details);
+    fixture.test.child_details(child);
     fixture.settle();
     fixture.test.settle();
     fixture.test.click("workspace.details.new");
