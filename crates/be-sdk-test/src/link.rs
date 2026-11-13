@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::ContentStore;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Subject {
+pub(crate) enum Subject {
     Blocks(be_sdk_beui::BlockQuery),
     History(Uuid),
     Head(Uuid),
@@ -221,6 +221,20 @@ impl Link {
         let value = encode(&BlockValue::History(*history));
         self.values.insert(Subject::History(block), value.clone());
         self.offer(Subject::History(block), value);
+    }
+
+    pub(crate) fn offer_artifact(&mut self, block: Uuid, state: Option<be_sdk_api::ArtifactState>) {
+        let value = encode(&BlockValue::Artifact(state));
+        self.values.insert(Subject::Artifact(block), value.clone());
+        self.offer(Subject::Artifact(block), value);
+    }
+
+    /// Each watch the editor holds open, by its op, with what it watches.
+    pub(crate) fn watching(&self) -> Vec<(OpId, Subject)> {
+        self.watches
+            .iter()
+            .map(|(op, watch)| (*op, watch.subject))
+            .collect()
     }
 
     pub(crate) fn offer_version(&mut self, status: &be_sdk_api::VersionStatus) {

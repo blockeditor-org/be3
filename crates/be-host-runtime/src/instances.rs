@@ -438,7 +438,7 @@ impl Instance {
                 complete: found.complete,
             };
             Instances::translated(scope, false, |visit| results.visit_block_ids(visit));
-            self.offer(Subject::Search(op), &results);
+            self.offer_search(op, &results);
         }
     }
 

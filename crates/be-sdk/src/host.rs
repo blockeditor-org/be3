@@ -1233,13 +1233,15 @@ impl EditorHost {
 
     /// Everything the editor watches through `block-watch`, once it changed since the last
     /// call.
-    pub(crate) fn take_block_subjects(&self) -> Option<Vec<crate::link::Subject>> {
+    pub(crate) fn take_block_subjects(
+        &self,
+    ) -> Option<std::collections::BTreeSet<crate::link::Subject>> {
         use crate::link::Subject;
         let graph = self.graph.take_watch_changed();
         if !(self.subjects_changed.replace(false) || graph) {
             return None;
         }
-        let mut subjects: Vec<Subject> = self
+        let mut subjects: std::collections::BTreeSet<Subject> = self
             .graph
             .watched()
             .into_iter()
@@ -1267,7 +1269,7 @@ impl EditorHost {
                 .map(Subject::Artifact),
         );
         if self.version_watched.get() {
-            subjects.push(Subject::Version);
+            subjects.insert(Subject::Version);
         }
         Some(subjects)
     }

@@ -979,6 +979,16 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
+    /// The state of an artifact block the editor watches (`EditorHost::watch_artifacts`).
+    pub fn set_artifact(&mut self, block: Uuid, state: Option<be_sdk_api::ArtifactState>) {
+        self.link.offer_artifact(block, state);
+    }
+
+    /// Each block watch the editor holds open, by its op, with what it follows.
+    pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, crate::link::Subject)> {
+        self.link.watching()
+    }
+
     pub fn set_version_status(&mut self, status: be_sdk_beui::VersionStatus) {
         self.block_id()
             .expect("a version status is about the editor's own block");

@@ -32,6 +32,20 @@ impl From<BlockSubject> for Subject {
     }
 }
 
+impl Subject {
+    /// Whether `value` is of this subject's variant.
+    fn answered_by(self, value: &BlockValue) -> bool {
+        matches!(
+            (self, value),
+            (Self::Blocks(_), BlockValue::Blocks(_))
+                | (Self::History(_), BlockValue::History(_))
+                | (Self::Head(_), BlockValue::Head(_))
+                | (Self::Artifact(_), BlockValue::Artifact(_))
+                | (Self::Version, BlockValue::Version(_))
+        )
+    }
+}
+
 pub(super) struct Watch {
     pub(super) watched: Subject,
     answered: Option<Vec<u8>>,
@@ -66,7 +80,19 @@ impl Instance {
         self.watches.values().map(|watch| watch.watched)
     }
 
-    pub(super) fn offer(&mut self, watched: Subject, value: &impl Serialize) {
+    /// Offers the block watches of `watched` its latest value, a `BlockValue` of the
+    /// variant of the same name.
+    pub(super) fn offer(&mut self, watched: Subject, value: &BlockValue) {
+        debug_assert!(watched.answered_by(value), "{watched:?} offered {value:?}");
+        self.offer_encoded(watched, value);
+    }
+
+    /// Offers the search watch `op` its latest results.
+    pub(super) fn offer_search(&mut self, op: OpId, results: &be_sdk_api::SearchResults) {
+        self.offer_encoded(Subject::Search(op), results);
+    }
+
+    fn offer_encoded(&mut self, watched: Subject, value: &impl Serialize) {
         for watch in self.watches.values_mut() {
             if watch.watched == watched {
                 watch.offer(value);

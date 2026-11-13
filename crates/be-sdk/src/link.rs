@@ -1,7 +1,7 @@
 use be_lib_stable_hash::HashMap;
 use std::{
     cell::Cell,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     rc::{Rc, Weak},
 };
 
@@ -101,7 +101,11 @@ impl Subject {
                 }),
             ),
             (Self::Version, BlockValue::Version(status)) => host.set_version_status(status),
-            _ => {}
+            (subject, value) => {
+                if cfg!(debug_assertions) {
+                    panic!("the host answered a watch of {subject:?} with {value:?}");
+                }
+            }
         }
     }
 }
@@ -131,9 +135,10 @@ fn follow<W: 'static, T: DeserializeOwned + 'static>(
     });
 }
 
+/// Closes the watches of what is no longer `wanted` and opens one for each new subject.
 fn reconcile<K: Ord + Copy, W>(
     held: &mut BTreeMap<K, Rc<W>>,
-    wanted: &[K],
+    wanted: &BTreeSet<K>,
     mut open: impl FnMut(K) -> Rc<W>,
 ) {
     held.retain(|key, _| wanted.contains(key));
