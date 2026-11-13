@@ -4,8 +4,7 @@ use beui_macros::{component, view};
 use beui_view::measure::measure;
 use beui_view::primitives::Frame;
 use beui_view::reactive::*;
-use beui_view::types::{Direction, Pos2, Spring, Vec2};
-use beui_view::{CORE, Core};
+use beui_view::types::{Direction, Measured, Pos2, Spring, Vec2};
 
 /// The spring a glide settles by.
 pub const GLIDE_SPRING: Spring = Spring {
@@ -55,6 +54,7 @@ struct Motion {
     from: Cell<Option<Pos2>>,
     hold: Cell<Option<GlideHold>>,
     resting: Cell<Option<Pos2>>,
+    placed: Cell<Option<Pos2>>,
 }
 
 /// A `Glide`'s handle: hold its child at a point while a drag carries it, and read how
@@ -64,6 +64,7 @@ pub struct GlideApi {
     state: Stored<Motion>,
     shown: Signal<Vec2>,
     frames: Animation,
+    content: ReadSignal<Option<Measured>>,
 }
 
 impl GlideApi {
@@ -124,8 +125,9 @@ impl GlideApi {
 /// starts a glide from a window point (an item dropped from elsewhere). The glide is
 /// two frames: the outer one is laid out in place and measured, the inner one is drawn
 /// offset by the spring, timed on the frame clock. `raised` paints it above its
-/// siblings. A glide drawn inside another names it `within`, so that glide's offset
-/// (a row held under a finger) is no move of its own.
+/// siblings. A glide drawn inside another names it `within`: its moves are then measured
+/// against that glide's drawn content, so that glide's offset (a row held under a finger)
+/// is no move of its own.
 #[component]
 pub fn Glide(
     #[prop(default = ComponentRef::new())] api: ComponentRef<GlideApi>,
@@ -162,6 +164,8 @@ pub fn Glide(
         state: stored,
         shown,
         frames,
+        // The child, laid out inside the translated frame, so its place carries the offset.
+        content: measure(children),
     };
     api.fill(glide);
     let node = view! {
@@ -170,33 +174,13 @@ pub fn Glide(
         </Frame>
     };
     let measured = measure(node);
-    // An arm whose layout moved nothing is spent once that layout has been measured: natively
-    // in the frame it was armed, on HTML a frame later. Kept, it would turn the next move it
-    // did not ask for (a parent glide's offset carrying this one) into a glide.
-    let waited = StoredCell::new(0_u8);
-    let disarm = create_animation(
-        move |_| {
-            waited.update(|frames| frames + 1);
-            let measured_by = match CORE {
-                Core::Html => 2,
-                Core::Native => 1,
-            };
-            waited.get() < measured_by
-        },
-        move || {
-            stored.try_with(|state| state.armed.set(None));
-        },
-    );
     let first = Cell::new(true);
     create_effect(move || {
         arm.get();
         if first.replace(false) {
             return;
         }
-        stored.with(|state| state.armed.set(state.resting.get()));
-        waited.set(0);
-        disarm.stop();
-        disarm.start();
+        stored.with(|state| state.armed.set(state.placed.get()));
     });
     create_effect(move || {
         if let Some(from) = from.get() {
@@ -208,18 +192,22 @@ pub fn Glide(
         let Some(resting) = measured.get().map(|measured| measured.rect.min) else {
             return;
         };
-        let carried = within
+        // Inside another glide, a move is one against that glide's drawn content, which this
+        // layout measured with the same offset as this one.
+        let origin = within
             .and_then(|within| within.try_get())
-            .map_or(Vec2::ZERO, GlideApi::displacement);
-        let resting = resting - carried;
+            .and_then(|within| within.content.get_untracked())
+            .map_or(Pos2::ZERO, |content| content.rect.min);
+        let placed = Pos2::ZERO + (resting - origin);
         let mut moved = Vec2::ZERO;
         if let Some(from) = state.from.take() {
             moved += from - resting;
         }
         if let Some(armed) = state.armed.take() {
-            moved += armed - resting;
+            moved += armed - placed;
         }
         state.resting.set(Some(resting));
+        state.placed.set(Some(placed));
         if state.hold.get().is_some() {
             glide.take_hold();
         } else if moved != Vec2::ZERO {
