@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_press_outside_a_menu_and_its_submenu_closes_both_and_reaches_what_it_landed_on() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.wait("Tab \"Text\"");
     host.run(&["click", "TreeItem \"Text\"", "right"]);

@@ -4,7 +4,7 @@ const SHAPE: &str = "GenericContainer #infinite-canvas.entity.";
 
 #[test]
 fn a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.canvas");
     let stage = host.place("#infinite-canvas.canvas");

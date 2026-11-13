@@ -14,7 +14,7 @@ fn listed(host: &mut HostTest) -> Vec<String> {
 
 #[test]
 fn quick_open_goes_to_a_file_and_the_palette_offers_the_workspaces_and_hosts_actions() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     add_to_my_files(&mut host, "Text");
     host.click("#dock.tab.2.close");

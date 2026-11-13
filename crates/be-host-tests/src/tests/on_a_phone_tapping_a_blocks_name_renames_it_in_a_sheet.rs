@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn on_a_phone_tapping_a_blocks_name_renames_it_in_a_sheet() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.run(&["resize", "390x800"]);
     host.click("#dock.title");

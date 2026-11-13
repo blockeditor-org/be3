@@ -4,7 +4,7 @@ const PANE: &str = "Pane \"Checklist\"";
 
 #[test]
 fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Checklist");
     host.wait(PANE);

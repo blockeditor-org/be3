@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_presentation_menu_offers_new_slides_first() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Presentation");
     host.click("#presentation.add");
     host.wait("#picker.slides");

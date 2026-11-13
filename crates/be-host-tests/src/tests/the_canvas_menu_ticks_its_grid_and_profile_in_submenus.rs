@@ -4,7 +4,7 @@ const INSPECTOR_MENU: &str = "#dock.joined:2/inspector.menu";
 
 #[test]
 fn the_canvas_menu_ticks_its_grid_and_profile_in_submenus() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.canvas");
     host.click("#dock.editors.menu");
