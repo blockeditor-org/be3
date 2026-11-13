@@ -556,7 +556,7 @@ mod web {
             })
     }
 
-    fn deliver(on_paste: Callback<ClipItem>, pasted: Pasted) {
+    fn deliver(on_paste: beui_tree::reactive::Callback<ClipItem>, pasted: Pasted) {
         match pasted {
             Pasted::Now(item) => on_paste.call(item),
             Pasted::File(format, file) => read_file(file, move |data| {
