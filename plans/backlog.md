@@ -32,13 +32,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   knows another program copied by the pasteboard's change count. No Mac is
   available, so this is written blind: done when it compiles for macOS and
   shares its logic with tested code where it can.
-- **Images beside text on desktops.** arboard (`beui-platform-winit`) sets
-  either the plain text or a PNG, not both, so this needs per-platform code:
-  X11 and Wayland selections offering both targets, and Windows clipboard
-  formats. Done: on Linux, a test against a headless Wayland or X server
-  (Xvfb, installed with apt on the test machine and started by the test,
-  skipping with a message when absent) reads both targets from one clip;
-  Windows compiles.
 - **Rich text marks in text fragments**, with `text/html` written from marks
   and read back into them. Marks travel as byte ranges within each chunk of
   `TextFragment` (`be-lib-ui-types/src/clipboard.rs`, a format change, which

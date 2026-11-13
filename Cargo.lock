@@ -3320,6 +3320,7 @@ dependencies = [
  "pollster",
  "rfd",
  "winit",
+ "x11rb",
 ]
 
 [[package]]

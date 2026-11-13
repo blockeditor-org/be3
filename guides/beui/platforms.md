@@ -170,12 +170,28 @@ while it is still the clipboard's, so lazy representations and be3 formats
 survive where the system clipboard cannot carry them. Windows knows by the
 clipboard's sequence number and carries be3 formats as registered formats; the
 web writes them as `web ` types where `ClipboardItem.supports` says so
+<<<<<<< HEAD
 (Chromium) and reads them from the async clipboard; both hold an item's
 `ClipItem::stored` bytes, refs and all; elsewhere the plain text on
 the clipboard is compared with the text written, as beui's HTML core does too
 (`page::copy` and `page::held`): a `paste` event on a node answers from the held
 clip when its text matches. On the system clipboard each
 platform puts the plain text, or a PNG when there is none.
+||||||| 22cc77093
+(Chromium) and reads them from the async clipboard; elsewhere the plain text on
+the clipboard is compared with the text written. On the system clipboard each
+platform puts the plain text, or a PNG when there is none.
+=======
+(Chromium) and reads them from the async clipboard; elsewhere the plain text on
+the clipboard is compared with the text written. On the system clipboard a
+platform puts the plain text and the PNG together where it can: X11 (and
+Wayland, through XWayland) by owning the CLIPBOARD selection from a thread of
+its own (`beui-platform-winit/src/clipboard/x11.rs`, INCR for large data, handing the
+clip to a clipboard manager with SAVE_TARGETS when the program closes),
+Windows as `CF_DIB` and a registered `PNG` beside the text; elsewhere the plain
+text, or a PNG when there is none. Its Xvfb test runs where `Xvfb` is
+installed and skips with a message where it is not, as on the build workers.
+>>>>>>> origin/feat/clipboard-winit-images
 
 The focus reads the clipboard only by pasting: an `Interactive`'s `pastes`
 lists the format ids it takes, preferred first, and its `on_paste` gets a
