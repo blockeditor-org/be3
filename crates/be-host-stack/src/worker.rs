@@ -607,6 +607,8 @@ pub struct Shared {
     /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
     /// host keeps asking.
     pub seals_owed: u64,
+    /// What the worker waits on the type modules for (`Host::asking`), for `busy` to name.
+    pub asking: Vec<String>,
     /// Open replicas with edits that are not in the device's journal yet.
     pub undurable: usize,
     pub connected: bool,
@@ -796,6 +798,12 @@ impl Shared {
             && let Some(step) = self.step
         {
             reasons.push(format!("the block store's loop is busy with {step}"));
+        }
+        if !self.asking.is_empty() {
+            reasons.push(format!(
+                "the block store waits on its type modules for {}",
+                self.asking.join(", ")
+            ));
         }
         reasons
     }
