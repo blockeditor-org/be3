@@ -263,18 +263,19 @@ fn beside(items: &[ClipItem], text: bool) -> Beside<'_> {
 /// run it on: only its compiling is checked.
 #[cfg(target_os = "macos")]
 #[allow(unused_unsafe)]
-// unsafe(ffi)
 mod macos {
     use beui_types::ClipItem;
     use objc2::rc::Retained;
     use objc2_app_kit::NSPasteboard;
     use objc2_foundation::{NSArray, NSData, NSString};
 
+    // unsafe(ffi)
     pub(super) fn sequence() -> Option<i64> {
         let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
         Some(unsafe { pasteboard.changeCount() } as i64)
     }
 
+    // unsafe(ffi)
     pub(super) fn write(items: &[ClipItem], text: bool) {
         let super::Beside { be3, png } = super::beside(items, text);
         let mut typed: Vec<(Retained<NSString>, Vec<u8>)> = be3
@@ -295,6 +296,7 @@ mod macos {
         }
     }
 
+    // unsafe(ffi)
     pub(super) fn read(format: &str) -> Option<ClipItem> {
         let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
         let data = unsafe { pasteboard.dataForType(&NSString::from_str(format)) }?;
