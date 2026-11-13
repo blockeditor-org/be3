@@ -1529,6 +1529,7 @@ impl Runtime {
         self.offer_previews(&messages);
         let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
+            self.instances.translate_pastes(message);
             self.instances.translate(message, false);
         }
         self.queued.extend(self.instances.gate(messages));

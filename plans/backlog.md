@@ -39,26 +39,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   (Xvfb, installed with apt on the test machine and started by the test,
   skipping with a message when absent) reads both targets from one clip;
   Windows compiles.
-- **Block ids inside any clip, inside a checkout.** The host translates the
-  ids of a clip crossing the app protocol for an instance in a checkout
-  (guides/blocks/version_control.md, "Scopes and local ids"), but only for
-  `be3/blocks`, which it decodes by format (`be-host-runtime/src/calls.rs`).
-  Any other format holding block ids, such as `be3/canvas-items` or rich text
-  with embeds, crosses untranslated. Make it general: every clip item carries
-  the blocks it names as a list beside its bytes (`refs`), and its bytes
-  index into that list, as view state does (`ViewState { bytes, refs }`). The
-  host translates `refs` for every format and decodes none; `be3/blocks`
-  moves its ids there too, and so does `CanvasItems.canvas`.
-  - `refs` is a field of the WIT `clip-item` (shared with beui's
-    `Clip`/`ClipEntry` in beui-types), not a side channel.
-  - Every path that carries a clip translates it: `Copy` and `DragOver`
-    (`calls.rs` visits them today), the answer to `RenderClip` for an item
-    copied with `data: None`, and an incoming paste or drop.
-  - Where be3 formats go onto the system clipboard (web custom types,
-    Windows registered formats, macOS pasteboard types), `refs` are stored
-    with the bytes, so a paste read back keeps them. Done: copying canvas entities that embed blocks,
-  and blocks, from outside a checkout and pasting them into a canvas inside
-  it resolves every block there, and the reverse.
 - **Rich text marks in text fragments**, with `text/html` written from marks
   and read back into them. Marks travel as byte ranges within each chunk of
   `TextFragment` (`be-lib-ui-types/src/clipboard.rs`, a format change, which
