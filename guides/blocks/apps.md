@@ -100,7 +100,9 @@ or not, and keeps each until the server holds it (`be-sdk-type-guest/src/lacking
   answered, as follower until the owner accepts it (its bytes are not kept past
   1 MiB: the editor sees only that something is sending);
 - in a commit kept in this device's outbox (`publish-outcome.kept`), until the
-  host says it `drained`, or with `refused` that the server refused it: the
+  host says it `drained`, naming the head a drain published (the outbox
+  publishes in order, so every commit kept up to it drained, and one kept after
+  stays sending), or with `refused` that the server refused it: the
   edit then shows as failed, until the editor lets it go
   (`FromEditor::DismissLacking`, after sending it again or giving it up).
 

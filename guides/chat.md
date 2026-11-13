@@ -123,8 +123,8 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   every send for `APPEND_INTERVAL` (250 ms) and a round trip, even online. A
   host or type module restart keeps a commit still in the outbox as sending,
   but loses edits not yet in a commit (a journal entry the server lacks).
-  be-host-stack tests and chat's editor tests cover it; `drive` cannot cut the
-  server.
+  be-host-stack tests and chat's editor tests cover it; host tests cut the
+  server with `HostTest::offline`.
 - **Authorship.** It signs each message and edit through the host's `sign`
   before sending it, and marks a message whose signatures `verify` does not
   answer verified: "not verified", "key changed" or "forged"
