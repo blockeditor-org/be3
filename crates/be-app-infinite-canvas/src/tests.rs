@@ -23,6 +23,8 @@ use crate::root::state::{attach_component, remove_component, set_component_value
 use be_sdk_beui::beui::{PenPhase, PointerButton};
 use be_type_infinite_canvas::CanvasContent;
 
+mod a_canvas_copy_names_its_blocks_only_in_refs;
+mod a_canvas_paste_refuses_refs_that_do_not_match_its_blocks;
 mod a_card_on_the_canvas_points_its_dialogs_at_itself;
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools;
@@ -116,6 +118,7 @@ mod panning_and_zooming_paints_no_entity_again;
 mod panning_paints_no_frame_backdrop_again;
 mod panning_paints_no_grid_dot_again;
 mod panning_paints_no_selection_handle_again;
+mod pasted_canvas_items_show_the_blocks_their_refs_name;
 mod pasting_blocks_places_those_the_host_allows_as_editors;
 mod pasting_puts_the_objects_under_the_pointer;
 mod pen_strokes_are_smooth_curves_at_any_zoom;

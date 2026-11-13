@@ -411,6 +411,7 @@ fn joined_then_away() -> (EditorSession, beui::dock::DockingLayout<u64>) {
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
             child,
             declaration: Some(joined_dock()),
+            epoch: 1,
         })]);
     show_docked(&mut session, WIDE, false);
     show_docked(&mut session, WIDE, false);

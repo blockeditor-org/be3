@@ -510,7 +510,7 @@ struct Watches {
 }
 
 /// Renders a representation of a copy on request (`EditorHost::copy`).
-pub type ClipRender = Rc<dyn Fn(&str, Box<dyn FnOnce(Option<Vec<u8>>)>)>;
+pub type ClipRender = Rc<dyn Fn(&str, Box<dyn FnOnce(Option<be_sdk_api::clipboard::ClipBody>)>)>;
 
 #[derive(Clone, Default)]
 pub struct EditorHost {
@@ -2175,7 +2175,12 @@ impl EditorHost {
 
     /// Renders representation `format` of copy `serial`, answering `None`
     /// once the editor copied again.
-    pub fn render_clip(&self, serial: u64, format: &str, answer: Box<dyn FnOnce(Option<Vec<u8>>)>) {
+    pub fn render_clip(
+        &self,
+        serial: u64,
+        format: &str,
+        answer: Box<dyn FnOnce(Option<be_sdk_api::clipboard::ClipBody>)>,
+    ) {
         let render = match &*self.held_clip.borrow() {
             Some((held, render)) if *held == serial => render.clone(),
             _ => return answer(None),

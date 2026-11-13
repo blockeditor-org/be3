@@ -313,7 +313,7 @@ impl Exporter {
                 let data = match (made, wanted.to) {
                     (made, ExportTo::Render) => {
                         for answer in state.take_render_answers() {
-                            answer(made.as_ref().ok().cloned());
+                            answer(made.as_ref().ok().cloned().map(Into::into));
                         }
                         return;
                     }

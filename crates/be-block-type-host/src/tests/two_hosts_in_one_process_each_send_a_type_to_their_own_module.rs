@@ -21,7 +21,11 @@ fn two_hosts_in_one_process_each_send_a_type_to_their_own_module() {
     assert_eq!(both.module_of(counter), Some(1));
     assert_eq!(alone.module_of(counter), Some(0));
     for modules in [&mut both, &mut alone] {
-        let blank = pollster::block_on(modules.blank(counter));
-        assert!(blank.is_ok(), "the counter's own module answers: {blank:?}");
+        let blank = be_type_example_counter::CounterContent::default().encode();
+        let described = pollster::block_on(modules.describe(counter, &blank, Uuid::nil()));
+        assert!(
+            described.is_ok(),
+            "the counter's own module answers: {described:?}"
+        );
     }
 }

@@ -378,7 +378,11 @@ impl GuestEditor for OpenEditor {
         })
     }
 
-    fn render_clip(&self, serial: u64, format: String) -> LocalFuture<Option<Vec<u8>>> {
+    fn render_clip(
+        &self,
+        serial: u64,
+        format: String,
+    ) -> LocalFuture<Option<be_sdk_api::clipboard::ClipBody>> {
         let (sender, rendered) = oneshot();
         self.wire.call(self.instance, move |session| {
             session.render_clip(serial, &format, sender)

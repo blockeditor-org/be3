@@ -332,7 +332,12 @@ impl EditorSession {
         self.editor.presence_visible(visible);
     }
 
-    pub(crate) fn render_clip(&self, serial: u64, format: &str, rendered: Sender<Option<Vec<u8>>>) {
+    pub(crate) fn render_clip(
+        &self,
+        serial: u64,
+        format: &str,
+        rendered: Sender<Option<be_sdk_api::clipboard::ClipBody>>,
+    ) {
         self.host
             .render_clip(serial, format, Box::new(move |data| rendered.send(data)));
     }
