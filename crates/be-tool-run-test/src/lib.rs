@@ -2,8 +2,8 @@
 //! `buck2 test`, as ./scripts/verify's action and as ./scripts/test's:
 //!
 //! ```text
-//! run-test [--library-path PATHS] [--time-limit 20m] [--paintings OUT]
-//!          [--passed OUT] [--record OUT] -- COMMAND...
+//! run-test [--library-path PATHS] [--time-limit 20m] [--one-test]
+//!          [--paintings OUT] [--passed OUT] [--record OUT] -- COMMAND...
 //! ```
 //!
 //! - TMPDIR is a fresh directory under /tmp, removed afterwards. A worker's own
@@ -17,6 +17,10 @@
 //!   that long (`90s`, `20m`, `1h`). A test that hangs would otherwise hold its
 //!   worker until the build server gives up on it, and every later run of the
 //!   same action would wait on that one.
+//! - `--one-test` fails a libtest harness that passed without running exactly
+//!   one test (its `running 1 test` line): a run_apart part, which names its
+//!   file's test with --exact, so that a file whose test is not named after it
+//!   cannot pass having run nothing.
 //! - `--paintings OUT` makes OUT/used and OUT/changed and names them in
 //!   USED_PAINTINGS and CHANGED_PAINTINGS, where a painting test writes what
 //!   it compared and what it accepted (guides/testing_a_gui.md).
@@ -36,7 +40,10 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
-pub const USAGE: &str = "usage: run-test [--library-path PATHS] [--time-limit 20m] [--paintings OUT] [--passed OUT] [--record OUT] -- COMMAND...";
+pub const USAGE: &str = "usage: run-test [--library-path PATHS] [--time-limit 20m] [--one-test] [--paintings OUT] [--passed OUT] [--record OUT] -- COMMAND...";
+
+/// What libtest prints first when it runs exactly one test.
+const ONE_TEST: &str = "running 1 test";
 
 /// The status a test the time limit stopped exits with, as timeout(1)'s.
 pub const TIMED_OUT: i32 = 124;
@@ -46,6 +53,7 @@ pub struct Options {
     pub library_path: Option<OsString>,
     /// The limit as it was written, for the message, and as a duration.
     pub time_limit: Option<(String, Duration)>,
+    pub one_test: bool,
     pub paintings: Option<PathBuf>,
     pub passed: Option<PathBuf>,
     pub record: Option<PathBuf>,
@@ -73,6 +81,7 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Options, S
                 let limit = parse_duration(&text)?;
                 options.time_limit = Some((text, limit));
             }
+            "--one-test" => options.one_test = true,
             "--paintings" => options.paintings = Some(value()?.into()),
             "--passed" => options.passed = Some(value()?.into()),
             "--record" => options.record = Some(value()?.into()),
@@ -130,9 +139,15 @@ pub fn run(options: &Options) -> Result<i32, String> {
         let stderr = file.try_clone().map_err(|error| error.to_string())?;
         command.stdout(file).stderr(stderr);
         log = Some(out.join("log"));
+    } else if options.one_test {
+        command.stdout(Stdio::piped());
     }
-    let status = match run_command(command, options.time_limit.as_ref()) {
-        Ok(status) => status,
+    let mut ran_one = None;
+    let mut status = match run_command(command, options.time_limit.as_ref()) {
+        Ok((status, copied)) => {
+            ran_one = copied;
+            status
+        }
         Err(message) => {
             // As a shell says it, and exits 127.
             report(log.as_deref(), &message);
@@ -148,6 +163,20 @@ pub fn run(options: &Options) -> Result<i32, String> {
                 "the test ran for over {limit} and was stopped: one of its tests hangs, the one said above to have been running for over 60 seconds"
             ),
         );
+    }
+    if options.one_test && status == 0 {
+        let ran_one = match &log {
+            Some(log) => std::fs::read_to_string(log)
+                .is_ok_and(|text| text.lines().any(|line| line == ONE_TEST)),
+            None => ran_one.unwrap_or(false),
+        };
+        if !ran_one {
+            report(
+                log.as_deref(),
+                "the test passed without running exactly one test: a run_apart part runs the test named after its file (buck/cargo/defs.bzl), so the file needs one test of that name",
+            );
+            status = 1;
+        }
     }
     drop(temporary);
     if let Some(out) = &options.record {
@@ -185,18 +214,44 @@ fn report(log: Option<&Path>, message: &str) {
     }
 }
 
+/// Runs the command to its end or its time limit. Its status, and, when its stdout was piped,
+/// whether that said it ran one test, copied to the launcher's own stdout as it came.
 fn run_command(
     mut command: Command,
     time_limit: Option<&(String, Duration)>,
-) -> Result<i32, String> {
+) -> Result<(i32, Option<bool>), String> {
     command.stdin(Stdio::null());
     process::own_group(&mut command);
     let program = command.get_program().to_string_lossy().into_owned();
-    let child = command
+    let mut child = command
         .spawn()
         .map_err(|error| format!("{program}: {error}"))?;
     let id = child.id();
     process::stop_with_launcher(id);
+    let copier = child.stdout.take().map(|stdout| {
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let mut ran_one = false;
+            let mut out = std::io::stdout();
+            for line in std::io::BufReader::new(stdout).split(b'\n').map_while(Result::ok) {
+                ran_one |= line == ONE_TEST.as_bytes();
+                let _ = out.write_all(&line);
+                let _ = out.write_all(b"\n");
+                let _ = out.flush();
+            }
+            ran_one
+        })
+    });
+    let status = wait_within(child, id, time_limit)?;
+    let ran_one = copier.map(|copier| copier.join().unwrap_or(false));
+    Ok((status, ran_one))
+}
+
+fn wait_within(
+    child: Child,
+    id: u32,
+    time_limit: Option<&(String, Duration)>,
+) -> Result<i32, String> {
     let Some((_, limit)) = time_limit else {
         return wait(child);
     };

@@ -105,6 +105,7 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
         ctx.attrs._launcher[RunInfo],
         ["--library-path", library_path] if library_path != None else [],
         [] if ctx.attrs.local else ["--time-limit", TEST_TIME_LIMIT],
+        ["--one-test"] if ctx.attrs.libtest else [],
     )
     fields = dict(
         command = cmd_args(ctx.attrs.harness[RunInfo], ctx.attrs.args),
