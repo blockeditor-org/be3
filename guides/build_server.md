@@ -78,7 +78,9 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   The tunnel-server logs, every 30 s, the most bytes that queued behind each GET (`journalctl -u nl-tunnel`), and
   `re-relay tunnel-probe -upstream nl.be3.pfg.pw` (the token in `BE3_NL_TOKEN` unless a proxy adds it) times each
   way through the proxy: POSTs' one-way time up, and lines streamed 100 ms apart down, which arrive in bunches when
-  the proxy holds a stream back.
+  the proxy holds a stream back, and one streaming POST, whose lines arrive late when the proxy collects a body before
+  passing it on. Every 30 s the relay also writes each gRPC method's count and times to `target/re-relay.log`: a cached
+  action is a GetActionResult and then a BatchReadBlobs for its small outputs, one after the other.
 - **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
   and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
 - **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB

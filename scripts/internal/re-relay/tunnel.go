@@ -538,6 +538,7 @@ func (t *tunnelServer) handler() http.Handler {
 	mux.HandleFunc("POST "+tunnelPath+"/close", t.close)
 	mux.HandleFunc("GET "+tunnelPath+"/probe-down", probeDown)
 	mux.HandleFunc("POST "+tunnelPath+"/probe-up", probeUp)
+	mux.HandleFunc("POST "+tunnelPath+"/probe-stream", probeStream)
 	return mux
 }
 
@@ -809,6 +810,22 @@ func probeUp(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, arrived)
 }
 
+// Reads lines each holding the client's clock in Unix nanoseconds as they arrive, and answers with how long each
+// took to arrive by the server's clock: whether the way up passes a request's body along as it comes.
+func probeStream(w http.ResponseWriter, r *http.Request) {
+	lines := bufio.NewReader(r.Body)
+	var arrivals []string
+	for {
+		line, err := lines.ReadString('\n')
+		if err != nil {
+			break
+		}
+		sent, _ := strconv.ParseInt(strings.TrimSpace(line), 10, 64)
+		arrivals = append(arrivals, strconv.FormatInt(time.Now().UnixNano()-sent, 10))
+	}
+	fmt.Fprint(w, strings.Join(arrivals, "\n"))
+}
+
 // tunnel-probe: times each way between here and upstream's tunnel-server through the environment's proxy, one way
 // against the server's clock (both clocks are taken to be kept by NTP, so to a few milliseconds) and by how lines sent
 // 100 ms apart arrive. Authorization comes from BE3_NL_TOKEN, when set.
@@ -859,6 +876,37 @@ func probeTunnel(upstream string) {
 	}
 	summary("POST round trip", rtts)
 	summary("POST one way up (server clock minus ours)", ups)
+
+	// One POST whose body is a line every 100 ms for 5 s: if the proxy passes it along as it comes, each line arrives
+	// in about the one-way time down; if it collects the whole body first, the first line arrives 5 s late.
+	reader, writer := io.Pipe()
+	go func() {
+		for range 50 {
+			fmt.Fprintf(writer, "%d\n", time.Now().UnixNano())
+			time.Sleep(100 * time.Millisecond)
+		}
+		writer.Close()
+	}()
+	streaming := request(http.MethodPost, base+"/probe-stream", reader)
+	streaming.ContentLength = -1
+	resp, err := client.Do(streaming)
+	if err != nil {
+		fail("%v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fail("probe-stream answered %s: %s", resp.Status, body)
+	}
+	var streamed []time.Duration
+	for _, field := range strings.Fields(string(body)) {
+		nanos, _ := strconv.ParseInt(field, 10, 64)
+		streamed = append(streamed, time.Duration(nanos))
+	}
+	summary("One streaming POST, a line every 100 ms: one way up for each line", streamed)
+	if len(streamed) > 0 {
+		fmt.Printf("  first line %s, last line %s\n", ms(streamed[0]), ms(streamed[len(streamed)-1]))
+	}
 
 	for _, size := range []int{32, 4096} {
 		resp, err := client.Do(request(http.MethodGet, fmt.Sprintf("%s/probe-down?size=%d", base, size), nil))

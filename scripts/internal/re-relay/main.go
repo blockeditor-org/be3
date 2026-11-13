@@ -183,8 +183,11 @@ func serve(listen, upstream, version string, connections int, http1, tunnel bool
 		if a := r.Header.Get("Authorization"); a != "" {
 			authorization.Store(&a)
 		}
+		start := time.Now()
 		relay(transport, scheme, upstream, cache, w, r)
+		timings.add(r.URL.Path, time.Since(start))
 	})
+	go timings.report()
 
 	server.Protocols = new(http.Protocols)
 	server.Protocols.SetHTTP1(true)
