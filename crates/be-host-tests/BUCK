@@ -125,6 +125,7 @@ APPS = {
     "typing_as_the_connection_silently_drops_leaves_the_host_settled": ["text"],
     "typing_in_the_add_menu_from_the_files_reaches_it_straight_away": ["checklist"],
     "typing_right_after_adding_notes_reaches_the_notes": ["infinite-canvas", "presentation", "text"],
+    "closing_a_presentation_while_its_notes_wait_for_the_keyboard_leaves_the_host_settled": ["infinite-canvas", "presentation", "text"],
 }
 
 cargo_library()

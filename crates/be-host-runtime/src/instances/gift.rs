@@ -22,10 +22,15 @@
 //!
 //! A pending gift ends when the person presses in the editor or takes the keyboard elsewhere, when
 //! the child stops being placed in a mode that runs an editor, when the editor has no view left,
-//! when the host refused to make its block, and when it is not given after `GIFT_COMMITS` of the
-//! asking instance's own layout commits (the commits that carry its children or one of its frame
-//! reports), or `GIFT_WAIT` on the frame clock, whichever comes first: the clock bounds a gift to
-//! an editor that commits no layout at all. A gift whose instance or app goes ends with it.
+//! when the host refused to make its block, when the child's app fails to start, and when a
+//! gift whose child is up (`start_gift_count`: its view is built and its app running) is not
+//! taken within `GIFT_COMMITS` of the asking instance's own layout commits (the commits that
+//! carry its children or one of its frame reports), or `GIFT_WAIT` on the frame clock, whichever
+//! comes first: the clock bounds a gift to an editor that commits no layout at all. Nothing is
+//! counted before the child is up, as making the block, placing the child and starting its app
+//! (a download and compile on a cold start) can take any time. A new ask replaces the gift and
+//! carries its keys, owed to a child or not, to the new one. A gift whose instance or app goes
+//! ends with it.
 
 use std::time::Duration;
 
@@ -91,15 +96,15 @@ pub(crate) struct Gift {
     holder: Option<GiftView>,
     keys: Vec<Forwarded>,
     modifiers: Modifiers,
-    /// The asking instance's layout commits since it asked, or since a block gift became a gift
-    /// to a child.
+    /// The asking instance's layout commits since its child was up.
     commits: u32,
-    /// When it was asked, on the frame clock.
-    since: Duration,
+    /// When its child was up, on the frame clock, and the count started: a press waiting for its
+    /// answer counts from the press.
+    since: Option<Duration>,
 }
 
 impl Gift {
-    fn new(to: GiftTo, holder: Option<GiftView>, now: Duration) -> Self {
+    fn new(to: GiftTo, holder: Option<GiftView>, since: Option<Duration>) -> Self {
         Self {
             to,
             stage: Stage::Pending,
@@ -107,7 +112,7 @@ impl Gift {
             keys: Vec::new(),
             modifiers: Modifiers::NONE,
             commits: 0,
-            since: now,
+            since,
         }
     }
 
@@ -236,21 +241,22 @@ impl Instances {
     }
 
     /// The instance asks to give the keyboard to `to`. Only the latest ask stands: the person can
-    /// type into one place. Keys it holds already (for a press whose frame asked) stay held.
+    /// type into one place. Keys its gift holds already, for a press whose frame asked or owed to
+    /// a child an earlier ask gave the keyboard to, are carried to the new one, as they were
+    /// typed for wherever the keyboard was going.
     pub(crate) fn ask_gift(&mut self, instance: EditorInstanceId, to: GiftTo) {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return;
         };
-        let now = host::now();
         let gift = match entry.gift.take() {
-            Some(mut held) if matches!(held.stage, Stage::Pending | Stage::Done { .. }) => {
+            Some(mut held) => {
                 held.to = to.clone();
                 held.stage = Stage::Pending;
                 held.commits = 0;
-                held.since = now;
+                held.since = None;
                 held
             }
-            _ => Gift::new(to.clone(), None, now),
+            None => Gift::new(to.clone(), None, None),
         };
         entry.gift = Some(gift);
         if let GiftTo::Child(child) = to {
@@ -353,7 +359,7 @@ impl Instances {
         entry.gift = Some(Gift::new(
             GiftTo::Answer(asked + 1),
             Some(view),
-            host::now(),
+            Some(host::now()),
         ));
     }
 
@@ -562,7 +568,7 @@ impl Instances {
     /// After a layout commit that carried what the instances in `committed` laid out: a block gift
     /// whose block a child now shows becomes a gift to that child, and a pending gift ends when its
     /// child is no longer placed, when the editor has no view left, or when the editor has
-    /// committed `GIFT_COMMITS` layouts since it asked without the gift moving on.
+    /// committed `GIFT_COMMITS` layouts since its child was up without the child's view taking it.
     pub(crate) fn settle_gifts(&mut self, committed: &[EditorInstanceId]) {
         let mut ended = Vec::new();
         let mut given = Vec::new();
@@ -595,7 +601,7 @@ impl Instances {
                 }
                 _ => {}
             }
-            if committed.contains(instance) {
+            if gift.since.is_some() && committed.contains(instance) {
                 gift.commits += 1;
                 if gift.commits >= GIFT_COMMITS {
                     ended.push(*instance);
@@ -616,10 +622,15 @@ impl Instances {
         let mut ended = Vec::new();
         let mut next: Option<Duration> = None;
         for (instance, entry) in &self.entries {
-            let Some(gift) = entry.gift.as_ref().filter(|gift| gift.pending()) else {
+            let Some(since) = entry
+                .gift
+                .as_ref()
+                .filter(|gift| gift.pending())
+                .and_then(|gift| gift.since)
+            else {
                 continue;
             };
-            let waited = now.saturating_sub(gift.since);
+            let waited = now.saturating_sub(since);
             match GIFT_WAIT.checked_sub(waited).filter(|left| !left.is_zero()) {
                 Some(left) => next = Some(next.map_or(left, |next| next.min(left))),
                 None => ended.push(*instance),
@@ -629,6 +640,28 @@ impl Instances {
             self.end_gift(instance, Keys::Return);
         }
         next
+    }
+
+    /// The child `child` the instance gives the keyboard to is up, at `now` on the frame clock: its
+    /// view is built and its app running, so the view should take it within `GIFT_COMMITS` of the
+    /// instance's commits or `GIFT_WAIT`. Until then the gift waits however long that takes.
+    pub(crate) fn start_gift_count(
+        &mut self,
+        instance: EditorInstanceId,
+        child: ChildId,
+        now: Duration,
+    ) {
+        if !self.gives_to(instance, child) {
+            return;
+        }
+        if let Some(gift) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.gift.as_mut())
+            && gift.since.is_none()
+        {
+            gift.since = Some(now);
+        }
     }
 
     /// Notes that the host refused to make `block` for the instance, so a gift of the keyboard to

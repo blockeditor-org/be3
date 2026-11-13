@@ -73,7 +73,8 @@ pub use runtime::{
     set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
     start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
 };
-pub use runtime::{end_gift, forget_keys, route_keys, sent_press, settle_keys, take_gift};
+pub use runtime::{
+    child_failed_for_gift, child_up_for_gift, end_gift, forget_keys, route_keys, sent_press, settle_keys, take_gift};
 pub use windows::{forget_windows, request_windows, take_window_requests};
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -13,6 +13,14 @@ fn a_child_that_never_takes_the_keyboard_ends_the_gift() {
         [],
         "the key waits for the child"
     );
+    for _ in 0..gift::GIFT_COMMITS * 4 {
+        instances.settle_gifts(&[INSTANCE]);
+    }
+    assert!(
+        instances.gift_pending(INSTANCE),
+        "the child is not up yet: its app may still be starting"
+    );
+    instances.start_gift_count(INSTANCE, ChildId(1), host::now());
     for _ in 1..gift::GIFT_COMMITS {
         instances.settle_gifts(&[INSTANCE]);
     }
@@ -23,7 +31,8 @@ fn a_child_that_never_takes_the_keyboard_ends_the_gift() {
     instances.settle_gifts(&[INSTANCE]);
     assert!(
         !instances.gift_pending(INSTANCE),
-        "a child whose view never takes the keyboard, over the editor's own commits, ends it"
+        "a child that is up but whose view never takes the keyboard, over the editor's own \
+         commits, ends it"
     );
     assert_eq!(
         instances.settle_own_keys(INSTANCE, &own_view(), settled, true, pass),

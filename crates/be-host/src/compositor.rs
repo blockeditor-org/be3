@@ -54,7 +54,6 @@ pub(crate) fn install() {
     PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
     let searched = create_signal(be_host_stack::search_revision());
     SEARCHED.with(|held| *held.borrow_mut() = Some(searched));
-    app_view::gifts::install();
     let (mailbox, post) = be_host_base::host::mailbox(heard);
     be_host_runtime::listen(None, post);
     HEARD.with(|held| *held.borrow_mut() = Some(mailbox));

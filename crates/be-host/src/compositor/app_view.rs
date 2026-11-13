@@ -85,22 +85,41 @@ struct Behind(Memo<Option<beui::color::Color32>>);
 #[derive(Clone, Copy)]
 pub(crate) struct ChildFit(pub(crate) Memo<Option<Vec2>>);
 
+/// The view that placed a child. Its app id is a plain string, not a value the placer's view
+/// stores, so a child, whose effects can outlive the placer's view, never reads what the
+/// placer's view freed.
 #[derive(Clone, Copy)]
 pub(crate) struct Placer {
-    app: Stored<String>,
+    app: &'static str,
     instance: EditorInstanceId,
     view: ViewId,
 }
 
-#[cfg(test)]
 impl Placer {
     pub(crate) fn new(app: &str, instance: EditorInstanceId, view: ViewId) -> Self {
         Self {
-            app: store(app.to_owned()),
+            app: app_name(app),
             instance,
             view,
         }
     }
+}
+
+thread_local! {
+    static APP_NAMES: RefCell<HashSet<&'static str>> = RefCell::new(HashSet::new());
+}
+
+/// `app` as a string kept for the rest of the run, one per app id, so values that name an app can
+/// be copied freely. There are as many as apps installed.
+fn app_name(app: &str) -> &'static str {
+    APP_NAMES.with_borrow_mut(|names| match names.get(app) {
+        Some(name) => name,
+        None => {
+            let name: &'static str = Box::leak(app.to_owned().into_boxed_str());
+            names.insert(name);
+            name
+        }
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -313,7 +332,7 @@ pub(crate) fn AppView(
         .map(|ChildFit(fit)| fit);
     provide_context(ChildFit(create_memo(|| None)));
     let placer = use_context::<Placer>()
-        .map(|placer| (placer.app.value().to_string(), placer.instance, placer.view));
+        .map(|placer| (placer.app.to_owned(), placer.instance, placer.view));
     be_host_runtime::mount_view(ViewSlot {
         app: &editor.app,
         placer: placer
@@ -496,11 +515,7 @@ pub(crate) fn AppView(
             child_view,
             anchors,
             encloses,
-            placer: Placer {
-                app: app_id,
-                instance,
-                view: region.id,
-            },
+            placer: Placer::new(&app_id.value(), instance, region.id),
         },
     );
     let (reports, tick) = super::editors::reports();
@@ -713,13 +728,7 @@ pub(crate) fn AppView(
         }
     });
     let shown_view: GiftView = (app_id.value().to_string(), instance, region.id);
-    // A copy this view owns: the placer's view, which owns its own, can go first.
-    let gift_placer = asked.map(|asked| {
-        (
-            store(asked.placer.app.value().to_string()),
-            asked.placer.instance,
-        )
-    });
+    let gift_placer = asked.map(|asked| (asked.placer.app, asked.placer.instance));
     let rebuilt = shown_view.clone();
     create_effect(move || {
         if let Some(node) = catcher.try_get() {
@@ -737,9 +746,7 @@ pub(crate) fn AppView(
         if let Some(node) = catcher.try_get() {
             let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
             if !placed {
-                with_placer(gift_placer, |placer| {
-                    be_host_runtime::forget_keys(&gone, placer)
-                });
+                be_host_runtime::forget_keys(&gone, gift_placer);
                 REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
@@ -809,9 +816,7 @@ pub(crate) fn AppView(
         pointed.set((input.hovered, input.pointer));
         let app = app_id.value();
         let progress = key_progress(&app, instance, state);
-        with_placer(gift_placer, |placer| {
-            be_host_runtime::route_keys(&routed_view, placer, progress, &mut input);
-        });
+        be_host_runtime::route_keys(&routed_view, gift_placer, progress, &mut input);
         let mut handed = handing.get();
         let input = handed.route(input);
         handing.set(handed);
@@ -866,7 +871,10 @@ pub(crate) fn AppView(
     create_effect(move || {
         revision.get();
         typing.get();
-        gifts::track();
+        gifts::track(&app_id.value(), instance);
+        if let Some((app, instance)) = gift_placer {
+            gifts::track(app, instance);
+        }
         let Some(node) = catcher.try_get() else {
             return;
         };
@@ -875,9 +883,8 @@ pub(crate) fn AppView(
             let focused =
                 try_with_document(|document| document.focus_is_within(node)).unwrap_or(false);
             let progress = key_progress(&app, instance, state);
-            let owed = with_placer(gift_placer, |placer| {
-                be_host_runtime::settle_keys(&settled_view.value(), placer, progress, focused)
-            });
+            let owed =
+                be_host_runtime::settle_keys(&settled_view.value(), gift_placer, progress, focused);
             if let Some(modifiers) = owed {
                 let (hovered, pointer) = pointed.get();
                 forward.call(ForwardedInput {
@@ -1640,6 +1647,22 @@ fn focus_when_given(
         return;
     };
     let catcher = *catcher;
+    // The gift is counted only from when this child is up (its app runs and its view is built),
+    // and ends if its app fails to start: before that the editor's keys wait however long a cold
+    // start takes.
+    let up = create_memo(move || state.with(|view| !view.loading && view.error.is_none()));
+    let failed = create_memo(move || state.with(|view| view.error.is_some()));
+    create_effect(move || {
+        let (up, failed) = (up.get(), failed.get());
+        if !asked.asked.get() || !(up || failed) {
+            return;
+        }
+        let editor = (asked.placer.app, asked.placer.instance);
+        untrack(|| match failed {
+            true => be_host_runtime::child_failed_for_gift(editor, asked.child),
+            false => be_host_runtime::child_up_for_gift(editor, asked.child),
+        });
+    });
     let passing = create_signal(false);
     create_effect(move || {
         let filling = state.with(filling_child);
@@ -1664,8 +1687,8 @@ fn focus_when_given(
                 return;
             };
             let AskedFocus { placer, child, .. } = asked;
-            let placing = placer.app.value();
-            let editor = (placing.as_str(), placer.instance);
+            let placing = placer.app;
+            let editor = (placing, placer.instance);
             gifts::taken(editor.0, editor.1);
             let own_view = (app.value().to_string(), own, region);
             if WANTING_KEYBOARD.with_borrow(|views| !views.is_empty()) {
@@ -1688,11 +1711,11 @@ fn focus_when_given(
                     return;
                 }
                 let placer_holds = held.is_none_or(|held| {
-                    super::desktop::catchers_of(&placing, placer.instance)
+                    super::desktop::catchers_of(placing, placer.instance)
                         .into_iter()
                         .any(|view| document.focus_is_within(view))
                         || super::desktop::shown_within(held, |_, catcher| {
-                            catcher.instance == placer.instance && catcher.app == *placing
+                            catcher.instance == placer.instance && catcher.app == placing
                         })
                 });
                 if !placer_holds {
@@ -1704,20 +1727,6 @@ fn focus_when_given(
             });
         });
     });
-}
-
-/// Hands `act` the editor that placed a view, as the runtime names it, when one did.
-fn with_placer<T>(
-    placer: Option<(Stored<String>, EditorInstanceId)>,
-    act: impl FnOnce(Option<(&str, EditorInstanceId)>) -> T,
-) -> T {
-    match placer {
-        Some((app, instance)) => {
-            let app = app.value();
-            act(Some((app.as_str(), instance)))
-        }
-        None => act(None),
-    }
 }
 
 fn key_progress(app: &str, instance: EditorInstanceId, view: Memo<PlacedView>) -> KeyProgress {
@@ -2090,11 +2099,7 @@ impl ChildNodes {
             provide_context(super::anchored::HostOfAnchors(anchors));
             provide_context(Enclosing(encloses));
             provide_context(ChildFocus(Some(AskedFocus {
-                asked: create_memo(move || {
-                    placer
-                        .app
-                        .with(|app| gifts::gives(app, placer.instance, key))
-                }),
+                asked: create_memo(move || gifts::gives(placer.app, placer.instance, key)),
                 placer,
                 child: key,
             })));

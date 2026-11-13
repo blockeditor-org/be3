@@ -1755,6 +1755,27 @@ pub fn end_gift(app_id: &str, instance: EditorInstanceId) {
     });
 }
 
+/// The child `child` the instance gives the keyboard to is up: its view is built and its app
+/// running. The gift is counted from now and ends if the view does not take it in time.
+pub fn child_up_for_gift((app_id, instance): (&str, EditorInstanceId), child: be_sdk_api::ChildId) {
+    with(app_id, |runtime| {
+        runtime.instances.start_gift_count(instance, child, host::now());
+    });
+}
+
+/// The app of the child `child` the instance gives the keyboard to failed to start: the gift
+/// ends, and the keys held go back to the editor's view if it still has the keyboard.
+pub fn child_failed_for_gift(
+    (app_id, instance): (&str, EditorInstanceId),
+    child: be_sdk_api::ChildId,
+) {
+    with(app_id, |runtime| {
+        if runtime.instances.gives_to(instance, child) {
+            runtime.instances.end_gift(instance, Keys::Return);
+        }
+    });
+}
+
 /// The view `view` forwarded a press to its app while `asked` frames had been asked of it: keys
 /// typed into it wait for the frame that answers it, which may give the keyboard to a child.
 pub fn sent_press(view: &GiftView, asked: u64) {

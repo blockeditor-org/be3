@@ -1,10 +1,12 @@
 use super::*;
 
 #[test]
-fn a_block_gift_counts_only_its_own_instances_commits() {
+fn a_gift_counts_only_its_own_instances_commits() {
     let mut instances = placed();
     instances.next_screens(PASS);
-    tell(&mut instances, ShellMessage::FocusBlockChild([3; 16]));
+    instances.set_children(child(Rect::from_min_size(Pos2::ZERO, SIZE), false));
+    tell(&mut instances, ShellMessage::FocusChild(ChildId(1)));
+    instances.start_gift_count(INSTANCE, ChildId(1), host::now());
     for _ in 0..gift::GIFT_COMMITS * 4 {
         instances.settle_gifts(&[EditorInstanceId(99)]);
     }
@@ -38,8 +40,5 @@ fn a_block_gift_counts_only_its_own_instances_commits() {
     for _ in 0..gift::GIFT_COMMITS {
         instances.settle_gifts(&[INSTANCE]);
     }
-    assert!(
-        !instances.gift_pending(INSTANCE),
-        "its own commits count, and no child it placed showed the block"
-    );
+    assert!(!instances.gift_pending(INSTANCE), "its own commits count");
 }
