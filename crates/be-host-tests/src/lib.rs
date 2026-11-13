@@ -300,7 +300,7 @@ impl HostTest {
     }
 
     pub fn gone(&mut self, target: &str) {
-        self.run(&["gone", target]);
+        self.run(&["wait", "not", target]);
     }
 
     /// Clicks at once when the target is on screen, and otherwise waits for it first. A gesture
@@ -392,7 +392,7 @@ impl HostTest {
         let again = self.paint();
         if painted != again {
             self.fail(
-                "the painting is not settled: it changed between two frames, so something was still arriving. Wait for it (`wait`, `gone`) before the snapshot, or park the pointer (`leave`) if it is a hover",
+                "the painting is not settled: it changed between two frames, so something was still arriving. Wait for it (`wait`, `wait not`) before the snapshot, or park the pointer (`leave`) if it is a hover",
             );
         }
         let found = self.run(&["overflows"]);

@@ -40,7 +40,7 @@ be_wasm_ops_bindgen::generate!({
         "search-hit", "search-results",
     ],
     inline: [
-        "artifact-command", "unlink-command",
+        "artifact-command", "unlink-command", "define-command",
         "delete-command", "move-command", "reorder-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
@@ -69,10 +69,9 @@ pub use host_services::{
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;
 pub use shell_types::{
-    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
+    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
-    OfferedClipItem, PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange,
-    WebViewEvent,
+    OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
@@ -719,12 +718,19 @@ impl embed::blocks::Call {
                 metadata(defined)?;
                 content.as_ref().map_or(Ok(()), |content| blob(content))
             }
-            Call::Define {
-                value: Some(value), ..
+            Call::Act {
+                command:
+                    BlockCommand::Define {
+                        value: Some(value), ..
+                    },
+                ..
             } => descriptor(value),
             Call::WriteContent { bytes, .. } => blob(bytes),
             Call::ReplicaSend { frame, .. } => blob(frame),
-            Call::Version { command, .. } => match command {
+            Call::Act {
+                command: BlockCommand::Version(command),
+                ..
+            } => match command {
                 VersionCommand::Finish { description: value }
                 | VersionCommand::Switch { branch: value }
                 | VersionCommand::CreateBranch { name: value }
@@ -792,14 +798,15 @@ pub fn paste_events(item: ClipItem) -> Vec<Input> {
 }
 
 fn paste_pieces(item: ClipItem, limit: usize) -> Vec<Input> {
-    let ClipItem { format, data } = item;
+    let ClipItem { format, data, refs } = item;
     let mut pieces = data
         .chunks(limit)
         .map(|piece| ClipItem::new(format.clone(), piece.to_vec()))
         .collect::<Vec<_>>();
-    let last = pieces
+    let mut last = pieces
         .pop()
         .unwrap_or_else(|| ClipItem::new(format, Vec::new()));
+    last.refs = refs;
     pieces
         .into_iter()
         .map(Input::PastePiece)

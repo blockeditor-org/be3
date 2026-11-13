@@ -20,6 +20,7 @@ uuid = "1"
 
 [dev-dependencies]
 be-block-store = { path = "../be-block-store" }
+pollster = "0.4"
 
 [features]
 module = []

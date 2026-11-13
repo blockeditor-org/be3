@@ -5,7 +5,10 @@ fn base(store: &mut Store) -> Index {
     let mut index = Index::default();
     for batch in 0..4 {
         let put = (batch * 10..batch * 10 + 10)
-            .map(|n| put(n, 0, 1))
+            .map(|n| Put {
+                source: Some([9; 32]),
+                ..put(n, 0, 1)
+            })
             .collect();
         apply(
             &mut index,
@@ -27,6 +30,7 @@ fn unchanged(n: u32, time: i64) -> Batch {
             commit: commit(time),
             source: Some([9; 32]),
             text: None,
+            partial: false,
         }],
         ..Batch::default()
     }

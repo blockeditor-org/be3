@@ -38,7 +38,8 @@ fn a_reindexed_document_no_longer_matches_its_old_words() {
     assert!(entry.is_removed());
     assert_eq!(entry.commit, commit(2));
 
-    // Unchanged text moves only the commit and source.
+    // Unchanged text from the same part moves only the commit; from another part, or from
+    // no part, it is asked for again.
     let source = Some([7; 32]);
     apply(
         &mut index,
@@ -46,16 +47,46 @@ fn a_reindexed_document_no_longer_matches_its_old_words() {
         id(3),
         Batch {
             put: vec![crate::Put {
+                source,
+                ..put(7, 1, 3)
+            }],
+            ..Batch::default()
+        },
+    );
+    let elsewhere = run(index.apply(
+        &store,
+        id(4),
+        Batch {
+            put: vec![crate::Put {
                 doc: doc(7),
-                commit: commit(3),
+                commit: commit(4),
+                source: Some([8; 32]),
+                text: None,
+                partial: false,
+            }],
+            ..Batch::default()
+        },
+    ))
+    .unwrap();
+    store.keep(&elsewhere);
+    assert_eq!(elsewhere.needs_text, [doc(7)]);
+    apply(
+        &mut index,
+        &mut store,
+        id(5),
+        Batch {
+            put: vec![crate::Put {
+                doc: doc(7),
+                commit: commit(5),
                 source,
                 text: None,
+                partial: false,
             }],
             ..Batch::default()
         },
     );
     let entry = run(index.entry(&store, &doc(7))).unwrap().unwrap();
-    assert_eq!((entry.commit, entry.source), (commit(3), source));
+    assert_eq!((entry.commit, entry.source), (commit(5), source));
     assert_eq!(found(&index, &store, "uniq7v1x "), [doc(7)].into());
     assert_eq!(
         run(index.entries_of(&store, &doc(7).block)).unwrap(),

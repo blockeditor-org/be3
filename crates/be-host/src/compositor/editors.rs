@@ -6,7 +6,7 @@ use std::{
 
 use be_block_graph::Access;
 use be_sdk_api::{
-    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
+    ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
     EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
     View, ViewId,
 };
@@ -16,6 +16,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
+
+use be_host_runtime::InstanceEvent;
 
 use be_host_desktop::desktop_host::{DesktopHost, Host, PlacedWindow};
 
@@ -722,7 +724,7 @@ struct TabContext {
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct ChildReporter {
-    bar: Callback<BarAction>,
+    details: Callback<()>,
     focus: Callback<()>,
 }
 
@@ -1166,7 +1168,7 @@ fn frame_menu(editors: &Editors, block: Uuid) -> Vec<be_sdk_api::MenuEntry> {
         .unwrap_or_default()
 }
 
-pub(super) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
+pub(crate) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
     let editors = editors();
     let owner = chrome_owner(&editors, block);
     let anchor = anchor.filter(|_| owner == block);
@@ -1185,7 +1187,7 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     }
 }
 
-mod camera;
+pub(crate) mod camera;
 use camera::{Camera, CameraSpec, CameraView};
 
 #[component]
@@ -1200,9 +1202,9 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
-    let counted = store(Cell::new(false));
+    let counted = StoredCell::new(false);
     let count = move || {
-        if counted.with(Cell::get) {
+        if counted.get() {
             return;
         }
         let shown = editors().with(|open| match open.get_mut(&block) {
@@ -1212,7 +1214,7 @@ fn BlockFrame(
             }
             None => false,
         });
-        counted.with(|counted| counted.set(shown));
+        counted.set(shown);
     };
     count();
     create_effect(move || {
@@ -1220,7 +1222,7 @@ fn BlockFrame(
         count();
     });
     on_cleanup(move || {
-        if counted.with(Cell::get) {
+        if counted.get() {
             editors().with(|open| {
                 if let Some(editor) = open.get_mut(&block) {
                     editor.shown(false);
@@ -1503,7 +1505,7 @@ fn BlockFrameView(
     reporter: ChildReporter,
 ) -> NodeId {
     let ChildReporter {
-        bar: on_bar_action,
+        details: on_details,
         focus: on_focus,
     } = reporter;
     provide_context(FocusedWithin(on_focus));
@@ -1531,21 +1533,16 @@ fn BlockFrameView(
         read_only,
         revision,
     };
-    create_effect(move || {
-        revision.get();
-        let actions = be_host_runtime::take_bar_actions(&app_id.value(), instance);
-        for action in actions {
-            on_bar_action.call(action);
-        }
-    });
-    if let Some(tab) = use_context::<TabContext>() {
-        create_effect(move || {
-            revision.get();
-            if be_host_runtime::take_leaving(&app_id.value(), instance) {
+    let tab = use_context::<TabContext>();
+    super::own_frame(&app_id.value(), instance, move |event| match event {
+        InstanceEvent::Details => on_details.call(()),
+        InstanceEvent::Leaving => {
+            if let Some(tab) = tab {
                 tab.exit.call(());
             }
-        });
-    }
+        }
+        _ => {}
+    });
     let fits = create_memo(move || chrome.get() == Chrome::Drawn);
     let zoomable = handle.pan_and_zoom;
     let child_view = child_view(block, View::MAIN);
@@ -2076,23 +2073,28 @@ fn follow_window(
             untrack(|| asks.update(|asks| *asks += 1));
         }
     });
+    let placer = move || {
+        editors
+            .handle(parent)
+            .and_then(|placer| Some((placer.app_id()?.to_owned(), placer.instance)))
+    };
     let asked = create_memo(move || {
-        child.with(|child| child.as_ref().is_some_and(|child| child.focus_asked))
+        placer()
+            .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
     });
     create_effect(move || {
         if !asked.get() || window.get().is_none() {
             return;
         }
         untrack(|| {
-            let Some(placer) = editors.handle(parent) else {
+            let Some((app_id, instance)) = placer() else {
                 return;
             };
-            let Some(app_id) = placer.app_id() else {
-                return;
-            };
-            if be_host_runtime::take_child_focus(app_id, placer.instance, key) {
-                asks.update(|asks| *asks += 1);
-            }
+            // The host gives a window the keyboard itself, and the keys the editor held are
+            // dropped, as the editor no longer has it.
+            super::app_view::gifts::taken(&app_id, instance);
+            be_host_runtime::end_gift(&app_id, instance);
+            asks.update(|asks| *asks += 1);
         });
     });
     let fullscreen = create_memo(move || {
@@ -2313,10 +2315,10 @@ fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
 
 fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
-    let on_bar_action = report_to.clone().and_then(|parent| {
+    let on_details = report_to.clone().and_then(|parent| {
         let app_id = parent.app_id()?.to_owned();
-        Some(Callback::new(move |action: BarAction| {
-            be_host_runtime::report_child_bars(&app_id, parent.instance, vec![(key, action)]);
+        Some(Callback::new(move |()| {
+            be_host_runtime::report_child_details(&app_id, parent.instance, key);
         }))
     });
     let app_id = report_to
@@ -2330,7 +2332,7 @@ fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReport
         within.call(());
     });
     ChildReporter {
-        bar: on_bar_action.unwrap_or_default(),
+        details: on_details.unwrap_or_default(),
         focus: on_focus,
     }
 }

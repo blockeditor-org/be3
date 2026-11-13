@@ -200,6 +200,18 @@ pub struct Text {
     pub body: String,
 }
 
+impl Text {
+    /// SHA-256 of the name's length, the name and the body.
+    pub fn digest(&self) -> Hash {
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update((self.name.len() as u64).to_le_bytes());
+        hasher.update(self.name.as_bytes());
+        hasher.update(self.body.as_bytes());
+        hasher.finalize().into()
+    }
+}
+
 /// A document indexed at a commit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Put {
@@ -207,9 +219,13 @@ pub struct Put {
     pub commit: Commit,
     pub source: Option<Hash>,
     /// None when its text is unchanged since it was indexed (its source was
-    /// in `search-text`'s `indexed`): only its commit and source move. With
-    /// nothing indexed for it, it comes back in `Written::needs_text`.
+    /// in `search-text`'s `indexed`): only its commit moves. With nothing
+    /// indexed for it from that same source, it comes back in
+    /// `Written::needs_text`.
     pub text: Option<Text>,
+    /// Its text is all a device could read of it, not its type's (the block's name, where no
+    /// module for its type runs): a put of the same commit that is not partial replaces it.
+    pub partial: bool,
 }
 
 /// One batch of changes, which adds at most one segment.
@@ -234,8 +250,14 @@ pub struct Entry {
     /// `Put` without text moved only `commit`.
     pub indexed: Commit,
     pub source: Option<Hash>,
+    /// The digest of the text its postings hold (`Text::digest`), so a put of the same text
+    /// moves only its commit and source. None for a removed document.
+    pub digest: Option<Hash>,
     /// None for a removed document.
     place: Option<Place>,
+    /// Its text came from a partial put (`Put::partial`): a full put at the same commit
+    /// replaces it, here and in a merge.
+    pub partial: bool,
 }
 
 impl Entry {
@@ -249,8 +271,19 @@ impl Entry {
             commit,
             indexed: commit,
             source: None,
+            digest: None,
             place: None,
+            partial: false,
         }
+    }
+
+    /// Whether `change` replaces this entry: it is newer, or a full put of the commit this
+    /// entry holds partially.
+    fn replaced_by(&self, change: &Change) -> bool {
+        self.commit < change.commit()
+            || self.commit == change.commit()
+                && self.partial
+                && matches!(change, Change::Put(put) if !put.partial)
     }
 }
 
@@ -417,10 +450,7 @@ impl Index {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
-            if old
-                .as_ref()
-                .is_some_and(|old| old.commit >= change.commit())
-            {
+            if old.as_ref().is_some_and(|old| !old.replaced_by(&change)) {
                 continue;
             }
             let old_place = old.as_ref().and_then(|old| old.place);
@@ -429,14 +459,33 @@ impl Index {
                     masks.extend(old_place);
                     table.put(Entry::tombstone(doc, commit));
                 }
+                // Text the index already holds for it: only its commit and source move.
                 Change::Put(Put {
                     text: Some(text),
                     commit,
                     source,
+                    partial,
+                    ..
+                }) if old
+                    .as_ref()
+                    .is_some_and(|old| !old.is_removed() && old.digest == Some(text.digest())) =>
+                {
+                    if let Some(mut entry) = old {
+                        entry.commit = commit;
+                        entry.source = source;
+                        entry.partial = partial;
+                        table.put(entry);
+                    }
+                }
+                Change::Put(Put {
+                    text: Some(text),
+                    commit,
+                    source,
+                    partial,
                     ..
                 }) => {
                     masks.extend(old_place);
-                    fresh.push((doc, commit, source, text));
+                    fresh.push((doc, commit, source, text, partial));
                 }
                 Change::Put(Put {
                     text: None,
@@ -444,9 +493,12 @@ impl Index {
                     source,
                     ..
                 }) => match old {
-                    Some(mut entry) if !entry.is_removed() => {
+                    // Only text from the same part: one put without text names the part
+                    // whose text it says the index holds.
+                    Some(mut entry)
+                        if !entry.is_removed() && source.is_some() && entry.source == source =>
+                    {
                         entry.commit = commit;
-                        entry.source = source;
                         table.put(entry);
                     }
                     _ => written.needs_text.push(doc),
@@ -458,18 +510,20 @@ impl Index {
                 origin,
                 fresh
                     .iter()
-                    .map(|(doc, commit, _, text)| (doc, *commit, text)),
+                    .map(|(doc, commit, _, text, _)| (doc, *commit, text)),
             );
-            for ((doc, commit, source, _), local) in fresh.into_iter().zip(places) {
+            for ((doc, commit, source, text, partial), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
                     doc,
                     commit,
                     indexed: commit,
                     source,
+                    digest: Some(text.digest()),
                     place: Some(Place {
                         segment: origin,
                         local,
                     }),
+                    partial,
                 });
             }
             written.added.extend(segment_parts);
@@ -530,8 +584,12 @@ impl Change {
         }
     }
 
+    /// Keeps the newer change, and of two at one commit a full put over a partial one.
     fn newest(&mut self, other: Change) {
-        if other.commit() > self.commit() {
+        let partial = |change: &Change| matches!(change, Change::Put(put) if put.partial);
+        if other.commit() > self.commit()
+            || other.commit() == self.commit() && partial(self) && !partial(&other)
+        {
             *self = other;
         }
     }

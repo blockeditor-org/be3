@@ -12,6 +12,8 @@ use crate::{
     Text, Written,
 };
 
+mod a_full_put_replaces_a_partial_one_at_the_same_commit;
+mod a_put_of_the_text_already_indexed_moves_only_its_commit;
 mod a_put_without_text_survives_a_merge_with_compaction_or_reindexing;
 mod a_query_reads_few_blocks_while_skipping_a_common_term;
 mod a_reindexed_document_no_longer_matches_its_old_words;
@@ -118,6 +120,7 @@ pub(crate) fn put(n: u32, version: u32, time: i64) -> Put {
         commit: commit(time),
         source: None,
         text: Some(text(n, version)),
+        partial: false,
     }
 }
 

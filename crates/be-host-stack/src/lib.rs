@@ -10,6 +10,7 @@ use uuid::Uuid;
 pub mod accounts;
 pub mod app_graph;
 pub mod authorship;
+mod changes;
 pub mod conflicts;
 pub mod discovery;
 #[cfg(not(target_arch = "wasm32"))]
@@ -40,6 +41,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
+pub use changes::{ChangeWatch, Changes};
 pub use graph::{Graph, Node, Owner, Query, Scope};
 pub use search::{SearchAsk, SearchHit, Searched};
 pub use worker::{
@@ -216,7 +218,8 @@ struct Stack {
     commands: Option<UnboundedSender<Command>>,
     nudges: Option<nudge::Nudges>,
     held: std::collections::HashSet<Uuid>,
-    versioned: std::collections::HashSet<Uuid>,
+    /// The blocks whose version status each owner shows (`want_versions`).
+    versioned: std::collections::HashMap<Owner, Vec<Uuid>>,
     tried: std::collections::HashSet<Uuid>,
     shared: Arc<Mutex<Shared>>,
     #[cfg_attr(not(test), allow(dead_code))]
@@ -263,12 +266,13 @@ pub fn start(config: Config) {
         commands: Some(commands),
         nudges: Some(nudges),
         held: std::collections::HashSet::new(),
-        versioned: std::collections::HashSet::new(),
+        versioned: std::collections::HashMap::new(),
         tried: std::collections::HashSet::new(),
         shared,
         changed,
         running,
     });
+    changes::everything();
 }
 
 pub fn installed_for(account: Uuid, organization: Uuid) -> bool {
@@ -299,7 +303,11 @@ pub fn stop() {
             connection.close();
         }
     }
+    let stopped = stack.is_some();
     drop(stack);
+    if stopped {
+        changes::everything();
+    }
 }
 
 /// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
@@ -443,20 +451,55 @@ pub fn version(block: Uuid, command: be_sdk_api::VersionCommand) {
     send(Command::Version { block, command });
 }
 
-pub fn version_since(
-    block: Uuid,
-    content_type: Uuid,
-    sent: Option<u64>,
-) -> Option<(u64, be_sdk_api::VersionStatus)> {
-    let fresh = stack()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .as_mut()
-        .is_some_and(|stack| stack.versioned.insert(block));
-    if fresh {
-        hold(block, content_type);
-        send(Command::WatchVersion(block));
+/// Names the versioned blocks (checkouts and repositories, with their content types) whose
+/// status an owner shows: the stack computes each one's status while some owner wants it, and
+/// lets go of what a status read once none does.
+pub fn want_versions(owner: Owner, blocks: Vec<(Uuid, Uuid)>) {
+    let (added, removed) = {
+        let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(stack) = held.as_mut() else {
+            return;
+        };
+        let union = |versioned: &std::collections::HashMap<Owner, Vec<Uuid>>| {
+            versioned
+                .values()
+                .flatten()
+                .copied()
+                .collect::<std::collections::HashSet<Uuid>>()
+        };
+        let ids: Vec<Uuid> = blocks.iter().map(|(block, _)| *block).collect();
+        if stack
+            .versioned
+            .get(&owner)
+            .map_or(ids.is_empty(), |held| *held == ids)
+        {
+            return;
+        }
+        let before = union(&stack.versioned);
+        match ids.is_empty() {
+            true => stack.versioned.remove(&owner),
+            false => stack.versioned.insert(owner, ids),
+        };
+        let after = union(&stack.versioned);
+        (
+            after.difference(&before).copied().collect::<Vec<_>>(),
+            before.difference(&after).copied().collect::<Vec<_>>(),
+        )
+    };
+    for (block, content_type) in blocks {
+        if added.contains(&block) {
+            hold(block, content_type);
+            send(Command::WatchVersion(block));
+        }
     }
+    for block in removed {
+        send(Command::UnwatchVersion(block));
+    }
+}
+
+/// A block's version status, unless it is the one `sent` names; computed while an owner wants
+/// it (`want_versions`).
+pub fn version_since(block: Uuid, sent: Option<u64>) -> Option<(u64, be_sdk_api::VersionStatus)> {
     with_shared(|shared| {
         let state = shared.versions.get(&block)?;
         (sent != Some(state.revision)).then(|| (state.revision, state.status.clone()))
@@ -685,10 +728,6 @@ pub fn content(block: Uuid) -> Option<Content> {
     with_shared(|shared| shared_content(shared, block).cloned())?
 }
 
-pub fn content_revision(block: Uuid) -> Option<u64> {
-    with_shared(|shared| shared_content(shared, block).map(|content| content.revision))?
-}
-
 pub fn describe_block(block: Uuid) -> Option<be_block::Entries> {
     with_shared(|shared| {
         shared
@@ -724,17 +763,9 @@ pub fn contacts() -> Vec<be_block_client::Contact> {
     with_shared(|shared| shared.contacts.clone()).unwrap_or_default()
 }
 
-pub fn contacts_revision() -> u64 {
-    with_shared(|shared| shared.contacts_revision).unwrap_or_default()
-}
-
 /// The account's storage as the server last said, while `watch_storage` is on.
 pub fn storage_usage() -> Option<be_block_protocol::AccountStorage> {
     with_shared(|shared| shared.storage.clone()).flatten()
-}
-
-pub fn storage_revision() -> u64 {
-    with_shared(|shared| shared.storage_revision).unwrap_or_default()
 }
 
 /// Follows the account's storage while `on`, from a stream the server sends it on.
@@ -890,11 +921,12 @@ pub fn modules_due() -> Option<std::time::Instant> {
 
 pub fn seal_owed() {
     if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
-        let (done, _) = std::sync::mpsc::channel();
-        send(Command::Flush(done));
+        send(Command::SealOwed);
     }
 }
 
+/// Flushes without waiting, and deliberately keeps the flush's late settle (unlike
+/// `seal_owed`): edits made before the app is really suspended are sealed with it too.
 pub fn backgrounded() {
     let (done, _) = std::sync::mpsc::channel();
     send(Command::Flush(done));
@@ -950,7 +982,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         if left.is_zero() {
             let state = format!(
                 "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
-                 commands not run: {}, edits owed: {}, not yet durable: {}, draining the outbox: {}\n  \
+                 commands not run: {}, edits owed: {} {:?} (sealed what was owed {} time(s)), asking the modules for {:?}, not yet durable: {}, draining the outbox: {}\n  \
                  listings loading: {}, listings failed: {}\n  \
                  progressed: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
                 held.connected,
@@ -959,6 +991,12 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.reconnect.is_some(),
                 held.pending,
                 held.owing,
+                held.owing_blocks
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+                held.seals_owed,
+                held.asking,
                 held.undurable,
                 held.draining,
                 held.graph.fetching(),
@@ -1006,6 +1044,14 @@ pub fn fail_listings(query: Query, error: &str) {
             shared.graph.failed(listing, error.to_owned());
         }
     });
+}
+
+/// Queues `blocks` to be indexed again, read whole (`Search::reread`), and wakes the worker to
+/// do it: a test's stand-in for an index that asks for text it lacks.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+pub fn reread_search(blocks: impl IntoIterator<Item = Uuid>) {
+    with_shared_mut(|shared| shared.search.reread(blocks));
+    send(Command::Sync);
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
@@ -1068,11 +1114,6 @@ pub fn made_by_app_in_unfiled(block: Uuid, app_id: &str) -> bool {
     .unwrap_or(false)
 }
 
-pub fn stale_revision() -> u64 {
-    with_shared(|shared| shared.stale_revision).unwrap_or_default()
-        + be_block_type_host::kinds_revision()
-}
-
 /// The workspace's peer while the host is not connected, for telling apps which blocks this
 /// device cannot read (`BlockInfo::out_of_reach`).
 pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<worker::Store>>> {
@@ -1091,14 +1132,6 @@ pub fn out_of_reach(block: Uuid) -> bool {
         return false;
     };
     node(block).is_some_and(|node| app_graph::out_of_reach(&peer, &node))
-}
-
-pub fn graph_revision() -> u64 {
-    with_shared(|shared| shared.graph.revision).unwrap_or_default()
-}
-
-pub fn take_touched() -> be_lib_stable_hash::HashSet<Uuid> {
-    with_shared_mut(|shared| std::mem::take(&mut shared.touched)).unwrap_or_default()
 }
 
 pub fn ready(query: Query) -> bool {
@@ -1127,7 +1160,7 @@ pub fn want(owner: Owner, queries: Vec<Query>) {
 }
 
 /// Names the full-text searches an owner shows (plans/search.md); `searched` answers each once
-/// it ran, and again after an index it read changed (`search_revision` counts the answers).
+/// it ran, and again after an index it read changed (`Changes::search`).
 pub fn want_searches(owner: Owner, searches: Vec<SearchAsk>) {
     let changed = with_shared_mut(|shared| shared.search.want(owner, searches)).unwrap_or_default();
     if changed {
@@ -1137,10 +1170,6 @@ pub fn want_searches(owner: Owner, searches: Vec<SearchAsk>) {
 
 pub fn searched(search: &SearchAsk) -> Option<Searched> {
     with_shared(|shared| shared.search.answer(search)).flatten()
-}
-
-pub fn search_revision() -> u64 {
-    with_shared(|shared| shared.search.revision).unwrap_or_default()
 }
 
 fn sourced(query: Query) -> Query {
@@ -1365,10 +1394,6 @@ pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
             .map(|modes| modes.iter().map(|(block, mode)| (*block, *mode)).collect())
     })
     .flatten()
-}
-
-pub fn notify_modes_revision() -> u64 {
-    with_shared(|shared| shared.notify_modes_revision).unwrap_or_default()
 }
 
 /// Sets how the signed-in account is notified about `block`.

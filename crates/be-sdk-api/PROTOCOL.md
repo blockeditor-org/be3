@@ -14,9 +14,12 @@ Rust on both sides is generated from it into this crate. The world imports:
   the graph, history, heads, artifact states and version control;
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
   the shell around it, its menus, children, audio, web views and creations.
-  Everything one way is a `shell-message` in one `tell`, sent once a pass in
+  Everything one way is a `shell-message` in a `tell`, sent once a pass in
   the order the editor made the messages, then the ones the frame works out
-  from its state (menus, the card, ...) in a fixed order;
+  from its state (menus, the card, ...) in a fixed order; what the editor
+  tells inside the pass's block calls follows in a second `tell`. Where only
+  the latest counts (the focus, whether a drag is taken, a paste asked), a
+  message replaces one of its kind not yet sent;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
   waits for, files, revisions, access and staged data;
 - `network` (`network.wit`): the app's only network, its fetches and the links
@@ -55,10 +58,12 @@ bars, focus, resizes, drags, dialogs), is a list in one `hear`, and the
 methods besides it (creating, regenerating, replacing, rendering) are the
 calls that answer;
 the screens and their configure, `draw`, whose answer is the frame,
-description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
-`block-command` changes the block (undo, redo, its artifact, unlink, delete,
-move, place, restore), and `shell-message.act` with a `shell-command` asks the host
-around it (share, leave, close the editor). Shapes shared by several
+description, and shutdown. Everything an editor asks the host to do with a
+block is one call, `blocks.act`, with a `block-command`: undo, redo, history,
+its artifact, unlink, delete, move, reorder, place, restore, a version control
+command (`version`), `share`, `leave`, `close-editor`, `set-parent` and
+`define`; only `create-block`, which names a block that does not exist yet, is
+a call of its own. Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
 Every call an app makes about an editor instance is made under that editor's
@@ -203,7 +208,7 @@ actually holds at the boundary, in both directions and for every call. An
 app never sees the translation and needs nothing to take part in it.
 
 An editor of a repository or a checkout asks the host to act on it with a
-version control command naming that block: adopting a block as the tree to
+`version` block command naming that block: adopting a block as the tree to
 version, saving the working change with a description, bringing the branch's
 changes in, switching, making a branch or a checkout, combining another branch
 in, resolving a conflict by taking one side or keeping the block as it is,
@@ -312,7 +317,15 @@ artifact or to unlink it from the source it was generated from; to hold a block 
 level, which is what shows a block as an account with less access would see
 it; to reveal one client's presence cursor, which only the editor of that
 block can scroll to; and to close a block's editor, which is what a tab
-closing means to the host. None of them is answered either.
+closing means to the host. The host takes `close-editor` only for the editor's
+own block or a child it placed, or from the shell. A `leave` asks the person
+to confirm in a dialog of the host's that names the block from the host's own
+graph; a second `leave` while one is asked is ignored, and the confirm leaves
+only the block the dialog named. A `share` while the shell's share dialog is
+open is ignored, and that dialog's actions touch only the block it shows. Both
+dialogs quote a name through `be_block::quoted_name`, which drops control and
+format characters, straightens curly quotes and shortens it, so no name can
+pass for the dialog's own words. None of them is answered either.
 
 An instance may ask the host to tell it about the dynamic artifacts of the
 blocks it names, which the host answers with, and repeats whenever any of it
@@ -592,9 +605,9 @@ and the host passes it on unchanged; a pick the host routes to a child that
 took the frame over carries `none`, so that child points at its own rect.
 The same rect reaches a view as `frame-spec.anchor`, in the view's points, so
 a dialog opened from a shortcut or the palette points at the tab too.
-A bar action of a docked child whose dock the host spliced (its frame is not
-shown), such as asking for its details, reaches its placer as a `child-bar` as
-if from its frame.
+A docked child whose dock the host spliced (its frame is not shown) asking
+for its details (`details`) reaches its placer as a `child-details`, as if
+from its frame's bar.
 Popping a tab out keeps the root as the placer of its body: the root holds
 the only dock state, so it draws the popped-out window's chrome (its tab
 strip, the grab bar that moves it, the drop targets that dock it again, its

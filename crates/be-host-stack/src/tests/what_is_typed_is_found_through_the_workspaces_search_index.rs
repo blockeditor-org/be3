@@ -52,7 +52,7 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
 
 #[test]
 fn what_is_typed_is_found_through_the_workspaces_search_index() {
-    let mut harness = Harness::start();
+    let mut harness = Harness::relayed();
     harness.connect();
     let address = harness.address();
     let workspace = Uuid::new_v4();
@@ -72,10 +72,16 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("apples", &[apples]);
     finds("bananas", &[bananas]);
     finds("pea", &[apples]);
-    let index = node(workspace)
-        .and_then(|node| node.metadata.get(&SEARCH_INDEX))
-        .map(|BlockRef(index)| index)
-        .expect("the workspace names its index");
+    // The mirror takes the index's name once its root's metadata is settled, which a search
+    // over the index does not wait for.
+    let index = crate::wait_until(|shared| {
+        shared
+            .graph
+            .get(workspace)?
+            .metadata
+            .get(&SEARCH_INDEX)
+            .map(|BlockRef(index)| index)
+    });
 
     replace(
         apples,
@@ -86,56 +92,22 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("cherries", &[apples]);
     finds("apples", &[]);
 
-    harness.stop_server();
+    // Offline at the relay, so the stack cannot reconnect before this test lets it: the other
+    // device writes the index while it is away.
+    // What it indexed is on the server before it goes: a device cut off mid-publish is
+    // another story (the other device then cannot read the index it left).
+    wait_until("sent what it indexed", |shared| {
+        shared.connected && shared.waiting == 0
+    });
+    harness.relay().offline(true);
     wait_until("noticed the server was gone", |shared| !shared.connected);
     type_text(bananas, 0, "figs ");
     flush();
     finds("figs", &[bananas]);
 
-    harness.start_server(&address);
-    let other = Device::online(&harness);
-    let elderberries = Uuid::new_v4();
-    other.runtime.block_on(async {
-        let peer = std::sync::Arc::clone(&other.peer.borrow());
-        peer.create_with_id::<TextContent>(
-            elderberries,
-            be_block_graph::BlockParent::Block(workspace),
-        )
-        .await
-        .expect("the other device makes a note");
-        let saved = peer
-            .save(elderberries, &TextBlock::of("elderberries"), None)
-            .await
-            .expect("the other device saves it");
-        let head = saved.published().expect("the note is published");
-        let commit = peer.load_commit(head).await.expect("its commit loads");
-        let batch = be_lib_search::Batch {
-            put: vec![be_lib_search::Put {
-                doc: be_lib_search::DocId {
-                    block: elderberries.as_bytes().to_vec(),
-                    key: String::new(),
-                },
-                commit: be_lib_search::Commit {
-                    time: commit.time,
-                    id: *head.hash().as_bytes(),
-                },
-                source: None,
-                text: Some(be_lib_search::Text {
-                    name: "Note".to_owned(),
-                    body: "elderberries".to_owned(),
-                }),
-            }],
-            ..be_lib_search::Batch::default()
-        };
-        assert_eq!(
-            crate::search::write(peer.as_ref(), index, batch).await,
-            Ok(true),
-            "the other device indexes its note"
-        );
-        peer.drain(|_| false)
-            .await
-            .expect("the other device publishes its batch");
-    });
+    let other = Device::past_the_relay(&harness);
+    let elderberries = other.index_note(workspace, index, "elderberries");
+    harness.relay().offline(false);
     retry_now();
     wait_until("reconnected and sent what waited", |shared| {
         shared.connected && shared.waiting == 0
@@ -143,4 +115,20 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
     finds("elderberries", &[elderberries]);
     finds("figs", &[bananas]);
     finds("cherries", &[apples]);
+
+    // A server that restarts: what this device indexes meanwhile reaches it once it is back.
+    harness.stop_server();
+    wait_until("noticed the server was gone again", |shared| {
+        !shared.connected
+    });
+    type_text(bananas, 0, "grapes ");
+    flush();
+    finds("grapes", &[bananas]);
+    harness.start_server(&address);
+    retry_now();
+    wait_until("reconnected to the restarted server", |shared| {
+        shared.connected && shared.waiting == 0
+    });
+    finds("grapes", &[bananas]);
+    finds("elderberries", &[elderberries]);
 }

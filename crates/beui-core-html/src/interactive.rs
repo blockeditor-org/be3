@@ -211,7 +211,7 @@ mod web {
             let stamp = event.time_stamp();
             if event.type_() == "pointerdown" && event.button() == 0 && *counted != Some(stamp) {
                 *counted = Some(stamp);
-                counter.count(pos, crate::frame::now());
+                counter.count(pos, beui_types::WindowId::MAIN, crate::frame::now());
             }
             counter.clicks().max(1)
         })
@@ -534,8 +534,8 @@ mod web {
 
     /// The first of `taken` that a paste's `data` holds: a file of that type, or text
     /// under it. be3's own formats are skipped: a paste event's `DataTransfer` never
-    /// carries the browser's custom `web ` formats, which only the async clipboard reads
-    /// (and this core's own copying writes text only).
+    /// carries the browser's custom `web ` formats, which only the async clipboard reads;
+    /// a clip this page copied answers them from `page::held` before this is asked.
     fn pasted(data: &web_sys::DataTransfer, taken: &[String]) -> Option<Pasted> {
         taken
             .iter()
@@ -554,6 +554,17 @@ mod web {
                     text.into_bytes(),
                 )))
             })
+    }
+
+    fn deliver(on_paste: beui_tree::reactive::Callback<ClipItem>, pasted: Pasted) {
+        match pasted {
+            Pasted::Now(item) => on_paste.call(item),
+            Pasted::File(format, file) => read_file(file, move |data| {
+                on_paste.call(ClipItem::new(format, data));
+                beui_reactive::flush();
+            }),
+        }
+        beui_reactive::flush();
     }
 
     fn read_file(file: web_sys::File, done: impl FnOnce(Vec<u8>) + 'static) {
@@ -1009,20 +1020,34 @@ mod web {
                     (true, false) => vec![formats::TEXT.to_owned()],
                     (true, true) => return,
                 };
-                let Some(clip) = pasted(&data, &taken) else {
+                let text = data.get_data("text").ok();
+                let ours = crate::page::held(text.as_deref()).filter(|clip| {
+                    clip.formats()
+                        .any(|format| taken.iter().any(|t| t == format))
+                });
+                // Read while the event lasts: a held clip whose every
+                // representation fails to render falls back to it.
+                let transferred = pasted(&data, &taken);
+                let on_paste = held.handlers.on_paste;
+                if let Some(clip) = ours {
+                    handled(&event, true);
+                    return clip.resolve(&taken, move |item| match item {
+                        Some(item) => {
+                            on_paste.call(item);
+                            beui_reactive::flush();
+                        }
+                        None => {
+                            if let Some(transferred) = transferred {
+                                deliver(on_paste, transferred);
+                            }
+                        }
+                    });
+                }
+                let Some(transferred) = transferred else {
                     return;
                 };
                 handled(&event, true);
-                match clip {
-                    Pasted::Now(item) => held.handlers.on_paste.call(item),
-                    Pasted::File(format, file) => {
-                        let on_paste = held.handlers.on_paste;
-                        read_file(file, move |data| {
-                            on_paste.call(ClipItem::new(format, data));
-                            beui_reactive::flush();
-                        });
-                    }
-                }
+                deliver(on_paste, transferred);
             }),
         ));
         listeners

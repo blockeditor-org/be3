@@ -17,8 +17,8 @@ load("@root//buck/dev:test.bzl", "TestRunInfo", "run_test")
 #   ./scripts/buck bxl //buck/dev/test.bxl:main -- --target //crates/be-lib-geometry:test --name rotates
 #
 # A local test, such as a web_drive_test, which needs a browser, runs here. A
-# run_apart test (crates/be-host-tests) runs each part, a file under
-# src/tests/, whose test, tests::<file>::<file>, contains the name, or every
+# run_apart test (crates/be-host-tests) runs each part, a test file, whose
+# test (its libtest, such as tests::<file>::<file>) contains the name, or every
 # part without one, as an action of its own with that file's environment,
 # which names its own app.
 
@@ -30,7 +30,7 @@ def _impl(ctx: bxl.Context):
     for label in args.target:
         target = ctx.configured_targets(label)
         info = ctx.analysis(target).providers()[TestRunInfo]
-        parts = [part for part in info.parts if not args.name or args.name in "tests::{}::{}".format(part, part)]
+        parts = [part for part in info.parts if not args.name or args.name in info.parts[part].libtest]
         runs = [("-" + part, info.parts[part], ["--nocapture"]) for part in parts]
         if not runs:
             runs = [("", info, filters)]

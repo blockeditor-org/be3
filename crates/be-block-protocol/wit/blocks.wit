@@ -283,7 +283,22 @@ interface sessions {
 
     record relayed {
         %from: client-id,
+        /// What the server checked its sender may send: a receiver drops a
+        /// message that asks for more. An `append`'s entries are `edit`.
+        kind: relay-kind,
         payload: list<u8>,
+    }
+
+    /// What a relayed message carries, which the server checks against its
+    /// sender, since it cannot read the sealed payload.
+    enum relay-kind {
+        /// Presence, channel messages and asking to catch up: any participant.
+        peer,
+        /// Operations or session state: only from a participant with edit
+        /// access. Which of them only the owner says is the replicas' to
+        /// check: an owner whose lease lapsed unseen still relays what it
+        /// accepted, which the next owner takes over.
+        edit,
     }
 
     /// What a session's `join` stream tells.
@@ -315,8 +330,8 @@ interface sessions {
         heartbeat: async func(generation: u64, clean-at: option<commit-id>) -> result<session-state, error>;
 
         /// Relays a sealed message to one participant, or to every other one
-        /// with no `to`.
-        relay: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
+        /// with no `to`. Refused unless the caller may send `kind`.
+        relay: async func(to: option<client-id>, kind: relay-kind, payload: list<u8>) -> result<_, error>;
 
         /// The owner of `generation` appends operations it sequenced to the
         /// block's journal, written by the build `tag` names, and with `relay`

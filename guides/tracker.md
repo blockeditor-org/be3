@@ -3,7 +3,8 @@
 The project's issues live in be-host as databases: an Issues database with Relation columns to
 Projects and Milestones, in a workspace shared with the agents that work on them. Agents read
 and change them with `be` (`crates/be-tool-cli`), and GitHub moves rows as pull requests open
-and merge.
+and merge. be-host's search finds an issue by its short id and the text of its text cells: each
+row is a search document (`Database::search_text_in`).
 
 ## Running it
 
@@ -36,11 +37,18 @@ A command names a target, then a verb that depends on what the target is:
 
 ```text
 be ls                                   workspaces and what is shared with this account, with short ids
+                                        and which it may write in (`writable` with --json)
 be Issues rows Status!=Done Project=Launch
 be BE-7K3Q2M                            a row by id: its fields and page
 be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Steps..."
-be Issues row BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
-be Issues row BE-7K3Q2M page edit       its page in $EDITOR, merged with changes since
+be Issues row BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND"
+be BE-7K3Q2M page append "Fixed in #412."
+                                        a row's page is a text block: `page` alone prints
+                                        it; it takes cat, write, append, edit, info and
+                                        download, and write, append and edit make it
+be BE-7K3Q2M page edit                  its page in $EDITOR, merged with changes since
+be Issues option Status Shipped closed=yes --new
+                                        add a choice (without --new, change one)
 be Issues schema                        columns and options
 be Issues add-column "Blocked by" relation --links Issues --multiple --inverse Blocking
 be Issues import issues.csv             Linear's export, or any CSV

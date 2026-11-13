@@ -46,7 +46,12 @@ the server are in guides/blocks/keys.md.
   ones with `drop_after`), never keeping less than `history_kept_for`. A
   pruned commit truncates a chain; a device merges an offline edit against
   its last-known remote head, which it holds locally, so the server pruning
-  that head costs nothing (`Peer::reconcile`).
+  that head costs nothing (`Peer::reconcile`). A reader that has a head but
+  not yet its objects can find them gone once a newer head replaces it in its
+  slot: it reads the server's head again (`be_host_stack::search::write`). The
+  indexer gives a batch back after a few such heads in a row and holds it until
+  the index's head moves on, which it watches the index for, or until a delay
+  that doubles with each batch given back runs out (`Searching::moving`).
 - **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
   having been away), and `Sequencer`/`Follower`. Operations carry an `OpId`, so
@@ -224,7 +229,13 @@ counts and records nothing: `upload-urls` did before it signed.
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
-  `Rejected` with the head to merge against. It carries what changed since the
+  `Rejected` with the head to merge against. A head moves only to a commit that
+  descends from it: a publish lists the expected head among its parents, or it
+  is refused (`InvalidRequest`); one onto no head may list any (a merge onto a
+  block with no commit yet carries the commit refused before it). These are the
+  parents the client declares, not the commit's own, which the server cannot
+  read: a guard against a buggy or stale client, not against an editor who
+  lies. A merge's other parent may be a commit the server never held, carried in. It carries what changed since the
   expected head: an `ObjectChange` (objects added and removed; the server
   lists the commit's objects in `commit_objects` from the expected head's) and
   a `ReferenceChange` (references removed, and added at their index in the new
@@ -443,9 +454,23 @@ escrow keys per organization (refused as `OverQuota`); and per connection,
 sessions, listings and streams. Names, metadata (held in the graph and sent in
 every summary), sealed blobs, pairing messages and relayed session messages
 have byte limits (refused as `InvalidRequest`). A relay is shared by every
-participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one client that has left the
-session (or never joined) is dropped without an error: it is best-effort, and the
-sender cannot know the other left.
+participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
+client that has left the session (or never joined) is dropped without an error:
+it is best-effort, and the sender cannot know the other left. The server cannot
+read a relay, so each names its `relay-kind`: `peer` (presence, channel messages,
+asking to catch up) needs view access, and `edit` (operations and session state)
+edit access (`rule`).
+Whether the sender holds the lease is not checked: an owner whose lease lapsed
+unseen still relays what it accepted, which the next owner takes over from a
+client it knew as an owner. Editors are trusted with the block's content and
+session; replicas keep owner-only messages to the owner (guides/type_modules.md).
+The server stamps what it checked on what it delivers (`relayed.kind`; an
+`append`'s entries are `edit`), and receivers drop a message that asks for more,
+since the label is the sender's. An owner that lost edit access hands the lease
+on at its next heartbeat (`Lease::demote`), which also covers a grant or revoke
+racing a join. The lease goes only to a participant with edit access when it
+joined (`Lease::join`), so a session of viewers alone has no owner, and a viewer's
+claim is refused.
 
 The session registry (`sessions.rs`) indexes leases by client, so leaving them
 all on a disconnect costs what that client joined, and remembers an empty
@@ -456,8 +481,10 @@ Each block's journal (guides/blocks/client.md, "The journal") is two tables,
 `block_journals` (tag, generation, base) and `journal_entries`, written by
 `be_server::journal` and deleted with the block. It is kept whether or not
 anyone is in the session, so a crashed owner's edits wait for the next one. An
-`append` is kept only from the current owner of its generation (it is relayed
-either way, as a relay is), refused when the journal is another tag's until
+`append` or a rebase is kept only from the current owner of its generation; from
+any other participant it is answered as done and not kept, since an owner whose
+lease lapsed writes on until the next `Lease` tells it (an append is relayed
+either way, as a relay is). An append is refused when the journal is another tag's until
 the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
 journals while they fit in a quarter of a frame.
 
@@ -560,6 +587,13 @@ text's length reaches the push service.
   (organization, block, the sender's account, which the server vouches for and
   the sealed bytes repeat, and the sealed bytes), encrypted to the device (be-lib-web-push, which
   devices open with too). It goes at high urgency only to whom it mentions.
+  The keys a call names (at most `be_block_protocol::MAX_TOLD_KEYS`, digests of what its
+  edits announce, `be_block_protocol::told_key`, so the server sees no content) are kept per
+  organization, block and account (`told_keys`, forgotten with the block or the member), and a
+  call whose keys were all told before is answered without a push (`ServerStore::tell`), so a
+  device that sent one and never heard the answer can send it again. Only the newest
+  `MAX_TOLD_KEYS` (256) are kept per account and block: a key evicted past those is pushed
+  again if it is sent again.
 - **Sending.** Pushes queue per recipient account (`Pusher::queue`, at most
   `MAX_QUEUED_PER_ACCOUNT`, and `MAX_QUEUED` over the server) and go one at a
   time in order, its devices in the order they registered, so an endpoint that

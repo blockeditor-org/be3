@@ -5,7 +5,7 @@ use std::rc::Rc;
 use be_block::presence::{ChannelKind, PresenceKind};
 use be_block::{EditorViewContent, ViewState};
 use be_sdk_api::{
-    BarAction, BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
+    BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
 };
 use be_sdk_ui::BlockCatalog;
 use beui::native::Document;
@@ -1016,7 +1016,7 @@ impl Editor {
         dialog: Prop<Option<DialogFrame>>,
         fullscreen: Prop<bool>,
         report: Callback<ChildState>,
-        bar: Callback<BarAction>,
+        details: Callback<()>,
         focus: Callback<()>,
         dock_tab: Option<u64>,
         docks: bool,
@@ -1029,7 +1029,7 @@ impl Editor {
                 state.set(now.clone());
                 report.call(now.clone());
             },
-            move |action| bar.call(action),
+            move || details.call(()),
             move || focus.call(()),
         );
         let key = editor_state.next_child.get();

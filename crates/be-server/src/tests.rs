@@ -5,7 +5,7 @@ use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
     Hold, KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage,
-    SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
+    RelayKind, SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume, takeover_needs_merge};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -49,6 +49,7 @@ mod a_device_registers_only_an_endpoint_the_server_would_push_to;
 mod a_download_does_not_wait_behind_another_organizations_store_call;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
+mod a_head_moves_only_to_a_commit_that_descends_from_it;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_listing_answers_the_revision_it_was_read_at_and_later_changes_come_after_it;
 mod a_member_who_loses_view_of_a_trashed_block_leaves_its_session;
@@ -59,6 +60,7 @@ mod a_mode_set_on_one_device_is_announced_to_the_others;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
+mod a_notification_sent_again_with_the_keys_it_told_pushes_nothing;
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
@@ -68,6 +70,7 @@ mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_en
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
+mod a_rebase_from_other_than_the_owner_of_its_generation_is_answered_and_not_kept;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
@@ -82,6 +85,7 @@ mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_slow_store_call_does_not_delay_another_connections_ping;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
+mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
 mod a_watcher_is_told_when_a_block_is_detached;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_account_creates_a_bounded_number_of_agents;
@@ -98,6 +102,7 @@ mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
+mod an_owner_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
@@ -169,6 +174,7 @@ mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
 mod the_session_registry_forgets_the_longest_empty_sessions_first;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
+mod told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_are_news;
 mod unsigned_or_expired_s3_requests_are_refused;
 mod uploads_no_block_takes_are_collected_after_their_grace;
 mod what_one_account_keeps_on_the_server_is_bounded;
@@ -280,6 +286,7 @@ enum Notice {
     Relayed {
         block: Uuid,
         from: ClientId,
+        kind: RelayKind,
         payload: Vec<u8>,
     },
     Paired {
@@ -340,13 +347,16 @@ impl Heard {
                         Poll::Ready(Some(SessionEvent::Changed(state))) => {
                             Poll::Ready(Some(Notice::SessionChanged { block, state }))
                         }
-                        Poll::Ready(Some(SessionEvent::Relayed { from, payload })) => {
-                            Poll::Ready(Some(Notice::Relayed {
-                                block,
-                                from,
-                                payload,
-                            }))
-                        }
+                        Poll::Ready(Some(SessionEvent::Relayed {
+                            from,
+                            kind,
+                            payload,
+                        })) => Poll::Ready(Some(Notice::Relayed {
+                            block,
+                            from,
+                            kind,
+                            payload,
+                        })),
                         Poll::Ready(Some(_)) => continue,
                         other => other.map(|_| None),
                     };
@@ -525,9 +535,10 @@ impl TestClient {
         &mut self,
         block: Uuid,
         to: Option<ClientId>,
+        kind: RelayKind,
         payload: Vec<u8>,
     ) -> Result<(), Error> {
-        let relayed = self.sessions[&block].relay(to, payload);
+        let relayed = self.sessions[&block].relay(to, kind, payload);
         let answered = relayed.await.expect("the connection stayed open");
         self.collect();
         answered
@@ -1521,7 +1532,20 @@ impl TestClient {
     async fn notify(&mut self, block: Uuid, sealed: &[u8], mentions: Vec<Uuid>) {
         let sealed = sealed.to_vec();
         let notified = self
-            .call(|peer| client::notifications::notify(peer, block, sealed, mentions))
+            .call(|peer| client::notifications::notify(peer, block, sealed, mentions, Vec::new()))
+            .await;
+        assert!(notified.is_ok(), "{notified:?}");
+    }
+
+    /// Notifies with the keys of what it tells, which the server tells once.
+    async fn tell(&mut self, block: Uuid, sealed: &[u8], keys: &[&str]) {
+        let sealed = sealed.to_vec();
+        let keys = keys
+            .iter()
+            .map(|key| be_block_protocol::told_key(block, key))
+            .collect();
+        let notified = self
+            .call(|peer| client::notifications::notify(peer, block, sealed, Vec::new(), keys))
             .await;
         assert!(notified.is_ok(), "{notified:?}");
     }

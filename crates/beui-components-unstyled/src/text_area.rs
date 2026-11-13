@@ -1637,7 +1637,9 @@ pub fn TextArea(
         revealing.start(Duration::ZERO);
     });
     // `rights` changes as rows are laid out (each reports its right edge), so it stands for
-    // "rows laid out": what moves a pending `scroll_to` on once its line's row is built.
+    // "rows laid out": what moves a pending `scroll_to` on once its line's row is built. It
+    // moves it on at once, in the layout that built the row, so the scroll settles in the frame
+    // that started it rather than in later frames that ask for no time.
     let rights = cx.rights;
     create_effect(move || {
         let position = scroll.get();
@@ -1646,7 +1648,7 @@ pub fn TextArea(
             return;
         }
         untrack(|| match state.pending_scroll() {
-            Some(_) => revealing.start(Duration::ZERO),
+            Some(anchor) => cx.scroll_to_anchor(anchor),
             None => {
                 if let Some(anchor) = cx.top_anchor(position.clamped()) {
                     state.set_scrolled(anchor);

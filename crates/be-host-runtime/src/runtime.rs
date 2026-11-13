@@ -11,16 +11,18 @@ use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, DockMessage,
     EditorInstanceId, FrameSpec, HostPanel, HostTransform, LayoutCommit, OpeningKind,
     PresentCommit, PresentedFrame, PreviewImage, ScreenDamage, ScreenId, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewChange,
-    ViewId, ViewSize, WindowRequest,
+    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, View, ViewId,
+    ViewSize, WindowRequest,
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
-use beui::{Pos2, Rect, Vec2, pos2, vec2};
+use beui::{Modifiers, Pos2, Rect, Vec2, pos2, vec2};
+
+use crate::instances::gift::{GiftView, KeyProgress, Keys};
 use uuid::Uuid;
 
 use be_host_base::host;
-use be_sdk_api::app::{ChildBarPress, EditorEvent, MenuChoice};
+use be_sdk_api::app::{EditorEvent, MenuChoice};
 
 use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
@@ -250,6 +252,8 @@ pub(super) struct Runtime {
     session: Session,
     queued: Vec<Outbound>,
     held: Vec<Answer>,
+    /// The person asked to restart the app; the next `poll` does.
+    restart_asked: bool,
     taking_in: bool,
     layouts_heard: u64,
     presents_heard: u64,
@@ -546,6 +550,7 @@ impl Runtime {
             fonts_sent: false,
             described: false,
             painting: false,
+            restart_asked: false,
             placements: HashMap::default(),
             offers: HashMap::default(),
             fallbacks: super::fonts::Fallbacks::new(),
@@ -663,14 +668,9 @@ impl Runtime {
                 }),
         );
         messages.extend(
-            super::docks::take_bars(&self.app.identity.id)
+            super::docks::take_details(&self.app.identity.id)
                 .into_iter()
-                .map(|(placer, _, child, action)| {
-                    Outbound::Event(
-                        placer,
-                        EditorEvent::ChildBar(ChildBarPress { child, action }),
-                    )
-                }),
+                .map(|(placer, child)| Outbound::Event(placer, EditorEvent::ChildDetails(child))),
         );
         self.serve();
         messages.extend(self.instances.configure(&messages).map(Outbound::from));
@@ -693,6 +693,9 @@ impl Runtime {
     fn begin_frame(&mut self, pass: u64) {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
+        }
+        if let Some(left) = self.instances.expire_gifts(self.now()) {
+            host::request_repaint_after(left);
         }
         let messages = self.instances.drive_web_views();
         self.pacing.need_if(!messages.is_empty());
@@ -790,7 +793,7 @@ impl Runtime {
             ),
             (
                 self.instances.awaiting_content(),
-                "has an editor waiting for its block's content",
+                "has an editor waiting for a block's content",
             ),
         ]
         .into_iter()
@@ -1492,6 +1495,7 @@ impl Runtime {
         }
         super::request_windows(&self.app.identity.id, window_requests);
         self.instances.adopt_anchored(&reports, &self.layout);
+        let committed = self.instances.committed(&reports, &children);
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
@@ -1505,7 +1509,7 @@ impl Runtime {
         });
         changed |= self.instances.refresh_anchoring_views();
         changed |= super::docks::heard(&self.app.identity.id, docks);
-        self.instances.settle_block_focus();
+        self.instances.settle_gifts(&committed);
         changed
     }
 
@@ -1525,6 +1529,7 @@ impl Runtime {
         self.offer_previews(&messages);
         let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
+            self.instances.translate_pastes(message);
             self.instances.translate(message, false);
         }
         self.queued.extend(self.instances.gate(messages));
@@ -1662,17 +1667,14 @@ impl HostFrame {
     }
 }
 
-pub fn report_child_bars(
-    app_id: &str,
-    instance: EditorInstanceId,
-    actions: Vec<(be_sdk_api::ChildId, be_sdk_api::BarAction)>,
-) {
-    if actions.is_empty() {
-        return;
-    }
+/// The child `child` of `instance` asked for its details from a bar the host
+/// does not show; its placer hears it as if from the child's bar.
+pub fn report_child_details(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
     with(app_id, |runtime| {
-        let messages = runtime.instances.child_bar_actions(instance, actions);
-        runtime.send(messages);
+        runtime.send(vec![Outbound::Event(
+            instance,
+            EditorEvent::ChildDetails(child),
+        )]);
     });
 }
 
@@ -1715,9 +1717,12 @@ pub fn card(app_id: &str, instance: EditorInstanceId) -> bool {
     with(app_id, |runtime| runtime.instances.card(instance)).unwrap_or(false)
 }
 
+/// The instance's view gives the keyboard it has to `child`, which fills the view.
 pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_api::ChildId) {
     if with(app_id, |runtime| {
-        runtime.instances.ask_child_focus(instance, child)
+        runtime
+            .instances
+            .ask_gift(instance, crate::instances::gift::GiftTo::Child(child))
     })
     .is_some()
     {
@@ -1725,33 +1730,124 @@ pub fn pass_child_focus(app_id: &str, instance: EditorInstanceId, child: be_sdk_
     }
 }
 
-pub fn take_child_focus(
-    app_id: &str,
-    instance: EditorInstanceId,
+/// The child `child`'s view `view` takes the keyboard the instance gives it (it heard
+/// `InstanceEvent::KeyboardGift`), already having it (`focused`) or being given it now. Answers
+/// whether the instance still gives it.
+pub fn take_gift(
+    (app_id, instance): (&str, EditorInstanceId),
     child: be_sdk_api::ChildId,
+    view: GiftView,
+    focused: bool,
 ) -> bool {
+    let asked = frames_answered(&view.0).0;
     with(app_id, |runtime| {
-        runtime.instances.take_child_focus(instance, child)
+        runtime.error.is_none()
+            && runtime
+                .instances
+                .take_gift(instance, child, view, focused, (asked, host::pass()))
     })
     .unwrap_or(false)
 }
 
-/// Whether the instance asked to give the keyboard to a child it still places whose view has
-/// not taken it yet. A gift ends when the child's view takes it (`take_child_focus`), when it is
-/// refused (`refuse_child_focus`), or when the child, the instance or its app goes.
-pub fn child_focus_pending(app_id: &str, instance: EditorInstanceId) -> bool {
+/// Ends the keyboard the instance gives, dropping the keys held for it: the keyboard is elsewhere.
+pub fn end_gift(app_id: &str, instance: EditorInstanceId) {
     with(app_id, |runtime| {
-        runtime.error.is_none() && runtime.instances.child_focus_pending(instance)
-    })
-    .unwrap_or(false)
-}
-
-/// Ends every gift of the keyboard the instance asked for: the person moved on (pressed in the
-/// editor, or took the keyboard elsewhere) before the child's view took it.
-pub fn refuse_child_focus(app_id: &str, instance: EditorInstanceId) {
-    with(app_id, |runtime| {
-        runtime.instances.refuse_child_focus(instance);
+        runtime
+            .instances
+            .end_gift(instance, crate::instances::gift::Keys::Drop);
     });
+}
+
+/// The child `child` the instance gives the keyboard to is up: its view is built and its app
+/// running. The gift is counted from now and ends if the view does not take it in time.
+pub fn child_up_for_gift((app_id, instance): (&str, EditorInstanceId), child: be_sdk_api::ChildId) {
+    with(app_id, |runtime| {
+        runtime
+            .instances
+            .start_gift_count(instance, child, host::now());
+    });
+}
+
+/// The app of the child `child` the instance gives the keyboard to failed to start: the gift
+/// ends, and the keys held go back to the editor's view if it still has the keyboard.
+pub fn child_failed_for_gift(
+    (app_id, instance): (&str, EditorInstanceId),
+    child: be_sdk_api::ChildId,
+) {
+    with(app_id, |runtime| {
+        if runtime.instances.gives_to(instance, child) {
+            runtime.instances.end_gift(instance, Keys::Return);
+        }
+    });
+}
+
+/// The view `view` forwarded a press to its app while `asked` frames had been asked of it: keys
+/// typed into it wait for the frame that answers it, which may give the keyboard to a child.
+pub fn sent_press(view: &GiftView, asked: u64) {
+    with(&view.0, |runtime| {
+        runtime.instances.sent_press(view.1, view.clone(), asked);
+    });
+}
+
+/// Routes the keys of input forwarded to `view`, whose app stands at `app`: they are held while
+/// its editor's gift of the keyboard is pending, and keys owed to it come first, as the editor
+/// that placed it (`placer`) gave it the keyboard or as its own gift gave them back.
+pub fn route_keys(
+    view: &GiftView,
+    placer: Option<(&str, EditorInstanceId)>,
+    app: KeyProgress,
+    input: &mut beui::ForwardedInput,
+) {
+    let pass = host::pass();
+    with(&view.0, |runtime| {
+        if runtime.error.is_some() {
+            runtime.instances.end_gift(view.1, Keys::Return);
+        }
+        runtime.instances.hold_keys(view.1, view, app, input, pass);
+    });
+    if let Some((placer, instance)) = placer {
+        with(placer, |runtime| {
+            runtime.instances.owe_keys(instance, view, app, input, pass);
+        });
+    }
+}
+
+/// Settles what `view` holds and is owed after its app moved on, `focused` saying whether it has
+/// the keyboard. Answers the modifiers to forward it an empty input with, to carry what it can
+/// take now (`route_keys`).
+pub fn settle_keys(
+    view: &GiftView,
+    placer: Option<(&str, EditorInstanceId)>,
+    app: KeyProgress,
+    focused: bool,
+) -> Option<Modifiers> {
+    let pass = host::pass();
+    let own = with(&view.0, |runtime| {
+        if runtime.error.is_some() {
+            runtime.instances.end_gift(view.1, Keys::Return);
+        }
+        runtime
+            .instances
+            .settle_own_keys(view.1, view, app, focused, pass)
+    })
+    .flatten();
+    let owed = placer.and_then(|(placer, instance)| {
+        with(placer, |runtime| {
+            runtime
+                .instances
+                .settle_owed_keys(instance, view, app, focused, pass)
+        })
+        .flatten()
+    });
+    own.or(owed)
+}
+
+/// The view `view` is gone: what it held and was owed goes with it.
+pub fn forget_keys(view: &GiftView, placer: Option<(&str, EditorInstanceId)>) {
+    with(&view.0, |runtime| runtime.instances.forget_keys(view));
+    if let Some((placer, _)) = placer {
+        with(placer, |runtime| runtime.instances.forget_keys(view));
+    }
 }
 
 /// Whether the instance's block content, if it edits one, has reached it.
@@ -1767,27 +1863,6 @@ pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> bool {
 pub fn frames_answered(app_id: &str) -> (u64, u64) {
     with(app_id, |runtime| {
         (runtime.pacing.asked, runtime.pacing.answered)
-    })
-    .unwrap_or_default()
-}
-
-pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_dismissals(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub fn take_child_closes(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_closes(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub fn take_child_commits(app_id: &str, instance: EditorInstanceId) -> Vec<super::ChildCommit> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_commits(instance)
     })
     .unwrap_or_default()
 }
@@ -1903,19 +1978,13 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
 
 pub fn poll() {
     let pass = host::pass();
-    for command in host::take_commands() {
-        match command {
-            host::HostCommand::RestartApp(app_id) => {
-                with(&app_id, Runtime::restart);
-            }
-        }
-    }
-    let touched = be_host_stack::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {
             runtime.contain(|runtime| {
-                runtime.instances.touch(&touched);
+                if std::mem::take(&mut runtime.restart_asked) {
+                    runtime.restart();
+                }
                 runtime.detect_error();
                 runtime.taking_in = true;
                 runtime.pump();
@@ -1935,6 +2004,13 @@ pub fn poll() {
             host::request_repaint_after(wake);
         }
     });
+}
+
+/// Restarts the app at the next `poll`, as the person asked.
+pub fn restart_app(app_id: &str) {
+    if with(app_id, |runtime| runtime.restart_asked = true).is_some() {
+        host::request_repaint();
+    }
 }
 
 pub fn settle() -> bool {
@@ -2181,20 +2257,6 @@ pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
     });
 }
 
-pub fn take_focus_report(app_id: &str, instance: EditorInstanceId) -> Option<Focus> {
-    with(app_id, |runtime| {
-        runtime.instances.take_focus_report(instance)
-    })
-    .flatten()
-}
-
-pub fn take_artifact_watch(app_id: &str, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
-    with(app_id, |runtime| {
-        runtime.instances.take_artifact_watch(instance)
-    })
-    .flatten()
-}
-
 pub fn menu(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
     with(app_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
 }
@@ -2204,17 +2266,6 @@ pub fn menu_pick(app_id: &str, instance: EditorInstanceId, id: String, anchor: O
         let messages = runtime.instances.menu_pick(instance, id, anchor);
         runtime.send(messages);
     });
-}
-
-pub fn take_child_menu_picks(
-    app_id: &str,
-    instance: EditorInstanceId,
-    children: &[be_sdk_api::ChildId],
-) -> Vec<(be_sdk_api::ChildId, String, Option<beui::Rect>)> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_menu_picks(instance, children)
-    })
-    .unwrap_or_default()
 }
 
 pub fn show_dialog(
@@ -2313,16 +2364,6 @@ pub fn regenerate_artifact(app_id: &str, instance: EditorInstanceId, data: &[u8]
     });
 }
 
-pub fn take_artifact_outcome(
-    app_id: &str,
-    instance: EditorInstanceId,
-) -> Option<Result<(), String>> {
-    with(app_id, |runtime| {
-        runtime.instances.take_artifact_outcome(instance)
-    })
-    .flatten()
-}
-
 pub fn view_size(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
     with(app_id, |runtime| {
         runtime.instances.view_size(instance, region)
@@ -2354,10 +2395,6 @@ pub fn commit_creation(app_id: &str, instance: EditorInstanceId) {
     });
 }
 
-pub fn take_created(app_id: &str, instance: EditorInstanceId) -> Option<Result<Uuid, String>> {
-    with(app_id, |runtime| runtime.instances.take_created(instance)).flatten()
-}
-
 /// The child that has taken `instance`'s frame: the view placing it, the child and its block.
 pub fn frame_child(
     app_id: &str,
@@ -2372,10 +2409,6 @@ pub fn revoke_frame_child(app_id: &str, instance: EditorInstanceId) {
         runtime.report_docked();
     });
     mark(app_id);
-}
-
-pub fn take_leaving(app_id: &str, instance: EditorInstanceId) -> bool {
-    with(app_id, |runtime| runtime.instances.take_leaving(instance)).unwrap_or_default()
 }
 
 pub fn hold(app_id: &str, instance: EditorInstanceId, region: ViewId) {
@@ -2430,9 +2463,9 @@ pub fn set_presence_visible(app_id: &str, instance: EditorInstanceId, visible: b
     });
 }
 
-/// Asks an instance to render a representation of its copy `serial`; poll
-/// `take_rendered` with the request it answers. `None` when the instance is
-/// gone.
+/// Asks an instance to render a representation of its copy `serial`; an
+/// `InstanceEvent::Rendered` with the request it answers answers it. `None` when
+/// the instance is gone.
 pub fn render_clip(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2445,19 +2478,6 @@ pub fn render_clip(
         request
     })
     .flatten()
-}
-
-/// What an instance rendered for `request`, once it answered; `Some(None)`
-/// when it rendered nothing or is gone.
-pub fn take_rendered(
-    app_id: &str,
-    instance: EditorInstanceId,
-    request: u64,
-) -> Option<Option<Vec<u8>>> {
-    with(app_id, |runtime| {
-        runtime.instances.take_rendered(instance, request)
-    })
-    .unwrap_or(Some(None))
 }
 
 pub fn replace_child(
@@ -2479,20 +2499,6 @@ pub fn resized(app_id: &str, instance: EditorInstanceId, size: Vec2) {
         let messages = runtime.instances.resized(instance, size);
         runtime.send(messages);
     });
-}
-
-pub fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
-    with(app_id, |runtime| {
-        runtime.instances.take_view_changes(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub fn take_bar_actions(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::BarAction> {
-    with(app_id, |runtime| {
-        runtime.instances.take_bar_actions(instance)
-    })
-    .unwrap_or_default()
 }
 
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
@@ -3399,41 +3405,6 @@ fn shown_view(
 
 pub fn frames(app_id: &str) -> u64 {
     with(app_id, |runtime| runtime.frames).unwrap_or_default()
-}
-
-pub fn take_focus_request(app_id: &str, instance: EditorInstanceId, region: ViewId) -> bool {
-    with(app_id, |runtime| {
-        runtime.instances.take_focus_request(instance, region)
-    })
-    .unwrap_or(false)
-}
-
-pub fn take_view_actions(app_id: &str, instance: EditorInstanceId) -> Vec<crate::EditorAction> {
-    use crate::EditorAction;
-    with(app_id, |runtime| {
-        let mut actions = Vec::new();
-        while let Some(open) = runtime.instances.take_open(instance) {
-            actions.push(EditorAction::OpenBlock(open));
-        }
-        while let Some((id, command)) = runtime.instances.take_block_command(instance) {
-            actions.push(EditorAction::Command { id, command });
-        }
-        for (id, command) in runtime.instances.take_shell_commands(instance) {
-            actions.push(EditorAction::Shell { id, command });
-        }
-        for (id, access) in runtime.instances.take_simulated_access(instance) {
-            actions.push(EditorAction::SimulateAccess { id, access });
-        }
-        actions
-    })
-    .unwrap_or_default()
-}
-
-pub fn take_block_drags(app_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {
-    with(app_id, |runtime| {
-        runtime.instances.take_block_drags(instance)
-    })
-    .unwrap_or_default()
 }
 
 pub fn drag_over_view(

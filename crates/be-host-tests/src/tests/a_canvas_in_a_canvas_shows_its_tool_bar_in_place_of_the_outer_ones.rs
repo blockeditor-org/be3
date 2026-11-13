@@ -15,9 +15,17 @@ fn a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones() {
     let outer = host.place(BAR);
     let card = host.place(SHAPE);
 
+    let entities = host.count(SHAPE);
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
     host.run(&["click", &inside]);
     host.run(&["settle"]);
+    // One click hands the inner canvas the press once: twice, it reads as a double-click on its
+    // empty space and starts a text there.
+    assert_eq!(
+        host.count(SHAPE),
+        entities,
+        "the click that went into the inner canvas made something there"
+    );
     assert_eq!(
         host.count(GRIP),
         1,
@@ -36,5 +44,18 @@ fn a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones() {
     assert_eq!(host.count(GRIP), 1, "letting go brings the outer bar back");
     assert_eq!(host.place(BAR), outer, "where it was");
     host.snapshot("a_canvas_in_a_canvas_gives_the_outer_tool_bar_back_when_let_go");
+
+    // Entered again, the inner canvas takes a double-click on its empty space as any canvas
+    // does: only the press handed on as it was entered is not counted twice.
+    host.run(&["click", &inside]);
+    host.run(&["settle"]);
+    let empty = format!("{:.0},{:.0}", card.0 + card.2 * 0.3, card.1 + card.3 * 0.8);
+    host.run(&["click", &empty, "double"]);
+    host.run(&["settle"]);
+    assert_eq!(
+        host.count(SHAPE),
+        entities + 1,
+        "a double-click in the entered inner canvas starts a text there"
+    );
     host.close();
 }

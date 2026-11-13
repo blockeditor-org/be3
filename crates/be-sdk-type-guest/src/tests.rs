@@ -10,8 +10,8 @@ use be_block_protocol::ClientId;
 use be_block_session::{Lease, Resume};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
-    Recipients, SessionTag, Status, UndoState,
+    Change, Delivery, Description, EditorId, Endpoint, Journal, JournalBase, Opening,
+    PublishOutcome, Recipients, RelayKind, SessionTag, Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -80,9 +80,11 @@ mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
 mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
 mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
+mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
+mod a_submit_relayed_as_less_than_it_asks_is_not_applied;
 mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_is_lacking_until_the_server_holds_it;
@@ -96,6 +98,7 @@ mod an_owner_that_cannot_read_a_followers_part_has_it_sent_again;
 mod an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod an_owner_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
+mod an_owner_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
 mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod an_owners_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
 mod child_changes_become_edits_of_the_parent;
@@ -395,6 +398,8 @@ fn opening(
 
 struct Device {
     client: ClientId,
+    /// Whether its account may edit the block; a viewer's is not, which the server holds it to.
+    may_edit: bool,
     module: Option<Module>,
     executor: Option<Executor>,
     host: Connection,
@@ -442,6 +447,10 @@ struct Sim<C: LiveEdit + Clone + Default> {
     parts_put: usize,
     fail_puts: usize,
     fail_reads: usize,
+    /// Publishes answered with an error, as a device's seal fails offline when its block's key
+    /// is not on it; and how many were.
+    fail_publishes: usize,
+    failed_publishes: usize,
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
@@ -467,6 +476,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             devices: (0..devices)
                 .map(|index| Device {
                     client: index as ClientId + 1,
+                    may_edit: true,
                     module: None,
                     executor: None,
                     host: Connection::new(Side::Host),
@@ -508,6 +518,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             parts_put: 0,
             fail_puts: 0,
             fail_reads: 0,
+            fail_publishes: 0,
+            failed_publishes: 0,
             largest_written: 0,
             written: 0,
             journal: None,
@@ -620,7 +632,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         held.clock = None;
         held.sleeping.clear();
         held.released = false;
-        self.lease.join(client, self.now as i64);
+        let may_edit = self.devices[device].may_edit;
+        self.lease.join(client, may_edit, self.now as i64);
         self.to(device, |host| {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
@@ -723,7 +736,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
         let now = self.now;
         self.with_replica(device, |replica, host| {
-            replica.message(host, Endpoint::Editor(editor), message.encode(), now)
+            replica.message(host, Endpoint::Editor(editor), message.encode(), now, None)
         });
     }
 
@@ -987,8 +1000,22 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.devices[device].wake = Some(at);
                 self.devices[device].sleeping.push((at, reply));
             }
-            Call::Send { reply, to, bytes } => {
+            Call::Send {
+                reply,
+                to,
+                kind,
+                bytes,
+            } => {
                 self.to(device, |host| reply.send(host, &()));
+                // As the server: what the sender may not send reaches no one.
+                let may_edit = self.devices[device].may_edit;
+                let allowed = match kind {
+                    RelayKind::Peer => true,
+                    RelayKind::Edit => may_edit,
+                };
+                if !allowed && !matches!(to, Recipients::One(Endpoint::Editor(_))) {
+                    return;
+                }
                 match to {
                     Recipients::One(Endpoint::Editor(editor)) => {
                         let message = ToEditor::decode(&bytes).expect("an editor message");
@@ -1005,7 +1032,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     }
                     Recipients::One(Endpoint::Peer(peer)) => {
                         if let Some(to) = self.device_of(peer) {
-                            self.relay(to, client, bytes);
+                            self.relay_as(to, client, kind, bytes);
                         }
                     }
                     Recipients::One(Endpoint::Host) => {}
@@ -1016,7 +1043,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                                 continue;
                             }
                             if let Some(to) = self.device_of(peer) {
-                                self.relay(to, client, bytes.clone());
+                                self.relay_as(to, client, kind, bytes.clone());
                             }
                         }
                     }
@@ -1029,6 +1056,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 content,
                 sealed_through,
             } if !self.stalled => {
+                if self.fail_publishes > 0 {
+                    self.fail_publishes -= 1;
+                    self.failed_publishes += 1;
+                    return self.to(device, |host| {
+                        reply.send(host, &Err("the connection is gone".to_owned()))
+                    });
+                }
                 if expected != self.head {
                     self.rejections += 1;
                     let head = self.head;
@@ -1145,6 +1179,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::ClaimLease { reply, generation } => {
                 self.to(device, |host| reply.send(host, &()));
+                if !self.devices[device].may_edit {
+                    return;
+                }
                 self.lease.claim(client, generation, self.now as i64);
                 self.lease_changed(None);
             }
@@ -1167,7 +1204,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 if self.unheld_appends {
                     return self.to(device, |host| reply.send(host, &false));
                 }
+                if !self.devices[device].may_edit {
+                    return self.to(device, |host| reply.send(host, &false));
+                }
                 self.to(device, |host| reply.send(host, &true));
+                let kind = RelayKind::Edit;
                 if relay {
                     let participants = self.lease.state().participants.clone();
                     for entry in &entries {
@@ -1176,7 +1217,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                                 continue;
                             }
                             if let Some(to) = self.device_of(*peer) {
-                                self.relay(to, client, entry.payload.clone());
+                                self.relay_as(to, client, kind, entry.payload.clone());
                             }
                         }
                     }
@@ -1233,16 +1274,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::ReportStatus { reply, status } => {
                 self.to(device, |host| reply.send(host, &()));
+                if let Some(undo) = &status.undo {
+                    self.devices[device].history = (undo.can_undo, undo.can_redo);
+                    self.devices[device].undo = undo.clone();
+                }
                 self.devices[device].status = status;
             }
             Call::Described { reply, description } => {
                 self.to(device, |host| reply.send(host, &()));
                 self.devices[device].described = Some(description);
-            }
-            Call::History { reply, history } => {
-                self.to(device, |host| reply.send(host, &()));
-                self.devices[device].history = (history.can_undo, history.can_redo);
-                self.devices[device].undo = history;
             }
             Call::Conflict {
                 reply,
@@ -1272,14 +1312,21 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.settle();
     }
 
+    /// Hands `to` a message as relayed from `from` by a server that checked it as an editor's.
     fn relay(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {
+        self.relay_as(to, from, RelayKind::Edit, bytes);
+    }
+
+    /// Hands `to` a message as relayed from `from` by a server that checked it as `kind`.
+    fn relay_as(&mut self, to: usize, from: ClientId, kind: RelayKind, bytes: Vec<u8>) {
         self.largest_relay = self.largest_relay.max(bytes.len());
         if self.deaf.contains(&to) {
             return;
         }
         let now = self.now;
+        let delivery = Some(Delivery { kind });
         self.with_replica(to, |replica, host| {
-            replica.message(host, Endpoint::Peer(from), bytes, now)
+            replica.message(host, Endpoint::Peer(from), bytes, now, delivery)
         });
     }
 }

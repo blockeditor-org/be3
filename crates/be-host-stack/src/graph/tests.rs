@@ -5,9 +5,11 @@ mod a_block_s_children_leave_out_what_its_metadata_points_to;
 mod a_block_under_a_deleted_one_is_deleted_with_it;
 mod a_blocks_references_are_listed_in_one_request;
 mod a_blocks_references_listed_before_the_block_itself_are_kept;
+mod a_drained_head_moves_only_a_block_no_replica_reports_for;
 mod a_folders_blocks_leave_once_nothing_lists_it;
 mod a_head_an_open_block_reported_outlasts_what_is_listed_of_it;
 mod a_listing_whose_request_got_no_answer_is_asked_for_again;
+mod a_placed_child_its_parent_drops_again_is_noted;
 mod an_older_announcement_never_undoes_a_newer_one;
 
 fn node(id: Uuid) -> Node {

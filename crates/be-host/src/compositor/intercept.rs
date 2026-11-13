@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use be_sdk_api::{EditorInstanceId, ViewId};
 use beui::KeyPhase;
 use beui::reactive::*;
@@ -12,7 +10,7 @@ pub(super) fn intercept_keys(
     chords: Memo<Vec<KeyChord>>,
     allowed: impl Fn() -> bool + 'static,
 ) {
-    let held = store(Cell::new(Modifiers::NONE));
+    let held = StoredCell::new(Modifiers::NONE);
     let allowed =
         move || allowed() && !be_host_runtime::view_has_keyboard(&app_id.value(), instance, region);
     on_key(
@@ -41,7 +39,7 @@ pub(super) fn intercept_keys(
                 if !press.pressed || !asked || !allowed() {
                     return false;
                 }
-                held.with(|held| held.set(press.modifiers));
+                held.set(press.modifiers);
             }
             be_host_runtime::intercept_view(
                 &app_id.value(),
@@ -56,17 +54,15 @@ pub(super) fn intercept_keys(
     let modifiers = held_modifiers();
     create_effect(move || {
         let now = modifiers.get();
-        let was = held.with(Cell::get);
+        let was = held.get();
         if was == Modifiers::NONE {
             return;
         }
-        held.with(|held| {
-            held.set(Modifiers {
-                alt: was.alt && now.alt,
-                ctrl: was.ctrl && now.ctrl,
-                shift: was.shift && now.shift,
-                logo: was.logo && now.logo,
-            })
+        held.set(Modifiers {
+            alt: was.alt && now.alt,
+            ctrl: was.ctrl && now.ctrl,
+            shift: was.shift && now.shift,
+            logo: was.logo && now.logo,
         });
         be_host_runtime::intercept_view(&app_id.value(), instance, region, None, now);
     });

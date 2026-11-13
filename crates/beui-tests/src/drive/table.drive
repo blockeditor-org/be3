@@ -2,7 +2,7 @@
 # table names its rows, columns and cells.
 clock stop
 wait 'value="About open false"'
-gone 'Retained nodes, composed.'
+wait not 'Retained nodes, composed.'
 click 'DisclosureTriangle'
 wait 'value="About open true"'
 wait 'Retained nodes, composed.'

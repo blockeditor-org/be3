@@ -60,7 +60,10 @@ fn a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret() {
     host.type_text(&text);
     host.key("Escape");
     host.run(&["scroll", "#text.surface", "-500"]);
+    // The text keeps its place once it has held still for a moment, as an edit to its view:
+    // run past that moment, then wait until the edit has reached the store.
     host.pause(1000);
+    host.run(&["settle"]);
     let left = top_line(&mut host);
     assert_ne!(left.0, "Line 1", "the text is scrolled away from its start");
 
@@ -79,7 +82,10 @@ fn a_text_reopened_after_going_back_or_a_restart_keeps_its_scroll_and_caret() {
     // Typing scrolled to the end, which shows less with the format bar down; move up from it.
     host.key("Escape");
     host.run(&["scroll", "#text.surface", "-300"]);
+    // The text keeps its place once it has held still for a moment, as an edit to its view:
+    // run past that moment, then wait until the edit has reached the store.
     host.pause(1000);
+    host.run(&["settle"]);
     let typed = top_line(&mut host);
 
     back(&mut host);

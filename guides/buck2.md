@@ -204,8 +204,13 @@ again while every passing one still comes from the cache.
 - **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
   read and write only their crate's `snapshots/`, so one crate's paintings leave others cached.
   **Native tests that paint** are `cargo_test(paints = True, run_env = ...)` and work the same way.
-  `run_apart = True` (crates/be-host-tests) makes each test file a `be_test` of its own,
-  `:test-<file>`, so a failing test loses only its own paintings (guides/testing_a_gui.md).
+  `run_apart = True` (crates/be-host-tests, crates/be-host-stack) makes each test file a
+  `be_test` of its own, so a failing test loses only its own paintings (guides/testing_a_gui.md)
+  and tests that share a process-wide state run side by side as processes of their own:
+  `:test-<file>` for src/tests/<file>.rs and `:test-graph-tests-<file>` for
+  src/graph/tests/<file>.rs. A part runs the one test named after its file with `--exact`, and
+  fails (the launcher's `--one-test`) unless that ran exactly one test, so each such file holds
+  one test of its own name, as `./scripts/verify`'s split leaves it.
 - Tests that draw (beui-renderer-wgpu, be-host-wayland, beui-platform-drm, ...) use lavapipe from
   `buck/sysroot:amd64-test` (`amd64-xr` adds Monado). The workers replace `LD_LIBRARY_PATH`, so a
   test's `env` that names it reaches the test through the launcher's `--library-path`.

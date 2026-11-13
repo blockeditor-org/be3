@@ -52,32 +52,43 @@ fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
     C::decode(be_host_stack::content(block)?.bytes()).ok()
 }
 
+/// What was read of the graph and of settings blocks, until the host stack says it changed
+/// (`RootSettings::heard`).
 #[derive(Default)]
 struct Cache {
-    owned: Option<(u64, Vec<Uuid>)>,
-    settings: HashMap<Uuid, (u64, Settings)>,
-    profiles: HashMap<Uuid, (u64, SettingsProfile)>,
-    editors: HashMap<Uuid, (u64, Uuid)>,
-    offline: HashMap<Uuid, (u64, OfflineSettings)>,
+    owned: Option<Vec<Uuid>>,
+    settings: HashMap<Uuid, Settings>,
+    profiles: HashMap<Uuid, SettingsProfile>,
+    editors: HashMap<Uuid, Uuid>,
+    offline: HashMap<Uuid, OfflineSettings>,
 }
 
 impl Cache {
     fn read<T: Clone>(
-        held: &mut HashMap<Uuid, (u64, T)>,
+        held: &mut HashMap<Uuid, T>,
         block: Uuid,
         content_type: Uuid,
         decode: impl FnOnce() -> Option<T>,
     ) -> Option<T> {
         be_host_stack::hold(block, content_type);
-        let revision = be_host_stack::content_revision(block)?;
-        if let Some((seen, value)) = held.get(&block)
-            && *seen == revision
-        {
+        if let Some(value) = held.get(&block) {
             return Some(value.clone());
         }
         let value = decode()?;
-        held.insert(block, (revision, value.clone()));
+        held.insert(block, value.clone());
         Some(value)
+    }
+
+    fn heard(&mut self, changes: &be_host_stack::Changes) {
+        if changes.graph {
+            self.owned = None;
+            // A session's editor is read from its metadata in the graph.
+            self.editors.clear();
+        }
+        self.settings.retain(|block, _| !changes.block(*block));
+        self.profiles.retain(|block, _| !changes.block(*block));
+        self.editors.retain(|block, _| !changes.block(*block));
+        self.offline.retain(|block, _| !changes.block(*block));
     }
 }
 
@@ -110,17 +121,19 @@ impl RootSettings {
         }
     }
 
+    /// Forgets what it read of what the host stack changed.
+    pub(crate) fn heard(&self, changes: &be_host_stack::Changes) {
+        self.cache.borrow_mut().heard(changes);
+    }
+
     pub(crate) fn shell(&self) -> Uuid {
         self.shell
     }
 
     fn owned(&self) -> Option<Vec<Uuid>> {
         let account = be_host_stack::account()?;
-        let revision = be_host_stack::graph_revision();
         let mut cache = self.cache.borrow_mut();
-        if let Some((seen, owned)) = &cache.owned
-            && *seen == revision
-        {
+        if let Some(owned) = &cache.owned {
             return Some(owned.clone());
         }
         let mut owned: Vec<Uuid> = be_host_stack::query(be_host_stack::Query::Roots)
@@ -131,7 +144,7 @@ impl RootSettings {
             .map(|node| node.id)
             .collect();
         owned.sort_unstable();
-        cache.owned = Some((revision, owned.clone()));
+        cache.owned = Some(owned.clone());
         Some(owned)
     }
 

@@ -15,7 +15,7 @@ fn a_lazy_representation_renders_only_when_the_host_asks() {
                     "image/png",
                     move |answer| {
                         *counted.borrow_mut() += 1;
-                        answer(Some(vec![137, 80, 78, 71]));
+                        answer(Some(vec![137, 80, 78, 71].into()));
                     },
                 ));
             }
@@ -34,7 +34,7 @@ fn a_lazy_representation_renders_only_when_the_host_asks() {
         panic!("one copy, not {copies:?}");
     };
     assert_eq!(items[1].format, "image/png");
-    assert_eq!(items[1].data, None);
+    assert_eq!(items[1].body, None);
     assert_eq!(*renders.borrow(), 0);
 
     let rendered = Rc::new(RefCell::new(None));
@@ -44,7 +44,7 @@ fn a_lazy_representation_renders_only_when_the_host_asks() {
         "image/png",
         Box::new(move |data| *answered.borrow_mut() = Some(data)),
     );
-    assert_eq!(*rendered.borrow(), Some(Some(vec![137, 80, 78, 71])));
+    assert_eq!(*rendered.borrow(), Some(Some(vec![137, 80, 78, 71].into())));
     let stale = Rc::new(RefCell::new(None));
     let answered = stale.clone();
     host.render_clip(

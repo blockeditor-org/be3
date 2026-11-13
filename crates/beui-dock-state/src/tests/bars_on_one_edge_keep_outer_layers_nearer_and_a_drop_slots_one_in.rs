@@ -9,6 +9,7 @@ fn bar(bar: u64, owner: u64) -> DockSpecBar {
         owner: Some(TabId::new(owner)),
         placement: TOP,
         hidden: false,
+        pane: None,
     }
 }
 
@@ -31,7 +32,7 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         "one dock's bars stack in the order they are declared"
     );
 
-    state.place_bar_at(TabId::new(21), TOP, 0);
+    state.place_bar_on(TabId::new(21), None, TOP, 0);
     assert_eq!(
         state.pane_bars(TabId::new(2)),
         tabs(&[21, 20]),
@@ -71,19 +72,21 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         "the hosting tab's bar shows on the pane its dock shows in"
     );
 
-    state.place_bar_at(TabId::new(31), TOP, 0);
+    state.place_bar_on(TabId::new(31), None, TOP, 0);
     assert_eq!(
         state.pane_bars(TabId::new(10)),
-        tabs(&[21, 20, 31, 30]),
-        "a hosted bar dropped first goes first among its own layer's bars"
+        tabs(&[31, 21, 20, 30]),
+        "a hosted bar dropped first goes first, before the outer layer's bars"
     );
-    state.place_bar_at(
+    state.place_bar_on(
         TabId::new(20),
+        None,
         DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
         0,
     );
-    state.place_bar_at(
+    state.place_bar_on(
         TabId::new(30),
+        None,
         DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
         0,
     );
@@ -100,8 +103,18 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         .collect();
     assert_eq!(
         bottom,
-        tabs(&[20, 30]),
-        "on another edge the outer layer's bar still comes first"
+        tabs(&[30, 20]),
+        "on another edge too, a bar lands where it was dropped, whatever its layer"
+    );
+    state.add_bar(
+        TabId::new(22),
+        Some(TabId::new(2)),
+        DockBarPlacement::Beside(DockEdge::Bottom, DockAlign::Center),
+    );
+    assert_eq!(
+        state.pane_bars(TabId::new(10)),
+        tabs(&[31, 21, 30, 20, 22]),
+        "a bar new to the pane goes after the last of its own or an outer layer"
     );
     state.show(TabId::new(11));
     assert_eq!(
@@ -110,4 +123,22 @@ fn bars_on_one_edge_keep_outer_layers_nearer_and_a_drop_slots_one_in() {
         "the hosting tab's bars stay on the first pane of its dock, whichever tab it shows"
     );
     assert!(state.is_bar_shown(TabId::new(20), DockMode::Tiled));
+
+    let mut fresh = DockState::default();
+    fresh.reconcile(&spec(pane("main", &[1, 2])));
+    fresh
+        .host_group(
+            TabId::new(2),
+            &joined_key(TabId::new(2)),
+            &pane("joined:2/inner", &[10]),
+            Some(TabId::new(10)),
+        )
+        .expect("the hosted dock declares tabs");
+    fresh.add_bar(TabId::new(30), Some(TabId::new(10)), TOP);
+    fresh.add_bar(TabId::new(20), Some(TabId::new(2)), TOP);
+    assert_eq!(
+        fresh.pane_bars(TabId::new(10)),
+        tabs(&[20, 30]),
+        "an outer layer's bar new to a pane of only inner layers' bars goes before them"
+    );
 }

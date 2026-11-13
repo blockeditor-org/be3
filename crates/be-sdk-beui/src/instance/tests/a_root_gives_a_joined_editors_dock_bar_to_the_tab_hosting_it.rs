@@ -54,6 +54,7 @@ fn declared() -> DockDeclaration {
                 width: 100.0,
                 height: 20.0,
             },
+            pane: None,
         }],
     }
 }
@@ -69,6 +70,7 @@ fn a_root_gives_a_joined_editors_dock_bar_to_the_tab_hosting_it() {
         .receive_dock_updates(vec![DockUpdate::Child(DockDeclaredChild {
             child,
             declaration: Some(declared()),
+            epoch: 1,
         })]);
     show_docked(&mut session, &[(View::MAIN, 6)], false);
     show_docked(&mut session, &[(View::MAIN, 6)], false);

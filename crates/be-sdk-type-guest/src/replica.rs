@@ -8,8 +8,8 @@ use be_block_session::{
 };
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Recipients, ReplicaId, SessionTag, Status, UndoState, Written,
+    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
+    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
 };
 use uuid::Uuid;
 
@@ -130,6 +130,8 @@ pub(crate) enum Input {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
+        /// What the server says of a peer's message.
+        delivery: Option<Delivery>,
     },
     Attach {
         editor: EditorId,
@@ -216,6 +218,8 @@ enum Job<C> {
     Heard {
         from: ClientId,
         wire: Option<Wire>,
+        /// What the server checked the sender may send.
+        kind: RelayKind,
     },
     Seal {
         sealing: Sealing,
@@ -437,6 +441,11 @@ const MERGE_READ_TRIES: u8 = 3;
 const MERGE_RETRY_INTERVAL: u64 = 5_000;
 const MERGE_RETRY_CEILING: u64 = 60_000;
 
+/// How long an owner whose seal failed (its block's key not on this device while offline, say)
+/// waits before it seals again, doubling up to `SEAL_RETRY_CEILING`.
+const SEAL_RETRY_INTERVAL: u64 = 5_000;
+const SEAL_RETRY_CEILING: u64 = 60_000;
+
 enum Wait<C> {
     /// A merge by parts, polled again as the parts it asked for arrive: it never resolves
     /// without them.
@@ -470,7 +479,6 @@ enum Wait<C> {
 #[derive(Default)]
 struct Reported {
     status: Option<Status>,
-    history: Option<UndoState>,
 }
 
 pub(crate) struct Replica<C: LiveEdit, H> {
@@ -531,6 +539,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// one resolved.
     merge_retry_at: Option<u64>,
     merge_failures: u8,
+    /// When an owner whose seals failed seals again, and how many failed in a row.
+    seal_retry_at: Option<u64>,
+    seal_failures: u8,
     appended_bytes: usize,
     applied_ops: Vec<SessionOp>,
     restarting: bool,
@@ -570,6 +581,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Senders whose owner-only messages a follower ignored because the lease it knew named
     /// another owner: when one becomes the owner, the follower asks to be caught up.
     ignored_owners: Vec<ClientId>,
+    /// The last owners this replica knew of, the newest last: an owner takes over the
+    /// `Accepted` only of one of them, whose lease lapsed before it noticed.
+    past_owners: Vec<ClientId>,
     /// How many times the owner told this follower to submit again since one of its edits was
     /// last accepted.
     resends: u32,
@@ -609,9 +623,11 @@ where
             Input::Message {
                 from: Endpoint::Peer(from),
                 bytes,
+                delivery,
             } => self.jobs.push_back(Job::Heard {
                 from,
                 wire: Wire::decode(&bytes),
+                kind: delivery.map_or(RelayKind::Peer, |delivery| delivery.kind),
             }),
             Input::Appended {
                 from,
@@ -780,6 +796,8 @@ where
             put_retry_at: None,
             merge_retry_at: None,
             merge_failures: 0,
+            seal_retry_at: None,
+            seal_failures: 0,
             appended_bytes: 0,
             applied_ops: Vec::new(),
             restarting: false,
@@ -808,6 +826,7 @@ where
             catch_up_failures: 0,
             catch_up_at: None,
             ignored_owners: Vec::new(),
+            past_owners: Vec::new(),
             resends: 0,
             put_failures: 0,
             lacking: Lacking::default(),
@@ -835,10 +854,11 @@ where
             if let Job::Heard {
                 from,
                 wire: Some(wire),
+                kind,
             } = job
             {
                 let (from, wire) = (*from, wire.clone());
-                if self.not_heeded(from, &wire) {
+                if !wire.sent_as(*kind) || self.not_heeded(from, &wire) {
                     self.jobs.pop_front();
                     continue;
                 }
@@ -1081,6 +1101,7 @@ where
             if let Job::Heard {
                 from,
                 wire: Some(wire),
+                ..
             } = &job
             {
                 if matches!(wire, Wire::Session(SessionMessage::Submit { .. }))
@@ -1132,6 +1153,7 @@ where
             | SessionMessage::Snapshot { .. }
             | SessionMessage::Sealed { .. }
             | SessionMessage::Replaced { .. }
+            | SessionMessage::Saved { .. }
             | SessionMessage::Resend => {
                 let ignored = Some(from) != self.state.owner;
                 if ignored && !self.ignored_owners.contains(&from) {
@@ -1228,6 +1250,10 @@ where
             return None;
         }
         let since = self.owes_since?;
+        // A seal that failed is tried again on its own timer, not at each pause.
+        if let Some(at) = self.seal_retry_at {
+            return Some(at);
+        }
         if self.appended_bytes >= JOURNAL_BYTES {
             return Some(since);
         }
@@ -1255,11 +1281,13 @@ where
     }
 
     /// The owner sequenced `op`: with others in the session it appends it to the journal and
-    /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded.
+    /// relays it in one call; alone it appends it within `APPEND_INTERVAL`, folded. While a seal
+    /// that failed waits to be retried it appends at once, as that seal would have before it
+    /// published: no seal is owed meanwhile (`seal_would_settle`), so none would.
     fn sequenced(&mut self, op: SessionOp) {
         self.last_edit = Some(self.now);
         self.unappended.push(op);
-        match self.alone() {
+        match self.alone() && self.seal_retry_at.is_none() {
             true => {
                 self.append_at.get_or_insert(self.now + APPEND_INTERVAL);
             }
@@ -1360,7 +1388,7 @@ where
         }
         match job {
             Job::Input(input) => self.handle(input),
-            Job::Heard { from, wire } => self.heard(from, wire),
+            Job::Heard { from, wire, .. } => self.heard(from, wire),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
             Job::Replace {
@@ -1423,6 +1451,7 @@ where
             Input::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
+                ..
             } => {
                 if let Some(message) = FromEditor::decode(&bytes) {
                     self.handle_editor(editor, message);
@@ -1451,6 +1480,11 @@ where
                 resynchronize,
             } => {
                 self.adopt(session);
+                // A new lease is a new chance for a failed seal. Reconnecting always gives one: the
+                // host rejoins every open block's session (`Replicas::reconnect`) and leases it
+                // again.
+                self.seal_failures = 0;
+                self.seal_retry_at = None;
                 if resynchronize && let Role::Follower(_) = &self.role {
                     self.catch_up_failures = 0;
                     self.catch_up_at = None;
@@ -1801,6 +1835,19 @@ where
         reading.insert(token, read);
     }
 
+    /// A seal that failed leaves the work unsealed, journaled, and is tried again on a timer that
+    /// doubles up to a ceiling: until then the replica owes no seal (`seal_would_settle`), or a
+    /// host that seals what is owed on every frame would fail it on every frame. Once the time
+    /// passes, `seal_retry_at` stays set until a seal settles or fails again: `commit_at` makes
+    /// the retry due, and `sealing` keeps a second one from starting while it is on its way.
+    fn seal_failed(&mut self) {
+        let wait = (SEAL_RETRY_INTERVAL << self.seal_failures.min(4)).min(SEAL_RETRY_CEILING);
+        self.seal_failures = self.seal_failures.saturating_add(1);
+        self.seal_retry_at = Some(self.now + wait);
+        // What was sequenced while it was on its way waits on no timer now (`sequenced`).
+        self.append_unappended();
+    }
+
     /// A merge that could not have its parts is dropped, so the replica goes on, and tried again
     /// on a timer that doubles up to a ceiling (a `Job::Reconcile`): it resolves only with its
     /// parts. The failure is reported once, not at each try.
@@ -2068,6 +2115,7 @@ where
                         ..
                     }) => {
                         self.sealing = false;
+                        self.seal_failed();
                         reply.map(|id| (id, Answer::Sealed))
                     }
                     Some(Wait::Publish {
@@ -2096,6 +2144,8 @@ where
                     self.settle_at(head);
                 }
                 self.sealing = false;
+                self.seal_failures = 0;
+                self.seal_retry_at = None;
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
                 }
@@ -2444,6 +2494,17 @@ where
             Role::Owner(sequencer) => sequencer.is_clean() && self.held.is_empty(),
             Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
         }
+    }
+
+    /// Whether a seal now would leave this replica owing less: an owner with sequenced work not
+    /// sealed, and no merge waiting for parts it could not read. What it holds back (behind a
+    /// part being put, or edits made during a seal) is not sealed until it is sequenced, and a
+    /// seal on the old base while a merge waits is rejected (as `commit_at`): either way the host,
+    /// which seals what is owed on every hurried frame, would ask again on each one.
+    fn seal_would_settle(&self) -> bool {
+        matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
+            && self.merge_failures == 0
+            && self.seal_retry_at.is_none_or(|at| self.now >= at)
     }
 
     fn has_unsealed_work(&self) -> bool {
@@ -2959,6 +3020,7 @@ where
         self.out.push(Effect::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
+            kind: RelayKind::Peer,
             bytes: message.encode(),
         });
     }
@@ -3034,6 +3096,12 @@ where
     }
 
     fn report(&mut self) {
+        let undo = (self.loaded && !self.released).then(|| UndoState {
+            can_undo: self.history.can_undo(),
+            can_redo: self.history.can_redo(),
+            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
+            lost_edits: self.lost_edits,
+        });
         let status = Status {
             head: self.base,
             owner: self.is_owner(),
@@ -3042,12 +3110,15 @@ where
                 Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
                 Role::Follower(_) => self.is_clean(),
             },
-            owes_seal: self.loaded && self.is_owner() && !self.is_clean(),
+            owes_seal: self.loaded && self.seal_would_settle(),
             incompatible: self.incompatible,
             diverged: self.diverged,
             unreadable: self.unreadable.clone(),
+            undo,
         };
-        self.owes_since = match status.owes_seal {
+        // Since when there is work to seal, whether or not a seal now would settle it: a seal
+        // that waits on a merge or a retry is still timed from then.
+        self.owes_since = match self.loaded && self.is_owner() && !self.is_clean() {
             true => self.owes_since.or(Some(self.now)),
             false => None,
         };
@@ -3060,19 +3131,6 @@ where
         }
         if !self.loaded || self.released {
             return;
-        }
-        let history = UndoState {
-            can_undo: self.history.can_undo(),
-            can_redo: self.history.can_redo(),
-            restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
-            lost_edits: self.lost_edits,
-        };
-        if self.reported.history.as_ref() != Some(&history) {
-            self.reported.history = Some(history.clone());
-            self.out.push(Effect::History {
-                replica: self.id,
-                history,
-            });
         }
         if std::mem::take(&mut self.described) {
             self.out.push(Effect::Described {
@@ -3129,6 +3187,7 @@ where
                 Some(client) => Recipients::One(Endpoint::Peer(client)),
                 None => Recipients::Peers,
             },
+            kind: wire.kind(),
             bytes: wire.encode(),
         });
     }
@@ -3197,7 +3256,9 @@ where
                 self.sequenced(op);
             }
             SessionMessage::Accepted { op } => match self.role {
-                Role::Owner(_) => self.inherit_accepted(&op),
+                // Only from an earlier owner: any other editor may not sequence.
+                Role::Owner(_) if self.past_owners.contains(&from) => self.inherit_accepted(&op),
+                Role::Owner(_) => {}
                 Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
                 Role::Follower(_) => {}
             },
@@ -3525,6 +3586,17 @@ where
         self.presence
             .retain(|(client, _), _| state.participants.contains(client));
         self.presence_changed |= self.presence.len() != before;
+        // The owner it opened with is known before any lease change, so both are kept.
+        for owner in [self.state.owner, state.owner].into_iter().flatten() {
+            if self.past_owners.last() == Some(&owner) {
+                continue;
+            }
+            self.past_owners.retain(|past| *past != owner);
+            if self.past_owners.len() >= 8 {
+                self.past_owners.remove(0);
+            }
+            self.past_owners.push(owner);
+        }
         self.state = state;
         if !self.alone() {
             self.append_unappended();
