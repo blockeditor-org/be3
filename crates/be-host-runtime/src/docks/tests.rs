@@ -173,11 +173,7 @@ fn hosted_by_root() -> DockHosted {
 
 /// The root holds its child's tab as `hold`, having heard every declaration sent for it.
 fn host(docks: &mut Docks, hold: DockHold) {
-    let seen = docks
-        .epochs
-        .get(&(ROOT, OUTER_CHILD))
-        .copied()
-        .unwrap_or(0);
+    let seen = docks.epochs.get(&(ROOT, OUTER_CHILD)).copied().unwrap_or(0);
     host_seen(docks, hold, seen);
 }
 
