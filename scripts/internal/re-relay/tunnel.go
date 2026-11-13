@@ -1,16 +1,17 @@
-// The tunnel: one byte stream between the relay and the build server carried by a few long HTTP/1.1 requests, so
-// that HTTP/2 can run inside it and multiplex every call on it. A Claude Code cloud session's HTTPS proxy speaks only
-// HTTP/1.1 and handles about 240 requests a second however many connections carry them; a cache-warm
-// ./scripts/verify makes about 24,000 calls, so each call as its own request spends about 100 s in that limit. Through
-// the tunnel the proxy sees one long GET carrying everything the server sends, and POSTs each carrying whatever the
-// relay wrote while the ones before it were on their way: a few dozen requests a second at most.
+// The tunnel: one byte stream between the relay and the build server carried by two long HTTP/1.1 requests, so that
+// HTTP/2 can run inside it and multiplex every call on it. A Claude Code cloud session's HTTPS proxy speaks only
+// HTTP/1.1, handles about 240 requests a second however many connections carry them, and adds about 80 ms to each
+// request on its way up; a cache-warm ./scripts/verify makes about 24,000 calls, so each call as its own request spent
+// about 100 s in that limit. Through the tunnel the proxy sees one long POST carrying everything the relay sends and
+// one long GET carrying everything the server sends, and it passes both along as they come.
 //
-// The client side is a net.Conn (tunnelConn) that an HTTP/2 transport dials. Its bytes to the server go in POSTs to
-// /__be3-tunnel/up, numbered by their offset in the stream so the server writes them in order whatever order they
-// arrive in, and retried as they were when one fails. The server's bytes come down a GET to /__be3-tunnel/down that
-// streams from the offset the client asks for; when the proxy cuts it, or the server ends it after downLife to stay
-// clear of the proxy's five-minute cut, the client asks again from where it got to. Every request says how much the
-// client has received, and the server keeps what it sent until then.
+// The client side is a net.Conn (tunnelConn) that an HTTP/2 transport dials. Its bytes go up a chunked POST to
+// /__be3-tunnel/stream, which says the stream offset it starts at; the server writes what it has not written yet and
+// skips the rest. The server's bytes come down a GET to /__be3-tunnel/down, which streams from the offset the client
+// asks for. Each ends after upLife or downLife to stay clear of the proxy's five-minute cut, and when one ends or
+// breaks the client starts another from where the server, or it, got to. While anything is unconfirmed the client asks
+// /__be3-tunnel/status about once a second how far the server got, saying how much it has received, so each side
+// can forget what the other has.
 //
 // The server side (tunnel-server, behind Caddy, which checks the token) joins each session to one TCP connection to
 // NativeLink's cleartext HTTP/2 port.
@@ -40,26 +41,21 @@ import (
 const tunnelPath = "/__be3-tunnel"
 
 const (
-	// The most the relay has written and not yet sent before Write waits, and the most one POST carries.
-	upBuffer = 16 << 20
-	upChunk  = 4 << 20
-	// POSTs on their way at once. Each costs the proxy one request; while they are all out, what is written next
-	// waits for one to come back and goes with everything else written meanwhile.
-	upInFlight = 16
-	// What HTTP/2 writes for itself (WINDOW_UPDATE as a download is read, PING, SETTINGS) waits up to lazyDelay for
-	// something more to go with it, and takes at most lazyInFlight POSTs: a download sends a stream of them, which
-	// would otherwise keep every POST busy and hold each new call back for a POST's round trip.
-	lazyInFlight = 2
-	lazyDelay    = 50 * time.Millisecond
-	// The most the client holds unread, and the most the server keeps sent and not yet received, before each stops
-	// reading what feeds it.
+	// The most the relay has written and the server has not confirmed before Write waits, and the most the client
+	// holds unread or the server keeps sent and unconfirmed before each stops reading what feeds it.
+	upBuffer   = 64 << 20
 	downBuffer = 64 << 20
 	// Requests that fail in a row before the tunnel gives up.
 	tunnelAttempts = 8
 )
 
-// How long the server streams one GET before ending it, under the proxy's five-minute cut. A variable for the tests.
-var downLife = 4 * time.Minute
+// How long the client streams one POST and the server one GET before ending it, under the proxy's five-minute cut,
+// and how often the client asks how far the server got while anything is unconfirmed. Variables for the tests.
+var (
+	upLife      = 4 * time.Minute
+	downLife    = 4 * time.Minute
+	statusEvery = time.Second
+)
 
 // ---- The client ----
 
@@ -68,8 +64,7 @@ var downLife = 4 * time.Minute
 func tunnelTransport(upstream string, authorization *atomic.Pointer[string]) http.RoundTripper {
 	outer := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
-		MaxConnsPerHost:     4 * (upInFlight + 2),
-		MaxIdleConnsPerHost: 4 * (upInFlight + 2),
+		MaxIdleConnsPerHost: 8,
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  true,
 		TLSNextProto:        map[string]func(string, *tls.Conn) http.RoundTripper{},
@@ -79,8 +74,7 @@ func tunnelTransport(upstream string, authorization *atomic.Pointer[string]) htt
 
 func tunnelTransportTo(base string, outer http.RoundTripper, authorization *atomic.Pointer[string]) http.RoundTripper {
 	inner := &http.Transport{
-		// One tunnel carries every call: HTTP/2 multiplexes them on it, and each more would cost the proxy a GET
-		// held open and POSTs of its own.
+		// One tunnel carries every call: HTTP/2 multiplexes them on it.
 		MaxConnsPerHost:    1,
 		DisableCompression: true,
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -107,29 +101,22 @@ type tunnelConn struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 
-	mu       sync.Mutex
-	changed  *sync.Cond
-	up       []byte // written and not yet handed to a POST
-	upOffset int64  // the stream offset of up[0]
-	inFlight int
-	down     []byte // received and not yet read
-	received int64  // bytes received in all
-	err      error  // why the tunnel ended
-
-	// Whether up holds more than HTTP/2's housekeeping, and since when it held anything, or anything more.
-	urgent, timing         bool
-	lazySince, urgentSince time.Time
-	preface, frameLeft     int // HTTP/2's frames in what is written: the preface and frame body still to come
-	header                 []byte
-	stats                  tunnelStats
+	mu        sync.Mutex
+	changed   *sync.Cond
+	up        []byte // written and not confirmed by the server, from stream offset upBase
+	upBase    int64
+	sent      int64  // the offset the POST streaming now got to
+	down      []byte // received and not yet read
+	received  int64  // bytes received in all
+	confirmed int64  // received as of the last status the server was given
+	err       error  // why the tunnel ended
+	stats     tunnelStats
 }
 
 // What a tunnel did since it last said, for re-relay's log.
 type tunnelStats struct {
-	posts, lazyPosts, gets int
-	postTime, maxPost      time.Duration
-	waitTime, maxWait      time.Duration
-	sent                   int64
+	posts, gets, statuses int
+	sent                  int64
 }
 
 func dialTunnel(ctx context.Context, transport http.RoundTripper, base string, authorization *atomic.Pointer[string]) (net.Conn, error) {
@@ -142,16 +129,16 @@ func dialTunnel(ctx context.Context, transport http.RoundTripper, base string, a
 		base:          base,
 		session:       hex.EncodeToString(id),
 		authorization: authorization,
-		preface:       len("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"),
 	}
 	c.changed = sync.NewCond(&c.mu)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
-	if err := c.post(ctx, "open", 0, nil); err != nil {
+	if _, err := c.ask(ctx, http.MethodPost, "open", 0); err != nil {
 		c.cancel()
 		return nil, fmt.Errorf("opening the tunnel: %w", err)
 	}
-	go c.send()
+	go c.upload()
 	go c.receive()
+	go c.confirm()
 	go c.report()
 	return c, nil
 }
@@ -171,62 +158,23 @@ func (c *tunnelConn) report() {
 		c.stats = tunnelStats{}
 		received := c.received
 		c.mu.Unlock()
-		if s.posts == 0 {
+		if s.sent == 0 && s.posts == 0 && s.gets == 0 {
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "re-relay: %s tunnel %s: %d POSTs (%d only HTTP/2's own), each %v on average and %v at most; "+
-			"calls waited %v on average and %v at most for one; %d GETs; %d bytes sent, %d received in all\n",
-			time.Now().Format(time.RFC3339), c.session[:8], s.posts, s.lazyPosts,
-			(s.postTime / time.Duration(s.posts)).Round(time.Millisecond), s.maxPost.Round(time.Millisecond),
-			(s.waitTime / time.Duration(max(1, s.posts-s.lazyPosts))).Round(time.Millisecond), s.maxWait.Round(time.Millisecond),
-			s.gets, s.sent, received)
-	}
-}
-
-// Notes whether p, written after what came before, holds more than HTTP/2's housekeeping frames. Called with c.mu
-// held.
-func (c *tunnelConn) scan(p []byte) {
-	for len(p) > 0 {
-		switch {
-		case c.preface > 0:
-			n := min(c.preface, len(p))
-			c.preface -= n
-			p = p[n:]
-			c.urgent = true
-		case c.frameLeft > 0:
-			n := min(c.frameLeft, len(p))
-			c.frameLeft -= n
-			p = p[n:]
-		default:
-			n := min(9-len(c.header), len(p))
-			c.header = append(c.header, p[:n]...)
-			p = p[n:]
-			if len(c.header) == 9 {
-				c.frameLeft = int(c.header[0])<<16 | int(c.header[1])<<8 | int(c.header[2])
-				switch c.header[3] {
-				case 0x4, 0x6, 0x8: // SETTINGS, PING, WINDOW_UPDATE
-				default:
-					c.urgent = true
-				}
-				c.header = c.header[:0]
-			}
-		}
+		fmt.Fprintf(os.Stderr, "re-relay: %s tunnel %s: %d bytes sent, %d received in all; %d POSTs, %d GETs and %d status checks started\n",
+			time.Now().Format(time.RFC3339), c.session[:8], s.sent, received, s.posts, s.gets, s.statuses)
 	}
 }
 
 // A request to the tunnel-server that should be made again when it fails, and why it is not worth making again.
 type permanent struct{ error }
 
-func (c *tunnelConn) request(ctx context.Context, method, what string, offset int64, body []byte) (*http.Request, error) {
+func (c *tunnelConn) request(ctx context.Context, method, what string, offset int64, body io.Reader) (*http.Request, error) {
 	c.mu.Lock()
-	ack := c.received
+	received := c.received
 	c.mu.Unlock()
-	url := fmt.Sprintf("%s/%s?s=%s&off=%d&ack=%d", c.base, what, c.session, offset, ack)
-	var reader io.Reader
-	if body != nil {
-		reader = bytes.NewReader(body)
-	}
-	r, err := http.NewRequestWithContext(ctx, method, url, reader)
+	url := fmt.Sprintf("%s/%s?s=%s&off=%d&ack=%d", c.base, what, c.session, offset, received)
+	r, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, err
 	}
@@ -241,44 +189,50 @@ func statusError(resp *http.Response) error {
 	page, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 	err := fmt.Errorf("the tunnel answered %s: %s", resp.Status, bytes.TrimSpace(page))
 	switch resp.StatusCode {
-	case http.StatusGone, http.StatusNotFound, http.StatusUnauthorized, http.StatusForbidden:
+	case http.StatusGone, http.StatusNotFound, http.StatusUnauthorized, http.StatusForbidden, http.StatusConflict:
 		return permanent{err}
 	}
 	return err
 }
 
-// One POST, made again until it is answered or the tunnel ends.
-func (c *tunnelConn) post(ctx context.Context, what string, offset int64, body []byte) error {
+func backOff(ctx context.Context, failures int) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Duration(100<<min(failures, 5)) * time.Millisecond):
+	}
+}
+
+// One short request, made again until it is answered or the tunnel ends: its answer.
+func (c *tunnelConn) ask(ctx context.Context, method, what string, offset int64) ([]byte, error) {
 	var last error
 	for attempt := 1; attempt <= tunnelAttempts; attempt++ {
-		r, err := c.request(ctx, http.MethodPost, what, offset, body)
+		r, err := c.request(ctx, method, what, offset, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		resp, err := c.client.Do(r)
 		if err == nil {
 			if resp.StatusCode == http.StatusOK {
-				io.Copy(io.Discard, resp.Body)
+				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
-				return nil
-			}
-			err = statusError(resp)
-			resp.Body.Close()
-			if errors.As(err, new(permanent)) {
-				return err
+				if err == nil {
+					return body, nil
+				}
+			} else {
+				err = statusError(resp)
+				resp.Body.Close()
+				if errors.As(err, new(permanent)) {
+					return nil, err
+				}
 			}
 		}
 		last = err
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return nil, ctx.Err()
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Duration(100<<min(attempt, 5)) * time.Millisecond):
-		}
+		backOff(ctx, attempt)
 	}
-	return last
+	return nil, last
 }
 
 func (c *tunnelConn) fail(err error) {
@@ -291,81 +245,148 @@ func (c *tunnelConn) fail(err error) {
 	c.cancel()
 }
 
-// Whether what was written goes in a POST now. Called with c.mu held; when it is only HTTP/2's housekeeping, too
-// new to send, it wakes send when it will be old enough.
-func (c *tunnelConn) ready() bool {
-	if len(c.up) == 0 {
-		return false
+// Asks how far the server got, telling it how much has been received, and forgets what it confirms.
+func (c *tunnelConn) status() error {
+	c.mu.Lock()
+	c.stats.statuses++
+	received := c.received
+	c.mu.Unlock()
+	answer, err := c.ask(c.ctx, http.MethodGet, "status", 0)
+	if err != nil {
+		return err
 	}
-	if c.urgent {
-		return c.inFlight < upInFlight
+	next, err := strconv.ParseInt(strings.TrimSpace(string(answer)), 10, 64)
+	if err != nil {
+		return permanent{fmt.Errorf("the tunnel's status was %q", answer)}
 	}
-	if c.inFlight >= lazyInFlight {
-		return false
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if next > c.upBase && next <= c.upBase+int64(len(c.up)) {
+		c.up = append(c.up[:0:0], c.up[next-c.upBase:]...)
+		c.upBase = next
+		c.changed.Broadcast()
 	}
-	wait := lazyDelay - time.Since(c.lazySince)
-	if wait <= 0 {
-		return true
-	}
-	if !c.timing {
-		c.timing = true
-		time.AfterFunc(wait, func() {
-			c.mu.Lock()
-			c.timing = false
-			c.changed.Broadcast()
-			c.mu.Unlock()
-		})
-	}
-	return false
+	c.confirmed = max(c.confirmed, received)
+	return nil
 }
 
-// Hands what was written to POSTs, upInFlight at a time.
-func (c *tunnelConn) send() {
+// Asks how far the server got every statusEvery while anything sent or received is unconfirmed.
+func (c *tunnelConn) confirm() {
+	ticker := time.NewTicker(statusEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		c.mu.Lock()
+		unconfirmed := c.sent > c.upBase || c.received > c.confirmed
+		c.mu.Unlock()
+		if unconfirmed {
+			if err := c.status(); err != nil {
+				c.fail(fmt.Errorf("asking the tunnel how far it got: %w", err))
+				return
+			}
+		}
+	}
+}
+
+// Streams what is written up one POST after another, each starting where the server got to.
+func (c *tunnelConn) upload() {
+	failures := 0
+	for first := true; c.ctx.Err() == nil; first = false {
+		if !first {
+			if err := c.status(); err != nil {
+				c.fail(fmt.Errorf("asking the tunnel how far it got: %w", err))
+				return
+			}
+		}
+		c.mu.Lock()
+		c.sent = c.upBase
+		offset := c.sent
+		c.stats.posts++
+		c.mu.Unlock()
+
+		reader, writer := io.Pipe()
+		r, err := c.request(c.ctx, http.MethodPost, "stream", offset, reader)
+		if err != nil {
+			c.fail(err)
+			return
+		}
+		r.ContentLength = -1
+		var over atomic.Bool
+		answered := make(chan error, 1)
+		go func() {
+			resp, err := c.client.Do(r)
+			if err == nil {
+				if resp.StatusCode != http.StatusOK {
+					err = statusError(resp)
+				}
+				io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+			if err == nil {
+				err = io.EOF // a POST ends only when this side ends it
+			}
+			reader.CloseWithError(err)
+			over.Store(true)
+			c.mu.Lock()
+			c.changed.Broadcast()
+			c.mu.Unlock()
+			answered <- err
+		}()
+		c.pump(writer, &over)
+		writer.Close()
+		err = <-answered
+		if errors.As(err, new(permanent)) {
+			c.fail(fmt.Errorf("streaming to the tunnel: %w", err))
+			return
+		}
+		if c.ctx.Err() != nil {
+			return
+		}
+		if err != io.EOF {
+			failures++
+			if failures >= tunnelAttempts {
+				c.fail(fmt.Errorf("streaming to the tunnel: %w", err))
+				return
+			}
+			backOff(c.ctx, failures)
+		} else {
+			failures = 0
+		}
+	}
+}
+
+// Writes what is written into one POST's body as it comes, until upLife has passed or the POST is over.
+func (c *tunnelConn) pump(body *io.PipeWriter, over *atomic.Bool) {
+	deadline := time.Now().Add(upLife)
+	timer := time.AfterFunc(upLife, func() {
+		c.mu.Lock()
+		c.changed.Broadcast()
+		c.mu.Unlock()
+	})
+	defer timer.Stop()
 	for {
 		c.mu.Lock()
-		for !c.ready() && c.err == nil {
+		for c.sent >= c.upBase+int64(len(c.up)) && c.err == nil && !over.Load() && time.Now().Before(deadline) {
 			c.changed.Wait()
 		}
-		if c.err != nil {
+		if c.err != nil || over.Load() || !time.Now().Before(deadline) {
 			c.mu.Unlock()
 			return
 		}
-		n := min(len(c.up), upChunk)
-		chunk := append([]byte(nil), c.up[:n]...)
-		c.up = append(c.up[:0:0], c.up[n:]...)
-		offset := c.upOffset
-		c.upOffset += int64(n)
-		c.inFlight++
-		c.stats.posts++
-		c.stats.sent += int64(n)
-		if c.urgent {
-			wait := time.Since(c.urgentSince)
-			c.stats.waitTime += wait
-			c.stats.maxWait = max(c.stats.maxWait, wait)
-		} else {
-			c.stats.lazyPosts++
-		}
-		if len(c.up) == 0 {
-			c.urgent = false
-		} else {
-			c.lazySince, c.urgentSince = time.Now(), time.Now()
-		}
-		c.changed.Broadcast()
+		from := c.sent - c.upBase
+		chunk := append([]byte(nil), c.up[from:min(int64(len(c.up)), from+256<<10)]...)
 		c.mu.Unlock()
-		go func() {
-			start := time.Now()
-			err := c.post(c.ctx, "up", offset, chunk)
-			took := time.Since(start)
-			c.mu.Lock()
-			c.inFlight--
-			c.stats.postTime += took
-			c.stats.maxPost = max(c.stats.maxPost, took)
-			c.changed.Broadcast()
-			c.mu.Unlock()
-			if err != nil {
-				c.fail(fmt.Errorf("sending to the tunnel: %w", err))
-			}
-		}()
+		if _, err := body.Write(chunk); err != nil {
+			return
+		}
+		c.mu.Lock()
+		c.sent += int64(len(chunk))
+		c.stats.sent += int64(len(chunk))
+		c.mu.Unlock()
 	}
 }
 
@@ -376,15 +397,13 @@ func (c *tunnelConn) receive() {
 	for c.ctx.Err() == nil {
 		c.mu.Lock()
 		offset := c.received
+		c.stats.gets++
 		c.mu.Unlock()
 		r, err := c.request(c.ctx, http.MethodGet, "down", offset, nil)
 		if err != nil {
 			c.fail(err)
 			return
 		}
-		c.mu.Lock()
-		c.stats.gets++
-		c.mu.Unlock()
 		resp, err := c.client.Do(r)
 		if err == nil && resp.StatusCode != http.StatusOK {
 			err = statusError(resp)
@@ -400,10 +419,7 @@ func (c *tunnelConn) receive() {
 				c.fail(fmt.Errorf("receiving from the tunnel: %w", err))
 				return
 			}
-			select {
-			case <-c.ctx.Done():
-			case <-time.After(time.Duration(100<<min(failures, 5)) * time.Millisecond):
-			}
+			backOff(c.ctx, failures)
 			continue
 		}
 		for {
@@ -454,14 +470,6 @@ func (c *tunnelConn) Write(p []byte) (int, error) {
 	if c.err != nil {
 		return 0, c.err
 	}
-	if len(c.up) == 0 {
-		c.lazySince = time.Now()
-	}
-	wasUrgent := c.urgent
-	c.scan(p)
-	if c.urgent && !wasUrgent {
-		c.urgentSince = time.Now()
-	}
 	c.up = append(c.up, p...)
 	c.changed.Broadcast()
 	return len(p), nil
@@ -476,7 +484,7 @@ func (c *tunnelConn) Close() error {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			c.post(ctx, "close", 0, nil)
+			c.ask(ctx, http.MethodPost, "close", 0)
 		}()
 	}
 	return nil
@@ -500,7 +508,6 @@ type tunnelSession struct {
 
 	writing sync.Mutex // holds the order of what is written to conn
 	next    int64      // the stream offset written up to
-	early   map[int64][]byte
 
 	mu        sync.Mutex
 	changed   *sync.Cond
@@ -533,7 +540,8 @@ func serveTunnel(listen, upstream string) {
 func (t *tunnelServer) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+tunnelPath+"/open", t.open)
-	mux.HandleFunc("POST "+tunnelPath+"/up", t.up)
+	mux.HandleFunc("POST "+tunnelPath+"/stream", t.stream)
+	mux.HandleFunc("GET "+tunnelPath+"/status", t.status)
 	mux.HandleFunc("GET "+tunnelPath+"/down", t.down)
 	mux.HandleFunc("POST "+tunnelPath+"/close", t.close)
 	mux.HandleFunc("GET "+tunnelPath+"/probe-down", probeDown)
@@ -568,7 +576,7 @@ func (t *tunnelServer) open(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	s := &tunnelSession{conn: conn, early: map[int64][]byte{}, seen: time.Now()}
+	s := &tunnelSession{conn: conn, seen: time.Now()}
 	s.changed = sync.NewCond(&s.mu)
 	t.mu.Lock()
 	if t.sessions[id] != nil {
@@ -622,58 +630,72 @@ func (s *tunnelSession) end() {
 	s.mu.Unlock()
 }
 
-func (t *tunnelServer) up(w http.ResponseWriter, r *http.Request) {
+// Writes what of b, which starts at stream offset at, has not been written yet.
+func (s *tunnelSession) write(at int64, b []byte) error {
+	s.writing.Lock()
+	defer s.writing.Unlock()
+	if at > s.next {
+		return fmt.Errorf("the stream skipped from %d to %d", s.next, at)
+	}
+	if skip := s.next - at; skip < int64(len(b)) {
+		if _, err := s.conn.Write(b[skip:]); err != nil {
+			s.end()
+			return err
+		}
+		s.next = at + int64(len(b))
+	}
+	s.mu.Lock()
+	s.seen = time.Now()
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *tunnelSession) written() int64 {
+	s.writing.Lock()
+	defer s.writing.Unlock()
+	return s.next
+}
+
+// One POST's body, written to the upstream as it arrives; answers with how far the stream has been written.
+func (t *tunnelServer) stream(w http.ResponseWriter, r *http.Request) {
 	id, offset, ack := query(r)
 	s := t.session(id)
 	if s == nil {
 		http.Error(w, "no such session", http.StatusGone)
 		return
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, upChunk+1))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	s.mu.Lock()
+	s.acknowledge(ack)
+	s.mu.Unlock()
+	buffer := make([]byte, 256<<10)
+	for {
+		n, err := r.Body.Read(buffer)
+		if n > 0 {
+			if err := s.write(offset, buffer[:n]); err != nil {
+				http.Error(w, err.Error(), http.StatusConflict)
+				return
+			}
+			offset += int64(n)
+		}
+		if err != nil {
+			break
+		}
+	}
+	fmt.Fprint(w, s.written())
+}
+
+// How far the stream has been written, after forgetting what the client says it has received.
+func (t *tunnelServer) status(w http.ResponseWriter, r *http.Request) {
+	id, _, ack := query(r)
+	s := t.session(id)
+	if s == nil {
+		http.Error(w, "no such session", http.StatusGone)
 		return
 	}
 	s.mu.Lock()
 	s.acknowledge(ack)
-	ended := s.ended
 	s.mu.Unlock()
-	if ended {
-		http.Error(w, "the session ended", http.StatusGone)
-		return
-	}
-
-	s.writing.Lock()
-	defer s.writing.Unlock()
-	if offset > s.next {
-		if len(s.early) >= 4*upInFlight {
-			http.Error(w, "too far ahead", http.StatusServiceUnavailable)
-			return
-		}
-		s.early[offset] = body
-		return
-	}
-	for {
-		if skip := s.next - offset; skip < int64(len(body)) {
-			if _, err := s.conn.Write(body[skip:]); err != nil {
-				s.end()
-				http.Error(w, err.Error(), http.StatusGone)
-				return
-			}
-			s.next = offset + int64(len(body))
-		}
-		found := false
-		for o, b := range s.early {
-			if o <= s.next {
-				delete(s.early, o)
-				offset, body, found = o, b, true
-				break
-			}
-		}
-		if !found {
-			return
-		}
-	}
+	fmt.Fprint(w, s.written())
 }
 
 func (t *tunnelServer) down(w http.ResponseWriter, r *http.Request) {

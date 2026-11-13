@@ -65,22 +65,21 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   server, which `setup.sh` makes once.
 - **The key** is that token: `BE3_NL_TOKEN`, `.nl-token` at the checkout's root or `~/.config/be3/nl-token`, asked
   for at a terminal. CI has it as the secret `BE3_NL_TOKEN`. buck2 reaches the server directly over TLS; behind an HTTPS proxy, through the relay.
-- **Behind a proxy, through the tunnel.** A cloud session's proxy speaks only HTTP/1.1 and handles about 240 requests
-  a second however many connections carry them, and a cache-warm `./scripts/verify` makes about 24,000 calls (two per
-  cached action), so with each call its own request it spent about 100 s in that limit. So for nl.be3.pfg.pw the relay
-  runs with `-tunnel` (scripts/internal/re-relay/tunnel.go): HTTP/2 inside one byte stream carried by a long GET for
-  what the server sends and POSTs for what the relay sends, each POST carrying everything written while the ones
-  before it were out. Caddy passes `/__be3-tunnel/*` to re-relay's `tunnel-server` (`nl-tunnel.service`), which joins
-  each tunnel to NativeLink. HTTP/2's own frames (WINDOW_UPDATE as a download is read, PING, SETTINGS) wait up to
-  50 ms and take at most 2 of the 16 POSTs, so a download cannot keep calls waiting for one. Every 30 s each tunnel
-  writes its POSTs' count and times, and how long calls waited for one, to `target/re-relay.log`. `BE3_NL_TUNNEL=0`
-  sends each call as its own request instead, to compare.
-  The tunnel-server logs, every 30 s, the most bytes that queued behind each GET (`journalctl -u nl-tunnel`), and
-  `re-relay tunnel-probe -upstream nl.be3.pfg.pw` (the token in `BE3_NL_TOKEN` unless a proxy adds it) times each
-  way through the proxy: POSTs' one-way time up, and lines streamed 100 ms apart down, which arrive in bunches when
-  the proxy holds a stream back, and one streaming POST, whose lines arrive late when the proxy collects a body before
-  passing it on. Every 30 s the relay also writes each gRPC method's count and times to `target/re-relay.log`: a cached
-  action is a GetActionResult and then a BatchReadBlobs for its small outputs, one after the other.
+- **Behind a proxy, through the tunnel.** A cloud session's proxy speaks only HTTP/1.1, handles about 240 requests a
+  second however many connections carry them, and adds about 80 ms to each request on its way up; a cache-warm
+  `./scripts/verify` makes about 24,000 calls, a GetActionResult and then a BatchReadBlobs for each cached action, one
+  after the other. With each call its own request that took about 1m45 from Iowa. So for nl.be3.pfg.pw the relay runs
+  with `-tunnel` (scripts/internal/re-relay/tunnel.go): HTTP/2 inside one byte stream, carried up by one long chunked
+  POST and down by one long GET, both of which the proxy passes along as they come. Each is replaced every 4 minutes,
+  under the proxy's five-minute cut, from where the other side got to, and the relay asks `/__be3-tunnel/status` about
+  once a second how far the server got, so that each side can forget what the other has. Caddy passes
+  `/__be3-tunnel/*` to re-relay's `tunnel-server` (`nl-tunnel.service`), which joins each tunnel to NativeLink.
+  `BE3_NL_TUNNEL=0` sends each call as its own request instead, to compare.
+- **Measuring the way.** Every 30 s the relay writes each gRPC method's count and times, and each tunnel's bytes and
+  requests, to `target/re-relay.log`; the tunnel-server logs the most bytes that queued behind each GET
+  (`journalctl -u nl-tunnel`). `re-relay tunnel-probe -upstream nl.be3.pfg.pw` (the token in `BE3_NL_TOKEN` unless a
+  proxy adds it) times each way through the proxy: POSTs up, lines streamed 100 ms apart down, which arrive in bunches
+  when the proxy holds a stream back, and one streaming POST, whose lines arrive late when it collects a body first.
 - **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
   and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
 - **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB

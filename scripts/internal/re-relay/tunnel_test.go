@@ -24,10 +24,10 @@ func startTunnel(t *testing.T, upstream string) string {
 	return front.URL + tunnelPath
 }
 
-func TestTunnelCarriesAStreamAcrossGetsTheServerEnds(t *testing.T) {
-	old := downLife
-	downLife = 20 * time.Millisecond
-	t.Cleanup(func() { downLife = old })
+func TestTunnelCarriesAStreamAcrossPostsAndGetsThatEnd(t *testing.T) {
+	oldDown, oldUp, oldStatus := downLife, upLife, statusEvery
+	downLife, upLife, statusEvery = 20*time.Millisecond, 30*time.Millisecond, 10*time.Millisecond
+	t.Cleanup(func() { downLife, upLife, statusEvery = oldDown, oldUp, oldStatus })
 
 	echo, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -128,34 +128,5 @@ func TestTunnelMultiplexesHTTP2Calls(t *testing.T) {
 	}
 	if n := requests.Load(); n >= calls {
 		t.Fatalf("%d calls took %d requests to the tunnel-server", calls, n)
-	}
-}
-
-func TestOnlyHTTP2HousekeepingIsLeftToWait(t *testing.T) {
-	frame := func(kind byte, length int) []byte {
-		return append([]byte{byte(length >> 16), byte(length >> 8), byte(length), kind, 0, 0, 0, 0, 1}, make([]byte, length)...)
-	}
-	c := &tunnelConn{preface: 24}
-	c.scan([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
-	if !c.urgent {
-		t.Fatal("the preface waited")
-	}
-	c.urgent = false
-	windowUpdate := frame(0x8, 4)
-	c.scan(windowUpdate[:5])
-	c.scan(windowUpdate[5:])
-	c.scan(frame(0x6, 8))
-	c.scan(frame(0x4, 0))
-	if c.urgent {
-		t.Fatal("WINDOW_UPDATE, PING and SETTINGS went at once")
-	}
-	headers := frame(0x1, 30)
-	c.scan(headers[:3])
-	if c.urgent {
-		t.Fatal("half a frame header was taken for a call")
-	}
-	c.scan(headers[3:])
-	if !c.urgent {
-		t.Fatal("a HEADERS frame waited")
 	}
 }
