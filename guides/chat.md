@@ -131,20 +131,22 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   made since.
 - It sends, replies, edits and deletes its own messages and toggles reactions
   (Lucide icon names). A draft stays in the editor until sent.
-- **Attachments** are copies (decisions/chat_attachments_are_copies.md).
-  Attach picks a block (`pick_block`, never the chat nor a block it is inside
-  of) and copies it (`host().copy_blocks`); the original stays where it was.
-  A copy waits in Unfiled while the draft holds it, since a child the chat's
-  content does not list yet counts as deleted, and moves into the chat
-  (`set_parent`) with the message that lists it. The draft shows each copy as
-  it is made, says everyone in the chat can open it, and sends only once every
-  copy is made; a copy that failed shows so and is left out. The message lists
-  the copies in `attachments` (signed with it), and a message may be
-  attachments alone, which has no text to edit. Each shows as a `BlockLink`
-  under the message, typed from the chat's children (`BlockQuery::Children`).
-  A copy no message carries is deleted: removed from the draft, left behind
-  when the editor closes with it, or carried by a Not-sent message that is
-  discarded (Send again carries them). Attach is off while editing a message.
+- **Attachments** (decisions/chat_attachments_are_references.md). Attach opens
+  the picker (`pick_block`, with templates, never the chat itself): an
+  existing block it picks (`linked`) is a reference, left where it is with its
+  own access; a block made in the picker is made in the chat, as is an image
+  pasted into the composer (`TextInput`'s `on_image_paste`, `create_child`).
+  The draft shows each with its type's icon and name, says so when what it
+  carries is made here (everyone in the chat can open it), and sends a made
+  block only once it is one of the chat's children (`BlockQuery::Children`).
+  The message lists them in `attachments` (signed with it), and a message may
+  be attachments alone, which has no text to edit. Each shows as a `BlockLink`
+  under the message, typed from the chat's children and references; one this
+  account cannot read shows "No access", greyed and not openable. A block made
+  for a draft is deleted when removed from it, when the editor closes with
+  it, or when a Not-sent message carrying it is discarded (Send again carries
+  them); a referenced block is left alone. A copy of the chat copies its
+  children, not the blocks it references. Attach is off while editing.
 - **Sending state.** A message shows "Sending" while the server lacks the edit
   that sent it, and "Not sent", with Send again and Discard, once the server
   refused the commit holding it (`ContentProjection::lacking`,

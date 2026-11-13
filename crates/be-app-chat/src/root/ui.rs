@@ -14,8 +14,8 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    BlockFilter, BlockLink, BlockParent, BlockQuery, ChildTarget, ContentProjection, Editor, EditorHost,
-    KeptEdit, LayeredSettings, Signer, utc_offset,
+    BlockFilter, BlockLink, BlockParent, BlockQuery, ChildTarget, ContentProjection, Editor,
+    EditorHost, KeptEdit, LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
 };
 use be_type_chat::{
     ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey, ReadPlace,
@@ -112,53 +112,58 @@ struct Composer {
     replying: Signal<Option<ObjectId>>,
     editing: Signal<Option<ObjectId>>,
     picking: Signal<Option<ObjectId>>,
-    /// The blocks picked to send with the next message, by the picked block's id, each with
-    /// its copy in the chat once the host made it.
-    attaching: Signal<Vec<(Uuid, Copying)>>,
+    /// The blocks to send with the next message.
+    attaching: Signal<Vec<Pending>>,
 }
 
-/// A picked block's copy into the chat (decisions/chat_attachments_are_copies.md).
+/// A block the draft carries (decisions/chat_attachments_are_references.md): an existing block
+/// by reference, where it is, or one made for the draft (in the picker, or a pasted image) as a
+/// child of the chat.
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum Copying {
-    Copying,
-    /// The copy and its type.
-    Copied(Uuid, Uuid),
-    Failed,
+struct Pending {
+    id: Uuid,
+    block_type: Uuid,
+    made: bool,
 }
 
-/// The type of each of a chat's children (its attachments), by id.
-type Attached = Memo<HashMap<Uuid, Uuid>>;
+/// The type of each block the chat's messages may carry, by id, with whether it is the chat's
+/// child: its children and what it references. One missing is one this account cannot read.
+type Attached = Memo<HashMap<Uuid, (Uuid, bool)>>;
 
 fn attached(editor: Editor, block: Uuid) -> Attached {
-    let found = create_signal(HashMap::new());
     let children = editor.blocks().watch(BlockQuery::Children(block));
+    let references = editor.blocks().watch(BlockQuery::References(block));
+    let found = create_signal(HashMap::new());
     create_binding(move || {
-        if let Ok(blocks) = children.read() {
-            found.set(
+        let mut known = HashMap::new();
+        if let Ok(blocks) = references.read() {
+            known.extend(
                 blocks
                     .into_iter()
-                    .map(|info| (info.id, info.block_type))
-                    .collect(),
+                    .map(|info| (info.id, (info.block_type, false))),
             );
         }
+        if let Ok(blocks) = children.read() {
+            known.extend(
+                blocks
+                    .into_iter()
+                    .map(|info| (info.id, (info.block_type, true))),
+            );
+        }
+        found.set(known);
     });
     create_memo(move || found.get())
 }
 
-/// Picks a block to send with the next message and copies it, never the chat itself nor a block
-/// it is inside of (a copy of which would copy the chat into itself). The copy moves into the
-/// chat with the message that carries it.
-fn attach(editor: Editor, composer: Composer, anchor: NodeRef, ancestors: Memo<Vec<Uuid>>) {
+/// Picks a block to send with the next message: an existing one is referenced where it is, and
+/// one made in the picker is made in the chat.
+fn attach(editor: Editor, composer: Composer, anchor: NodeRef) {
     editor.pick_block(
         BlockFilter {
             name: "Attach".to_owned(),
             block_types: Vec::new(),
-            excluded: ancestors
-                .get_untracked()
-                .into_iter()
-                .map(Uuid::into_bytes)
-                .collect(),
-            templates: false,
+            excluded: Vec::new(),
+            templates: true,
             place: None,
         },
         &anchor,
@@ -166,68 +171,88 @@ fn attach(editor: Editor, composer: Composer, anchor: NodeRef, ancestors: Memo<V
             let Ok(picked) = picked else {
                 return;
             };
-            let source = picked.id();
-            if composer
-                .attaching
-                .with_untracked(|attaching| attaching.iter().any(|(held, _)| *held == source))
-            {
-                return;
-            }
-            composer
-                .attaching
-                .update(|attaching| attaching.push((source, Copying::Copying)));
-            // The copy waits in Unfiled until the message carrying it is sent: under the chat
-            // before a message lists it, it would count as deleted.
-            let copying = editor.host().copy_blocks(source, BlockParent::Unfiled);
-            editor.then(copying, move |copied| {
-                let copied = match copied {
-                    Ok(Some((copy, block_type))) => Copying::Copied(copy, block_type),
-                    _ => Copying::Failed,
-                };
-                let mut kept = false;
-                composer.attaching.update(|attaching| {
-                    if let Some((_, state)) = attaching.iter_mut().find(|(held, _)| *held == source)
-                    {
-                        *state = copied;
-                        kept = true;
-                    }
-                });
-                // Removed from the draft while it was being made: the copy goes too.
-                if !kept && let Copying::Copied(copy, block_type) = copied {
-                    editor
-                        .host()
-                        .delete_block(copy, block_type, BlockParent::Unfiled);
-                }
-            });
+            pend(
+                composer,
+                Pending {
+                    id: picked.id(),
+                    block_type: Uuid::from_bytes(picked.block_type),
+                    made: !picked.linked,
+                },
+            );
         },
     );
 }
 
-/// Deletes the copies `attaching` made, which no message carries, from where they are: a
-/// draft's in Unfiled, a message's in the chat.
-fn delete_copies(host: &EditorHost, from: BlockParent, attaching: &[(Uuid, Copying)]) {
-    for (_, copying) in attaching {
-        if let Copying::Copied(copy, block_type) = copying {
-            host.delete_block(*copy, *block_type, from);
+fn pend(composer: Composer, pending: Pending) {
+    composer.attaching.update(|attaching| {
+        if !attaching.iter().any(|held| held.id == pending.id) {
+            attaching.push(pending);
         }
+    });
+}
+
+/// An image pasted into the composer becomes a child of the chat, attached to the draft.
+fn paste_image(editor: Editor, composer: Composer, file: PickedFile) {
+    let image = be_type_image::ImageFile::from_file(file.name, file.data);
+    let id = editor.create_child(&image);
+    pend(
+        composer,
+        Pending {
+            id,
+            block_type:
+                <be_type_image::ImageContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+            made: true,
+        },
+    );
+}
+
+/// Deletes the blocks of `pending` made for a draft no message carries; a referenced block is
+/// left where it is.
+fn delete_made(host: &EditorHost, chat: Uuid, pending: &[Pending]) {
+    for made in pending.iter().filter(|pending| pending.made) {
+        host.delete_block(made.id, made.block_type, BlockParent::Block(chat));
     }
 }
 
-/// A block sent with a message, or about to be: a link to it by its name.
+/// A block sent with a message: a link to it by its name, or "No access", greyed and not
+/// openable, for a block this account cannot read.
 #[component]
-fn AttachmentChip(
-    editor: Editor,
-    id: Uuid,
-    block_type: Memo<Option<Uuid>>,
-    link_id: String,
-) -> NodeId {
+fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String) -> NodeId {
     let target = create_memo(move || {
-        block_type
-            .get()
-            .map(|block_type| ChildTarget::new(id, block_type))
+        attached.with(|attached| {
+            attached
+                .get(&id)
+                .map(|(block_type, _)| ChildTarget::new(id, *block_type))
+        })
     });
     view! {
-        <BlockLink editor block={target} fallback="Attachment" @test_id={link_id} />
+        <BlockLink editor block={target} fallback="No access" @test_id={link_id} />
+    }
+}
+
+/// A block the draft carries: its type's icon and its name.
+#[component]
+fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
+    let target = create_memo(move || Some(ChildTarget::new(pending.id, pending.block_type)));
+    let shown = watch_block_label(editor, target);
+    // A block made for the draft is not listed by the chat until it is sent: its type's icon,
+    // not a deleted block's.
+    let glyph = create_memo(move || {
+        be_sdk_beui::be_sdk_ui::BlockLabel::new(
+            editor.block_types().as_ref(),
+            pending.block_type,
+            None,
+            false,
+        )
+        .icon
+    });
+    let name = create_memo(move || shown.with(|shown| shown.name.clone()));
+    view! {
+        <Text size=TextSize::Sm @test_id={link_id}>
+            <Icon glyph={glyph} color=TextColor::Muted />
+            " "
+            {name}
+        </Text>
     }
 }
 
@@ -267,93 +292,54 @@ pub fn Chat(editor: Editor) -> NodeId {
         attaching: create_signal(Vec::new()),
     };
     let attached = attached(editor, block);
-    let ancestors = {
-        let parents = editor.blocks().watch(BlockQuery::Parents(block));
-        let found = create_signal(Vec::new());
-        create_binding(move || {
-            if let Ok(parents) = parents.read() {
-                found.set(parents.into_iter().map(|info| info.id).collect());
-            }
-        });
-        create_memo(move || found.get())
-    };
     let attach_button = NodeRef::new();
     let attaching_ids = create_memo(move || {
-        composer
-            .attaching
-            .with(|attaching| attaching.iter().map(|(source, _)| *source).collect::<Vec<_>>())
+        composer.attaching.with(|attaching| {
+            attaching
+                .iter()
+                .map(|pending| pending.id)
+                .collect::<Vec<_>>()
+        })
     });
     let has_attaching = create_memo(move || composer.attaching.with(|ids| !ids.is_empty()));
-    // A draft let go with the editor takes the copies it made with it.
+    let makes_children = create_memo(move || {
+        composer
+            .attaching
+            .with(|attaching| attaching.iter().any(|pending| pending.made))
+    });
+    // A draft let go with the editor takes the blocks made for it.
     let host = editor.host();
     on_cleanup(move || {
         composer
             .attaching
-            .with_untracked(|attaching| delete_copies(&host, BlockParent::Unfiled, attaching))
+            .with_untracked(|attaching| delete_made(&host, block, attaching))
     });
-    let attaching_chip = move |source: Uuid| {
-        let state = create_memo(move || {
-            composer.attaching.with(|attaching| {
-                attaching
-                    .iter()
-                    .find(|(held, _)| *held == source)
-                    .map_or(Copying::Failed, |(_, state)| *state)
-            })
-        });
-        let copy = create_memo(move || match state.get() {
-            Copying::Copied(copy, _) => Some(copy),
-            _ => None,
-        });
-        let copied_type = create_memo(move || match state.get() {
-            Copying::Copied(_, block_type) => Some(block_type),
-            _ => None,
-        });
-        let copying = create_memo(move || state.get() == Copying::Copying);
-        let failed = create_memo(move || state.get() == Copying::Failed);
-        let link = move |copy: Uuid| {
-            view! {
-                <AttachmentChip
-                    editor
-                    id={copy}
-                    block_type={copied_type}
-                    link_id={format!("chat.attaching.{source}")}
-                />
-            }
+    let attaching_chip = move |id: Uuid| {
+        let pending = composer
+            .attaching
+            .with_untracked(|attaching| attaching.iter().find(|held| held.id == id).copied());
+        let Some(pending) = pending else {
+            return view! {
+                <Frame />
+            };
         };
-        let copies = create_memo(move || copy.get().into_iter().collect::<Vec<_>>());
         view! {
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <ForEach keys={copies} view={link} />
-                <Show condition={copying}>
-                    <Text style=TextStyle::CAPTION>"Copying…"</Text>
-                </Show>
-                <Show condition={failed}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        color=TextColor::Danger
-                        @test_id={format!("chat.attaching.{source}.failed")}
-                    >
-                        "Could not attach a copy"
-                    </Text>
-                </Show>
+                <PendingChip editor pending link_id={format!("chat.attaching.{id}")} />
                 <Button
                     label="Remove the attachment"
                     glyph=ICON_X
                     icon_only=true
                     variant=ButtonVariant::Ghost
                     size=ButtonSize::Small
-                    @test_id={format!("chat.attaching.{source}.remove")}
+                    @test_id={format!("chat.attaching.{id}.remove")}
                     on_click={move || {
                         let mut removed = Vec::new();
                         composer.attaching.update(|attaching| {
-                            removed = attaching
-                                .iter()
-                                .filter(|(held, _)| *held == source)
-                                .copied()
-                                .collect();
-                            attaching.retain(|(held, _)| *held != source);
+                            removed = attaching.iter().filter(|held| held.id == id).copied().collect();
+                            attaching.retain(|held| held.id != id);
                         });
-                        delete_copies(&editor.host(), BlockParent::Unfiled, &removed);
+                        delete_made(&editor.host(), block, &removed);
                     }}
                 />
             </List>
@@ -388,7 +374,16 @@ pub fn Chat(editor: Editor) -> NodeId {
             }
         });
     });
-    let send = move || submit(editor, &chat, signing.get_untracked(), me, composer);
+    let send = move || {
+        submit(
+            editor,
+            &chat,
+            signing.get_untracked(),
+            me,
+            composer,
+            attached,
+        )
+    };
     let scroll = ComponentRef::<ScrollApi>::new();
     let at_end = create_signal(true);
     let unread = unread_count(editor, chat, block, me, at_end);
@@ -592,9 +587,11 @@ pub fn Chat(editor: Editor) -> NodeId {
                             >
                                 <ForEach keys={attaching_ids} view={attaching_chip} />
                             </List>
-                            <Text style=TextStyle::CAPTION>
-                                "A copy is attached, which everyone in this chat can open."
-                            </Text>
+                            <Show condition={makes_children}>
+                                <Text style=TextStyle::CAPTION>
+                                    "What is made here is part of the chat: everyone in it can open it."
+                                </Text>
+                            </Show>
                         </List>
                     </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -606,7 +603,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                             disabled={editing}
                             @node_ref={&attach_button}
                             @test_id={"chat.attach"}
-                            on_click={move || attach(editor, composer, attach_button, ancestors)}
+                            on_click={move || attach(editor, composer, attach_button)}
                         />
                         <ListItem grow=1.0>
                             <TextInput
@@ -615,6 +612,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                                 label="Message"
                                 @test_id={"chat.draft"}
                                 on_submit={move |_| send()}
+                                on_image_paste={move |file: PickedFile| paste_image(editor, composer, file)}
                             />
                         </ListItem>
                         <Button
@@ -1131,6 +1129,7 @@ fn submit(
     block: Uuid,
     me: Uuid,
     composer: Composer,
+    attached: Attached,
 ) {
     let body = composer.draft.get_untracked().trim().to_owned();
     let editing = composer.editing.get_untracked();
@@ -1138,20 +1137,17 @@ fn submit(
         Some(_) => Vec::new(),
         None => composer.attaching.get_untracked(),
     };
-    // A message names a copy only once it was made; one that failed is left out.
-    if pending
-        .iter()
-        .any(|(_, copying)| *copying == Copying::Copying)
-    {
+    // A block made for it is carried only once it is one of the chat's children.
+    let unready = pending.iter().any(|pending| {
+        pending.made
+            && !attached.with_untracked(|attached| {
+                attached.get(&pending.id).is_some_and(|(_, child)| *child)
+            })
+    });
+    if unready {
         return;
     }
-    let attachments: Vec<Uuid> = pending
-        .iter()
-        .filter_map(|(_, copying)| match copying {
-            Copying::Copied(copy, _) => Some(*copy),
-            _ => None,
-        })
-        .collect();
+    let attachments: Vec<Uuid> = pending.iter().map(|pending| pending.id).collect();
     // A body the host would refuse to sign stays in the composer rather than go out as forged.
     if (body.is_empty() && attachments.is_empty()) || body.len() > MAX_BODY_BYTES {
         return;
@@ -1182,13 +1178,6 @@ fn submit(
             composer.editing.set(None);
         }
         None => {
-            // Each copy moves into the chat with the message that lists it.
-            let chat_id = editor.block_id();
-            for copy in &attachments {
-                editor
-                    .blocks()
-                    .set_parent(*copy, BlockParent::Block(chat_id));
-            }
             let message = Message {
                 attachments: attachments.into_iter().map(BlockRef).collect(),
                 ..Message::new(me, now(), body).replying_to(composer.replying.get_untracked())
@@ -1274,7 +1263,7 @@ fn MessageRow(
             <AttachmentChip
                 editor
                 id={attachment}
-                block_type={create_memo(move || attached.with(|attached| attached.get(&attachment).copied()))}
+                attached
                 link_id={format!("chat.message.{id}.attachment.{attachment}")}
             />
         }
@@ -1352,22 +1341,26 @@ fn MessageRow(
                 chat.operate(send.into());
             }
         } else {
-            // Given up: the copies it carried go with it.
+            // Given up: the blocks made for it go with it; referenced ones stay where they are.
             let carried = chat
                 .read(|content| content.message(id).map(|message| message.attachments))
                 .ok()
                 .flatten()
                 .unwrap_or_default();
-            let copies: Vec<(Uuid, Copying)> = attached.with_untracked(|attached| {
+            let made: Vec<Pending> = attached.with_untracked(|attached| {
                 carried
                     .iter()
-                    .filter_map(|BlockRef(copy)| {
-                        let block_type = attached.get(copy)?;
-                        Some((*copy, Copying::Copied(*copy, *block_type)))
+                    .filter_map(|BlockRef(carried)| {
+                        let (block_type, child) = attached.get(carried)?;
+                        child.then_some(Pending {
+                            id: *carried,
+                            block_type: *block_type,
+                            made: true,
+                        })
                     })
                     .collect()
             });
-            delete_copies(&editor.host(), BlockParent::Block(editor.block_id()), &copies);
+            delete_made(&editor.host(), editor.block_id(), &made);
         }
         delete(editor, chat, signing.get_untracked(), me, id);
         chat.dismiss_lacking(unsent.lacking);
@@ -1557,19 +1550,19 @@ fn MessageRow(
                     <Show condition={mine}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Show condition={has_body}>
-                            <Button
-                                label="Edit"
-                                glyph=ICON_PENCIL
-                                icon_only=true
-                                variant=ButtonVariant::Ghost
-                                size=ButtonSize::Small
-                                @test_id={format!("chat.message.{id}.edit")}
-                                on_click={move || {
-                                    composer.replying.set(None);
-                                    composer.editing.set(Some(id));
-                                    composer.draft.set(body.get_untracked());
-                                }}
-                            />
+                                <Button
+                                    label="Edit"
+                                    glyph=ICON_PENCIL
+                                    icon_only=true
+                                    variant=ButtonVariant::Ghost
+                                    size=ButtonSize::Small
+                                    @test_id={format!("chat.message.{id}.edit")}
+                                    on_click={move || {
+                                        composer.replying.set(None);
+                                        composer.editing.set(Some(id));
+                                        composer.draft.set(body.get_untracked());
+                                    }}
+                                />
                             </Show>
                             <Button
                                 label="Delete"
