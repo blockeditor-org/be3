@@ -607,6 +607,8 @@ pub struct Shared {
     /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
     /// host keeps asking.
     pub seals_owed: u64,
+    /// What the worker waits on the type modules for (`Host::asking`), for `busy` to name.
+    pub asking: Vec<String>,
     /// Open replicas with edits that are not in the device's journal yet.
     pub undurable: usize,
     pub connected: bool,
@@ -796,6 +798,12 @@ impl Shared {
             && let Some(step) = self.step
         {
             reasons.push(format!("the block store's loop is busy with {step}"));
+        }
+        if !self.asking.is_empty() {
+            reasons.push(format!(
+                "the block store waits on its type modules for {}",
+                self.asking.join(", ")
+            ));
         }
         reasons
     }
@@ -1148,6 +1156,11 @@ impl Session<'_> {
                 self.replicas.modules.wake_at(),
                 self.retry_at(),
                 self.versions_due,
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .search
+                    .moving_due(),
             ]
             .into_iter()
             .flatten()
@@ -1362,7 +1375,14 @@ impl Session<'_> {
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             step(shared, Some("the search index"));
-            moved |= super::search::step(peer, shared, self.replicas, &self.tasks.0).await;
+            moved |= super::search::step(
+                peer,
+                shared,
+                self.replicas,
+                &self.tasks.0,
+                &self.config.clock,
+            )
+            .await;
             spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())

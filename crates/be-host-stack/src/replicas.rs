@@ -191,6 +191,10 @@ impl be_block_type_host::Host for Shared {
         held.leaving = leaving;
         held.progressed += 1;
     }
+
+    fn asking(shared: &Arc<Mutex<Self>>, asking: Vec<String>) {
+        shared.lock().unwrap_or_else(PoisonError::into_inner).asking = asking;
+    }
 }
 
 fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: Vec<u8>) {
