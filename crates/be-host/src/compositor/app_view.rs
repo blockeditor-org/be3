@@ -28,15 +28,14 @@ use be_host_desktop::host_item::HostItem;
 use be_host_desktop::host_item::HostItemFace;
 use be_host_desktop::occlusion::{Occlusion, occlusion};
 use be_host_runtime::{
-    GiftView, KeyProgress,
-    self, BlockDrag, EditorView, HostChild, InstanceEvent, InstanceRole, Piece, PlacedView,
-    ViewPlace, ViewSlot,
+    self, BlockDrag, EditorView, GiftView, HostChild, InstanceEvent, InstanceRole, KeyProgress,
+    Piece, PlacedView, ViewPlace, ViewSlot,
 };
 use beui::native::draw_gpu;
 use beui::reactive::toggle_keyboard;
 
-mod handoff;
 pub(crate) mod gifts;
+mod handoff;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
@@ -727,7 +726,9 @@ pub(crate) fn AppView(
         }
     });
     let shown_view: GiftView = (app_id.value().to_string(), instance, region.id);
-    let gift_placer = asked.map(|asked| (asked.placer.app, asked.placer.instance));
+    // A copy this view owns: the placer's view, which owns its own, can go first.
+    let gift_placer =
+        asked.map(|asked| (store(asked.placer.app.value().to_string()), asked.placer.instance));
     let rebuilt = shown_view.clone();
     create_effect(move || {
         if let Some(node) = catcher.try_get() {
@@ -745,7 +746,9 @@ pub(crate) fn AppView(
         if let Some(node) = catcher.try_get() {
             let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
             if !placed {
-                with_placer(gift_placer, |placer| be_host_runtime::forget_keys(&gone, placer));
+                with_placer(gift_placer, |placer| {
+                    be_host_runtime::forget_keys(&gone, placer)
+                });
                 REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
@@ -2097,7 +2100,9 @@ impl ChildNodes {
             provide_context(Enclosing(encloses));
             provide_context(ChildFocus(Some(AskedFocus {
                 asked: create_memo(move || {
-                    placer.app.with(|app| gifts::gives(app, placer.instance, key))
+                    placer
+                        .app
+                        .with(|app| gifts::gives(app, placer.instance, key))
                 }),
                 placer,
                 child: key,

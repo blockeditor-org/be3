@@ -26,12 +26,24 @@ fn keys_typed_right_after_a_press_wait_for_the_frame_that_answers_it() {
     );
     assert!(instances.take_gift(INSTANCE, ChildId(1), notes_view(), false, (1, pass)));
     assert_eq!(
-        notes_keys(&mut instances, progress((1, 1), true, true), true, Vec::new(), pass),
+        notes_keys(
+            &mut instances,
+            progress((1, 1), true, true),
+            true,
+            Vec::new(),
+            pass
+        ),
         [],
         "the child's field asked for an input method before it had the focus"
     );
     assert_eq!(
-        notes_keys(&mut instances, progress((2, 2), true, true), true, Vec::new(), pass),
+        notes_keys(
+            &mut instances,
+            progress((2, 2), true, true),
+            true,
+            Vec::new(),
+            pass
+        ),
         [letter("T"), letter("h")]
     );
 

@@ -271,7 +271,8 @@ impl Instances {
         let Some(mut gift) = entry.gift.take() else {
             return;
         };
-        let told = !matches!(gift.to, GiftTo::Answer(_)) && !matches!(gift.stage, Stage::Done { .. });
+        let told =
+            !matches!(gift.to, GiftTo::Answer(_)) && !matches!(gift.stage, Stage::Done { .. });
         if keys == Keys::Return && !gift.keys.is_empty() {
             if !matches!(gift.stage, Stage::Done { .. }) {
                 gift.stage = Stage::Done { pass: host::pass() };
@@ -375,8 +376,8 @@ impl Instances {
             return;
         };
         let holding = gift.holder.as_ref() == Some(view);
-        let moved_on = input.events.iter().any(is_press)
-            || input.events.contains(&Forwarded::Focus(false));
+        let moved_on =
+            input.events.iter().any(is_press) || input.events.contains(&Forwarded::Focus(false));
         if gift.pending() {
             let answered = matches!(gift.to, GiftTo::Answer(after) if app.frames.1 >= after);
             if answered || (moved_on && (holding || input.focused)) {

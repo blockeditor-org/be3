@@ -495,7 +495,6 @@ fn notes_keys(
     input.events
 }
 
-
 fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
     let role = InstanceRole::Editor(
         Uuid::nil(),
