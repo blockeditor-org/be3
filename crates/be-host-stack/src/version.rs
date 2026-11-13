@@ -2183,10 +2183,7 @@ async fn create(
                 .set_parent(block, parent)
                 .await
                 .map_err(failed)?;
-            (
-                context.peer.summary(block).await.map_err(failed)?,
-                true,
-            )
+            (context.peer.summary(block).await.map_err(failed)?, true)
         }
         Err(error) => return Err(failed(error)),
     };
@@ -2263,9 +2260,8 @@ async fn publish(
 ) -> Result<Option<CommitId>, String> {
     let no_entries = be_block::Entries::new();
     let read_defined = read.as_ref().map_or(&no_entries, |read| read.defined);
-    let defined = |held: &be_block::Entries| {
-        merge_defined(read_defined, &written.metadata.defined, held)
-    };
+    let defined =
+        |held: &be_block::Entries| merge_defined(read_defined, &written.metadata.defined, held);
     let Some(manifest) = written.manifest else {
         let summary = context
             .peer
@@ -2381,7 +2377,11 @@ async fn merge_over(
     let base = match made_from {
         Some(made_from) => {
             context.peer.fetch_history(theirs).await.map_err(failed)?;
-            context.peer.fetch_history(made_from).await.map_err(failed)?;
+            context
+                .peer
+                .fetch_history(made_from)
+                .await
+                .map_err(failed)?;
             let commits = context.peer.commits();
             if commits.is_ancestor(theirs, made_from).map_err(stored)? {
                 return Ok(None);
@@ -2409,7 +2409,11 @@ async fn merge_over(
     let ctx = (context.peer, context.shared);
     let merged = context
         .replicas
-        .merge(ctx, content_type, [base.as_ref(), Some(ours), Some(&theirs)])
+        .merge(
+            ctx,
+            content_type,
+            [base.as_ref(), Some(ours), Some(&theirs)],
+        )
         .await
         .map_err(failed)?
         .ok_or("A block changed while version control wrote it, and its type cannot merge them.")?;
