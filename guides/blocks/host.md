@@ -11,8 +11,8 @@ The host's peer names no content type. Every type runs in a type module
 (guides/type_modules.md): an app's own, named by its manifest's `block_types`,
 staged beside the app as `NAME.wasm` with its `.cwasm` and `NAME.sha256` (the
 tag of its sessions), one instance per app; and the host's own types
-(`be_sdk_type_host::registrations()`: settings, repository, checkout), run in
-process (`be_host_stack::types::HostTypes`).
+(`be_sdk_type_host`'s `be_block_types!`: settings, repository, checkout), run
+in process as its `BlockTypes`.
 
 A type's name, icon, color, child edits and press come from the declaring
 manifest (or `be_host_stack::host_block_types`), held by discovery
@@ -48,7 +48,7 @@ and the refs database.
 watches the block, constructs the `replica` with the head, answers its calls
 with the real primitives (`Peer::seal` then `publish_sealed`, `Peer::stash`,
 resume, the lease, relays sealed with the block key, `sleep-until`) and keeps
-what it reports (`report-status`, `described`, `history`, `conflict`).
+what it reports (`report-status`, which carries the undo state too, `described`, `conflict`).
 
 A module runs on its own thread natively, in a web worker on the web
 (`WebGuest`), and in process in unit tests (`InProcess`); the worker never

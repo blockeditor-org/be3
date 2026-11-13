@@ -17,6 +17,7 @@ fn own_bar(tab: u64, key: &str) -> DockBar {
             width: 160.0,
             height: 32.0,
         },
+        pane: None,
     }
 }
 
@@ -57,6 +58,7 @@ fn a_docks_own_bars_reach_the_root_and_come_back_to_each_level_as_its_own() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         },
         DockPlacedBar {
             bar: path(&[INNER_CHILD], 9),
@@ -66,6 +68,7 @@ fn a_docks_own_bars_reach_the_root_and_come_back_to_each_level_as_its_own() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         },
     ];
     host(&mut docks, DockHold::Hosted(hosted));
@@ -79,6 +82,7 @@ fn a_docks_own_bars_reach_the_root_and_come_back_to_each_level_as_its_own() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         }]
     );
     assert_eq!(
@@ -91,6 +95,7 @@ fn a_docks_own_bars_reach_the_root_and_come_back_to_each_level_as_its_own() {
                 align: DockAlign::Center,
             }),
             hidden: false,
+            pane: None,
         }],
         "the deeper dock hears its bar back as its own"
     );

@@ -1,12 +1,12 @@
 use be_lib_stable_hash::HashMap;
 use std::{
     cell::Cell,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     rc::{Rc, Weak},
 };
 
 use be_sdk_api::{
-    EditorInstanceId,
+    BlockCommand, EditorInstanceId,
     blocks::{BlockSubject, BlockValue, OpenRequest as WireOpen, ShowRequest},
     guest::blocks,
     ops::{
@@ -101,7 +101,11 @@ impl Subject {
                 }),
             ),
             (Self::Version, BlockValue::Version(status)) => host.set_version_status(status),
-            _ => {}
+            (subject, value) => {
+                if cfg!(debug_assertions) {
+                    panic!("the host answered a watch of {subject:?} with {value:?}");
+                }
+            }
         }
     }
 }
@@ -131,9 +135,10 @@ fn follow<W: 'static, T: DeserializeOwned + 'static>(
     });
 }
 
+/// Closes the watches of what is no longer `wanted` and opens one for each new subject.
 fn reconcile<K: Ord + Copy, W>(
     held: &mut BTreeMap<K, Rc<W>>,
-    wanted: &[K],
+    wanted: &BTreeSet<K>,
     mut open: impl FnMut(K) -> Rc<W>,
 ) {
     held.retain(|key, _| wanted.contains(key));
@@ -169,12 +174,6 @@ impl Link {
         for open in host.take_opens() {
             self.under(|| blocks::open_block(request_of(open)).detach());
         }
-        for (block, command) in host.take_block_commands() {
-            self.under(|| blocks::act(block.into_bytes(), command).detach());
-        }
-        for (block, command) in host.take_version_commands() {
-            self.under(|| blocks::version(block.into_bytes(), command).detach());
-        }
     }
 
     fn change_graph(&self, host: &EditorHost) {
@@ -197,10 +196,18 @@ impl Link {
                 )
                 .detach(),
                 GraphCommand::SetParent { id, parent } => {
-                    blocks::set_parent(id.into_bytes(), parent.encode()).detach();
+                    blocks::act(id.into_bytes(), BlockCommand::SetParent(parent.encode())).detach();
                 }
-                GraphCommand::Define { id, key, value } => {
-                    blocks::define(id.into_bytes(), key.into_bytes(), value).detach();
+                GraphCommand::Define { id, key, value } => blocks::act(
+                    id.into_bytes(),
+                    BlockCommand::Define {
+                        key: key.into_bytes(),
+                        value,
+                    },
+                )
+                .detach(),
+                GraphCommand::Act { id, command } => {
+                    blocks::act(id.into_bytes(), command).detach();
                 }
             });
         }

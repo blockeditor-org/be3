@@ -155,8 +155,8 @@ instance closes.
 
 A copy of blocks is a reference: `editor.copy_blocks` writes `be3/blocks` and,
 as plain text, each title and its link; the host adds the blocks' exported
-files, read through their types only when a paste asks. Ids inside a
-`be3/blocks` item are translated like any other crossing the protocol.
+files, read through their types only when a paste asks. Its blocks are the
+item's `refs`, which the host translates like any id crossing the protocol.
 
 A cut is recorded by the host, not the clip, and only the host keeps it:
 `host().cut_blocks(blocks, holder)`, which it ignores unless `holder` may be
