@@ -331,8 +331,8 @@ pub(crate) fn AppView(
         .filter(|_| region.id == ViewId::MAIN)
         .map(|ChildFit(fit)| fit);
     provide_context(ChildFit(create_memo(|| None)));
-    let placer = use_context::<Placer>()
-        .map(|placer| (placer.app.to_owned(), placer.instance, placer.view));
+    let placer =
+        use_context::<Placer>().map(|placer| (placer.app.to_owned(), placer.instance, placer.view));
     be_host_runtime::mount_view(ViewSlot {
         app: &editor.app,
         placer: placer

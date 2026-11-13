@@ -1759,7 +1759,9 @@ pub fn end_gift(app_id: &str, instance: EditorInstanceId) {
 /// running. The gift is counted from now and ends if the view does not take it in time.
 pub fn child_up_for_gift((app_id, instance): (&str, EditorInstanceId), child: be_sdk_api::ChildId) {
     with(app_id, |runtime| {
-        runtime.instances.start_gift_count(instance, child, host::now());
+        runtime
+            .instances
+            .start_gift_count(instance, child, host::now());
     });
 }
 
