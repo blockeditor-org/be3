@@ -55,7 +55,7 @@ impl Index {
     /// Merges segments until no tier holds `FACTOR` of them, or `most` merges are done: a
     /// writer compacts a few at a time with each batch, so no one write rewrites the index.
     /// A merge whose inputs' parts come to more than `bytes` (as `length` gives a part's) is
-    /// left for later. What it retires is recorded at `now` (milliseconds), for
+    /// not made: those segments are left as they are. What it retires is recorded at `now` (milliseconds), for
     /// `Index::forget_before`.
     pub async fn compact(
         &mut self,
@@ -115,7 +115,7 @@ impl Index {
                     .iter()
                     .flat_map(|&index| self.segments[index].parts())
                     .map(|part| length(&part))
-                    .sum()
+                    .fold(0u64, u64::saturating_add)
             };
             let Some(group) = candidates.into_iter().find(|group| size(group) <= bytes) else {
                 break;

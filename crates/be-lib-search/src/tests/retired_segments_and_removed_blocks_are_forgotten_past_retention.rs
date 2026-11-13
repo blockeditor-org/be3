@@ -43,6 +43,7 @@ fn retired_segments_and_removed_blocks_are_forgotten_past_retention() {
         index.retired.is_empty(),
         "the retired segments are forgotten"
     );
+    assert_eq!(index.remembered(), 0);
     assert!(found(&index, &store, "uniq0v0x ").is_empty());
     assert_eq!(found(&index, &store, "uniq1v0x "), [doc(1)].into());
 }

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_merge_larger_than_the_byte_cap_waits_for_a_later_pass() {
+fn a_merge_over_the_byte_cap_is_not_made() {
     let mut store = Store::default();
     let mut index = Index::default();
     for n in 0..4u32 {
@@ -30,7 +30,7 @@ fn a_merge_larger_than_the_byte_cap_waits_for_a_later_pass() {
     assert!(written.added.is_empty());
     assert_eq!(index.segment_count(), 4);
 
-    // A later pass with room for them merges them.
+    // With room for them, they merge.
     let written = run(index.compact(&store, id(11), 1, usize::MAX, total, bytes)).unwrap();
     store.keep(&written);
     assert_eq!(index.segment_count(), 1);

@@ -47,7 +47,8 @@ const REMEMBERED: i64 = 7 * SEARCH_INDEX_KEPT;
 /// The segment merges one compaction makes at most, so no one batch rewrites the index.
 const MERGES_PER_PASS: usize = 2;
 
-/// The most bytes of parts one merge reads: a larger one waits for a later pass.
+/// The most bytes of parts one merge reads. Segments whose merge would read more are left as
+/// they are: no pass lifts the cap yet (plans/backlog.md, "Search").
 const MERGE_BYTES: u64 = 8 << 20;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -117,7 +118,8 @@ impl SearchIndexContent {
             self.parts
                 .iter()
                 .find(|(held, _)| held == name)
-                .map_or(0, |(_, part)| part.length())
+                // A part it does not hold counts as too big to merge.
+                .map_or(u64::MAX, |(_, part)| part.length())
         };
         let written = index
             .compact(
