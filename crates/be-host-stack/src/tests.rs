@@ -40,6 +40,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_deleted_database_row_is_no_longer_found;
+mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
@@ -944,11 +945,22 @@ struct Device {
 
 impl Device {
     fn online(harness: &Harness) -> Self {
+        Self::at(harness, harness.config(PathBuf::new()).socket_url())
+    }
+
+    /// Connects straight to the server, past the harness's relay: taking the relay offline
+    /// keeps the stack offline and this device online.
+    fn past_the_relay(harness: &Harness) -> Self {
+        let mut config = harness.config(PathBuf::new());
+        config.server_url = harness.url.clone();
+        Self::at(harness, config.socket_url())
+    }
+
+    fn at(harness: &Harness, url: String) -> Self {
         let runtime = runtime();
         let refs = be_block_client::RefsDb::memory();
         let store = be_block_store::MemoryStore::new();
-        let (url, identity, token, organization) = (
-            harness.config(PathBuf::new()).socket_url(),
+        let (identity, token, organization) = (
             harness.identity(),
             harness.token.clone(),
             harness.organization,

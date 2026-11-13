@@ -21,6 +21,12 @@ fn an_edit_made_across_a_takeover_is_kept() {
     owner.leave();
     add(block, 100);
 
+    // Owning the counter, the stack would commit only after a quiet spell
+    // (`be_sdk_type_guest::QUIET_INTERVAL`), so it seals as soon as it owes one.
+    wait_until("took over with what it typed", |shared| {
+        counted(shared, block) == Some(110) && shared.owing > 0
+    });
+    crate::flush_and_send();
     wait_until("saved what it typed across the takeover", |shared| {
         counted(shared, block) == Some(110) && shared.unsealed == 0
     });

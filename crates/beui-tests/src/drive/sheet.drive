@@ -8,4 +8,4 @@ wait 'Row 1'
 drag '#sheet.handle' '#sheet.handle+20,300' 6
 pause 1000
 wait 'value="Sheet open false closed 1"'
-gone 'Row 1'
+wait not 'Row 1'
