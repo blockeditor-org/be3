@@ -35,7 +35,7 @@ async fn a_connection_holds_a_bounded_number_of_streams_and_sessions() {
     member.join_session(block).await;
 
     let relayed = member
-        .relay(block, None, vec![0; MAX_RELAY_BYTES + 1])
+        .relay(block, None, RelayKind::Peer, vec![0; MAX_RELAY_BYTES + 1])
         .await;
     assert!(
         refused_as(&relayed, ErrorCode::InvalidRequest),

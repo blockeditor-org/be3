@@ -26,6 +26,11 @@ presses into popups, the tray, notifications, media, Wi-Fi, input devices and th
   and launches Start Menu `.lnk` programs, matches their windows by process id
   (`Watcher::launched`), offers power actions, and closes, resizes and maximizes windows. The
   watcher's threading rules are on `Watcher`: break them and the UI thread deadlocks.
+- A typed line: the host names `cmd.exe /D /C` as its shell (`ProgramCatalog::shell`), but
+  `Win32::exec` runs a command that starts with it as the Run dialog does, never through cmd:
+  the line is split into arguments and its first is shell-executed with the rest as parameters,
+  so App Paths (`chrome`), documents and URLs open, no console shows, and the launch tracks the
+  program's own process.
 - `crates/be-host-win32-capture`: Windows.Graphics.Capture of a monitor or window, its newest frame
   a `wgpu::Texture` on wgpu's Vulkan device through a shared D3D11 texture and fence. be-host's
   `RunOptions::device_extensions` adds the capture's `DEVICE_EXTENSIONS` on Windows. One `Device` per
@@ -40,8 +45,8 @@ In be-host-desktop, `desktop_host/win32.rs` (`Win32`) is the `DesktopHost`, with
 
 ## How entries show
 
-- The watcher starts when the desktop shell is first shown (`set_owned(true)`) and registers
-  `Hotkey::DEFAULT` (Ctrl+Alt+Space). The host prints a line to stderr for each rare event and every
+- The watcher starts when the desktop shell is first shown (`DesktopHost::configure` with
+  `owned` set) and registers `Hotkey::DEFAULT` (Ctrl+Alt+Space). The host prints a line to stderr for each rare event and every
   failure, since nothing else shows what a first run on a new machine did.
 - `WindowsWatch` is the snapshot's entries; `win32_map::known_window` makes the rest of each
   window's status. A window's name is its Start menu program's (`win32_map::ProgramNames`): the one

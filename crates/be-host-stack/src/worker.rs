@@ -232,6 +232,7 @@ pub(super) enum Command {
         command: be_sdk_api::VersionCommand,
     },
     WatchVersion(Uuid),
+    UnwatchVersion(Uuid),
     ApprovePairing {
         from: u64,
         code: String,
@@ -328,6 +329,7 @@ impl Command {
             Command::ContentOfFile { .. } => "content of file",
             Command::Version { .. } => "version",
             Command::WatchVersion(..) => "watch version",
+            Command::UnwatchVersion(..) => "unwatch version",
             Command::ApprovePairing { .. } => "approve pairing",
             Command::DismissPairing(..) => "dismiss pairing",
             Command::Contact(..) => "contact",
@@ -379,6 +381,7 @@ impl Command {
                 | Command::Flush(_)
                 | Command::Storage
                 | Command::WatchVersion(_)
+                | Command::UnwatchVersion(_)
                 | Command::DismissPairing(_)
                 | Command::SetNotifyMode { .. }
                 | Command::Push(_)
@@ -440,6 +443,7 @@ impl Command {
             | Command::PlainFile { block, .. }
             | Command::Version { block, .. }
             | Command::WatchVersion(block)
+            | Command::UnwatchVersion(block)
             | Command::Leave { block, .. }
             | Command::Contact(ContactCommand::Link {
                 offer: Some((block, _)),
@@ -633,20 +637,16 @@ pub struct Shared {
     pub conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub pairing: Vec<PairingRequest>,
     pub contacts: Vec<be_block_client::Contact>,
-    pub contacts_revision: u64,
     /// The account's storage, while an editor watches it (`storage_watched`).
     pub storage: Option<be_block_protocol::AccountStorage>,
-    pub storage_revision: u64,
     pub storage_watched: bool,
     pub escrow_warning: Option<&'static str>,
     /// The account's notification mode for each block it set to other than `all`, once read
-    /// (`Tasks::notify_modes`), and how often it changed, for the watch the host publishes.
+    /// (`Tasks::notify_modes`).
     pub notify_modes: Option<HashMap<Uuid, be_block_protocol::NotifyMode>>,
-    pub notify_modes_revision: u64,
     pub locked: std::collections::HashSet<Uuid>,
     pub version_watch: std::collections::HashSet<Uuid>,
     pub versions: HashMap<Uuid, super::version::VersionState>,
-    pub touched: be_lib_stable_hash::HashSet<Uuid>,
     pub pending: usize,
     pub typing: bool,
     /// While the host holds the modules' clock and nothing else is in flight, when their
@@ -666,7 +666,6 @@ pub struct Shared {
     pub staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
     pub owned: std::collections::HashSet<Uuid>,
     pub unreadable: HashMap<Uuid, String>,
-    pub stale_revision: u64,
     pub waiting: usize,
     pub unsent: Vec<be_block_client::UnsentBlock>,
     pub comparison: Option<super::conflicts::Comparison>,
@@ -702,14 +701,18 @@ impl Shared {
         if self.connected != connected {
             self.connected = connected;
             self.graph.revision += 1;
-            self.stale_revision += 1;
+            crate::changes::post(crate::Changes {
+                graph: true,
+                stale: true,
+                ..crate::Changes::default()
+            });
             self.progressed += 1;
         }
     }
 
     pub fn touch(&mut self, block: Uuid) {
         self.progressed += 1;
-        self.touched.insert(block);
+        crate::changes::block(block);
     }
 
     /// What keeps the device from being in step with the server, apart from `busy`: drive's
@@ -816,7 +819,13 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
-    let mut replicas = Replicas::new(Modules::new(types::sources().await, config.clock.clone()));
+    let mut replicas = Replicas::new(Modules::with_kinds_changed(
+        types::sources().await,
+        config.clock.clone(),
+        // A kind this host can now read may make blocks stop being stale; posting wakes the
+        // host's frame, which takes the notice.
+        super::changes::stale,
+    ));
     replicas.modules.hold_clock(super::held_clock());
     replicas.modules.ready().await;
     be_host_base::host::wake();
@@ -1613,16 +1622,16 @@ async fn drain_outbox(
                 .collect();
             published.extend(refused.iter().map(|block| (*block, true)));
             for outcome in drained {
-                // The graph follows what the drain published, as it does a replica's publish, and
-                // asks again for listings a creation or move it sent changes: one answered while
-                // it was on its way is from before it.
+                // The graph follows what the drain published of a block no replica holds
+                // (`Graph::drained_head`), and asks again for listings a creation or move it
+                // sent changes: one answered while it was on its way is from before it.
                 match &outcome {
                     be_block_client::Drained::Published { block, head } => {
                         shared
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .graph
-                            .set_head(*block, Some(*head));
+                            .drained_head(*block, *head);
                     }
                     be_block_client::Drained::Created { block } => {
                         let parent = peer
@@ -2178,7 +2187,10 @@ impl Ran<'_> {
                                 be_block_protocol::NotifyMode::All => modes.remove(&block),
                                 mode => modes.insert(block, mode),
                             };
-                            held.notify_modes_revision += 1;
+                            crate::changes::post(crate::Changes {
+                                notify_modes: true,
+                                ..crate::Changes::default()
+                            });
                             held.progressed += 1;
                         }
                     }
@@ -2331,7 +2343,10 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
                 let changed = shared.contacts != contacts;
                 if changed {
                     shared.contacts = contacts;
-                    shared.contacts_revision += 1;
+                    crate::changes::post(crate::Changes {
+                        contacts: true,
+                        ..crate::Changes::default()
+                    });
                     shared.progressed += 1;
                 }
                 changed
@@ -2599,7 +2614,7 @@ pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool)
         false => held.locked.remove(&block),
     };
     if changed {
-        held.stale_revision += 1;
+        crate::changes::stale();
         held.progressed += 1;
         held.touch(block);
         drop(held);
@@ -2614,7 +2629,7 @@ pub(super) fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Op
         None => held.unreadable.remove(&block).is_some(),
     };
     if changed {
-        held.stale_revision += 1;
+        crate::changes::stale();
         held.progressed += 1;
         held.touch(block);
         drop(held);
@@ -2791,6 +2806,10 @@ async fn apply(
             Versions::watch(shared, block);
             false
         }
+        Command::UnwatchVersion(block) => {
+            Versions::unwatch(shared, block);
+            false
+        }
         Command::DismissPairing(from) => {
             shared
                 .lock()
@@ -2853,7 +2872,7 @@ async fn apply(
                 }
             }
             held.unsent = peer.unsent();
-            held.stale_revision += 1;
+            crate::changes::stale();
             held.progressed += 1;
             drop(held);
             be_host_base::host::wake();
@@ -3541,7 +3560,7 @@ async fn export(
 fn relist(shared: &Arc<Mutex<Shared>>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.graph.relist_all();
-    held.stale_revision += 1;
+    crate::changes::stale();
     held.progressed += 1;
 }
 
@@ -3715,7 +3734,10 @@ impl Tasks {
             if let Ok(read) = peer.notify_modes().await {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 held.notify_modes = Some(read.iter().map(|row| (row.block, row.mode)).collect());
-                held.notify_modes_revision += 1;
+                crate::changes::post(crate::Changes {
+                    notify_modes: true,
+                    ..crate::Changes::default()
+                });
                 held.progressed += 1;
                 drop(held);
                 be_host_base::host::wake();
@@ -3760,7 +3782,10 @@ impl Tasks {
                     Some(next) => {
                         if held.storage.as_ref() != Some(&next) {
                             held.storage = Some(next);
-                            held.storage_revision += 1;
+                            crate::changes::post(crate::Changes {
+                                storage: true,
+                                ..crate::Changes::default()
+                            });
                             held.progressed += 1;
                         }
                     }

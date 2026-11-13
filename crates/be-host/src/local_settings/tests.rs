@@ -8,6 +8,8 @@ use crate::display::{self, Screen};
 
 mod a_committed_mode_keeps_the_rotation_of_the_layer_under_it;
 mod a_display_mode_is_saved_only_once_it_is_kept;
+mod a_layer_block_a_notice_names_is_read_again;
+mod a_local_setting_edited_across_a_stack_restart_is_written;
 mod a_reverted_display_mode_is_never_saved;
 mod an_edit_sent_again_keeps_a_rotation_written_over_it;
 mod edits_written_to_the_block_cover_its_content_until_it_holds_them;

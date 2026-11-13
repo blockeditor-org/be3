@@ -77,7 +77,9 @@ pub(crate) fn apply(settings: &InputSettings) {
         }
     });
     LAYOUTS.with_borrow_mut(|layouts| layouts.seat = Some(seat));
-    Host::set_primary_selection(settings.middle_click_paste());
+    be_host_desktop::desktop_host::configure(|desktop| {
+        desktop.primary_selection = settings.middle_click_paste();
+    });
     be_host_desktop::remap::configure(settings);
     be_host_desktop::desktop_host::set_keyboard(&keyboard);
     be_host_desktop::desktop_host::set_layout(active);
