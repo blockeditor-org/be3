@@ -40,6 +40,17 @@ pub struct ChatHeader {
     /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
     /// yet.
     pub segments: Series<Segment>,
+    /// The blocks made for a message not sent yet (decisions/chat_attachments_are_references.md),
+    /// by block: the chat's children while no message carries them. Sending a message that
+    /// carries one takes it out, as does deleting it as a child.
+    pub drafts: LatestMap<Uuid, Draft>,
+}
+
+/// A block made in a chat for its author's next message.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Draft {
+    pub block: BlockRef,
+    pub author: Uuid,
 }
 
 /// A message: an object of registers, not text, so two people's messages never merge into
@@ -131,6 +142,9 @@ pub struct Segment {
     pub hash: Vec<u8>,
     #[serde(with = "serde_bytes")]
     pub members: Vec<u8>,
+    /// What its messages carry, so the chat still lists the children they carry once they
+    /// leave the header.
+    pub attachments: Vec<BlockRef>,
 }
 
 impl Message {
@@ -250,6 +264,17 @@ impl Root for ChatHeader {
                 | Change::Move { .. }
                 | Change::MoveRange { .. }
         )
+    }
+
+    /// A chat's only removable children are its drafts: a block a message carries stays
+    /// listed, since its signature covers what it carries.
+    fn child_edit(&self, change: ChildChange) -> Option<Edit> {
+        let ChildChange::Delete(block) = change else {
+            return None;
+        };
+        let draft = self.drafts.get(&block)?;
+        let stamp = self.drafts.next(&block, 0, draft.author);
+        Some(ChatHeader::DRAFTS.put(ObjectId::ROOT, &block, None, stamp).into())
     }
 }
 
@@ -578,6 +603,49 @@ impl ChatContent {
         ChatHeader::MESSAGES
             .insert_as(id, ObjectId::ROOT, Anchor::End, message)
             .into()
+    }
+
+    /// `send_as`, taking what the message carries out of the drafts: it is the message's now.
+    pub fn send_drafted(&self, id: ObjectId, message: &Message) -> Edit {
+        let drafts = self.drafts();
+        let mut changes = Self::send_as(id, message).0;
+        changes.extend(message.attachments.iter().filter_map(|BlockRef(block)| {
+            let draft = drafts.get(block)?;
+            let stamp = drafts.next(block, stamp_time(message.time), draft.author);
+            Some(ChatHeader::DRAFTS.put(ObjectId::ROOT, block, None, stamp))
+        }));
+        changes.into_iter().collect()
+    }
+
+    /// Lists `block`, made in the chat, as a draft of `author`'s next message.
+    pub fn make_draft(&self, block: Uuid, author: Uuid, time: i64) -> Edit {
+        let stamp = self.drafts().next(&block, stamp_time(time), author);
+        let draft = Draft {
+            block: BlockRef(block),
+            author,
+        };
+        ChatHeader::DRAFTS
+            .put(ObjectId::ROOT, &block, Some(&draft), stamp)
+            .into()
+    }
+
+    /// Takes `block` out of the drafts, which deletes it from the chat; none unless it is a
+    /// draft (`Root::child_edit`).
+    pub fn drop_draft(&self, block: Uuid) -> Option<Edit> {
+        self.header.root().child_edit(ChildChange::Delete(block))
+    }
+
+    /// The blocks `author` made for a message not sent yet.
+    pub fn drafts_of(&self, author: Uuid) -> Vec<Uuid> {
+        self.drafts()
+            .values()
+            .filter(|draft| draft.author == author)
+            .map(|draft| draft.block.0)
+            .collect()
+    }
+
+    fn drafts(&self) -> LatestMap<Uuid, Draft> {
+        self.header.field(ObjectId::ROOT, ChatHeader::DRAFTS)
     }
 
     /// An unsigned edit of `message` (`next_edit`, then `put_edit`).

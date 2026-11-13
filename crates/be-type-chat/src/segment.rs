@@ -134,6 +134,10 @@ impl Segment {
             length: bytes.len() as u64,
             hash: hash(bytes),
             members,
+            attachments: messages
+                .iter()
+                .flat_map(|(_, message)| message.attachments.iter().copied())
+                .collect(),
         }
     }
 

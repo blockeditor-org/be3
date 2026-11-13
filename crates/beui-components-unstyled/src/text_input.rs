@@ -131,7 +131,6 @@ pub fn TextInput(
     on_image_paste: Callback<PickedFile>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
-    let pastes_images = !on_image_paste.is_empty();
     let TextInputStyle {
         font_size,
         color,
@@ -338,7 +337,6 @@ pub fn TextInput(
             accessibility
             on_toolbar={open_menu}
             on_submit={submit}
-            pastes_images
             on_image_paste={on_image_paste}
             on_focus_change={move |focused: bool| {
                 if focused && select_on_focus.get_untracked() {

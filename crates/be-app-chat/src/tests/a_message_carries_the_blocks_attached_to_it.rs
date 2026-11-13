@@ -1,35 +1,8 @@
+use be_sdk_beui::be_block::BlockContent;
 use be_sdk_beui::be_block::be_block_model::BlockRef;
-use be_sdk_beui::{
-    BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, PickedBlock, Press,
-};
 use be_sdk_test::HostCall;
 
 use super::*;
-
-const TEXT: Uuid = Uuid::from_u128(0x7e47);
-
-/// Picks `block` to attach: an existing block (`linked`), or one the picker made in the chat.
-fn attach(chat: &mut Harness, block: Uuid, linked: bool) {
-    chat.click("chat.attach");
-    chat.editor.answer_picker(Ok(Some(PickedBlock {
-        block_id: block.into_bytes(),
-        block_type: TEXT.into_bytes(),
-        linked,
-        named: true,
-        placed: false,
-    })));
-    chat.run();
-}
-
-fn deleted(chat: &mut Harness) -> Vec<Uuid> {
-    chat.editor
-        .take_block_commands()
-        .into_iter()
-        .filter_map(|(block, command)| {
-            matches!(command, BlockCommand::Delete { .. }).then_some(block)
-        })
-        .collect()
-}
 
 #[test]
 fn a_message_carries_the_blocks_attached_to_it() {
@@ -85,14 +58,17 @@ fn a_message_carries_the_blocks_attached_to_it() {
     chat.click(&format!("chat.attaching.{plans}.remove"));
     assert_eq!(deleted(&mut chat), Vec::<Uuid>::new());
 
-    // A block made in the picker is the chat's child; removing it from the draft deletes it.
+    // A block made in the picker is the chat's child, listed as a draft; removing it from the
+    // draft takes it out of the chat, which deletes it.
     attach(&mut chat, sketch, false);
+    assert_eq!(chat.content().drafts_of(ME), [sketch]);
+    assert!(chat.content().references().contains(&sketch));
     chat.click(&format!("chat.attaching.{sketch}.remove"));
-    assert_eq!(
-        deleted(&mut chat),
-        [sketch],
+    assert!(
+        !chat.content().references().contains(&sketch),
         "a block made for the draft goes with it"
     );
+    assert!(chat.content().drafts_of(ME).is_empty());
 
     attach(&mut chat, plans, true);
     attach(&mut chat, sketch, false);
@@ -126,6 +102,11 @@ fn a_message_carries_the_blocks_attached_to_it() {
         !chat.editor.shown(&format!("chat.attaching.{plans}")),
         "the composer lets the attachments go once sent"
     );
+    assert!(
+        chat.content().drafts_of(ME).is_empty(),
+        "what a message carries is no longer a draft"
+    );
+    assert!(chat.content().references().contains(&sketch));
     assert!(
         chat.editor
             .label(&format!("chat.message.{sent}.attachment.{plans}"))

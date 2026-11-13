@@ -18,12 +18,16 @@ child of the chat.
 
 ## Consequences
 
-- A member who cannot read a referenced block sees its link as "No access",
-  greyed and not openable.
+- A member who cannot read a referenced block sees a lock and "No access" in
+  its place, not a link.
 - A copy of the chat copies its children, not the blocks it references.
-- A block made for a draft is deleted when it is removed from the draft, when
-  the draft is left, and when a Not-sent message carrying it is discarded; a
-  referenced block is left alone.
+- A block made for a draft is a visible child of the chat before it is sent:
+  the chat lists it among its drafts at once, so the server keeps it and every
+  member can see and open it. The draft is kept with the chat, not the
+  editor, so it survives a reload and closing the editor deletes nothing.
+- A block made for a draft is deleted when it is removed from the draft while
+  it is still the chat's child, and when a Not-sent message that alone carries
+  it is discarded; a referenced block is left alone.
 
 ## Rejected
 

@@ -8,7 +8,7 @@ use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
     Glyph, ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PAPERCLIP,
-    ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP,
+    ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_LOCK, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP,
     ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
@@ -157,7 +157,7 @@ fn attached(editor: Editor, block: Uuid) -> Attached {
 
 /// Picks a block to send with the next message: an existing one is referenced where it is, and
 /// one made in the picker is made in the chat.
-fn attach(editor: Editor, composer: Composer, anchor: NodeRef) {
+fn attach(editor: Editor, chat: Chat, me: Uuid, composer: Composer, anchor: NodeRef) {
     editor.pick_block(
         BlockFilter {
             name: "Attach".to_owned(),
@@ -171,14 +171,18 @@ fn attach(editor: Editor, composer: Composer, anchor: NodeRef) {
             let Ok(picked) = picked else {
                 return;
             };
-            pend(
-                composer,
-                Pending {
-                    id: picked.id(),
-                    block_type: Uuid::from_bytes(picked.block_type),
-                    made: !picked.linked,
-                },
-            );
+            let block_type = Uuid::from_bytes(picked.block_type);
+            match picked.linked {
+                true => pend(
+                    composer,
+                    Pending {
+                        id: picked.id(),
+                        block_type,
+                        made: false,
+                    },
+                ),
+                false => draft_made(chat, me, composer, picked.id(), block_type),
+            }
         },
     );
 }
@@ -191,31 +195,54 @@ fn pend(composer: Composer, pending: Pending) {
     });
 }
 
-/// An image pasted into the composer becomes a child of the chat, attached to the draft.
-fn paste_image(editor: Editor, composer: Composer, file: PickedFile) {
-    let image = be_type_image::ImageFile::from_file(file.name, file.data);
-    let id = editor.create_child(&image);
+/// Lists a block made in the chat as a draft of `me`'s next message (`ChatContent::make_draft`),
+/// which keeps it the chat's child until a message carries it, and attaches it.
+fn draft_made(chat: Chat, me: Uuid, composer: Composer, id: Uuid, block_type: Uuid) {
+    if let Ok(draft) = chat.read(|content| content.make_draft(id, me, now())) {
+        chat.operate(draft.into());
+    }
     pend(
         composer,
         Pending {
             id,
-            block_type:
-                <be_type_image::ImageContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+            block_type,
             made: true,
         },
     );
 }
 
-/// Deletes the blocks of `pending` made for a draft no message carries; a referenced block is
-/// left where it is.
-fn delete_made(host: &EditorHost, chat: Uuid, pending: &[Pending]) {
-    for made in pending.iter().filter(|pending| pending.made) {
-        host.delete_block(made.id, made.block_type, BlockParent::Block(chat));
+/// An image pasted into the composer becomes a child of the chat, attached to the draft.
+fn paste_image(editor: Editor, chat: Chat, me: Uuid, composer: Composer, file: PickedFile) {
+    let image = be_type_image::ImageFile::from_file(file.name, file.data);
+    let id = editor.create_child(&image);
+    draft_made(
+        chat,
+        me,
+        composer,
+        id,
+        <be_type_image::ImageContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+    );
+}
+
+/// Takes a block made for the draft out of the chat, which deletes it: only while it is still
+/// one of the chat's children and still a draft, so a block moved elsewhere since, or one a
+/// message carries, is left alone. A referenced block is never deleted.
+fn drop_made(chat: Chat, attached: Attached, pending: Pending) {
+    let child = attached.with_untracked(|attached| {
+        attached
+            .get(&pending.id)
+            .is_some_and(|(_, child)| *child)
+    });
+    if !pending.made || !child {
+        return;
+    }
+    if let Ok(Some(dropped)) = chat.read(|content| content.drop_draft(pending.id)) {
+        chat.operate(dropped.into());
     }
 }
 
-/// A block sent with a message: a link to it by its name, or "No access", greyed and not
-/// openable, for a block this account cannot read.
+/// A block sent with a message: a link to it by its name, or a lock and "No access" for a
+/// block this account cannot read.
 #[component]
 fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String) -> NodeId {
     let target = create_memo(move || {
@@ -225,8 +252,33 @@ fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String)
                 .map(|(block_type, _)| ChildTarget::new(id, *block_type))
         })
     });
+    let readable = create_memo(move || target.get().is_some());
+    let hidden = create_memo(move || !readable.get());
     view! {
-        <BlockLink editor block={target} fallback="No access" @test_id={link_id} />
+        <List direction=Direction::Horizontal align=Align::Center @test_id={link_id}>
+            <Show condition={readable}>
+                <BlockLink editor block={target} />
+            </Show>
+            <Show condition={hidden}>
+                <NoAccess />
+            </Show>
+        </List>
+    }
+}
+
+/// An attachment this account cannot read: not a link, since it would open nothing.
+#[component]
+fn NoAccess() -> NodeId {
+    component_accessibility(create_memo(|| {
+        let mut node = Node::new(Role::Label);
+        node.set_label("An attached block you have no access to");
+        node
+    }));
+    view! {
+        <Text size=TextSize::Sm color=TextColor::Muted>
+            <Icon glyph=ICON_LOCK color=TextColor::Muted />
+            " No access"
+        </Text>
     }
 }
 
@@ -247,12 +299,20 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
         .icon
     });
     let name = create_memo(move || shown.with(|shown| shown.name.clone()));
+    let made = pending.made;
     view! {
-        <Text size=TextSize::Sm @test_id={link_id}>
-            <Icon glyph={glyph} color=TextColor::Muted />
-            " "
-            {name}
-        </Text>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs @test_id={link_id}>
+            <Text size=TextSize::Sm>
+                <Icon glyph={glyph} color=TextColor::Muted />
+                " "
+                {name}
+            </Text>
+            <Show condition={made}>
+                <Text size=TextSize::Xs color=TextColor::Muted>
+                    "New"
+                </Text>
+            </Show>
+        </List>
     }
 }
 
@@ -307,12 +367,36 @@ pub fn Chat(editor: Editor) -> NodeId {
             .attaching
             .with(|attaching| attaching.iter().any(|pending| pending.made))
     });
-    // A draft let go with the editor takes the blocks made for it.
-    let host = editor.host();
-    on_cleanup(move || {
-        composer
-            .attaching
-            .with_untracked(|attaching| delete_made(&host, block, attaching))
+    // The blocks this account made for a draft are the chat's drafts (`drafts_of`): they come
+    // back when the editor opens again, and leave the composer once something else takes them
+    // out of the chat (a move, a delete in the files pane, a send from another device).
+    let restored = std::cell::Cell::new(false);
+    create_effect(move || {
+        let _ = chat.revision();
+        let Ok(drafted) = chat.read(|content| content.drafts_of(me)) else {
+            return;
+        };
+        let types = attached.get();
+        let restoring = !restored.replace(true);
+        let mut attaching = composer.attaching.get_untracked();
+        let before = attaching.clone();
+        attaching.retain(|held| !held.made || drafted.contains(&held.id));
+        if restoring {
+            for id in drafted {
+                if let Some((block_type, _)) = types.get(&id)
+                    && !attaching.iter().any(|held| held.id == id)
+                {
+                    attaching.push(Pending {
+                        id,
+                        block_type: *block_type,
+                        made: true,
+                    });
+                }
+            }
+        }
+        if attaching != before {
+            composer.attaching.set(attaching);
+        }
     });
     let attaching_chip = move |id: Uuid| {
         let pending = composer
@@ -339,7 +423,9 @@ pub fn Chat(editor: Editor) -> NodeId {
                             removed = attaching.iter().filter(|held| held.id == id).copied().collect();
                             attaching.retain(|held| held.id != id);
                         });
-                        delete_made(&editor.host(), block, &removed);
+                        for pending in removed {
+                            drop_made(chat, attached, pending);
+                        }
                     }}
                 />
             </List>
@@ -603,7 +689,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                             disabled={editing}
                             @node_ref={&attach_button}
                             @test_id={"chat.attach"}
-                            on_click={move || attach(editor, composer, attach_button)}
+                            on_click={move || attach(editor, chat, me, composer, attach_button)}
                         />
                         <ListItem grow=1.0>
                             <TextInput
@@ -612,7 +698,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                                 label="Message"
                                 @test_id={"chat.draft"}
                                 on_submit={move |_| send()}
-                                on_image_paste={move |file: PickedFile| paste_image(editor, composer, file)}
+                                on_image_paste={move |file: PickedFile| paste_image(editor, chat, me, composer, file)}
                             />
                         </ListItem>
                         <Button
@@ -1189,7 +1275,9 @@ fn submit(
                         signature: Signature(signed.unwrap_or_default()),
                         ..message
                     };
-                    chat.operate(ChatContent::send_as(id, &message).into());
+                    if let Ok(send) = chat.read(|content| content.send_drafted(id, &message)) {
+                        chat.operate(send.into());
+                    }
                 });
             }
             composer.replying.set(None);
@@ -1340,28 +1428,10 @@ fn MessageRow(
             if let Ok(Some(send)) = sent {
                 chat.operate(send.into());
             }
-        } else {
-            // Given up: the blocks made for it go with it; referenced ones stay where they are.
-            let carried = chat
-                .read(|content| content.message(id).map(|message| message.attachments))
-                .ok()
-                .flatten()
-                .unwrap_or_default();
-            let made: Vec<Pending> = attached.with_untracked(|attached| {
-                carried
-                    .iter()
-                    .filter_map(|BlockRef(carried)| {
-                        let (block_type, child) = attached.get(carried)?;
-                        child.then_some(Pending {
-                            id: *carried,
-                            block_type: *block_type,
-                            made: true,
-                        })
-                    })
-                    .collect()
-            });
-            delete_made(&editor.host(), editor.block_id(), &made);
         }
+        // Given up, or sent as a new message: deleting it leaves the chat listing only what
+        // another message carries, so a block made for it alone goes with it (to the trash, where
+        // Restore finds it) and a referenced one stays where it is.
         delete(editor, chat, signing.get_untracked(), me, id);
         chat.dismiss_lacking(unsent.lacking);
     };

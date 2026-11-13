@@ -136,17 +136,26 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   existing block it picks (`linked`) is a reference, left where it is with its
   own access; a block made in the picker is made in the chat, as is an image
   pasted into the composer (`TextInput`'s `on_image_paste`, `create_child`).
-  The draft shows each with its type's icon and name, says so when what it
-  carries is made here (everyone in the chat can open it), and sends a made
-  block only once it is one of the chat's children (`BlockQuery::Children`).
-  The message lists them in `attachments` (signed with it), and a message may
-  be attachments alone, which has no text to edit. Each shows as a `BlockLink`
-  under the message, typed from the chat's children and references; one this
-  account cannot read shows "No access", greyed and not openable. A block made
-  for a draft is deleted when removed from it, when the editor closes with
-  it, or when a Not-sent message carrying it is discarded (Send again carries
-  them); a referenced block is left alone. A copy of the chat copies its
-  children, not the blocks it references. Attach is off while editing.
+  A made block is listed at once in the header's `drafts` with its author
+  (`make_draft`), so it is a live child before it is sent: every member sees
+  it. The draft shows each with its type's icon and name, marks made ones as
+  new, says so when what it carries is made here, and sends a made block only
+  once it is one of the chat's children (`BlockQuery::Children`). Sending
+  moves a block from `drafts` into the message (`send_drafted`); the message
+  lists it in `attachments` (signed with it), and a message may be
+  attachments alone, which has no text to edit. A closed segment's index entry
+  keeps its messages' `attachments`, so the chat still lists them. Each shows
+  as a `BlockLink` under the message, typed from the chat's children and
+  references; one this account cannot read shows a lock and "No access", not
+  a link. The editor shows this account's `drafts_of` as chips when it opens,
+  so they survive a reload, and drops a chip whose block left the drafts.
+  Closing it deletes nothing. Removing a made chip takes the block out of
+  `drafts` (`drop_draft`, which deletes it) only while it is still the chat's
+  child; the chat's `child_edit` deletes a draft and refuses a block a
+  message carries. Deleting a message (Discard on a Not-sent one) unlists what
+  it alone carried; Send again carries it. A referenced block is never
+  deleted. A copy of the chat copies its children, not the blocks it
+  references. Attach is off while editing.
 - **Sending state.** A message shows "Sending" while the server lacks the edit
   that sent it, and "Not sent", with Send again and Discard, once the server
   refused the commit holding it (`ContentProjection::lacking`,
