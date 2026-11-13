@@ -174,7 +174,16 @@ account and organization: local and last-known remote heads, the newest head
 whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
 key rows and wraps, verified contacts and escrow chain, the workspace list, the
 outbox, the unsent area and each block's journal. A sealed commit and its local
-head are written in one transaction (`Refs::push_publish`); a record that no
+head are written in one transaction (`Refs::push_publish`), and so is a publish
+settling: its outbox entries leave as the remote and local heads move on
+(`Refs::settle`), so no reader sees an empty outbox beside the old heads. The
+remote head never moves back to one it descends from (`Peer::behind`): the
+server's head only moves on, so such a head was heard of late, from a summary
+read before this device published and answered after, or from a merge settling
+a divergence a later one already settled. A server restored from a backup, whose
+head is older, is caught up by the next publish: rejected with the server's
+real head, the device merges against it (`Peer::reconcile`) and the published
+merge moves the remote head on. A record that no
 longer decodes is skipped on load.
 
 It keeps one summary per block, the newest revision winning, and a listing is
@@ -245,7 +254,9 @@ sends it. `Peer::write` does both.
   (`UnsentBlock::refused`, `Drained::SetAside`): the host shows it, an
   organization's lost-access policy never deletes it, and cached listings leave
   it out. What is made in it is set aside with its refusal, and restoring it
-  restores them. A refused move or define puts back the summary the server has
+  restores them. A publish refused as a change the server will never take
+  (`InvalidRequest`, `ObjectTooLarge`) is set aside the same way rather than
+  sent again every round. A refused move or define puts back the summary the server has
   (`unchanged`, `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.

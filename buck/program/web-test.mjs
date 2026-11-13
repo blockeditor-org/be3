@@ -6,9 +6,9 @@
 // It serves DIR, and for each script opens DIR's index.html with
 // ?fixture=<the script's file name>, waits for it to settle and runs the script's commands, one a line
 // as `drive -` reads them. The page answers the reading commands through its
-// automate(words) (beui-core-html's automate: tree, ids, find, reveal, shown, wait, gone,
+// automate(words) (beui-core-html's automate: tree, ids, find, wait,
 // settle, pause, clock); click, move, down, up, drag, wheel, type and key are real Playwright input, at the
-// place `reveal` answers (the part of the target that shows, once a scroll that cuts it has
+// place `find TARGET reveal` answers (the part of the target that shows, once a scroll that cuts it has
 // revealed it; after a reveal every target of the command is found again, as native drive
 // does), so the browser's own focus, key and text paths run.
 // `clipboard TEXT` sets the clipboard, and `back` is the browser's back (a popstate).
@@ -19,6 +19,9 @@
 // `#web` lines. `loads COUNT` fails unless the page has loaded exactly COUNT times.
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
+// `highlighted TEXT|none` (browser only) waits until the page's CSS highlights cover
+// exactly TEXT (their ranges' text joined by spaces), or nothing.
+// `elements CSS COUNT` (browser only) waits until exactly COUNT elements match CSS.
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
 // visible element with that ARIA role and exact accessible name, in each STATE given (checked,
 // disabled, expanded, inert, modal, pressed, selected, each also as not-STATE, or level=N; inert
@@ -190,9 +193,9 @@ async function answer(page, words) {
 
 async function centers(page, targets, timeout) {
     const ratio = await page.evaluate(() => devicePixelRatio);
-    const ask = async (command, target) => {
+    const ask = async (target, mode) => {
         await answer(page, [`--timeout=${timeout}`, "wait", target.startsWith("#") ? target.split("+")[0] : target]);
-        return answer(page, [`--timeout=${timeout}`, command, target]);
+        return answer(page, [`--timeout=${timeout}`, "find", target, mode]);
     };
     const places = await shownPlaces(ask, targets, ratio);
     return places.map(({ x, y, width, height }) => ({ x: x + width / 2, y: y + height / 2 }));
@@ -350,6 +353,36 @@ async function step(page, words) {
                 await page.waitForFunction((wanted) => (history.state?.beuiBack === true) === wanted, wanted, { timeout: timeout * 1000 });
             } catch {
                 throw new Failure(`the history entry's state is ${JSON.stringify(await page.evaluate(() => history.state))}, not ${args[0]}`);
+            }
+            return "";
+        }
+        case "highlighted": {
+            const wanted = args.length === 1 && args[0] === "none" ? "" : args.join(" ");
+            if (args.length === 0) throw new Failure("highlighted takes the TEXT the highlights cover, or none");
+            const covered = () => {
+                const found = [];
+                for (const [, highlight] of CSS.highlights ?? new Map()) {
+                    for (const range of highlight) found.push(range.toString());
+                }
+                return found.join(" ");
+            };
+            try {
+                await page.waitForFunction(`(${covered})() === ${JSON.stringify(wanted)}`, null, { timeout: timeout * 1000 });
+            } catch {
+                const shown = await page.evaluate(`(${covered})()`);
+                throw new Failure(`the highlights cover ${JSON.stringify(shown)}, not ${JSON.stringify(wanted)}`);
+            }
+            return "";
+        }
+        case "elements": {
+            const [selector, count] = args;
+            const wanted = Number(count);
+            if (!selector || !Number.isInteger(wanted)) throw new Failure("elements takes a CSS selector and a COUNT");
+            try {
+                await page.waitForFunction(([selector, wanted]) => document.querySelectorAll(selector).length === wanted, [selector, wanted], { timeout: timeout * 1000 });
+            } catch {
+                const found = await page.evaluate((selector) => document.querySelectorAll(selector).length, selector);
+                throw new Failure(`${found} elements match ${selector}, not ${wanted}`);
             }
             return "";
         }

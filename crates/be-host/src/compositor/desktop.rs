@@ -195,7 +195,7 @@ pub(crate) fn install() {
 struct Spring {
     band: Stored<RefCell<Band>>,
     /// Where the window is on the near end of its band, which it comes to rest at.
-    origin: Stored<Cell<Pos2>>,
+    origin: StoredCell<Pos2>,
     /// The window being pulled or springing back.
     settling: Signal<Option<FloatedKey>>,
     animation: Animation,
@@ -205,7 +205,7 @@ impl Spring {
     fn new() -> Self {
         let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
         let settling = create_signal(None::<FloatedKey>);
-        let origin = store(Cell::new(Pos2::ZERO));
+        let origin = StoredCell::new(Pos2::ZERO);
         let animation = create_animation(
             move |frame| {
                 let Some(key) = settling.get_untracked() else {
@@ -224,12 +224,12 @@ impl Spring {
                     let limit = |origin: Pos2| {
                         be_sdk_window_stack::reachable(Rect::from_min_size(origin, size), &areas)
                     };
-                    let mut at = origin.value().get();
+                    let mut at = origin.get();
                     if !band.step(frame.now, &mut at, limit, motion().animates()) {
                         moving = false;
                         return;
                     }
-                    origin.value().set(at);
+                    origin.set(at);
                     be_sdk_window_stack::move_in(windows, index, at + band.offset);
                     moving = band.moving();
                 });
@@ -284,7 +284,7 @@ impl Spring {
         let areas = areas_of(window);
         let limit =
             be_sdk_window_stack::reachable(Rect::from_min_size(to, window.rect.size()), &areas);
-        self.origin.value().set(limit);
+        self.origin.set(limit);
         let band = self.band.value();
         let mut band = band.borrow_mut();
         band.stretch(

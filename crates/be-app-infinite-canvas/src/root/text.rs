@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::sync::Arc;
 
 use be_sdk_beui::be_block::be_block_model::ObjectId;
@@ -351,8 +350,8 @@ fn live_text(
         Arc::new(Basic),
     );
     let stored = content.field(object, Entity::TEXT);
-    let adopted = store(Cell::new(false));
-    let fitted = store(Cell::new(0_u64));
+    let adopted = StoredCell::new(false);
+    let fitted = StoredCell::new(0_u64);
     create_effect(move || {
         area.content().get();
         let editing = editing.get();
@@ -363,9 +362,9 @@ fn live_text(
             false => stored.with(|_| ()),
         }
         untrack(|| {
-            let Some(adopted) = adopted.try_value() else {
+            if !adopted.is_alive() {
                 return;
-            };
+            }
             if !editing {
                 if adopted.replace(false) {
                     document.sync(&content.live(), &editor.host(), state.block_id(), false);
@@ -383,7 +382,6 @@ fn live_text(
             }
             adopted.set(true);
             let revision = beui_text_editor_core::Document::revision(document.as_ref());
-            let fitted = fitted.value();
             let changed = match first {
                 true => {
                     fitted.set(revision);

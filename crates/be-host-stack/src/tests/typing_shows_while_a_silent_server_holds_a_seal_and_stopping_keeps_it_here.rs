@@ -8,7 +8,9 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
     open(block, CounterContent::CONTENT_TYPE);
     add(block, 1);
     wait_for_count(block, 1);
-    flush();
+    // The server has the first seal before the relay goes silent: one still being sent then
+    // would hold the outbox, and the seal this counts would never be sent at all.
+    crate::flush_and_send();
 
     let mut sending = harness.relay().count(|method| {
         [
@@ -24,9 +26,20 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
     harness
         .clock
         .advance(Duration::from_millis(be_sdk_type_guest::QUIET_INTERVAL));
-    runtime()
-        .block_on(sending.wait_for(|sent| *sent > 0))
-        .expect("the counter's owner sent its seal");
+    let sent = runtime().block_on(async {
+        tokio::time::timeout(crate::WAIT_LIMIT, sending.wait_for(|sent| *sent > 0))
+            .await
+            .map(|sent| sent.is_ok())
+    });
+    let now = status();
+    assert!(
+        sent == Ok(true),
+        "the counter's owner never sent its seal (connected: {}, unsaved: {}, kept: {}, wakes: {})",
+        now.connected,
+        now.unsaved,
+        now.kept,
+        now.wakes
+    );
     add(block, 4);
     wait_for_count(block, 7);
     assert!(
@@ -40,7 +53,7 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
         let _ = stopped.send(());
     });
     stopping
-        .recv()
+        .recv_timeout(crate::WAIT_LIMIT)
         .expect("stopping returned without waiting on the silent server");
 
     harness.connect();
