@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn in_a_narrow_pane_a_deleted_block_puts_restore_below_its_notice() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_beui_demo(&mut host);
     let more = row_menu(&mut host, "beui demo");
     host.click(&more);

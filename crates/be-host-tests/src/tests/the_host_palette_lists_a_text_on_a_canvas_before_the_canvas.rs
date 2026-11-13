@@ -19,7 +19,7 @@ fn rows(host: &mut HostTest) -> Vec<String> {
 
 #[test]
 fn the_host_palette_lists_a_text_on_a_canvas_before_the_canvas() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Text");
     host.click("#text.surface");
