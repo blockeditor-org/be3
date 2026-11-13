@@ -28,7 +28,7 @@ use beui_view::types::{Align, Direction};
 use beui_view::types::{Rect, Vec2};
 
 use crate::list::List;
-use crate::tokens::{CornerSet, Padding, Size, Space, Stroke, resolved};
+use crate::tokens::{CornerSet, Padding, Size, Space, Stroke};
 use beui_view::reactive::*;
 use emoji::emoji_menu;
 
@@ -152,7 +152,7 @@ pub fn TextArea(
         }
     });
     let font_size = create_memo(move || size.get().px());
-    let padding = resolved(padding, Padding::resolve);
+    let padding = padding.map(Padding::px);
     let disabled = create_memo(move || disabled.get());
     let read_only = create_memo(move || read_only.get());
     let surface = NodeRef::new();

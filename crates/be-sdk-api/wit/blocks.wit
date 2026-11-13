@@ -301,12 +301,35 @@ interface blocks {
         send: async func(frame: list<u8>);
     }
 
-    /// The blocks a query lists. `next` answers with the latest listing once
-    /// it differs from what it last answered, so the first answer is the
-    /// current one; so do the other watches here.
-    resource blocks-watch {
-        constructor(query: block-query);
-        next: async func() -> result<list<block-info>, failure>;
+    /// What a `block-watch` follows: the blocks a query lists, a block's undo
+    /// history, the content stored at its head, an artifact block's state, or
+    /// the version control status of the editor's own block, for a block that
+    /// has one.
+    variant block-subject {
+        blocks(block-query),
+        history(block-id),
+        head(block-id),
+        artifact(block-id),
+        version,
+    }
+
+    /// The latest value of a `block-subject`, the variant of the same name.
+    /// `head` is none for a block without content; `artifact` none while the
+    /// host knows no state for it.
+    variant block-value {
+        blocks(result<list<block-info>, failure>),
+        history(block-history),
+        head(result<option<stored-head>, failure>),
+        artifact(option<artifact-state>),
+        version(version-status),
+    }
+
+    /// Follows a subject. `next` answers with its latest value once it differs
+    /// from what it last answered, so the first answer is the current one; so
+    /// does `search-watch`.
+    resource block-watch {
+        constructor(subject: block-subject);
+        next: async func() -> block-value;
     }
 
     /// A document full-text search found (plans/search.md).
@@ -334,30 +357,6 @@ interface blocks {
     resource search-watch {
         constructor(text: string, within: option<block-id>);
         next: async func() -> search-results;
-    }
-
-    resource history-watch {
-        constructor(block: block-id);
-        next: async func() -> block-history;
-    }
-
-    /// The content stored at a block's head, or none for a block without one.
-    resource head-watch {
-        constructor(block: block-id);
-        next: async func() -> result<option<stored-head>, failure>;
-    }
-
-    /// The state of an artifact block, or none while the host knows none.
-    resource artifact-watch {
-        constructor(block: block-id);
-        next: async func() -> option<artifact-state>;
-    }
-
-    /// The version control status of the editor's own block, for a block that
-    /// has one.
-    resource version-watch {
-        constructor();
-        next: async func() -> version-status;
     }
 
     /// What the host asks the editor to show. `next` answers with every

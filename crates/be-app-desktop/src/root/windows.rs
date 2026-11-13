@@ -256,16 +256,16 @@ pub(crate) fn WindowChips(
     let launches = workspace.launchable();
     let restoring = display.is_none_or(|display| display == 0);
     let waiting = create_memo(move || restoring && launches.get() && !kept.with(Vec::is_empty));
-    let widest = use_size(CHIP_WIDTH);
-    let least = use_size(CHIP_LEAST);
-    let spacing = use_space(CHIP_SPACING);
+    let widest = CHIP_WIDTH.px();
+    let least = CHIP_LEAST.px();
+    let spacing = CHIP_SPACING.px();
     let count = create_memo(move || chips.with(Vec::len));
     let listed = create_memo(move || count.get() > 0);
     let empty = create_memo(move || !listed.get() && !waiting.get() && !vertical.get());
-    let gaps = move || spacing.get() * count.get().saturating_sub(1) as f32;
+    let gaps = move || spacing * count.get().saturating_sub(1) as f32;
     let wanted = create_memo(move || match vertical.get() {
         true => Extent::INTRINSIC,
-        false => Extent::at_most(widest.get() * count.get() as f32 + gaps()),
+        false => Extent::at_most(widest * count.get() as f32 + gaps()),
     });
     let row = NodeRef::new();
     let room = create_signal(None::<f32>);
@@ -274,7 +274,7 @@ pub(crate) fn WindowChips(
             return false;
         };
         let count = count.get();
-        count > 0 && (room - gaps()) / (count as f32) < least.get()
+        count > 0 && (room - gaps()) / (count as f32) < least
     });
     let icons = create_memo(move || vertical.get() || compact.get());
     let chip_grow = create_memo(move || match icons.get() {
@@ -283,7 +283,7 @@ pub(crate) fn WindowChips(
     });
     let chip_max = create_memo(move || match icons.get() {
         true => f32::INFINITY,
-        false => widest.get(),
+        false => widest,
     });
     let chips_row = view! {
         <List @node_ref=&row direction align=Align::Center spacing=CHIP_SPACING>

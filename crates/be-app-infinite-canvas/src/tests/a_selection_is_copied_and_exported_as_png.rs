@@ -17,7 +17,11 @@ fn a_selection_is_copied_and_exported_as_png() {
     editor.run();
 
     palette_runs(&mut editor, "copy as png");
-    let copied = editor.take_copied_images();
+    let copied = editor
+        .take_copied(be_sdk_beui::beui::clipboard::formats::PNG)
+        .into_iter()
+        .map(|item| item.data)
+        .collect::<Vec<_>>();
     let [png] = copied.as_slice() else {
         panic!(
             "Copy as PNG puts one image on the clipboard, put {}",

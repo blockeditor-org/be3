@@ -107,6 +107,22 @@ A child that has taken its parent's frame does not wait on the parent to learn
 where the camera put it: the host moves it with the camera itself and asks
 both editors in the same frame (guides/pan_and_zoom.md).
 
+### Events for the host
+
+What an instance asks of be-host one way (to leave its frame, move its view, open a
+block, the answer to a clip render, its focus, its children's commits, ...) is an
+`InstanceEvent` that be-host-runtime posts, as the app's call arrives, to the
+mailboxes handed to `be_host_runtime::listen` for that instance or for every
+instance; nothing in be-host polls per instance for it. A mailbox hears it when its
+desk delivers: be-host delivers the frame's mail in the document after
+`be_host_runtime::poll`, so an owner acts in the frame the app spoke and may touch
+the document (focus, a drag). The compositor acts on what needs no view (actions,
+drags, child menu picks, view changes, which wait for the instance's camera until
+it closes); `compositor::hear` gives a component its instance's events,
+`compositor::own_frame` makes one frame the one that acts on details and leaving,
+and `HostCore::instance_heard` takes focus, artifact watches and children's commits.
+An instance's last event is `Closed`.
+
 ### Late answers and idle editors
 
 An editor that answers late is shown in a later frame without holding the host

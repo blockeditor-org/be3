@@ -28,7 +28,8 @@ use be_host_desktop::host_item::HostItem;
 use be_host_desktop::host_item::HostItemFace;
 use be_host_desktop::occlusion::{Occlusion, occlusion};
 use be_host_runtime::{
-    self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, PlacedView, ViewPlace, ViewSlot,
+    self, BlockDrag, EditorView, HostChild, InstanceEvent, InstanceRole, Piece, PlacedView,
+    ViewPlace, ViewSlot,
 };
 use beui::native::draw_gpu;
 use beui::reactive::toggle_keyboard;
@@ -477,33 +478,6 @@ pub(crate) fn AppView(
         });
         on_cleanup(move || super::desktop::note_work_area(key, None));
     }
-    create_effect(move || {
-        revision.get();
-        let actions = be_host_runtime::take_view_actions(&app_id.value(), instance);
-        if !actions.is_empty() {
-            let from = super::editors::editors().key_of(&app_id.value(), instance);
-            for action in actions {
-                super::act(from, action);
-            }
-        }
-        let placed: Vec<(ChildId, Uuid)> = state.with_untracked(|view| {
-            view.children
-                .iter()
-                .filter_map(|child| Some((child.child, child.block_id()?)))
-                .collect()
-        });
-        let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
-        for (child, pick, anchor) in
-            be_host_runtime::take_child_menu_picks(&app_id.value(), instance, &children)
-        {
-            if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
-                super::editors::pick_frame_menu(*block, pick, anchor);
-            }
-        }
-        for drag in be_host_runtime::take_block_drags(&app_id.value(), instance) {
-            carry(drag);
-        }
-    });
     let rect = create_memo(move || state.with(|view| view.rect));
     let catcher = NodeRef::new();
     let enclosing = use_context::<Enclosing>();
@@ -703,7 +677,7 @@ pub(crate) fn AppView(
     take_keyboard(state, given, &catcher, primary, mount);
     focus_when_presenting(presenting, presented, &catcher, primary);
     toggle_keyboard_when_asked(state, primary);
-    focus_when_asked(revision, app_id, instance, region, &catcher, primary);
+    focus_when_asked(app_id, instance, region, &catcher, primary);
     focus_when_given(
         asked,
         (app_id, instance, region.id),
@@ -1610,7 +1584,7 @@ fn edge_of(edge: be_sdk_api::WindowEdge) -> beui::WindowEdge {
     }
 }
 
-fn carry(drag: BlockDrag) {
+pub(super) fn carry(drag: BlockDrag) {
     let Some(pointer) = try_with_document(|document| document.last_pointer) else {
         return;
     };
@@ -1623,7 +1597,6 @@ fn carry(drag: BlockDrag) {
 }
 
 fn focus_when_asked(
-    revision: beui::reactive::ReadSignal<u64>,
     app_id: Stored<String>,
     instance: EditorInstanceId,
     region: View,
@@ -1631,15 +1604,18 @@ fn focus_when_asked(
     primary: Memo<bool>,
 ) {
     let catcher = *catcher;
+    let asked = create_signal(false);
+    super::hear(&app_id.value(), instance, move |event| {
+        if matches!(event, InstanceEvent::FocusRequested(view) if view == region.id) {
+            asked.set(true);
+        }
+    });
     create_effect(move || {
-        revision.get();
+        if !asked.get() || !primary.get() {
+            return;
+        }
         untrack(|| {
-            if !primary.get() {
-                return;
-            }
-            if !be_host_runtime::take_focus_request(&app_id.value(), instance, region.id) {
-                return;
-            }
+            asked.set(false);
             if let Some(node) = catcher.try_get() {
                 try_with_document(|document| document.focus_focusable(node));
             }
@@ -1884,7 +1860,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     let reloadable = create_memo(move || restart.get().is_some());
     let reload = move || {
         if let Some(app) = restart.get_untracked() {
-            be_host_base::host::push_command(be_host_base::host::HostCommand::RestartApp(app));
+            be_host_runtime::restart_app(&app);
         }
     };
     let loading_item = create_memo(|| HostItem::Notice {

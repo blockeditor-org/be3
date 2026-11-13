@@ -29,10 +29,11 @@ async fn a_choice_option_takes_a_colour_an_icon_and_closes_rows() {
 
     let schema = run(
         &tracker,
-        "Issues add-option Status Backlog first=yes default=yes icon=backlog",
+        "Issues option Status Backlog first=yes default=yes icon=backlog --new",
     )
     .await
     .unwrap();
+    assert!(schema.starts_with("added Backlog to Status\n"), "{schema}");
     assert_eq!(
         status(&schema),
         "Status\tone of Backlog (gray, icon backlog, default), To do (gray), Done (blue, icon done, closed)"
@@ -58,13 +59,17 @@ async fn a_choice_option_takes_a_colour_an_icon_and_closes_rows() {
         .await
         .expect_err("a misspelt option is refused, not added");
     assert!(
-        refused.contains("Bakclog is not one of Status"),
+        refused.contains("Bakclog is not one of Status") && refused.contains("add it with --new"),
         "{refused}"
     );
-    let refused = run(&tracker, "Issues add-option Status Done")
+    let refused = run(&tracker, "Issues option Status done --new")
         .await
-        .expect_err("an option that exists is not added twice");
-    assert!(refused.contains("Status already has Done"), "{refused}");
+        .expect_err("an option that exists, in any case, is not added twice");
+    assert!(refused.contains("Status already has done"), "{refused}");
+    let refused = run(&tracker, "Issues option Status Todo name=backlog")
+        .await
+        .expect_err("a rename to a name the column has is refused");
+    assert!(refused.contains("Status already has backlog"), "{refused}");
 
     let refused = run(&tracker, "Issues option Status Done color=mauve")
         .await

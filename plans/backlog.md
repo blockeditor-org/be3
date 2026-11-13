@@ -67,3 +67,5 @@ when:
 - a block gift ends when no child shows the block (a block gift already
   turns into a child gift at a layout commit, `settle_block_focus`, with unit
   tests in be-host-runtime's `instances/tests`).
+- the placer's view learns the gift through an `InstanceEvent` rather than
+  polling `be_host_runtime::take_child_focus` (the last per-instance `take_*`).

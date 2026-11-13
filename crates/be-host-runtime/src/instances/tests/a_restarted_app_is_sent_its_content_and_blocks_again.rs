@@ -1,6 +1,9 @@
 use super::*;
 
-use be_sdk_api::BlockQuery;
+use be_sdk_api::{
+    BlockQuery,
+    blocks::{BlockSubject, BlockValue},
+};
 use be_type_example_counter::CounterContent;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -19,7 +22,7 @@ fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
         .into_iter()
         .map(|_| Sent::Content)
         .collect();
-    let listed: Option<Result<Vec<be_sdk_api::BlockInfo>, String>> = answered(instances, watch);
+    let listed: Option<BlockValue> = answered(instances, watch);
     sent.extend(listed.map(|_| Sent::Blocks));
     sent.sort();
     sent
@@ -40,9 +43,9 @@ fn a_restarted_app_is_sent_its_content_and_blocks_again() {
     );
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
     let watching = |instances: &mut Instances| {
-        open_watch(instances, |op| Call::BlocksWatchNew {
-            resource: wire::BlocksWatch(op),
-            query: BlockQuery::Block(block.into_bytes()),
+        open_watch(instances, |op| Call::BlockWatchNew {
+            resource: wire::BlockWatch(op),
+            subject: BlockSubject::Blocks(BlockQuery::Block(block.into_bytes())),
         })
     };
     let listing = watching(&mut instances);

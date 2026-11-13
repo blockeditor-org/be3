@@ -5,7 +5,7 @@ fn destroying_the_apps_device_leaves_the_hosts_device_working() {
     let mut gpu = gpu();
     let buffer = gpu.create_buffer(buffer_descriptor()).unwrap();
     gpu.destroy_device();
-    let lost = gpu.device_lost().expect("the app's device is lost");
+    let lost = gpu.poll(false).lost.expect("the app's device is lost");
     assert_eq!(lost.reason, abi::DeviceLostReason::Destroyed);
     gpu.write_buffer(buffer, 0, &[1; 4]);
     let encoder = gpu
@@ -31,7 +31,7 @@ fn destroying_the_apps_device_leaves_the_hosts_device_working() {
     assert_eq!(caught(scope.pop()), None, "the host's device still works");
 
     gpu.request_device();
-    assert_eq!(gpu.device_lost(), None);
+    assert_eq!(gpu.poll(false).lost, None);
     let buffer = gpu.create_buffer(buffer_descriptor()).unwrap();
     gpu.write_buffer(buffer, 0, &[1; 4]);
     assert_eq!(gpu.take_error(), None);
