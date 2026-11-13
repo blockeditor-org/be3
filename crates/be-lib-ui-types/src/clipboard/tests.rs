@@ -1,5 +1,5 @@
 use super::*;
 
 mod a_text_fragment_keeps_its_bytes_and_joins_its_chunks_as_plain_text;
-mod formats_name_their_blocks_only_in_refs;
 mod a_text_fragments_marks_move_with_their_chunks_and_its_embeds_travel_in_refs;
+mod formats_name_their_blocks_only_in_refs;

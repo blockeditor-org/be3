@@ -55,7 +55,11 @@ pub fn tokens(html: &str) -> Vec<Token> {
             continue;
         };
         rest = after;
-        if let Token::Open { name, closed: false, .. } = &token
+        if let Token::Open {
+            name,
+            closed: false,
+            ..
+        } = &token
             && matches!(name.as_str(), "script" | "style" | "head" | "title")
         {
             let close = format!("</{name}");

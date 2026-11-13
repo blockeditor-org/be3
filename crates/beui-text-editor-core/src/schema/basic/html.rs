@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 
 use super::{
-    BOLD, BULLET, CHECK, CHECKED, CODE, CODE_BLOCK, HEADING, INDENT, ITALIC, LINK, LIST,
-    MENTION, NUMBER, QUOTE, STRIKETHROUGH, UNDERLINE,
+    BOLD, BULLET, CHECK, CHECKED, CODE, CODE_BLOCK, HEADING, INDENT, ITALIC, LINK, LIST, MENTION,
+    NUMBER, QUOTE, STRIKETHROUGH, UNDERLINE,
 };
 use crate::core::{MarkValue, TextChunk, TextFragment, TextMark, TextShape};
 use crate::html::{Token, escape, tokens};
@@ -58,7 +58,10 @@ pub(super) fn write(fragment: &TextFragment) -> Option<String> {
             Some(Container::Pre)
         } else if let Some(kind) = list {
             Some(Container::List(kind == NUMBER))
-        } else if props.get(QUOTE).is_some_and(|quote| **quote == MarkValue::Bool(true)) {
+        } else if props
+            .get(QUOTE)
+            .is_some_and(|quote| **quote == MarkValue::Bool(true))
+        {
             Some(Container::Quote)
         } else {
             None
@@ -79,12 +82,16 @@ pub(super) fn write(fragment: &TextFragment) -> Option<String> {
         let line = start..end;
         match container {
             Some(Container::Pre) => {
-                html.push_str(&escape(&String::from_utf8_lossy(&bytes[line]).replace(VOID, "")));
+                html.push_str(&escape(
+                    &String::from_utf8_lossy(&bytes[line]).replace(VOID, ""),
+                ));
             }
             Some(Container::List(_)) => {
                 html.push_str("<li>");
                 if list == Some(CHECK) {
-                    let checked = props.get(CHECKED).is_some_and(|on| **on == MarkValue::Bool(true));
+                    let checked = props
+                        .get(CHECKED)
+                        .is_some_and(|on| **on == MarkValue::Bool(true));
                     html.push_str(match checked {
                         true => "<input type=\"checkbox\" checked disabled> ",
                         false => "<input type=\"checkbox\" disabled> ",
@@ -302,7 +309,10 @@ impl Reader {
             return;
         }
         let mut collapsed = String::with_capacity(text.len());
-        let mut space = self.bytes.last().is_none_or(|byte| matches!(byte, b' ' | b'\n' | b'\t'));
+        let mut space = self
+            .bytes
+            .last()
+            .is_none_or(|byte| matches!(byte, b' ' | b'\n' | b'\t'));
         for letter in text.chars() {
             if letter.is_ascii_whitespace() {
                 if !space {
@@ -330,10 +340,9 @@ impl Reader {
         self.bytes.extend_from_slice(text.as_bytes());
         let end = self.bytes.len();
         for (key, value) in &self.inline {
-            let held = self
-                .open
-                .get(key)
-                .filter(|at| self.marks[**at].range.end == start && self.marks[**at].value == *value);
+            let held = self.open.get(key).filter(|at| {
+                self.marks[**at].range.end == start && self.marks[**at].value == *value
+            });
             match held {
                 Some(at) => self.marks[*at].range.end = end,
                 None => {
@@ -434,11 +443,10 @@ impl Reader {
             mark.range.start = mark.range.start.min(len);
             mark.range.end = mark.range.end.min(len);
         }
-        self.marks
-            .retain(|mark| match mark.block {
-                true => mark.range.start < len,
-                false => mark.range.start < mark.range.end,
-            });
+        self.marks.retain(|mark| match mark.block {
+            true => mark.range.start < len,
+            false => mark.range.start < mark.range.end,
+        });
         self.open.clear();
     }
 
@@ -483,13 +491,11 @@ impl Reader {
             "s" | "strike" | "del" => set.push((STRIKETHROUGH, on.clone())),
             "code" | "kbd" | "samp" | "tt" if self.pre == 0 => set.push((CODE, on.clone())),
             "code" => {
-                if let Some(language) = Token::attribute(attributes, "class")
-                    .and_then(|class| {
-                        class
-                            .split_whitespace()
-                            .find_map(|class| class.strip_prefix("language-"))
-                    })
-                {
+                if let Some(language) = Token::attribute(attributes, "class").and_then(|class| {
+                    class
+                        .split_whitespace()
+                        .find_map(|class| class.strip_prefix("language-"))
+                }) {
                     self.language = Some(language.to_ascii_lowercase());
                 }
             }
@@ -613,7 +619,10 @@ fn styled(style: &str) -> Vec<(&'static str, Option<MarkValue>)> {
                 };
                 marks.push((BOLD, on(bold)));
             }
-            "font-style" => marks.push((ITALIC, on(value.starts_with("italic") || value == "oblique"))),
+            "font-style" => marks.push((
+                ITALIC,
+                on(value.starts_with("italic") || value == "oblique"),
+            )),
             "text-decoration" | "text-decoration-line" => {
                 marks.push((UNDERLINE, on(value.contains("underline"))));
                 marks.push((STRIKETHROUGH, on(value.contains("line-through"))));

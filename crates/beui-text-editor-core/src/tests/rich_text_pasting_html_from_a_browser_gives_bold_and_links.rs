@@ -26,8 +26,21 @@ fn rich_text_pasting_html_from_a_browser_gives_bold_and_links() {
          and what the schema has no mark for is kept as text"
     );
 
-    for hostile in ["<", "<a", "<a href='", "&#xffffffff;", "<<<>>>", "</b></p>", "<!--"] {
+    for hostile in [
+        "<",
+        "<a",
+        "<a href='",
+        "&#xffffffff;",
+        "<<<>>>",
+        "</b></p>",
+        "<!--",
+    ] {
         let read = schema.from_html(hostile).expect("any input reads");
-        assert!(read.chunks[0].marks.iter().all(|mark| mark.range.end <= read.chunks[0].bytes.len()));
+        assert!(
+            read.chunks[0]
+                .marks
+                .iter()
+                .all(|mark| mark.range.end <= read.chunks[0].bytes.len())
+        );
     }
 }

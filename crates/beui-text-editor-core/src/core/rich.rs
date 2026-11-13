@@ -5,12 +5,12 @@ use super::{
     Core, CursorPosition, MarkValue, Position, TextMark, UDDirection, UndoClassification,
     resolve_selection,
 };
-use be_lib_ui_types::clipboard::Uuid;
 use crate::document::{DocumentEdit, DocumentRead, DocumentView};
 use crate::rich::{
     Change, Expand, Formats, MarkSet, Name, Scope, VOID, Value, line_end, line_start,
 };
 use crate::schema::{Break, Line, Plain, Schema, Selected};
+use be_lib_ui_types::clipboard::Uuid;
 
 pub struct Transform<'a> {
     edit: &'a mut dyn DocumentEdit,
@@ -128,7 +128,9 @@ pub(super) fn copied_marks(
             };
             let held = open.iter().copied().find(|at| {
                 let mark = &marks[*at];
-                mark.range.end == within.start - left && mark.key == key.as_str() && mark.value == value
+                mark.range.end == within.start - left
+                    && mark.key == key.as_str()
+                    && mark.value == value
             });
             match held {
                 Some(at) => {

@@ -39,7 +39,11 @@ fn a_text_fragments_marks_move_with_their_chunks_and_its_embeds_travel_in_refs()
         "a translated ref moves the embed"
     );
     item.refs.clear();
-    assert_eq!(item.decode::<TextFragment>(), None, "refs that do not fit fail");
+    assert_eq!(
+        item.decode::<TextFragment>(),
+        None,
+        "refs that do not fit fail"
+    );
 
     let joined = fragment.joined();
     assert_eq!(joined.bytes, "bold\na \u{fffc}".as_bytes());
