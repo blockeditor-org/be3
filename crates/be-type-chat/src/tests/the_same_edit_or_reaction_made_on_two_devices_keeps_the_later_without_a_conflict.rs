@@ -7,14 +7,14 @@ fn the_same_edit_or_reaction_made_on_two_devices_keeps_the_later_without_a_confl
     let laptop = edited(
         &base,
         [
-            base.edit(lunch, ADA, 10, "lunch at one?"),
+            base.edit(CHAT, lunch, ADA, 10, "lunch at one?"),
             base.react(lunch, ADA, "heart", 10),
         ],
     );
     let phone = edited(
         &base,
         [
-            base.edit(lunch, ADA, 20, "lunch at two?"),
+            base.edit(CHAT, lunch, ADA, 20, "lunch at two?"),
             base.react(lunch, ADA, "heart", 20),
         ],
     );

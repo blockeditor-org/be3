@@ -25,6 +25,7 @@ mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_message_shows_whether_its_author_signed_it;
 mod a_message_the_server_refuses_shows_as_not_sent;
 mod a_refused_message_tells_nobody_and_a_reply_mentions_its_author;
+mod a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_show_as_forged;
 mod a_reply_or_edit_ends_when_its_message_is_deleted_or_the_other_starts;
 mod a_reply_quotes_the_message_it_answers;
 mod a_revision_preview_verifies_what_the_chat_signed;
@@ -62,6 +63,19 @@ fn signed_by(content: &ChatContent, signer: Uuid, message: Message) -> Edit {
         &Message {
             signature: Signature(signature),
             ..message
+        },
+    )
+}
+
+/// `message` deleted by `author`, who signed the deletion.
+fn deleted_by(content: &ChatContent, message: ObjectId, author: Uuid, time: i64) -> Edit {
+    let deletion = content.deletion(message, author, time);
+    let signature = be_sdk_test::signature(author, &deletion.signed_bytes(CHAT, message));
+    content.put_deletion(
+        message,
+        &be_type_chat::Deletion {
+            signature: Signature(signature),
+            ..deletion
         },
     )
 }

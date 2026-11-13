@@ -12,21 +12,13 @@ or that is forged.
 
 ## What is left open
 
-- **Deletions and reactions are not signed.** Their `Signature` stays empty
-  and the editor neither signs nor checks them. Taking a reaction back removes
-  its key (a `LatestMap` entry with no value), which carries no signature, so
-  anyone with Edit can remove another's reaction unnoticed.
-- **An older edit can be replayed.** An edit is bound to the hash of its message
-  (so it verifies on no other message), but not to the edit it replaces: the
-  content keeps only the latest edit, so a verifier cannot tell that an older
-  signed edit by the same author is not the newest, and anyone with Edit can put
-  one back. Fixing it needs the edits kept as a chain (each signing the previous
-  one's hash, the message noting the newest), or the arrival time below.
+- **Edits of messages in closed segments are not chained**: the editor cannot
+  hash a closed message from the header alone, so their edits name no previous
+  one and a replayed one is not caught.
 - **A replaced key still verifies what it signed.** After a contact takes a new
   recovery phrase, its old key shows as changed, not forged, since its earlier
   messages are real; someone holding the old phrase can sign with it, and
   arrival times are what would tell them apart.
-- **`verify` costs a server round trip** for each forged row; cache or throttle.
 - **Timestamps.** A signed time is only what the author claims. The server is
   to stamp each relayed operation with when it received it (plans/chat.md,
   "Arrival time"), so a message carries an arrival time no member chose. The
@@ -37,9 +29,5 @@ or that is forged.
 
 ## Order of work
 
-1. **Sign the rest.** Chain each edit to the one it replaces, sign deletions and reactions,
-   including a reaction taken back as a record with no value, and verify them
-   in the editor. Done: a replayed edit, a forged deletion and a reaction taken
-   back by someone else each show as forged.
-2. **Arrival times** in chat, once the server stamps relayed operations. Done:
+1. **Arrival times** in chat, once the server stamps relayed operations. Done:
    a message sent offline shows when it arrived; a painting.

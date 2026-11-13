@@ -25,7 +25,7 @@ fn a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed() {
 
     let edit = chat
         .content()
-        .edit(newest, ROSA, MORNING + 1, "said again, better");
+        .edit(CHAT, newest, ROSA, MORNING + 1, "said again, better");
     chat.arrive(edit);
     assert!(
         chat.row(newest).contains("said again, better"),

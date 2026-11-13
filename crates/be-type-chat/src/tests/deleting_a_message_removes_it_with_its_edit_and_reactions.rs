@@ -7,7 +7,7 @@ fn deleting_a_message_removes_it_with_its_edit_and_reactions() {
     let chat = edited(
         &chat,
         [
-            chat.edit(typo, ADA, 5, "typo fixed"),
+            chat.edit(CHAT, typo, ADA, 5, "typo fixed"),
             chat.react(typo, BO, "thumbs-up", 6),
         ],
     );

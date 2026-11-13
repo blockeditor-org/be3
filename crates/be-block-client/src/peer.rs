@@ -284,6 +284,10 @@ pub struct Peer<S: ObjectStore> {
     /// Commits whose objects the store holds every one of (`holds`). The store never drops an
     /// object, so a commit found whole stays whole.
     whole: Mutex<HashSet<CommitId>>,
+    /// Records `verify_authored` found forged after asking the server, by account, block and
+    /// a hash of the bytes and signature, for the connection that answered: asked again, they
+    /// cost no round trip until the device reconnects (`authorship::Forged`).
+    forged: Mutex<authorship::Forged>,
 }
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
@@ -380,6 +384,7 @@ impl<S: ObjectStore> Peer<S> {
             tried: Mutex::new(HashSet::new()),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
+            forged: Mutex::new(authorship::Forged::default()),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {

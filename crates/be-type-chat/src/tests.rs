@@ -3,7 +3,7 @@ use be_block_commit::MergeResult;
 use be_block_model::{Edit, ObjectId};
 use uuid::Uuid;
 
-use crate::{ChatContent, Message};
+use crate::{ChatContent, Message, MessageEdit};
 
 mod a_chat_decoded_from_bytes_alone_keeps_its_segments_when_saved_again;
 mod a_close_whose_index_entry_does_not_match_its_bytes_is_ignored;
@@ -19,6 +19,7 @@ mod a_small_message_before_an_oversized_one_does_not_stall_closing;
 mod an_edit_by_someone_other_than_the_author_is_not_shown;
 mod an_edit_made_offline_to_a_message_deleted_elsewhere_stays_deleted;
 mod deleting_a_message_removes_it_with_its_edit_and_reactions;
+mod each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record;
 mod edits_and_reactions_made_offline_on_both_sides_are_kept_by_message;
 mod merging_saved_sides_with_differing_closes_keeps_each_segments_own_part;
 mod segments_read_back_that_overlap_weave_into_one_run_in_order;

@@ -24,6 +24,11 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   `Message::signed_bytes`, `MessageEdit::signed_bytes`,
   `Deletion::signed_bytes` and `ReactionKey::signed_bytes` (`src/signed.rs`)
   define what a signature covers.
+- **Edits chain**: each `MessageEdit` signs the hash of the edit it replaces
+  (`previous`, `ChatContent::next_edit`), and `put_edit` records that hash in
+  `superseded`, so an older edit put back, or the record of its replacement
+  removed, shows as forged. A reaction taken back stays a signed record
+  (`Reaction::kept` false), not a removed key.
 - Sending and deleting are not undoable; an edit by anyone but the message's
   author is ignored. Deleting removes the message with its edit and reactions
   and records the `Deletion`; the message stays in version history.
@@ -125,10 +130,16 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   but loses edits not yet in a commit (a journal entry the server lacks).
   be-host-stack tests and chat's editor tests cover it; `drive` cannot cut the
   server.
-- **Authorship.** It signs each message and edit through the host's `sign`
-  before sending it, and marks a message whose signatures `verify` does not
-  answer verified: "not verified", "key changed" or "forged"
-  (guides/blocks/keys.md, "Signing what a person writes").
+- **Authorship.** It signs each message, edit, deletion and reaction record
+  (kept or taken back) through the host's `sign` before writing it, and marks
+  a message whose records `verify` does not answer verified: "not verified",
+  "key changed" or "forged" (guides/blocks/keys.md, "Signing what a person
+  writes"). A message is forged when any of its records is: an edit put back
+  after it was replaced, a reaction record removed outright or signed by
+  someone else. A deletion is asked about once when it appears
+  (`forged_deletions`); a forged one keeps a "Message deleted" row in the
+  message's place, marked forged, while a signed one leaves none. Messages in
+  closed segments are not chained: their edits name no previous edit.
 
 ## Notifications
 

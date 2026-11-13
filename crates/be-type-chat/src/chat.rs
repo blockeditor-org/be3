@@ -33,6 +33,10 @@ pub struct ChatHeader {
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
     pub deletions: LatestMap<ObjectId, Deletion>,
     pub reactions: LatestMap<ReactionKey, Reaction>,
+    /// The hashes of edits a later edit by the same author replaced (`MessageEdit::previous`),
+    /// each with its message: an edit whose hash is here, or was here and was removed, was
+    /// put back after it was replaced, so it is shown as forged.
+    pub superseded: LatestMap<MessageHash, ObjectId>,
     /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
     /// yet.
     pub segments: Series<Segment>,
@@ -67,6 +71,9 @@ pub struct MessageEdit {
     pub author: Uuid,
     pub time: i64,
     pub body: String,
+    /// The hash of the edit this one replaces (`MessageEdit::hash`), none for a message's
+    /// first: signed, so each edit names the one before it.
+    pub previous: Option<MessageHash>,
     pub signature: Signature,
 }
 
@@ -82,8 +89,8 @@ pub struct Deletion {
     pub after: Option<ObjectId>,
 }
 
-/// One person's reaction to a message: present while they keep it. `reaction` names a Lucide
-/// icon.
+/// One person's reaction to a message, kept or taken back (`Reaction::kept`). `reaction` names
+/// a Lucide icon.
 #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(default)]
 pub struct ReactionKey {
@@ -96,6 +103,9 @@ pub struct ReactionKey {
 #[serde(default)]
 pub struct Reaction {
     pub time: i64,
+    /// False once its author took it back: a taken-back reaction stays as a signed record, so
+    /// nobody else can remove one unnoticed.
+    pub kept: bool,
     pub signature: Signature,
 }
 
@@ -157,15 +167,20 @@ impl Message {
 
 impl MessageEdit {
     /// What an edit's signature covers: the chat, the message and its hash (so an edit signed
-    /// for one message never verifies on another that took its id), author, claimed time and
-    /// the new body's hash.
+    /// for one message never verifies on another that took its id), author, claimed time,
+    /// the new body's hash and the edit it replaces.
     pub fn signed_bytes(&self, chat: Uuid, message: ObjectId, of: MessageHash) -> Vec<u8> {
         Signed::new("be3.chat.edit", chat, message)
             .seen(Some(of))
             .uuid(self.author)
             .time(self.time)
             .body(&self.body)
+            .seen(self.previous)
             .finish()
+    }
+
+    pub fn hash(&self, chat: Uuid, message: ObjectId, of: MessageHash) -> MessageHash {
+        MessageHash::of(&self.signed_bytes(chat, message, of))
     }
 }
 
@@ -184,6 +199,7 @@ impl ReactionKey {
             .uuid(self.author)
             .time(reaction.time)
             .text(&self.reaction)
+            .flag(reaction.kept)
             .finish()
     }
 }
@@ -288,6 +304,38 @@ impl ChatContent {
 
     fn deletions(&self) -> LatestMap<ObjectId, Deletion> {
         self.header.field(ObjectId::ROOT, ChatHeader::DELETIONS)
+    }
+
+    fn superseded(&self) -> LatestMap<MessageHash, ObjectId> {
+        self.header.field(ObjectId::ROOT, ChatHeader::SUPERSEDED)
+    }
+
+    /// The hashes of edits replaced that may be of `message`: those recorded as its, and those
+    /// whose record was removed (which no longer says whose it was).
+    pub fn superseded_of(&self, message: ObjectId) -> Vec<MessageHash> {
+        self.superseded()
+            .written_entries()
+            .filter(|(_, of)| of.is_none_or(|of| *of == message))
+            .map(|(hash, _)| *hash)
+            .collect()
+    }
+
+    /// Every deletion, by the id of the message it deleted.
+    pub fn deletions_made(&self) -> Vec<(ObjectId, Deletion)> {
+        self.deletions()
+            .iter()
+            .map(|(message, deletion)| (*message, deletion.clone()))
+            .collect()
+    }
+
+    /// Every reaction record to `message`: kept, taken back, or removed (none), which its
+    /// author's signature cannot cover.
+    pub fn reaction_records(&self, message: ObjectId) -> Vec<(ReactionKey, Option<Reaction>)> {
+        self.reaction_map()
+            .written_entries()
+            .filter(|(key, _)| key.message == message)
+            .map(|(key, reaction)| (key.clone(), reaction.cloned()))
+            .collect()
     }
 
     fn reaction_map(&self) -> LatestMap<ReactionKey, Reaction> {
@@ -483,52 +531,89 @@ impl ChatContent {
             .into()
     }
 
+    /// An unsigned edit of `message` (`next_edit`, then `put_edit`).
     pub fn edit(
         &self,
+        chat: Uuid,
         message: ObjectId,
         author: Uuid,
         time: i64,
         body: impl Into<String>,
     ) -> Edit {
-        let edit = MessageEdit {
+        self.put_edit(message, &self.next_edit(chat, message, author, time, body))
+    }
+
+    /// The edit of `message` that replaces its latest, for its author to sign
+    /// (`MessageEdit::signed_bytes`) before `put_edit` writes it.
+    pub fn next_edit(
+        &self,
+        chat: Uuid,
+        message: ObjectId,
+        author: Uuid,
+        time: i64,
+        body: impl Into<String>,
+    ) -> MessageEdit {
+        let previous = self.edit_of(message).zip(self.hash(chat, message)).map(
+            |(edit, of)| edit.hash(chat, message, of),
+        );
+        MessageEdit {
             author,
             time,
             body: body.into(),
+            previous,
             signature: Signature::default(),
-        };
-        self.put_edit(message, &edit)
+        }
     }
 
-    /// Makes `edit` the latest of `message`, signed or not.
+    /// Makes `edit` the latest of `message`, signed or not, and records the edit it replaces as
+    /// replaced.
     pub fn put_edit(&self, message: ObjectId, edit: &MessageEdit) -> Edit {
-        let stamp = self
-            .edits()
-            .next(&message, stamp_time(edit.time), edit.author);
-        ChatHeader::EDITS
-            .put(ObjectId::ROOT, &message, Some(edit), stamp)
-            .into()
+        let at = stamp_time(edit.time);
+        let stamp = self.edits().next(&message, at, edit.author);
+        let mut changes = vec![ChatHeader::EDITS.put(ObjectId::ROOT, &message, Some(edit), stamp)];
+        if let Some(previous) = edit.previous {
+            let stamp = self.superseded().next(&previous, at, edit.author);
+            changes.push(ChatHeader::SUPERSEDED.put(
+                ObjectId::ROOT,
+                &previous,
+                Some(&message),
+                stamp,
+            ));
+        }
+        changes.into_iter().collect()
     }
 
-    /// Removes `message` with its edit and reactions, and records who deleted it.
+    /// An unsigned deletion of `message` (`deletion`, then `put_deletion`).
     pub fn delete(&self, message: ObjectId, author: Uuid, time: i64) -> Edit {
+        self.put_deletion(message, &self.deletion(message, author, time))
+    }
+
+    /// The deletion of `message`, for its author to sign (`Deletion::signed_bytes`) before
+    /// `put_deletion` writes it.
+    pub fn deletion(&self, message: ObjectId, author: Uuid, time: i64) -> Deletion {
         let messages = self.messages();
         let after = messages
             .iter()
             .position(|id| *id == message)
             .and_then(|at| at.checked_sub(1))
             .map(|before| messages[before]);
-        let deletion = Deletion {
+        Deletion {
             author,
             time,
             signature: Signature::default(),
             after,
-        };
+        }
+    }
+
+    /// Removes `message` with its edit and reactions, and records `deletion`, signed or not.
+    pub fn put_deletion(&self, message: ObjectId, deletion: &Deletion) -> Edit {
+        let (author, time) = (deletion.author, deletion.time);
         let at = stamp_time(time);
         let (edits, deletions, reactions) = (self.edits(), self.deletions(), self.reaction_map());
         let mut changes = vec![ChatHeader::DELETIONS.put(
             ObjectId::ROOT,
             &message,
-            Some(&deletion),
+            Some(deletion),
             deletions.next(&message, at, author),
         )];
         if self.message(message).is_some() {
@@ -550,6 +635,7 @@ impl ChatContent {
         changes.into_iter().collect()
     }
 
+    /// An unsigned reaction to `message` (`reaction`, then `put_reaction`).
     pub fn react(
         &self,
         message: ObjectId,
@@ -557,21 +643,11 @@ impl ChatContent {
         reaction: impl Into<String>,
         time: i64,
     ) -> Edit {
-        let key = ReactionKey {
-            message,
-            author,
-            reaction: reaction.into(),
-        };
-        let stamp = self.reaction_map().next(&key, stamp_time(time), author);
-        let reaction = Reaction {
-            time,
-            signature: Signature::default(),
-        };
-        ChatHeader::REACTIONS
-            .put(ObjectId::ROOT, &key, Some(&reaction), stamp)
-            .into()
+        let (key, reaction) = Self::reaction(message, author, reaction, time, true);
+        self.put_reaction(&key, &reaction)
     }
 
+    /// An unsigned taking back of a reaction to `message`.
     pub fn unreact(
         &self,
         message: ObjectId,
@@ -579,14 +655,39 @@ impl ChatContent {
         reaction: impl Into<String>,
         time: i64,
     ) -> Edit {
+        let (key, reaction) = Self::reaction(message, author, reaction, time, false);
+        self.put_reaction(&key, &reaction)
+    }
+
+    /// A reaction record, kept or taken back, for its author to sign
+    /// (`ReactionKey::signed_bytes`) before `put_reaction` writes it.
+    pub fn reaction(
+        message: ObjectId,
+        author: Uuid,
+        reaction: impl Into<String>,
+        time: i64,
+        kept: bool,
+    ) -> (ReactionKey, Reaction) {
         let key = ReactionKey {
             message,
             author,
             reaction: reaction.into(),
         };
-        let stamp = self.reaction_map().next(&key, stamp_time(time), author);
+        let reaction = Reaction {
+            time,
+            kept,
+            signature: Signature::default(),
+        };
+        (key, reaction)
+    }
+
+    /// Writes a reaction record, signed or not.
+    pub fn put_reaction(&self, key: &ReactionKey, reaction: &Reaction) -> Edit {
+        let stamp = self
+            .reaction_map()
+            .next(key, stamp_time(reaction.time), key.author);
         ChatHeader::REACTIONS
-            .put(ObjectId::ROOT, &key, None, stamp)
+            .put(ObjectId::ROOT, key, Some(reaction), stamp)
             .into()
     }
 }
@@ -602,8 +703,9 @@ fn grouped_reactions(
 ) -> BTreeMap<ObjectId, Vec<(String, Vec<Uuid>)>> {
     let mut grouped: BTreeMap<ObjectId, BTreeMap<String, Vec<Uuid>>> = BTreeMap::new();
     for key in reactions
-        .keys()
-        .filter(|key| !deletions.contains_key(&key.message))
+        .iter()
+        .filter(|(key, reaction)| reaction.kept && !deletions.contains_key(&key.message))
+        .map(|(key, _)| key)
     {
         grouped
             .entry(key.message)

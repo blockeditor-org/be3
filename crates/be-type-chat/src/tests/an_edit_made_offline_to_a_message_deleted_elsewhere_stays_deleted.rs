@@ -7,7 +7,7 @@ fn an_edit_made_offline_to_a_message_deleted_elsewhere_stays_deleted() {
     let edited_offline = edited(
         &base,
         [
-            base.edit(draft, ADA, 10, "draft plan, revised"),
+            base.edit(CHAT, draft, ADA, 10, "draft plan, revised"),
             base.react(draft, BO, "eye", 10),
         ],
     );
