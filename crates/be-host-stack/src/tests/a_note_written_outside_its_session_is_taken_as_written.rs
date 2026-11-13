@@ -27,9 +27,13 @@ fn a_note_written_outside_its_session_is_taken_as_written() {
             .remote_head(note)
             .await
             .expect("the note's head is read");
-        peer.save(note, &be_type_text::TextBlock::of("Oh\nhello\nthere\n"), head)
-            .await
-            .expect("the other device saves the note");
+        peer.save(
+            note,
+            &be_type_text::TextBlock::of("Oh\nhello\nthere\n"),
+            head,
+        )
+        .await
+        .expect("the other device saves the note");
     });
     wait_until("took what the other device wrote", |shared| {
         text_of(shared, note).as_deref() == Some("Oh\nhello\nthere\n")
