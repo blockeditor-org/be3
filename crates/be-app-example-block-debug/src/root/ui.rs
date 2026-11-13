@@ -49,7 +49,19 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                 .as_ref()
                 .ok()
                 .and_then(|list| list.first())
-                .map(|info| ChildTarget::new(info.id, info.block_type))
+                .map(|info| {
+                    // The block in an editor of its own, never this one: placed with the editor
+                    // that holds it, a child would share this very view.
+                    let types = editor.block_types();
+                    ChildTarget {
+                        editor: types
+                            .editors_for(info.block_type, None)
+                            .into_iter()
+                            .map(|entry| entry.editor)
+                            .find(|chosen| *chosen != DEBUG_EDITOR),
+                        ..ChildTarget::new(info.id, info.block_type)
+                    }
+                })
         })
     });
     view! {
@@ -101,7 +113,7 @@ fn Preview(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
                 <ChildBlock
                     editor
                     block={target}
-                    mode=ChildMode::Passive
+                    mode=ChildMode::Live
                     layer=ChildLayer::Above
                     @test_id={"block-debug.preview.child"}
                 />
@@ -109,5 +121,8 @@ fn Preview(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
         </Popover>
     }
 }
+
+/// This app's editor (manifest.json).
+const DEBUG_EDITOR: uuid::Uuid = uuid::uuid!("777b1dfa-5369-402e-b22d-7eb56877ad4d");
 
 const PREVIEW: (Size, Size) = (Size::Custom(280.0), Size::Custom(180.0));
