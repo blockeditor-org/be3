@@ -2977,24 +2977,8 @@ impl HostCore {
     fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
             EditorAction::OpenBlock(open) => self.show_block(from, open),
-            EditorAction::Command { id, command } => self.handle_block_command(id, command),
-            EditorAction::Shell { id, command } => self.handle_shell_command(from, id, command),
+            EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
             EditorAction::SimulateAccess { id, access } => self.simulate_access(id, access),
-        }
-    }
-
-    fn handle_shell_command(
-        &mut self,
-        from: Option<Uuid>,
-        id: Uuid,
-        command: be_sdk_api::ShellCommand,
-    ) {
-        use be_sdk_api::ShellCommand;
-        match command {
-            ShellCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            ShellCommand::Leave => self.leaving = Some(id),
-            ShellCommand::CloseEditor if from == Some(id) => self.close_itself(id),
-            ShellCommand::CloseEditor => self.close_editor(id),
         }
     }
 
@@ -3039,8 +3023,14 @@ impl HostCore {
         };
     }
 
-    fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
+    fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
+            BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            BlockCommand::Leave => self.leaving = Some(id),
+            BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
+            BlockCommand::CloseEditor => self.close_editor(id),
+            // The runtime does these itself (`Instances::act`).
+            BlockCommand::Version(_) | BlockCommand::SetParent(_) | BlockCommand::Define { .. } => {}
             BlockCommand::Undo if self.editor_access(id).can_edit() => be_host_stack::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be_host_stack::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}

@@ -40,7 +40,7 @@ be_wasm_ops_bindgen::generate!({
         "search-hit", "search-results",
     ],
     inline: [
-        "artifact-command", "unlink-command",
+        "artifact-command", "unlink-command", "define-command",
         "delete-command", "move-command", "reorder-command", "place-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
@@ -71,7 +71,7 @@ pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
-    OfferedClipItem, PreviewImage, ShellCommand, Stopped, TemplateDescriptor, ViewChange,
+    OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange,
     WebViewEvent,
 };
 pub use types::{
@@ -719,12 +719,19 @@ impl embed::blocks::Call {
                 metadata(defined)?;
                 content.as_ref().map_or(Ok(()), |content| blob(content))
             }
-            Call::Define {
-                value: Some(value), ..
+            Call::Act {
+                command:
+                    BlockCommand::Define {
+                        value: Some(value), ..
+                    },
+                ..
             } => descriptor(value),
             Call::WriteContent { bytes, .. } => blob(bytes),
             Call::ReplicaSend { frame, .. } => blob(frame),
-            Call::Version { command, .. } => match command {
+            Call::Act {
+                command: BlockCommand::Version(command),
+                ..
+            } => match command {
                 VersionCommand::Finish { description: value }
                 | VersionCommand::Switch { branch: value }
                 | VersionCommand::CreateBranch { name: value }

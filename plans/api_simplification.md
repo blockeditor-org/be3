@@ -33,22 +33,6 @@ what is not an event, and `child-bar` and `child-focused` carry the child
 only. What is left: the host's `docks::take_bars` still carries a `ViewId`
 nothing reads.
 
-## 5. Acting on a block is one call
-
-Today a block is changed through `blocks.act(block, block-command)`,
-`blocks.version(block, version-command)`, the `act` shell message (`block-act`: a
-block and a `shell-command`) and the graph calls `create-block`, `set-parent` and `define`.
-The guest's `GraphCommand` (`be-sdk/src/graph.rs`) is split back into three
-calls by `be-sdk/src/link.rs`.
-
-Add `version(version-command)`, `share`, `leave`, `close-editor`,
-`set-parent(block-location)` and `define(…)` to `block-command`, leaving one
-`blocks.act(block, command)` plus `create-block` (which answers with an id).
-`shell-command` goes. Permission checks stay a match on the command in the one
-host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
-whether `set-parent` and the existing `move-command`/`reorder-command` are one
-thing, and keep one.
-
 ## 7. The host's per-instance queues are one pushed stream
 
 `be-host-runtime/src/runtime.rs` has 19 `take_*` functions that be-host polls

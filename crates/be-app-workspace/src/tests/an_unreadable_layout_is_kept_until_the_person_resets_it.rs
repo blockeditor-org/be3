@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::ShellCommand;
+use be_sdk_beui::BlockCommand;
 
 #[test]
 fn an_unreadable_layout_is_kept_until_the_person_resets_it() {
@@ -28,13 +28,13 @@ fn an_unreadable_layout_is_kept_until_the_person_resets_it() {
         "the report names the failure: {copied:?}"
     );
 
-    fixture.test.take_shell_commands();
+    fixture.test.take_block_commands();
     fixture.test.click("workspace.layout.exit");
     fixture.settle();
     let workspace = fixture.test.block_id().expect("the workspace is a block");
     assert_eq!(
-        fixture.test.take_shell_commands(),
-        vec![(workspace, ShellCommand::CloseEditor)],
+        fixture.test.take_block_commands(),
+        vec![(workspace, BlockCommand::CloseEditor)],
         "exiting asks the host to close the session itself"
     );
     assert_eq!(

@@ -120,16 +120,19 @@ impl Link {
                 command,
             } => {
                 reply.send(connection, &());
-                store.command(block(id), command);
-                self.sent.push(Sent::Command(block(id), command));
-            }
-            Call::Version {
-                reply,
-                block: id,
-                command,
-            } => {
-                reply.send(connection, &());
-                self.sent.push(Sent::Version(block(id), command));
+                let id = block(id);
+                match command {
+                    BlockCommand::Version(command) => self.sent.push(Sent::Version(id, command)),
+                    BlockCommand::SetParent(parent) => store.set_parent(id, parent),
+                    BlockCommand::Define { key, value } => {
+                        store.define(id, block(key), value.clone());
+                        self.sent.push(Sent::Define(id, block(key), value));
+                    }
+                    command => {
+                        store.command(id, &command);
+                        self.sent.push(Sent::Command(id, command));
+                    }
+                }
             }
             Call::CreateBlock {
                 reply,
@@ -144,24 +147,6 @@ impl Link {
                 store.create_block(
                     block, block_type, parent, defined, content, owner_only, author,
                 );
-            }
-            Call::SetParent {
-                reply,
-                block: id,
-                parent,
-            } => {
-                reply.send(connection, &());
-                store.set_parent(block(id), parent);
-            }
-            Call::Define {
-                reply,
-                block: id,
-                key,
-                value,
-            } => {
-                reply.send(connection, &());
-                store.define(block(id), block(key), value.clone());
-                self.sent.push(Sent::Define(block(id), block(key), value));
             }
             Call::WriteContent {
                 reply,

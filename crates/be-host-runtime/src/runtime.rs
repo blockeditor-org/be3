@@ -3416,9 +3416,6 @@ pub fn take_view_actions(app_id: &str, instance: EditorInstanceId) -> Vec<crate:
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
             actions.push(EditorAction::Command { id, command });
         }
-        for (id, command) in runtime.instances.take_shell_commands(instance) {
-            actions.push(EditorAction::Shell { id, command });
-        }
         for (id, access) in runtime.instances.take_simulated_access(instance) {
             actions.push(EditorAction::SimulateAccess { id, access });
         }

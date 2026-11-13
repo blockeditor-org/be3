@@ -6,7 +6,7 @@ use std::{
 };
 
 use be_sdk_api::{
-    EditorInstanceId,
+    BlockCommand, EditorInstanceId,
     blocks::{BlockSubject, BlockValue, OpenRequest as WireOpen, ShowRequest},
     guest::blocks,
     ops::{
@@ -172,9 +172,6 @@ impl Link {
         for (block, command) in host.take_block_commands() {
             self.under(|| blocks::act(block.into_bytes(), command).detach());
         }
-        for (block, command) in host.take_version_commands() {
-            self.under(|| blocks::version(block.into_bytes(), command).detach());
-        }
     }
 
     fn change_graph(&self, host: &EditorHost) {
@@ -197,11 +194,16 @@ impl Link {
                 )
                 .detach(),
                 GraphCommand::SetParent { id, parent } => {
-                    blocks::set_parent(id.into_bytes(), parent.encode()).detach();
+                    blocks::act(id.into_bytes(), BlockCommand::SetParent(parent.encode())).detach();
                 }
-                GraphCommand::Define { id, key, value } => {
-                    blocks::define(id.into_bytes(), key.into_bytes(), value).detach();
-                }
+                GraphCommand::Define { id, key, value } => blocks::act(
+                    id.into_bytes(),
+                    BlockCommand::Define {
+                        key: key.into_bytes(),
+                        value,
+                    },
+                )
+                .detach(),
             });
         }
     }

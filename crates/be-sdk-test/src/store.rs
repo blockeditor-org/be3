@@ -1166,7 +1166,7 @@ impl ContentStore {
         self.0.borrow_mut().editor_sent(block, instance.0, message);
     }
 
-    pub(crate) fn command(&self, block: Uuid, command: BlockCommand) {
+    pub(crate) fn command(&self, block: Uuid, command: &BlockCommand) {
         let change = match command {
             BlockCommand::Undo => Change::Undo,
             BlockCommand::Redo => Change::Redo,

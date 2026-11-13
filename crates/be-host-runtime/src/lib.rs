@@ -105,10 +105,6 @@ pub enum EditorAction {
         id: Uuid,
         command: be_sdk_api::BlockCommand,
     },
-    Shell {
-        id: Uuid,
-        command: be_sdk_api::ShellCommand,
-    },
     SimulateAccess {
         id: Uuid,
         access: be_sdk_api::AccessLevel,

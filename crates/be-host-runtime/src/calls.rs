@@ -5,7 +5,7 @@ use be_sdk_api::{
     Fonts, Hello, InputBatch, LayoutCommit, Opening, PickedBlock, Preferences, ScreenId,
     ScreenLayout, ScreenRequest, WebViewEvent, WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
-    shell_types::{BlockAct, ChildCreation, ClipOffer, DragStart, Focus, ShellMessage},
+    shell_types::{ChildCreation, ClipOffer, DragStart, Focus, ShellMessage},
 };
 use uuid::Uuid;
 
@@ -234,10 +234,9 @@ impl BlockIds for ShellCall {
         };
         for message in messages {
             match message {
-                ShellMessage::DragBlock(DragStart { block_id, .. })
-                | ShellMessage::Act(BlockAct {
-                    block: block_id, ..
-                }) => visit(instance, BlockIdRole::Existing, block_id),
+                ShellMessage::DragBlock(DragStart { block_id, .. }) => {
+                    visit(instance, BlockIdRole::Existing, block_id)
+                }
                 ShellMessage::Focused(focus) => focus_ids(instance, focus, visit),
                 ShellMessage::CommitChild(ChildCreation {
                     parent: BlockLocation::Block(block_id),

@@ -16,13 +16,13 @@ use be_sdk_api::OfferedClipItem;
 use be_sdk_api::TopBar;
 use be_sdk_api::guest::{host_services, network};
 use be_sdk_api::ops::OpError;
-use be_sdk_api::shell_types::{BlockAct, ChildCreation, ClipOffer, DragStart, ShellMessage};
+use be_sdk_api::shell_types::{ChildCreation, ClipOffer, DragStart, ShellMessage};
 use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
     FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
-    ParentView, PerformanceMeasurement, Revision, ShellCommand, ShellDialog, Signer, Size,
+    ParentView, PerformanceMeasurement, Revision, ShellDialog, Signer, Size,
     TerminalHostBe, ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent,
     WebViewId,
 };
@@ -542,7 +542,6 @@ pub struct EditorHost {
     reported_searches: Rc<RefCell<Option<Vec<crate::Search>>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
-    version_commands: Rc<RefCell<Vec<(Uuid, be_sdk_api::VersionCommand)>>>,
     version_status: Rc<RefCell<Option<be_sdk_api::VersionStatus>>>,
     version_watched: Rc<Cell<bool>>,
     shows_watched: Rc<Cell<bool>>,
@@ -1099,7 +1098,7 @@ impl EditorHost {
     }
 
     pub fn close_editor(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::CloseEditor);
+        self.command(block_id, BlockCommand::CloseEditor);
     }
 
     pub fn simulate_access(&self, block_id: Uuid, access: AccessLevel) {
@@ -1110,11 +1109,9 @@ impl EditorHost {
         std::mem::take(&mut self.simulated_access.borrow_mut())
     }
 
-    fn shell_command(&self, block_id: Uuid, command: ShellCommand) {
-        self.tell(ShellMessage::Act(BlockAct {
-            block: block_id.into_bytes(),
-            command,
-        }));
+    /// Asks the host to act on a block (`blocks.act`), after what the editor asked before.
+    fn command(&self, block_id: Uuid, command: BlockCommand) {
+        self.block_commands.borrow_mut().push((block_id, command));
     }
 
     /// Tells the shell `message`, after what the editor told it before.
@@ -1140,11 +1137,11 @@ impl EditorHost {
     }
 
     pub fn share_block(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::Share);
+        self.command(block_id, BlockCommand::Share);
     }
 
     pub fn leave_block(&self, block_id: Uuid) {
-        self.shell_command(block_id, ShellCommand::Leave);
+        self.command(block_id, BlockCommand::Leave);
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
@@ -1220,11 +1217,7 @@ impl EditorHost {
     }
 
     pub fn version(&self, block_id: Uuid, command: be_sdk_api::VersionCommand) {
-        self.version_commands.borrow_mut().push((block_id, command));
-    }
-
-    pub fn take_version_commands(&self) -> Vec<(Uuid, be_sdk_api::VersionCommand)> {
-        std::mem::take(&mut self.version_commands.borrow_mut())
+        self.command(block_id, BlockCommand::Version(command));
     }
 
     pub fn set_version_status(&self, status: be_sdk_api::VersionStatus) {

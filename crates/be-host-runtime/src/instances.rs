@@ -5,7 +5,7 @@ use be_sdk_api::{
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
     DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, View,
+    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View,
     ViewAnchor, ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent,
     WebViewId,
 };
@@ -14,7 +14,7 @@ use be_sdk_api::{
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
     ops::{OpError, Outcome},
     shell_types::{
-        BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage,
+        ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage,
         ViewEnd,
     },
 };
@@ -141,7 +141,6 @@ struct Instance {
     opens: Vec<OpenRequest>,
     block_drags: Vec<BlockDrag>,
     block_commands: Vec<(Uuid, BlockCommand)>,
-    shell_commands: Vec<(Uuid, ShellCommand)>,
     simulated: Vec<(Uuid, AccessLevel)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
@@ -312,7 +311,6 @@ impl Instance {
             opens: Vec::new(),
             block_drags: Vec::new(),
             block_commands: Vec::new(),
-            shell_commands: Vec::new(),
             simulated: Vec::new(),
             reported_focus: None,
             reported_editable: None,
@@ -3806,11 +3804,6 @@ impl Instances {
                 entry.intrinsic = intrinsic;
                 return changed;
             }
-            ShellMessage::Act(BlockAct { block, command }) => {
-                entry
-                    .shell_commands
-                    .push((Uuid::from_bytes(block), command));
-            }
             ShellMessage::LeaveFrame => {
                 entry.leaving = true;
             }
@@ -4023,16 +4016,6 @@ impl Instances {
                 false
             }
         }
-    }
-
-    pub(super) fn take_shell_commands(
-        &mut self,
-        instance: EditorInstanceId,
-    ) -> Vec<(Uuid, ShellCommand)> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.shell_commands))
-            .unwrap_or_default()
     }
 
     pub(super) fn take_simulated_access(

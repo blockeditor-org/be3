@@ -3,7 +3,7 @@ use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
 use be_sdk_api::shell_types::{
-    BlockAct, ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
+    ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
 };
 use be_sdk_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
@@ -1612,15 +1612,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.extension_calls.clear();
     }
 
-    pub fn take_shell_commands(&mut self) -> Vec<(Uuid, be_sdk_api::ShellCommand)> {
-        self.take_shell_messages(|call| match call {
-            ShellMessage::Act(BlockAct { block, command }) => {
-                Some((Uuid::from_bytes(*block), *command))
-            }
-            _ => None,
-        })
-    }
-
     /// Every copy the editor made: its serial and the items it offered.
     pub fn take_copies(&mut self) -> Vec<(u64, Vec<be_sdk_api::OfferedClipItem>)> {
         self.take_shell_messages(|call| match call {
@@ -1975,7 +1966,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_block_commands(&mut self) -> Vec<(Uuid, be_sdk_beui::BlockCommand)> {
         self.take_sent_calls(|sent| match sent {
-            Sent::Command(block, command) => Some((*block, *command)),
+            Sent::Command(block, command) => Some((*block, command.clone())),
             _ => None,
         })
     }

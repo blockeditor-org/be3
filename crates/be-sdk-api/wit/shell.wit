@@ -219,16 +219,6 @@ interface shell-types {
         failed(string),
     }
 
-    /// What an editor asks of the host around it for a block it draws: to share
-    /// it, leave it, or close the editor. An editor renames a block or shows
-    /// the host's menu by placing a `child-content.rename` or
-    /// `host(menu)` child in a view it anchored.
-    variant shell-command {
-        share,
-        leave,
-        close-editor,
-    }
-
     /// The menu of one of the editor's views, replacing the one it sent for
     /// that view before. The menu of the view that holds the editor's
     /// content is its frame's (a placer reads it as `child-status.menu`);
@@ -264,12 +254,6 @@ interface shell-types {
         block-type: block-type-id,
     }
 
-    /// Asks the host around the editor to act for a block the editor draws.
-    record block-act {
-        block: block-id,
-        command: shell-command,
-    }
-
     /// The editor stopped drawing a view, closed or failed.
     record view-end {
         view: view-id,
@@ -302,7 +286,6 @@ interface shell-types {
         /// placed sized to its content (`child-placement.fit`) reports the size it
         /// took as its view's `view-size` instead, and the host ignores this.
         intrinsic-size(option<size>),
-        act(block-act),
         /// The editor asks to leave the frame it is shown in.
         leave-frame,
         view-stopped(view-end),
