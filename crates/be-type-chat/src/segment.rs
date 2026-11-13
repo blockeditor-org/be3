@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::chat::{Message, Segment, Signature};
+use crate::chat::{Carried, Message, Segment, Signature};
 use crate::signed::MessageHash;
 
 /// A segment holds at least this many encoded bytes of messages once it is closed, unless the
@@ -136,7 +136,12 @@ impl Segment {
             members,
             attachments: messages
                 .iter()
-                .flat_map(|(_, message)| message.attachments.iter().copied())
+                .flat_map(|(id, message)| {
+                    message.attachments.iter().map(|block| Carried {
+                        message: *id,
+                        block: *block,
+                    })
+                })
                 .collect(),
         }
     }

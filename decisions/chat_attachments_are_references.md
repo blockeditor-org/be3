@@ -28,6 +28,12 @@ child of the chat.
 - A block made for a draft is deleted when it is removed from the draft while
   it is still the chat's child, and when a Not-sent message that alone carries
   it is discarded; a referenced block is left alone.
+- Deleting a message, recent or in a closed segment, unlists a block only it
+  carried.
+- Any member with Edit can delete another's draft, as Edit allows for any
+  child. A draft nobody sends stays until its author removes it.
+- A send on one device and a drop of the same draft on another can race: the
+  message then links a block in the trash.
 
 ## Rejected
 

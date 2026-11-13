@@ -33,10 +33,22 @@ fn a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry() {
     assert_eq!(chat.drafts_of(ADA), [sketch]);
     assert!(!chat.references().contains(&photo));
 
+    // Someone else's message linking Ada's draft leaves it hers.
+    let (id, linking) = chat.draft(
+        CHAT,
+        Message {
+            attachments: vec![BlockRef(sketch)],
+            ..Message::new(BO, 2, "Is this the sketch?")
+        },
+    );
+    let send = chat.send_drafted(id, &linking);
+    chat.apply(&send.into());
+    assert_eq!(chat.drafts_of(ADA), [sketch]);
+
     // Sending takes what the message carries out of the drafts, and the message lists it.
     let message = Message {
         attachments: vec![BlockRef(sketch)],
-        ..Message::new(ADA, 2, "The sketch")
+        ..Message::new(ADA, 3, "The sketch")
     };
     let (id, message) = chat.draft(CHAT, message);
     let send = chat.send_drafted(id, &message);
@@ -59,8 +71,30 @@ fn a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry() {
     assert!(
         chat.segments()
             .iter()
-            .any(|segment| segment.attachments.contains(&BlockRef(sketch)))
+            .flat_map(|segment| segment.attachments.clone())
+            .any(|carried| carried.message == id && carried.block == BlockRef(sketch))
     );
     assert!(chat.message(id).is_none(), "the message left the header");
     assert!(chat.references().contains(&sketch));
+
+    // Deleted, the closed messages that carried it leave the chat's children without it, as a
+    // recent one would.
+    let carriers: Vec<ObjectId> = chat
+        .segments()
+        .iter()
+        .flat_map(|segment| segment.attachments.clone())
+        .filter(|carried| carried.block == BlockRef(sketch))
+        .map(|carried| carried.message)
+        .collect();
+    assert_eq!(carriers.len(), 2, "Bo's message and Ada's both carry it");
+    let mut chat = chat;
+    let deleting = chat.delete(carriers[0], ADA, 4);
+    chat.apply(&deleting.into());
+    assert!(
+        chat.references().contains(&sketch),
+        "still carried by the other message"
+    );
+    let deleting = chat.delete(carriers[1], ADA, 5);
+    chat.apply(&deleting.into());
+    assert!(!chat.references().contains(&sketch));
 }

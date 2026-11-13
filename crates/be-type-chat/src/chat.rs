@@ -142,9 +142,16 @@ pub struct Segment {
     pub hash: Vec<u8>,
     #[serde(with = "serde_bytes")]
     pub members: Vec<u8>,
-    /// What its messages carry, so the chat still lists the children they carry once they
-    /// leave the header.
-    pub attachments: Vec<BlockRef>,
+    /// What its messages carry, by message, so the chat still lists the children they carry
+    /// once they leave the header, and stops when one is deleted.
+    pub attachments: Vec<Carried>,
+}
+
+/// A block a message in a closed segment carries.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct Carried {
+    pub message: ObjectId,
+    pub block: BlockRef,
 }
 
 impl Message {
@@ -609,12 +616,14 @@ impl ChatContent {
             .into()
     }
 
-    /// `send_as`, taking what the message carries out of the drafts: it is the message's now.
+    /// `send_as`, taking what the message carries out of its author's drafts: it is the
+    /// message's now.
     pub fn send_drafted(&self, id: ObjectId, message: &Message) -> Edit {
         let drafts = self.drafts();
         let mut changes = Self::send_as(id, message).0;
         changes.extend(message.attachments.iter().filter_map(|BlockRef(block)| {
-            let draft = drafts.get(block)?;
+            // Only the author's own: someone else's message linking my draft leaves it mine.
+            let draft = drafts.get(block).filter(|draft| draft.author == message.author)?;
             let stamp = drafts.next(block, stamp_time(message.time), draft.author);
             Some(ChatHeader::DRAFTS.put(ObjectId::ROOT, block, None, stamp))
         }));
@@ -646,6 +655,30 @@ impl ChatContent {
             .filter(|draft| draft.author == author)
             .map(|draft| draft.block.0)
             .collect()
+    }
+
+    /// `references` without what only deleted messages in closed segments carry: a deleted
+    /// message leaves the chat's children the same way whether it was recent or closed.
+    fn unlisting_deleted(&self, mut references: Vec<Uuid>) -> Vec<Uuid> {
+        let deletions = self.deletions();
+        let mut gone = std::collections::HashSet::new();
+        let mut kept = std::collections::HashSet::new();
+        for carried in self.segments().iter().flat_map(|segment| &segment.attachments) {
+            match deletions.contains_key(&carried.message) {
+                true => gone.insert(carried.block.0),
+                false => kept.insert(carried.block.0),
+            };
+        }
+        if gone.is_empty() {
+            return references;
+        }
+        kept.extend(self.drafts().keys().copied());
+        for id in self.messages() {
+            let attachments: Vec<BlockRef> = self.header.field(id, Message::ATTACHMENTS);
+            kept.extend(attachments.into_iter().map(|BlockRef(block)| block));
+        }
+        references.retain(|block| !gone.contains(block) || kept.contains(block));
+        references
     }
 
     fn drafts(&self) -> LatestMap<Uuid, Draft> {
@@ -1123,11 +1156,11 @@ impl BlockContent for ChatContent {
     }
 
     fn references(&self) -> Vec<Uuid> {
-        self.header.references()
+        self.unlisting_deleted(self.header.references())
     }
 
     fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
-        self.header.references_in(organization)
+        self.unlisting_deleted(self.header.references_in(organization))
     }
 
     fn name(&self) -> Option<String> {
