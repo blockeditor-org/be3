@@ -39,7 +39,8 @@ pub fn with_split_relocations(bytes: &[u8]) -> Result<Vec<u8>, String> {
         .count() as u32;
     let defined = index
         .checked_sub(imported)
-        .ok_or_else(|| format!("{APPLY_DATA_RELOCS} is imported, not defined"))? as usize;
+        .ok_or_else(|| format!("{APPLY_DATA_RELOCS} is imported, not defined"))?
+        as usize;
     let functions = find(&sections, FUNCTIONS)?;
     let code = find(&sections, CODE)?;
 
@@ -73,7 +74,10 @@ pub fn with_split_relocations(bytes: &[u8]) -> Result<Vec<u8>, String> {
     caller.push(END);
 
     let mut function_contents = Vec::new();
-    unsigned(u64::from(count) + chunks.len() as u64, &mut function_contents);
+    unsigned(
+        u64::from(count) + chunks.len() as u64,
+        &mut function_contents,
+    );
     for ty in types.iter().copied().chain(chunks.iter().map(|_| ty)) {
         unsigned(u64::from(ty), &mut function_contents);
     }
@@ -95,9 +99,11 @@ pub fn with_split_relocations(bytes: &[u8]) -> Result<Vec<u8>, String> {
         match current.id {
             FUNCTIONS => section(FUNCTIONS, &function_contents, &mut out),
             CODE => section(CODE, &code_contents, &mut out),
-            CUSTOM if is_name_section(current)? => {
-                section(CUSTOM, &named(current.contents, first, chunks.len())?, &mut out)
-            }
+            CUSTOM if is_name_section(current)? => section(
+                CUSTOM,
+                &named(current.contents, first, chunks.len())?,
+                &mut out,
+            ),
             id => section(id, current.contents, &mut out),
         }
     }

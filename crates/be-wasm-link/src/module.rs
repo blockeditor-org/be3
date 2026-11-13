@@ -509,7 +509,11 @@ pub fn exported_constant(bytes: &[u8], wanted: &str) -> Result<Option<i64>, Stri
     Ok(None)
 }
 
-pub(crate) fn exported_index(sections: &[Section<'_>], wanted: &str, kind: u8) -> Result<Option<u32>, String> {
+pub(crate) fn exported_index(
+    sections: &[Section<'_>],
+    wanted: &str,
+    kind: u8,
+) -> Result<Option<u32>, String> {
     let Some(section) = sections.iter().find(|section| section.id == EXPORT) else {
         return Ok(None);
     };
