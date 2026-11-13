@@ -739,12 +739,17 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         })
     });
     let message = create_memo(move || {
-        let within = leaving.with(|leaving| leaving.as_ref().and_then(|leaving| leaving.within.clone()));
+        let within =
+            leaving.with(|leaving| leaving.as_ref().and_then(|leaving| leaving.within.clone()));
         let from = match within {
-            Some(within) => format!("You will no longer see it, in \u{201c}{within}\u{201d}, or anything inside it"),
+            Some(within) => format!(
+                "You will no longer see it, in \u{201c}{within}\u{201d}, or anything inside it"
+            ),
             None => "You will no longer see it or anything inside it".to_owned(),
         };
-        format!("{from}, unless someone shares it with you again. Whoever can edit it gives it new keys.")
+        format!(
+            "{from}, unless someone shares it with you again. Whoever can edit it gives it new keys."
+        )
     });
     let busy = view.leave_busy;
     let busy = create_memo(move || busy.get());

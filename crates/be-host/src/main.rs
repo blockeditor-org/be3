@@ -4266,7 +4266,7 @@ fn leaving_view(block: Uuid) -> ui::LeavingView {
         .and_then(|node| node.metadata.name())
         .unwrap_or_else(|| "Untitled".to_owned());
     let within = node
-        .and_then(|node| node.parent.block())
+        .and_then(|node| node.parent?.block())
         .and_then(be_host_stack::node)
         .and_then(|parent| parent.metadata.name());
     ui::LeavingView {
