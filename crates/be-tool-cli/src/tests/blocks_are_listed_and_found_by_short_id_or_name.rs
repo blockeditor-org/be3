@@ -91,7 +91,10 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         text.contains("Steps to reproduce.") && text.ends_with("Seen twice."),
         "{text}"
     );
-    for refused in [format!("{id} page delete"), format!("{id} page move Tracker")] {
+    for refused in [
+        format!("{id} page delete"),
+        format!("{id} page move Tracker"),
+    ] {
         let refused = run(&tracker, &refused)
             .await
             .expect_err("a row's page takes only the text verbs");
