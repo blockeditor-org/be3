@@ -1,6 +1,5 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
-use be_sdk_api::clipboard::ClipBody;
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
