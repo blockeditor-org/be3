@@ -227,24 +227,60 @@ pub(super) async fn list(peer: &Arc<Peer<Store>>, block: Uuid) -> Result<Vec<Rev
     if !summary.access.can_view() {
         return Err("You do not have permission to view this file.".into());
     }
-    let mut revisions: Vec<_> = peer
+    let server = peer
         .history(block)
         .await
-        .map_err(|error| error.to_string())?
-        .into_iter()
+        .map_err(|error| error.to_string())?;
+    let mut kept = Vec::new();
+    for commit in peer.pending_commits(block) {
+        if let Ok(loaded) = peer.load_commit(commit).await {
+            kept.push((commit, loaded.time));
+        }
+    }
+    Ok(listed(&server, &kept, peer.local_head(block)))
+}
+
+/// A block's version history to show: the server's (`server`), and the commits this device
+/// keeps and has not sent yet (`kept`, with their times), which reach the server later with the
+/// head where it is. Listed only from the server, it would show a commit before them as current
+/// until something else listed it again. The current one is the head here (`local`) while this
+/// device keeps commits, else the server's: a head here with nothing kept can only lag the
+/// server's, when another device published since. Newest first.
+pub(crate) fn listed(
+    server: &[be_block_protocol::HistoryEntry],
+    kept: &[(CommitId, i64)],
+    local: Option<CommitId>,
+) -> Vec<Revision> {
+    let local = local.filter(|_| !kept.is_empty());
+    let is_current = |commit: CommitId, server_head: bool| match local {
+        Some(local) => commit == local,
+        None => server_head,
+    };
+    let mut revisions: Vec<Revision> = server
+        .iter()
         .map(|entry| Revision {
             commit: *entry.commit.hash().as_bytes(),
             time: entry.time,
-            current: entry.head,
+            current: is_current(entry.commit, entry.head),
         })
         .collect();
+    for (commit, time) in kept {
+        let id = *commit.hash().as_bytes();
+        if !revisions.iter().any(|revision| revision.commit == id) {
+            revisions.push(Revision {
+                commit: id,
+                time: *time,
+                current: is_current(*commit, false),
+            });
+        }
+    }
     revisions.sort_by(|a, b| {
         b.time
             .cmp(&a.time)
             .then_with(|| b.current.cmp(&a.current))
             .then_with(|| b.commit.cmp(&a.commit))
     });
-    Ok(revisions)
+    revisions
 }
 
 async fn perform(

@@ -398,6 +398,11 @@ copies what the source's replica shows (or its head) into a new id before
 anything opens the copy. `be_host_stack::hold` keeps a block open for the host
 (settings, the shell's session).
 
+A block being placed counts as held by its parent (`Graph::placing`) until the parent's
+references take it in. Should they drop it again while it still names the parent, it reads as
+deleted: the mirror notes it (`Graph::take_dropped`) and the worker logs it with what it knows
+of the parent (`Shared::log_dropped`), which a host test's failure shows in the app's log.
+
 ## Undo
 
 Undo lives in the block's replica, the one place that sees every edit from this

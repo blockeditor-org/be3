@@ -19,9 +19,9 @@ drag '#dock.tab.2+-12,15' '#dock.tab.2+48,75' 6
 wait '#dock.tab.2' over 327,271
 wait '#dock.dialog.1099511627776' over 327,382
 click '#demo.dialog.1099511627776.close'
-gone '#dock.dialog.1099511627776'
+wait not '#dock.dialog.1099511627776'
 drag '#dock.tab.2' '#dock.grip.pages+413,349' 6
-gone 'Nothing open'
+wait not 'Nothing open'
 wait '#dock.splitter.shell' over 264,300
 drag '#dock.splitter.shell' '#dock.splitter.shell+203,300' 6
 wait '#dock.splitter.shell' over 464,300

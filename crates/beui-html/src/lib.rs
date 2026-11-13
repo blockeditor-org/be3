@@ -374,7 +374,12 @@ impl SlotHost<Node> for Host {
             !Node(data.clone()).is_void(),
             "void HTML elements cannot have children"
         );
-        data.children.borrow_mut().open()
+        let slot = data.children.borrow_mut().open();
+        // A slot opened on an element already in the page puts its anchors there now, so a
+        // later fill has a place to put its items, and to take them from.
+        #[cfg(target_arch = "wasm32")]
+        dom::sync_children(&Node(data));
+        slot
     }
     fn fill(&self, slot: SlotId, items: Vec<Node>) {
         if let Some(data) = self.0.upgrade() {

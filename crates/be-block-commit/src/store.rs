@@ -102,12 +102,24 @@ impl<S: ObjectStore> CommitStore<S> {
         Ok(seen)
     }
 
+    /// Walks `descendant`'s history only until it reaches `ancestor`.
     pub fn is_ancestor(
         &self,
         ancestor: CommitId,
         descendant: CommitId,
     ) -> Result<bool, StoreError> {
-        Ok(self.ancestry(descendant)?.contains(&ancestor))
+        let mut seen = HashSet::new();
+        let mut queue = VecDeque::from([descendant]);
+        while let Some(id) = queue.pop_front() {
+            if id == ancestor {
+                return Ok(true);
+            }
+            if !seen.insert(id) {
+                continue;
+            }
+            queue.extend(self.parents_of(id)?);
+        }
+        Ok(false)
     }
 
     pub fn common_ancestor(

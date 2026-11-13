@@ -10,13 +10,13 @@ use beui_view::drag::{DragPoint, DragSource, Pending, Take};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
-use beui_view::types::layout::GLIDE_SPRING;
 use beui_view::types::{
-    CursorIcon, Direction, GlideHold, Key, KeyPhase, LayerLevel, LayerPolicy, Placement,
-    PointerPress, Pos2, Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
+    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
+    Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
 };
 
 use crate::drag::{DRAG_THRESHOLD, DropHandle, DropTarget};
+use crate::glide::{GLIDE_SPRING, Glide, GlideApi, GlideHold};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReorderMove<K, P> {
@@ -88,7 +88,7 @@ struct State<K: 'static, P: 'static> {
     point: RefCell<Option<DragPoint>>,
     pressed: RefCell<Option<Press<K>>>,
     arrival: RefCell<Option<Arrival<K>>>,
-    glides: RefCell<Vec<(K, NodeId, NodeId)>>,
+    glides: RefCell<Vec<(K, NodeId, NodeId, GlideApi)>>,
     board: Rc<Board>,
     gone: Cell<bool>,
     returning: Cell<bool>,
@@ -148,8 +148,8 @@ where
     pub fn resting(&self, key: &K) -> Option<Rect> {
         self.state.with(|state| {
             let glides = state.glides.borrow();
-            let (_, outer, inner) = glides.iter().find(|(shown, ..)| shown == key)?;
-            resting(*outer, *inner)
+            let (_, _, inner, glide) = glides.iter().find(|(shown, ..)| shown == key)?;
+            resting(*glide, *inner)
         })
     }
 }
@@ -166,26 +166,25 @@ fn bump<K, P>(state: &State<K, P>) {
     state.arm.update(|arm| *arm += 1);
 }
 
-fn glide_of<K: PartialEq, P>(state: &State<K, P>, key: &K) -> Option<NodeId> {
+fn glide_of<K: PartialEq, P>(state: &State<K, P>, key: &K) -> Option<(NodeId, GlideApi)> {
     state
         .glides
         .borrow()
         .iter()
         .find(|(shown, ..)| shown == key)
-        .map(|(_, node, _)| *node)
+        .map(|(_, node, _, glide)| (*node, *glide))
 }
 
-fn resting(outer: NodeId, inner: NodeId) -> Option<Rect> {
+fn resting(glide: GlideApi, inner: NodeId) -> Option<Rect> {
     let rect = measure(inner).get_untracked()?.rect;
-    let moved = glide_displacement(outer)?;
-    Some(rect.translate(-moved))
+    Some(rect.translate(-glide.displacement()))
 }
 
 fn hold<K: Clone + PartialEq, P: Clone>(state: &State<K, P>, held: bool) {
     let Some(lifted) = state.lifted.get_untracked() else {
         return;
     };
-    let Some(glide) = glide_of(state, &lifted.key) else {
+    let Some((_, glide)) = glide_of(state, &lifted.key) else {
         return;
     };
     let point = *state.point.borrow();
@@ -196,7 +195,7 @@ fn hold<K: Clone + PartialEq, P: Clone>(state: &State<K, P>, held: bool) {
             at: clamped(state, point.pos + lifted.item.min.to_vec2(), lifted.item),
             along: Some(direction),
         });
-    hold_glide(glide, hold);
+    glide.hold(hold);
 }
 
 fn spans<K, P>(state: &State<K, P>, except: Option<&K>) -> Vec<(f32, f32)>
@@ -209,7 +208,7 @@ where
         .borrow()
         .iter()
         .filter(|(key, ..)| except != Some(key))
-        .filter_map(|(_, outer, _)| {
+        .filter_map(|(_, outer, ..)| {
             measure(*outer)
                 .get_untracked()
                 .map(|measured| measured.rect)
@@ -254,7 +253,7 @@ fn slot_size<K: PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
         .borrow()
         .iter()
         .find(|(shown, ..)| shown == key)
-        .and_then(|(_, outer, _)| {
+        .and_then(|(_, outer, ..)| {
             measure(*outer)
                 .get_untracked()
                 .map(|measured| measured.rect)
@@ -294,7 +293,7 @@ fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2>
     let point = (*state.point.borrow())?;
     let at = point.pos + lifted.item.min.to_vec2();
     let resting = glide_of(state, &lifted.key)
-        .and_then(|glide| measure(glide).get_untracked().map(|measured| measured.rect));
+        .and_then(|(glide, _)| measure(glide).get_untracked().map(|measured| measured.rect));
     Some(match (lifted.home, resting) {
         (true, Some(resting)) => match state.direction.get_untracked() {
             Direction::Horizontal => Pos2::new(at.x, resting.min.y),
@@ -317,8 +316,8 @@ fn slot_at<K: Clone + PartialEq, P>(
     let mut mounted: Vec<(f32, usize)> = Vec::new();
     let mut split = f32::INFINITY;
     let mut opened = 0.0;
-    for (key, outer, inner) in glides.iter() {
-        let Some(rect) = resting(*outer, *inner) else {
+    for (key, outer, inner, glide) in glides.iter() {
+        let Some(rect) = resting(*glide, *inner) else {
             continue;
         };
         if own == Some(key) {
@@ -1244,8 +1243,9 @@ where
         Prop::Static(false) => Callback::empty(),
         _ => Callback::new(long_pressed),
     };
+    let api = ComponentRef::<GlideApi>::new();
     let inner = view! {
-        <Glide arm={arm}>
+        <Glide arm={arm} within={Some(api)}>
             <Interactive
                 cursor
                 capture_presses
@@ -1263,7 +1263,7 @@ where
     };
     let row = NodeRef::new();
     let glide = view! {
-        <Glide @node_ref=&row arm={arm} from={from}>
+        <Glide @node_ref=&row api arm={arm} from={from} raised={raised}>
             <Frame padding={padding}>{inner}</Frame>
         </Glide>
     };
@@ -1274,8 +1274,8 @@ where
         let key = key.get();
         state.with(|state| {
             let mut glides = state.glides.borrow_mut();
-            glides.retain(|(_, node, _)| *node != glide);
-            glides.push((key, glide, inner));
+            glides.retain(|(_, node, ..)| *node != glide);
+            glides.push((key, glide, inner, api.get()));
         });
         if untrack(|| lifted.get()) {
             state.with(|state| hold(state, true));
@@ -1286,7 +1286,7 @@ where
             state
                 .glides
                 .borrow_mut()
-                .retain(|(_, node, _)| *node != glide)
+                .retain(|(_, node, ..)| *node != glide)
         });
     });
     on_key(
@@ -1313,9 +1313,5 @@ where
             step(state, key.get_untracked(), by)
         },
     );
-    create_effect(move || {
-        let raised = raised.get();
-        set_raised(glide, raised);
-    });
     glide
 }

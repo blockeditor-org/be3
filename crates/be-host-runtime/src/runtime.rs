@@ -793,7 +793,7 @@ impl Runtime {
             ),
             (
                 self.instances.awaiting_content(),
-                "has an editor waiting for its block's content",
+                "has an editor waiting for a block's content",
             ),
         ]
         .into_iter()

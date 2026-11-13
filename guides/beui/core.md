@@ -198,7 +198,7 @@ be-tool-fix-rust-source enforces the layout:
   page and scrolling into view; native's frame-perfect layout.
 - Every feature exists on both. Where HTML cannot do it yet, its body is a
   visible stand-in (an outlined pink box, or an ignored prop) listed in
-  plans/html_core.md.
+  plans/deferred/html_core.md.
 - Colours are `Color`s that may reference declared variables, so a
   server-rendered page and both cores agree; on HTML they become `var(--…)`
   and follow the scheme without a redraw.
@@ -249,7 +249,9 @@ standard attributes there. Style with classes and one `<Stylesheet css=... />`.
 claims the nodes a server rendered from the same view. Keep the returned
 `Mounted` for as long as the page is live. Changes then patch nodes in place:
 a control-flow fill moves nodes only between its two anchor comments
-(`<!--[-->` and `<!--]-->`), so rows a `ForEach` keeps keep their DOM nodes.
+(`<!--[-->` and `<!--]-->`), so rows a `ForEach` keeps keep their DOM nodes. A slot opened on an
+element already in the page puts its anchors there at once, which re-places the
+element's children: O(children), so open slots while building, not per frame.
 Hydration walks tree and page in serialization order and trusts the server's
 attributes; a mismatch warns in debug builds and builds that node fresh, never
 panics. Handlers are `Callback<beui_html::Event>`, whose methods compile on
