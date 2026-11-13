@@ -7,8 +7,9 @@ per block with a workspace as the usual place (a block's `be_block_content::SETT
 metadata points to its settings block, one block per kind in
 `Settings::kinds`), and per organization (`be_block::organization_settings`,
 whose `kinds` are defaults and `policies` policies). Kinds declare `FOLLOWS`,
-`RULE` and `VISIBILITY` (`be-block/src/settings.rs`,
-`be-block/src/workspace_settings.rs`) and resolve through
+`RULE` and `VISIBILITY` (the `Layered` trait in
+`be-block-content/src/layered.rs`; the kinds in `be-block/src/display_settings.rs`,
+`input_settings.rs`, `organization.rs` and `workspace_settings.rs`) and resolve through
 `be_block::Resolution` (guides/settings.md). What is left is later kinds.
 
 ## Later

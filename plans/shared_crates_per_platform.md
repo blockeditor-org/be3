@@ -1,7 +1,6 @@
 # Shared crates per platform
 
-Depends on: none. (be-block-content, which split the type modules' content
-core out of be-block, has landed.)
+Depends on: none.
 
 `./scripts/verify` builds a shared crate once for every platform something
 under a test needs it on, so a crate that is only reachable through a dep
@@ -23,9 +22,9 @@ and what those tests depend on:
 - Execution platform: proc macros and build tools.
 
 It does not build the web (`wasi` / `wasi_html`: `//crates/be-host:web` and
-its program modules): no test depends on them, which is how a web build
-break on main went unnoticed recently. Adding `//crates/be-host:web` (or one
-target that depends on it) to verify catches that, at the cost of every web
+its program modules): no test depends on them, so a web build break
+passes verify. Adding `//crates/be-host:web` (or one target that depends on
+it) to verify catches one, at the cost of every web
 crate's wasm build; whether that is worth it is the user's call.
 
 ## Which shared crates build where, and why
