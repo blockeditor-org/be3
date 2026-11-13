@@ -230,6 +230,7 @@ impl Link {
     }
 
     /// Each watch the editor holds open, by its op, with what it watches.
+    #[cfg(test)]
     pub(crate) fn watching(&self) -> Vec<(OpId, Subject)> {
         self.watches
             .iter()

@@ -1,5 +1,5 @@
 use be_sdk_beui::{
-    AccessLevel, AdministratorWatch, BlockInfo, BlockParent, BlockQuery, BlockCommand,
+    AccessLevel, AdministratorWatch, BlockCommand, BlockInfo, BlockParent, BlockQuery,
 };
 
 use super::*;

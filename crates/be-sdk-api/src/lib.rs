@@ -71,8 +71,7 @@ pub use shell_types::ChildStatus;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
     CreationProgress, DialogAnswer, DialogStatus, DropAction, EditorDescriptor, FitArea,
-    OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange,
-    WebViewEvent,
+    OfferedClipItem, PreviewImage, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,

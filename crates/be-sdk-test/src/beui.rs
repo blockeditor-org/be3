@@ -2,9 +2,7 @@ use be_sdk_api::app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, Vie
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
 use be_sdk_api::ops::{Connection, Incoming, Side};
-use be_sdk_api::shell_types::{
-    ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage,
-};
+use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport,
     HelloAccepted, InputBatch, LayoutCommit, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
@@ -985,6 +983,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     /// Each block watch the editor holds open, by its op, with what it follows.
+    #[cfg(test)]
     pub(crate) fn block_watches(&self) -> Vec<(be_sdk_api::ops::OpId, crate::link::Subject)> {
         self.link.watching()
     }

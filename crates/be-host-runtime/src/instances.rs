@@ -5,17 +5,15 @@ use be_sdk_api::{
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
     DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View,
-    ViewAnchor, ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent,
-    WebViewId,
+    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View, ViewAnchor,
+    ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
     ops::{OpError, Outcome},
     shell_types::{
-        ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage,
-        ViewEnd,
+        ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
     },
 };
 use be_sdk_type_guest::editor::{FromEditor, Gesture};

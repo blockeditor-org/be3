@@ -3030,7 +3030,8 @@ impl HostCore {
             BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
             BlockCommand::CloseEditor => self.close_editor(id),
             // The runtime does these itself (`Instances::act`).
-            BlockCommand::Version(_) | BlockCommand::SetParent(_) | BlockCommand::Define { .. } => {}
+            BlockCommand::Version(_) | BlockCommand::SetParent(_) | BlockCommand::Define { .. } => {
+            }
             BlockCommand::Undo if self.editor_access(id).can_edit() => be_host_stack::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be_host_stack::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}

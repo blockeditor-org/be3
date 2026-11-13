@@ -1,6 +1,6 @@
 use be_sdk_beui::be_block::be_block_model::BlockRef;
 use be_sdk_beui::be_block::{Root, SETTINGS, settings::Settings};
-use be_sdk_beui::{AccessLevel, BlockInfo, BlockParent, BlockCommand};
+use be_sdk_beui::{AccessLevel, BlockCommand, BlockInfo, BlockParent};
 
 use super::*;
 

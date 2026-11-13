@@ -11,7 +11,11 @@ impl BeuiRoot for Quiet {
     #[component]
     fn View(editor: Editor) -> Root {
         let _ = editor;
-        view! { <Root><List spacing=Space::Sm /></Root> }
+        view! {
+            <Root>
+                <List spacing=Space::Sm />
+            </Root>
+        }
     }
 }
 
@@ -90,7 +94,10 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
         Subject::History(history),
         Subject::Artifact(kept),
     ] {
-        assert!(op_of(&after, subject).is_some(), "{subject:?} is still watched");
+        assert!(
+            op_of(&after, subject).is_some(),
+            "{subject:?} is still watched"
+        );
         assert_eq!(
             op_of(&after, subject),
             op_of(&before, subject),
@@ -103,13 +110,18 @@ fn narrowing_one_kind_of_block_watch_keeps_the_others() {
         listed.iter().map(|block| block.id).collect::<Vec<_>>(),
         [child]
     );
-    assert!(host.history(history).can_undo, "the history reached its block");
+    assert!(
+        host.history(history).can_undo,
+        "the history reached its block"
+    );
     assert!(
         !host.history(kept).can_undo,
         "a history lands only on its own block"
     );
     assert_eq!(
-        host.artifact(kept).and_then(|state| state.summary).as_deref(),
+        host.artifact(kept)
+            .and_then(|state| state.summary)
+            .as_deref(),
         Some("kept"),
         "the artifact's state is kept once the other closes"
     );

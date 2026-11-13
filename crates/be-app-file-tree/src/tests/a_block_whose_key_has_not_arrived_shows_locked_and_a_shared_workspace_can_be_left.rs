@@ -1,6 +1,6 @@
 use be_sdk_beui::be_block::BlockContent;
 use be_sdk_beui::{
-    AccessLevel, AdministratorWatch, BlockInfo, BlockParent, BlockQuery, BlockCommand,
+    AccessLevel, AdministratorWatch, BlockCommand, BlockInfo, BlockParent, BlockQuery,
 };
 use be_type_workspace::WorkspaceContent;
 

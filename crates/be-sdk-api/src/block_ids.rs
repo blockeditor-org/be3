@@ -265,8 +265,9 @@ impl crate::embed::blocks::Call {
                 parent.visit_block_ids(visit);
                 visit(BlockIdRole::Created, block);
             }
-            Self::WriteContent { block, .. }
-            | Self::ReplicaNew { block, .. } => visit(existing, block),
+            Self::WriteContent { block, .. } | Self::ReplicaNew { block, .. } => {
+                visit(existing, block)
+            }
             Self::Act { block, command, .. } => {
                 visit(existing, block);
                 command.visit_block_ids(visit);

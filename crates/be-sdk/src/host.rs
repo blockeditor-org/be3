@@ -22,9 +22,8 @@ use be_sdk_api::{
     BlockAgent, BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick,
     FileSave, FitArea, HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder,
-    ParentView, PerformanceMeasurement, Revision, ShellDialog, Signer, Size,
-    TerminalHostBe, ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent,
-    WebViewId,
+    ParentView, PerformanceMeasurement, Revision, ShellDialog, Signer, Size, TerminalHostBe,
+    ViewChange, ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
