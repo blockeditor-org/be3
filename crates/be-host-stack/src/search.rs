@@ -1580,8 +1580,16 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
 }
 
 /// Watches the indexes in `read` and lets go of the rest, while the connection is attached.
+/// An index is watched only once this device knows the server holds it: one this device made
+/// and has not sent yet would be refused, and a refused watch is not asked again.
 fn watch(peer: &Peer<Store>, watching: &mut HashSet<Uuid>, read: &HashSet<Uuid>) {
     let attached = peer.is_attached();
+    let read: HashSet<Uuid> = read
+        .iter()
+        .copied()
+        .filter(|index| peer.known_remote_head(*index).is_some())
+        .collect();
+    let read = &read;
     let gone: Vec<Uuid> = watching.difference(read).copied().collect();
     for index in gone {
         watching.remove(&index);
