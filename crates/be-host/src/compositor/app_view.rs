@@ -727,8 +727,12 @@ pub(crate) fn AppView(
     });
     let shown_view: GiftView = (app_id.value().to_string(), instance, region.id);
     // A copy this view owns: the placer's view, which owns its own, can go first.
-    let gift_placer =
-        asked.map(|asked| (store(asked.placer.app.value().to_string()), asked.placer.instance));
+    let gift_placer = asked.map(|asked| {
+        (
+            store(asked.placer.app.value().to_string()),
+            asked.placer.instance,
+        )
+    });
     let rebuilt = shown_view.clone();
     create_effect(move || {
         if let Some(node) = catcher.try_get() {
