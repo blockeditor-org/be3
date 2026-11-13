@@ -56,7 +56,7 @@ async fn note(peer: &Peer<MemoryStore>, workspace: Uuid, index: Uuid, text: &str
     };
     assert_eq!(
         crate::search::write(peer, index, batch).await,
-        Ok(true),
+        Ok(Some(Vec::new())),
         "the other device indexes its note"
     );
     peer.drain(|_| false)
