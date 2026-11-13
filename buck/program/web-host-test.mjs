@@ -170,6 +170,10 @@ try {
         }
         return text;
     };
+    // The host takes its window's size from a resize, as web-dev's `drive size` gives it.
+    await page.setViewportSize({ width: 1279, height: 800 });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await drive("settle");
     await drive("wait", 'TreeItem "My files"');
     await drive("settle");
 
