@@ -25,9 +25,9 @@ fn a_menu_pick_lets_an_instance_open_the_palette_only_in_the_frames_right_after_
             view: ViewId::MAIN,
         },
         placement: be_sdk_api::WindowPlacement::AtPointer,
-        size: Size {
-            width: 200.0,
-            height: 100.0,
+        size: Vec2 {
+            x: 200.0,
+            y: 100.0,
         },
         level: be_sdk_api::WindowLevel::Normal,
     };

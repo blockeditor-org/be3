@@ -50,8 +50,7 @@ impl ChildState {
             placed: true,
             available: status.available,
             active: status.active,
-            intrinsic_size: status
-                .intrinsic,
+            intrinsic_size: status.intrinsic,
             interaction: Some(status.interaction),
             capabilities: status.capabilities,
             resize: status.resize,

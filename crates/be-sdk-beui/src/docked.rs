@@ -364,13 +364,9 @@ impl ProtocolLink {
         };
         let sizes = self.bar_sizes.handle();
         let size = |bar: TabId| {
-            let size = sizes
+            sizes
                 .with_untracked(|sizes| sizes.get(&bar).copied())
-                .unwrap_or(beui::Vec2::ZERO);
-            api::Size {
-                width: size.x,
-                height: size.y,
-            }
+                .unwrap_or(beui::Vec2::ZERO)
         };
         let block_type = self.host.block_type();
         let kind = |kind: &str| match block_type {
@@ -1125,7 +1121,7 @@ pub(crate) fn declaration_to_api(
     declaration: &DockDeclaration,
     path: PathOf<'_>,
     empty: EmptyOf<'_>,
-    size: &dyn Fn(TabId) -> api::Size,
+    size: &dyn Fn(TabId) -> beui::Vec2,
     kind: &dyn Fn(&str) -> String,
 ) -> api::DockDeclaration {
     let spec = &declaration.spec;
@@ -1162,10 +1158,7 @@ pub(crate) fn declaration_to_api(
                         .icon
                         .map(|icon| icon.as_str().to_owned())
                         .unwrap_or_default(),
-                    size: api::Size {
-                        width: dialog.size.x,
-                        height: dialog.size.y,
-                    },
+                    size: dialog.size,
                     modal: dialog.modal,
                     dismiss_on_outside_press: dialog.dismiss_on_outside_press,
                     closable: dialog.closable,

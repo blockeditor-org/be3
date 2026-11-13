@@ -1,5 +1,5 @@
 use be_sdk_api::clipboard::{ClipFile, Files};
-use be_sdk_api::{Input, InputBatch, ScreenId, ScreenPlacement, TimedInput, Vec2, ViewportMetrics};
+use be_sdk_api::{Input, InputBatch, ScreenId, ScreenPlacement, TimedInput, ViewportMetrics};
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use uuid::Uuid;
 

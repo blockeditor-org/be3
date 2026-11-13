@@ -77,9 +77,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
     );
     let assigned = editor.children()[0].intrinsic;
     assert!(
-        assigned.is_none_or(
-            |size| (size.x - 960.0).abs() < 0.5 && (size.y - 540.0).abs() < 0.5
-        ),
+        assigned.is_none_or(|size| (size.x - 960.0).abs() < 0.5 && (size.y - 540.0).abs() < 0.5),
         "the card would resize the slide to {assigned:?}"
     );
     editor.snapshot("a_dropped_slide_takes_its_own_size_rather_than_the_cards");

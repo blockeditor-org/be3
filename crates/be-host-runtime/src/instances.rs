@@ -5,8 +5,8 @@ use be_sdk_api::{
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
     OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId,
-    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId, ViewPlacement,
+    ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,

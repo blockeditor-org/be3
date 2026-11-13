@@ -295,9 +295,7 @@ impl OpenEditor {
                 });
             }
             EditorEvent::Resized(size) => {
-                wire.call(instance, move |session| {
-                    session.resized(size)
-                });
+                wire.call(instance, move |session| session.resized(size));
             }
             EditorEvent::Drag(drag) => {
                 let dragged = drag.map(|drag| (drag.view, dragged(&drag)));
