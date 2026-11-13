@@ -317,10 +317,12 @@ fn pasteboard_type(format: &str) -> String {
     let name = format.strip_prefix("be3/").unwrap_or(format);
     let name = name
         .chars()
-        .map(|c| match c.is_ascii_alphanumeric() || c == '-' || c == '.' {
-            true => c,
-            false => '-',
-        })
+        .map(
+            |c| match c.is_ascii_alphanumeric() || c == '-' || c == '.' {
+                true => c,
+                false => '-',
+            },
+        )
         .collect::<String>();
     format!("org.be3.clip.{name}")
 }
