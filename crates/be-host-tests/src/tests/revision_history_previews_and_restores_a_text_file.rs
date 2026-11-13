@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn revision_history_previews_and_restores_a_text_file() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.click("#text.surface");
     host.type_text("Original revision");

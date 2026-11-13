@@ -5,7 +5,7 @@ const PEN_CHOSEN: &str = "Button \"Pen\" toggled=True";
 
 #[test]
 fn two_canvas_tabs_share_one_popped_out_tool_bar_that_follows_the_tab_shown() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.dock");
     start_adding_to_my_files(&mut host, "Canvas");

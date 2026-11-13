@@ -531,13 +531,12 @@ pub struct EditorHost {
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
     artifacts: Rc<RefCell<HashMap<Uuid, ArtifactState>>>,
     watched_artifacts: Rc<RefCell<Vec<Uuid>>>,
-    reported_artifacts: Rc<RefCell<Option<Vec<Uuid>>>>,
     histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
     watched_history: Rc<RefCell<Vec<Uuid>>>,
-    reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
     heads: Rc<RefCell<HashMap<Uuid, HeadRead>>>,
     watched_heads: Rc<RefCell<Vec<Uuid>>>,
-    reported_heads: Rc<RefCell<Option<Vec<Uuid>>>>,
+    /// A watch of history, heads, artifacts or version changed since `take_block_subjects`.
+    subjects_changed: Rc<Cell<bool>>,
     searches: Rc<RefCell<HashMap<crate::Search, crate::SearchResults>>>,
     /// Each search watched, with how many watch it.
     watched_searches: Rc<RefCell<std::collections::BTreeMap<crate::Search, usize>>>,
@@ -945,7 +944,7 @@ impl EditorHost {
         }
         *reported = Some(focused.clone());
         drop(reported);
-        self.tell(ShellMessage::Focused(be_sdk_api::shell_types::Focus {
+        self.tell_latest(ShellMessage::Focused(be_sdk_api::shell_types::Focus {
             block_id: focused.block_id.map(Uuid::into_bytes),
             block_type: focused.block_type.into_bytes(),
             editor: focused.editor.map(Uuid::into_bytes),
@@ -957,28 +956,26 @@ impl EditorHost {
         let mut blocks: Vec<Uuid> = blocks.into_iter().collect();
         blocks.sort();
         blocks.dedup();
-        *self.watched_artifacts.borrow_mut() = blocks;
+        let mut watched = self.watched_artifacts.borrow_mut();
+        if *watched != blocks {
+            *watched = blocks;
+            self.subjects_changed.set(true);
+        }
     }
 
     pub fn artifact(&self, block_id: Uuid) -> Option<ArtifactState> {
         self.artifacts.borrow().get(&block_id).cloned()
     }
 
-    pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
-        let blocks = self.watched_artifacts.borrow().clone();
-        let mut reported = self.reported_artifacts.borrow_mut();
-        if reported.as_ref() == Some(&blocks) {
-            return None;
-        }
-        *reported = Some(blocks.clone());
-        Some(blocks)
-    }
-
     pub fn watch_history(&self, blocks: impl IntoIterator<Item = Uuid>) {
         let mut watched = self.watched_history.borrow_mut();
+        let before = watched.len();
         watched.extend(blocks);
         watched.sort();
         watched.dedup();
+        if watched.len() != before {
+            self.subjects_changed.set(true);
+        }
     }
 
     pub fn history(&self, block_id: Uuid) -> BlockHistory {
@@ -987,16 +984,6 @@ impl EditorHost {
             .get(&block_id)
             .copied()
             .unwrap_or_default()
-    }
-
-    pub(crate) fn take_history_watch(&self) -> Option<Vec<Uuid>> {
-        let blocks = self.watched_history.borrow().clone();
-        let mut reported = self.reported_history.borrow_mut();
-        if reported.as_ref() == Some(&blocks) {
-            return None;
-        }
-        *reported = Some(blocks.clone());
-        Some(blocks)
     }
 
     pub fn set_histories(&self, states: impl IntoIterator<Item = (Uuid, BlockHistory)>) {
@@ -1014,24 +1001,12 @@ impl EditorHost {
         if !watched.contains(&block) {
             watched.push(block);
             watched.sort();
+            self.subjects_changed.set(true);
         }
     }
 
     pub fn head(&self, block: Uuid) -> Option<HeadRead> {
         self.heads.borrow().get(&block).cloned()
-    }
-
-    pub(crate) fn take_head_watch(&self) -> Option<Vec<Uuid>> {
-        let blocks = self.watched_heads.borrow().clone();
-        let mut reported = self.reported_heads.borrow_mut();
-        if reported
-            .as_ref()
-            .map_or(blocks.is_empty(), |reported| *reported == blocks)
-        {
-            return None;
-        }
-        *reported = Some(blocks.clone());
-        Some(blocks)
     }
 
     pub fn set_head(&self, block: Uuid, head: HeadRead) {
@@ -1143,6 +1118,15 @@ impl EditorHost {
     /// Tells the shell `message`, after what the editor told it before.
     pub(crate) fn tell(&self, message: ShellMessage) {
         self.told.borrow_mut().push(message);
+    }
+
+    /// Tells the shell `message` in place of one of its kind still waiting to be sent, where
+    /// only the latest matters (where the focus is, whether a drag is taken, a paste asked).
+    fn tell_latest(&self, message: ShellMessage) {
+        let kind = std::mem::discriminant(&message);
+        let mut told = self.told.borrow_mut();
+        told.retain(|waiting| std::mem::discriminant(waiting) != kind);
+        told.push(message);
     }
 
     /// Takes what the editor told the shell, in the order it told it.
@@ -1257,11 +1241,50 @@ impl EditorHost {
     }
 
     pub fn watch_version(&self) {
-        self.version_watched.set(true);
+        if !self.version_watched.replace(true) {
+            self.subjects_changed.set(true);
+        }
     }
 
-    pub(crate) fn wants_version(&self) -> bool {
-        self.version_watched.get()
+    /// Everything the editor watches through `block-watch`, once it changed since the last
+    /// call.
+    pub(crate) fn take_block_subjects(&self) -> Option<Vec<crate::link::Subject>> {
+        use crate::link::Subject;
+        let graph = self.graph.take_watch_changed();
+        if !(self.subjects_changed.replace(false) || graph) {
+            return None;
+        }
+        let mut subjects: Vec<Subject> = self
+            .graph
+            .watched()
+            .into_iter()
+            .map(Subject::Blocks)
+            .collect();
+        subjects.extend(
+            self.watched_history
+                .borrow()
+                .iter()
+                .copied()
+                .map(Subject::History),
+        );
+        subjects.extend(
+            self.watched_heads
+                .borrow()
+                .iter()
+                .copied()
+                .map(Subject::Head),
+        );
+        subjects.extend(
+            self.watched_artifacts
+                .borrow()
+                .iter()
+                .copied()
+                .map(Subject::Artifact),
+        );
+        if self.version_watched.get() {
+            subjects.push(Subject::Version);
+        }
+        Some(subjects)
     }
 
     pub fn version_status(&self) -> be_sdk_api::VersionStatus {
@@ -1749,7 +1772,7 @@ impl EditorHost {
     }
 
     pub fn accept_drag(&self, accepted: bool) {
-        self.tell(ShellMessage::DragAccepted(accepted));
+        self.tell_latest(ShellMessage::DragAccepted(accepted));
     }
 
     pub(crate) fn set_instance(&self, instance: EditorInstanceId) {
@@ -2161,7 +2184,7 @@ impl EditorHost {
     }
 
     pub fn request_paste(&self) {
-        self.tell(ShellMessage::Paste);
+        self.tell_latest(ShellMessage::Paste);
     }
 
     pub fn join_module(&self, module: &crate::Module) {
@@ -2513,10 +2536,6 @@ impl EditorHost {
 
     pub fn watched_blocks(&self) -> Vec<crate::BlockQuery> {
         self.graph.watched()
-    }
-
-    pub fn take_block_watch(&self) -> Option<Vec<crate::BlockQuery>> {
-        self.graph.take_watch()
     }
 
     pub fn take_graph_commands(&self) -> Vec<crate::GraphCommand> {

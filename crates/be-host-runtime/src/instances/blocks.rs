@@ -1,6 +1,6 @@
 use be_sdk_api::{
     BlockIdRole, BlockQuery, VersionCommand,
-    blocks::{BlockHistory, OpenRequest, ShowRequest},
+    blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest, ShowRequest},
     embed::blocks::Call,
     ops::{OpError, OpId, Outcome, Reply, Serialize, encode},
 };
@@ -19,6 +19,18 @@ pub(super) enum Subject {
     Shows,
     /// A full-text search, named by its watch: `Instance::searches` holds what it asks.
     Search(OpId),
+}
+
+impl From<BlockSubject> for Subject {
+    fn from(subject: BlockSubject) -> Self {
+        match subject {
+            BlockSubject::Blocks(query) => Self::Blocks(query),
+            BlockSubject::History(block) => Self::History(Uuid::from_bytes(block)),
+            BlockSubject::Head(block) => Self::Head(Uuid::from_bytes(block)),
+            BlockSubject::Artifact(block) => Self::Artifact(Uuid::from_bytes(block)),
+            BlockSubject::Version => Self::Version,
+        }
+    }
 }
 
 pub(super) struct Watch {
@@ -318,24 +330,9 @@ impl Instances {
                     None => false,
                 }
             }
-            Call::BlocksWatchNew { resource, query } => {
-                self.watch(instance, resource.op(), Subject::Blocks(query))
+            Call::BlockWatchNew { resource, subject } => {
+                self.watch(instance, resource.op(), subject.into())
             }
-            Call::HistoryWatchNew { resource, block } => self.watch(
-                instance,
-                resource.op(),
-                Subject::History(Uuid::from_bytes(block)),
-            ),
-            Call::HeadWatchNew { resource, block } => self.watch(
-                instance,
-                resource.op(),
-                Subject::Head(Uuid::from_bytes(block)),
-            ),
-            Call::ArtifactWatchNew { resource, block } => self.watch(
-                instance,
-                resource.op(),
-                Subject::Artifact(Uuid::from_bytes(block)),
-            ),
             Call::SearchWatchNew {
                 resource,
                 text,
@@ -353,19 +350,12 @@ impl Instances {
                 }
                 self.watch(instance, op, Subject::Search(op))
             }
-            Call::VersionWatchNew { resource } => {
-                self.watch(instance, resource.op(), Subject::Version)
-            }
             Call::ShowRequestsNew { resource } => {
                 self.watch(instance, resource.op(), Subject::Shows)
             }
             call @ (Call::ReplicaFrames { .. }
-            | Call::BlocksWatchNext { .. }
-            | Call::HistoryWatchNext { .. }
-            | Call::HeadWatchNext { .. }
+            | Call::BlockWatchNext { .. }
             | Call::SearchWatchNext { .. }
-            | Call::ArtifactWatchNext { .. }
-            | Call::VersionWatchNext { .. }
             | Call::ShowRequestsNext { .. }) => {
                 self.services
                     .answers
@@ -605,7 +595,7 @@ impl Instances {
             if let Some(state) = &mut state {
                 Self::translated(scope, false, |visit| state.visit_block_ids(visit));
             }
-            entry.offer(Subject::Artifact(block), &state);
+            entry.offer(Subject::Artifact(block), &BlockValue::Artifact(state));
         }
     }
 }

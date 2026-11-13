@@ -14,9 +14,12 @@ Rust on both sides is generated from it into this crate. The world imports:
   the graph, history, heads, artifact states and version control;
 - `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
   the shell around it, its menus, children, audio, web views and creations.
-  Everything one way is a `shell-message` in one `tell`, sent once a pass in
+  Everything one way is a `shell-message` in a `tell`, sent once a pass in
   the order the editor made the messages, then the ones the frame works out
-  from its state (menus, the card, ...) in a fixed order;
+  from its state (menus, the card, ...) in a fixed order; what the editor
+  tells inside the pass's block calls follows in a second `tell`. Where only
+  the latest counts (the focus, whether a drag is taken, a paste asked), a
+  message replaces one of its kind not yet sent;
 - `host-services` (`host-services.wit`): what an editor asks of the host and
   waits for, files, revisions, access and staged data;
 - `network` (`network.wit`): the app's only network, its fetches and the links

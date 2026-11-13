@@ -4,7 +4,7 @@ const ARTWORK: &str = "#pan_zoom.card.4";
 
 #[test]
 fn a_pan_and_zoom_editor_on_a_canvas_takes_the_frame_in_place_and_pans_with_it() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.run(&["resize", "1280x900"]);
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Pan and Zoom");
