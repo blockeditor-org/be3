@@ -31,10 +31,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
             view: ViewId::MAIN,
             child: placement.child,
             available: true,
-            intrinsic: Some(Vec2 {
-                x: 960.0,
-                y: 540.0,
-            }),
+            intrinsic: Some(Vec2 { x: 960.0, y: 540.0 }),
             active: false,
             interaction: InteractionMode::Live,
             capabilities: EditorCapabilities::default(),

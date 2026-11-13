@@ -1464,7 +1464,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
                         self.closed_previews.push(commit);
                     }
                     self.preview_asks.retain(|(preview, _)| *preview != op);
-                    self.connection.complete(op, Outcome::Err(OpError::Canceled));
+                    self.connection
+                        .complete(op, Outcome::Err(OpError::Canceled));
                     continue;
                 }
                 Incoming::Canceled { op } if self.fetches.holds(op) => {
@@ -1557,7 +1558,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
                             block,
                             commit,
                         })) => {
-                            self.revision_previews.insert(resource.op(), (block, commit));
+                            self.revision_previews
+                                .insert(resource.op(), (block, commit));
                             continue;
                         }
                         Some(embed::Call::HostServices(Call::RevisionPreviewOpened {

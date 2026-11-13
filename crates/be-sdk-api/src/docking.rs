@@ -417,7 +417,7 @@ impl DockDeclaration {
             dialog.parent.validate()?;
             string(&dialog.title)?;
             string(&dialog.glyph)?;
-            let size = [dialog.size.width, dialog.size.height];
+            let size = [dialog.size.x, dialog.size.y];
             if !size.iter().all(|side| side.is_finite() && *side >= 0.0) {
                 return Err(DecodeError::MalformedPayload);
             }
@@ -436,7 +436,7 @@ impl DockDeclaration {
             bar.validate()?;
             string(&bar.key)?;
             string(&bar.kind)?;
-            let size = [bar.size.width, bar.size.height];
+            let size = [bar.size.x, bar.size.y];
             if !size.iter().all(|side| side.is_finite() && *side >= 0.0)
                 || bar.key.is_empty()
                 || keys.contains(bar.key.as_str())

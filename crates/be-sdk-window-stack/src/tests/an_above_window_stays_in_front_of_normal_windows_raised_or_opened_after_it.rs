@@ -78,10 +78,7 @@ fn open(view: u64, opener: u64, level: be_sdk_api::WindowLevel) -> WindowRequest
             view: ViewId(opener),
         },
         placement: WindowPlacement::AtPointer,
-        size: be_sdk_api::Vec2 {
-            x: 100.0,
-            y: 80.0,
-        },
+        size: be_sdk_api::Vec2 { x: 100.0, y: 80.0 },
         level,
     })
 }

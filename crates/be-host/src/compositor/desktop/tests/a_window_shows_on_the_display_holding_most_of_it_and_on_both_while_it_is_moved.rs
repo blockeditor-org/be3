@@ -83,10 +83,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
                 },
                 at: pos2(100.0, 100.0),
             }),
-            size: Vec2 {
-                x: 300.0,
-                y: 200.0,
-            },
+            size: Vec2 { x: 300.0, y: 200.0 },
             level: be_sdk_api::WindowLevel::Normal,
         })],
     );

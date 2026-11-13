@@ -57,10 +57,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
             view: ViewId::MAIN,
             placement: ViewPlacement::Parent(ParentView::Main),
             metrics: ViewportMetrics {
-                logical: be_sdk_api::Vec2 {
-                    x: 800.0,
-                    y: 600.0,
-                },
+                logical: be_sdk_api::Vec2 { x: 800.0, y: 600.0 },
                 visible: be_sdk_api::Pos2::ZERO,
                 pixel_width: 800,
                 pixel_height: 600,

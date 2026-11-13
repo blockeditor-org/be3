@@ -10,7 +10,7 @@ use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, ChildContent, ChildId, ChildPlacement,
     ChildPlacements, ChildStatus, DockMessage, DockTabPath, EditorInstanceId, Failure, FrameChrome,
     FrameReport, HostView, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Occluder, ParentView,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Vec2, TimedInput, View, ViewId, ViewPlacement,
+    ScreenPlacement, ScreenRequest, ScreenWindow, TimedInput, Vec2, View, ViewId, ViewPlacement,
     ViewSize, ViewportMetrics, WebViewId,
 };
 use be_sdk_ui::BlockCatalog;

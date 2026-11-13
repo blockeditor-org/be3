@@ -374,7 +374,9 @@ impl Wire {
     ) {
         use host_services::Call as Services;
         let instance = match &call {
-            Services::RevisionPreviewOpened { this, .. } => self.held.owners.get(&this.op()).copied(),
+            Services::RevisionPreviewOpened { this, .. } => {
+                self.held.owners.get(&this.op()).copied()
+            }
             _ => self.editor_of(parent),
         };
         let Some(instance) = instance else {

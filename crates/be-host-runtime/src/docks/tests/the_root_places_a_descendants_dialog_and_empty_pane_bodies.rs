@@ -10,10 +10,7 @@ fn the_root_places_a_descendants_dialog_and_empty_pane_bodies() {
         parent: path(&[], 5),
         title: "Dialog".to_owned(),
         glyph: String::new(),
-        size: Vec2 {
-            x: 200.0,
-            y: 100.0,
-        },
+        size: Vec2 { x: 200.0, y: 100.0 },
         modal: false,
         dismiss_on_outside_press: false,
         closable: true,

@@ -18,10 +18,7 @@ fn open(window: u64, opener: View) -> WindowRequest {
             view: opener,
             at: pos2(4.0, 4.0),
         }),
-        size: Vec2 {
-            x: 80.0,
-            y: 40.0,
-        },
+        size: Vec2 { x: 80.0, y: 40.0 },
         level: be_sdk_api::WindowLevel::Normal,
     })
 }

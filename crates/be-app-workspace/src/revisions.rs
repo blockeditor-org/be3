@@ -3,10 +3,10 @@ use std::{
     collections::HashMap,
 };
 
-use be_sdk_beui::{Revision, RevisionPreview};
 use be_sdk_beui::beui::datetime::DateTime;
 use be_sdk_beui::beui::{NodeId, dock::TabId, reactive::*, styled::*};
 use be_sdk_beui::{ChildTarget, Editor, Failure, Pushed, Task};
+use be_sdk_beui::{Revision, RevisionPreview};
 use uuid::Uuid;
 
 use be_sdk_shell::{TabItem, Workspace};

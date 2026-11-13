@@ -5,7 +5,7 @@ use be_sdk_api::{
     BlockPick, ChildContent, ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
     DialogStatus, EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact,
     OpenBlock, OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Vec2, Stopped, View, ViewAnchor,
+    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Stopped, Vec2, View, ViewAnchor,
     ViewChange, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{

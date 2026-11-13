@@ -1,6 +1,6 @@
 use be_sdk_api::{
     EditorInstanceId, HelloAccepted, OpenBlock, Opening, OpeningKind, ParentView, ScreenId,
-    ScreenRequest, Vec2, SurfaceFormat, SurfaceSpec, TimedInput, ViewId, ViewPlacement, ViewRef,
+    ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, Vec2, ViewId, ViewPlacement, ViewRef,
     ViewportMetrics,
 };
 use uuid::Uuid;
@@ -90,10 +90,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             placement: ViewPlacement::Parent(ParentView::Main),
             frame: None,
             metrics: ViewportMetrics {
-                logical: Vec2 {
-                    x: 100.0,
-                    y: 80.0,
-                },
+                logical: Vec2 { x: 100.0, y: 80.0 },
                 visible: be_sdk_api::Pos2::ZERO,
                 pixel_width: 100,
                 pixel_height: 80,

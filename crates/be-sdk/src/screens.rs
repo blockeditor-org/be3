@@ -2,8 +2,8 @@ use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, Catalog, DebugTemplate, EditorInstanceId, HostTransform,
     HostView, LayoutCommit, MAX_COLLECTION_ITEMS, Opening, OpeningKind, Pos2, ScreenId,
-    ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory, Vec2,
-    ViewId, ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
+    ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceSpec, TemplateCategory, Vec2, ViewId,
+    ViewPlacement, ViewRef, ViewportMetrics, WindowRequest,
 };
 use be_sdk_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use beui_lucide::Glyph;
@@ -808,7 +808,10 @@ fn anchored_request(
         view,
         placement: ViewPlacement::Anchored,
         metrics: ViewportMetrics {
-            logical: Vec2 { x: width, y: height },
+            logical: Vec2 {
+                x: width,
+                y: height,
+            },
             visible: Pos2::ZERO,
             pixel_width: pixels(width, density.x),
             pixel_height: pixels(height, density.y),
@@ -852,7 +855,10 @@ fn opened_window(region: &ShownView, view: ViewId, screen: ScreenId, size: Vec2)
         view,
         placement: ViewPlacement::Host(HostView::Window),
         metrics: ViewportMetrics {
-            logical: Vec2 { x: width, y: height },
+            logical: Vec2 {
+                x: width,
+                y: height,
+            },
             visible: Pos2::ZERO,
             pixel_width: pixels(width),
             pixel_height: pixels(height),

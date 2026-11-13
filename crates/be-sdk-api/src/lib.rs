@@ -53,13 +53,13 @@ be_wasm_ops_bindgen::generate!({
 });
 
 pub use accessibility::DescribedAction;
+pub use app::ShellDialog;
 pub use be_wasm_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockMetadata, BlockQuery,
     ConflictSide, SearchHit, SearchResults, StoredHead, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
-pub use app::ShellDialog;
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
@@ -80,8 +80,8 @@ pub use types::{
     FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
     LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, OpeningKind,
     Picture, PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect,
-    SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect, SurfaceSpec,
+    SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};

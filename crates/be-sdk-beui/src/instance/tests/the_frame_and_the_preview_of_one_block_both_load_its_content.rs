@@ -52,10 +52,7 @@ fn screen(shown: View, screen: u32) -> (ScreenPlacement, ScreenRequest) {
         view: shown.id,
         placement: shown.placement,
         metrics: ViewportMetrics {
-            logical: be_sdk_api::Vec2 {
-                x: 400.0,
-                y: 300.0,
-            },
+            logical: be_sdk_api::Vec2 { x: 400.0, y: 300.0 },
             visible: be_sdk_api::Pos2::ZERO,
             pixel_width: 400,
             pixel_height: 300,

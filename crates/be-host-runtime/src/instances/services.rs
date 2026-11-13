@@ -292,7 +292,9 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return;
                 };
-                entry.revision_previews.insert(op, RevisionPreview::default());
+                entry
+                    .revision_previews
+                    .insert(op, RevisionPreview::default());
                 self.owners.insert(op, instance);
                 self.work(instance, op);
                 let (sender, epoch) = (self.mail.answers.1.clone(), self.epoch);
@@ -319,7 +321,8 @@ impl Instances {
                 };
                 match preview.opened.clone() {
                     Some(opened) => {
-                        let opened = opened.map(|preview| self.local(instance, preview.into_bytes()));
+                        let opened =
+                            opened.map(|preview| self.local(instance, preview.into_bytes()));
                         self.answer_now(reply, opened);
                     }
                     None => {
