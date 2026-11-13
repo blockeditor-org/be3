@@ -42,6 +42,20 @@ pub struct HostTest {
     device: Option<Device>,
 }
 
+/// How [`HostTest::start`] starts the host. The default is the Files pane, painted without a
+/// GPU: every start but `space` and `previews` runs with `BEUI_RENDERER=none`, and apps then
+/// draw nothing on the GPU either.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Options {
+    /// The desktop (`--desktop`) rather than the Files pane.
+    pub desktop: bool,
+    /// The VR simulator (`BEUI_LAYERS=space`): the painting is the 3D view, targets and points
+    /// are the main panel's. It draws through lavapipe, since the 3D view is a texture.
+    pub space: bool,
+    /// A GPU renderer (lavapipe), which block previews need since they are textures.
+    pub previews: bool,
+}
+
 /// What a host joined to a test's [`Server`] keeps: its account and its own network to the
 /// server.
 struct Device {
@@ -50,8 +64,18 @@ struct Device {
 }
 
 impl HostTest {
-    pub fn start() -> Self {
-        Self::start_with(&[], FILES)
+    /// Starts the host with the dev workspace open, as `options` says.
+    pub fn start(options: Options) -> Self {
+        let (arguments, ready): (&[&str], &str) = match options.desktop {
+            true => (&["--desktop"], "Pane \"Desktop\""),
+            false => (&[], FILES),
+        };
+        let mut start = Self::program(options.space, options.space || options.previews);
+        start.arguments = std::iter::once("--dev-workspace")
+            .chain(arguments.iter().copied())
+            .map(str::to_owned)
+            .collect();
+        Self::begin(start, ready, options.space, None)
     }
 
     /// Starts a device of `account` on its test [`Server`], in a data directory of its own,
@@ -170,37 +194,6 @@ impl HostTest {
                 relay,
             }),
         )
-    }
-
-    pub fn start_desktop() -> Self {
-        Self::start_with(&["--desktop"], "Pane \"Desktop\"")
-    }
-
-    /// Starts the host in the VR simulator (`BEUI_LAYERS=space`): the painting is the 3D view,
-    /// targets and points are the main panel's. It draws through lavapipe, since the 3D view is
-    /// a texture.
-    pub fn start_in_space() -> Self {
-        Self::launch(&[], "Pane \"Files\"", true, true)
-    }
-
-    /// Starts the host with a GPU renderer (lavapipe), which block previews need since they
-    /// are textures. Every other start runs with `BEUI_RENDERER=none`, and apps then draw
-    /// nothing on the GPU either.
-    pub fn start_drawing_previews() -> Self {
-        Self::launch(&[], "Pane \"Files\"", false, true)
-    }
-
-    pub fn start_with(arguments: &[&str], ready: &str) -> Self {
-        Self::launch(arguments, ready, false, false)
-    }
-
-    fn launch(arguments: &[&str], ready: &str, space: bool, render: bool) -> Self {
-        let mut start = Self::program(space, render);
-        start.arguments = std::iter::once("--dev-workspace")
-            .chain(arguments.iter().copied())
-            .map(str::to_owned)
-            .collect();
-        Self::begin(start, ready, space, None)
     }
 
     fn program(space: bool, render: bool) -> be_tool_drive::Start {

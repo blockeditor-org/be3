@@ -6,7 +6,7 @@ use std::{
 
 use be_block_graph::Access;
 use be_sdk_api::{
-    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
+    ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
     EditorInstanceId, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, ParentView, TopBar,
     View, ViewId,
 };
@@ -16,6 +16,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
+
+use be_host_runtime::InstanceEvent;
 
 use be_host_desktop::desktop_host::{DesktopHost, Host, PlacedWindow};
 
@@ -45,9 +47,27 @@ pub(crate) struct State {
     settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
     settings_status: RefCell<Option<(Uuid, f32, DialogStatus)>>,
     windows: RefCell<HashMap<(Uuid, ChildId), HostWindowId>>,
+    shown: RefCell<Shown>,
 }
 
 pub(crate) type CreationKey = (Uuid, View, ChildId);
+
+/// Where a placer shows a child: the placer's key in `open`, its view and the child.
+type PlaceKey = (Uuid, ViewId, ChildId);
+
+/// The keys placed children have in `open`. The first placement of a block holds the block's
+/// own id, and every other one shares its editor there, unless it asks for another editor:
+/// then it is a twin, an instance of its own under a key of its own, so a settings page in a
+/// tab and the settings list beside it each keep their editor at their own size.
+#[derive(Default)]
+struct Shown {
+    claims: HashMap<Uuid, PlaceKey>,
+    places: HashMap<PlaceKey, Uuid>,
+    twins: HashMap<Uuid, Uuid>,
+    next_twin: u64,
+}
+
+const TWIN_KEYS: u64 = 0x7477_696e_0000_0000;
 
 struct CreationChild {
     creation: Box<dyn PendingCreation>,
@@ -112,6 +132,7 @@ impl OwnedEditors {
             settings_shown: RefCell::new(HashMap::new()),
             settings_status: RefCell::new(None),
             windows: RefCell::new(HashMap::new()),
+            shown: RefCell::new(Shown::default()),
         });
         let editors = Editors(*state);
         EDITORS.set(Some(editors));
@@ -135,7 +156,20 @@ impl Editors {
         state.settings_children.borrow_mut().clear();
         state.settings_shown.borrow_mut().clear();
         state.simulated.borrow_mut().clear();
+        *state.shown.borrow_mut() = Shown::default();
         be_host_base::host::changed();
+    }
+
+    /// The key in `open` of the child `place` shows.
+    fn placed(&self, place: PlaceKey) -> Option<Uuid> {
+        let state = self.0.value();
+        state.shown.borrow().places.get(&place).copied()
+    }
+
+    /// The block shown under `key` in `open`: the key itself, unless the key is a twin.
+    pub(crate) fn block(&self, key: Uuid) -> Uuid {
+        let state = self.0.value();
+        state.shown.borrow().twins.get(&key).copied().unwrap_or(key)
     }
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<Access> {
@@ -187,14 +221,15 @@ impl Editors {
         state.parents.borrow_mut().remove(&id);
     }
 
-    pub(crate) fn block_of(&self, app_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
+    /// The key in `open` of the editor running `instance` of `app_id`.
+    pub(crate) fn key_of(&self, app_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
         self.with(|open| {
-            open.values()
-                .find(|editor| {
+            open.iter()
+                .find(|(_, editor)| {
                     editor.instance() == instance
                         && editor.app().is_some_and(|app| app.identity.id == app_id)
                 })
-                .map(AppEditor::id)
+                .map(|(key, _)| *key)
         })
     }
 
@@ -210,6 +245,107 @@ impl Editors {
         if parent != id {
             state.parents.borrow_mut().insert(id, parent);
         }
+        self.open_as(id, id, block_type, view_block, editor);
+    }
+
+    /// Opens `id` for the child `place` shows and returns its key in `open`. Every placement
+    /// of a block shares the editor under the block's own id, the one the host's own requests
+    /// (focus, menus, `ensure_editor`, renaming a new block) reach, except one asking for
+    /// another editor than the placement holding that id has: that one is a twin, an instance
+    /// of its own under a key of its own, closed when it goes.
+    fn place(
+        &self,
+        place: PlaceKey,
+        id: Uuid,
+        block_type: Uuid,
+        view_block: Option<Uuid>,
+        editor: Option<Uuid>,
+    ) -> Uuid {
+        let state = self.0.value();
+        let registry = self.registry();
+        let opened = crate::editors::Opened {
+            id,
+            block_type,
+            view_block,
+        };
+        let wanted = editor.filter(|editor| registry.edits(*editor, opened));
+        let held_by_other = state
+            .shown
+            .borrow()
+            .claims
+            .get(&id)
+            .is_some_and(|holder| *holder != place);
+        let held_editor = self.with(|open| open.get(&id).and_then(AppEditor::editor_id));
+        let twinned = held_by_other && wanted.is_some_and(|wanted| held_editor != Some(wanted));
+        let (key, left) = {
+            let mut shown = state.shown.borrow_mut();
+            let held = shown.places.get(&place).copied();
+            let key = match twinned {
+                true => match held {
+                    Some(twin) if shown.twins.get(&twin) == Some(&id) => twin,
+                    _ => {
+                        shown.next_twin += 1;
+                        let twin = Uuid::from_u64_pair(TWIN_KEYS, shown.next_twin);
+                        shown.twins.insert(twin, id);
+                        twin
+                    }
+                },
+                false => {
+                    if !held_by_other {
+                        shown.claims.insert(id, place);
+                    }
+                    id
+                }
+            };
+            shown.places.insert(place, key);
+            (key, held.filter(|held| *held != key))
+        };
+        if let Some(left) = left {
+            self.release(place, left);
+        }
+        let (parent, _, _) = place;
+        if parent != key {
+            state.parents.borrow_mut().insert(key, parent);
+        }
+        self.open_as(key, id, block_type, view_block, editor);
+        key
+    }
+
+    /// The child `place` shows is gone: a twin it held closes, and the block it held is free
+    /// for the next placement to hold.
+    fn unplace(&self, place: PlaceKey) {
+        let state = self.0.value();
+        let held = state.shown.borrow_mut().places.remove(&place);
+        if let Some(key) = held {
+            self.release(place, key);
+        }
+    }
+
+    fn release(&self, place: PlaceKey, key: Uuid) {
+        let state = self.0.value();
+        let twin = {
+            let mut shown = state.shown.borrow_mut();
+            if shown.claims.get(&key) == Some(&place) {
+                shown.claims.remove(&key);
+            }
+            shown.twins.remove(&key).is_some()
+        };
+        if twin {
+            state.parents.borrow_mut().remove(&key);
+            let closed = self.with(|open| open.remove(&key));
+            drop(closed);
+            be_host_base::host::changed();
+        }
+    }
+
+    fn open_as(
+        &self,
+        key: Uuid,
+        id: Uuid,
+        block_type: Uuid,
+        view_block: Option<Uuid>,
+        editor: Option<Uuid>,
+    ) {
         let registry = self.registry();
         let opened = crate::editors::Opened {
             id,
@@ -218,13 +354,13 @@ impl Editors {
         };
         let wanted = editor.filter(|editor| registry.edits(*editor, opened));
         let replaced = self.with(|open| {
-            let kept = open.get(&id).is_some_and(|existing| {
+            let kept = open.get(&key).is_some_and(|existing| {
                 wanted.is_none_or(|wanted| existing.editor_id() == Some(wanted))
             });
             if kept {
                 return None;
             }
-            open.insert(id, registry.open_with(opened, wanted))
+            open.insert(key, registry.open_with(opened, wanted))
         });
         drop(replaced);
     }
@@ -588,7 +724,7 @@ struct TabContext {
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct ChildReporter {
-    bar: Callback<BarAction>,
+    details: Callback<()>,
     focus: Callback<()>,
 }
 
@@ -638,9 +774,9 @@ pub(crate) fn PresentingSurface() -> NodeId {
     let presenting = create_memo(move || {
         any.get();
         editors.with(|open| {
-            open.values()
-                .find(|editor| editor.presenting_now())
-                .map(AppEditor::id)
+            open.iter()
+                .find(|(_, editor)| editor.presenting_now())
+                .map(|(key, _)| *key)
         })
     });
     let keys = create_memo(move || presenting.get().into_iter().collect::<Vec<_>>());
@@ -1008,7 +1144,8 @@ fn FrameStack(
 
 fn frame_child(editors: &Editors, block: Uuid) -> Option<Uuid> {
     let handle = editors.handle(block)?;
-    be_host_runtime::frame_child(handle.app_id()?, handle.instance)
+    let (view, child, id) = be_host_runtime::frame_child(handle.app_id()?, handle.instance)?;
+    Some(editors.placed((block, view, child)).unwrap_or(id))
 }
 
 fn chrome_owner(editors: &Editors, block: Uuid) -> Uuid {
@@ -1031,7 +1168,7 @@ fn frame_menu(editors: &Editors, block: Uuid) -> Vec<be_sdk_api::MenuEntry> {
         .unwrap_or_default()
 }
 
-pub(super) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
+pub(crate) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
     let editors = editors();
     let owner = chrome_owner(&editors, block);
     let anchor = anchor.filter(|_| owner == block);
@@ -1050,7 +1187,7 @@ fn revoke_frame_child(editors: &Editors, block: Uuid) {
     }
 }
 
-mod camera;
+pub(crate) mod camera;
 use camera::{Camera, CameraSpec, CameraView};
 
 #[component]
@@ -1235,13 +1372,15 @@ fn BlockFrameBody(
     let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     let any = super::any();
+    let key = block;
+    let block = editors.block(key);
     let resolution = create_memo(move || {
         any.get();
         let access = editors.access(block, nesting.access);
         if !access.can_view() {
             return Resolution::NoAccess;
         }
-        let Some(handle) = editors.handle(block) else {
+        let Some(handle) = editors.handle(key) else {
             return Resolution::Missing;
         };
         if be_host_stack::locked(block) {
@@ -1253,7 +1392,7 @@ fn BlockFrameBody(
         if let Some(stale) = be_host_stack::staleness(block) {
             return Resolution::Stale(handle.block_type, stale);
         }
-        match view_key(&editors, block, false) {
+        match view_key(&editors, key, false) {
             Some(region) => Resolution::Ready { region, access },
             None => Resolution::Unsupported(handle.block_type),
         }
@@ -1318,7 +1457,7 @@ fn BlockFrameBody(
                     },
                     Resolution::Ready { access, .. } => {
                         let editors = self::editors();
-                        let Some(handle) = editors.handle(block) else {
+                        let Some(handle) = editors.handle(key) else {
                             return view! {
                                 <Frame />
                             };
@@ -1330,7 +1469,7 @@ fn BlockFrameBody(
                         };
                         view! {
                             <BlockFrameView
-                                block
+                                block=key
                                 access
                                 handle
                                 view_editor
@@ -1366,12 +1505,12 @@ fn BlockFrameView(
     reporter: ChildReporter,
 ) -> NodeId {
     let ChildReporter {
-        bar: on_bar_action,
+        details: on_details,
         focus: on_focus,
     } = reporter;
     provide_context(FocusedWithin(on_focus));
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
-    provide_context(nesting.within(block, access));
+    provide_context(nesting.within(editors().block(block), access));
     let app_id = store(view_editor.app_id().to_owned());
     let instance = view_editor.instance;
     let framed = create_memo(move || content.get().is_some());
@@ -1394,21 +1533,16 @@ fn BlockFrameView(
         read_only,
         revision,
     };
-    create_effect(move || {
-        revision.get();
-        let actions = be_host_runtime::take_bar_actions(&app_id.value(), instance);
-        for action in actions {
-            on_bar_action.call(action);
-        }
-    });
-    if let Some(tab) = use_context::<TabContext>() {
-        create_effect(move || {
-            revision.get();
-            if be_host_runtime::take_leaving(&app_id.value(), instance) {
+    let tab = use_context::<TabContext>();
+    super::own_frame(&app_id.value(), instance, move |event| match event {
+        InstanceEvent::Details => on_details.call(()),
+        InstanceEvent::Leaving => {
+            if let Some(tab) = tab {
                 tab.exit.call(());
             }
-        });
-    }
+        }
+        _ => {}
+    });
     let fits = create_memo(move || chrome.get() == Chrome::Drawn);
     let zoomable = handle.pan_and_zoom;
     let child_view = child_view(block, View::MAIN);
@@ -1560,89 +1694,108 @@ fn HostedChild(
                 .is_some_and(|child| child.mode == ChildMode::Hidden)
         })
     });
-    let kind = create_memo(move || {
+    let place: PlaceKey = (parent, region.id, key);
+    on_cleanup(move || editors.unplace(place));
+    let placed = create_memo(move || {
         any.get();
-        let (id, block_type, view_block, editor) = match content.get() {
-            None => return Kind::Missing,
-            Some(HostContent::Window(window)) => {
-                return window_kind(window, super::shell().get() == Some(parent), hidden.get());
+        let mut frame = None;
+        let kind = (|| {
+            let (id, block_type, view_block, editor) = match content.get() {
+                None => return Kind::Missing,
+                Some(HostContent::Window(window)) => {
+                    return window_kind(window, super::shell().get() == Some(parent), hidden.get());
+                }
+                Some(_) if hidden.get() => return Kind::Unavailable,
+                Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
+                Some(HostContent::DockTab { block, tab }) => {
+                    let shown = child.with(|child| {
+                        child
+                            .as_ref()
+                            .is_some_and(|child| child.mode != ChildMode::Preview)
+                    });
+                    return match shown && editors.handle(block).is_some() {
+                        true => Kind::DockTab(block, tab),
+                        false => Kind::Unavailable,
+                    };
+                }
+                Some(HostContent::ArtifactSettings(block)) => {
+                    editors.show_settings(creation_key, block);
+                    return Kind::ArtifactSettings(block);
+                }
+                Some(HostContent::Creation { editor, template }) => {
+                    return match editors.ensure_creation(creation_key, editor, &template) {
+                        true => Kind::Creation,
+                        false => Kind::Unavailable,
+                    };
+                }
+                Some(HostContent::Picker { filter, parent }) => {
+                    let request = be_host_runtime::PickerRequest {
+                        filter,
+                        parent,
+                        sheet: sheet.get(),
+                    };
+                    return match editors
+                        .ensure_picker(creation_key, |registry| registry.picker(request))
+                    {
+                        true => Kind::Picker,
+                        false => Kind::NoPicker,
+                    };
+                }
+                Some(HostContent::Rename(block)) => {
+                    let sheet = sheet.get();
+                    return match editors
+                        .ensure_picker(creation_key, |registry| registry.rename(block, sheet))
+                    {
+                        true => Kind::Picker,
+                        false => Kind::Unavailable,
+                    };
+                }
+                Some(HostContent::Block {
+                    block_id,
+                    block_type,
+                    view_block,
+                    editor,
+                }) => (block_id, block_type, view_block, editor),
+            };
+            if be_host_stack::revisions::released(id) {
+                return Kind::Unavailable;
             }
-            Some(_) if hidden.get() => return Kind::Unavailable,
-            Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
-            Some(HostContent::DockTab { block, tab }) => {
-                let shown = child.with(|child| {
-                    child
-                        .as_ref()
-                        .is_some_and(|child| child.mode != ChildMode::Preview)
-                });
-                return match shown && editors.handle(block).is_some() {
-                    true => Kind::DockTab(block, tab),
-                    false => Kind::Unavailable,
-                };
+            if nesting.above.with(|above| above.contains(&id)) {
+                return Kind::Unavailable;
             }
-            Some(HostContent::ArtifactSettings(block)) => {
-                editors.show_settings(creation_key, block);
-                return Kind::ArtifactSettings(block);
+            if let Some(program) = editor.filter(|editor| be_host_desktop::programs::opens(*editor))
+            {
+                be_host_desktop::programs::show(id, block_type, program, parent);
+                return Kind::Program(id);
             }
-            Some(HostContent::Creation { editor, template }) => {
-                return match editors.ensure_creation(creation_key, editor, &template) {
-                    true => Kind::Creation,
-                    false => Kind::Unavailable,
-                };
+            let Some(child) = child.get() else {
+                return Kind::Missing;
+            };
+            if child.mode == ChildMode::Preview {
+                // A block previewed in several places is drawn once, by the editor under
+                // its own id, and each place shows its part.
+                editors.ensure(id, block_type, view_block, editor, parent);
+                return Kind::Preview;
             }
-            Some(HostContent::Picker { filter, parent }) => {
-                let request = be_host_runtime::PickerRequest {
-                    filter,
-                    parent,
-                    sheet: sheet.get(),
-                };
-                return match editors
-                    .ensure_picker(creation_key, |registry| registry.picker(request))
-                {
-                    true => Kind::Picker,
-                    false => Kind::NoPicker,
-                };
+            let key = editors.place(place, id, block_type, view_block, editor);
+            frame = Some(key);
+            let in_stack = tab
+                .as_ref()
+                .is_some_and(|tab| tab.stack.get().contains(&key));
+            match child.mode {
+                ChildMode::Preview => Kind::Preview,
+                _ if child.frame_owner && child.own_frame => Kind::OwnFrame,
+                _ if child.frame_owner && in_stack => Kind::FrameChild,
+                _ => Kind::Embedded,
             }
-            Some(HostContent::Rename(block)) => {
-                let sheet = sheet.get();
-                return match editors
-                    .ensure_picker(creation_key, |registry| registry.rename(block, sheet))
-                {
-                    true => Kind::Picker,
-                    false => Kind::Unavailable,
-                };
-            }
-            Some(HostContent::Block {
-                block_id,
-                block_type,
-                view_block,
-                editor,
-            }) => (block_id, block_type, view_block, editor),
-        };
-        if be_host_stack::revisions::released(id) {
-            return Kind::Unavailable;
+        })();
+        if frame.is_none() {
+            editors.unplace(place);
         }
-        if nesting.above.with(|above| above.contains(&id)) {
-            return Kind::Unavailable;
-        }
-        if let Some(program) = editor.filter(|editor| be_host_desktop::programs::opens(*editor)) {
-            be_host_desktop::programs::show(id, block_type, program, parent);
-            return Kind::Program(id);
-        }
-        editors.ensure(id, block_type, view_block, editor, parent);
-        let Some(child) = child.get() else {
-            return Kind::Missing;
-        };
-        let in_stack = tab
-            .as_ref()
-            .is_some_and(|tab| tab.stack.get().contains(&id));
-        match child.mode {
-            ChildMode::Preview => Kind::Preview,
-            _ if child.frame_owner && child.own_frame => Kind::OwnFrame,
-            _ if child.frame_owner && in_stack => Kind::FrameChild,
-            _ => Kind::Embedded,
-        }
+        (kind, frame)
     });
+    let kind = create_memo(move || placed.get().0);
+    let frame = create_memo(move || placed.get().1);
     let placed_window = create_memo(move || match kind.get() {
         Kind::Program(block) => {
             any.get();
@@ -1662,7 +1815,7 @@ fn HostedChild(
         };
         if let (Some(size), Some(handle)) = (
             child.intrinsic,
-            child.block_id().and_then(|id| editors.handle(id)),
+            frame.get().and_then(|key| editors.handle(key)),
         ) && let Some(app_id) = handle.app_id()
         {
             be_host_runtime::resized(app_id, handle.instance, size);
@@ -1676,9 +1829,9 @@ fn HostedChild(
                 kind.get(),
                 Kind::Unavailable | Kind::Missing | Kind::NoPicker
             );
-            let mut status = status_of(&editors, &child, available);
-            if let (Kind::Preview, Some(block)) = (kind.get(), child.block_id()) {
-                status.preview = preview_of(&editors, block);
+            let mut status = status_of(&editors, &child, frame.get(), available);
+            if let (Kind::Preview, Some(key)) = (kind.get(), frame.get().or(child.block_id())) {
+                status.preview = preview_of(&editors, key);
             }
             if let Some((progress, height, dialog)) = editors.creation_status(&creation_key) {
                 status.creation = progress;
@@ -1747,7 +1900,7 @@ fn HostedChild(
             .get()
             .map(|content| {
                 (
-                    content.block_id().unwrap_or_default(),
+                    frame.get().or(content.block_id()).unwrap_or_default(),
                     kind.get(),
                     content.editor(),
                 )
@@ -1920,23 +2073,28 @@ fn follow_window(
             untrack(|| asks.update(|asks| *asks += 1));
         }
     });
+    let placer = move || {
+        editors
+            .handle(parent)
+            .and_then(|placer| Some((placer.app_id()?.to_owned(), placer.instance)))
+    };
     let asked = create_memo(move || {
-        child.with(|child| child.as_ref().is_some_and(|child| child.focus_asked))
+        placer()
+            .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
     });
     create_effect(move || {
         if !asked.get() || window.get().is_none() {
             return;
         }
         untrack(|| {
-            let Some(placer) = editors.handle(parent) else {
+            let Some((app_id, instance)) = placer() else {
                 return;
             };
-            let Some(app_id) = placer.app_id() else {
-                return;
-            };
-            if be_host_runtime::take_child_focus(app_id, placer.instance, key) {
-                asks.update(|asks| *asks += 1);
-            }
+            // The host gives a window the keyboard itself, and the keys the editor held are
+            // dropped, as the editor no longer has it.
+            super::app_view::gifts::taken(&app_id, instance);
+            be_host_runtime::end_gift(&app_id, instance);
+            asks.update(|asks| *asks += 1);
         });
     });
     let fullscreen = create_memo(move || {
@@ -2055,10 +2213,16 @@ fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> Nod
     }
 }
 
-fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChildStatus {
+fn status_of(
+    editors: &Editors,
+    child: &HostChild,
+    frame: Option<Uuid>,
+    available: bool,
+) -> HostChildStatus {
     let block = child.block_id().unwrap_or_default();
+    let key = frame.unwrap_or(block);
     let (interaction, capabilities, resize, intrinsic) =
-        editors.with(|open| match open.get_mut(&block) {
+        editors.with(|open| match open.get_mut(&key) {
             Some(editor) if available => (
                 match editor.direct_editor_interaction() {
                     crate::editors::DirectEditorInteraction::Live => {
@@ -2129,7 +2293,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         notice: None,
         menu_asked: None,
         menu: match available && child.frame_owner {
-            true => frame_menu(editors, block),
+            true => frame_menu(editors, key),
             false => Vec::new(),
         },
     }
@@ -2151,10 +2315,10 @@ fn with_window(status: &mut HostChildStatus, shown: WindowStatus) {
 
 fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReporter {
     let report_to = editors().handle(parent);
-    let on_bar_action = report_to.clone().and_then(|parent| {
+    let on_details = report_to.clone().and_then(|parent| {
         let app_id = parent.app_id()?.to_owned();
-        Some(Callback::new(move |action: BarAction| {
-            be_host_runtime::report_child_bars(&app_id, parent.instance, vec![(key, action)]);
+        Some(Callback::new(move |()| {
+            be_host_runtime::report_child_details(&app_id, parent.instance, key);
         }))
     });
     let app_id = report_to
@@ -2168,7 +2332,7 @@ fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReport
         within.call(());
     });
     ChildReporter {
-        bar: on_bar_action.unwrap_or_default(),
+        details: on_details.unwrap_or_default(),
         focus: on_focus,
     }
 }

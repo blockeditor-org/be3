@@ -33,6 +33,7 @@ fn a_docked_child_that_declares_nothing_stays_a_plain_child() {
             DockUpdate::Child(DockDeclaredChild {
                 child: OUTER_CHILD,
                 declaration: Some(outer()),
+                epoch: 0,
             })
         )]
     );

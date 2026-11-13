@@ -39,26 +39,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   (Xvfb, installed with apt on the test machine and started by the test,
   skipping with a message when absent) reads both targets from one clip;
   Windows compiles.
-- **Block ids inside any clip, inside a checkout.** The host translates the
-  ids of a clip crossing the app protocol for an instance in a checkout
-  (guides/blocks/version_control.md, "Scopes and local ids"), but only for
-  `be3/blocks`, which it decodes by format (`be-host-runtime/src/calls.rs`).
-  Any other format holding block ids, such as `be3/canvas-items` or rich text
-  with embeds, crosses untranslated. Make it general: every clip item carries
-  the blocks it names as a list beside its bytes (`refs`), and its bytes
-  index into that list, as view state does (`ViewState { bytes, refs }`). The
-  host translates `refs` for every format and decodes none; `be3/blocks`
-  moves its ids there too, and so does `CanvasItems.canvas`.
-  - `refs` is a field of the WIT `clip-item` (shared with beui's
-    `Clip`/`ClipEntry` in beui-types), not a side channel.
-  - Every path that carries a clip translates it: `Copy` and `DragOver`
-    (`calls.rs` visits them today), the answer to `RenderClip` for an item
-    copied with `data: None`, and an incoming paste or drop.
-  - Where be3 formats go onto the system clipboard (web custom types,
-    Windows registered formats, macOS pasteboard types), `refs` are stored
-    with the bytes, so a paste read back keeps them. Done: copying canvas entities that embed blocks,
-  and blocks, from outside a checkout and pasting them into a canvas inside
-  it resolves every block there, and the reverse.
 - **Rich text marks in text fragments**, with `text/html` written from marks
   and read back into them. Marks travel as byte ranges within each chunk of
   `TextFragment` (`be-lib-ui-types/src/clipboard.rs`, a format change, which
@@ -67,37 +47,10 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   paste between two rich texts keeps bold, links and an embed, and pasting
   from a browser's `text/html` gives bold and links.
 
-## 5. Loading part of a document
+## 7. Sessions
 
-Documents save as parts chosen by their structure but still load whole
-(guides/blocks/content_types.md, "The stored form"). Let the model load part
-of one: an attribute such as `#[model(lazy)]` on a `List` whose parts' objects
-load when first read, through the `read-part` path a `Loads::FirstPart` type
-already uses. Saving hands an unloaded part back as `Reused`, which keeps its
-node's own references (`Part::Node { references }`,
-`be-block-model/src/parts.rs`), so such a document drops only the unloaded
-parts' references from `references_in`. Done: a document with a lazy list opens
-without reading that list's parts, and saving it reuses them with their
-references. Until this lands, documents merge as whole bytes (`merge3`), not by parts
-(guides/type_modules.md, "Merging by parts").
-
-## 6. Handing the keyboard to a child block
-
-The held-keys mechanism in be-host (an editor giving the keyboard to a child
-block, such as a deck's notes; guides/apps/children.md, Focus) works but is
-spread over three thread-local maps, two runtime lists and a `seen` flag.
-Replace them with one gift record per editor instance in be-host-runtime: what
-it is given to (a block, a child or a view), the keys held and whose they are,
-moving pending → given → ready → done, with one function that ends it. Done
-when:
-- a child that is placed but never takes the keyboard ends the gift instead of
-  holding the editor's keys until a press or a focus move;
-- an entry left when the focus moved away before the child's view saw it can
-  no longer replay its keys when that view is focused later;
-- a block gift's deadline counts the asking instance's layout commits, not the
-  whole app's, and a gift ends even if the editor commits no layout;
-- held keys are released by the child's input-method request only if a frame
-  was answered after the focus, so a stale `ime` can't release them early;
-- a block gift ends when no child shows the block (a block gift already
-  turns into a child gift at a layout commit, `settle_block_focus`, with unit
-  tests in be-host-runtime's `instances/tests`).
+- **Catch-ups from viewers.** `Catchup` is a `peer` relay, so any viewer can
+  send one, and each makes the owner answer a `Snapshot` (with session state
+  unless the asker already holds it) and may set it to reload. Done: the owner
+  answers one sender at most once per interval, shown by a be-sdk-type-guest
+  test where a viewer's repeated `Catchup`s get one `Snapshot`.

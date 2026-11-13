@@ -72,6 +72,7 @@ mod a_programs_window_given_a_parent_later_becomes_its_dialog_and_back;
 mod a_programs_window_menu_opens_where_it_asked_and_hides_or_closes_it;
 mod a_programs_window_shows_its_icon_on_its_chip_and_tab;
 mod a_query_no_program_matches_runs_as_a_command;
+mod a_query_runs_as_a_command_only_once_the_host_names_a_shell;
 mod a_restored_desktop_stacks_its_windows_as_they_were_with_the_focused_one_on_top;
 mod a_session_chosen_from_the_apps_panel_opens_in_a_window_and_choosing_it_again_focuses_it;
 mod a_session_opened_over_program_windows_opens_in_front_of_them;
@@ -91,7 +92,7 @@ mod a_window_its_program_raises_comes_in_front_with_the_keyboard;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_moved_to_a_display_at_another_scale_keeps_its_size_in_points_above_its_bars;
 mod a_window_moved_to_another_display_lists_its_chip_on_that_displays_bar;
-mod a_window_on_the_second_display_is_kept_above_its_bars;
+mod a_window_on_the_second_display_keeps_its_grip_above_its_bars;
 mod a_window_that_rings_the_bell_flashes_its_chip;
 mod a_window_the_host_focuses_leads_the_window_switcher;
 mod a_window_with_a_dialog_hides_and_comes_back_with_it;
@@ -1057,6 +1058,7 @@ fn programs() -> ProgramCatalog {
     ProgramCatalog {
         listed: true,
         programs,
+        shell: vec!["sh".to_owned(), "-c".to_owned()],
     }
 }
 
@@ -1093,6 +1095,7 @@ fn a_shelf_of_programs() -> ProgramCatalog {
                 icon: None,
             })
             .collect(),
+        shell: vec!["sh".to_owned(), "-c".to_owned()],
     }
 }
 

@@ -40,9 +40,20 @@ pub struct VersionState {
 pub(super) struct Versions {
     trees: HashMap<CommitId, Tree>,
     commits: HashMap<CommitId, Commit>,
+    /// The blocks this connection watches for statuses: what `followed` names.
     watching: Arc<Mutex<HashSet<Uuid>>>,
-    roots: HashSet<Uuid>,
+    /// The roots whose subtrees the graph lists for statuses (`Owner::Version`).
+    roots: BTreeSet<Uuid>,
+    /// What each watched checkout's status reads: the checkout, its repository and its root's
+    /// subtree. Released when the checkout is no longer watched, and recomputed with its
+    /// status, so blocks that left the subtree are let go (`reconcile`).
+    followed: HashMap<Uuid, Followed>,
     statuses: Statuses,
+}
+
+struct Followed {
+    root: Option<Uuid>,
+    blocks: HashSet<Uuid>,
 }
 
 /// Which watched statuses are current, and which could not be computed, by the inputs they
@@ -136,6 +147,12 @@ impl Statuses {
     pub(crate) fn announced(&mut self) {
         self.failed
             .retain(|_, failed| failed.failure.kind != FailureKind::Object);
+    }
+
+    /// Forgets the statuses of blocks no longer watched.
+    fn keep_only(&mut self, watched: &HashSet<Uuid>) {
+        self.computed.retain(|block, _| watched.contains(block));
+        self.failed.retain(|block, _| watched.contains(block));
     }
 }
 
@@ -1492,6 +1509,61 @@ impl Versions {
             .insert(block);
     }
 
+    /// Stops computing a block's status. The loop refreshes the statuses each round, so the
+    /// round that runs this command lets go of what the status read (`refresh`).
+    pub(super) fn unwatch(shared: &Arc<Mutex<Shared>>, block: Uuid) {
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .version_watch
+            .remove(&block);
+    }
+
+    /// Watches what the followed checkouts read and lets go of the rest, and lists the
+    /// subtrees of their roots only.
+    fn reconcile(&mut self, context: &Context<'_>) {
+        let roots: BTreeSet<Uuid> = self
+            .followed
+            .values()
+            .filter_map(|followed| followed.root)
+            .collect();
+        if roots != self.roots {
+            let queries = roots.iter().map(|root| Query::Subtree(*root)).collect();
+            self.roots = roots;
+            context
+                .shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .want(Owner::Version, queries);
+        }
+        let wanted: HashSet<Uuid> = self
+            .followed
+            .values()
+            .flat_map(|followed| followed.blocks.iter().copied())
+            .collect();
+        let attached = context.peer.is_attached();
+        let connection = context.peer.connection();
+        let mut watching = self.watching.lock().unwrap_or_else(PoisonError::into_inner);
+        // Detached, what is watched was watched on a connection that is gone, and the next one
+        // starts from nothing (`reconnected`): only forget it, or the release would come off
+        // another's watch on the next connection.
+        watching.retain(|block| {
+            let kept = wanted.contains(block);
+            if !kept && attached {
+                connection.unwatch(*block);
+            }
+            kept
+        });
+        if attached {
+            for block in wanted {
+                if watching.insert(block) {
+                    connection.watch(block);
+                }
+            }
+        }
+    }
+
     /// Recomputes the status of every watched block whose inputs changed. A status that
     /// fails is remembered with the inputs it failed with and not computed again until they
     /// change, which their own events announce. A transient failure (a request to the server
@@ -1501,14 +1573,19 @@ impl Versions {
     /// status's `error`.
     pub(super) async fn refresh(&mut self, context: &mut Context<'_>, retry: bool) -> bool {
         let mut awaiting = false;
-        let watched: Vec<Uuid> = context
+        let watched: HashSet<Uuid> = context
             .shared
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .version_watch
-            .iter()
-            .copied()
-            .collect();
+            .clone();
+        let before = self.followed.len();
+        self.followed
+            .retain(|checkout, _| watched.contains(checkout));
+        self.statuses.keep_only(&watched);
+        if self.followed.len() != before {
+            self.reconcile(context);
+        }
         for block in watched {
             let signature = {
                 let held = context
@@ -1606,10 +1683,13 @@ impl Versions {
                 ..VersionStatus::default()
             });
         }
-        let Some(state) = checkout else {
-            return Ok(VersionStatus::default());
-        };
-        let Some(repository_id) = state.repository else {
+        let Some((state, repository_id)) = checkout.and_then(|state| {
+            let repository = state.repository?;
+            Some((state, repository))
+        }) else {
+            if self.followed.remove(&block).is_some() {
+                self.reconcile(context);
+            }
             return Ok(VersionStatus::default());
         };
         self.follow(context, block, &state, repository_id).await;
@@ -1666,42 +1746,18 @@ impl Versions {
                 true,
             )
             .await;
-        let mut blocks = vec![checkout, repository];
+        let mut blocks: HashSet<Uuid> = [checkout, repository].into_iter().collect();
         if let Some(root) = state.root {
-            if self.roots.insert(root) {
-                let roots = self
-                    .roots
-                    .iter()
-                    .map(|root| Query::Subtree(*root))
-                    .collect();
-                context
-                    .shared
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .graph
-                    .want(Owner::Version, roots);
-            }
             blocks.extend(with_graph(context.shared, |graph| graph.subtree(root)));
         }
-        for block in blocks {
-            if !self
-                .watching
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .insert(block)
-            {
-                continue;
-            }
-            match context.peer.is_attached() {
-                true => context.peer.watch(block),
-                false => {
-                    self.watching
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .remove(&block);
-                }
-            }
-        }
+        self.followed.insert(
+            checkout,
+            Followed {
+                root: state.root,
+                blocks,
+            },
+        );
+        self.reconcile(context);
     }
 
     async fn log(&mut self, peer: &Peer<Store>, heads: Vec<CommitId>) -> Vec<VersionCommit> {

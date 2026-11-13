@@ -27,7 +27,7 @@ Each crate's `lib.rs` re-exports are the list of what exists. Code outside beui 
 
 ## Tokens and theme
 
-Styled components take design tokens from `styled::tokens` (`Space`, `Padding`, `Size`, `Length`, `ColorRole`, `TextColor`, `Radius`, `Border`, `Stroke`; [decision](../../decisions/beui_styled_components_take_design_tokens.md)). A raw number in a styled prop does not compile, and the source lint rejects `Extent::px` outside beui's crates. `Custom` variants are for values from content (a user's tag colour, a canvas). `Space` and `Size` resolve through `use_density()`; `use_space` and `use_size` give the pixels an unstyled prop takes. Converting pixels, snap to whichever neighbouring step looks right.
+Styled components take design tokens from `styled::tokens` (`Space`, `Padding`, `Size`, `Length`, `ColorRole`, `TextColor`, `Radius`, `Border`, `Stroke`; [decision](../../decisions/beui_styled_components_take_design_tokens.md)). A raw number in a styled prop does not compile, and the source lint rejects `Extent::px` outside beui's crates. `Custom` variants are for values from content (a user's tag colour, a canvas). Each token has one value, and `.px()` gives the pixels an unstyled prop takes. Density (`provide_density`, `use_density()`; a phone frame provides `Density::Comfortable`) sizes the tree alone: the styled `Tree` and be-app-file-tree's rows read it and own their comfortable metrics; nothing else changes with it. Converting pixels, snap to whichever neighbouring step looks right.
 
 Containers use two fills: `Background` for what everything sits on, and `Surface` for every panel above it, floating ones included (bars, popovers, menus, tooltips, dialogs, toasts). A floating panel stands apart from what it covers by its `Border::DEFAULT`, not by a third fill. `Control` fills what you press, type into or drag (fields, unchecked boxes, chips, tiles, keys, cards you pick or move), so a control shows up the same way on any panel. `Shade` tints an area inside a panel that is not a control: code, a header strip, a highlighted lane.
 
@@ -57,7 +57,7 @@ Program code wants `styled::Scroll`, which adds the overlay scrollbar ([decision
 
 ### Long lists
 
-Layout culls nodes more than `CULLING_MARGIN` outside the view (the focused node never), so a long scroll of ordinary content needs nothing more. A `VirtualList` is for when building every row is itself the cost.
+Layout culls nodes more than `CULLING_MARGIN` outside the view (never the focused node, nor anything holding an open overlay), so a long scroll of ordinary content needs nothing more. A `VirtualList` is for when building every row is itself the cost.
 
 It can sit anywhere a tall child could. Its trap is recycling: the row builder runs once per built row with a `ReadSignal` of its key, which the list later points at another key. Derive everything shown from that signal; state a row keeps carries over to the next key, unless its content is in `<Dynamic value={key}>`.
 

@@ -31,6 +31,15 @@ not shared yet, or, offline, a block this device has never read
 The host runs a bounded number of children as editors and draws the rest as
 previews, so place only the children that are visible.
 
+A block placed in several places at once shares one editor instance, the one
+under the block's own id that the host's own requests (focus, menus, renaming a
+new block) reach, so a shared instance draws one view for all of them. A
+placement that asks for another editor than the one holding the block (a
+settings page in a tab beside the settings list) gets an instance of its own,
+a twin under a key of its own in be-host's `Editors` (`compositor/editors.rs`;
+`Editors::block` maps it back), closed when that placement goes. Previews are
+never twinned.
+
 ## Drawing order
 
 A child is drawn under the app's own surface with its space cut out, so
@@ -91,53 +100,77 @@ toolbar as a `DockBar` lent to the slide canvas's pane.
 
 ## Focus
 
-When the host gives the keyboard to a child, every instance above it hears
-which of its children it went into (`ChildBlock`'s `on_focus`): a press inside
-a child never reaches the placer. A `ChildBlock` or `Subregion` in a dock tab
-shows that tab when it hears this (`DockTabControl::content_focused`, so a dock that
-stops showing the tab hands the keyboard to the one shown in its place), and one in
-an empty pane's view focuses that pane, so a press in a child (a joined dock's tab body or empty pane included)
-focuses what holds it and brings its window in front; `on_focus` is for
-anything more. A child that takes a press without the
+When the host gives the keyboard to a child, every instance above it hears which
+of its children it went into (`ChildBlock`'s `on_focus`): a press inside a child
+never reaches the placer. A `ChildBlock` or `Subregion` in a dock tab shows that
+tab when it hears this (`DockTabControl::content_focused`, so a dock that stops
+showing the tab hands the keyboard to the one shown in its place), and one in an
+empty pane's view focuses that pane, so a press in a child (a joined dock's tab
+body or empty pane included) focuses what holds it and brings its window in
+front; `on_focus` is for anything more. A child that takes a press without the
 keyboard (one being presented) brings nothing forward. The other way,
 `EditorHost::focus_child` gives a child the keyboard, but only while the
-keyboard is already inside the editor's views and no popover or
-keyboard-taking layer is open, so it never steals focus from elsewhere. `ChildBlock` and `Subregion` in a dock tab ask for it whenever the
-dock gives that tab the keyboard. `EditorHost::focus_block_child` asks the
-same for the child that will show a block, so an editor that makes a block to
-type into ("Add notes") asks in the frame that makes it, before the child
-exists.
+keyboard is already inside the editor's views and no popover or keyboard-taking
+layer is open, so it never steals focus from elsewhere. `ChildBlock` and
+`Subregion` in a dock tab ask for it whenever the dock gives that tab the
+keyboard. `EditorHost::focus_block_child` asks the same for the child that will
+show a block, so an editor that makes a block to type into ("Add notes") asks in
+the frame that makes it, before the child exists.
 
-While a gift is pending, be-host holds the keys typed into the editor's view
-(`be-host/src/compositor/app_view/held_keys.rs`). Every gift ends explicitly,
-never by a timeout:
+Each editor instance makes at most one gift at a time
+(`be-host-runtime/src/instances/gift.rs`): what it gives the keyboard to (a
+block, a child, then the child's view), the keys held for it and the editor's
+view they were typed into. It moves pending → given → ready → done, and
+`Instances::end_gift` ends it however it ends:
 
-- Granted when the child's view takes the keyboard. The child's app hears the
-  held keys, in order and ahead of keys typed into it since, once a text field
-  in it has the keyboard (its view asks for an input method), or, for a child
-  with none, two frames after it had its block's content and the focus (the
-  count starts again if the content is replaced).
-- Refused when the person presses in the editor or takes the keyboard
-  elsewhere, and when the child or the editor goes or its app stops. A block
-  gift waits for a child to show its block however many frames that takes: the
-  editor has to change its content first, which a busy host can delay. It ends
-  at once when the host refused to make the block, when the editor has no view
-  left, and when the editor asks for another block (only the latest ask
-  stands). The editor hears the held keys if it still has the keyboard;
-  otherwise they are dropped.
+- Pending: keys typed into the editor's view are held. A block gift turns
+  into a gift to the child that shows the block at a layout commit, and the
+  placer's views hear which child (`InstanceEvent::KeyboardGift`, kept per
+  instance in be-host's `app_view/gifts.rs` until the child's view is built
+  and takes it with `be_host_runtime::take_gift`).
+- Given: the child's view took the keyboard. It has to be seen with it by the
+  next host pass, or it lost it before it saw it and the gift ends, so keys
+  are never replayed into a view focused much later. Keys typed into it queue
+  behind the held ones.
+- Ready: a text field in it has the keyboard (its view asks for an input
+  method in a frame its app answered after the focus, so an input method left
+  from before does not count), or, for a child with none, its app drew two
+  frames after it had its block's content and the focus (the count starts
+  again if the content is replaced). The child's app hears the held keys, in
+  order and ahead of its own.
+- Ended before that: when the person presses in the editor or takes the
+  keyboard elsewhere, when the child stops being placed in a mode that runs
+  an editor, when the host refused to make the block, when the editor has no
+  view left, when the child's app fails to start, and when its instance or
+  app goes. Nothing else ends it until the child is up: its view built and
+  its app running (`child_up_for_gift`), which takes any time while the host
+  makes the block, the editor places it and a cold start downloads and
+  compiles the child's app. From then the child's view has `GIFT_COMMITS` (8)
+  of the editor instance's own layout commits (those that carry its children
+  or one of its frame reports; other instances of the app do not count) or
+  `GIFT_WAIT` (3 s) on the frame clock, which bounds an editor that commits
+  nothing, to take it. So a child that is up but never shown in a view that
+  takes the keyboard ends the gift on its own. The editor's view hears the
+  held keys if it has the keyboard by the next host pass; otherwise they are
+  dropped.
 
-Only children placed in a mode that runs an editor count; a gift to a child
-that is placed but never shows a view that takes the keyboard (a view behind
-another that holds it), and a block gift whose block is only ever shown as a
-preview or hidden, last until the person presses or moves the keyboard.
-Keys typed into a view right after a press there wait the same way until its
-app has drawn a frame after the press (only for a press the app was sent, as it
-draws no frame for one that never reached it), since that frame may carry the ask
-("Add notes" asks as it is clicked), and go to the view if it asked for
-nothing. Owed keys and the keyboard are kept by view, not by the node that
-catches its input: when the host builds a view's catcher again (a late child
-placed in a new pane), the new one takes over both, unless the keyboard went
-elsewhere meanwhile. A view that is no longer placed leaves nothing behind.
+Only the latest ask stands. A new ask replaces the gift and carries its keys,
+including keys already owed to the child an earlier ask gave the keyboard to,
+to the new child. A window child (a program window) takes the keyboard from
+the host directly, and the keys held for it are dropped, as the editor no
+longer has the keyboard.
+
+Keys typed into a view right after a press there wait the same way, as a
+pending gift to nothing yet (`GiftTo::Answer`), until its app has drawn a
+frame after the press (only for a press the app was sent, as it draws no frame
+for one that never reached it), since that frame may carry the ask ("Add
+notes" asks as it is clicked), and go to the view if it asked for nothing.
+Owed keys and the keyboard are kept by view, not by the node that catches its
+input: when the host builds a view's catcher again (a late child placed in a
+new pane), the new one takes over both, unless the keyboard went elsewhere
+meanwhile. A view that is no longer placed leaves nothing behind. A child
+never reads what its placer's view stores (`Placer` names the app with a
+plain string), as a child's effects can outlive the placer's view.
 Held keys skip the child's input method, so a composition (CJK) started before
 the child shows arrives as its committed text. An empty text block given the
 keyboard puts its caret in its text.

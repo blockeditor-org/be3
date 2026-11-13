@@ -176,15 +176,12 @@ interface device {
 
     enum map-mode { read, write }
 
-    /// WebGPU's `GPUBufferMapState`.
-    enum map-state { unmapped, pending, mapped }
-
     resource buffer {
-        /// Starts mapping a range of the buffer. It is pending until the gpu
-        /// is done with the buffer, then mapped, or unmapped again if the map
-        /// failed. The host wakes the app when it settles.
-        map-async: func(mode: map-mode, offset: u64, size: u64);
-        map-state: func() -> map-state;
+        /// Starts mapping a range of the buffer, answering a ticket that a
+        /// later `poll` settles once the gpu is done with the buffer: mapped,
+        /// or failed (as is a map the buffer's unmap or destroy cut short).
+        /// The host wakes the app when it settles.
+        map-async: func(mode: map-mode, offset: u64, size: u64) -> u64;
         /// Copies a mapped range out.
         read-mapped: func(offset: u64, size: u64) -> list<u8>;
         /// Writes into a range mapped for writing, or at creation.
@@ -720,6 +717,16 @@ interface device {
         message: string,
     }
 
+    /// What settled since the last `poll`: each map's ticket and whether it
+    /// mapped, the tickets of submitted work the gpu has done, and why the
+    /// device is lost while it is (destroyed by the app, or lost by the host).
+    /// Every ticket is answered once.
+    record settled {
+        maps: list<tuple<u64, bool>>,
+        work-done: list<u64>,
+        lost: option<device-lost-info>,
+    }
+
     record surface-configuration {
         width: u32,
         height: u32,
@@ -753,9 +760,6 @@ interface device {
     /// and drops whatever it asks of the gpu after, without errors, until it
     /// requests the device again.
     destroy-device: func();
-    /// Why the device was lost: destroyed by the app, or lost by the host.
-    /// None while it is not. The host wakes the app when it is lost.
-    device-lost: func() -> option<device-lost-info>;
 
     create-buffer: func(descriptor: buffer-descriptor) -> option<buffer>;
     create-texture: func(descriptor: texture-descriptor) -> option<texture>;
@@ -788,18 +792,16 @@ interface device {
         size: extent3d,
     );
     submit: func(command-buffers: list<command-buffer>);
-    /// Settles the maps and submitted work the gpu is done with. Waiting
-    /// blocks until the work submitted so far is done where the host can
-    /// block (natively), and is the same as not waiting in a browser, where
-    /// they settle on their own.
-    poll: func(wait: bool);
+    /// Settles the maps and submitted work the gpu is done with, and answers
+    /// what settled. Waiting blocks, where the host can block (natively),
+    /// until every map and work-done ticket asked for so far has settled; in
+    /// a browser, where they settle on their own, it is the same as not
+    /// waiting. The host wakes the app when anything settles or the device is
+    /// lost.
+    poll: func(wait: bool) -> settled;
     /// Asks to be told when the gpu has done the work submitted so far, and
-    /// answers a ticket to ask `submitted-work-done` about. The host wakes the
-    /// app when the work is done.
+    /// answers a ticket a later `poll` lists in `work-done`.
     on-submitted-work-done: func() -> u64;
-    /// Whether the work a ticket waits on is done. A ticket that answers true
-    /// is forgotten.
-    submitted-work-done: func(ticket: u64) -> bool;
 
     /// A texture the host shares with every app under an image id, such as
     /// a preview another app painted; none when no such image is shared.

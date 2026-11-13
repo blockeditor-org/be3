@@ -4,14 +4,11 @@ Depends on: none.
 
 The index crate (`crates/be-lib-search`) and the `search-text` request
 (guides/type_modules.md, "The protocol") are done; text (Markdown included)
-answers one document.
+answers one document; checklist and canvas answer one, a database one per
+row (the tracker's issues too), chat one for its recent messages and one per
+closed segment.
 
-- **Fuzzy matching on names**, which needs a way to find a misspelt name's
-  terms without reading a segment's whole dictionary (the blocked dictionary
-  answers exact terms and prefixes only).
-- **More types answer `search-text`**: checklist, database rows, canvas text
-  items, the tracker, chat by segment, PDF text. Each implements
-  `BlockContent::search_text` (`Root::search_text_in` for a `Document`); a type
-  that loads only its first part reads only the parts asked for and not in
-  `indexed`, as the test type `Sections` does. Done per type: a test that it
-  answers its documents.
+- **PDF text answers `search-text`**: it implements `BlockContent::search_text`
+  (`Root::search_text_in` for a `Document`); a type that loads only its first
+  part reads only the parts asked for and not in `indexed`, as the test type
+  `Sections` and chat do. Done: a test that it answers its documents.

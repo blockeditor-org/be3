@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 use be_sdk_api::{
     EditorInstanceId, Fonts, Hello, HelloAccepted, InputBatch, Opening, Preferences, PresentCommit,
     ScreenId, ScreenRequest,
-    app::{ChildBarPress, DialogRequest, EditorEvent, MenuChoice, ViewFrame},
+    app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame},
     guest::{
         debug::debug,
         exports::{
@@ -266,10 +266,8 @@ impl OpenEditor {
                 wire.call(instance, move |session| session.pick_menu(view, id, anchor));
             }
             EditorEvent::Dismiss => wire.call(instance, |session| session.dismiss()),
-            EditorEvent::ChildBar(ChildBarPress { child, action }) => {
-                wire.call(instance, move |session| {
-                    session.child_bar_action(child, action)
-                });
+            EditorEvent::ChildDetails(child) => {
+                wire.call(instance, move |session| session.child_details(child));
             }
             EditorEvent::ChildFocused(child) => {
                 wire.call(instance, move |session| session.child_focused(child));
@@ -382,7 +380,11 @@ impl GuestEditor for OpenEditor {
         })
     }
 
-    fn render_clip(&self, serial: u64, format: String) -> LocalFuture<Option<Vec<u8>>> {
+    fn render_clip(
+        &self,
+        serial: u64,
+        format: String,
+    ) -> LocalFuture<Option<be_sdk_api::clipboard::ClipBody>> {
         let (sender, rendered) = oneshot();
         self.wire.call(self.instance, move |session| {
             session.render_clip(serial, &format, sender)

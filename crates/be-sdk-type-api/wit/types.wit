@@ -67,10 +67,13 @@ interface types {
         /// The stored form read whole decodes to the content (`be_block::BlockContent::WHOLE_BYTES`),
         /// so a copy of its bytes loses nothing.
         whole-bytes: bool,
+        /// The type's default content (`Default`), encoded.
+        blank: list<u8>,
+        /// `blank` described, with no organization.
+        blank-description: description,
     }
 
     record description {
-        name: option<string>,
         derived: entries,
         references: list<block-id>,
     }
@@ -164,12 +167,31 @@ interface types {
         incompatible: bool,
         diverged: bool,
         unreadable: option<string>,
+        /// None until the replica has loaded, and once it was released.
+        undo: option<undo-state>,
     }
 
     variant endpoint {
         peer(client-id),
         editor(editor-id),
         host,
+    }
+
+    /// What a message to peers carries, which the server checks against its
+    /// sender: `peer` for presence, channel messages and asking to catch up,
+    /// which any participant sends; `edit` for operations and session state,
+    /// only from a participant with edit access. The host passes it to the
+    /// server and ignores it for an editor or itself.
+    enum relay-kind {
+        peer,
+        edit,
+    }
+
+    /// What the server says of a peer's message it relayed.
+    record delivery {
+        /// What the server checked its sender may send: the replica drops a
+        /// message that asks for more (`Wire::kind`).
+        kind: relay-kind,
     }
 
     variant recipients {

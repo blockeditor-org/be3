@@ -182,6 +182,7 @@ pub struct Document {
     layout_pass: u64,
     layout_frame: u64,
     focus_line: FocusLine,
+    overlay_line: OverlayLine,
     anchor_shift: f32,
     pinned_to_end: Option<beui_types::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
@@ -235,6 +236,13 @@ struct Placing {
 }
 
 const REMEMBERED_MEASUREMENTS: usize = 4;
+
+/// The nodes an open overlay lies within, as of a layout pass.
+#[derive(Default)]
+struct OverlayLine {
+    pass: Option<u64>,
+    ancestors: NodeMap<u64>,
+}
 
 #[derive(Default)]
 struct FocusLine {
@@ -428,6 +436,7 @@ impl Document {
             layout_pass: 0,
             layout_frame: 0,
             focus_line: FocusLine::default(),
+            overlay_line: OverlayLine::default(),
             anchor_shift: 0.0,
             pinned_to_end: None,
             reveals: NodeMap::default(),
@@ -2628,7 +2637,31 @@ impl Document {
     }
 
     pub fn culls(&mut self, id: NodeId, size: Vec2, own: PainterState) -> bool {
-        !Sight::shows(size, own) && !self.is_overlay_open(id) && !self.holds_focus(id)
+        !Sight::shows(size, own)
+            && !self.is_overlay_open(id)
+            && !self.holds_open_overlay(id)
+            && !self.holds_focus(id)
+    }
+
+    /// Whether an open overlay lies within `id`: an overlay shows wherever
+    /// what holds it was scrolled, so what holds it is never culled.
+    fn holds_open_overlay(&mut self, id: NodeId) -> bool {
+        let pass = self.layout_pass;
+        if self.overlay_line.pass != Some(pass) {
+            self.overlay_line.pass = Some(pass);
+            self.overlay_line.ancestors.clear();
+            for overlay in self.open_overlays() {
+                let mut current = Some(overlay.id());
+                for _ in 0..ANCESTOR_LIMIT {
+                    let Some(node) = current else { break };
+                    if self.overlay_line.ancestors.insert(node, pass) == Some(pass) {
+                        break;
+                    }
+                    current = self.arena.parent(node);
+                }
+            }
+        }
+        self.overlay_line.ancestors.get(&id) == Some(&pass)
     }
 
     fn holds_focus(&mut self, id: NodeId) -> bool {

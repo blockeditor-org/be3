@@ -94,7 +94,7 @@ and gives it the keyboard; `fullscreen` toggles the tab's full screen, whose sta
 `child-placement.fullscreen`; `rung` flashes the chip; `notice` replaces the tab's title while set
 (the Windows host uses it to say how to get back; Linux sets none); `menu-asked` opens the tab menu;
 a count up of `minimized` hides the tab's dock window; `intrinsic` is the size the program picked,
-which only a dialog's card follows. A new window's dock window opens at the listing's `size` (or a
+which only a dialog's card follows (a new card opens at the listing's `size` until the status is first heard, so it never shows or configures its program at a placeholder size first). A new window's dock window opens at the listing's `size` (or a
 default size when there is none), snapped to fill its area when the listing says `maximized`, so
 the program is never told another size first; a window
 filling a placeholder takes the placeholder's place and size (`program::cascaded`).
@@ -154,11 +154,15 @@ side along their bottom edges. `DisplaysWatch` gives each `HostDisplay` its `rec
   rect from it (`WindowReport::Moved`), and asks to move a window with the `place` request.
   `BeginMove`/`BeginResize` hand the press to the host.
 - A display's work area is the display less its bars' bands (`DockHostLayout::area`). The shell
-  reports it per view (`frame-report.work-area`), and windows are kept wholly inside it on edges a
-  band insets, except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
-  whole display; a window on no display (unplugged) moves to the nearest. Once let go, a window
-  also keeps the top of its bar (`be_sdk_window_stack::KEPT`) on some display's work area
-  (`grabbable`), so it can always be grabbed again; the rest of it may hang off any edge.
+  reports it per view (`frame-report.work-area`). A window keeps only its grip, the top-left
+  corner where its handle is (`be_sdk_window_stack::KEPT`), on some display's work area
+  (`reachable`, `grabbable`), so it can always be grabbed again; the rest of it may hang off any
+  edge or over any band. A window taller or wider than a work area a band insets shrinks to it
+  (`fitted`), except a `WindowLevel::Fullscreen` window (the dock's fullscreen), which covers the
+  whole display; a window on no display (unplugged) moves to the nearest. A window moved past
+  where its grip can be reached follows the pointer on a rubber band, and let go, springs back
+  from there at the speed it was moving (`desktop.rs`, `Spring`); be-host's own window springs
+  the windows it carries itself (`carried`).
   Keeping only changes where a window shows (`Stacked::show_at`), never where it is wanted
   (`Stacked::wanted`, set by the user's and the app's moves): a window pushed in by a smaller or
   unplugged display goes back once there is room. Its `host-place` is the wanted place, which
@@ -190,8 +194,9 @@ When the shell app stops (panic, trap, hang, session failure, or Kill in Running
 `watch_shell` closes it and its editors, and shows the host's session and profile picker
 (`Screen::Sessions`) with a Copy report toast. Every stop goes through `Runtime::stopped`, which
 reports it once to `take_stopped`. Choosing a session opens a fresh shell; the program windows
-stay. On Linux `Compositor::set_owned(false)`, set whenever no shell is on screen, takes input from
-the clients and pings them every `PING_TIMEOUT`, so a client that froze meanwhile is shown as not
+stay. On Linux `Compositor::set_owned(false)`, set through `desktop_host::configure` whenever no
+shell is on screen, takes input from the clients and pings them every `PING_TIMEOUT`, so a client
+that froze meanwhile is shown as not
 responding. The new shell restores each window into the tab that last held its `HostWindowId`. To
 try it: Apps panel > Menu > Running Apps, then Crash or Kill beside `be3.desktop`.
 

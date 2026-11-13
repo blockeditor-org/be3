@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn presenting_a_deck_again_and_again_adds_no_blocks() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Presentation");
     host.click("#presentation.add");
     host.wait("#picker.slides");

@@ -226,10 +226,7 @@ async fn read_custom(format: &str) -> Option<ClipItem> {
         let buffer = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(buffer))
             .await
             .ok()?;
-        return Some(ClipItem::new(
-            format,
-            js_sys::Uint8Array::new(&buffer).to_vec(),
-        ));
+        return ClipItem::from_stored(format, &js_sys::Uint8Array::new(&buffer).to_vec());
     }
     None
 }
@@ -334,7 +331,8 @@ struct Runner {
 }
 
 /// Writes the clip's ready representations the browser carries: plain text,
-/// HTML and PNG everywhere, be3 formats as `web ` types where supported.
+/// HTML and PNG everywhere, be3 formats as `web ` types holding their
+/// `stored` bytes, refs and all, where supported.
 fn write_clip(clip: &Clip) -> Result<(), wasm_bindgen::JsValue> {
     use js_sys::{Array, Function, Object, Reflect, Uint8Array};
     let window = web_sys::window().ok_or("no window")?;
@@ -348,16 +346,16 @@ fn write_clip(clip: &Clip) -> Result<(), wasm_bindgen::JsValue> {
     let blob: Function = Reflect::get(&window, &"Blob".into())?.dyn_into()?;
     let record = Object::new();
     for ready in clip.ready_items() {
-        let kind = match ready.format.as_str() {
-            formats::TEXT | formats::HTML | formats::PNG => ready.format.clone(),
+        let (kind, data) = match ready.format.as_str() {
+            formats::TEXT | formats::HTML | formats::PNG => (ready.format.clone(), ready.data),
             format if formats::is_be3(format) && supports(&format!("web {format}")) => {
-                format!("web {format}")
+                (format!("web {format}"), ready.stored())
             }
             _ => continue,
         };
         let options = Object::new();
         Reflect::set(&options, &"type".into(), &kind.as_str().into())?;
-        let parts = Array::of1(&Uint8Array::from(&ready.data[..]));
+        let parts = Array::of1(&Uint8Array::from(&data[..]));
         let data = Reflect::construct(&blob, &Array::of2(&parts, &options))?;
         Reflect::set(&record, &kind.as_str().into(), &data)?;
     }

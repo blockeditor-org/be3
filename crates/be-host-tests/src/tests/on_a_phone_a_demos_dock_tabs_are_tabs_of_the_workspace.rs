@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_beui_demo(&mut host);
     host.run(&["resize", "390x800"]);
     host.run(&["settle"]);

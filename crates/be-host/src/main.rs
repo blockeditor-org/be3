@@ -441,14 +441,15 @@ impl beui::native::Program for Shell {
             self.document.open_inspector();
         }
         let view = self.core.view();
-        Host::set_owned(
-            self.core.desktop
-                && view.screen == ui::Screen::Organization
-                && self.core.shell.is_some(),
-        );
+        let owned = self.core.desktop
+            && view.screen == ui::Screen::Organization
+            && self.core.shell.is_some();
+        be_host_desktop::desktop_host::configure(|desktop| desktop.owned = owned);
         let store = self.view;
         compositor::notify();
         beui::native::enter(&mut self.document, || {
+            // What the apps did in this frame's `poll` reaches its owners in the document.
+            host::deliver();
             display::apply_shown();
             store.set(view);
         });
@@ -592,16 +593,15 @@ struct HostCore {
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
     contacts: contacts::Contacts,
-    storage_published: Option<u64>,
-    /// The `be_host_stack::notify_modes_revision` the notify modes watch last published.
-    notify_modes_published: Option<u64>,
+    /// What the host stack changed since the last frame.
+    stack_changes: be_host_stack::ChangeWatch,
     /// The `be_host_base::push_device::revision` the push device watch last published.
     push_device_published: Option<u64>,
     /// What a pressed notification's block last waited on (the open organization, how many
-    /// there are, the graph's revision, the changes unsaved), so it is tried again only when
-    /// that changes.
+    /// there are, the changes unsaved), so it is tried again only when that or the graph
+    /// changes.
     #[cfg(target_arch = "wasm32")]
-    pressed_waiting_on: Option<(Option<Uuid>, usize, u64, usize)>,
+    pressed_waiting_on: Option<(Option<Uuid>, usize, usize)>,
     /// The organization this browser's push subscription was last registered for.
     #[cfg(target_arch = "wasm32")]
     push_synced: Option<Uuid>,
@@ -617,6 +617,10 @@ struct HostCore {
     windows_sent: Option<(u64, Vec<be_sdk_api::HostWindowId>)>,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
+    /// What instances reported that the core acts on: focus, artifact watches, and their
+    /// children's commits, dismissals and closes.
+    instance_events: Vec<be_host_runtime::Heard>,
+    _instance_events: host::Mailbox,
     ui_settings: Option<(beui::PreferenceLayer, u32, u32)>,
     preferences: Option<beui::PreferenceLayer>,
     scale: Option<f32>,
@@ -909,8 +913,7 @@ impl HostCore {
             agents: Vec::new(),
             agent_created: None,
             contacts: contacts::Contacts::default(),
-            storage_published: None,
-            notify_modes_published: None,
+            stack_changes: be_host_stack::ChangeWatch::new(),
             push_device_published: None,
             #[cfg(target_arch = "wasm32")]
             pressed_waiting_on: None,
@@ -928,6 +931,12 @@ impl HostCore {
             windows_sent: None,
             focus_reports: HashMap::new(),
             artifact_watches: HashMap::new(),
+            instance_events: Vec::new(),
+            _instance_events: {
+                let (mailbox, post) = desk().mailbox(HostCore::instance_heard);
+                be_host_runtime::listen(None, post);
+                mailbox
+            },
             ui_settings: None,
             preferences: None,
             scale: None,
@@ -2529,18 +2538,19 @@ impl HostCore {
     /// loaded, or changes are unsaved) is held until the organizations, the graph or the
     /// unsaved changes change, and dropped after `web_push::OPENING_PATIENCE`.
     #[cfg(target_arch = "wasm32")]
-    fn open_pressed_notifications(&mut self) {
+    fn open_pressed_notifications(&mut self, changes: &be_host_stack::Changes) {
         let waiting = |host: &Self| {
             (
                 host.organization
                     .as_ref()
                     .map(|organization| organization.id),
                 host.organizations.len(),
-                be_host_stack::graph_revision(),
                 be_host_stack::status().unsaved,
             )
         };
-        if !web_push::has_openings() || self.pressed_waiting_on == Some(waiting(self)) {
+        if !web_push::has_openings()
+            || (!changes.graph && self.pressed_waiting_on == Some(waiting(self)))
+        {
             return;
         }
         self.pressed_waiting_on = None;
@@ -2701,28 +2711,50 @@ impl HostCore {
             be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
             self.windows_sent = Some((Host::revision(), hidden));
         }
-        let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
-            self.editors.with(|open| {
-                open.values()
-                    .map(|editor| {
-                        (
-                            editor.id(),
-                            editor.take_focus_report(),
-                            editor.take_artifact_watch(),
-                        )
+        let heard = std::mem::take(&mut self.instance_events);
+        let keys: HashMap<(String, be_sdk_api::EditorInstanceId), Uuid> = match heard.is_empty() {
+            true => HashMap::new(),
+            false => self.editors.with(|open| {
+                open.iter()
+                    .filter_map(|(key, editor)| {
+                        let source = editor.source()?;
+                        Some(((source.app_id, source.instance), *key))
                     })
                     .collect()
-            });
+            }),
+        };
         let mut refocused = false;
         let mut rewatched = false;
-        for (id, focus, watch) in reports {
-            if let Some(focus) = focus {
-                self.focus_reports.insert(id, focus);
-                refocused = true;
-            }
-            if let Some(watch) = watch {
-                self.artifact_watches.insert(id, watch);
-                rewatched = true;
+        let mut children = Vec::new();
+        for heard in heard {
+            let key = keys.get(&(heard.app_id.clone(), heard.instance)).copied();
+            match (heard.event, key) {
+                (be_host_runtime::InstanceEvent::Focused(focus), Some(id)) => {
+                    self.focus_reports.insert(
+                        id,
+                        editors::FocusReport {
+                            block: focus.block,
+                            editor: focus.editor,
+                            via: focus.via,
+                        },
+                    );
+                    refocused = true;
+                }
+                (be_host_runtime::InstanceEvent::ArtifactWatch(watch), Some(id)) => {
+                    self.artifact_watches.insert(id, watch);
+                    rewatched = true;
+                }
+                (
+                    event @ (be_host_runtime::InstanceEvent::ChildCommitted(_)
+                    | be_host_runtime::InstanceEvent::ChildDismissed(_)
+                    | be_host_runtime::InstanceEvent::ChildClosed(_)),
+                    _,
+                ) => children.push(be_host_runtime::Heard {
+                    app_id: heard.app_id,
+                    instance: heard.instance,
+                    event,
+                }),
+                _ => {}
             }
         }
         if refocused && let Some(focus) = self.focus(shell) {
@@ -2731,7 +2763,7 @@ impl HostCore {
         if rewatched {
             self.watch_artifacts(self.watched());
         }
-        self.forward_child_commits();
+        self.forward_child_commits(children);
         self.editors.step_creations();
         for (from, action) in compositor::take_actions() {
             self.handle_editor_action(from, action);
@@ -2740,19 +2772,36 @@ impl HostCore {
 
     fn focus(&self, shell: Uuid) -> Option<editors::FocusReport> {
         let mut report = self.focus_reports.get(&shell)?;
+        let mut at = shell;
         let mut visited = HashSet::from([shell]);
         while let Some((block, _)) = report.block
-            && visited.insert(block)
-            && let Some(inner) = self.focus_reports.get(&block)
+            && let inside = self.placed_in(at, block)
+            && visited.insert(inside)
+            && let Some(inner) = self.focus_reports.get(&inside)
             && inner.block.is_some()
         {
             report = inner;
+            at = inside;
         }
         Some(editors::FocusReport {
             block: report.block,
             editor: report.editor,
             via: report.via.clone(),
         })
+    }
+
+    /// The key of the editor showing `block` inside the editor keyed `parent`: a second
+    /// placement of a block has a key of its own (`Editors::block`).
+    fn placed_in(&self, parent: Uuid, block: Uuid) -> Uuid {
+        self.focus_reports
+            .keys()
+            .copied()
+            .find(|key| {
+                *key != block
+                    && self.editors.block(*key) == block
+                    && self.editors.parent_of(*key) == Some(parent)
+            })
+            .unwrap_or(block)
     }
 
     fn watched(&self) -> Vec<Uuid> {
@@ -2762,18 +2811,38 @@ impl HostCore {
         watched
     }
 
-    fn forward_child_commits(&mut self) {
+    /// Acts on what instances' children asked: commits, dismissals and closes.
+    fn forward_child_commits(&mut self, heard: Vec<be_host_runtime::Heard>) {
+        if heard.is_empty() {
+            self.editors.forget_hidden_settings();
+            return;
+        }
         let editors: Vec<(Uuid, InstanceSource)> = self.editors.with(|open| {
-            open.values()
-                .filter_map(|editor| Some((editor.id(), editor.source()?)))
+            open.iter()
+                .filter_map(|(key, editor)| Some((*key, editor.source()?)))
                 .collect()
         });
         let hosted = self.editors.hosted_sources();
         for (id, source) in editors.iter().chain(&hosted) {
-            let (settings, commits): (Vec<_>, Vec<_>) =
-                be_host_runtime::take_child_commits(&source.app_id, source.instance)
-                    .into_iter()
-                    .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
+            let mut commits = Vec::new();
+            let mut dismissed = Vec::new();
+            let mut closed = Vec::new();
+            for heard in heard
+                .iter()
+                .filter(|heard| heard.from(&source.app_id, source.instance))
+            {
+                match &heard.event {
+                    be_host_runtime::InstanceEvent::ChildCommitted(commit) => {
+                        commits.push(commit.clone());
+                    }
+                    be_host_runtime::InstanceEvent::ChildDismissed(child) => dismissed.push(*child),
+                    be_host_runtime::InstanceEvent::ChildClosed(child) => closed.push(*child),
+                    _ => {}
+                }
+            }
+            let (settings, commits): (Vec<_>, Vec<_>) = commits
+                .into_iter()
+                .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
             for commit in settings {
                 if let Some(block) = self.editors.settings_block(*id, commit.child) {
                     self.apply_artifact_settings(block);
@@ -2782,10 +2851,9 @@ impl HostCore {
             if !commits.is_empty() {
                 self.editors.commit_creations(*id, commits);
             }
-            let (settings, dismissed): (Vec<_>, Vec<_>) =
-                be_host_runtime::take_child_dismissals(&source.app_id, source.instance)
-                    .into_iter()
-                    .partition(|child| self.editors.settings_block(*id, *child).is_some());
+            let (settings, dismissed): (Vec<_>, Vec<_>) = dismissed
+                .into_iter()
+                .partition(|child| self.editors.settings_block(*id, *child).is_some());
             for child in settings {
                 if let Some(session) = self
                     .editors
@@ -2798,7 +2866,6 @@ impl HostCore {
             if !dismissed.is_empty() {
                 self.editors.dismiss_creations(*id, &dismissed);
             }
-            let closed = be_host_runtime::take_child_closes(&source.app_id, source.instance);
             if !closed.is_empty() {
                 self.editors.close_children(*id, &closed);
             }
@@ -3177,6 +3244,18 @@ impl HostCore {
         ));
     }
 
+    fn instance_heard(&mut self, heard: be_host_runtime::Heard) {
+        use be_host_runtime::InstanceEvent::{
+            ArtifactWatch, ChildClosed, ChildCommitted, ChildDismissed, Focused,
+        };
+        if matches!(
+            heard.event,
+            Focused(_) | ArtifactWatch(_) | ChildCommitted(_) | ChildDismissed(_) | ChildClosed(_)
+        ) {
+            self.instance_events.push(heard);
+        }
+    }
+
     fn run_frame(&mut self) {
         performance::begin_frame();
         be_host_runtime::poll();
@@ -3211,6 +3290,10 @@ impl HostCore {
             performance::end_frame();
             return;
         }
+        let changes = self.stack_changes.take();
+        self.root_settings.heard(&changes);
+        self.input.heard(&changes);
+        self.display.heard(&changes);
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
@@ -3220,14 +3303,18 @@ impl HostCore {
         });
         self.contacts
             .poll(&accounts::link_base(&self.server_url), ready);
-        self.contacts.publish();
+        if changes.contacts {
+            self.contacts.publish();
+        }
         #[cfg(target_arch = "wasm32")]
         {
-            self.open_pressed_notifications();
+            self.open_pressed_notifications(&changes);
             self.sync_push_subscription();
         }
-        self.publish_storage();
-        self.publish_notify_modes();
+        self.publish_storage(changes.storage);
+        if changes.notify_modes {
+            self.publish_notify_modes();
+        }
         self.publish_push_device();
         self.load_organizations_if_needed();
         if self.choosing_session {
@@ -3331,15 +3418,13 @@ impl HostCore {
     }
 
     /// Follows the account's storage while an editor watches it, and publishes each answer.
-    fn publish_storage(&mut self) {
+    fn publish_storage(&mut self, changed: bool) {
         be_host_stack::watch_storage(be_host_base::watches::watched::<
             be_sdk_api::StorageUsageWatch,
         >());
-        let revision = Some(be_host_stack::storage_revision());
-        if self.storage_published == revision {
+        if !changed {
             return;
         }
-        self.storage_published = revision;
         let usage = be_host_stack::storage_usage().map(|usage| be_sdk_api::AccountStorage {
             held: usage.held,
             pending: usage.pending,
@@ -3348,13 +3433,8 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::StorageUsageWatch>(&usage);
     }
 
-    /// Publishes the account's notification modes whenever the host stack read them anew.
+    /// Publishes the account's notification modes, which the host stack read anew.
     fn publish_notify_modes(&mut self) {
-        let revision = Some(be_host_stack::notify_modes_revision());
-        if self.notify_modes_published == revision {
-            return;
-        }
-        self.notify_modes_published = revision;
         let modes = be_host_stack::notify_modes().map(|modes| {
             modes
                 .into_iter()

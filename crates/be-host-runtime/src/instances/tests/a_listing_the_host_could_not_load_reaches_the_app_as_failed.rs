@@ -1,6 +1,9 @@
 use super::*;
 
-use be_sdk_api::BlockQuery;
+use be_sdk_api::{
+    BlockQuery,
+    blocks::{BlockSubject, BlockValue},
+};
 use be_type_example_counter::CounterContent;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -11,11 +14,12 @@ enum Sent {
 
 fn sent(instances: &mut Instances, watch: OpId) -> Vec<Sent> {
     next_screens(instances);
-    answered::<Result<Vec<be_sdk_api::BlockInfo>, String>>(instances, watch)
+    answered::<BlockValue>(instances, watch)
         .into_iter()
         .map(|answer| match answer {
-            Ok(_) => Sent::Blocks,
-            Err(error) => Sent::Failed(error),
+            BlockValue::Blocks(Ok(_)) => Sent::Blocks,
+            BlockValue::Blocks(Err(error)) => Sent::Failed(error.to_string()),
+            other => panic!("not a listing: {other:?}"),
         })
         .collect()
 }
@@ -38,9 +42,9 @@ fn a_listing_the_host_could_not_load_reaches_the_app_as_failed() {
         false,
     );
     let mut instances = placed_on(folder, CounterContent::CONTENT_TYPE);
-    let watch = open_watch(&mut instances, |op| Call::BlocksWatchNew {
-        resource: wire::BlocksWatch(op),
-        query: BlockQuery::Children(folder.into_bytes()),
+    let watch = open_watch(&mut instances, |op| Call::BlockWatchNew {
+        resource: wire::BlockWatch(op),
+        subject: BlockSubject::Blocks(BlockQuery::Children(folder.into_bytes())),
     });
     let children = be_host_stack::Query::Children(folder);
     sent(&mut instances, watch);

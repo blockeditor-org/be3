@@ -12,12 +12,16 @@ fn super_drag(host: &mut HostTest, from: (f32, f32), by: (f32, f32)) {
     host.run(&["move", &at(1.0)]);
     host.run(&["up"]);
     host.run(&["keyup", "Super"]);
+    host.run(&["pause", "1000"]);
     host.run(&["settle"]);
 }
 
 #[test]
 fn a_desktop_window_moves_by_super_drag_and_keeps_its_bar_on_the_screen() {
-    let mut host = HostTest::start_desktop();
+    let mut host = HostTest::start(Options {
+        desktop: true,
+        ..Options::default()
+    });
     host.click("#desktop.apps");
     host.click("#desktop.apps.sessions.new");
     host.wait(PANE);
@@ -41,7 +45,7 @@ fn a_desktop_window_moves_by_super_drag_and_keeps_its_bar_on_the_screen() {
     let kept = host.place(GRIP);
     assert!(
         kept.1 >= 0.0,
-        "a window carried by its content past the top comes back down until its grip shows: \
+        "a window carried by its content past the top springs back down until its grip shows: \
          {kept:?}"
     );
     host.snapshot("a_desktop_window_moves_by_super_drag_and_keeps_its_bar_on_the_screen");
@@ -51,11 +55,12 @@ fn a_desktop_window_moves_by_super_drag_and_keeps_its_bar_on_the_screen() {
     host.run(&["move", &format!("{},{}", from.0 + 500.0, from.1)]);
     host.run(&["move", "1099,0"]);
     host.run(&["up"]);
+    host.run(&["pause", "1000"]);
     host.run(&["settle"]);
     let kept = host.place(GRIP);
     assert!(
         kept.0 + kept.2 <= 1100.0,
-        "a window let go off the right edge comes back until its grip shows: {kept:?}"
+        "a window let go off the right edge springs back until its grip shows: {kept:?}"
     );
     host.close();
 }

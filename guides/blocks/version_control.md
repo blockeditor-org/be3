@@ -48,7 +48,8 @@ created as `masked(local, scope_mask(checkout))` with the `LOCAL_ID` metadata
 key; a block created in or adopted into a checkout keeps its own id as its
 local id. The host translates every block id crossing the app protocol for an
 instance inside a checkout (`Instances::translate`, over the `BlockIds` of what
-crosses, in `be-host-runtime/src/calls.rs`), and the peer resolves published
+crosses, in `be-host-runtime/src/calls.rs`; a clip item's ids are its `refs`
+whatever its format, guides/beui/platforms.md), and the peer resolves published
 references the same way (`Peer::set_resolver`), so neither content nor editors
 know about checkouts. Resolution looks in the instance's checkout first and
 falls back to the block with that id, so references out of the tree work.
@@ -61,7 +62,7 @@ over the trees, then `Replicas::merge` for blocks both sides changed, which
 is each type's `Merge::merge3` or, for a type that merges by parts, its
 `MergeParts` (guides/type_modules.md, "Merging by parts"), leaving `before`, `yours` and `incoming` copies of a conflicted block
 under the checkout), resolve, undo, fork, pull and push. It answers a
-`version-watch` with each shown repository's and checkout's `version-status`,
+`block-watch` of the `version` subject with each shown repository's and checkout's `version-status`,
 recomputed when the mirror changes, and holds followed checkouts' trees in the
 mirror (`Query::Subtree` under `Owner::Version`), re-listing before each
 operation so every head is current.

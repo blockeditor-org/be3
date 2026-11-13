@@ -77,7 +77,7 @@ enum Answering {
     Created(Ticket<Result<[u8; 16], Failure>>),
     Regenerated(Ticket<Result<(), Failure>>),
     Replaced(u64, Ticket<bool>),
-    Rendered(u64, Ticket<Option<Vec<u8>>, wire::Optional<wire::Bytes>>),
+    Rendered(u64, Ticket<Option<be_sdk_api::clipboard::ClipBody>>),
 }
 
 impl Answering {
@@ -98,7 +98,7 @@ impl Answering {
             },
             Self::Rendered(request_id, ticket) => EditorAnswer::Rendered {
                 request_id,
-                data: ticket.decode(outcome).unwrap_or(None),
+                body: ticket.decode(outcome).unwrap_or(None),
             },
         }
     }
@@ -568,12 +568,8 @@ impl Wire {
             .map_err(|error| format!("the app asked for something it may not: {error:?}"))?;
         let owner = |this: OpId| self.held.owners.get(&this).copied();
         let instance = match &call {
-            Blocks::BlocksWatchNext { this, .. } => owner(this.op()),
-            Blocks::HistoryWatchNext { this, .. } => owner(this.op()),
-            Blocks::HeadWatchNext { this, .. } => owner(this.op()),
+            Blocks::BlockWatchNext { this, .. } => owner(this.op()),
             Blocks::SearchWatchNext { this, .. } => owner(this.op()),
-            Blocks::ArtifactWatchNext { this, .. } => owner(this.op()),
-            Blocks::VersionWatchNext { this, .. } => owner(this.op()),
             Blocks::ShowRequestsNext { this, .. } => owner(this.op()),
             Blocks::ReplicaFrames { this, .. } | Blocks::ReplicaSend { this, .. } => {
                 owner(this.op())
@@ -585,12 +581,8 @@ impl Wire {
             return Ok(());
         };
         let next = match call {
-            Blocks::BlocksWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
-            Blocks::HistoryWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
-            Blocks::HeadWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
+            Blocks::BlockWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
             Blocks::SearchWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
-            Blocks::ArtifactWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
-            Blocks::VersionWatchNext { this, reply } => Ok((this.op(), reply.into_op())),
             Blocks::ShowRequestsNext { this, reply } => Ok((this.op(), reply.into_op())),
             call => Err(call),
         };
@@ -618,22 +610,10 @@ impl Wire {
                 self.held.sends.insert(reply.op(), this.op());
                 None
             }
-            Blocks::BlocksWatchNew { resource, .. } => {
-                self.held.owners.insert(resource.op(), instance)
-            }
-            Blocks::HistoryWatchNew { resource, .. } => {
-                self.held.owners.insert(resource.op(), instance)
-            }
-            Blocks::HeadWatchNew { resource, .. } => {
+            Blocks::BlockWatchNew { resource, .. } => {
                 self.held.owners.insert(resource.op(), instance)
             }
             Blocks::SearchWatchNew { resource, .. } => {
-                self.held.owners.insert(resource.op(), instance)
-            }
-            Blocks::ArtifactWatchNew { resource, .. } => {
-                self.held.owners.insert(resource.op(), instance)
-            }
-            Blocks::VersionWatchNew { resource } => {
                 self.held.owners.insert(resource.op(), instance)
             }
             Blocks::ShowRequestsNew { resource } => {

@@ -1,5 +1,5 @@
 //! The organization's durable change sequence, which `changed-since` pages through
-//! (plans/search.md, "Left open").
+//! (plans/deferred/search.md, "Limits accepted").
 //!
 //! One strictly increasing counter per organization (`organizations.change_sequence`) is
 //! advanced in the transaction of every write that changes what a block holds, where it lies

@@ -11,7 +11,7 @@ use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
-use crate::tokens::{Length, Size, Space, Stroke, use_size, use_space};
+use crate::tokens::{Length, Size, Space, Stroke};
 
 const SPACING: Space = Space::Sm;
 const GAP: Space = Space::Xs2;
@@ -39,7 +39,7 @@ pub fn Treemap<K>(
 where
     K: Clone + Eq + Hash + std::fmt::Display + 'static,
 {
-    let gap = use_space(GAP);
+    let gap = GAP.px();
     let top = label.clone();
     view! {
         <unstyled::Treemap
@@ -124,17 +124,14 @@ where
             },
         );
     let border = Some(Border::new(ColorRole::Border).width(Stroke::Hairline));
-    let (label_width, label_height, detail_height) = (
-        use_size(LABEL_WIDTH),
-        use_size(LABEL_HEIGHT),
-        use_size(DETAIL_HEIGHT),
-    );
+    let (label_width, label_height, detail_height) =
+        (LABEL_WIDTH.px(), LABEL_HEIGHT.px(), DETAIL_HEIGHT.px());
     let labelled = create_memo(move || {
         size.get()
-            .is_some_and(|size| size.x >= label_width.get() && size.y >= label_height.get())
+            .is_some_and(|size| size.x >= label_width && size.y >= label_height)
     });
     let detailed = create_memo(move || {
-        labelled.get() && size.get().is_some_and(|size| size.y >= detail_height.get())
+        labelled.get() && size.get().is_some_and(|size| size.y >= detail_height)
     });
     let label = create_memo(move || tile.with(|tile| tile.label.clone()));
     let detail = create_memo(move || format.call(tile.with(|tile| tile.size)));

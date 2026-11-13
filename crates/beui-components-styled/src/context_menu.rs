@@ -10,7 +10,7 @@ use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::theme::SCROLL_FADE;
-use crate::tokens::{Padding, Size, Space, use_size, use_space};
+use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollbarStyle, SheetWhen,
@@ -369,12 +369,11 @@ pub(crate) fn MenuTreeLead(
     indent: Space,
     chevron: Size,
 ) -> DynamicSegment<ListItem> {
-    let indent = use_space(indent);
+    let indent = indent.px();
     let depth = create_memo(move || depth.get());
     let in_tree = create_memo(move || depth.get().is_some());
     let expanded = create_memo(move || expanded.get());
-    let width =
-        create_memo(move || Size::Custom(depth.get().unwrap_or_default() as f32 * indent.get()));
+    let width = create_memo(move || Size::Custom(depth.get().unwrap_or_default() as f32 * indent));
     let expandable = create_memo(move || expanded.get().is_some());
     let leaf = create_memo(move || !expandable.get());
     let glyph = create_memo(move || match expanded.get() {
@@ -557,7 +556,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
 
 #[component]
 fn MenuPanel(min_width: Size, children: Child) -> NodeId {
-    let min_width = use_size(min_width).get_untracked();
+    let min_width = min_width.px();
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <ListItem min=min_width max=MENU_MAX_WIDTH shrink=1.0>

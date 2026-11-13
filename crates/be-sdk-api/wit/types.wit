@@ -621,7 +621,9 @@ interface types {
         /// areas their scrims block, clear or not.
         floating: list<rect>,
         /// The parts of `floating` the overlays paint, which the host draws
-        /// above the view's children: their content. A scrim is never
+        /// above the view's children: their content, with the view's clear
+        /// color erased under it, so only what the overlays and the view
+        /// draw there shows over the children and windows. A scrim is never
         /// painted into the view's surface: a clear one only blocks
         /// input, and the host draws each one that dims (`scrims`) over the
         /// view's children and under the content, so the children show
@@ -1260,9 +1262,13 @@ interface types {
         released,
     }
 
+    /// `seen` is the `epoch` of the last `dock-declared-child` the instance
+    /// heard for the child, 0 for none. It sends one again whenever that
+    /// changes, even with the same hold: its answer to that declaration.
     record dock-child-hosted {
         child: dock-child,
         hold: dock-hold,
+        seen: u64,
     }
 
     /// `tab` is in the child's paths; the host closes it at its owner.

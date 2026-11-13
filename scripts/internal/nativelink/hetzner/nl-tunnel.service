@@ -1,0 +1,13 @@
+[Unit]
+Description=re-relay's tunnel-server: carries a client's calls to NativeLink inside a few long HTTP/1.1 requests (Caddyfile)
+After=network-online.target nativelink.service
+StartLimitIntervalSec=0
+
+[Service]
+ExecStart=/usr/local/bin/re-relay tunnel-server -listen 127.0.0.1:50070 -upstream 127.0.0.1:50052
+DynamicUser=yes
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

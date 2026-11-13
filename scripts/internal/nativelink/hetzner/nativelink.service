@@ -1,0 +1,19 @@
+[Unit]
+Description=NativeLink cache, scheduler and worker (be3), in the pinned buildpack-deps image
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f nativelink
+ExecStart=/usr/bin/docker run --rm --name nativelink --network host --ulimit nofile=1048576:1048576 \
+  -v /usr/local/bin/nativelink:/usr/local/bin/nativelink:ro \
+  -v /etc/nativelink/nativelink.json5:/etc/nativelink/nativelink.json5:ro \
+  -v /var/lib/nativelink:/work \
+  docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549 \
+  /usr/local/bin/nativelink /etc/nativelink/nativelink.json5
+ExecStop=/usr/bin/docker stop -t 30 nativelink
+
+[Install]
+WantedBy=multi-user.target

@@ -211,9 +211,10 @@ Traps when changing it:
 - An app's device has only the features it requested; the guest
   (`features.rs`) and host both validate against that, not the host device.
 - Buffer mapping, `on_submitted_work_done` and compilation info are
-  asynchronous on both hosts: the host wakes the app and the guest answers
-  callbacks when it polls (`be_wasm_gpu_guest::poll`, which be-sdk calls each
-  step).
+  asynchronous on both hosts: `map-async` and `on-submitted-work-done` answer
+  tickets, the host wakes the app when one settles or the device is lost, and
+  the guest's one `poll` takes everything that settled and answers callbacks
+  (`be_wasm_gpu_guest::poll`, which be-sdk calls each step).
 - Device loss is per app: `Device::destroy` drops only the app's view of the
   host's shared device until it requests a device again. Natively be-host
   restarts every app on a replaced device (`replace_gpu`).
