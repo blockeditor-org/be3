@@ -15,7 +15,8 @@ export async function signIn(page, serverLog, invite, timeout) {
         const app = await import(new URL("be_host.js", document.baseURI).href);
         const deadline = performance.now() + timeoutMs;
         while (performance.now() < deadline) {
-            const tree = await app.automate(["tree"], 1000);
+            // A tree can time out while the page is still starting: ask again.
+            const tree = await app.automate(["tree"], 1000).catch(() => "");
             if (/https?:\/\/[^\s"]+\/auth\?code=[a-f0-9-]+/.test(tree) || tree.includes('"My files"')) return tree;
             await new Promise(requestAnimationFrame);
         }
