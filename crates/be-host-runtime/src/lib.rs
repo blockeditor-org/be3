@@ -42,6 +42,7 @@ pub use be_wasm_host::memories as wasm_memories;
 pub use description::describe;
 pub use events::{Heard, InstanceEvent, listen};
 pub use input::BlockDrag;
+pub use instances::gift::{GiftView, KeyProgress, is_press};
 pub use instances::{EditorView, Focus};
 pub(crate) use palette::host_draws_palette;
 pub use palette::{PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks};
@@ -62,16 +63,19 @@ pub use runtime::{
     view_placed, view_published,
 };
 pub use runtime::{
-    artifact, artifact_draft, assigned_size, begin_frame, busy, card, child_focus_pending, close,
-    commit_creation, content_delivered, content_view, crash, creation, dialog_status, dismiss,
-    drawing, flush, forget_dialog_answer, frame_child, frame_rects, frames_answered, hold, in_use,
-    install, intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll, present,
-    presenting, preview_image, record_pacing, refuse_child_focus, regenerate_artifact, render_clip,
-    replace_child, replace_gpu, report_child_details, report_child_focus, report_children,
-    request_painting, resized, restart_app, revoke_frame_child, running, set_artifact_states,
-    set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
-    show_history, show_panel, start_frames, take_child_focus, take_steps, take_stopped,
-    view_placement_of, view_size, warm,
+    artifact, artifact_draft, assigned_size, begin_frame, busy, card, close, commit_creation,
+    content_delivered, content_view, crash, creation, dialog_status, dismiss, drawing, flush,
+    forget_dialog_answer, frame_child, frame_rects, frames_answered, hold, in_use, install,
+    intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll, present, presenting,
+    preview_image, record_pacing, regenerate_artifact, render_clip, replace_child, replace_gpu,
+    report_child_details, report_child_focus, report_children, request_painting, resized,
+    restart_app, revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
+    set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
+    start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
+};
+pub use runtime::{
+    child_failed_for_gift, child_up_for_gift, end_gift, forget_keys, route_keys, sent_press,
+    settle_keys, take_gift,
 };
 pub use windows::{forget_windows, request_windows, take_window_requests};
 
@@ -105,10 +109,6 @@ pub enum EditorAction {
     Command {
         id: Uuid,
         command: be_sdk_api::BlockCommand,
-    },
-    Shell {
-        id: Uuid,
-        command: be_sdk_api::ShellCommand,
     },
     SimulateAccess {
         id: Uuid,
@@ -145,7 +145,6 @@ pub struct HostChild {
     pub keyboard: bool,
     pub sheet: bool,
     pub anchor: Option<Rect>,
-    pub focus_asked: bool,
     pub fullscreen: bool,
 }
 

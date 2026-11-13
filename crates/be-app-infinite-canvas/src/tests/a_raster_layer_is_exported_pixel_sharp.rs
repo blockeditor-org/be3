@@ -39,7 +39,11 @@ fn a_raster_layer_is_exported_pixel_sharp() {
     assert!(svg.contains("href=\"data:image/png;base64,"));
 
     palette_runs(&mut editor, "copy as png");
-    let copied = editor.take_copied(be_sdk_beui::beui::clipboard::formats::PNG);
+    let copied = editor
+        .take_copied(be_sdk_beui::beui::clipboard::formats::PNG)
+        .into_iter()
+        .map(|item| item.data)
+        .collect::<Vec<_>>();
     let [png] = copied.as_slice() else {
         panic!("Copy as PNG puts one image on the clipboard");
     };

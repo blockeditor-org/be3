@@ -16,6 +16,7 @@ serde = { version = "1", features = ["derive"] }
 uuid = "1"
 
 [dev-dependencies]
+pollster = "0.4"
 uuid = { version = "1", features = ["v4"] }
 be-block-commit = { path = "../be-block-commit", default-features = false }
 

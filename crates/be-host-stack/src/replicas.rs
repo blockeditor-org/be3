@@ -128,6 +128,18 @@ impl be_block_type_host::Host for Shared {
                 }
             }
             held.graph.report_head(block, status.head);
+            if let Some(undo) = &status.undo {
+                let history = super::History {
+                    can_undo: undo.can_undo,
+                    can_redo: undo.can_redo,
+                    restarted_at: undo.restarted_at,
+                    lost_edits: undo.lost_edits,
+                };
+                if held.histories.get(&block) != Some(&history) {
+                    held.histories.insert(block, history);
+                    held.touch(block);
+                }
+            }
             held.locked.contains(&block)
         };
         if !locked || status.unreadable.is_none() {
@@ -147,24 +159,10 @@ impl be_block_type_host::Host for Shared {
         held.touch(block);
     }
 
-    fn history(shared: &Arc<Mutex<Self>>, block: Uuid, history: be_sdk_type_api::UndoState) {
-        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.histories.insert(
-            block,
-            super::History {
-                can_undo: history.can_undo,
-                can_redo: history.can_redo,
-                restarted_at: history.restarted_at,
-                lost_edits: history.lost_edits,
-            },
-        );
-        held.touch(block);
-    }
-
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.conflicts.entry(block).or_default().push(conflict);
-        held.stale_revision += 1;
+        crate::changes::stale();
         held.progressed += 1;
         held.touch(block);
     }

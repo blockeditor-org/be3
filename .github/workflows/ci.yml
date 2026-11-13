@@ -34,8 +34,8 @@ env:
 # build server as it can. It is also the gate: ci is
 # the one check the ruleset on main requires, on the pull request and on the
 # merge group GitHub's merge queue builds from it. It runs the pull
-# request's code, so it holds no credential beyond the build server's address
-# and a boat key that can only wake its scheduler (BE3_NL_URL, BE3_NL_KEY), and
+# request's code, so it holds no credential beyond the build server's token
+# (BE3_NL_TOKEN) and
 # the tracker's header, all of which a build can already read. This workflow
 # also runs on the code of
 # pull requests opened before it changed, so it hands that code no secret it
@@ -72,16 +72,13 @@ jobs:
     name: ci
     runs-on: ubuntu-24.04
     env:
-      # The build server: NativeLink on boat, behind Caddy on a hosted port (guides/build_server.md).
-      # BE3_NL_URL is the hosted port's address with Caddy's token, which is what
-      # lets a build use the server, as the gateway's header used to. BE3_NL_KEY is a boat key that can only read and resume the
-      # scheduler VM, so a build can wake it. Both are on this job alone, because it runs the pull request's code
-      # and a build can read them; a pull request from a fork sees empty values and ./scripts/buck says so rather
-      # than building.
-      BE3_BUILD_SERVER: nativelink
-      BE3_NL_URL: ${{ secrets.BE3_NL_URL }}
-      BE3_NL_KEY: ${{ secrets.BE3_NL_KEY }}
-      # The pinned bootstrap predates the nativelink server and would refuse its name, so this job runs the
+      # The build server: NativeLink on a Hetzner server, behind Caddy (guides/build_server.md).
+      # BE3_NL_TOKEN is Caddy's token, which is what lets a build use the server. It is on this job
+      # alone, because it runs the pull request's code and a build can read it; a pull request from a fork
+      # sees an empty value, and the server refuses its build.
+      BE3_BUILD_SERVER: nl.be3.pfg.pw
+      BE3_NL_TOKEN: ${{ secrets.BE3_NL_TOKEN }}
+      # The pinned bootstrap predates the nl.be3.pfg.pw server and would refuse its name, so this job runs the
       # checkout's own, built with cargo (guides/bootstrap.md, Recovery). Remove it once a release that knows
       # the server is pinned.
       BE3_BOOTSTRAP: cargo

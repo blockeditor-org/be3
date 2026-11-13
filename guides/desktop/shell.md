@@ -92,8 +92,9 @@ that display it is centred over the windows' area. It holds:
 
 - the program search (`root/launcher.rs`, a `styled::SearchList`), while `ProgramsWatch` is
   offered: a grid of tiles for an empty query (`desktop.apps.item.ID`), a list narrowed by name,
-  keywords and comment otherwise, ending with a row that runs the query as a command
-  (`desktop.apps.item.run`). It keeps a fixed height so the field stays put.
+  keywords and comment otherwise, ending with a row that runs the query as a command through
+  the shell the host names (`ProgramCatalog::shell`; `desktop.apps.item.run`), offered only once
+  the host has named one. It keeps a fixed height so the field stays put.
   `ProgramCatalog::listed` is false until the host has scanned once ("Loading programs…").
 - the sessions (`root/sessions.rs`): every non-desktop session in the account's settings, opened in
   a floating window, and New session.

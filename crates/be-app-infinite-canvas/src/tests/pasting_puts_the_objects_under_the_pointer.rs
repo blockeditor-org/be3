@@ -13,6 +13,7 @@ fn pasting_puts_the_objects_under_the_pointer() {
     let pointer = editor.point_of(&format!("infinite-canvas.entity.{}", card().id));
     let items = CanvasItems {
         canvas: Uuid::new_v4(),
+        blocks: Vec::new(),
         entities: serde_json::to_vec(&[first, second]).expect("entities encode"),
     };
 
