@@ -3651,6 +3651,11 @@ pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>
     tasks.spawn(async move { list(&peer, &shared, unlisted, wanted).await });
 }
 
+/// Set by a test: the outbox is not drained until it is cleared, and something asks again.
+#[cfg(test)]
+pub(crate) static HOLD_DRAINS: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 #[derive(Clone)]
 pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
@@ -3694,6 +3699,10 @@ impl Tasks {
 
     pub(super) fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         if !peer.is_attached() {
+            return;
+        }
+        #[cfg(test)]
+        if HOLD_DRAINS.load(std::sync::atomic::Ordering::SeqCst) {
             return;
         }
         {
@@ -3746,6 +3755,28 @@ impl Tasks {
             Some(block) => peer.has_structural(block),
             None => peer.pending().operations > 0,
         };
+        self.sent_while(peer, shared, waits).await;
+    }
+
+    /// Like `sent` for one block, waiting for its content's commits too.
+    pub(super) async fn content_sent(
+        &self,
+        peer: &Arc<Peer<Store>>,
+        shared: &Arc<Mutex<Shared>>,
+        block: Uuid,
+    ) {
+        let waits = || peer.has_structural(block) || !peer.pending_commits(block).is_empty();
+        self.sent_while(peer, shared, waits).await;
+    }
+
+    /// Drains the outbox while `waits`, two drains at most: one already under way may have
+    /// started before what is waited on was there.
+    async fn sent_while(
+        &self,
+        peer: &Arc<Peer<Store>>,
+        shared: &Arc<Mutex<Shared>>,
+        waits: impl Fn() -> bool,
+    ) {
         let mut drains = self.drained.subscribe();
         for _ in 0..2 {
             if !peer.is_attached() || !waits() {

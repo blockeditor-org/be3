@@ -172,11 +172,12 @@ impl Reach<'_> {
         }
     }
 
-    /// Waits for what this device made of `block` to be sent: in the lane, through a drain of the
-    /// outbox; in the loop there is nothing to wait on, as nothing there writes a block.
-    pub(crate) async fn sent(&mut self, ctx: Ctx<'_>, block: Uuid) {
+    /// Waits for what this device made of `block`, its content included, to be sent: in the
+    /// lane, through a drain of the outbox; in the loop there is nothing to wait on, as nothing
+    /// there writes a block.
+    pub(crate) async fn content_sent(&mut self, ctx: Ctx<'_>, block: Uuid) {
         if let Reach::Loop(calls) = self {
-            calls.tasks.sent(ctx.0, ctx.1, Some(block)).await;
+            calls.tasks.content_sent(ctx.0, ctx.1, block).await;
         }
     }
 

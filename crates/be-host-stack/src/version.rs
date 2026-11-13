@@ -2294,7 +2294,9 @@ async fn publish(
         written.references,
         written.metadata.derived.clone(),
     );
-    for _ in 0..4 {
+    // Rejected writes and waits for this device's own edit to be sent, each bounded on its own.
+    let (mut rejected, mut waited) = (0, 0);
+    loop {
         if let Some(theirs) = expected
             && made_from != expected
         {
@@ -2307,8 +2309,14 @@ async fn publish(
                     // What this was made from is this device's edit, not sent yet, on top of
                     // `expected`: what this writes holds it already. Once it is sent, it is the
                     // head this writes over, so nothing of it is merged in twice.
+                    if waited == 2 {
+                        return Err("This device's edit of a block could not be sent. Try again \
+                                    once it is."
+                            .into());
+                    }
+                    waited += 1;
                     let ctx = (context.peer, context.shared);
-                    context.replicas.sent(ctx, block).await;
+                    context.replicas.content_sent(ctx, block).await;
                     expected = context.peer.remote_head(block).await.map_err(failed)?;
                     continue;
                 }
@@ -2343,10 +2351,17 @@ async fn publish(
                     .put(node, summary.revision);
                 return Ok(Some(head));
             }
-            Saved::Rejected { head } => expected = head,
+            Saved::Rejected { head } => {
+                rejected += 1;
+                if rejected == 4 {
+                    return Err(
+                        "Someone else kept changing a block at the same time. Try again.".into(),
+                    );
+                }
+                expected = head;
+            }
         }
     }
-    Err("Someone else kept changing a block at the same time. Try again.".into())
 }
 
 /// The command's defined entries over the block's: the command's value for each key it
