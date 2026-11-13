@@ -33,24 +33,6 @@ what is not an event, and `child-bar` and `child-focused` carry the child
 only. What is left: the host's `docks::take_bars` still carries a `ViewId`
 nothing reads.
 
-## 4. Block watches are one resource
-
-`blocks.wit` has `blocks-watch(query)`, `history-watch(block)`,
-`head-watch(block)`, `artifact-watch(block)` and `version-watch()`. The host
-already merges them into one `Subject` enum
-(`be-host-runtime/src/instances/blocks.rs`).
-
-Replace them with:
-
-```wit
-variant block-subject { blocks(block-query), history(block-id), head(block-id), artifact(block-id), version }
-resource block-watch { constructor(subject: block-subject); next: async func() -> block-value; }
-```
-
-The guest's copied `watch_X` / `take_X_watch` / reconcile blocks
-(`be-sdk/src/link.rs`, `be-sdk/src/host.rs`) become one, which checks that a
-value matches its subject. `show-requests` stays separate: it is a queue.
-
 ## 5. Acting on a block is one call
 
 Today a block is changed through `blocks.act(block, block-command)`,
@@ -222,9 +204,6 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
   `take_copied_text` and `take_copied_images` in favour of
   `take_copied(format)`, with the serial of a copy in a separate accessor if a
   test needs it (`take_copies` has two callers in be-sdk-beui-platform).
-- `HostTest` (`be-host-tests/src/lib.rs`): `start`, `start_desktop`,
-  `start_in_space`, `start_drawing_previews` and `start_with` become
-  `start(Options)`.
 - `be` CLI (`be-tool-cli/src/cli.rs`): a row's page is a text block target.
   `be ROW page` resolves to it, made on first write, and the text verbs
   (`cat`, `write`, `append`, `edit`) work on it; remove the copied `page`

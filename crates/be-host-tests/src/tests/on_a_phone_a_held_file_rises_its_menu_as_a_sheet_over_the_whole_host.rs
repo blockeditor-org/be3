@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_host() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.run(&["resize", "390x800"]);
     host.wait("TreeItem \"My files\"");
     let (x, y, width, height) = host.place("TreeItem \"My files\"");

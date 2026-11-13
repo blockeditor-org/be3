@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_dock_grip_menu_row_loses_its_highlight_when_the_pointer_leaves_the_menu() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     let ids = host.run(&["ids"]);
     let grip = ids
         .split_whitespace()
