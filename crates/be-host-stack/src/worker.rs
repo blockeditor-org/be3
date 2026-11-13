@@ -1544,6 +1544,11 @@ impl Session<'_> {
         }
         self.replicas.pump((peer, shared)).await;
         self.versions.reconnected();
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .search
+            .reconnected();
         self.refresh_versions().await;
         self.in_arrive = false;
         // Rejoined already when the outbox had nothing to drain; otherwise `settle_outbox` says

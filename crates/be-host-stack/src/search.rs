@@ -166,6 +166,10 @@ pub(crate) struct Settle {
 /// What the worker keeps for search, in `Shared::search`.
 #[derive(Default)]
 pub struct Searching {
+    /// The indexes the wanted searches read, which this connection watches: a head another
+    /// device moves reaches a device online only through a watch (`Event::HeadChanged`), and
+    /// moves the mirror's head the answers are kept for.
+    watching: HashSet<Uuid>,
     /// Blocks whose text their root's index has yet to take.
     dirty: BTreeSet<Uuid>,
     /// Indexes a batch is being written to.
@@ -220,6 +224,11 @@ pub struct Searching {
 }
 
 impl Searching {
+    /// The new connection watches nothing yet.
+    pub(crate) fn reconnected(&mut self) {
+        self.watching.clear();
+    }
+
     /// Queues a block whose head this device's session moved.
     pub(crate) fn sealed(&mut self, block: Uuid) {
         self.dirty.insert(block);
@@ -1155,7 +1164,7 @@ async fn catch_up(
     index: Uuid,
 ) -> Result<bool, be_block_client::ClientError> {
     const PAGE: u32 = 200;
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, None).await else {
         return Ok(false);
     };
     let Ok(content) = load(peer, head).await else {
@@ -1269,7 +1278,7 @@ fn settle_indexes(
 
 /// Which of `blocks` the index holds a document of.
 async fn held_blocks(peer: &Peer<Store>, index: Uuid, blocks: &[Uuid]) -> Vec<Uuid> {
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, None).await else {
         return Vec::new();
     };
     let Ok(content) = load(peer, head).await else {
@@ -1335,12 +1344,27 @@ impl<S: ObjectStore> AsyncRead for PeerParts<'_, S> {
 /// The head a batch applies to: the newest this device knows, so indexing never waits on the
 /// server; a batch on a head older than the server's meets the newer one as a diverged block and
 /// merges by parts. The server is asked only when the device knows no head.
-async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
+/// The head of `index` to read: this device's while it has edits to it not sent, otherwise the
+/// newest the server is known to hold. `listed` is the head the graph mirror last heard of: a
+/// watch moves it when another device publishes, before this device fetches anything, while
+/// the remote head this device keeps moves when it publishes or catches up itself. Whichever
+/// descends from the other is the newer; when neither does, the kept one is read.
+async fn head_of<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    listed: Option<CommitId>,
+) -> Option<CommitId> {
     let known = match peer.pending_commits(index).is_empty() {
         false => peer.local_head(index),
-        true => peer
-            .known_remote_head(index)
-            .or_else(|| peer.local_head(index)),
+        true => match (listed, peer.known_remote_head(index)) {
+            (Some(listed), Some(kept)) if listed != kept => {
+                match peer.descends(listed, kept).await {
+                    Ok(true) => Some(listed),
+                    _ => Some(kept),
+                }
+            }
+            (listed, kept) => kept.or(listed).or_else(|| peer.local_head(index)),
+        },
     };
     if known.is_some() {
         return known;
@@ -1370,7 +1394,7 @@ pub async fn write<S: ObjectStore>(
     index: Uuid,
     mut batch: Batch,
 ) -> Result<bool, String> {
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, None).await else {
         return Ok(false);
     };
     let mut content = load(peer, head).await?;
@@ -1433,10 +1457,11 @@ async fn outdate_ancestors<S: ObjectStore>(
 pub async fn search_index<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
+    listed: Option<CommitId>,
     query: &Query,
     limit: usize,
 ) -> Result<Vec<be_lib_search::Hit>, String> {
-    let Some(head) = head_of(peer, index).await else {
+    let Some(head) = head_of(peer, index, listed).await else {
         return Ok(Vec::new());
     };
     load(peer, head)
@@ -1498,9 +1523,11 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
     }
     let wanted: Vec<SearchAsk> = held.search.wanted().cloned().collect();
     let mut followed = Vec::new();
+    let mut read = HashSet::new();
     let mut started = false;
     for asked in wanted {
         let indexes = indexes(&held.graph, &held.search.named, asked.within);
+        read.extend(indexes.iter().copied());
         followed.extend(indexes.iter().map(|index| GraphQuery::Block(*index)));
         let read = heads(peer, &held.graph, &indexes);
         if held.search.running.contains(&asked)
@@ -1514,6 +1541,10 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         }
         held.search.running.insert(asked.clone());
         started = true;
+        let indexes: Vec<(Uuid, Option<CommitId>)> = indexes
+            .iter()
+            .map(|index| (*index, held.graph.get(*index).and_then(|node| node.head)))
+            .collect();
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         tasks.spawn(async move {
             let found = run(&peer, &asked, &indexes).await;
@@ -1539,6 +1570,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         .flat_map(|answer| answer.found.iter().take(SHOWN).map(|found| found.block))
         .collect();
     followed.extend(hits.into_iter().map(GraphQuery::Block));
+    watch(peer, &mut held.search.watching, &read);
     let mut seen = HashSet::new();
     followed.retain(|query| seen.insert(*query));
     if held.graph.wanted(Owner::Search) != followed.as_slice() {
@@ -1547,13 +1579,37 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
     started
 }
 
+/// Watches the indexes in `read` and lets go of the rest, while the connection is attached.
+fn watch(peer: &Peer<Store>, watching: &mut HashSet<Uuid>, read: &HashSet<Uuid>) {
+    let attached = peer.is_attached();
+    let gone: Vec<Uuid> = watching.difference(read).copied().collect();
+    for index in gone {
+        watching.remove(&index);
+        if attached {
+            let _ = peer.unwatch(index);
+        }
+    }
+    if attached {
+        for index in read {
+            if watching.insert(*index) {
+                peer.watch(*index);
+            }
+        }
+    }
+}
+
 /// Every index's best hits, one per document: where two indexes hold a document, the later
-/// commit.
-async fn run(peer: &Peer<Store>, asked: &SearchAsk, indexes: &[Uuid]) -> Vec<Found> {
+/// commit. Each index is searched at the head the graph listed when the search started
+/// (`listed`), which is what its answer is kept for (`heads`).
+async fn run(
+    peer: &Peer<Store>,
+    asked: &SearchAsk,
+    indexes: &[(Uuid, Option<CommitId>)],
+) -> Vec<Found> {
     let query = Query::parse(&asked.text);
     let mut best: HashMap<DocId, (f64, be_lib_search::Commit)> = HashMap::new();
-    for index in indexes {
-        let Ok(hits) = search_index(peer, *index, &query, HITS).await else {
+    for (index, listed) in indexes {
+        let Ok(hits) = search_index(peer, *index, *listed, &query, HITS).await else {
             continue;
         };
         for hit in hits {
