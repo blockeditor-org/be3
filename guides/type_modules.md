@@ -313,19 +313,23 @@ rebase. The rules an agent most needs:
 
 - **Arrival time.** The host hands a peer's message to the replica with when
   the server took it (`delivery.received`). The owner, sequencing a
-  follower's `Submit`, passes it to `LiveEdit::arrived` and sequences the
-  operation as that changed it, so the stamp is the operation's own content and
-  every replica, journal, snapshot and later owner holds it. Only the owner
-  stamps: a replica refuses an edit that already claims an arrival
-  (`LiveEdit::claimed_arrival`), so an honest follower never sends one, and the
-  owner drops a `Submit` that claims one, inline or by its part. A missing stamp
+  follower's `Submit`, fills the operation's stamp slot (`LiveEdit::arrival`)
+  and sequences the operation as that changed it, so the stamp is the
+  operation's own content and every replica, journal, snapshot and later owner
+  holds it. One slot reads and writes the stamp, so the check and the stamp
+  cannot disagree; an operation holding others exposes one slot at most. Only
+  the owner stamps: a replica refuses an edit whose slot is already filled, so
+  an honest follower never sends one, and the owner drops a `Submit` that claims
+  one, inline or by its part, and reports it as incompatible, so a type that
+  pre-stamps shows. Undo goes through the same check, so an inverse operation
+  leaves the stamp off. A missing stamp
   means the arrival is unknown, and content then shows no time, never one the
   edit claims. Unstamped: the owner's own operations (plans/chat.md), one that
   travels as a part, and one that stamping would take past
   `LARGEST_RELAYED_OPERATION`. An operation an old owner never accepted and the
   follower resubmits to a new one gets the later time, an upper bound on when a
-  sequencing owner first had it. Types that keep no arrival time leave both
-  hooks at their defaults and are unchanged.
+  sequencing owner first had it. Types that keep no arrival time leave the
+  hook at its default and are unchanged.
 
 - Every operation the owner sequences goes to the block's journal
   (guides/blocks/client.md, "The journal") through the host's `append`: with

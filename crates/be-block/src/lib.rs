@@ -256,24 +256,22 @@ pub trait LiveEdit: BlockContent {
         Vec::new()
     }
 
-    /// When `operation` says the server took it, if it carries such a stamp (`arrived`). An
-    /// edit made on a device never carries one: the replica refuses an edit that does, and the
-    /// owner drops a participant's operation that does, so only the owner's stamp is ever
-    /// held. Content that keeps no arrival time answers none.
-    fn claimed_arrival(operation: &Self::Op) -> Option<i64> {
+    /// Where `operation` keeps when the server took it (milliseconds since the Unix epoch by
+    /// the server's clock), or none for an operation that keeps no such time, as for every
+    /// operation of content that keeps none. An operation holding other operations exposes one
+    /// slot at most, or the replica could not check them all: such content refuses an edit
+    /// whose operations would need more.
+    ///
+    /// Only the owner fills the slot: the replica refuses an edit made on a device with it
+    /// filled, and the owner drops a participant's operation with it filled, so only the
+    /// owner's stamp is ever held. The owner fills it on a participant's operation as it
+    /// sequences it, then relays and saves it stamped. Some operations stay unstamped, their
+    /// arrival unknown: the owner's own, one that travels as a part, and one that stamping
+    /// would make too large to relay inline. Content shows no time for those, never a time
+    /// the edit claims.
+    fn arrival(operation: &mut Self::Op) -> Option<&mut Option<i64>> {
         let _ = operation;
         None
-    }
-
-    /// Stamps `operation`, which a participant handed this device as the session's owner, with
-    /// when the server took it (`received`, milliseconds since the Unix epoch by the server's
-    /// clock). Answers whether it changed `operation`, which the owner then sequences, relays
-    /// and saves stamped. Some operations stay unstamped, meaning their arrival is unknown:
-    /// the owner's own, one that travels as a part, and one that stamping would make too large
-    /// to relay inline. Content shows no time for those, never a time the edit claims.
-    fn arrived(operation: &mut Self::Op, received: i64) -> bool {
-        let _ = (operation, received);
-        false
     }
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {

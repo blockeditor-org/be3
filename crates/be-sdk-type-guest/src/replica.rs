@@ -83,6 +83,11 @@ const REPLACE_ATTEMPTS: u8 = 4;
 /// How many commits a follower kept the owner remembers having saved.
 const SAVED_KEPT: usize = 64;
 const DIVERGED: &str = "an edit from a peer running a different version";
+/// Whether `operation` already holds an arrival stamp (`LiveEdit::arrival`).
+fn claims_arrival<C: LiveEdit>(operation: &mut C::Op) -> bool {
+    C::arrival(operation).is_some_and(|slot| slot.is_some())
+}
+
 const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
 
 pub(crate) struct Opened {
@@ -2554,7 +2559,7 @@ where
         }
     }
 
-    fn edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
+    fn edit(&mut self, mut operation: C::Op, origin: Option<EditorId>) -> bool {
         self.active = true;
         if self.diverged {
             self.error(DIVERGED);
@@ -2562,7 +2567,7 @@ where
         }
         // Only the owner stamps an arrival: taken from the editor and shown as it was, so it
         // is never sent and never waits to be accepted.
-        if C::claimed_arrival(&operation).is_some() {
+        if claims_arrival::<C>(&mut operation) {
             self.error(CLAIMED_ARRIVAL);
             self.reproject();
             return true;
@@ -3222,15 +3227,17 @@ where
                     None if payload.part().is_some() => return,
                     None => return self.unreadable_message(),
                 };
-                // A replica never sends a stamp of its own (`edit`), so one was forged.
-                if C::claimed_arrival(&operation).is_some() {
-                    return;
+                // A replica never sends a stamp of its own (`edit`), so one was forged, or the
+                // type pre-stamps: dropped, and reported as an incompatible message.
+                if claims_arrival::<C>(&mut operation) {
+                    return self.unreadable_message();
                 }
                 // An operation that travels as a part keeps no stamp, as one that stamping
                 // would take past what is relayed inline: either would need a new part.
                 if let (Some(received), Payload::Inline(_)) = (received, &payload) {
                     let mut stamped = operation.clone();
-                    if C::arrived(&mut stamped, received) {
+                    if let Some(slot) = C::arrival(&mut stamped) {
+                        *slot = Some(received);
                         let bytes = C::encode_operation(&stamped);
                         if bytes.len() <= LARGEST_RELAYED_OPERATION {
                             payload = Payload::Inline(bytes);

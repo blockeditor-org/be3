@@ -4,7 +4,8 @@ use super::*;
 use be_block_session::Payload;
 
 /// Only the owner stamps an arrival. A note that already claims one is dropped, inline or by
-/// its part, and a replica refuses to make one, so an honest follower never sends it.
+/// its part, and reported as incompatible, and a replica refuses to make one, so an honest
+/// follower never sends it.
 #[test]
 fn a_forged_arrival_is_never_sequenced() {
     let mut sim = Sim::<Arrivals>::new(2, arrivals_module);
@@ -46,6 +47,10 @@ fn a_forged_arrival_is_never_sequenced() {
         "a forged stamp was sequenced"
     );
     assert!(sim.errors.is_empty(), "{:?}", sim.errors);
+    assert!(
+        sim.devices[0].status.incompatible,
+        "the owner did not report the forgery it dropped"
+    );
 
     sim.operate(1, 1, forged);
     sim.settle();

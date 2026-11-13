@@ -447,8 +447,8 @@ participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
 client that has left the session (or never joined) is dropped without an error:
 it is best-effort, and the sender cannot know the other left. Each relay, and
 each entry an `append` relays, reaches participants stamped with when the server
-took it (`received`, by its clock), which the owner hands to `LiveEdit::arrived`
-for a follower's operation (guides/type_modules.md). The server cannot read a
+took it (`received`, by its clock), which the owner writes into a follower's
+operation (`LiveEdit::arrival`) (guides/type_modules.md). The server cannot read a
 relay, so each names its `relay-kind`: `peer` (presence, channel messages,
 asking to catch up) needs view access, and `edit` (operations and session state)
 edit access (`rule`).

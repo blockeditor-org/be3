@@ -1,4 +1,4 @@
-//! A content type that keeps when the server took each note (`LiveEdit::arrived`), for the
+//! A content type that keeps when the server took each note (`LiveEdit::arrival`), for the
 //! arrival-time tests.
 
 use super::*;
@@ -52,13 +52,8 @@ impl LiveEdit for Arrivals {
         self.entries.push(operation.stamp);
     }
 
-    fn claimed_arrival(operation: &Note) -> Option<i64> {
-        operation.stamp
-    }
-
-    fn arrived(operation: &mut Note, received: i64) -> bool {
-        operation.stamp = Some(received);
-        true
+    fn arrival(operation: &mut Note) -> Option<&mut Option<i64>> {
+        Some(&mut operation.stamp)
     }
 }
 

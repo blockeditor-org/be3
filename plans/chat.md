@@ -17,8 +17,11 @@ counts are built (guides/chat.md). What is left:
   count yet.
 - **Arrival time.** The protocol half is built (guides/type_modules.md,
   "Arrival time"): the owner stamps a follower's operation through
-  `LiveEdit::arrived`, and drops one that claims a stamp. Left for chat: keep the
-  stamp in the message op (`arrived` and `claimed_arrival` for `ChatContent`); a
+  `LiveEdit::arrival`, and drops one that claims a stamp. Left for chat: keep the
+  stamp in the message op (`arrival` for `ChatContent`); its inverse operations
+  (undoing a delete, anything else derived from held content) must leave the
+  stamp off, since undo goes through `edit`, which refuses a claimed arrival, so a
+  restored message shows its arrival as unknown; a
   message shows its claimed time and, once stamped, if it arrived well after
   that, says it was sent offline and when it arrived. A message without a stamp
   shows no arrival, never its claimed time. A dishonest session owner could
