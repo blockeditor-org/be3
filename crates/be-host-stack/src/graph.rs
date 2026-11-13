@@ -121,6 +121,26 @@ pub struct Graph {
     /// it had, and the replica says nothing more until the head changes again.
     reported: HashMap<Uuid, CommitId>,
     placing: std::collections::HashSet<Uuid>,
+    /// The last children whose parent's references took them in (`placed`), with that parent,
+    /// so a child that drops out of them again while it still names the parent is noticed
+    /// (`dropped`): a block that then reads as deleted.
+    placed_recently: std::collections::VecDeque<(Uuid, Uuid)>,
+    /// Children that dropped out of their parent's references after they were placed there, for
+    /// the worker to log with what it knows of the parent (`take_dropped`).
+    dropped: Vec<Dropped>,
+}
+
+/// How many placed children `Graph::placed_recently` remembers.
+const PLACED_REMEMBERED: usize = 64;
+
+/// A child that dropped out of its parent's references after they had taken it in, while it
+/// still names that parent: it reads as deleted (`Graph::dropped`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Dropped {
+    pub child: Uuid,
+    pub parent: Uuid,
+    /// What set the parent's references without it: its open replica's report, or a listing.
+    pub by: &'static str,
 }
 
 impl Graph {
@@ -506,6 +526,7 @@ impl Graph {
                 node.references = all;
                 self.moved();
                 self.relist(Listing::References(block));
+                self.check_dropped(block, "its open replica's report");
             }
         }
         if let Some(listed) = self.listings.get_mut(&Listing::References(block)) {
@@ -521,11 +542,49 @@ impl Graph {
 
     fn placed(&mut self, parent: Uuid, references: &[Uuid]) {
         let nodes = &self.nodes;
+        let mut taken = Vec::new();
         self.placing.retain(|child| {
-            !(references.contains(child)
+            let placed = references.contains(child)
                 && nodes.get(child).and_then(|node| node.parent)
-                    == Some(BlockParent::Block(parent)))
+                    == Some(BlockParent::Block(parent));
+            if placed {
+                taken.push(*child);
+            }
+            !placed
         });
+        for child in taken {
+            if self.placed_recently.len() == PLACED_REMEMBERED {
+                self.placed_recently.pop_front();
+            }
+            self.placed_recently.push_back((child, parent));
+        }
+    }
+
+    /// Notes the children placed in `parent` that its references, just set `by` something, no
+    /// longer hold though they still name it. Children that moved elsewhere are forgotten.
+    fn check_dropped(&mut self, parent: Uuid, by: &'static str) {
+        let Some(references) = self.nodes.get(&parent).map(|node| node.references.clone()) else {
+            return;
+        };
+        let nodes = &self.nodes;
+        let dropped = &mut self.dropped;
+        self.placed_recently.retain(|&(child, placed_in)| {
+            if placed_in != parent {
+                return true;
+            }
+            let names_it =
+                nodes.get(&child).and_then(|node| node.parent) == Some(BlockParent::Block(parent));
+            if names_it && !references.contains(&child) {
+                dropped.push(Dropped { child, parent, by });
+                return false;
+            }
+            names_it
+        });
+    }
+
+    /// The children that dropped out of their parent's references since this was last asked.
+    pub fn take_dropped(&mut self) -> Vec<Dropped> {
+        std::mem::take(&mut self.dropped)
     }
 
     pub fn forget_references(&mut self, block: Uuid) {
@@ -542,11 +601,11 @@ impl Graph {
         if let Some(references) = self.referenced.get(&node.id) {
             node.references = with_described(references.clone(), &node.metadata);
         }
-        if self
+        let changed_references = self
             .nodes
             .get(&node.id)
-            .is_some_and(|known| known.references != node.references)
-        {
+            .is_some_and(|known| known.references != node.references);
+        if changed_references {
             self.relist(Listing::References(node.id));
         }
         let references = node.references.clone();
@@ -564,9 +623,17 @@ impl Graph {
             }
             return;
         }
+        let by = match self.referenced.contains_key(&node.id) {
+            true => "its open replica's report",
+            false => "a listing",
+        };
+        let id = node.id;
         if self.nodes.get(&node.id) != Some(&node) {
             self.nodes.insert(node.id, node);
             self.moved();
+        }
+        if changed_references {
+            self.check_dropped(id, by);
         }
     }
 
