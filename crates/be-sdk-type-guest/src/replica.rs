@@ -3543,9 +3543,11 @@ where
         self.presence
             .retain(|(client, _), _| state.participants.contains(client));
         self.presence_changed |= self.presence.len() != before;
-        if let Some(owner) = state.owner
-            && self.past_owners.last() != Some(&owner)
-        {
+        // The owner it opened with is known before any lease change, so both are kept.
+        for owner in [self.state.owner, state.owner].into_iter().flatten() {
+            if self.past_owners.last() == Some(&owner) {
+                continue;
+            }
             self.past_owners.retain(|past| *past != owner);
             if self.past_owners.len() >= 8 {
                 self.past_owners.remove(0);
