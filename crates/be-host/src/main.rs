@@ -4148,11 +4148,16 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
 }
 
 fn artifact_of(id: Uuid) -> Option<be_block_content::Artifact> {
-    be_host_stack::node(id)?.metadata.get(&be_block_content::ARTIFACT)
+    be_host_stack::node(id)?
+        .metadata
+        .get(&be_block_content::ARTIFACT)
 }
 
 fn set_artifact(id: Uuid, artifact: Option<be_block_content::Artifact>) {
-    be_host_stack::define(id, vec![be_block_content::ARTIFACT.definition(artifact.as_ref())]);
+    be_host_stack::define(
+        id,
+        vec![be_block_content::ARTIFACT.definition(artifact.as_ref())],
+    );
 }
 
 /// What Restore knows of a deleted block: where it was, and what it was deleted from when its
@@ -4205,7 +4210,8 @@ fn restore_to(
         Some(be_block_content::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
             RestoreTo::Into(parent)
         }
-        Some(be_block_content::DeletedFrom::Root | be_block_content::DeletedFrom::Block(_)) | None => restoring
+        Some(be_block_content::DeletedFrom::Root | be_block_content::DeletedFrom::Block(_))
+        | None => restoring
             .unfiled
             .map_or(RestoreTo::Nowhere, RestoreTo::Unfiled),
     }

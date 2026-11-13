@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use be_block_content::BlockContent;
 use be_block_client::{ClientError, Credentials, Peer, PeerConfig};
 use be_block_commit::CommitId;
+use be_block_content::BlockContent;
 use be_block_graph::BlockParent;
 use be_block_store::{Manifest, MemoryStore};
 use be_sdk_type_api::{Description, EditorId, Status};

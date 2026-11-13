@@ -1,7 +1,10 @@
 use be_sdk_beui::be_block::InputSettingsContent;
 use be_sdk_beui::be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
 use be_sdk_beui::beui::{Key, Modifiers};
-use be_sdk_beui::{DisplayMode, DisplaysWatch, EditorHost, HostDisplay, HostInputDevice, InputDevicesWatch, InputReach, InputReachWatch, OwnedEditor, Pointing, Rotation};
+use be_sdk_beui::{
+    DisplayMode, DisplaysWatch, EditorHost, HostDisplay, HostInputDevice, InputDevicesWatch,
+    InputReach, InputReachWatch, OwnedEditor, Pointing, Rotation,
+};
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 

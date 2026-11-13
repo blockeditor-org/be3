@@ -1,4 +1,3 @@
-use be_block;
 use be_block_content::be_block_model::{Document as Content, Model, ObjectId, RichText};
 use be_sdk::Waker;
 use beui_text_editor_core::schema::basic::{BOLD, ITALIC};
@@ -50,7 +49,10 @@ fn formatted(text: &LiveText<FieldOf<Note>>, index: usize, key: &str) -> bool {
         .is_some_and(|marks| marks.has(key, &Value::Bool(true)))
 }
 
-fn send(text: &LiveText<FieldOf<Note>>, content: &mut Content<Note>) -> Vec<be_block_content::Edit> {
+fn send(
+    text: &LiveText<FieldOf<Note>>,
+    content: &mut Content<Note>,
+) -> Vec<be_block_content::Edit> {
     let operations = text
         .take_outgoing()
         .into_iter()

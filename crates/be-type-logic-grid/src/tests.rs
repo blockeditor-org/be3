@@ -1,5 +1,5 @@
-use be_block_content::{Edit, LiveEdit, Merge, Undo};
 use be_block_commit::MergeResult;
+use be_block_content::{Edit, LiveEdit, Merge, Undo};
 use logicgame::grid::{
     Component, ComponentId, ComponentKind, ComponentOrientation, Point, Scale, Wire,
 };

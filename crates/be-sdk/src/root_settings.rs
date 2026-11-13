@@ -1,5 +1,5 @@
-use be_block::settings::{Settings, SettingsProfile};
 use be_block::SettingsContent;
+use be_block::settings::{Settings, SettingsProfile};
 use be_block_content::{BlockContent, Edit, Root, SettingsLayer};
 use uuid::Uuid;
 

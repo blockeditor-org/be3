@@ -1,5 +1,8 @@
-use be_block_content::{BlockContent, BlockMetadata, ChildChange, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef, Root, Stored, Undo};
 use be_block_commit::MergeResult;
+use be_block_content::{
+    BlockContent, BlockMetadata, ChildChange, ContentError, LiveEdit, Loads, Merge, MergeParts,
+    Part, PartReader, PartRef, Root, Stored, Undo,
+};
 use std::collections::BTreeMap;
 
 use be_block_model::{
@@ -1075,8 +1078,9 @@ impl BlockContent for ChatContent {
         keys: Option<&std::collections::HashSet<String>>,
         indexed: &std::collections::HashSet<PartRef>,
         parts: PartReader,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>>
-    {
+    ) -> std::pin::Pin<
+        Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>,
+    > {
         let asked = |key: &str| keys.is_none_or(|keys| keys.contains(key));
         let mut documents = Vec::new();
         if asked(RECENT) {

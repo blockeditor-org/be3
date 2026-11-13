@@ -1,5 +1,8 @@
+use crate::{
+    display_settings::{DisplaySettings, DisplaySettingsContent},
+    input_settings::{InputSettings, InputSettingsContent},
+};
 use be_block_content::*;
-use crate::{display_settings::{DisplaySettings, DisplaySettingsContent}, input_settings::{InputSettings, InputSettingsContent}};
 use uuid::Uuid;
 
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;

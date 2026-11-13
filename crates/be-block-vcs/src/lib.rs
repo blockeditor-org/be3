@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub use be_block::ConflictKind;
 
-use be_block_content::{BlockMetadata, NAME};
 use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, CommitStore};
+use be_block_content::{BlockMetadata, NAME};
 use be_block_store::{Manifest, ObjectStore, StoreError, Vault};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

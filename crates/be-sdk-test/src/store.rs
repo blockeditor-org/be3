@@ -32,7 +32,9 @@ const SEALING: Uuid = Uuid::from_u128(0x5ea1);
 fn every_type() -> Vec<Registration> {
     be_sdk_type_host::registrations()
         .into_iter()
-        .chain([Registration::of::<be_sdk_beui::be_block_content::EditorViewContent>()])
+        .chain([Registration::of::<
+            be_sdk_beui::be_block_content::EditorViewContent,
+        >()])
         .map(Registration::without_undo)
         .collect()
 }

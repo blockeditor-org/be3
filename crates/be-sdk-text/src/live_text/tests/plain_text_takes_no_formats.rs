@@ -29,9 +29,10 @@ fn plain_text_takes_no_formats() {
         })
         .collect::<Vec<_>>();
     assert!(
-        sent.iter()
-            .flat_map(|edit| &edit.0)
-            .all(|change| matches!(change, be_block_content::be_block_model::Change::Text { .. })),
+        sent.iter().flat_map(|edit| &edit.0).all(|change| matches!(
+            change,
+            be_block_content::be_block_model::Change::Text { .. }
+        )),
         "only the typing is sent: {sent:?}"
     );
 }

@@ -1,7 +1,7 @@
 use be_sdk_beui::BlockTypeDescriptor;
-use be_sdk_beui::be_block_content::be_block_model::BlockRef;
 use be_sdk_beui::be_block::WORKSPACE_TYPE;
 use be_sdk_beui::be_block_content::SETTINGS;
+use be_sdk_beui::be_block_content::be_block_model::BlockRef;
 
 use super::*;
 

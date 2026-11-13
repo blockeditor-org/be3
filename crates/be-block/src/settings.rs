@@ -15,7 +15,6 @@ pub fn holds_owner_only(parent_type: Uuid) -> bool {
         || parent_type == <SettingsProfile as Root>::CONTENT_TYPE
 }
 
-
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct Settings {
     pub kinds: Map<Uuid, Uuid>,
@@ -58,7 +57,11 @@ impl Settings {
             .into()
     }
 
-    pub fn layers(&self, kind: Uuid, profile: Option<&SettingsProfile>) -> be_block_content::Layers {
+    pub fn layers(
+        &self,
+        kind: Uuid,
+        profile: Option<&SettingsProfile>,
+    ) -> be_block_content::Layers {
         be_block_content::Layers {
             every_device: self.kind(kind),
             this_device: profile.and_then(|profile| profile.kind(kind)),

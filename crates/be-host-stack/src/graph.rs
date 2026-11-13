@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use be_block::version_control::{local_id, masked, scope_mask};
-use be_block_content::{BlockMetadata, Entries};
 use be_block_commit::CommitId;
+use be_block_content::{BlockMetadata, Entries};
 use be_block_graph::{Access, BlockParent};
 pub use be_block_protocol::Listing;
 use be_sdk_api::BlockIdRole;

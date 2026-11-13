@@ -1,9 +1,9 @@
 use super::*;
+use crate::ThemeKind;
 use crate::display_settings::{DisplayMode, Rotation};
 use crate::input_settings::{InputDevice, PointerSetting, PointerSpeed};
 use crate::settings::{Settings, SettingsContent, SettingsProfile, SettingsProfileContent};
 use be_block_content::layered::layered;
-use crate::ThemeKind;
 use be_block_content::{ChildChange, Root};
 
 #[test]

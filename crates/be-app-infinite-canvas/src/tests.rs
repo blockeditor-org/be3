@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, HashSet};
 
-use be_sdk_beui::be_block_content::presence::PresenceKind;
-use be_sdk_beui::be_block::{DisplaySettings, Settings, SettingsContent, SettingsProfile, SettingsProfileContent};
+use be_sdk_beui::be_block::{
+    DisplaySettings, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
+};
 use be_sdk_beui::be_block_content::Root;
+use be_sdk_beui::be_block_content::presence::PresenceKind;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;

@@ -3,8 +3,8 @@
 
 use super::*;
 
-use be_block_content::{ContentError, Merge};
 use be_block_commit::MergeResult;
+use be_block_content::{ContentError, Merge};
 use serde::{Deserialize, Serialize};
 
 /// A note: the stamp the owner gives it, and bytes to make it as large as a test needs.

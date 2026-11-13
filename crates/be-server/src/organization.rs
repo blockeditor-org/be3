@@ -1,6 +1,8 @@
-use be_block::{OrganizationPolicies, OrganizationPoliciesContent, SettingsContent, WORKSPACE_TYPE, WhoMay};
-use be_block_content::{BlockContent, Root};
+use be_block::{
+    OrganizationPolicies, OrganizationPoliciesContent, SettingsContent, WORKSPACE_TYPE, WhoMay,
+};
 use be_block_commit::{CommitId, CommitStore};
+use be_block_content::{BlockContent, Root};
 use be_block_graph::{BlockGraph, BlockParent, SETTINGS_TYPE};
 use be_block_keys::{Party, RecoveryPublic, RecoverySecret};
 use be_block_protocol::{

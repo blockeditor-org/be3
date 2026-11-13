@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use be_block_content::Root;
-use be_block_content::setting::Setting;
 use be_block_content::layered::Layered;
+use be_block_content::setting::Setting;
 pub use be_lib_ui_preferences::{
     InputDevice, MAX_POINTER_SPEED, MIN_POINTER_SPEED, PointerSetting, PointerSettings,
     PointerSpeed,

@@ -17,7 +17,11 @@ use be_sdk_api::{
 use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block_content::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
-use be_sdk_beui::{Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost, EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence, ViewChange, WebViewCommand, WebViewId};
+use be_sdk_beui::{
+    Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
+    EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
+    ViewChange, WebViewCommand, WebViewId,
+};
 use beui::native::Document;
 use beui::{
     Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
@@ -1843,12 +1847,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_sent_calls(|sent| match sent {
-            Sent::Define(block, key, value) if *key == be_sdk_beui::be_block_content::NAME.id => Some((
-                *block,
-                value
-                    .as_ref()
-                    .and_then(|value| be_sdk_beui::be_block_content::be_block_model::from_cbor(value)),
-            )),
+            Sent::Define(block, key, value) if *key == be_sdk_beui::be_block_content::NAME.id => {
+                Some((
+                    *block,
+                    value.as_ref().and_then(|value| {
+                        be_sdk_beui::be_block_content::be_block_model::from_cbor(value)
+                    }),
+                ))
+            }
             _ => None,
         })
     }

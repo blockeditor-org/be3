@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
-use be_block_content::{Landed, LiveEdit, Merge, Settling};
 use be_block_commit::{CommitId, MergeResult};
+use be_block_content::{Landed, LiveEdit, Merge, Settling};
 use be_block_protocol::{ClientId, SessionState};
 use be_block_session::{
     Follower, Inherited, OpId, Payload, Resume, Sequencer, SessionMessage, SessionOp,
@@ -1521,7 +1521,9 @@ where
                     let bytes = self.visible.encode();
                     self.reply(id, Answer::Content(bytes));
                 }
-                be_block_content::Loads::FirstPart => self.read_range(Reader::Content(id), 0, u64::MAX),
+                be_block_content::Loads::FirstPart => {
+                    self.read_range(Reader::Content(id), 0, u64::MAX)
+                }
             },
             Input::Seal { id, force } => self.jobs.push_front(Job::Seal {
                 sealing: match force {

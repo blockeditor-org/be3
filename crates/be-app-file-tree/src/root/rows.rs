@@ -7,9 +7,9 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use be_sdk_beui::Press;
-use be_sdk_beui::be_block_content::metadata::ICON_COLOR;
 use be_sdk_beui::be_block::{HomeContent, SettingsContent};
 use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_block_content::metadata::ICON_COLOR;
 use be_sdk_beui::be_block_content::{CREATED_BY, SETTINGS};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::{

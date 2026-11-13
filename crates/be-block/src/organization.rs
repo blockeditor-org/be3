@@ -5,8 +5,8 @@ use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block_content::Root;
 use crate::resolution::{Resolution, SettingsSource};
+use be_block_content::Root;
 use be_block_content::layered::{KindRule, Layered, union};
 
 const SETTINGS_MASK: u128 = 0x6f72_6761_6e69_7a61_7469_6f6e_2d73_6574;

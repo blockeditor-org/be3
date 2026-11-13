@@ -3,7 +3,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_block_content::{BlockMetadata, Definition};
-use be_sdk::{AccessLevel, BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, EditorHost, Subscription};
+use be_sdk::{
+    AccessLevel, BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, EditorHost,
+    Subscription,
+};
 use beui::reactive::*;
 use uuid::Uuid;
 
@@ -36,7 +39,11 @@ impl Blocks {
         self.graph.account_id()
     }
 
-    pub fn create<C: be_block_content::BlockContent>(&self, content: &C, parent: BlockParent) -> Uuid {
+    pub fn create<C: be_block_content::BlockContent>(
+        &self,
+        content: &C,
+        parent: BlockParent,
+    ) -> Uuid {
         self.graph.create(content, parent)
     }
 

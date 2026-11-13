@@ -24,9 +24,7 @@ pub use organization::{
     OrganizationPolicies, OrganizationPoliciesContent, SYSTEM_TYPES, UNFILED_TYPE, WhoMay,
     is_workspace_type, my_files, my_files_of, organization_settings, unfiled, unfiled_of,
 };
-pub use profile::{
-    DESKTOP_EDITOR, FILES_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR,
-};
+pub use profile::{DESKTOP_EDITOR, FILES_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
 pub use settings::{
     Resolution, ResolutionLayers, Settings, SettingsContent, SettingsProfile,
     SettingsProfileContent, SettingsSource, holds_owner_only,

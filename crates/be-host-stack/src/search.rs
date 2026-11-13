@@ -27,9 +27,9 @@ use std::{
 };
 
 use be_block::search_index::{AsyncRead, SearchIndexContent};
-use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_client::{Peer, Write};
 use be_block_commit::CommitId;
+use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
 use be_block_store::{ObjectStore, PartRef};
 use be_lib_search::{Batch, DocId, Put, Query, Text};

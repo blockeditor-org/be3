@@ -63,7 +63,10 @@ fn a_module_answers_stateless_requests() {
         ORGANIZATION,
     ))
     .expect("a description");
-    assert_eq!(description.derived, be_block_content::derived_metadata(&ours));
+    assert_eq!(
+        description.derived,
+        be_block_content::derived_metadata(&ours)
+    );
     let text = FileContent::new("notes.txt".into(), b"hello".to_vec());
     assert_eq!(
         pollster::block_on(module.to_file(FileContent::CONTENT_TYPE, text.encode())),

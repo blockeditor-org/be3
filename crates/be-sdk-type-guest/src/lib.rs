@@ -5,8 +5,10 @@ use std::{
     rc::Rc,
 };
 
-use be_block_content::{BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History};
 use be_block_commit::MergeResult;
+use be_block_content::{
+    BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History,
+};
 use be_sdk_type_api::{
     Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
     Journal, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
@@ -237,7 +239,8 @@ fn search_text<C: BlockContent>(
     keys: Option<Vec<String>>,
     indexed: Vec<be_block_content::PartRef>,
     parts: PartReader,
-) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>> {
+) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>>
+{
     Box::pin(async move {
         let stored = content
             .into_stored()
@@ -727,7 +730,9 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::put_part(bytes));
                 self.answer_later(replica, pending, move |result| Input::PartPut {
                     token,
-                    result: result.and_then(|put| put).map(be_block_content::PartRef::from),
+                    result: result
+                        .and_then(|put| put)
+                        .map(be_block_content::PartRef::from),
                 });
             }
             Effect::Resume {
@@ -965,7 +970,10 @@ impl replicas::Guest for Module {
         indexed: Vec<PartRef>,
     ) -> LocalFuture<Result<Vec<SearchDocument>, Failure>> {
         let search = self.with_kind(content_type, |kind| kind.search_text);
-        let indexed = indexed.into_iter().map(be_block_content::PartRef::from).collect();
+        let indexed = indexed
+            .into_iter()
+            .map(be_block_content::PartRef::from)
+            .collect();
         Box::pin(async move {
             let search = search.ok_or(Failure::UnknownType)?;
             let documents = search(content, keys, indexed, request_parts())

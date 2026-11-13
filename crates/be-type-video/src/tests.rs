@@ -1,5 +1,5 @@
-use be_block_content::{BlockContent, LiveEdit, Merge};
 use be_block_commit::MergeResult;
+use be_block_content::{BlockContent, LiveEdit, Merge};
 use uuid::Uuid;
 
 mod clips_attached_to_each_other_on_each_side_merge_without_a_cycle;

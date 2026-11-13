@@ -1,10 +1,15 @@
-use be_block::{OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent, WhoMay};
+use be_block::{
+    OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent, WhoMay,
+};
 use be_block_content::Root;
 use be_block_protocol::{ErrorCode, client};
 
 use super::*;
 
-pub(super) async fn set_policies(admin: &Peer<MemoryStore>, edits: &[be_block_content::Edit]) -> Uuid {
+pub(super) async fn set_policies(
+    admin: &Peer<MemoryStore>,
+    edits: &[be_block_content::Edit],
+) -> Uuid {
     let settings = admin.organization_settings();
     let block = admin
         .create_with_id::<OrganizationPoliciesContent>(Uuid::now_v7(), BlockParent::Block(settings))

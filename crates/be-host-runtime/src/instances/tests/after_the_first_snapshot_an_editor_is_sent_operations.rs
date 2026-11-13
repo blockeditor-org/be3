@@ -7,7 +7,8 @@ use be_type_example_counter::{Counter, CounterContent};
 fn counted(block: Uuid, expected: i64) {
     be_host_stack::wait_until(|shared| {
         let held = shared.blocks.get(&block)?;
-        let counter = <CounterContent as be_block_content::BlockContent>::decode(held.bytes()).ok()?;
+        let counter =
+            <CounterContent as be_block_content::BlockContent>::decode(held.bytes()).ok()?;
         (counter.root().value() == expected).then_some(())
     });
 }

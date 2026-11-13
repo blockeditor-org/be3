@@ -1,5 +1,8 @@
 use be_sdk_beui::be_block::settings::{Settings, SettingsProfile};
-use be_sdk_beui::be_block::{DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettingsContent, SettingsProfileContent};
+use be_sdk_beui::be_block::{
+    DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettingsContent,
+    SettingsProfileContent,
+};
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::{Key, Modifiers, Vec2};
 use be_sdk_beui::{BlockInfo, BlockParent};

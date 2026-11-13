@@ -1,5 +1,8 @@
 use super::*;
-use crate::{LostAccess, OfflinePolicy, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers};
+use crate::{
+    LostAccess, OfflinePolicy, OfflineSettings, OfflineSettingsContent, Resolution,
+    ResolutionLayers,
+};
 
 fn layer(edits: &[Edit]) -> OfflineSettings {
     let mut content = OfflineSettingsContent::default();

@@ -5,7 +5,9 @@ use std::rc::Rc;
 use be_sdk_beui::be_block::Home;
 use be_sdk_beui::be_sdk_ui::BlockCatalog;
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, ChildState, DialogAnswer, Editor, EditorHost};
+use be_sdk_beui::{
+    BlockInfo, BlockList, BlockParent, BlockQuery, ChildState, DialogAnswer, Editor, EditorHost,
+};
 use uuid::Uuid;
 
 use super::model::{Graph, Pick, PickAction, PickError, PickOutcome, PickTree, Tree, TreeRow};

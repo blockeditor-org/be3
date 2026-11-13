@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use be_block_commit::CommitId;
 use be_block_content::blob::{Blob, BlobKind};
 use be_block_content::{BlockContent, ChildChange, LiveEdit, Root};
-use be_block_commit::CommitId;
 use be_block_model::{
     Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
@@ -826,7 +826,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.write_parts(be_block_content::Part::from(bytes), parents)
     }
 
-    fn write_parts(&mut self, parts: be_block_content::Part<'_>, parents: Vec<CommitId>) -> CommitId {
+    fn write_parts(
+        &mut self,
+        parts: be_block_content::Part<'_>,
+        parents: Vec<CommitId>,
+    ) -> CommitId {
         let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
         self.commit(manifest, parents)
     }
@@ -1170,7 +1174,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 }
                 let result = self
                     .vault
-                    .write(SEALING, Uuid::nil(), be_block_content::Part::from(bytes.as_slice()))
+                    .write(
+                        SEALING,
+                        Uuid::nil(),
+                        be_block_content::Part::from(bytes.as_slice()),
+                    )
                     .map_err(|error| error.to_string())
                     .and_then(|manifest| manifest.root.ok_or_else(|| "no bytes".to_owned()))
                     .map(be_sdk_type_api::PartRef::from);

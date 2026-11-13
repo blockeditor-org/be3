@@ -1,5 +1,5 @@
-use be_block_content::{BlockContent, LiveEdit, Merge, ObjectId};
 use be_block_commit::MergeResult;
+use be_block_content::{BlockContent, LiveEdit, Merge, ObjectId};
 use uuid::Uuid;
 
 mod a_presentation_moves_slides_by_index_and_follows_its_children;

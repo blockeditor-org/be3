@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use be_block_content::Root;
-use be_block_content::setting::Setting;
 use be_block_content::layered::{Layered, union};
+use be_block_content::setting::Setting;
 pub use be_lib_ui_preferences::{
     CanvasTouch, DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind,
 };

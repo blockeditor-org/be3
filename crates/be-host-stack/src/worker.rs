@@ -6,10 +6,10 @@ use std::{
 
 use be_wasm_threads::Mutex;
 
-use be_block_content::BlockMetadata;
 use be_block_client::{ClientError, Credentials, Peer, PeerConfig, Write};
 use be_block_client::{Event, ask};
 use be_block_commit::CommitId;
+use be_block_content::BlockMetadata;
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{AccessList, BlockSummary, client};
 use be_block_type_host::Conflict;
@@ -3386,7 +3386,11 @@ async fn apply(
             // A new name is a commit of the block's that its search index has yet to take, as an
             // edit an open block seals is (`Searching::sealed`), though no session of it is open
             // (a rename in the files).
-            if defined.is_ok() && changes.iter().any(|(key, _)| *key == be_block_content::NAME.id) {
+            if defined.is_ok()
+                && changes
+                    .iter()
+                    .any(|(key, _)| *key == be_block_content::NAME.id)
+            {
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)

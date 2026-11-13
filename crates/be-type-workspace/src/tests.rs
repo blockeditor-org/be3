@@ -1,5 +1,5 @@
-use be_block_content::{BlockContent, LiveEdit, Merge};
 use be_block_commit::MergeResult;
+use be_block_content::{BlockContent, LiveEdit, Merge};
 use uuid::Uuid;
 
 mod a_block_added_to_a_folder_by_both_sides_is_listed_once;

@@ -4,10 +4,10 @@ use std::sync::{Arc, PoisonError};
 use be_wasm_threads::Mutex;
 use std::time::Instant;
 
-use be_block_content::LiveEdit;
 use be_block_client::Event;
 use be_block_client::{ClientError, Peer};
 use be_block_commit::CommitId;
+use be_block_content::LiveEdit;
 use be_block_protocol::{ClientId, SessionState};
 use be_block_store::ObjectStore;
 use be_block_type_host::{Conflict, HOST_EDITOR, Replicas, Source};

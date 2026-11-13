@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use be_block_content::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_block_client::{Peer, Saved, Write};
 use be_block_commit::CommitId;
+use be_block_content::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_block_graph::BlockParent;
 use be_block_protocol::BlockSummary;
 use be_block_store::ObjectStore;
@@ -1367,7 +1367,9 @@ impl<S: ObjectStore> Tracker<S> {
         let page = loaded.database.rows.get(row).and_then(|row| row.page());
         if let (Some(title), Some(page)) = (&retitled, page) {
             self.peer
-                .define(page, |metadata| metadata.insert(&be_block_content::NAME, title))
+                .define(page, |metadata| {
+                    metadata.insert(&be_block_content::NAME, title)
+                })
                 .await
                 .map_err(explain)?;
         }

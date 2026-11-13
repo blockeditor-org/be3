@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block_content::{ContentError, Merge, Part, PartRef};
 use be_block_commit::MergeResult;
+use be_block_content::{ContentError, Merge, Part, PartRef};
 use serde::{Deserialize, Serialize};
 
 /// Segments added by an operation that names each by the part it was put as, with the hash of

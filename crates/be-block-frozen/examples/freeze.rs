@@ -8,9 +8,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use be_block::{Allowance, OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent};
-use be_block_content::{BlockContent, BlockMetadata, MY_FILES, Root};
+use be_block::{
+    Allowance, OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent,
+};
 use be_block_client::{Credentials, Peer, PeerConfig};
+use be_block_content::{BlockContent, BlockMetadata, MY_FILES, Root};
 use be_block_frozen::scene;
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{InviteCode, RecoveryPhrase};

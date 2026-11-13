@@ -4,7 +4,10 @@ use be_sdk_beui::beui::icons::{
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{AccessLevel, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, Subregion, SubregionContent};
+use be_sdk_beui::{
+    AccessLevel, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, Subregion,
+    SubregionContent,
+};
 use uuid::Uuid;
 
 use super::share::{GRANTABLE, Member, Person, Share, ShareAction};

@@ -4,8 +4,10 @@ use std::{
 };
 
 use be_block::OrganizationPolicies;
-use be_block_content::{BlockContent, BlockMetadata, Entries, Root, Streamed, derived_metadata, payload_start};
 use be_block_commit::{Commit, CommitId, CommitStore, now_milliseconds};
+use be_block_content::{
+    BlockContent, BlockMetadata, Entries, Root, Streamed, derived_metadata, payload_start,
+};
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{

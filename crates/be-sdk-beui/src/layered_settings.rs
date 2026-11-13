@@ -1,5 +1,5 @@
-use be_block_content::be_block_model::Document;
 use be_block::{Resolution, SettingsSource};
+use be_block_content::be_block_model::Document;
 use be_block_content::{BlockContent, Layered, LiveEdit, Setting, SettingsLayer};
 use beui::NodeId;
 use beui::icons::{ICON_PIN, ICON_PIN_OFF, ICON_ROTATE_CCW};

@@ -2,7 +2,10 @@ use be_sdk_beui::be_block::DisplaySettings;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{ChangesToast, DesktopBarWatch, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow, PowerWatch};
+use be_sdk_beui::{
+    ChangesToast, DesktopBarWatch, DisplaysWatch, Editor, LayeredSettings, LayeredSettingsRow,
+    PowerWatch,
+};
 
 use super::appearance::AppearanceSection;
 use super::arrangement::ArrangementRow;

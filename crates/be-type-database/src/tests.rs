@@ -1,5 +1,7 @@
-use be_block_content::{BlockContent, BlockMetadata, ChildChange, LiveEdit, Merge, Root, derived_metadata, metadata};
 use be_block_commit::MergeResult;
+use be_block_content::{
+    BlockContent, BlockMetadata, ChildChange, LiveEdit, Merge, Root, derived_metadata, metadata,
+};
 use be_block_model::ObjectId;
 use uuid::Uuid;
 

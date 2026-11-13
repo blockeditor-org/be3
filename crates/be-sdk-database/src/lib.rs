@@ -761,7 +761,8 @@ pub fn watch_inverses(
             .unwrap_or_default()
             .into_iter()
             .filter(|info| {
-                info.block_type == <DatabaseSchemaContent as be_block_content::BlockContent>::CONTENT_TYPE
+                info.block_type
+                    == <DatabaseSchemaContent as be_block_content::BlockContent>::CONTENT_TYPE
                     && info.access.can_view()
             })
             .filter_map(|info| match info.parent {

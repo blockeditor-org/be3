@@ -615,7 +615,10 @@ impl Root for Database {
 
     fn describe_in(document: &Document<Self>, metadata: &mut be_block_content::BlockMetadata) {
         let prefix = document.field(ObjectId::ROOT, Self::PREFIX);
-        metadata.insert(&be_block_content::metadata::ROW_PREFIX, &prefix.trim().to_owned());
+        metadata.insert(
+            &be_block_content::metadata::ROW_PREFIX,
+            &prefix.trim().to_owned(),
+        );
     }
 
     fn references(&self) -> Vec<Uuid> {

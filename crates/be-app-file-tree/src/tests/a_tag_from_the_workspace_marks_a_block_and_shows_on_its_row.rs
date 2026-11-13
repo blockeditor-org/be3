@@ -1,6 +1,6 @@
-use be_sdk_beui::be_block_content::be_block_model::{BlockRef, from_cbor};
 use be_sdk_beui::be_block::{TAG_COLOR, TAG_DEFINITIONS, TAGGED, TagColor, Tags, TagsContent};
 use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_block_content::be_block_model::{BlockRef, from_cbor};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;

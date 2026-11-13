@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use be_block_content::{EXECUTABLE, Entries};
 use be_block_client::ClientError;
 use be_block_client::Peer;
 use be_block_commit::CommitId;
+use be_block_content::{EXECUTABLE, Entries};
 use be_block_graph::BlockParent;
 use be_block_protocol::BlockSummary;
 use be_block_store::ObjectStore;

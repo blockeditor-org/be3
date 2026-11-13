@@ -31,8 +31,10 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
     be_host_stack::flush_and_send();
 
     let global = be_host_stack::wait_until(|shared| shared.graph.get(made).map(|_| made));
-    let created_by =
-        || be_host_stack::node(global).and_then(|node| node.metadata.get(&be_block_content::CREATED_BY));
+    let created_by = || {
+        be_host_stack::node(global)
+            .and_then(|node| node.metadata.get(&be_block_content::CREATED_BY))
+    };
     assert_eq!(
         created_by().as_deref(),
         Some("example.maker"),
@@ -45,7 +47,10 @@ fn a_block_an_app_makes_names_the_app_and_the_app_cannot_say_otherwise() {
             block: made.into_bytes(),
             command: be_sdk_api::BlockCommand::Define {
                 key: be_block_content::CREATED_BY.id.into_bytes(),
-                value: claimed.defined.get(&be_block_content::CREATED_BY.id).cloned(),
+                value: claimed
+                    .defined
+                    .get(&be_block_content::CREATED_BY.id)
+                    .cloned(),
             },
         },
     );

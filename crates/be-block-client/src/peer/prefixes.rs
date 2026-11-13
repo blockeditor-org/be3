@@ -1,5 +1,5 @@
-use be_block_content::be_block_model::BlockRef;
 use be_block::{PREFIXES, PrefixRegistry, PrefixRegistryContent, WORKSPACE_TYPE};
+use be_block_content::be_block_model::BlockRef;
 use be_block_content::{BlockContent, BlockMetadata, Edit};
 use be_block_graph::{Access, BlockParent};
 use be_block_store::ObjectStore;

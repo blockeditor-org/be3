@@ -1,8 +1,8 @@
 use super::*;
 
 use crate::input_settings::RemapperChoice;
-use be_block_content::layered::Layered;
 use crate::{InputRemapper, InputRemapperContent};
+use be_block_content::layered::Layered;
 
 #[test]
 fn a_profile_picks_its_own_remapper_and_a_remapper_runs_once_it_names_a_module() {

@@ -3,9 +3,9 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use be_block_client::Peer;
 use be_block_content::ObjectId;
 use be_block_content::presence::{ChannelKind, PresenceKind};
-use be_block_client::Peer;
 use be_block_store::ObjectStore;
 use be_type_terminal::{
     Terminal, TerminalContent, TerminalHost, TerminalMessage, TerminalShell, TerminalSize,

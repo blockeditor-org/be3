@@ -6,7 +6,10 @@ use std::time::Duration;
 use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_beui::network::ResponseHead;
-use be_sdk_beui::{BlockAgent, EditorHost, Failure, OwnedEditor, TerminalHostBe, TerminalHostDownload, TerminalHostSource};
+use be_sdk_beui::{
+    BlockAgent, EditorHost, Failure, OwnedEditor, TerminalHostBe, TerminalHostDownload,
+    TerminalHostSource,
+};
 use be_sdk_test::{BeuiTest, Fetch, HostCall};
 use be_type_boat::{BoatContent, BoatSettings, BoatSettingsContent};
 use uuid::Uuid;

@@ -2,10 +2,10 @@ use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use be_block_content::{BlockMetadata, EXECUTABLE, Entries, NAME};
 use be_block_client::transfer::Saved;
 use be_block_client::{Peer, Saved as Published, Write};
 use be_block_commit::CommitId;
+use be_block_content::{BlockMetadata, EXECUTABLE, Entries, NAME};
 use be_block_graph::BlockParent;
 use be_block_store::{ChunkRef, Hash, Manifest, ObjectStore, PartRef};
 use be_block_type_host::{Modules, Plain, plain_of};

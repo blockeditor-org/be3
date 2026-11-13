@@ -172,7 +172,8 @@ impl BlockInfo {
     }
 
     pub fn set_thumbhash(&mut self, thumbhash: &be_block_content::Thumbhash) {
-        self.metadata.insert(&be_block_content::THUMBHASH, thumbhash);
+        self.metadata
+            .insert(&be_block_content::THUMBHASH, thumbhash);
     }
 
     pub fn named_by_hand(&self) -> bool {
@@ -479,7 +480,11 @@ impl BlockGraph {
         self.account.get()
     }
 
-    pub fn create<C: be_block_content::BlockContent>(&self, content: &C, parent: BlockParent) -> Uuid {
+    pub fn create<C: be_block_content::BlockContent>(
+        &self,
+        content: &C,
+        parent: BlockParent,
+    ) -> Uuid {
         self.create_with(
             C::CONTENT_TYPE,
             Some(content.encode()),

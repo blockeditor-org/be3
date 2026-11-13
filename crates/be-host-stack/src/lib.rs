@@ -1376,7 +1376,10 @@ pub fn define(block: Uuid, changes: Vec<be_block_content::Definition>) {
 }
 
 pub fn set_name(block: Uuid, name: Option<String>) {
-    define(block, vec![be_block_content::NAME.definition(name.as_ref())]);
+    define(
+        block,
+        vec![be_block_content::NAME.definition(name.as_ref())],
+    );
 }
 
 pub fn describe_implicitly(block: Uuid, derived: be_block_content::Entries) {

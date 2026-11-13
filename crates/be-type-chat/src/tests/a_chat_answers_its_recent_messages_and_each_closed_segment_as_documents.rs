@@ -35,13 +35,14 @@ fn a_chat_answers_its_recent_messages_and_each_closed_segment_as_documents() {
             Box::pin(async move { read })
         })
     };
-    let search = |chat: &ChatContent, keys: Option<&[&str]>, indexed: &[be_block_content::PartRef]| {
-        let keys: Option<HashSet<String>> =
-            keys.map(|keys| keys.iter().map(|key| (*key).to_owned()).collect());
-        let indexed: HashSet<be_block_content::PartRef> = indexed.iter().copied().collect();
-        pollster::block_on(chat.search_text(keys.as_ref(), &indexed, reader()))
-            .expect("a chat answers its search text")
-    };
+    let search =
+        |chat: &ChatContent, keys: Option<&[&str]>, indexed: &[be_block_content::PartRef]| {
+            let keys: Option<HashSet<String>> =
+                keys.map(|keys| keys.iter().map(|key| (*key).to_owned()).collect());
+            let indexed: HashSet<be_block_content::PartRef> = indexed.iter().copied().collect();
+            pollster::block_on(chat.search_text(keys.as_ref(), &indexed, reader()))
+                .expect("a chat answers its search text")
+        };
 
     let documents = search(&loaded, None, &[]);
     assert_eq!(documents.len(), 2, "the recent messages, then the segment");

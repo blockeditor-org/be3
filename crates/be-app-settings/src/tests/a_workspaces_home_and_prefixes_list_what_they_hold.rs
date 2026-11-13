@@ -1,4 +1,6 @@
-use be_sdk_beui::be_block::{Home, HomeContent, PrefixRegistry, PrefixRegistryContent, WORKSPACE_TYPE};
+use be_sdk_beui::be_block::{
+    Home, HomeContent, PrefixRegistry, PrefixRegistryContent, WORKSPACE_TYPE,
+};
 
 use super::*;
 use crate::home::HomeRoot;

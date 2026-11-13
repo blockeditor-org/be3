@@ -3,7 +3,10 @@ use super::*;
 const UNFILED: Uuid = Uuid::from_u128(0xf11e);
 const FOLDER: Uuid = Uuid::from_u128(0xf01d);
 
-fn restored(parent: Option<BlockParent>, deleted_from: Option<be_block_content::DeletedFrom>) -> RestoreTo {
+fn restored(
+    parent: Option<BlockParent>,
+    deleted_from: Option<be_block_content::DeletedFrom>,
+) -> RestoreTo {
     restore_to(
         &Restoring {
             parent,

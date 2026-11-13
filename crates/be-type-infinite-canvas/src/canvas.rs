@@ -1354,7 +1354,9 @@ impl Root for Canvas {
     fn describe_in(_: &be_block_model::Document<Self>, _: &mut be_block_content::BlockMetadata) {}
 
     /// One document: the text of each item that holds some, back to front, one per line.
-    fn search_text_in(document: &be_block_model::Document<Self>) -> Vec<be_block_content::SearchDocument> {
+    fn search_text_in(
+        document: &be_block_model::Document<Self>,
+    ) -> Vec<be_block_content::SearchDocument> {
         let texts: Vec<String> = document
             .root()
             .entities

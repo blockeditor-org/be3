@@ -1,5 +1,8 @@
 use be_sdk_beui::BeuiRoot;
-use be_sdk_beui::be_block::{OfflinePolicy, OfflineSettings, OfflineSettingsContent, OrganizationPolicies, OrganizationPoliciesContent, WORKSPACE_TYPE, WhoMay, organization_settings};
+use be_sdk_beui::be_block::{
+    OfflinePolicy, OfflineSettings, OfflineSettingsContent, OrganizationPolicies,
+    OrganizationPoliciesContent, WORKSPACE_TYPE, WhoMay, organization_settings,
+};
 use be_sdk_test::ContentStore;
 
 use super::*;

@@ -2,8 +2,8 @@ use be_block_model::{BlockRef, Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block_content::metadata::MetaKey;
 use be_block_content::layered::{Follows, KindVisibility, Layered, union};
+use be_block_content::metadata::MetaKey;
 use be_block_content::{ChildChange, Root};
 
 pub use be_block_graph::{EDIT_KINDS, PREFIXES_TYPE, TAGS_TYPE};

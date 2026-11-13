@@ -6,8 +6,11 @@
 
 use std::collections::HashSet;
 
-use be_block_content::{BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, PartReader, PartRef, SearchDocument};
 use be_block_commit::MergeResult;
+use be_block_content::{
+    BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, PartReader, PartRef,
+    SearchDocument,
+};
 use be_sdk_type_api::guest::host;
 use be_sdk_type_api::ops::guest as ops;
 use serde::{Deserialize, Serialize};
