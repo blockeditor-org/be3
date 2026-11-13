@@ -1464,17 +1464,30 @@ impl<S: ObjectStore> AsyncRead for PeerParts<'_, S> {
     }
 }
 
-/// An index's newest head this device knows: its own unsent one, else the server's, else the
-/// one it last saw.
+/// An index's newest head this device knows: its own unsent one, else this device's newer one,
+/// which descends from the server's, else the server's, else the one it last saw.
+///
 /// The head a batch applies to: the newest this device knows, so indexing never waits on the
 /// server; a batch on a head older than the server's meets the newer one as a diverged block and
 /// merges by parts. The server is asked only when the device knows no head.
 async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId> {
-    let known = match peer.pending_commits(index).is_empty() {
-        false => peer.local_head(index),
-        true => peer
-            .known_remote_head(index)
-            .or_else(|| peer.local_head(index)),
+    // What this device sealed and sent is its local head before the server's word of it moves
+    // the remote head: a batch written then reads the newer, rather than the one it replaced. A
+    // head set aside among the unsent edits (access lost, say) is never the base.
+    let local = peer.local_head(index);
+    let known = match (
+        peer.pending_commits(index).is_empty(),
+        local,
+        peer.known_remote_head(index),
+    ) {
+        (false, _, _) => local,
+        (true, Some(local), Some(remote)) if local != remote && !peer.is_unsent(index) => {
+            match peer.descends(local, remote).await {
+                Ok(true) => Some(local),
+                _ => Some(remote),
+            }
+        }
+        (true, local, remote) => remote.or(local),
     };
     if known.is_some() {
         return known;
@@ -1722,11 +1735,10 @@ async fn outdate_ancestors<S: ObjectStore>(
     Ok(())
 }
 
-/// The best hits of `query` in one index, at its newest head.
 /// The head of `index` a search reads, and whether it is surely the newest this device could
 /// read: `head_of`'s, unless `listed`, the head the graph mirror last heard of, is newer. A
 /// watch moves the mirror's head when another device publishes, before this device fetches
-/// anything, while the remote head `head_of` reads moves only when this device publishes or
+/// anything, while the head `head_of` reads moves only when this device publishes or
 /// catches up itself. Whichever descends from the other is the newer. Two heads where neither
 /// descends from the other have diverged: this device's merge of them is on its way, and until
 /// it lands `head_of`'s, the one this device holds, is read. Telling them apart walks the
@@ -1753,6 +1765,7 @@ async fn search_head<S: ObjectStore>(
     }
 }
 
+/// The best hits of `query` in one index, at its newest head.
 pub async fn search_index<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
