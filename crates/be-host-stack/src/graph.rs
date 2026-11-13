@@ -575,7 +575,9 @@ impl Graph {
 
     /// A head the outbox published from what this device kept. An open block's replica kept
     /// it and reports its own head, which by the time a drain is answered may already be a
-    /// newer commit: only a block no replica reports for follows the drain.
+    /// newer commit: only a block no replica reports for follows the drain. With no replica
+    /// open, a late drain can still move the head back past a newer head that arrived
+    /// meanwhile; telling which is newer would need comparing the commits by ancestry.
     pub fn drained_head(&mut self, block: Uuid, head: CommitId) {
         if !self.reported.contains_key(&block) {
             self.set_head(block, Some(head));
