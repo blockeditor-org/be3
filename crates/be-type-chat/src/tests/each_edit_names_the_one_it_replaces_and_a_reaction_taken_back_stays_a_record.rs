@@ -5,7 +5,11 @@ use crate::{ChatHeader, Deletion, MessageEdit};
 
 #[test]
 fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record() {
-    let chat = sent(&ChatContent::default(), ADA, &["lunch at noon?", "who is in?"]);
+    let chat = sent(
+        &ChatContent::default(),
+        ADA,
+        &["lunch at noon?", "who is in?"],
+    );
     let (lunch, who) = (first(&chat), chat.messages()[1]);
 
     let once = chat.next_edit(lunch, ADA, 5, "lunch at one?");
@@ -44,8 +48,9 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     // A deletion removed outright is noticed.
     let deleted = edited(&chat, [chat.delete(who, ADA, 10)]);
     assert!(!deleted.deletion_removed(who));
-    let deletions: LatestMap<ObjectId, Deletion> =
-        deleted.header().field(ObjectId::ROOT, ChatHeader::DELETIONS);
+    let deletions: LatestMap<ObjectId, Deletion> = deleted
+        .header()
+        .field(ObjectId::ROOT, ChatHeader::DELETIONS);
     let removal =
         ChatHeader::DELETIONS.put(ObjectId::ROOT, &who, None, deletions.next(&who, 11, BO));
     let undeleted = edited(&deleted, [[removal].into_iter().collect()]);
@@ -60,7 +65,10 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let (_, taken_back) = reacted.reaction(lunch, BO, "heart", 9, false);
     assert_eq!(taken_back.previous, Some(kept.key(&key)));
     let unreacted = edited(&reacted, [reacted.put_reaction(&key, &taken_back)]);
-    assert!(unreacted.reactions(lunch).is_empty(), "a reaction taken back is not shown");
+    assert!(
+        unreacted.reactions(lunch).is_empty(),
+        "a reaction taken back is not shown"
+    );
     assert!(
         unreacted.reaction_records(lunch)[0]
             .1
@@ -70,5 +78,8 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     );
     let replayed = edited(&unreacted, [unreacted.put_reaction(&key, &kept)]);
     assert_eq!(replayed.reactions(lunch), [("heart".to_owned(), vec![BO])]);
-    assert!(replayed.replaced(kept.key(&key)), "the kept record put back was replaced");
+    assert!(
+        replayed.replaced(kept.key(&key)),
+        "the kept record put back was replaced"
+    );
 }

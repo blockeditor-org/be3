@@ -10,7 +10,9 @@ fn reactions_show_under_a_message_with_their_counts() {
         (other, "party-popper"),
         (other, "heart"),
     ] {
-        let (key, made) = chat.content().reaction(release, author, reaction, MORNING, true);
+        let (key, made) = chat
+            .content()
+            .reaction(release, author, reaction, MORNING, true);
         let made = be_type_chat::Reaction {
             signature: Signature(be_sdk_test::signature(
                 author,

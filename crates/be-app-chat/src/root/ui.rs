@@ -13,8 +13,8 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Signer, utc_offset};
 use be_type_chat::{
-    ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey,
-    ReadPlace, Segment, Shown, Signature,
+    ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey, ReadPlace,
+    Segment, Shown, Signature,
 };
 use beui::{Align, Direction, ScrollPosition};
 use uuid::Uuid;

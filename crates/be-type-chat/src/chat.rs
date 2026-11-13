@@ -722,10 +722,7 @@ impl ChatContent {
             author,
             reaction: reaction.into(),
         };
-        let previous = self
-            .reaction_map()
-            .get(&key)
-            .map(|held| held.key(&key));
+        let previous = self.reaction_map().get(&key).map(|held| held.key(&key));
         let reaction = Reaction {
             time,
             kept,
@@ -739,7 +736,8 @@ impl ChatContent {
     pub fn put_reaction(&self, key: &ReactionKey, reaction: &Reaction) -> Edit {
         let at = stamp_time(reaction.time);
         let stamp = self.reaction_map().next(key, at, key.author);
-        let mut changes = vec![ChatHeader::REACTIONS.put(ObjectId::ROOT, key, Some(reaction), stamp)];
+        let mut changes =
+            vec![ChatHeader::REACTIONS.put(ObjectId::ROOT, key, Some(reaction), stamp)];
         changes.extend(self.supersede(reaction.previous, at, key.author));
         changes.into_iter().collect()
     }

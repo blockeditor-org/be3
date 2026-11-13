@@ -63,14 +63,18 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
     );
 
     // Rosa reacts, and someone else takes her reaction back in her name.
-    let (key, reaction) = chat.content().reaction(who, ROSA, "heart", MORNING + 34 * MINUTE, true);
+    let (key, reaction) = chat
+        .content()
+        .reaction(who, ROSA, "heart", MORNING + 34 * MINUTE, true);
     let reaction = Reaction {
         signature: sign(ROSA, &key.signed_bytes(CHAT, &reaction)),
         ..reaction
     };
     chat.arrive(chat.content().put_reaction(&key, &reaction));
     assert_eq!(chat.row(who), "Member 7e1a 09:06 Who is in? 1");
-    let (key, taken_back) = chat.content().reaction(who, ROSA, "heart", MORNING + 35 * MINUTE, false);
+    let (key, taken_back) =
+        chat.content()
+            .reaction(who, ROSA, "heart", MORNING + 35 * MINUTE, false);
     let taken_back = Reaction {
         signature: sign(sam, &key.signed_bytes(CHAT, &taken_back)),
         ..taken_back
