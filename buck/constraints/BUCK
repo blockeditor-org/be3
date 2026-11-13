@@ -45,6 +45,17 @@ constraint_value(
     constraint_setting = ":link_time_optimization",
 )
 
+# Whether an action needs most of a worker's memory set aside for it, which runs
+# it on buck/platforms:large_memory: be-host's fat LTO link (crates/be-host/BUCK).
+constraint_setting(
+    name = "worker_memory",
+)
+
+constraint_value(
+    name = "large_memory",
+    constraint_setting = ":worker_memory",
+)
+
 # Which core beui's view layer builds on (guides/beui.md, Two cores): the native one,
 # which lays out and paints itself, without this value, and the HTML one, which
 # hands both to the browser, with it. A constraint rather than a cargo feature,

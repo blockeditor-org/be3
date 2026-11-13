@@ -39,6 +39,14 @@ cargo_test(
 # minutes, which every other release build, such as the build helper's for
 # be-launcher, would wait on.
 cargo_binary(
+    # The link peaks at 10 GB, so it runs where a worker's memory is set aside
+    # for it (buck/platforms:large_memory). Thin LTO needed 4 GB and 5 minutes
+    # rather than 16, but left the stripped binary a fifth larger (101 MB to 121,
+    # November 2026).
+    exec_compatible_with = select({
+        "DEFAULT": [],
+        "root//buck/constraints:lto": ["root//buck/constraints:large_memory"],
+    }),
     rustc_flags = select({
         "DEFAULT": [],
         "root//buck/constraints:lto": ["-Clto=fat", "-Ccodegen-units=1"],
