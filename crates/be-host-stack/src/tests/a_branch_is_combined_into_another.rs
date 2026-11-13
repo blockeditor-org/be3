@@ -7,11 +7,7 @@ fn a_branch_is_combined_into_another() {
     let harness = Harness::start();
     harness.connect();
     let versioned = start_versioning("hello\n");
-    version_since(
-        versioned.checkout,
-        be_block::CheckoutContent::CONTENT_TYPE,
-        None,
-    );
+    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
     hold(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()

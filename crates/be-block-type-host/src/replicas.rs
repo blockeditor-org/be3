@@ -660,12 +660,8 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn kind(&mut self, content_type: Uuid) -> Option<types::Kind> {
-        let before = types::kinds_revision();
         if let Some(module) = self.modules.module_of(content_type) {
             self.modules.load(module).await;
-        }
-        if types::kinds_revision() != before {
-            H::wake();
         }
         types::kind_of(content_type)
     }
@@ -1544,7 +1540,8 @@ impl<H: Host> Replicas<H> {
     /// A commit's searchable text (`be_block::BlockContent::search_text`), as the indexer can
     /// trust it whatever the type answered: only the documents `keys` names (none for every
     /// one), each key once, a `source` only if it is a part of this commit, and no body for a
-    /// document whose source is in `indexed`. The type is handed the commit as it loads it and
+    /// document whose source is in `indexed`, the hashes of parts whose text the index holds
+    /// (those that are parts of this commit). The type is handed the commit as it loads it and
     /// reads only parts of it.
     pub async fn search_text(
         &mut self,
@@ -1552,7 +1549,7 @@ impl<H: Host> Replicas<H> {
         content_type: Uuid,
         manifest: &be_block_store::Manifest,
         keys: Option<Vec<String>>,
-        indexed: &[be_block_store::PartRef],
+        indexed: &[[u8; 32]],
     ) -> Result<Searched, NotSearched> {
         let peer = ctx.0;
         let no_module =
@@ -1562,6 +1559,7 @@ impl<H: Host> Replicas<H> {
         let content = kind.load(peer, manifest).await.map_err(NotSearched::Read)?;
         let scope = types::Scope::of([&content]);
         let asked = keys.clone();
+        let indexed = scope.with_hashes(indexed);
         let wire_indexed = indexed.iter().copied().map(Into::into).collect();
         let (answer, mut scope) = self
             .ask_reading(ctx, module, scope, |connection| {

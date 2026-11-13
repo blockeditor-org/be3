@@ -1,7 +1,7 @@
 use super::*;
 use be_sdk_api::{EditorInstanceId, ViewId};
 
-fn view() -> super::super::held_keys::View {
+fn view() -> be_host_runtime::GiftView {
     ("be3.text".to_owned(), EditorInstanceId(3), ViewId::MAIN)
 }
 

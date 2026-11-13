@@ -16,7 +16,9 @@ pub(crate) struct Docks {
     sent: HashMap<ViewId, Option<DockDeclaration>>,
     requests: Vec<(ViewId, DockRequest)>,
     hosting: HashMap<ChildId, DockHold>,
-    hosted_sent: HashMap<ChildId, DockHold>,
+    /// The `epoch` of the last declaration or withdrawal heard for each child.
+    seen: HashMap<ChildId, u64>,
+    hosted_sent: HashMap<ChildId, (DockHold, u64)>,
     closing: Vec<(ChildId, DockTabPath)>,
     picking: Vec<(ChildId, DockTabPath, String)>,
     hosted: HashMap<ViewId, DockHosted>,
@@ -119,14 +121,18 @@ impl EditorHost {
                     }
                 },
                 DockUpdate::Close(close) => docks.closed.push((close.view, close.tab)),
-                DockUpdate::Child(child) => match child.declaration {
-                    Some(declaration) => {
-                        docks.children.insert(child.child, declaration);
+                DockUpdate::Child(child) => {
+                    docks.used = true;
+                    docks.seen.insert(child.child, child.epoch);
+                    match child.declaration {
+                        Some(declaration) => {
+                            docks.children.insert(child.child, declaration);
+                        }
+                        None => {
+                            docks.children.remove(&child.child);
+                        }
                     }
-                    None => {
-                        docks.children.remove(&child.child);
-                    }
-                },
+                }
                 DockUpdate::ChildRequest(request) => {
                     docks
                         .child_requests
@@ -184,21 +190,34 @@ impl EditorHost {
                 request,
             }));
         }
-        let mut hosting: Vec<_> = docks.hosting.iter().collect();
-        hosting.sort_by_key(|(child, _)| **child);
-        for (child, hold) in hosting {
-            if docks.hosted_sent.get(child) == Some(hold)
-                || (!matches!(hold, DockHold::Hosted(_)) && !docks.hosted_sent.contains_key(child))
+        // Each hold goes with the epoch heard last, and goes again when either changes: a
+        // declaration heard is answered, placing it unless the instance said otherwise.
+        let mut children: Vec<ChildId> = docks
+            .hosting
+            .keys()
+            .chain(docks.seen.keys())
+            .copied()
+            .collect();
+        children.sort();
+        children.dedup();
+        for child in children {
+            let hold = docks
+                .hosting
+                .get(&child)
+                .cloned()
+                .unwrap_or(DockHold::Placing);
+            let seen = docks.seen.get(&child).copied().unwrap_or(0);
+            let sent = docks.hosted_sent.get(&child);
+            if sent.is_some_and(|(held, at)| *held == hold && *at == seen)
+                || (sent.is_none() && seen == 0 && !matches!(hold, DockHold::Hosted(_)))
             {
                 continue;
             }
-            docks.hosted_sent.insert(*child, hold.clone());
+            docks.hosted_sent.insert(child, (hold.clone(), seen));
             messages.push(DockMessage::Host(DockChildHosted {
-                child: DockChild {
-                    instance,
-                    child: *child,
-                },
-                hold: hold.clone(),
+                child: DockChild { instance, child },
+                hold,
+                seen,
             }));
         }
         for (child, tab) in docks.closing.drain(..) {

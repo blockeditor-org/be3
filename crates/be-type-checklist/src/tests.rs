@@ -33,6 +33,7 @@ fn reverted<C: Undo>(content: &mut C, step: &C::Step) {
     }
 }
 
+mod a_checklist_answers_its_items_text_as_one_document;
 mod checks_of_different_items_at_once_both_stick;
 mod clearing_a_checklist_keeps_the_open_items;
 mod clearing_done_items_removes_one_someone_reopened_at_once;
