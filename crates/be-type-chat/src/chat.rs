@@ -623,7 +623,9 @@ impl ChatContent {
         let mut changes = Self::send_as(id, message).0;
         changes.extend(message.attachments.iter().filter_map(|BlockRef(block)| {
             // Only the author's own: someone else's message linking my draft leaves it mine.
-            let draft = drafts.get(block).filter(|draft| draft.author == message.author)?;
+            let draft = drafts
+                .get(block)
+                .filter(|draft| draft.author == message.author)?;
             let stamp = drafts.next(block, stamp_time(message.time), draft.author);
             Some(ChatHeader::DRAFTS.put(ObjectId::ROOT, block, None, stamp))
         }));
@@ -663,7 +665,11 @@ impl ChatContent {
         let deletions = self.deletions();
         let mut gone = std::collections::HashSet::new();
         let mut kept = std::collections::HashSet::new();
-        for carried in self.segments().iter().flat_map(|segment| &segment.attachments) {
+        for carried in self
+            .segments()
+            .iter()
+            .flat_map(|segment| &segment.attachments)
+        {
             match deletions.contains_key(&carried.message) {
                 true => gone.insert(carried.block.0),
                 false => kept.insert(carried.block.0),
