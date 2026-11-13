@@ -17,8 +17,8 @@
             // Of a CPX62's 601 GB disk, max_bytes counts only content/. A blob an action takes as an executable is
             // also copied, mode 0555, into content.exec/, which max_bytes does not see: it goes when its blob is
             // evicted and is wiped at startup, so it can reach max_bytes again (177 GB beside 437 GB filled the disk
-            // at 450 GB, nearly all test binaries). Twice this, the system and the image (about 5 GB) and actions'
-            // directories under /work/run (often over 10 GB for a verify) fit.
+            // at 450 GB, nearly all test binaries). Twice this, the swap file (16 GB, setup.sh), the system and the
+            // image (about 5 GB) and actions' directories under /work/run (often over 10 GB for a verify) fit.
             eviction_policy: { max_bytes: 270000000000 },
           },
         },

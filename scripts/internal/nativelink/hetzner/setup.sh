@@ -12,6 +12,13 @@ IMAGE=docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da071
 # Only key logins (Hetzner's image allows passwords for users other than root).
 printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh/sshd_config.d/10-keys-only.conf
 systemctl reload ssh
+# 16 GB of swap, which the server's image lacks: the worker does not schedule by memory, so a release build's LTO
+# link (about 10 GB) beside 15 other actions can run out, and swap slows that down rather than OOM-killing the link.
+# Swappiness 10 keeps the CAS's files in the page cache rather than swapping out what runs.
+if [ ! -e /swapfile ]; then fallocate -l 16G /swapfile; chmod 600 /swapfile; mkswap /swapfile >/dev/null; fi
+swapon --show=NAME --noheadings | grep -qx /swapfile || swapon /swapfile
+grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+echo 'vm.swappiness = 10' > /etc/sysctl.d/90-swap.conf; sysctl -q -p /etc/sysctl.d/90-swap.conf
 command -v docker >/dev/null || { apt-get update -qq && apt-get install -y -qq docker.io >/dev/null; }
 systemctl enable --now docker
 docker pull -q "$IMAGE" >/dev/null
