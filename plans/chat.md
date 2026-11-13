@@ -26,12 +26,17 @@ counts are built (guides/chat.md). What is left:
   sending; a content-level answer (what the local head adds over the server's)
   would close that, which is the user's call.
 - **A message sent just after a drop can skip "Sending".** A host test that
-  sends, goes `HostTest::offline`, then sends again and waits for "Sending"
-  (branch feat/tooling-chat-offline-host-test) fails about one run in eight
-  under `local-tools stress`: in those runs the second message's edit never
-  reaches its replica's `Lacking` (no `add`), so nothing follows it, though the
-  editor shows the message. Done: that test passes 50 runs of 50 under stress,
-  and lands.
+  sends, waits for `synced`, goes `HostTest::offline`, sends again and waits
+  for "Sending" (branch feat/tooling-chat-offline-host-test) fails about one run
+  in seven under `local-tools stress`. Nothing is lost: a second device gets
+  the message once the first is back. Traced so far: both messages are signed
+  at once and reach the replica; in the failing runs the first message's
+  journal append is still unanswered when `synced` returns, both are sealed
+  into one kept commit, and a drain then publishes that commit with the peer
+  attached, before the test brings the device back. So either `synced` returns
+  before an owner's journal append is answered, or the relay lets a
+  connection through while offline. Done: the host test passes 50 runs of 50
+  under stress, and lands.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a
   follower's message is told by the follower's replica once the owner accepts
   it, so a follower that closes or restarts before then tells nobody, as its
