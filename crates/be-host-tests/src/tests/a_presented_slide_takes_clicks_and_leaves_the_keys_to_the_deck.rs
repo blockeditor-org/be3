@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Presentation");
     for (page, shown) in [
         ("Title page", "Slide 1 of 1"),

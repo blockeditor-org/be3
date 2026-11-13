@@ -4,7 +4,7 @@ const ARTWORK: &str = "#pan_zoom.card.4";
 
 #[test]
 fn fit_on_an_active_child_fits_its_content_in_its_view() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Pan and Zoom");
     let card = host.place("GenericContainer #infinite-canvas.entity.");

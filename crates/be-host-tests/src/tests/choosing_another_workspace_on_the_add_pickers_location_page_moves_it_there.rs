@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn choosing_another_workspace_on_the_add_pickers_location_page_moves_it_there() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click(NEW);
     host.click("#file-tree.new-workspace");
     host.wait("TextInput \"Name\" value=\"New workspace\" focused");
