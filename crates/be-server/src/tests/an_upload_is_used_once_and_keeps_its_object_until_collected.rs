@@ -24,8 +24,7 @@ async fn an_upload_is_used_once_and_keeps_its_object_until_collected() {
     };
     assert_eq!(uploads(), 0, "publishing used the uploads it held");
     let usage = client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(usage.pending, 0);
 

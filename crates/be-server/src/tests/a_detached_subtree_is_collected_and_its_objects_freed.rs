@@ -89,8 +89,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
     assert!(matches!(response, Ok(Some(_))), "{response:?}");
 
     let response = client
-        .call(|peer| client::blocks::read_block(peer, child))
-        .await;
+        .try_read(child).await;
     assert!(
         matches!(response, Err(Error { code, .. }) if code == ErrorCode::BlockNotFound),
         "{response:?}"

@@ -321,7 +321,7 @@ impl Heard {
                 .map(|changed| changed.map(|()| Notice::ContactsChanged)),
             Heard::KeyWork(stream) => stream
                 .poll_recv(context)
-                .map(|changed| changed.map(|()| Notice::KeyWorkChanged)),
+                .map(|changed| changed.map(|_| Notice::KeyWorkChanged)),
             Heard::Watch(block, stream) => {
                 let block = *block;
                 stream.poll_recv(context).map(|event| {
@@ -713,9 +713,30 @@ impl TestClient {
     }
 
     async fn read_block(&mut self, block: Uuid) -> BlockSummary {
-        self.call(|peer| client::blocks::read_block(peer, block))
+        self.try_read(block).await.expect("read failed")
+    }
+
+    /// The account's key work, as `key-work-changed` opens with it.
+    async fn key_work(&mut self) -> Result<be_block_protocol::KeyWork, Error> {
+        let mut work = client::keys::key_work_changed(&self.peer);
+        work.recv().await.ok_or_else(|| Error {
+            code: ErrorCode::PermissionDenied,
+            message: "the key work stream ended".into(),
+        })
+    }
+
+    /// The account's storage usage, as `storage-changed` opens with it. It ends a stream this
+    /// connection had open before.
+    async fn storage_usage(&mut self) -> Result<be_block_protocol::AccountStorage, Error> {
+        let mut usage = client::account::storage_changed(&self.peer);
+        Ok(usage.recv().await.expect("the stream opens with the usage"))
+    }
+
+    /// `block`'s summary, which lists it as `listing.block`.
+    async fn try_read(&mut self, block: Uuid) -> Result<BlockSummary, Error> {
+        self.call(|peer| client::blocks::list_blocks(peer, Listing::Block(block)))
             .await
-            .expect("read failed")
+            .map(the_block)
     }
 
     async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
@@ -1117,6 +1138,15 @@ impl TestClient {
 fn poll<F: Future + Unpin>(future: &mut F) -> std::task::Poll<F::Output> {
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
     std::pin::Pin::new(future).poll(&mut context)
+}
+
+/// The one block a `listing.block` lists.
+fn the_block(listed: be_block_protocol::Listed) -> BlockSummary {
+    listed
+        .blocks
+        .into_iter()
+        .next()
+        .expect("a block's listing lists it")
 }
 
 fn refused_as<T>(response: &Result<T, Error>, expected: ErrorCode) -> bool {

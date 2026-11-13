@@ -83,9 +83,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | account::Call::PollBrowserLogin { .. }
             | account::Call::CreateLocalProfile { .. }
             | account::Call::Authenticate { .. } => Rule::Anyone,
-            account::Call::StorageUsage { .. } | account::Call::StorageChanged { .. } => {
-                Rule::Organization
-            }
+            account::Call::StorageChanged { .. } => Rule::Organization,
             account::Call::Logout { .. }
             | account::Call::Pair { .. }
             | account::Call::Paired { .. } => Rule::SignedIn,
@@ -140,10 +138,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | blocks::Call::Watch { block: of, .. }
             | blocks::Call::ChangedSince { root: of, .. } => block(*of, Access::View),
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
-            // Reading a block is listing it (`Connection::list`): the listing is registered
-            // before the store answers, which refuses less than `KnowExists` as not found.
-            blocks::Call::ReadBlock { .. }
-            | blocks::Call::ListBlocks { .. }
+            // The listing is registered before the store answers (`Connection::list`), which
+            // refuses less than `KnowExists` as not found.
+            blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::CollectDetached { .. } => Rule::Organization,
             blocks::Call::Changes { .. } => Rule::SignedIn,
@@ -169,7 +166,6 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             keys::Call::Rotate { roots, .. } => Rule::Blocks(roots.clone(), Access::Edit),
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
-            | keys::Call::GetKeyWork { .. }
             | keys::Call::PinEscrow { .. }
             | keys::Call::GetSigningKeys { .. } => Rule::Organization,
             keys::Call::KeyWorkChanged { .. } => Rule::SignedIn,
@@ -210,7 +206,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             account::Call::BeginBrowserLogin { .. }
             | account::Call::PollBrowserLogin { .. }
             | account::Call::CreateLocalProfile { .. }
-            | account::Call::StorageUsage { .. }
             | account::Call::StorageChanged { .. }
             | account::Call::Pair { .. }
             | account::Call::Paired { .. } => false,
@@ -262,7 +257,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
 
             blocks::Call::SetMetadata { .. }
             | blocks::Call::Publish { .. }
-            | blocks::Call::ReadBlock { .. }
             | blocks::Call::ReadContents { .. }
             | blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
@@ -286,7 +280,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
         Call::Keys(call) => match call {
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
-            | keys::Call::GetKeyWork { .. }
             | keys::Call::KeyWorkChanged { .. }
             | keys::Call::PinEscrow { .. }
             | keys::Call::ResealKeys { .. }
@@ -656,6 +649,7 @@ impl Client {
 
     pub(crate) async fn push(&mut self, push: Push) -> Result<(), ServerError> {
         let mut unwatched = None;
+        let mut key_work = false;
         {
             let mut lock = self.peer.lock();
             let streams = &mut self.streams;
@@ -725,9 +719,7 @@ impl Client {
                 Push::ContactsChanged => {
                     streams.send(&mut lock, (), |route| *route == Route::Contacts)?;
                 }
-                Push::KeyWorkChanged => {
-                    streams.send(&mut lock, (), |route| *route == Route::KeyWork)?;
-                }
+                Push::KeyWorkChanged => key_work = true,
                 Push::NotifyModesChanged => {
                     streams.send(&mut lock, (), |route| *route == Route::NotifyModes)?;
                 }
@@ -739,7 +731,23 @@ impl Client {
                 .unwatch(block, self.connection.client)
                 .await;
         }
+        if key_work {
+            self.send_key_work().await;
+        }
         Ok(())
+    }
+
+    /// Sends the account's key work to its key-work streams.
+    async fn send_key_work(&mut self) {
+        let Ok(identity) = self.connection.identity() else {
+            return;
+        };
+        let Ok(work) = self.connection.store.key_work(identity).await else {
+            return;
+        };
+        let _ = self
+            .streams
+            .send(&mut self.peer.lock(), work, |route| *route == Route::KeyWork);
     }
 
     async fn canceled(&mut self, op: OpId) {
@@ -1037,15 +1045,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, logged_out);
-            }
-            Call::StorageUsage { reply } => {
-                let connection = &self.connection;
-                let usage = async {
-                    prelude?;
-                    connection.store.storage_usage(connection.identity()?).await
-                }
-                .await;
-                self.reply(reply, usage);
             }
             Call::Pair { reply, to, payload } => {
                 let connection = &self.connection;
@@ -1719,19 +1718,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, published);
-            }
-            Call::ReadBlock { reply, block } => {
-                let read = async {
-                    prelude?;
-                    connection
-                        .list(Listing::Block(block))
-                        .await?
-                        .blocks
-                        .pop()
-                        .ok_or(ServerError::Corrupt)
-                }
-                .await;
-                self.reply(reply, read);
             }
             Call::ReadContents {
                 reply,
@@ -2407,16 +2393,8 @@ impl Client {
                 .await;
                 self.reply(reply, resealed);
             }
-            Call::GetKeyWork { reply } => {
-                let work = async {
-                    prelude?;
-                    connection.store.key_work(connection.identity()?).await
-                }
-                .await;
-                self.reply(reply, work);
-            }
             Call::KeyWorkChanged { stream } => {
-                if prelude.is_err() {
+                if prelude.is_err() || self.connection.identity().is_err() {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
                 self.streams.open_with(
@@ -2425,6 +2403,7 @@ impl Client {
                     Route::KeyWork,
                     Backlog::Latest,
                 );
+                self.send_key_work().await;
             }
             Call::Rotate { reply, roots, keys } => {
                 let rotated = async {

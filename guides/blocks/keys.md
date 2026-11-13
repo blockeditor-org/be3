@@ -57,8 +57,8 @@ Design records: `decisions/deterministic_seal_nonce.md`,
 
 When an account stops being able to view a block (revoked, left, moved away,
 contact or member removed), the server records the block in `rotations`, drops
-that account's wraps and ends its sessions there. `GetKeyWork` tells a client
-what it can do: rotations on blocks it may edit, scope keys not yet sealed to
+that account's wraps and ends its sessions there. The `key-work-changed` stream
+tells a client, as it opens and whenever it changes, what it can do: rotations on blocks it may edit, scope keys not yet sealed to
 someone who should have them (`unsealed`, whose list is `keys::sealed_to`), and
 scope keys not yet escrowed. `Peer::tend` does all of it; the worker calls it
 on connect, `ContactsChanged`, `KeyWorkChanged` and after its own changes.

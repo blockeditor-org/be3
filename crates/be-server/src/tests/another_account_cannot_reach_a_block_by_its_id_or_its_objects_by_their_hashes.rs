@@ -37,8 +37,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     attacker.register("attacker@example.com").await;
     let elsewhere = attacker.organization("elsewhere").await;
     let read = attacker
-        .call(|peer| client::blocks::read_block(peer, block))
-        .await;
+        .try_read(block).await;
     assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
     let contents = attacker
         .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))

@@ -22,8 +22,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     let stored = client.put(big.clone()).await;
     assert!(stored.is_ok(), "two large objects fit: {stored:?}");
     let held = client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(held.pending, 2 * OBJECT as u64);
     assert_eq!(held.quota, Some(quota));
@@ -35,8 +34,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     );
     assert_eq!(
         client
-            .call(|peer| client::account::storage_usage(peer))
-            .await
+            .storage_usage().await
             .unwrap()
             .pending,
         held.pending
@@ -58,8 +56,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
     );
     assert_eq!(
         client
-            .call(|peer| client::account::storage_usage(peer))
-            .await
+            .storage_usage().await
             .unwrap()
             .pending,
         held.pending
@@ -72,8 +69,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         .await;
     assert!(taken.is_ok(), "{taken:?}");
     let after = client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(
         (after.held, after.pending),

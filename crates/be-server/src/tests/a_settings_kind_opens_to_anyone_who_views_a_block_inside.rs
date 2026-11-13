@@ -28,8 +28,7 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
 
 async fn access_of(client: &mut TestClient, block: Uuid) -> Access {
     match client
-        .call(|peer| client::blocks::read_block(peer, block))
-        .await
+        .try_read(block).await
     {
         Ok(block) => block.access,
         _ => Access::None,
@@ -90,7 +89,7 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
         })
         .await;
     assert!(matches!(stored, Ok(())), "{stored:?}");
-    let response = owner.call(|peer| client::keys::get_key_work(peer)).await;
+    let response = owner.key_work().await;
     let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };

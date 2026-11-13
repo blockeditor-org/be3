@@ -38,8 +38,7 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
     let other_id = other.register("other@example.com").await;
     other.personal().await;
     let hidden = other
-        .call(|peer| client::blocks::read_block(peer, shared.block))
-        .await;
+        .try_read(shared.block).await;
     assert!(matches!(hidden, Err(_)), "{hidden:?}");
 
     let accepted = other

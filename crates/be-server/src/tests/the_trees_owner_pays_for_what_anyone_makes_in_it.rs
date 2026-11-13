@@ -45,8 +45,7 @@ pub(super) async fn shared_tree(harness: &Harness) -> SharedTree {
 
 pub(super) async fn held(client: &mut TestClient) -> u64 {
     client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap()
         .held
 }

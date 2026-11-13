@@ -170,7 +170,7 @@ in the outbox while a creation, move or define of it waits
 (`Peer::publish_sealed`), a block made under it waits behind its parent's
 creation (`Peer::create_block`), `Peer::summary` answers from the device until
 the server knows it, and a listing the server answers is laid over with what the
-outbox adds or moves (`Peer::listed`). A block opened before its creation is
+outbox adds or moves (`Peer::list`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
 owns and joins (`Replicas::created`). A command that needs the server to know a
 block waits first for a drain to send what this device made of it

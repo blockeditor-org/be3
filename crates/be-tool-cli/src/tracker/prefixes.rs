@@ -1,5 +1,6 @@
 use be_block::{BlockContent, PREFIXES, PrefixRegistryContent};
 use be_block_graph::BlockParent;
+use be_block_protocol::Listing;
 use be_block_store::ObjectStore;
 use be_type_database::database::DatabaseContent;
 use uuid::Uuid;
@@ -54,7 +55,7 @@ impl<S: ObjectStore> Tracker<S> {
                 BlockParent::Root => self.registry_of(entry.id).await?.into_iter().collect(),
                 BlockParent::Block(_) | BlockParent::Detached => self
                     .peer
-                    .open_settings(entry.id)
+                    .list(Listing::OpenSettings(entry.id))
                     .await
                     .map_err(explain)?
                     .into_iter()

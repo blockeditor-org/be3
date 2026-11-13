@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{BlockSummary, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client};
+use be_block_protocol::{
+    BlockSummary, ErrorCode, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client,
+};
 use be_block_store::ObjectStore;
 use uuid::Uuid;
 
@@ -9,8 +11,14 @@ use super::Peer;
 use crate::ClientError;
 
 impl<S: ObjectStore> Peer<S> {
+    /// The account's key work, as its stream opens with it.
     pub async fn key_work(&self) -> Result<KeyWork, ClientError> {
-        Ok(client::keys::get_key_work(&self.connection()).await??)
+        client::keys::key_work_changed(&self.connection())
+            .recv()
+            .await
+            .ok_or_else(|| {
+                ClientError::Refused(ErrorCode::PermissionDenied, "no key work to read".into())
+            })
     }
 
     pub async fn tend(&self) -> Result<(), ClientError> {

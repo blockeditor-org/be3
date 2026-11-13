@@ -7,7 +7,6 @@ const REACHING_PAST: &[&str] = &[
     "begin-browser-login",
     "poll-browser-login",
     "create-local-profile",
-    "storage-usage",
     "storage-changed",
     "pair",
     "paired",
@@ -63,7 +62,6 @@ const CONNECTING: &[&str] = &[
     "put-keys",
     "get-recovery-key",
     "reseal-keys",
-    "get-key-work",
     "key-work-changed",
     "pin-escrow",
     "logout",
@@ -111,8 +109,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     );
     for block in [elsewhere, under] {
         let response = agent
-            .call(|peer| client::blocks::read_block(peer, block))
-            .await;
+            .try_read(block).await;
         assert!(
             refused_as(&response, ErrorCode::BlockNotFound),
             "a block's agent read another block: {response:?}"
@@ -227,7 +224,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         .iter()
         .map(|key| key.id)
         .collect();
-    let response = agent.call(|peer| client::keys::get_key_work(peer)).await;
+    let response = agent.key_work().await;
     let Ok(work) = response else {
         panic!("reading the key work failed: {response:?}");
     };

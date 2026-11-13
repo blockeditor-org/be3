@@ -230,9 +230,6 @@ interface blocks {
     /// `root`.
     changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
 
-    /// One block's summary, which lists it as `listing.block` would.
-    read-block: async func(block: block-id) -> result<block-summary, error>;
-
     /// Summaries of `blocks`, their journals, and the objects of their heads
     /// the caller does not hold, those of the commits in `held` left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;

@@ -18,8 +18,7 @@ async fn a_block_agent_never_becomes_an_administrator() {
     );
     let mut agent = harness.second_connection(&token, organization).await;
     let response = agent
-        .call(|peer| client::blocks::read_block(peer, elsewhere))
-        .await;
+        .try_read(elsewhere).await;
     assert!(
         refused_as(&response, ErrorCode::BlockNotFound),
         "{response:?}"

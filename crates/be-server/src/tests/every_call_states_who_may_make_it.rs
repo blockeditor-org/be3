@@ -61,10 +61,6 @@ impl TestClient {
                 answered(client::organizations::open_organization(peer, organization).await),
             ),
             (
-                "read-block",
-                answered(client::blocks::read_block(peer, block).await),
-            ),
-            (
                 "begin-browser-login",
                 answered(client::account::begin_browser_login(peer).await),
             ),
@@ -81,10 +77,6 @@ impl TestClient {
             (
                 "authenticate",
                 answered(client::account::authenticate(peer, Some("not a token".into())).await),
-            ),
-            (
-                "storage-usage",
-                answered(client::account::storage_usage(peer).await),
             ),
             (
                 "pair",
@@ -369,10 +361,6 @@ impl TestClient {
             (
                 "reseal-keys",
                 answered(client::keys::reseal_keys(peer, Vec::new()).await),
-            ),
-            (
-                "get-key-work",
-                answered(client::keys::get_key_work(peer).await),
             ),
             (
                 "rotate",

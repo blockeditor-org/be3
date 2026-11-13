@@ -27,10 +27,10 @@ async fn references_declared_by_content_reach_the_graph() {
         .published()
         .unwrap();
 
-    let backrefs = author.backrefs(first).await.unwrap();
+    let backrefs = author.list(Listing::Backrefs(first)).await.unwrap();
     assert_eq!(backrefs.len(), 1);
     assert_eq!(backrefs[0].id, index);
-    assert_eq!(author.backrefs(second).await.unwrap().len(), 1);
+    assert_eq!(author.list(Listing::Backrefs(second)).await.unwrap().len(), 1);
 
     let head = author
         .save(
@@ -45,10 +45,10 @@ async fn references_declared_by_content_reach_the_graph() {
         .published()
         .unwrap();
     assert!(
-        author.backrefs(first).await.unwrap().is_empty(),
+        author.list(Listing::Backrefs(first)).await.unwrap().is_empty(),
         "dropping a reference left the edge behind"
     );
-    assert_eq!(author.backrefs(second).await.unwrap().len(), 1);
+    assert_eq!(author.list(Listing::Backrefs(second)).await.unwrap().len(), 1);
 
     let commit = author.load_commit(head).await.unwrap();
     assert_eq!(

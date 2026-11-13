@@ -80,9 +80,6 @@ interface account {
     /// Ends the session the token named and signs this connection out.
     logout: async func() -> result<_, error>;
 
-    /// The signed-in account's storage usage and quota.
-    storage-usage: async func() -> result<account-storage, error>;
-
     /// The signed-in account's storage usage: its value as the stream opens,
     /// then each new value as the bytes it pays for change. A connection has
     /// one: opening another ends the first. Ends at once, denied, before an

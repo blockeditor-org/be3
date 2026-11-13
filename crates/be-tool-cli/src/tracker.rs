@@ -5,7 +5,7 @@ use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_block_client::{Peer, Saved, Write};
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
-use be_block_protocol::BlockSummary;
+use be_block_protocol::{BlockSummary, Listing};
 use be_block_store::ObjectStore;
 use be_block_type_host::Modules;
 use be_sdk_type_api::{Change as Edit, ChildChange, Description, FileChange};
@@ -448,7 +448,7 @@ impl<S: ObjectStore> Tracker<S> {
         }
         let (roots, shared) = futures_util::future::try_join(
             self.peer.children(BlockParent::Root),
-            self.peer.shared(),
+            self.peer.list(Listing::Shared),
         )
         .await
         .map_err(explain)?;
@@ -760,7 +760,7 @@ impl<S: ObjectStore> Tracker<S> {
         let (database, schema) = self.load_plain(id).await?;
         let mut sources: Vec<Uuid> = self
             .peer
-            .backrefs(id)
+            .list(Listing::Backrefs(id))
             .await
             .map_err(explain)?
             .into_iter()

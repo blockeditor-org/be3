@@ -43,8 +43,7 @@ async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
         .map(|hash| author.store.get(*hash).unwrap().unwrap().len() as u64)
         .sum();
     let usage = creator
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(
         usage.held, size,

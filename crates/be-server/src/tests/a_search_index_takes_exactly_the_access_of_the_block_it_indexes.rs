@@ -94,8 +94,7 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     );
     assert_eq!(viewer.read_block(index).await.access, Access::View);
     let read = inside
-        .call(|peer| client::blocks::read_block(peer, index))
-        .await;
+        .try_read(index).await;
     assert!(
         read.is_err(),
         "a block shared alone opened the tree's index: {read:?}"

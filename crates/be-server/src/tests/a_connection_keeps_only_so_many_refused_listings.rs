@@ -16,14 +16,12 @@ async fn a_connection_keeps_only_so_many_refused_listings() {
         .collect();
     for block in &early {
         let read = reader
-            .call(|peer| client::blocks::read_block(peer, *block))
-            .await;
+            .try_read(*block).await;
         assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
     }
     let late = Uuid::new_v4();
     let read = reader
-        .call(|peer| client::blocks::read_block(peer, late))
-        .await;
+        .try_read(late).await;
     assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
 
     for block in [late, early[0]] {

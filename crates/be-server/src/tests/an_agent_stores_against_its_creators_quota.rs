@@ -29,8 +29,7 @@ async fn an_agent_stores_against_its_creators_quota() {
     let stored = agent.put(vec![upload.clone()]).await;
     assert!(stored.is_ok(), "{stored:?}");
     let usage = creator
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(
         usage.pending,
@@ -38,8 +37,7 @@ async fn an_agent_stores_against_its_creators_quota() {
         "an agent's upload is charged to who created it"
     );
     let usage = agent
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(
         usage.pending,
@@ -70,8 +68,7 @@ async fn an_agent_stores_against_its_creators_quota() {
         .map(|hash| writer.store.get(*hash).unwrap().unwrap().len() as u64)
         .sum();
     let usage = creator
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(
         usage.held, size,

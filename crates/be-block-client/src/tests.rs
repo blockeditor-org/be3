@@ -1,5 +1,6 @@
 use be_block::{BlockContent, ContentError};
 use be_block_graph::BlockParent;
+use be_block_protocol::Listing;
 use be_block_store::{ChunkerConfig, MemoryStore};
 use be_server::Running;
 use uuid::Uuid;

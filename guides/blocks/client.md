@@ -150,7 +150,7 @@ with the block key; the server keeps it beside history, never in it
   (written with the seal's commit in one refs write, dropped by the next rebase:
   `Peer::sealing`) and holds the seal's last entry in its generation
   (`reaches_seal`; guides/type_modules.md, Peers).
-- Joining (`Peer::join_session`) answers the journal as of joining, so a
+- Joining (`Connection::join_session`) answers the journal as of joining, so a
   replica opening on its base needs no state from the owner
   (`be_block_type_host::Replicas` picks the server's or the device's,
   whichever holds more). `read_contents` answers each block's journal

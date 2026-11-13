@@ -71,8 +71,7 @@ async fn nobody_makes_or_writes_to_another_accounts_unfiled() {
         "or move one into it: {moved:?}"
     );
     let read = other
-        .call(|peer| client::blocks::read_block(peer, filed))
-        .await;
+        .try_read(filed).await;
     assert!(
         refused_as(&read, ErrorCode::BlockNotFound),
         "or read what it holds: {read:?}"

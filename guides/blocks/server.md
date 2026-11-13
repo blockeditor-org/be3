@@ -260,9 +260,8 @@ counts and records nothing: `upload-urls` did before it signed.
   blocks hold it), `account_usage`, `organization_usage`, and `block_sizes`,
   which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`
   (`add_size`, `set_parent` and `remove` carry a subtree's bytes up its
-  ancestors). `BlockSummary` reports both; `account.storage-usage` reports the
-  account's `held`, `pending` and `quota`, and `account.storage-changed` streams
-  it: its value on opening, then again whenever the payer's `account_usage` row
+  ancestors). `BlockSummary` reports both, and `account.storage-changed` streams
+  the account's `held`, `pending` and `quota`: its value on opening, then again whenever the payer's `account_usage` row
   changes (`ServerStore::usage_changes`, a broadcast of payers each connection
   following its own filters; one that falls `USAGE_CHANGES_QUEUED` behind reads
   again). It needs an organization open, and a connection keeps one: opening
@@ -383,8 +382,8 @@ blocks.
 ### Announcements and listings
 
 A connection hears only of what it listed. `list-blocks` (a `Listing`:
-children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`) and
-`read-block` register with `WatchHub` *before* reading, so nothing changed
+children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`, or one
+block's own summary) registers with `WatchHub` *before* reading, so nothing changed
 during the read is missed, and the hub remembers each block it told a
 connection of. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
@@ -394,7 +393,7 @@ folder is still announced, then forgotten). The blocks a change starts or stops
 referencing are announced with it. `unlist` drops a listing; a refused listing
 stays until then, so a block read before it is made is announced once it is,
 but a connection keeps at most `REFUSED_LISTINGS` of them (`watch.rs`) and
-drops any refused past that at once. A block's own listing (`read-block`),
+drops any refused past that at once. A block's own listing (`Listing::Block`),
 which clients never unlist, does not count against
 `MAX_LISTINGS_PER_CONNECTION`: it is bounded by the blocks the caller may know
 of.

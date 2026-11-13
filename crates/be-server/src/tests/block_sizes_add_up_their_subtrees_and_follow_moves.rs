@@ -67,8 +67,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     assert_eq!((summary.size, summary.tree_size), (0, size));
 
     let usage = client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(usage.held, size, "the author pays for what its block holds");
     assert_eq!(usage.pending, 0, "a published upload is no longer pending");
@@ -113,8 +112,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
         .await;
     assert!(collected.is_ok(), "{collected:?}");
     let usage = client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
+        .storage_usage().await
         .unwrap();
     assert_eq!(usage.held, 0, "collecting a block stops charging for it");
 
