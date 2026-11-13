@@ -9,7 +9,7 @@ fn at(x: f32, y: f32) -> String {
 
 #[test]
 fn the_workspace_splitter_reaches_over_the_files_and_its_tabs_scroll_with_the_wheel() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.wait(SPLITTER);
     host.wait("#file-tree.shared.row");
     host.run(&["settle"]);

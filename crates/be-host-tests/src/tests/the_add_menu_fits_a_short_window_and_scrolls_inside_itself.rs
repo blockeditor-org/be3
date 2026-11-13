@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_add_menu_fits_a_short_window_and_scrolls_inside_itself() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.run(&["resize", "1100x220"]);
     open_add_to_my_files(&mut host);
     host.wait("#picker.more");

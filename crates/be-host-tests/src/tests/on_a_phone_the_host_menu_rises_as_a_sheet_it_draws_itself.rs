@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn on_a_phone_the_host_menu_rises_as_a_sheet_it_draws_itself() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.run(&["resize", "390x800"]);
     host.click("#file-tree.host-menu");
     host.wait("#host.menu.status");

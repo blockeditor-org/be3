@@ -4,7 +4,7 @@ const SHAPE: &str = "GenericContainer #infinite-canvas.entity.";
 
 #[test]
 fn a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     let (x, y, width, height) = host.place("Pane \"Canvas\"");
     let full = format!("Pane \"Canvas\" at {x},{y} size {width}x{height}");

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn moving_the_pointer_over_an_empty_part_of_the_workspace_steps_no_other_app() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.wait("Pane \"Files\"");
     let (x, y, width, height) = host.place("Heading \"No file open\"");
     let x = x + width / 2.0;
