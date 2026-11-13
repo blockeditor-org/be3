@@ -14,11 +14,17 @@ fn a_layer_block_a_notice_names_is_read_again() {
         blocks: [Uuid::new_v4()].into_iter().collect(),
         ..be_host_stack::Changes::default()
     });
-    assert!(!sync.due, "a notice about another block reads nothing again");
+    assert!(
+        !sync.due,
+        "a notice about another block reads nothing again"
+    );
 
     sync.heard(&be_host_stack::Changes {
         blocks: [this].into_iter().collect(),
         ..be_host_stack::Changes::default()
     });
-    assert!(sync.due, "a notice about a layer's block reads the layers again");
+    assert!(
+        sync.due,
+        "a notice about a layer's block reads the layers again"
+    );
 }

@@ -15,7 +15,10 @@ fn what_was_read_is_read_again_once_a_notice_names_it() {
         blocks: [named].into_iter().collect(),
         ..be_host_stack::Changes::default()
     });
-    assert!(!cache.settings.contains_key(&named), "a changed block is read again");
+    assert!(
+        !cache.settings.contains_key(&named),
+        "a changed block is read again"
+    );
     assert!(cache.settings.contains_key(&other), "the others are kept");
     assert!(cache.owned.is_some() && cache.editors.contains_key(&session));
 
@@ -23,12 +26,18 @@ fn what_was_read_is_read_again_once_a_notice_names_it() {
         graph: true,
         ..be_host_stack::Changes::default()
     });
-    assert!(cache.owned.is_none(), "the roots are read again from a changed graph");
+    assert!(
+        cache.owned.is_none(),
+        "the roots are read again from a changed graph"
+    );
     assert!(
         cache.editors.is_empty(),
         "sessions' editors are read again from a changed graph"
     );
 
     cache.heard(&be_host_stack::Changes::everything());
-    assert!(cache.settings.is_empty(), "a restarted stack reads every block again");
+    assert!(
+        cache.settings.is_empty(),
+        "a restarted stack reads every block again"
+    );
 }

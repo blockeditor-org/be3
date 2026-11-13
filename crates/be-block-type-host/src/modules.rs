@@ -1,10 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     convert::Infallible,
-    sync::{
-        Arc,
-        atomic::AtomicBool,
-    },
+    sync::{Arc, atomic::AtomicBool},
     time::{Duration, Instant},
 };
 
