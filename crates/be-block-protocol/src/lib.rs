@@ -55,8 +55,12 @@ pub const MAX_NOTIFICATION_BYTES: usize = 2048;
 /// account and block: as many as a device remembers sending (be-block-client
 /// `refs/announcements.rs`, `REMEMBERED`). A device telling more at once names the newest.
 pub const MAX_TOLD_KEYS: usize = 256;
-/// The longest key a notification may name.
-pub const MAX_TOLD_KEY_BYTES: usize = 256;
+
+/// What `notify` names of an announcement's `key` about `block`: a digest, so the server
+/// keeps opaque bytes of a fixed size rather than anything a type wrote.
+pub fn told_key(block: Uuid, key: &str) -> be_block_store::Hash {
+    be_block_store::Hash::of_parts(&[block.as_bytes(), key.as_bytes()])
+}
 
 /// What one push carries to a device, encrypted to it (RFC 8291): the block's organization and
 /// id, the account that sent it, which the server vouches for, then the notification sealed

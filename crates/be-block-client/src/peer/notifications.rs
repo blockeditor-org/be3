@@ -91,7 +91,7 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         text: &str,
         mentions: Vec<Uuid>,
-        keys: Vec<String>,
+        keys: Vec<be_block_store::Hash>,
     ) -> Result<(), ClientError> {
         let notification = Notification {
             organization: self.organization,
@@ -184,15 +184,10 @@ impl<S: ObjectStore> Peer<S> {
                     mentions.push(*mention);
                 }
             }
-            // The newest, past what the server takes; keys it cannot hold are not checked there.
-            let keys = held
+            // The newest the server takes, oldest first: it remembers the last it is told.
+            let keys = held[held.len().saturating_sub(be_block_protocol::MAX_TOLD_KEYS)..]
                 .iter()
-                .rev()
-                .take(be_block_protocol::MAX_TOLD_KEYS)
-                .filter(|announcing| {
-                    announcing.made.key.len() <= be_block_protocol::MAX_TOLD_KEY_BYTES
-                })
-                .map(|announcing| announcing.made.key.clone())
+                .map(|announcing| be_block_protocol::told_key(block, &announcing.made.key))
                 .collect();
             let sent = match text {
                 Ok(text) => self.notify(block, &text, mentions, keys).await,

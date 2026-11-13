@@ -2580,7 +2580,7 @@ impl Connection {
         block: Uuid,
         sealed: Vec<u8>,
         mentions: Vec<Uuid>,
-        keys: Vec<String>,
+        keys: Vec<be_block_store::Hash>,
     ) -> Result<(), ServerError> {
         let identity = self.identity()?;
         crate::limits::at_most(
@@ -2599,13 +2599,6 @@ impl Connection {
                 "keys one notification names",
                 be_block_protocol::MAX_TOLD_KEYS,
             ));
-        }
-        for key in &keys {
-            crate::limits::at_most(
-                "a notification's key",
-                key.len(),
-                be_block_protocol::MAX_TOLD_KEY_BYTES,
-            )?;
         }
         if !keys.is_empty() && !self.store.tell(identity, block, keys).await? {
             return Ok(());

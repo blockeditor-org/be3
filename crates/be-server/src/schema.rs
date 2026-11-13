@@ -393,7 +393,7 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         block_id        TEXT NOT NULL,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        key             TEXT NOT NULL,
+        key             BLOB NOT NULL,
         PRIMARY KEY (organization_id, block_id, account_id, key)
     );
 ";

@@ -68,7 +68,8 @@ pub(crate) fn forget(
     Ok(())
 }
 
-/// Forgets what a member removed from `organization` kept there: their endpoints and modes.
+/// Forgets what a member removed from `organization` kept there: their endpoints, modes and
+/// what they told.
 pub(crate) fn forget_member(
     database: &Connection,
     organization: Uuid,
@@ -101,13 +102,14 @@ fn not_viewable() -> ServerError {
 impl ServerStore {
     /// Notes `keys` told about `block` from `identity`'s account, and answers whether any was
     /// not told before: a device that sent a notification and lost the answer sends it again,
-    /// and the members hear it once. The newest `MAX_TOLD_KEYS` are remembered per account and
-    /// block.
+    /// and the members hear it at most once (the keys are kept before the push is queued, so a
+    /// push that then fails is not sent again). The newest `MAX_TOLD_KEYS` are remembered per
+    /// account and block; a key older than those is news again.
     pub(crate) async fn tell(
         &self,
         identity: Identity,
         block: Uuid,
-        keys: Vec<String>,
+        keys: Vec<be_block_store::Hash>,
     ) -> Result<bool, ServerError> {
         self.with_database(move |_, database| {
             let (organization, block, account) = (
@@ -121,7 +123,7 @@ impl ServerStore {
                 new |= transaction.execute(
                     "INSERT OR IGNORE INTO told_keys (organization_id, block_id, account_id, key)
                      VALUES (?1, ?2, ?3, ?4)",
-                    params![organization, block, account, key],
+                    params![organization, block, account, key.as_bytes().as_slice()],
                 )? > 0;
             }
             transaction.execute(
