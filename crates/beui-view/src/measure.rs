@@ -1,6 +1,6 @@
 use crate::painter::TextBlock;
 use crate::reactive::{NodeId, ReadSignal};
-use crate::types::{FontId, Pos2, Rect, TextLayout};
+use crate::types::{FontId, Pos2, Rect, TextLayout, Vec2};
 use beui_tree::reactive::Get;
 
 pub use beui_types::layout::Measured;
@@ -49,6 +49,12 @@ impl TextGeometry {
 /// the first call and dropped with the node, so calling it repeatedly is cheap.
 pub fn measure(node: NodeId) -> ReadSignal<Option<Measured>> {
     crate::core::measure::measure(node)
+}
+
+/// How far the scrolls around `node` scrolled it when it was last laid out: added to where
+/// it was measured, it gives a place a scroll does not move.
+pub fn scrolled_by(node: NodeId) -> Vec2 {
+    crate::core::measure::scrolled_by(node)
 }
 
 #[derive(Clone, Copy)]

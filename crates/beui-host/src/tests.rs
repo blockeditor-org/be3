@@ -408,6 +408,8 @@ mod a_scroll_bounded_by_a_signal_follows_it;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_in_a_scaled_canvas_item_follows_the_finger_and_reveals_what_is_focused;
+mod a_scroll_in_a_zoomed_canvas_in_the_update_that_arms_a_glide_moves_no_row;
+mod a_scroll_in_the_update_that_arms_a_glide_moves_no_row;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_its_place_when_a_container_above_reflows_after_a_resize;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
@@ -3139,15 +3141,39 @@ pub(crate) fn gliding_rows(
         view! {
             <List spacing=0.0>
                 <ForEach keys={order}>|key: u64|
-                    <Glide @test_id={format!("slot.{key}")} arm={arm}>
+                    <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
                         <Frame
                             @test_id={format!("row.{key}")}
                             height=GLIDE_ROW
                             fill={Color32::from_rgb((key * 40 % 256) as u8, 90, 160)}
                         />
-                    </Glide>
+                    </unstyled::Glide>
                 </ForEach>
             </List>
+        }
+    })
+}
+
+pub(crate) fn scrolled_gliding_rows(
+    order: crate::reactive::Signal<Vec<u64>>,
+    arm: crate::reactive::Signal<u64>,
+    scrolled: crate::reactive::Signal<f32>,
+) -> Document {
+    use crate::primitives::*;
+    use crate::reactive::*;
+    build_node(move || {
+        view! {
+            <Frame height={2.0 * GLIDE_ROW}>
+                <Offset offset={scrolled}>
+                    <List spacing=0.0>
+                        <ForEach keys={order}>|key: u64|
+                            <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
+                                <Frame @test_id={format!("row.{key}")} height=GLIDE_ROW />
+                            </unstyled::Glide>
+                        </ForEach>
+                    </List>
+                </Offset>
+            </Frame>
         }
     })
 }
