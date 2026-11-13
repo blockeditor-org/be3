@@ -12,7 +12,12 @@ fn a_text_fragment_from_another_program_keeps_only_marks_that_fit_its_chunks() {
         chunks: vec![
             TextChunk {
                 bytes: b"bold".to_vec(),
-                marks: vec![mark(0..4), mark(2..9), mark(3..1), mark(usize::MAX..usize::MAX)],
+                marks: vec![
+                    mark(0..4),
+                    mark(2..9),
+                    mark(3..1),
+                    mark(usize::MAX..usize::MAX),
+                ],
             },
             TextChunk {
                 bytes: b"x".to_vec(),

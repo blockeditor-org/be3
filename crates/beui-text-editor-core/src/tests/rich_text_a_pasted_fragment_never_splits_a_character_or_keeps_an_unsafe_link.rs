@@ -13,7 +13,11 @@ fn rich_text_a_pasted_fragment_never_splits_a_character_or_keeps_an_unsafe_link(
             bytes: "aéb ok".as_bytes().to_vec(),
             marks: vec![
                 mark(2..4, "bold", MarkValue::Bool(true)),
-                mark(5..7, schema::basic::LINK, MarkValue::Text("javascript:alert(1)".to_owned())),
+                mark(
+                    5..7,
+                    schema::basic::LINK,
+                    MarkValue::Text("javascript:alert(1)".to_owned()),
+                ),
                 mark(5..7, "italic", MarkValue::Bool(true)),
             ],
         }],

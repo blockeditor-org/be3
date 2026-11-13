@@ -1159,9 +1159,11 @@ fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
         });
     }
     let fragment = match pasted.format.as_str() {
-        formats::HTML => cx.state.schema().html().map(|html| {
-            html.from_html(&String::from_utf8_lossy(&pasted.data))
-        }),
+        formats::HTML => cx
+            .state
+            .schema()
+            .html()
+            .map(|html| html.from_html(&String::from_utf8_lossy(&pasted.data))),
         _ => TextFragment::of(&pasted),
     };
     let Some(fragment) = fragment else {
