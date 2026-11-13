@@ -82,8 +82,11 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   when the proxy holds a stream back, and one streaming POST, whose lines arrive late when it collects a body first.
 - **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
   and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
-- **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB
-  (`/var/lib/nativelink/cas`) and the action cache 2 GB, each evicting the least recently used. Nothing is copied
+- **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 270 GB
+  (`/var/lib/nativelink/cas`) and the action cache 2 GB, each evicting the least recently used. The CAS's limit counts
+  only `cas/content`: NativeLink also keeps a mode-0555 copy of each blob an action takes as an executable in
+  `cas/content.exec`, which the limit does not see and which can grow as large again, so the limit is under half the
+  disk. Nothing is copied
   elsewhere: a lost server means a new one and a cold cache, whose first `./scripts/verify` took 30 minutes, most of it
   the client uploading toolchain archives. buck2 and the relay remember for hours which blobs the server holds, so
   after emptying the cache by hand restart every client's daemon (`./scripts/buck kill`).
