@@ -52,8 +52,6 @@ pub(crate) struct Entry {
     /// What the edit announces, until it goes with the append holding it (an owner's) or the
     /// server holds it (a follower's).
     announcements: Vec<Announcement>,
-    /// The kept commit that holds it, when known (`kept_unsent`).
-    kept_in: Option<CommitId>,
 }
 
 #[derive(Default)]
@@ -119,16 +117,14 @@ impl Lacking {
             failed,
             sequence,
             announcements,
-            kept_in: None,
         });
         self.changed = true;
     }
 
     /// What commits kept in the outbox add over the server's head, for a replica that carried
     /// nothing from an earlier one (a host or module restarted): sending until the host says
-    /// they `drained`. Each records `head`, the newest kept commit, which holds it, so a drain
-    /// that names commits settles it once it names one holding that head.
-    pub(crate) fn kept_unsent(&mut self, operations: Vec<Vec<u8>>, head: Option<CommitId>) {
+    /// they `drained`.
+    pub(crate) fn kept_unsent(&mut self, operations: Vec<Vec<u8>>) {
         if !self.entries.is_empty() {
             return;
         }
@@ -137,9 +133,6 @@ impl Lacking {
                 operation = Vec::new();
             }
             self.push(operation, Until::Kept, false, None, Vec::new());
-            if let Some(entry) = self.entries.last_mut() {
-                entry.kept_in = head;
-            }
         }
     }
 
@@ -448,9 +441,6 @@ impl Lacking {
                 entry.sequence,
                 entry.announcements,
             );
-            if let Some(adopted) = self.entries.last_mut() {
-                adopted.kept_in = entry.kept_in;
-            }
         }
         for editor in carried.followers {
             self.follow(editor);

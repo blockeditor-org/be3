@@ -1647,7 +1647,7 @@ where
                         .iter()
                         .map(C::encode_operation)
                         .collect();
-                    self.lacking.kept_unsent(unsent, self.base);
+                    self.lacking.kept_unsent(unsent);
                 }
                 self.load(loaded)
             }
