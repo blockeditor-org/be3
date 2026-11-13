@@ -2,12 +2,10 @@ use be_sdk_beui::beui::reactive::{Pending, Ready};
 use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, Failure};
 use uuid::Uuid;
 
-pub(crate) const GRANTABLE: [AccessLevel; 4] = [
-    AccessLevel::Manage,
-    AccessLevel::Edit,
-    AccessLevel::View,
-    AccessLevel::KnowExists,
-];
+/// What the share dialog offers. `KnowExists` is not among them: a reference
+/// gives it, and a grant of it is never what a person sharing means.
+pub(crate) const GRANTABLE: [AccessLevel; 3] =
+    [AccessLevel::Manage, AccessLevel::Edit, AccessLevel::View];
 
 const MAX_SUGGESTIONS: usize = 6;
 
