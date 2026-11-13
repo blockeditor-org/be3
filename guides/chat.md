@@ -124,12 +124,20 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   made since.
 - It sends, replies, edits and deletes its own messages and toggles reactions
   (Lucide icon names). A draft stays in the editor until sent.
-- **Attachments.** Attach picks a block (`pick_block`) and moves it into the
-  chat as a child (`set_parent`), so it is shared and copied with the chat;
-  the message lists it in `attachments`, and a message may be attachments
-  alone. Each shows as a `BlockLink` under the message, named and typed from
-  the chat's children (`BlockQuery::Children`), opening the block on a press.
-  Removing a picked block from the draft leaves it in the chat.
+- **Attachments** are copies (decisions/chat_attachments_are_copies.md).
+  Attach picks a block (`pick_block`, never the chat nor a block it is inside
+  of) and copies it (`host().copy_blocks`); the original stays where it was.
+  A copy waits in Unfiled while the draft holds it, since a child the chat's
+  content does not list yet counts as deleted, and moves into the chat
+  (`set_parent`) with the message that lists it. The draft shows each copy as
+  it is made, says everyone in the chat can open it, and sends only once every
+  copy is made; a copy that failed shows so and is left out. The message lists
+  the copies in `attachments` (signed with it), and a message may be
+  attachments alone, which has no text to edit. Each shows as a `BlockLink`
+  under the message, typed from the chat's children (`BlockQuery::Children`).
+  A copy no message carries is deleted: removed from the draft, left behind
+  when the editor closes with it, or carried by a Not-sent message that is
+  discarded (Send again carries them). Attach is off while editing a message.
 - **Sending state.** A message shows "Sending" while the server lacks the edit
   that sent it, and "Not sent", with Send again and Discard, once the server
   refused the commit holding it (`ContentProjection::lacking`,
