@@ -254,6 +254,15 @@ pub struct Searching {
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
+    /// Blocks put by their name alone (`Put::partial`), by their type: queued again once its
+    /// module runs, so the full put replaces the partial one at the same commit.
+    partial: HashMap<Uuid, BTreeSet<Uuid>>,
+    /// Blocks queued that the mirror cannot place, with the first block on their way up it
+    /// does not hold, which `Owner::Search` asks it for: queued again once it is listed.
+    unplaced: BTreeMap<Uuid, Uuid>,
+    /// Blocks dropped from indexing because the mirror could not place them even once it had
+    /// listed what they wait on (no access, gone): counted, and logged.
+    pub(crate) unplaceable: u64,
     /// Types whose module a test has fail to start (`held_off`).
     #[cfg(test)]
     pub(crate) not_running: HashSet<Uuid>,
@@ -366,6 +375,7 @@ impl Searching {
             && self.parked.is_empty()
             && self.moving.is_empty()
             && self.failing.is_empty()
+            && self.unplaced.is_empty()
             && self.creating.is_empty()
     }
 
@@ -469,6 +479,52 @@ impl Searching {
     #[cfg(test)]
     pub(crate) fn reads_whole(&self, block: Uuid) -> bool {
         self.whole.contains(&block)
+    }
+
+    /// Queues again the blocks put partially for a type whose module `runs` now.
+    pub(crate) fn release_partial(&mut self, runs: impl Fn(Uuid) -> bool) {
+        #[cfg(test)]
+        let runs = {
+            let held_off: HashSet<Uuid> =
+                self.not_running.union(&self.no_module).copied().collect();
+            move |content_type: Uuid| runs(content_type) && !held_off.contains(&content_type)
+        };
+        self.partial.retain(|content_type, blocks| {
+            if !runs(*content_type) {
+                return true;
+            }
+            self.dirty.extend(std::mem::take(blocks));
+            false
+        });
+    }
+
+    /// Queues again the blocks waiting on a block the mirror has now listed (`held`), and drops
+    /// those whose wait is over without it (`listed`): counted in `unplaceable`, and logged.
+    fn release_unplaced(&mut self, held: impl Fn(Uuid) -> bool, listed: impl Fn(Uuid) -> bool) {
+        let mut dropped = Vec::new();
+        self.unplaced.retain(|block, missing| {
+            if held(*missing) {
+                self.dirty.insert(*block);
+                return false;
+            }
+            if listed(*missing) {
+                dropped.push((*block, *missing));
+                return false;
+            }
+            true
+        });
+        for (block, missing) in dropped {
+            self.unplaceable += 1;
+            eprintln!(
+                "be-host: {block} is not indexed: the mirror cannot place it, as {missing} on its way \
+                 up is not listed"
+            );
+        }
+    }
+
+    /// The blocks the mirror is asked for so queued blocks can be placed (`unplaced`).
+    fn unplaced_wanted(&self) -> impl Iterator<Item = Uuid> + '_ {
+        self.unplaced.values().copied()
     }
 
     /// Takes the queued blocks (a test's way to see what `index` would look at).
@@ -756,6 +812,21 @@ fn place(graph: &Graph, block: Uuid) -> Place {
     Place::Skip
 }
 
+/// The first block on `block`'s way up that the mirror does not hold, itself included.
+fn missing_above(graph: &Graph, block: Uuid) -> Option<Uuid> {
+    let mut current = block;
+    for _ in 0..=graph.nodes().count() {
+        match graph.get(current) {
+            None => return Some(current),
+            Some(node) => match node.parent? {
+                BlockParent::Block(parent) => current = parent,
+                BlockParent::Root | BlockParent::Detached => return None,
+            },
+        }
+    }
+    None
+}
+
 /// A root's index: as its metadata names it, else the one this device named, which a listing
 /// from before the define may hide for a while.
 fn index_of(graph: &Graph, named: &HashMap<Uuid, Uuid>, root: Uuid) -> Option<Uuid> {
@@ -818,6 +889,16 @@ async fn index(
             |index| index_heads(peer, graph, index),
             |index| roots_naming.contains(&index),
         );
+        held.search
+            .release_partial(|content_type| crate::kind_of(content_type).is_some());
+        {
+            let state = &mut *held;
+            let graph = &state.graph;
+            state.search.release_unplaced(
+                |missing| graph.get(missing).is_some(),
+                |missing| graph.ready(GraphQuery::Block(missing)),
+            );
+        }
         if held.search.dirty.is_empty() {
             let settles = match held.search.writing.is_empty() {
                 true => held.search.settled(),
@@ -842,7 +923,15 @@ async fn index(
                     kept.insert(block);
                     continue;
                 }
-                Place::Unknown | Place::Skip => continue,
+                // The mirror is asked for what it lacks on the block's way up (`Owner::Search`),
+                // and the block waits for it rather than leaving the index for good.
+                Place::Unknown => {
+                    if let Some(missing) = missing_above(&held.graph, block) {
+                        held.search.unplaced.insert(block, missing);
+                    }
+                    continue;
+                }
+                Place::Skip => continue,
                 Place::Root(root) => root,
             };
             if !held
@@ -1205,6 +1294,14 @@ async fn puts_of(
             }),
             partial: true,
         };
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .search
+            .partial
+            .entry(content_type)
+            .or_default()
+            .insert(block);
         return Some((vec![put], Vec::new()));
     }
     let indexed: Vec<[u8; 32]> = held
@@ -2207,6 +2304,8 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
     let moving: Vec<Uuid> = held.search.moving_indexes().collect();
     searched.extend(moving.iter().copied());
     followed.extend(moving.into_iter().map(GraphQuery::Block));
+    // What the mirror lacks to place a queued block (`unplaced`).
+    followed.extend(held.search.unplaced_wanted().map(GraphQuery::Block));
     watch(peer, &held.graph, &mut held.search.watching, &searched);
     let mut seen = HashSet::new();
     followed.retain(|query| seen.insert(*query));
