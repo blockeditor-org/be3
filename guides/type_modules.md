@@ -397,7 +397,11 @@ rebase. The rules an agent most needs:
   labelled as presence is never applied. Which messages only the owner sends
   stays the replicas' check, not the server's: an owner whose lease lapsed
   unseen still relays what it accepted, and the next owner takes it over
-  (`inherit_accepted`). The server holds a
+  (`inherit_accepted`), but only from a client it knew as an owner
+  (`past_owners`). The owner heeds `Replaced` from any editor (a follower
+  that replaced the content sends it) and `Saved` changes nothing on it. Editors
+  are trusted with the block's content and session; only viewers are kept out.
+  The server holds a
   part for the whole upload grace (a day), and longer while the block's journal holds
   entries, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.

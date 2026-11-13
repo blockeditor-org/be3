@@ -574,6 +574,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Senders whose owner-only messages a follower ignored because the lease it knew named
     /// another owner: when one becomes the owner, the follower asks to be caught up.
     ignored_owners: Vec<ClientId>,
+    /// The last owners this replica knew of, the newest last: an owner takes over the
+    /// `Accepted` only of one of them, whose lease lapsed before it noticed.
+    past_owners: Vec<ClientId>,
     /// How many times the owner told this follower to submit again since one of its edits was
     /// last accepted.
     resends: u32,
@@ -814,6 +817,7 @@ where
             catch_up_failures: 0,
             catch_up_at: None,
             ignored_owners: Vec::new(),
+            past_owners: Vec::new(),
             resends: 0,
             put_failures: 0,
             lacking: Lacking::default(),
@@ -3209,7 +3213,9 @@ where
                 self.sequenced(op);
             }
             SessionMessage::Accepted { op } => match self.role {
-                Role::Owner(_) => self.inherit_accepted(&op),
+                // Only from an earlier owner: any other editor may not sequence.
+                Role::Owner(_) if self.past_owners.contains(&from) => self.inherit_accepted(&op),
+                Role::Owner(_) => {}
                 Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
                 Role::Follower(_) => {}
             },
@@ -3537,6 +3543,15 @@ where
         self.presence
             .retain(|(client, _), _| state.participants.contains(client));
         self.presence_changed |= self.presence.len() != before;
+        if let Some(owner) = state.owner
+            && self.past_owners.last() != Some(&owner)
+        {
+            self.past_owners.retain(|past| *past != owner);
+            if self.past_owners.len() >= 8 {
+                self.past_owners.remove(0);
+            }
+            self.past_owners.push(owner);
+        }
         self.state = state;
         if !self.alone() {
             self.append_unappended();
