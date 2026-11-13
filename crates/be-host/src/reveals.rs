@@ -6,10 +6,23 @@ use std::{collections::HashMap, time::Duration};
 use be_sdk_api::SearchLocation;
 use uuid::Uuid;
 
-/// How long an open at a place waits for its block's editor. An open the shell never shows in an
-/// editor of its own (a child elsewhere, refused) lets go of its place after this, so it cannot
-/// select old words in an editor that opens later for another reason.
+/// How long an open at a place waits for its block's editor to exist. An open the shell never
+/// shows in an editor of its own (a child elsewhere, refused) lets go of its place after this, so
+/// it cannot select old words in an editor that opens later for another reason. The clock runs
+/// only while there is no editor: one that exists but is still opening gets the place however
+/// long it takes, until it is told or closed.
 const PATIENCE: Duration = Duration::from_secs(5);
+
+/// What became of a place handed to its block's editor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Delivery {
+    /// The editor took the place.
+    Told,
+    /// The block has an editor, still opening: the place waits for it.
+    Opening,
+    /// The block has no editor: the place waits until `PATIENCE` runs out.
+    NoEditor,
+}
 
 #[derive(Default)]
 pub(crate) struct Reveals {
@@ -30,15 +43,23 @@ impl Reveals {
         self.waiting.remove(&block);
     }
 
-    /// Hands each waiting place to `reveal`, which answers whether the block's editor took it;
-    /// a place it took, or that waited past `PATIENCE`, goes.
+    /// Hands each waiting place to `reveal`. A place its editor took goes; one whose editor is
+    /// still opening waits on, its clock restarted; one with no editor goes once `PATIENCE` has
+    /// passed without one.
     pub(crate) fn deliver(
         &mut self,
         now: Duration,
-        mut reveal: impl FnMut(Uuid, &SearchLocation) -> bool,
+        mut reveal: impl FnMut(Uuid, &SearchLocation) -> Delivery,
     ) {
         self.waiting
-            .retain(|block, (at, until)| now < *until && !reveal(*block, at));
+            .retain(|block, (at, until)| match reveal(*block, at) {
+                Delivery::Told => false,
+                Delivery::Opening => {
+                    *until = now + PATIENCE;
+                    true
+                }
+                Delivery::NoEditor => now < *until,
+            });
     }
 
     pub(crate) fn is_empty(&self) -> bool {

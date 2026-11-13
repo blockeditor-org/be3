@@ -2787,9 +2787,11 @@ impl HostCore {
         }
         let editors = self.editors.clone();
         self.reveals.deliver(host::now(), |block, at| {
-            editors
-                .with(|open| open.get(&block).map(|editor| editor.reveal(at.clone())))
-                .unwrap_or(false)
+            editors.with(|open| match open.get(&block) {
+                Some(editor) if editor.reveal(at.clone()) => reveals::Delivery::Told,
+                Some(_) => reveals::Delivery::Opening,
+                None => reveals::Delivery::NoEditor,
+            })
         });
     }
 

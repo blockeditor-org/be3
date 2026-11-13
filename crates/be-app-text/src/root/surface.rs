@@ -276,11 +276,16 @@ pub(crate) fn find_words(text: &[u8], words: &str) -> Option<std::ops::Range<usi
         return None;
     }
     let text = std::str::from_utf8(text).ok()?;
-    let found: Vec<std::ops::Range<usize>> = be_lib_graphemes::words(text.as_bytes()).collect();
+    let found: Vec<(std::ops::Range<usize>, String)> = be_lib_graphemes::words(text.as_bytes())
+        .map(|range| {
+            let folded = be_lib_search::fold(&text[range.clone()]);
+            (range, folded)
+        })
+        .collect();
     found.windows(wanted.len()).find_map(|run| {
         run.iter()
             .zip(&wanted)
-            .all(|(range, wanted)| be_lib_search::fold(&text[range.clone()]) == *wanted)
-            .then(|| run[0].start..run[run.len() - 1].end)
+            .all(|((_, folded), wanted)| folded == wanted)
+            .then(|| run[0].0.start..run[run.len() - 1].0.end)
     })
 }

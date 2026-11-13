@@ -10,13 +10,10 @@ fn an_open_at_a_place_that_shows_no_editor_selects_nothing_later() {
     let mut reveals = Reveals::default();
     reveals.opened(block, Some(place.clone()), Duration::ZERO);
     let mut told = Vec::new();
-    reveals.deliver(Duration::from_secs(1), |_, _| false);
+    reveals.deliver(Duration::from_secs(1), |_, _| Delivery::NoEditor);
     assert!(!reveals.is_empty(), "it waits a while for the editor");
 
-    reveals.deliver(PATIENCE, |block, at| {
-        told.push((block, at.clone()));
-        true
-    });
+    reveals.deliver(PATIENCE, |_, _| Delivery::NoEditor);
     assert!(
         told.is_empty() && reveals.is_empty(),
         "an open that never showed an editor lets go of its place: {told:?}"
@@ -25,14 +22,14 @@ fn an_open_at_a_place_that_shows_no_editor_selects_nothing_later() {
     reveals.opened(block, None, PATIENCE);
     reveals.deliver(PATIENCE, |block, at| {
         told.push((block, at.clone()));
-        true
+        Delivery::Told
     });
     assert!(told.is_empty(), "a plain open later selects nothing");
 
     reveals.opened(block, Some(place.clone()), PATIENCE);
     reveals.deliver(PATIENCE, |block, at| {
         told.push((block, at.clone()));
-        true
+        Delivery::Told
     });
     assert_eq!(
         told,
