@@ -9,7 +9,11 @@ fn a_made_block_moved_out_of_the_chat_survives_the_composer() {
 
     // Moved into a folder from the files pane: its parent changes before the chat hears of it.
     let folder = Uuid::from_u128(0xf01d);
-    let mut moved = chat.editor.store().block(sketch).expect("the sketch is known");
+    let mut moved = chat
+        .editor
+        .store()
+        .block(sketch)
+        .expect("the sketch is known");
     moved.parent = Some(BlockParent::Block(folder));
     chat.editor.store().add_block(moved);
     chat.run();
@@ -36,7 +40,11 @@ fn a_made_block_moved_out_of_the_chat_survives_the_composer() {
     again.run();
     assert!(!again.editor.shown(&format!("chat.attaching.{sketch}")));
     assert_eq!(
-        again.editor.store().block(sketch).and_then(|info| info.parent),
+        again
+            .editor
+            .store()
+            .block(sketch)
+            .and_then(|info| info.parent),
         Some(BlockParent::Block(folder)),
         "the block stays where it was moved"
     );

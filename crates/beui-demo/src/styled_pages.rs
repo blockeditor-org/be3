@@ -970,7 +970,10 @@ fn HoverTooltip() -> NodeId {
 pub(crate) fn InputsPage() -> NodeId {
     view! {
         <ScrollPage>
-            <Sample title="Text input" code={vec![NameInput::SOURCE, ImagePaste::SOURCE, greeting_label::SOURCE]}>
+            <Sample
+                title="Text input"
+                code={vec![NameInput::SOURCE, ImagePaste::SOURCE, greeting_label::SOURCE]}
+            >
                 <NameInput />
             </Sample>
             <Sample title="On-screen keyboard" code={vec![KeyboardInput::SOURCE]}>

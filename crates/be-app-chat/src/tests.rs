@@ -1,8 +1,8 @@
 use be_sdk_beui::be_block::{BlockContent, Edit, LiveEdit, ObjectId};
 use be_sdk_beui::beui::vec2;
 use be_sdk_beui::{
-    BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost, OwnedEditor,
-    PickedBlock, Press, Signer,
+    BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost,
+    OwnedEditor, PickedBlock, Press, Signer,
 };
 use be_sdk_test::BeuiTest;
 use be_type_chat::{ChatContent, ChatOp, Message, Signature};
@@ -13,9 +13,9 @@ use std::time::Duration;
 use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
-mod a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again;
 mod a_forged_deletion_of_a_closed_message_shows_where_it_was;
 mod a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_request;
 mod a_made_block_moved_out_of_the_chat_survives_the_composer;

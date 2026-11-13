@@ -42,7 +42,11 @@ fn a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry() {
     let send = chat.send_drafted(id, &message);
     chat.apply(&send.into());
     assert!(chat.drafts_of(ADA).is_empty());
-    assert_eq!(chat.drafts_of(BO), [kept], "someone else's draft stays theirs");
+    assert_eq!(
+        chat.drafts_of(BO),
+        [kept],
+        "someone else's draft stays theirs"
+    );
     assert!(chat.references().contains(&sketch));
     assert!(
         chat.child_operations(ChildChange::Delete(sketch)).is_none(),
@@ -57,9 +61,6 @@ fn a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry() {
             .iter()
             .any(|segment| segment.attachments.contains(&BlockRef(sketch)))
     );
-    assert!(
-        chat.message(id).is_none(),
-        "the message left the header"
-    );
+    assert!(chat.message(id).is_none(), "the message left the header");
     assert!(chat.references().contains(&sketch));
 }

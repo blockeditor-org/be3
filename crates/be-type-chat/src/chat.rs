@@ -274,7 +274,11 @@ impl Root for ChatHeader {
         };
         let draft = self.drafts.get(&block)?;
         let stamp = self.drafts.next(&block, 0, draft.author);
-        Some(ChatHeader::DRAFTS.put(ObjectId::ROOT, &block, None, stamp).into())
+        Some(
+            ChatHeader::DRAFTS
+                .put(ObjectId::ROOT, &block, None, stamp)
+                .into(),
+        )
     }
 }
 

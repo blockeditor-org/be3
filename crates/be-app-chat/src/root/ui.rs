@@ -7,15 +7,15 @@ use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
 use be_sdk_beui::beui::icons::{
-    Glyph, ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_PAPERCLIP,
-    ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_LOCK, ICON_SEND, ICON_STICKER, ICON_THUMBS_UP,
-    ICON_TRASH, ICON_X,
+    Glyph, ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHECK, ICON_EYE, ICON_HEART, ICON_LOCK,
+    ICON_PAPERCLIP, ICON_PARTY_POPPER, ICON_PENCIL, ICON_REPLY, ICON_SEND, ICON_STICKER,
+    ICON_THUMBS_UP, ICON_TRASH, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    BlockFilter, BlockLink, BlockQuery, ChildTarget, ContentProjection, Editor,
-    KeptEdit, LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
+    BlockFilter, BlockLink, BlockQuery, ChildTarget, ContentProjection, Editor, KeptEdit,
+    LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
 };
 use be_type_chat::{
     ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey, ReadPlace,
@@ -228,11 +228,8 @@ fn paste_image(editor: Editor, chat: Chat, me: Uuid, composer: Composer, file: P
 /// one of the chat's children and still a draft, so a block moved elsewhere since, or one a
 /// message carries, is left alone. A referenced block is never deleted.
 fn drop_made(chat: Chat, attached: Attached, pending: Pending) {
-    let child = attached.with_untracked(|attached| {
-        attached
-            .get(&pending.id)
-            .is_some_and(|(_, child)| *child)
-    });
+    let child = attached
+        .with_untracked(|attached| attached.get(&pending.id).is_some_and(|(_, child)| *child));
     if !pending.made || !child {
         return;
     }
@@ -255,7 +252,12 @@ fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String)
     let readable = create_memo(move || target.get().is_some());
     let hidden = create_memo(move || !readable.get());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs @test_id={link_id}>
+        <List
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing=Space::Xs
+            @test_id={link_id}
+        >
             <Show condition={readable}>
                 <BlockLink editor block={target} />
             </Show>
@@ -301,16 +303,19 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
     let name = create_memo(move || shown.with(|shown| shown.name.clone()));
     let made = pending.made;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs @test_id={link_id}>
+        <List
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing=Space::Xs
+            @test_id={link_id}
+        >
             <Text size=TextSize::Sm>
                 <Icon glyph={glyph} color=TextColor::Muted />
                 " "
                 {name}
             </Text>
             <Show condition={made}>
-                <Text size=TextSize::Xs color=TextColor::Muted>
-                    "New"
-                </Text>
+                <Text size=TextSize::Xs color=TextColor::Muted>"New"</Text>
             </Show>
         </List>
     }
