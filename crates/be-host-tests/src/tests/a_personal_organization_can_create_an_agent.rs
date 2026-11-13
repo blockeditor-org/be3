@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_personal_organization_can_create_an_agent() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");
     host.click("#host.menu.agents");
     host.wait("Dialog \"Agents\"");

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_more_card_from_the_files_reaches_over_the_block_beside_them() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.wait("Tab \"Text\"");
     open_add_to_my_files(&mut host);

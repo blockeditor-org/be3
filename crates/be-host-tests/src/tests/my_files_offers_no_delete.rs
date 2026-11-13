@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn my_files_offers_no_delete() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.wait("TreeItem \"My files\"");
     host.run(&["click", "TreeItem \"My files\"", "right"]);
     host.wait("#file-tree.section.rename");

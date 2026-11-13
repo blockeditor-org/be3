@@ -4,7 +4,7 @@ const ROW: &str = "#host.palette.item.";
 
 #[test]
 fn quick_open_finds_a_word_typed_in_a_text_and_opens_it() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Text");
     host.click("#text.surface");
     host.type_text("Orchard notes");

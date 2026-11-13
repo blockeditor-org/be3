@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_inspector_chord_in_the_more_blocks_search_inspects_the_workspace() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("Label value=\"My files\"");
     host.click("#file-tree.new");
     host.click("#picker.more");

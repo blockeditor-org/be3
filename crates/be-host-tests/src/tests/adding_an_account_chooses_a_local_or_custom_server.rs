@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn adding_an_account_chooses_a_local_or_custom_server() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");
     host.click("#host.menu.accounts");
     host.click("Button \"Add account\"");
