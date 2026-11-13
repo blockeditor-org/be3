@@ -2,7 +2,6 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use be_block::display_settings::ScreenUse;
-use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_sdk_api::{HostDisplay, ScreenEdge, ScreenEdgeState, ScreenSide};
 use beui_platform_drm::{
     Display, DisplayConfig, DisplayControl, DisplayUse, Displays, EdgeState, Epaper, Monitor,
@@ -147,8 +146,10 @@ pub(crate) fn apply(settings: &DisplaySettings) {
             control.set(config(settings));
         }
     });
-    Host::set_blank_after(settings.screen_off().after());
-    Host::set_lock_after(settings.lock_time());
+    be_host_desktop::desktop_host::configure(|desktop| {
+        desktop.blank_after = settings.screen_off().after();
+        desktop.lock_after = settings.lock_time();
+    });
 }
 
 fn config(settings: &DisplaySettings) -> DisplayConfig {

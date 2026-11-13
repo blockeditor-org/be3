@@ -14,6 +14,9 @@ be-block-model = { path = "../be-block-model" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 uuid = "1"
 
+[dev-dependencies]
+pollster = "0.4"
+
 [features]
 module = []
 

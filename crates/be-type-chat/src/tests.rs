@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::{ChatContent, Message};
 
+mod a_chat_answers_its_recent_messages_and_each_closed_segment_as_documents;
 mod a_chat_decoded_from_bytes_alone_keeps_its_segments_when_saved_again;
 mod a_close_whose_index_entry_does_not_match_its_bytes_is_ignored;
 mod a_closed_segment_saves_as_a_part_and_loads_back_without_being_read;

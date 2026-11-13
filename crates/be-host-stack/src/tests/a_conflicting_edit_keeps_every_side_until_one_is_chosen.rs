@@ -9,12 +9,8 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
     let versioned = start_versioning("hello\n");
     let second = second_checkout(&versioned);
     let note = copy_of(versioned.note, second);
-    version_since(
-        versioned.checkout,
-        be_block::CheckoutContent::CONTENT_TYPE,
-        None,
-    );
-    version_since(second, be_block::CheckoutContent::CONTENT_TYPE, None);
+    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(second, be_block::CheckoutContent::CONTENT_TYPE);
     hold(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     hold(note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened both notes", |shared| {

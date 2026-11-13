@@ -25,22 +25,6 @@ host handler (`be-host-runtime/src/instances/blocks.rs`). While there, decide
 whether `set-parent` and the existing `move-command`/`reorder-command` are one
 thing, and keep one.
 
-## 8. The stack pushes its changes
-
-`be-host-stack/src/lib.rs` pairs getters with counters be-host polls every
-frame: `content_revision`, `contacts_revision`, `storage_revision`,
-`stale_revision`, `graph_revision`, and `take_touched`. Replace them with one
-change notice the worker posts through the mailbox, carrying what changed
-(`contacts`, `storage`, `stale`, `graph`, and the blocks whose content
-changed), and drop the `seen`/`published` bookkeeping in be-host. Settings
-sync compares content per block (`be-host/src/local_settings.rs`), so the
-content part is a set of blocks.
-
-`Versions` (`be-host-stack/src/version.rs`) also takes a watch for every block a
-status reads and never lets go: blocks that leave a root's subtree and closed
-checkouts stay watched for the life of the connection. Release them when the
-change notice reports what left.
-
 ## 9. Block protocol requests that duplicate others
 
 - `read-block` is `list-blocks(listing.block)`: the server implements it as
@@ -81,24 +65,6 @@ change notice reports what left.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
 
-## 11. Type modules answer everything at start
-
-- At hello the host calls `blank` and then `describe(blank)` for every type
-  (`be-block-type-host/src/modules.rs`) only to fill `Kind`. Add `blank` and
-  `blank-description` to `type-info` and remove the `blank` export
-  (`be-sdk-type-api/wit/replicas.wit`). Update guides/type_modules.md's list of
-  stateless requests.
-- Remove `description.name`: no host reads it, and `derived` already carries
-  the intrinsic name.
-- Fold `undo-state` into the replica `status` report and remove `history`
-  (`be-sdk-type-api/wit/host.wit`): both are snapshots of one replica that the
-  host stores.
-- Remove the manifest's `plain-file` (`be-sdk-manifest/wit/manifest.wit`): it
-  repeats `type-info.plain`, and a test exists only to keep the two in step.
-  The host fills it from the type registry.
-- `be-sdk-type-host` registers with `Registration::of::<X>().undo::<X>()`;
-  use `be_block_types!` like every other crate.
-
 ## 12. beui: one form per concept
 
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
@@ -133,12 +99,6 @@ components.
 
 ## 15. Host, CLI and test harness
 
-- `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
-  become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
-  WIT `launch`) goes; a typed line is wrapped as the platform's shell command
-  by the launcher. `DesktopHost`'s `set_owned`, `set_blank_after`,
-  `set_lock_after` and `set_primary_selection` become
-  `configure(DesktopSettings)`; `set_locked` stays, being state.
 - `drive` (`beui-layer-drive`): `find`, `reveal` and `shown` become
   `find TARGET [reveal|shown]`, and `gone` becomes `wait not TEXT`. Update
   guides/running/drive.md.
