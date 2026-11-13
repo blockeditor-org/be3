@@ -12,7 +12,11 @@ fn held_keys_outlast_a_new_keymap_and_are_released_together() {
     assert!(released.contains(&Input::Modifiers(Modifiers::NONE)));
     assert!(released.iter().any(|input| matches!(
         input,
-        Input::Key(Keystroke { pressed: false, evdev: Some(CONTROL), .. })
+        Input::Key(Keystroke {
+            pressed: false,
+            evdev: Some(CONTROL),
+            ..
+        })
     )));
     assert_eq!(keyboard.key(CONTROL, false), Pressed::default());
 }
