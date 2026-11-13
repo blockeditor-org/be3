@@ -95,7 +95,7 @@ mod android {
             let string_class = env.find_class(jni_str!("java/lang/String"))?;
             let kinds = env.new_object_array(1 + be3.len() as i32, &string_class, JObject::null())?;
             let plain = env.new_string("text/plain")?;
-            env.set_object_array_element(&kinds, 0, &plain)?;
+            kinds.set_element(env, 0, &plain)?;
             let extras = env.new_object(
                 jni_str!("android/os/PersistableBundle"),
                 jni_sig!("()V"),
@@ -103,7 +103,7 @@ mod android {
             )?;
             for (index, item) in be3.iter().enumerate() {
                 let format = env.new_string(&item.format)?;
-                env.set_object_array_element(&kinds, 1 + index as i32, &format)?;
+                kinds.set_element(env, 1 + index, &format)?;
                 let encoded = base64::Engine::encode(
                     &base64::engine::general_purpose::STANDARD,
                     item.stored(),
