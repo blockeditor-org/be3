@@ -543,7 +543,10 @@ impl Workspace {
 
     fn relist_share(&self) {
         if self.share.with_untracked(Option::is_some) {
-            if let Some(block) = self.share.with_untracked(|share| share.as_ref().map(|share| share.block)) {
+            if let Some(block) = self
+                .share
+                .with_untracked(|share| share.as_ref().map(|share| share.block))
+            {
                 self.share_action(block, ShareAction::Refresh);
             }
         }

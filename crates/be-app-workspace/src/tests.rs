@@ -17,7 +17,6 @@ use crate::rename::RenameRoot;
 use crate::root::WorkspaceUiRoot;
 
 mod a_block_in_a_tab_points_its_dialogs_at_the_tab;
-mod an_editor_cannot_swap_the_block_of_an_open_share_dialog;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
@@ -58,6 +57,7 @@ mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
 mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
 mod a_window_with_a_parent_hangs_from_its_tab_and_hides_with_it;
 mod a_workspace_opens_on_its_landing_page;
+mod an_editor_cannot_swap_the_block_of_an_open_share_dialog;
 mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_import_with_no_place_is_made_in_unfiled;

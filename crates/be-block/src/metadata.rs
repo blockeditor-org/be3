@@ -396,7 +396,9 @@ pub fn quoted_name(name: &str) -> String {
         .filter_map(|c| match c {
             c if c.is_whitespace() => Some(' '),
             c if c.is_control() || is_format(c) => None,
-            '\u{201c}' | '\u{201d}' | '\u{201e}' | '\u{201f}' | '\u{00ab}' | '\u{00bb}' => Some('"'),
+            '\u{201c}' | '\u{201d}' | '\u{201e}' | '\u{201f}' | '\u{00ab}' | '\u{00bb}' => {
+                Some('"')
+            }
             '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}' => Some('\''),
             c => Some(c),
         })
