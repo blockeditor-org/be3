@@ -45,7 +45,7 @@ fn two_closed_segments_that_overlap_show_each_message_once() {
     let ours = close(&close(&base));
     let deleted = base.messages()[2];
     let mut other = base.clone();
-    other.apply(&ChatOp::Edit(base.delete(deleted, ROSA, 9)));
+    other.apply(&ChatOp::Edit(deleted_by(&base, deleted, ROSA, 9)));
     let theirs = close(&other);
     for (a, b) in [(&ours, &theirs), (&theirs, &ours)] {
         let MergeResult::Clean(merged) = ChatContent::merge3(&base, a, b) else {
