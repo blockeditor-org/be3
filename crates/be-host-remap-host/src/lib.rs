@@ -34,6 +34,7 @@ pub struct Remapper {
     physical: BTreeSet<Source>,
     pressed: BTreeSet<Source>,
     bypassed: BTreeSet<Source>,
+    forced: BTreeSet<Source>,
     locked: bool,
     failures: Vec<u64>,
     stopped: bool,
@@ -64,6 +65,7 @@ impl Remapper {
             physical: BTreeSet::new(),
             pressed: BTreeSet::new(),
             bypassed: BTreeSet::new(),
+            forced: BTreeSet::new(),
             locked: false,
             failures: Vec::new(),
             stopped: false,
@@ -109,14 +111,26 @@ impl Remapper {
     }
 
     pub fn input(&mut self, input: Input, now: u64) -> Vec<Output> {
+        let mut out = self.remap(input, now);
+        // A modifier the session's own keys pressed past the remaps is let go with its own
+        // release, whatever the remaps make of that release.
+        if let Input::Release(source) = input
+            && self.forced.remove(&source)
+        {
+            out.extend(self.deliver(vec![input]));
+        }
+        out
+    }
+
+    fn remap(&mut self, input: Input, now: u64) -> Vec<Output> {
         match input {
             Input::Press(source) => {
                 self.physical.insert(source);
             }
-            Input::Release(source) => {
-                self.physical.remove(&source);
-            }
-            Input::Wheel { .. } => {}
+            // A key pressed before these remaps saw it (before they were installed, or before the
+            // session left its terminal) went on as it was, so its release does too.
+            Input::Release(source) if !self.physical.remove(&source) => return vec![input],
+            Input::Release(_) | Input::Wheel { .. } => {}
         }
         if !self.active() {
             return self.deliver(vec![input]);
@@ -131,6 +145,13 @@ impl Remapper {
                 .filter(|key| self.physical.contains(key))
                 .map(Input::Press)
                 .collect();
+            for output in &outputs {
+                if let Input::Press(modifier) = output
+                    && !self.pressed.contains(modifier)
+                {
+                    self.forced.insert(*modifier);
+                }
+            }
             outputs.push(input);
             return self.deliver(outputs);
         }
@@ -186,6 +207,7 @@ impl Remapper {
         self.physical.clear();
         self.pressed.clear();
         self.bypassed.clear();
+        self.forced.clear();
     }
 
     pub fn take_problems(&mut self) -> Vec<String> {
