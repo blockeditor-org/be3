@@ -9,9 +9,19 @@
 {$NL_HOST} {
 	@authorized header Authorization "Bearer {env.NL_TUNNEL_TOKEN}"
 	handle @authorized {
-		reverse_proxy h2c://127.0.0.1:50052 {
-			header_up -Authorization
-			flush_interval -1
+		# re-relay's tunnel (scripts/internal/re-relay/tunnel.go), for a client behind a proxy that handles few
+		# requests a second: every call inside a few long HTTP/1.1 requests.
+		handle /__be3-tunnel/* {
+			reverse_proxy 127.0.0.1:50070 {
+				header_up -Authorization
+				flush_interval -1
+			}
+		}
+		handle {
+			reverse_proxy h2c://127.0.0.1:50052 {
+				header_up -Authorization
+				flush_interval -1
+			}
 		}
 	}
 	handle {

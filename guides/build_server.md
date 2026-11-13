@@ -65,6 +65,13 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   server, which `setup.sh` makes once.
 - **The key** is that token: `BE3_NL_TOKEN`, `.nl-token` at the checkout's root or `~/.config/be3/nl-token`, asked
   for at a terminal. CI has it as the secret `BE3_NL_TOKEN`. buck2 reaches the server directly over TLS; behind an HTTPS proxy, through the relay.
+- **Behind a proxy, through the tunnel.** A cloud session's proxy speaks only HTTP/1.1 and handles about 240 requests
+  a second however many connections carry them, and a cache-warm `./scripts/verify` makes about 24,000 calls (two per
+  cached action), so with each call its own request it spent about 100 s in that limit. So for nl.be3.pfg.pw the relay
+  runs with `-tunnel` (scripts/internal/re-relay/tunnel.go): HTTP/2 inside one byte stream carried by a long GET for
+  what the server sends and POSTs for what the relay sends, each POST carrying everything written while the ones
+  before it were out. Caddy passes `/__be3-tunnel/*` to re-relay's `tunnel-server` (`nl-tunnel.service`), which joins
+  each tunnel to NativeLink. `BE3_NL_TUNNEL=0` sends each call as its own request instead, to compare.
 - **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
   and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
 - **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB
