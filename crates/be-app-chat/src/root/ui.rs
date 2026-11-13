@@ -13,7 +13,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Signer, utc_offset};
 use be_type_chat::{
-    ChatContent, ChatReads, Deletion, Message, MessageEdit, MessageHash, Reaction, ReactionKey,
+    ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey,
     ReadPlace, Segment, Shown, Signature,
 };
 use beui::{Align, Direction, ScrollPosition};
@@ -63,11 +63,12 @@ struct Proof {
 #[derive(Clone, Debug, PartialEq)]
 enum Record {
     Message(ObjectId, Message),
-    /// An edit, with the edits recorded as replaced that may be of its message: one of them
-    /// being this edit means it was put back after it was replaced.
-    Edit(ObjectId, MessageEdit, Message, Vec<MessageHash>),
+    /// An edit, and whether it was replaced (`ChatContent::replaced`): shown again, it was put
+    /// back.
+    Edit(ObjectId, MessageEdit, Message, bool),
     Deletion(ObjectId, Deletion),
-    Reaction(ReactionKey, Reaction),
+    /// A reaction record, and whether it was replaced.
+    Reaction(ReactionKey, Reaction, bool),
     /// A record removed outright, which no signature can cover.
     Removed,
 }
@@ -78,13 +79,13 @@ impl Record {
     fn signed_bytes(&self, chat: Uuid) -> Option<Vec<u8>> {
         match self {
             Self::Message(id, message) => Some(message.signed_bytes(chat, *id)),
-            Self::Edit(id, edit, sent, superseded) => {
-                let of = sent.hash(chat, *id);
-                (!superseded.contains(&edit.hash(chat, *id, of)))
-                    .then(|| edit.signed_bytes(chat, *id, of))
+            Self::Edit(id, edit, sent, replaced) => {
+                (!replaced).then(|| edit.signed_bytes(chat, *id, sent.hash(chat, *id)))
             }
             Self::Deletion(id, deletion) => Some(deletion.signed_bytes(chat, *id)),
-            Self::Reaction(key, reaction) => Some(key.signed_bytes(chat, reaction)),
+            Self::Reaction(key, reaction, replaced) => {
+                (!replaced).then(|| key.signed_bytes(chat, reaction))
+            }
             Self::Removed => None,
         }
     }
@@ -124,13 +125,14 @@ pub fn Chat(editor: Editor) -> NodeId {
     create_effect(move || {
         let _ = chat.revision();
         let forged = forged.get();
-        if let Ok(rows_now) = chat.read(|content| row_list(content, &content.shown(), me, &forged))
+        if let Ok(rows_now) =
+            chat.read(|content| row_list(content, &content.shown(), me, &forged, None))
         {
             rows.reconcile_owned(rows_now);
         }
     });
     let ids = rows.keys();
-    let older = Older::new(chat, me);
+    let older = Older::new(chat, me, forged);
     let older_ids = older.rows.keys();
     let empty = create_memo(move || ids.with(Vec::is_empty) && older_ids.with(Vec::is_empty));
     let composer = Composer {
@@ -386,7 +388,7 @@ struct Older {
 }
 
 impl Older {
-    fn new(chat: Chat, me: Uuid) -> Self {
+    fn new(chat: Chat, me: Uuid, forged: Memo<Vec<(ObjectId, Deletion)>>) -> Self {
         let segments = chat.project(|content: &ChatContent| content.segments());
         let read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
         let rows = KeyedStore::new();
@@ -411,7 +413,7 @@ impl Older {
         // What was read follows the edits, deletions and reactions made to it since.
         create_effect(move || {
             let _ = chat.revision();
-            let (segments, read) = (segments.get(), read.get());
+            let (segments, read, forged) = (segments.get(), read.get(), forged.get());
             let rows_now = chat
                 .read(|content| {
                     // Segments closed apart can overlap: a message shows once, in its place.
@@ -421,7 +423,14 @@ impl Older {
                         .map(|(_, messages)| messages.as_slice())
                         .collect();
                     let messages = ChatContent::weave(&read_in_order);
-                    row_list(content, &content.shown_of(messages), me, &[])
+                    let order: Vec<ObjectId> = messages.iter().map(|(id, _)| *id).collect();
+                    row_list(
+                        content,
+                        &content.shown_of(messages),
+                        me,
+                        &forged,
+                        Some(&order),
+                    )
                 })
                 .unwrap_or_default();
             rows.reconcile_owned(rows_now);
@@ -494,12 +503,15 @@ pub(crate) fn unread_segment<T>(segments: &[Segment], read: &[(Segment, T)]) -> 
 }
 
 /// The rows of `shown` messages, each with its replied-to message and who signed it, and a
-/// row for each message of `forged` (forged deletions) after the message it followed.
+/// row for each message of `forged` (forged deletions) in its place: by `order`, the messages
+/// read back from closed segments with the deleted ones, when given, else after the message
+/// the deletion says it followed.
 fn row_list(
     content: &ChatContent,
     shown: &[Shown],
     me: Uuid,
     forged: &[(ObjectId, Deletion)],
+    order: Option<&[ObjectId]>,
 ) -> Vec<(ObjectId, Row)> {
     let by_id: HashMap<ObjectId, &Shown> =
         shown.iter().map(|message| (message.id, message)).collect();
@@ -514,10 +526,25 @@ fn row_list(
             (message.id, row)
         })
         .collect();
-    // A deletion names the message it followed, so its row goes after that one, or first when
-    // it followed none; one whose message is not among these rows is not shown here.
     for (message, deletion) in forged {
-        let at = match deletion.after {
+        let after = match order {
+            // Read back from a segment: after the nearest message before it that has a row.
+            Some(order) => {
+                let Some(at) = order.iter().position(|id| id == message) else {
+                    continue;
+                };
+                order[..at]
+                    .iter()
+                    .rev()
+                    .find(|id| rows.iter().any(|(row, _)| row == *id))
+                    .copied()
+            }
+            // A recent message's deletion names the message it followed; one that followed
+            // none may be of a closed message, shown with the segment instead.
+            None if deletion.after.is_none() && content.may_be_closed(*message) => continue,
+            None => deletion.after,
+        };
+        let at = match after {
             None => Some(0),
             Some(after) => rows
                 .iter()
@@ -689,16 +716,20 @@ fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
         record: Record::Message(message.id, sent.clone()),
         signature: sent.signature.0.clone(),
     }];
-    if let Some(edit) = content.edit_of(message.id) {
+    // An edit or deletion record removed outright is no record its author signed.
+    if content.edit_removed(message.id, sent.author) || content.deletion_removed(message.id) {
+        proofs.push(Proof {
+            author: sent.author,
+            signature: Vec::new(),
+            record: Record::Removed,
+        });
+    }
+    if let Some(edit) = content.edit_by(message.id, sent.author) {
+        let replaced = content.replaced(edit.key(message.id));
         proofs.push(Proof {
             author: edit.author,
             signature: edit.signature.0.clone(),
-            record: Record::Edit(
-                message.id,
-                edit,
-                sent.clone(),
-                content.superseded_of(message.id),
-            ),
+            record: Record::Edit(message.id, edit, sent.clone(), replaced),
         });
     }
     for (key, reaction) in content.reaction_records(message.id) {
@@ -706,7 +737,11 @@ fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
             Some(reaction) => Proof {
                 author: key.author,
                 signature: reaction.signature.0.clone(),
-                record: Record::Reaction(key, reaction),
+                record: Record::Reaction(
+                    key.clone(),
+                    reaction.clone(),
+                    content.replaced(reaction.key(&key)),
+                ),
             },
             None => Proof {
                 author: key.author,
@@ -831,7 +866,7 @@ fn submit(editor: Editor, chat: &Chat, block: Uuid, me: Uuid, composer: Composer
             let prepared = chat
                 .read(|content| {
                     let of = content.hash(block, message)?;
-                    Some((content.next_edit(block, message, me, now(), body), of))
+                    Some((content.next_edit(message, me, now(), body), of))
                 })
                 .ok()
                 .flatten();
@@ -894,7 +929,11 @@ fn toggle_reaction(
     reaction: &str,
     mine: bool,
 ) {
-    let (key, reaction) = ChatContent::reaction(message, me, reaction, now(), !mine);
+    let Ok((key, reaction)) =
+        chat.read(|content| content.reaction(message, me, reaction, now(), !mine))
+    else {
+        return;
+    };
     let signing = editor.host().sign(key.signed_bytes(block, &reaction));
     editor.then(signing, move |signed| {
         let reaction = Reaction {
@@ -951,6 +990,11 @@ fn MessageRow(
     let edited = create_memo(move || row.with(|row| row.edited));
     let mine = create_memo(move || row.with(|row| row.mine));
     let actionable = create_memo(move || row.with(|row| !row.deleted));
+    let deleted = create_memo(move || !actionable.get());
+    let body_color = create_memo(move || match deleted.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
+    });
     let quote = create_memo(move || row.with(|row| row.reply.clone().unwrap_or_default()));
     let replies = create_memo(move || row.with(|row| row.reply.is_some()));
     let reactions = create_memo(move || {
@@ -1211,7 +1255,7 @@ fn MessageRow(
                         <Text style=TextStyle::CAPTION>{quote}</Text>
                     </Frame>
                 </Show>
-                <Text>{body}</Text>
+                <Text italic={deleted} color={body_color}>{body}</Text>
                 <Show condition={reacted}>
                     <List
                         direction=Direction::Horizontal

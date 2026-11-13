@@ -12,9 +12,9 @@ or that is forged.
 
 ## What is left open
 
-- **Edits of messages in closed segments are not chained**: the editor cannot
-  hash a closed message from the header alone, so their edits name no previous
-  one and a replayed one is not caught.
+- **A recent message can be dropped unnoticed.** Removing a message from the
+  recent series leaves no record a signature covers; only the `seen` hashes of
+  its author's later messages show the gap (below).
 - **A replaced key still verifies what it signed.** After a contact takes a new
   recovery phrase, its old key shows as changed, not forged, since its earlier
   messages are real; someone holding the old phrase can sign with it, and

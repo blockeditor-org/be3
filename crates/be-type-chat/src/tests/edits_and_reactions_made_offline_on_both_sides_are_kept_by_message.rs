@@ -7,7 +7,7 @@ fn edits_and_reactions_made_offline_on_both_sides_are_kept_by_message() {
     let ours = edited(
         &base,
         [
-            base.edit(CHAT, noon, ADA, 3, "half past twelve"),
+            base.edit(noon, ADA, 3, "half past twelve"),
             base.react(lunch, ADA, "heart", 3),
         ],
     );

@@ -34,9 +34,21 @@ impl Forged {
         if self.holds(connection, &record) {
             return;
         }
+        // Bounded: past the cap it starts over, and a forged row costs one round trip again.
+        if self.records.len() >= MAX_FORGED {
+            self.records.clear();
+        }
         self.records.insert(record);
     }
+
+    /// Forgets every record: a key this device learned since may have made one.
+    fn clear(&mut self) {
+        self.records.clear();
+    }
 }
+
+/// The most records `Forged` remembers.
+const MAX_FORGED: usize = 4096;
 
 /// A record's identity for `Forged`: who it names, where, what it says and its signature.
 fn record(account: Uuid, block: Uuid, bytes: &[u8], signature: &[u8]) -> [u8; 32] {
@@ -117,8 +129,14 @@ impl<S: ObjectStore> Peer<S> {
         let found = self
             .ask_about(account, block, bytes, signature, contact)
             .await?;
+        let mut forged = self.forged.lock().unwrap();
+        // A key learned while asking (a contact's new phrase, a key pinned) may have made a
+        // record found forged before.
+        if self.refs.signers(account) != known {
+            forged.clear();
+        }
         if found == Signer::Bad {
-            self.forged.lock().unwrap().insert(&connection, asked);
+            forged.insert(&connection, asked);
         }
         Ok(found)
     }

@@ -8,7 +8,7 @@ fn sign(account: Uuid, bytes: &[u8]) -> Signature {
 /// `body` as an edit of `message` by Rosa, signed by `signer`.
 fn edit_by(chat: &Harness, message: ObjectId, body: &str, time: i64, signer: Uuid) -> MessageEdit {
     let content = chat.content();
-    let edit = content.next_edit(CHAT, message, ROSA, time, body);
+    let edit = content.next_edit(message, ROSA, time, body);
     let of = content.hash(CHAT, message).expect("the message is recent");
     MessageEdit {
         signature: sign(signer, &edit.signed_bytes(CHAT, message, of)),
@@ -63,14 +63,14 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
     );
 
     // Rosa reacts, and someone else takes her reaction back in her name.
-    let (key, reaction) = ChatContent::reaction(who, ROSA, "heart", MORNING + 34 * MINUTE, true);
+    let (key, reaction) = chat.content().reaction(who, ROSA, "heart", MORNING + 34 * MINUTE, true);
     let reaction = Reaction {
         signature: sign(ROSA, &key.signed_bytes(CHAT, &reaction)),
         ..reaction
     };
     chat.arrive(chat.content().put_reaction(&key, &reaction));
     assert_eq!(chat.row(who), "Member 7e1a 09:06 Who is in? 1");
-    let (key, taken_back) = ChatContent::reaction(who, ROSA, "heart", MORNING + 35 * MINUTE, false);
+    let (key, taken_back) = chat.content().reaction(who, ROSA, "heart", MORNING + 35 * MINUTE, false);
     let taken_back = Reaction {
         signature: sign(sam, &key.signed_bytes(CHAT, &taken_back)),
         ..taken_back

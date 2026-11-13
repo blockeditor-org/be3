@@ -33,10 +33,10 @@ pub struct ChatHeader {
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
     pub deletions: LatestMap<ObjectId, Deletion>,
     pub reactions: LatestMap<ReactionKey, Reaction>,
-    /// The hashes of edits a later edit by the same author replaced (`MessageEdit::previous`),
-    /// each with its message: an edit whose hash is here, or was here and was removed, was
-    /// put back after it was replaced, so it is shown as forged.
-    pub superseded: LatestMap<MessageHash, ObjectId>,
+    /// The keys of edits and reaction records a later one replaced (`MessageEdit::previous`,
+    /// `Reaction::previous`): a record whose key was ever written here, whatever its value
+    /// says now, was put back after it was replaced, so it is shown as forged.
+    pub superseded: LatestMap<MessageHash, ()>,
     /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
     /// yet.
     pub segments: Series<Segment>,
@@ -71,7 +71,7 @@ pub struct MessageEdit {
     pub author: Uuid,
     pub time: i64,
     pub body: String,
-    /// The hash of the edit this one replaces (`MessageEdit::hash`), none for a message's
+    /// The key of the edit this one replaces (`MessageEdit::key`), none for a message's
     /// first: signed, so each edit names the one before it.
     pub previous: Option<MessageHash>,
     pub signature: Signature,
@@ -84,8 +84,8 @@ pub struct Deletion {
     pub time: i64,
     pub signature: Signature,
     /// The message before it when it was deleted, so a place kept by message id (where
-    /// someone read up to) is found by order once it is gone. Not signed: a forged one, from
-    /// anyone who may write the chat, only miscounts what is unread.
+    /// someone read up to) is found by order once it is gone, and a forged deletion's row is
+    /// placed. Signed.
     pub after: Option<ObjectId>,
 }
 
@@ -106,6 +106,9 @@ pub struct Reaction {
     /// False once its author took it back: a taken-back reaction stays as a signed record, so
     /// nobody else can remove one unnoticed.
     pub kept: bool,
+    /// The key of the record of this key it replaces (`Reaction::key`), none for the first:
+    /// signed, so an older record put back over a newer one is caught.
+    pub previous: Option<MessageHash>,
     pub signature: Signature,
 }
 
@@ -179,8 +182,18 @@ impl MessageEdit {
             .finish()
     }
 
-    pub fn hash(&self, chat: Uuid, message: ObjectId, of: MessageHash) -> MessageHash {
-        MessageHash::of(&self.signed_bytes(chat, message, of))
+    /// What names this edit of `message` in `superseded` and in the next edit's `previous`:
+    /// the hash of its fields, not of its signed bytes, so an editor checks it before it knows
+    /// the block signatures bind to.
+    pub fn key(&self, message: ObjectId) -> MessageHash {
+        MessageHash::of(
+            &Signed::new("be3.chat.edit.key", Uuid::nil(), message)
+                .uuid(self.author)
+                .time(self.time)
+                .body(&self.body)
+                .seen(self.previous)
+                .finish(),
+        )
     }
 }
 
@@ -189,6 +202,7 @@ impl Deletion {
         Signed::new("be3.chat.deletion", chat, message)
             .uuid(self.author)
             .time(self.time)
+            .reply(self.after)
             .finish()
     }
 }
@@ -200,7 +214,24 @@ impl ReactionKey {
             .time(reaction.time)
             .text(&self.reaction)
             .flag(reaction.kept)
+            .seen(reaction.previous)
             .finish()
+    }
+}
+
+impl Reaction {
+    /// What names this record of `key` in `superseded` and in the next record's `previous`,
+    /// as `MessageEdit::key` does for an edit.
+    pub fn key(&self, key: &ReactionKey) -> MessageHash {
+        MessageHash::of(
+            &Signed::new("be3.chat.reaction.key", Uuid::nil(), key.message)
+                .uuid(key.author)
+                .text(&key.reaction)
+                .time(self.time)
+                .flag(self.kept)
+                .seen(self.previous)
+                .finish(),
+        )
     }
 }
 
@@ -306,18 +337,36 @@ impl ChatContent {
         self.header.field(ObjectId::ROOT, ChatHeader::DELETIONS)
     }
 
-    fn superseded(&self) -> LatestMap<MessageHash, ObjectId> {
+    fn superseded(&self) -> LatestMap<MessageHash, ()> {
         self.header.field(ObjectId::ROOT, ChatHeader::SUPERSEDED)
     }
 
-    /// The hashes of edits replaced that may be of `message`: those recorded as its, and those
-    /// whose record was removed (which no longer says whose it was).
-    pub fn superseded_of(&self, message: ObjectId) -> Vec<MessageHash> {
-        self.superseded()
-            .written_entries()
-            .filter(|(_, of)| of.is_none_or(|of| *of == message))
-            .map(|(hash, _)| *hash)
-            .collect()
+    /// The latest edit of `message` if `author` made it, for a message recent or closed.
+    pub fn edit_by(&self, message: ObjectId, author: Uuid) -> Option<MessageEdit> {
+        self.edits()
+            .get(&message)
+            .filter(|edit| edit.author == author)
+            .cloned()
+    }
+
+    /// Whether the edit or reaction record `key` names was replaced: shown again, it was put
+    /// back.
+    pub fn replaced(&self, key: MessageHash) -> bool {
+        self.superseded().written(&key)
+    }
+
+    /// Whether `message`'s edit record was written and is not an edit by `author` now: removed
+    /// outright, or overwritten by someone else's, which no signature of the author's covers.
+    pub fn edit_removed(&self, message: ObjectId, author: Uuid) -> bool {
+        let edits = self.edits();
+        edits.written(&message) && edits.get(&message).is_none_or(|edit| edit.author != author)
+    }
+
+    /// Whether `message`'s deletion was written and then removed, which brings back a message
+    /// in a closed segment with no signature covering it.
+    pub fn deletion_removed(&self, message: ObjectId) -> bool {
+        let deletions = self.deletions();
+        deletions.written(&message) && !deletions.contains_key(&message)
     }
 
     /// Every deletion, by the id of the message it deleted.
@@ -534,29 +583,28 @@ impl ChatContent {
     /// An unsigned edit of `message` (`next_edit`, then `put_edit`).
     pub fn edit(
         &self,
-        chat: Uuid,
         message: ObjectId,
         author: Uuid,
         time: i64,
         body: impl Into<String>,
     ) -> Edit {
-        self.put_edit(message, &self.next_edit(chat, message, author, time, body))
+        self.put_edit(message, &self.next_edit(message, author, time, body))
     }
 
     /// The edit of `message` that replaces its latest, for its author to sign
     /// (`MessageEdit::signed_bytes`) before `put_edit` writes it.
     pub fn next_edit(
         &self,
-        chat: Uuid,
         message: ObjectId,
         author: Uuid,
         time: i64,
         body: impl Into<String>,
     ) -> MessageEdit {
         let previous = self
-            .edit_of(message)
-            .zip(self.hash(chat, message))
-            .map(|(edit, of)| edit.hash(chat, message, of));
+            .edits()
+            .get(&message)
+            .filter(|edit| edit.author == author)
+            .map(|edit| edit.key(message));
         MessageEdit {
             author,
             time,
@@ -572,16 +620,15 @@ impl ChatContent {
         let at = stamp_time(edit.time);
         let stamp = self.edits().next(&message, at, edit.author);
         let mut changes = vec![ChatHeader::EDITS.put(ObjectId::ROOT, &message, Some(edit), stamp)];
-        if let Some(previous) = edit.previous {
-            let stamp = self.superseded().next(&previous, at, edit.author);
-            changes.push(ChatHeader::SUPERSEDED.put(
-                ObjectId::ROOT,
-                &previous,
-                Some(&message),
-                stamp,
-            ));
-        }
+        changes.extend(self.supersede(edit.previous, at, edit.author));
         changes.into_iter().collect()
+    }
+
+    /// Records `previous` as replaced, if there is one.
+    fn supersede(&self, previous: Option<MessageHash>, at: u64, author: Uuid) -> Option<Change> {
+        let previous = previous?;
+        let stamp = self.superseded().next(&previous, at, author);
+        Some(ChatHeader::SUPERSEDED.put(ObjectId::ROOT, &previous, Some(&()), stamp))
     }
 
     /// An unsigned deletion of `message` (`deletion`, then `put_deletion`).
@@ -644,7 +691,7 @@ impl ChatContent {
         reaction: impl Into<String>,
         time: i64,
     ) -> Edit {
-        let (key, reaction) = Self::reaction(message, author, reaction, time, true);
+        let (key, reaction) = self.reaction(message, author, reaction, time, true);
         self.put_reaction(&key, &reaction)
     }
 
@@ -656,13 +703,14 @@ impl ChatContent {
         reaction: impl Into<String>,
         time: i64,
     ) -> Edit {
-        let (key, reaction) = Self::reaction(message, author, reaction, time, false);
+        let (key, reaction) = self.reaction(message, author, reaction, time, false);
         self.put_reaction(&key, &reaction)
     }
 
-    /// A reaction record, kept or taken back, for its author to sign
-    /// (`ReactionKey::signed_bytes`) before `put_reaction` writes it.
+    /// A reaction record, kept or taken back, naming the record it replaces, for its author
+    /// to sign (`ReactionKey::signed_bytes`) before `put_reaction` writes it.
     pub fn reaction(
+        &self,
         message: ObjectId,
         author: Uuid,
         reaction: impl Into<String>,
@@ -674,22 +722,26 @@ impl ChatContent {
             author,
             reaction: reaction.into(),
         };
+        let previous = self
+            .reaction_map()
+            .get(&key)
+            .map(|held| held.key(&key));
         let reaction = Reaction {
             time,
             kept,
+            previous,
             signature: Signature::default(),
         };
         (key, reaction)
     }
 
-    /// Writes a reaction record, signed or not.
+    /// Writes a reaction record, signed or not, and records the one it replaces as replaced.
     pub fn put_reaction(&self, key: &ReactionKey, reaction: &Reaction) -> Edit {
-        let stamp = self
-            .reaction_map()
-            .next(key, stamp_time(reaction.time), key.author);
-        ChatHeader::REACTIONS
-            .put(ObjectId::ROOT, key, Some(reaction), stamp)
-            .into()
+        let at = stamp_time(reaction.time);
+        let stamp = self.reaction_map().next(key, at, key.author);
+        let mut changes = vec![ChatHeader::REACTIONS.put(ObjectId::ROOT, key, Some(reaction), stamp)];
+        changes.extend(self.supersede(reaction.previous, at, key.author));
+        changes.into_iter().collect()
     }
 }
 
