@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_new_image_asks_for_its_file_in_the_image_editors_own_dialog() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_add_to_my_files(&mut host);
     choose_type(&mut host, "Image");
     host.wait("#creation.confirm");

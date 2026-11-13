@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_tooltip_from_the_files_reaches_past_them() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.wait("#file-tree.shared.more");
     host.run(&["move", "#file-tree.shared.more"]);
     host.run(&["pause", "1500"]);

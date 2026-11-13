@@ -4,7 +4,7 @@ const ARTWORK: &str = "#pan_zoom.card.4";
 
 #[test]
 fn reopening_a_block_keeps_the_view_the_person_moved() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Pan and Zoom");
     host.wait(ARTWORK);
     host.gone("#editor.loading");

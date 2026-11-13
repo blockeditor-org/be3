@@ -11,7 +11,7 @@ fn put(host: &mut HostTest, item: &str) -> (f32, f32, f32, f32) {
 
 #[test]
 fn a_canvas_tool_bar_goes_where_its_grip_menu_puts_it() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.dock");
     host.run(&["settle"]);

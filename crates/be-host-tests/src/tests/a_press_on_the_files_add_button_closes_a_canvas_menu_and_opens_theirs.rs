@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_press_on_the_files_add_button_closes_a_canvas_menu_and_opens_theirs() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.click("#infinite-canvas.dock.block");
     host.wait("#picker.more");

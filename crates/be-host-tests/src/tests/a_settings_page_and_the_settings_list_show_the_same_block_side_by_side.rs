@@ -5,7 +5,7 @@ use super::*;
 /// at its own size.
 #[test]
 fn a_settings_page_and_the_settings_list_show_the_same_block_side_by_side() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     host.click("Tab \"Settings\"");
     host.wait("#settings.devices");
     host.click("#settings.devices");
