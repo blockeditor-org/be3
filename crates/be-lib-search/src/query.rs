@@ -94,8 +94,8 @@ impl Query {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Hit {
     pub doc: DocId,
-    /// The commit its text was indexed at, by which hits of two indexes are
-    /// told apart.
+    /// The commit its text was indexed at, as the search believed it, by which
+    /// hits of two indexes are told apart.
     pub commit: Commit,
     pub score: f64,
 }
@@ -417,11 +417,14 @@ impl Shared {
 }
 
 impl Index {
+    /// The best `limit` hits of `query`, equal scores newer commit first, with commit times past
+    /// `latest` not believed (`Commit::believed`).
     pub async fn search(
         &self,
         parts: &impl Parts,
         query: &Query,
         limit: usize,
+        latest: i64,
     ) -> Result<Vec<Hit>, Error> {
         if query.clauses.is_empty() || limit == 0 || self.segments.is_empty() {
             return Ok(Vec::new());
@@ -594,7 +597,7 @@ impl Index {
             .zip(documents)
             .map(|((score, ..), document)| Hit {
                 doc: document.doc,
-                commit: document.commit,
+                commit: document.commit.believed(latest),
                 score,
             })
             .collect();
