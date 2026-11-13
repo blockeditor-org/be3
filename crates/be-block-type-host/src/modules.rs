@@ -75,28 +75,11 @@ pub fn is_known(content_type: Uuid) -> bool {
             .contains_key(&content_type)
 }
 
-/// What `register` tells: the host's `Host::kinds_changed`, set by `Replicas::new`.
-static KINDS_CHANGED: std::sync::Mutex<Option<fn()>> = std::sync::Mutex::new(None);
-
-pub(crate) fn on_kinds_changed(hook: fn()) {
-    *KINDS_CHANGED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(hook);
-}
-
-/// Registers a content type this host can read, from whichever path its module started on
-/// (asked for, launched eagerly, restarted), and tells the host (`Host::kinds_changed`).
 pub fn register(kind: Kind) {
     REGISTRY
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
-    let hook = *KINDS_CHANGED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(hook) = hook {
-        hook();
-    }
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
@@ -221,6 +204,9 @@ pub struct Modules {
     described: HashSet<Uuid>,
     clock: Clock,
     held: Option<Instant>,
+    /// Told whenever a module's hello registers kinds, on whichever path it started on (asked
+    /// for, launched eagerly, restarted): the host's `Host::kinds_changed`.
+    kinds_changed: fn(),
 }
 
 const RESTART_LIMIT: usize = 8;
@@ -374,7 +360,14 @@ impl Claim {
 }
 
 impl Modules {
+    /// Modules whose registered kinds no host hears of (a tool, a test).
     pub fn new(sources: Vec<Source>, clock: Clock) -> Self {
+        Self::with_kinds_changed(sources, clock, || {})
+    }
+
+    /// Modules that tell `kinds_changed` of each kind they register, set before any of them
+    /// launches.
+    pub fn with_kinds_changed(sources: Vec<Source>, clock: Clock, kinds_changed: fn()) -> Self {
         let mut modules = Self {
             modules: sources
                 .into_iter()
@@ -402,6 +395,7 @@ impl Modules {
             described: HashSet::new(),
             clock,
             held: None,
+            kinds_changed,
         };
         for module in 0..modules.modules.len() {
             match modules.modules[module].source.declared.clone() {
@@ -599,6 +593,7 @@ impl Modules {
                     .collect(),
             )
             .await;
+        let registered = !blank.is_empty();
         for ((info, blank), described) in blank.into_iter().zip(described) {
             self.routes.insert(info.content_type, module);
             self.described.insert(info.content_type);
@@ -616,6 +611,9 @@ impl Modules {
                     _ => Description::default(),
                 },
             });
+        }
+        if registered {
+            (self.kinds_changed)();
         }
     }
 

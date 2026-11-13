@@ -231,6 +231,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
             for outbox in &mut self.outboxes {
                 outbox.sent_at = None;
             }
+            self.revisions.clear();
         }
         if LAYERS
             .into_iter()

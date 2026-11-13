@@ -453,7 +453,6 @@ pub type Ctx<'a, H> = (&'a Arc<Peer<<H as Host>::Store>>, &'a Arc<Mutex<H>>);
 
 impl<H: Host> Replicas<H> {
     pub fn new(modules: Modules) -> Self {
-        types::on_kinds_changed(H::kinds_changed);
         let (io, answers) = unbounded_channel();
         Self {
             modules,

@@ -30,10 +30,8 @@ impl be_block_type_host::Host for Shared {
     }
 
     fn kinds_changed() {
-        // Posting wakes the host's frame; the worker's loop is woken too, as what waited on the
-        // kind may now go on.
+        // Posting wakes the host's frame, which takes the notice.
         crate::changes::stale();
-        be_host_base::host::wake();
     }
 
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {

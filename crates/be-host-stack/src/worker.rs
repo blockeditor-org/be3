@@ -819,7 +819,11 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
-    let mut replicas = Replicas::new(Modules::new(types::sources().await, config.clock.clone()));
+    let mut replicas = Replicas::new(Modules::with_kinds_changed(
+        types::sources().await,
+        config.clock.clone(),
+        <Shared as be_block_type_host::Host>::kinds_changed,
+    ));
     replicas.modules.hold_clock(super::held_clock());
     replicas.modules.ready().await;
     be_host_base::host::wake();

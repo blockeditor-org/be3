@@ -9,6 +9,7 @@ use super::*;
 
 mod a_declared_module_starts_only_when_its_type_is_first_needed;
 mod a_module_that_says_hello_while_another_is_asked_is_still_registered;
+mod every_module_that_registers_kinds_tells_the_host;
 
 const START: &str = "be3:block-type/replicas@0.1.0#start";
 const BLANK: &str = "be3:block-type/replicas@0.1.0#blank";
