@@ -30,15 +30,9 @@ thread_local! {
     static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
-<<<<<<< HEAD
-||||||| 445d35e2
-    static STALE: Cell<u64> = const { Cell::new(0) };
-=======
     static HEARD: RefCell<Option<be_host_base::host::Mailbox>> = const { RefCell::new(None) };
     static OWNERS: RefCell<HashMap<(String, be_sdk_api::EditorInstanceId), Vec<(u64, Owner)>>> =
         RefCell::new(HashMap::new());
-    static STALE: Cell<u64> = const { Cell::new(0) };
->>>>>>> origin/main
     static SEARCHED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     /// What the host stack changed: searches answered again, and stale blocks.
     static STACK_CHANGES: be_host_stack::ChangeWatch = be_host_stack::ChangeWatch::new();

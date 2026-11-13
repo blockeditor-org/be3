@@ -1875,39 +1875,13 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
 
 pub fn poll() {
     let pass = host::pass();
-<<<<<<< HEAD
-    for command in host::take_commands() {
-        match command {
-            host::HostCommand::RestartApp(app_id) => {
-                with(&app_id, Runtime::restart);
-            }
-        }
-    }
-||||||| 445d35e2
-    for command in host::take_commands() {
-        match command {
-            host::HostCommand::RestartApp(app_id) => {
-                with(&app_id, Runtime::restart);
-            }
-        }
-    }
-    let touched = be_host_stack::take_touched();
-=======
-    let touched = be_host_stack::take_touched();
->>>>>>> origin/main
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {
             runtime.contain(|runtime| {
-<<<<<<< HEAD
-||||||| 445d35e2
-                runtime.instances.touch(&touched);
-=======
                 if std::mem::take(&mut runtime.restart_asked) {
                     runtime.restart();
                 }
-                runtime.instances.touch(&touched);
->>>>>>> origin/main
                 runtime.detect_error();
                 runtime.taking_in = true;
                 runtime.pump();

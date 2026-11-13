@@ -29,7 +29,6 @@ impl be_block_type_host::Host for Shared {
         be_host_base::host::wake();
     }
 
-
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
         super::worker::record(shared, error);
     }
