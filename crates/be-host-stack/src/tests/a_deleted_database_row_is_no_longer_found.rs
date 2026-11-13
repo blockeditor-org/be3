@@ -60,6 +60,7 @@ fn a_deleted_database_row_is_no_longer_found() {
         ),
         Some(true)
     );
+    open(block, DatabaseContent::CONTENT_TYPE);
     flush();
     finds("plumber", &[block]);
     finds("roof", &[block]);
