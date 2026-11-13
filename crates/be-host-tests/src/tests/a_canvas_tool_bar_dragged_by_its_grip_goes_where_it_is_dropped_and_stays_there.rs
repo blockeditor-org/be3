@@ -5,7 +5,7 @@ const GRIP: &str = "#infinite-canvas.dock.grip";
 
 #[test]
 fn a_canvas_tool_bar_dragged_by_its_grip_goes_where_it_is_dropped_and_stays_there() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     host.wait("#infinite-canvas.dock");
     host.run(&["settle"]);

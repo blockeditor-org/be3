@@ -60,20 +60,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   paste between two rich texts keeps bold, links and an embed, and pasting
   from a browser's `text/html` gives bold and links.
 
-## 5. Loading part of a document
-
-Documents save as parts chosen by their structure but still load whole
-(guides/blocks/content_types.md, "The stored form"). Let the model load part
-of one: an attribute such as `#[model(lazy)]` on a `List` whose parts' objects
-load when first read, through the `read-part` path a `Loads::FirstPart` type
-already uses. Saving hands an unloaded part back as `Reused`, which keeps its
-node's own references (`Part::Node { references }`,
-`be-block-model/src/parts.rs`), so such a document drops only the unloaded
-parts' references from `references_in`. Done: a document with a lazy list opens
-without reading that list's parts, and saving it reuses them with their
-references. Until this lands, documents merge as whole bytes (`merge3`), not by parts
-(guides/type_modules.md, "Merging by parts").
-
 ## 6. Handing the keyboard to a child block
 
 The held-keys mechanism in be-host (an editor giving the keyboard to a child
