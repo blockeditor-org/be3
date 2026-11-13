@@ -1262,9 +1262,13 @@ interface types {
         released,
     }
 
+    /// `seen` is the `epoch` of the last `dock-declared-child` the instance
+    /// heard for the child, 0 for none. It sends one again whenever that
+    /// changes, even with the same hold: its answer to that declaration.
     record dock-child-hosted {
         child: dock-child,
         hold: dock-hold,
+        seen: u64,
     }
 
     /// `tab` is in the child's paths; the host closes it at its owner.
