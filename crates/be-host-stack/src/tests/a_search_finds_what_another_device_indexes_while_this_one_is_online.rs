@@ -77,48 +77,7 @@ fn a_search_finds_what_another_device_indexes_while_this_one_is_online() {
     finds("elderberries", &[]);
 
     let other = Device::online(&harness);
-    let elderberries = Uuid::new_v4();
-    other.runtime.block_on(async {
-        let peer = std::sync::Arc::clone(&other.peer.borrow());
-        peer.create_with_id::<TextContent>(
-            elderberries,
-            be_block_graph::BlockParent::Block(workspace),
-        )
-        .await
-        .expect("the other device makes a note");
-        let saved = peer
-            .save(elderberries, &TextBlock::of("elderberries"), None)
-            .await
-            .expect("the other device saves it");
-        let head = saved.published().expect("the note is published");
-        let commit = peer.load_commit(head).await.expect("its commit loads");
-        let batch = be_lib_search::Batch {
-            put: vec![be_lib_search::Put {
-                doc: be_lib_search::DocId {
-                    block: elderberries.as_bytes().to_vec(),
-                    key: String::new(),
-                },
-                commit: be_lib_search::Commit {
-                    time: commit.time,
-                    id: *head.hash().as_bytes(),
-                },
-                source: None,
-                text: Some(be_lib_search::Text {
-                    name: "Note".to_owned(),
-                    body: "elderberries".to_owned(),
-                }),
-            }],
-            ..be_lib_search::Batch::default()
-        };
-        assert_eq!(
-            crate::search::write(peer.as_ref(), index, batch).await,
-            Ok(true),
-            "the other device indexes its note"
-        );
-        peer.drain(|_| false)
-            .await
-            .expect("the other device publishes its batch");
-    });
+    let elderberries = other.index_note(workspace, index, "elderberries");
     finds("elderberries", &[elderberries]);
     finds("apples", &[apples]);
 }

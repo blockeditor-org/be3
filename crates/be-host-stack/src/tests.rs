@@ -8,6 +8,7 @@ use uuid::Uuid;
 use super::*;
 use crate::embedded_server;
 
+mod a_batch_on_an_index_head_the_server_let_go_is_written_on_the_newer_one;
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
@@ -985,6 +986,105 @@ impl Device {
     fn read(&self, block: Uuid) -> String {
         let peer = std::sync::Arc::clone(&self.peer.borrow());
         self.runtime.block_on(read_text(&peer, block))
+    }
+
+    /// Makes a workspace with its search index and publishes both: the workspace and the index.
+    fn index_workspace(&self) -> (Uuid, Uuid) {
+        let peer = std::sync::Arc::clone(&self.peer.borrow());
+        let (workspace, index) = (Uuid::new_v4(), Uuid::new_v4());
+        self.runtime.block_on(async {
+            peer.create_with_id::<be_type_workspace::WorkspaceContent>(
+                workspace,
+                be_block_graph::BlockParent::Root,
+            )
+            .await
+            .expect("the other device makes a workspace");
+            crate::search::make_index(peer.as_ref(), workspace, index)
+                .await
+                .expect("the other device makes its index");
+            peer.define(workspace, |metadata| {
+                metadata.insert(
+                    &be_block::SEARCH_INDEX,
+                    &be_block::be_block_model::BlockRef(index),
+                );
+            })
+            .await
+            .expect("the other device names the index");
+            peer.drain(|_| false)
+                .await
+                .expect("the other device publishes the index");
+        });
+        (workspace, index)
+    }
+
+    /// Makes a note under `workspace` and indexes it in `index`, as the device that edits it
+    /// does, and publishes both.
+    fn index_note(&self, workspace: Uuid, index: Uuid, text: &str) -> Uuid {
+        let peer = std::sync::Arc::clone(&self.peer.borrow());
+        self.runtime.block_on(async {
+            let block = Uuid::new_v4();
+            peer.create_with_id::<be_type_text::TextContent>(
+                block,
+                be_block_graph::BlockParent::Block(workspace),
+            )
+            .await
+            .expect("the other device makes a note");
+            let saved = peer
+                .save(block, &be_type_text::TextBlock::of(text), None)
+                .await
+                .expect("the other device saves it");
+            let head = saved.published().expect("the note is published");
+            let commit = peer.load_commit(head).await.expect("its commit loads");
+            let batch = be_lib_search::Batch {
+                put: vec![be_lib_search::Put {
+                    doc: be_lib_search::DocId {
+                        block: block.as_bytes().to_vec(),
+                        key: String::new(),
+                    },
+                    commit: be_lib_search::Commit {
+                        time: commit.time,
+                        id: *head.hash().as_bytes(),
+                    },
+                    source: None,
+                    text: Some(be_lib_search::Text {
+                        name: "Note".to_owned(),
+                        body: text.to_owned(),
+                    }),
+                }],
+                ..be_lib_search::Batch::default()
+            };
+            // A host merges a batch that met another device's on the server (`merge_diverged`);
+            // this device, which runs no types, takes its own back and writes it again on the
+            // server's head instead.
+            loop {
+                let before = peer.local_head(index);
+                assert_eq!(
+                    crate::search::write(peer.as_ref(), index, batch.clone()).await,
+                    Ok(true),
+                    "the other device indexes its note"
+                );
+                let drained = peer
+                    .drain(|_| false)
+                    .await
+                    .expect("the other device publishes its batch");
+                let diverged = drained.iter().find_map(|outcome| match outcome {
+                    be_block_client::Drained::Diverged { block, local, .. } if *block == index => {
+                        Some(*local)
+                    }
+                    _ => None,
+                });
+                let Some(local) = diverged else {
+                    break;
+                };
+                peer.withdraw(index, local, before)
+                    .expect("the other device takes its batch back");
+            }
+            assert!(
+                peer.pending_commits(index).is_empty(),
+                "the other device's batch is on the server"
+            );
+            block
+        })
     }
 
     fn save_offline(&self, block: Uuid, text: &str) {

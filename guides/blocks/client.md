@@ -174,7 +174,13 @@ account and organization: local and last-known remote heads, the newest head
 whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
 key rows and wraps, verified contacts and escrow chain, the workspace list, the
 outbox, the unsent area and each block's journal. A sealed commit and its local
-head are written in one transaction (`Refs::push_publish`); a record that no
+head are written in one transaction (`Refs::push_publish`), and so is a publish
+settling: its outbox entries leave as the remote and local heads move on
+(`Refs::settle`), so no reader sees an empty outbox beside the old heads. The
+remote head never moves back to one it descends from (`Peer::behind`): the
+server's head only moves on, so such a head was heard of late, from a summary
+read before this device published and answered after, or from a merge settling
+a divergence a later one already settled. A record that no
 longer decodes is skipped on load.
 
 It keeps one summary per block, the newest revision winning, and a listing is

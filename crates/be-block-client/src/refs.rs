@@ -566,11 +566,72 @@ impl Refs {
         }
     }
 
-    pub fn set_remote(&self, block: Uuid, head: CommitId) -> Result<(), StoreError> {
-        if self.state.lock().unwrap().remotes.insert(block, head) == Some(head) {
-            return Ok(());
+    /// Moves the remote head to `head`, unless it is `behind` the one known
+    /// (`behind(head, known)`): the server's head only moves on, so an older one was heard of
+    /// late.
+    pub fn set_remote(
+        &self,
+        block: Uuid,
+        head: CommitId,
+        behind: impl Fn(CommitId, CommitId) -> bool,
+    ) -> Result<(), StoreError> {
+        {
+            let mut state = self.state.lock().unwrap();
+            if !Self::moves_remote(&state, block, head, &behind) {
+                return Ok(());
+            }
+            state.remotes.insert(block, head);
         }
         self.write(vec![row(Table::Remote, block.as_bytes().to_vec(), &head)])
+    }
+
+    /// Whether `head` is news of `block`'s remote head: neither the one known nor `behind` it.
+    fn moves_remote(
+        state: &State,
+        block: Uuid,
+        head: CommitId,
+        behind: impl Fn(CommitId, CommitId) -> bool,
+    ) -> bool {
+        state
+            .remotes
+            .get(&block)
+            .is_none_or(|&known| known != head && !behind(head, known))
+    }
+
+    /// The server holds `head` of `block`: drops `settled` from the outbox and moves the remote
+    /// head to it unless it is `behind` (`set_remote`), and the local head too when it
+    /// `follows` the local head, all in one step. A reader never sees the outbox emptied while
+    /// the heads still name what was there before.
+    pub fn settle(
+        &self,
+        block: Uuid,
+        settled: &[u64],
+        head: CommitId,
+        behind: impl Fn(CommitId, CommitId) -> bool,
+        follows: impl FnOnce(Option<CommitId>) -> bool,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            for sequence in settled {
+                if state.outbox.remove(sequence).is_some() {
+                    rows.push(Row {
+                        table: Table::Outbox,
+                        key: sequence.to_be_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+            }
+            if Self::moves_remote(&state, block, head, &behind) {
+                state.remotes.insert(block, head);
+                rows.push(row(Table::Remote, block.as_bytes().to_vec(), &head));
+            }
+            let local = state.heads.get(&block).copied();
+            if follows(local) && state.heads.insert(block, head) != Some(head) {
+                rows.push(row(Table::Head, block.as_bytes().to_vec(), &head));
+            }
+        }
+        self.write(rows)
     }
 
     pub fn remote(&self, block: Uuid) -> Option<CommitId> {
@@ -588,13 +649,20 @@ impl Refs {
         self.write(vec![row(Table::Held, block.as_bytes().to_vec(), &head)])
     }
 
-    pub fn observe(&self, summaries: &[BlockSummary]) -> Result<(), StoreError> {
+    /// Keeps the heads `summaries` name as the server's, but not one `behind` the remote head
+    /// already known (`set_remote`).
+    pub fn observe(
+        &self,
+        summaries: &[BlockSummary],
+        behind: impl Fn(CommitId, CommitId) -> bool,
+    ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
             for summary in summaries {
                 let Some(head) = summary.head else { continue };
-                if state.remotes.insert(summary.id, head) != Some(head) {
+                if Self::moves_remote(&state, summary.id, head, &behind) {
+                    state.remotes.insert(summary.id, head);
                     rows.push(row(Table::Remote, summary.id.as_bytes().to_vec(), &head));
                 }
             }

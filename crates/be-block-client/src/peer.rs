@@ -587,12 +587,29 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(key) = summary.key {
             self.make_current(summary.id, key);
         }
-        let _ = self.refs.observe(std::slice::from_ref(summary));
+        self.observe(std::slice::from_ref(summary));
         let _ = self
             .refs
             .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
             let _ = self.move_to_unsent(summary.id, None);
+        }
+    }
+
+    /// Keeps the server's heads `summaries` name (`behind`).
+    fn observe(&self, summaries: &[BlockSummary]) {
+        let _ = self.refs.observe(summaries, self.behind());
+    }
+
+    /// Whether a remote head this device hears of is behind the one it knows. The server's head
+    /// only ever moves on to a new commit, so a head the known one descends from was heard of
+    /// late: a summary read before this device published the newer one and answered after, or
+    /// a merge of a divergence a later merge already settled.
+    pub(crate) fn behind(&self) -> impl Fn(CommitId, CommitId) -> bool + '_ {
+        // A head this device does not hold is no ancestor of one it does: nothing to walk.
+        |head, known| {
+            self.commits.has(head).unwrap_or(false)
+                && self.commits.is_ancestor(head, known).unwrap_or(false)
         }
     }
 
@@ -1243,7 +1260,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
             Ok(be_block_protocol::Listed { revision, blocks }) => {
-                let _ = self.refs.observe(&blocks);
+                self.observe(&blocks);
                 let blocks = self.with_outbox(listing, blocks);
                 let _ = self.refs.listed(listing, &blocks, revision);
                 Ok(blocks)
@@ -1754,7 +1771,7 @@ impl<S: ObjectStore> Peer<S> {
             PublishOutcome::Published(head) => Ok(Saved::Published(head)),
             PublishOutcome::Rejected(head) => {
                 if let Some(head) = head {
-                    self.refs.set_remote(block, head)?;
+                    self.refs.set_remote(block, head, self.behind())?;
                 }
                 Ok(Saved::Rejected { head })
             }

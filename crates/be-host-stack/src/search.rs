@@ -1378,14 +1378,41 @@ async fn load<S: ObjectStore>(
 
 /// Applies a batch to the index's newest head and seals the commit into the outbox. False when
 /// the index has no head on this device yet.
+///
+/// A head the server named can be gone by the time its parts are read: the server keeps one
+/// state of an index per slot of time (`be_server::retention`), so another device's batch
+/// published meanwhile drops the head it replaced, with every part only it held. A batch that
+/// cannot be applied to a head this device has not built on is applied again to the server's
+/// head, for as long as that keeps moving.
 pub async fn write<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
-    mut batch: Batch,
+    batch: Batch,
 ) -> Result<bool, String> {
-    let Some(head) = head_of(peer, index).await else {
+    let Some(mut head) = head_of(peer, index).await else {
         return Ok(false);
     };
+    loop {
+        let error = match write_at(peer, index, head, batch.clone()).await {
+            Ok(()) => return Ok(true),
+            Err(error) => error,
+        };
+        if !peer.pending_commits(index).is_empty() {
+            return Err(error);
+        }
+        match peer.remote_head(index).await {
+            Ok(Some(newer)) if newer != head => head = newer,
+            _ => return Err(error),
+        }
+    }
+}
+
+async fn write_at<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    head: CommitId,
+    mut batch: Batch,
+) -> Result<(), String> {
     let mut content = load(peer, head).await?;
     outdate_ancestors(peer, &content, &mut batch).await?;
     content
@@ -1397,7 +1424,7 @@ pub async fn write<S: ObjectStore>(
     peer.seal(index, write)
         .await
         .map_err(|error| error.to_string())?;
-    Ok(true)
+    Ok(())
 }
 
 /// A put wins over the entry the index holds for its document only when its commit is the
@@ -1521,7 +1548,10 @@ fn heads(peer: &Peer<Store>, graph: &Graph, indexes: &[Uuid]) -> u64 {
     let mut hasher = std::hash::DefaultHasher::new();
     for index in indexes {
         index.hash(&mut hasher);
+        // What `head_of` reads.
         peer.local_head(*index).hash(&mut hasher);
+        peer.known_remote_head(*index).hash(&mut hasher);
+        peer.pending_commits(*index).is_empty().hash(&mut hasher);
         graph
             .get(*index)
             .and_then(|node| node.head)
