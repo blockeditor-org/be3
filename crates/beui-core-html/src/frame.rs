@@ -8,6 +8,8 @@ use beui_reactive::{Get, OwnedSignal, ReadSignal, Set, Signal, Stored, on_cleanu
 use crate::node::NodeId;
 
 pub const LAYOUTS_PER_FRAME: usize = 8;
+/// How many times a frame fires the timers that came due during it, laying out after each.
+const LATE_TIMER_ROUNDS: usize = 4;
 
 thread_local! {
     static CLOCK: Cell<Option<Instant>> = const { Cell::new(None) };
@@ -19,6 +21,8 @@ thread_local! {
     static IN_FRAME: Cell<bool> = const { Cell::new(false) };
     static WOKEN_IN_FRAME: Cell<bool> = const { Cell::new(false) };
     static FIRING: Cell<bool> = const { Cell::new(false) };
+    /// Counts the frames, so a frame fires each timer at most once.
+    static FRAMES: Cell<u64> = const { Cell::new(0) };
     static TIMERS: RefCell<Vec<Weak<TimerState>>> = RefCell::default();
     static LAYOUT: RefCell<Vec<Weak<dyn Fn() -> bool>>> = RefCell::default();
     static PLACED: RefCell<HashMap<NodeId, OwnedSignal<bool>>> = RefCell::default();
@@ -80,6 +84,8 @@ pub struct TimerState {
     due: Cell<Option<Instant>>,
     work: Box<dyn Fn() -> Option<Duration>>,
     listed: Cell<bool>,
+    /// The frame it last fired in, so a frame fires it at most once.
+    fired_in: Cell<u64>,
 }
 
 impl TimerState {
@@ -95,11 +101,12 @@ impl TimerState {
         }
     }
 
-    fn fire(&self, now: Instant) {
+    fn fire(&self, now: Instant, frame: u64) {
         if self.due.get().is_none_or(|due| due > now) {
             return;
         }
         self.due.set(None);
+        self.fired_in.set(frame);
         if let Some(delay) = (self.work)() {
             self.due.set(Some(now + delay));
             schedule_after(delay);
@@ -120,7 +127,11 @@ impl Timer {
             return;
         }
         state.arm(due);
-        schedule_after(delay);
+        // Started during a frame and due already: the frame fires it once laid out, or asks
+        // for the next frame if it runs out of rounds (`frame`).
+        if !(delay.is_zero() && IN_FRAME.with(Cell::get)) {
+            schedule_after(delay);
+        }
     }
 
     pub fn restart(&self, delay: Duration) {
@@ -144,6 +155,7 @@ pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
         due: Cell::new(None),
         work: Box::new(work),
         listed: Cell::new(false),
+        fired_in: Cell::new(0),
     });
     on_cleanup(move || {
         state.try_with(|state| state.due.set(None));
@@ -151,7 +163,9 @@ pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
     Timer(state)
 }
 
-fn run_timers(now: Instant) {
+/// Fires the timers due by `now` that have not fired in this frame, and says whether any did.
+fn run_timers(now: Instant) -> bool {
+    let frame = FRAMES.with(Cell::get);
     let due: Vec<Rc<TimerState>> = TIMERS.with(|timers| {
         let mut timers = timers.borrow_mut();
         timers.retain(|timer| {
@@ -162,14 +176,28 @@ fn run_timers(now: Instant) {
         timers
             .iter()
             .filter_map(Weak::upgrade)
-            .filter(|timer| timer.due.get().is_some_and(|due| due <= now))
+            .filter(|timer| {
+                timer.due.get().is_some_and(|due| due <= now) && timer.fired_in.get() != frame
+            })
             .collect()
     });
     FIRING.with(|firing| firing.set(true));
-    for timer in due {
-        timer.fire(now);
+    for timer in &due {
+        timer.fire(now, frame);
     }
     FIRING.with(|firing| firing.set(false));
+    !due.is_empty()
+}
+
+/// Whether a timer is due by `now`, of those that have not fired in this frame when `unfired`.
+fn timer_left(now: Instant, unfired: bool) -> bool {
+    let frame = FRAMES.with(Cell::get);
+    TIMERS.with(|timers| {
+        timers.borrow().iter().filter_map(Weak::upgrade).any(|timer| {
+            timer.due.get().is_some_and(|due| due <= now)
+                && !(unfired && timer.fired_in.get() == frame)
+        })
+    })
 }
 
 pub fn on_layout(pass: Rc<dyn Fn() -> bool>) {
@@ -238,11 +266,26 @@ pub fn frame() {
     }
     let now = now();
     IN_FRAME.with(|held| held.set(true));
+    FRAMES.with(|frames| frames.set(frames.get() + 1));
     run_after_input();
     run_timers(now);
     flush_in_frame();
     lay_out();
+    // A timer started during the frame and due already (a zero-delay one, started by what the
+    // frame's input, timers or layout changed) is work due now: the frame fires it once laid
+    // out and lays out what it changed, rather than leaving it to a frame that asks for no
+    // time and so, with the clock stopped, to whatever else draws one.
+    for _ in 0..LATE_TIMER_ROUNDS {
+        if !run_timers(now) {
+            break;
+        }
+        flush_in_frame();
+        lay_out();
+    }
     IN_FRAME.with(|held| held.set(false));
+    if timer_left(now, true) {
+        request_frame();
+    }
     if !FROZEN.with(Cell::get) {
         CLOCK.with(|clock| clock.set(None));
     }
@@ -283,6 +326,10 @@ pub fn relayout() {
     flush_in_frame();
     lay_out();
     IN_FRAME.with(|held| held.set(false));
+    // A zero-delay timer it started waits for the next frame, which fires it.
+    if timer_left(now(), false) {
+        request_frame();
+    }
 }
 
 pub fn busy() -> bool {

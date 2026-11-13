@@ -577,10 +577,15 @@ impl Document {
         self.viewport.as_ref().map(|(context, _, _)| context)
     }
 
-    /// Asks for a frame once `delay` has passed for a timer started now, unless this frame
-    /// will still fire it or ask for it.
-    pub(crate) fn timer_started(&self, delay: std::time::Duration) {
-        if !self.timers_open.get() {
+    /// Asks for a frame once `delay` has passed for a timer started now, armed in `armed`,
+    /// unless it is this document's and this frame will still fire it or ask for it. A timer
+    /// of another document on the thread (an inspector's, a keyboard host's) asks as before.
+    pub(crate) fn timer_started(
+        &self,
+        armed: &Rc<RefCell<crate::timer::Timers>>,
+        delay: std::time::Duration,
+    ) {
+        if !(self.timers_open.get() && Rc::ptr_eq(armed, &self.timers)) {
             self.request_repaint_after(delay);
         }
     }

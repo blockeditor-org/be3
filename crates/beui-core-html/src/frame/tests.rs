@@ -1,2 +1,4 @@
 use super::*;
 mod a_timer_that_changes_a_signal_in_a_frame_leaves_the_page_settled;
+mod a_timer_that_restarts_itself_at_zero_fires_once_a_frame;
+mod a_zero_delay_timer_started_during_a_frame_fires_in_that_frame;

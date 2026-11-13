@@ -60,7 +60,7 @@ impl Timer {
             return;
         }
         state.arm(due);
-        try_with_document(|document| document.timer_started(delay));
+        try_with_document(|document| document.timer_started(&state.armed, delay));
     }
 
     pub fn restart(&self, delay: Duration) {
