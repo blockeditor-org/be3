@@ -215,13 +215,6 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
 
 ## 15. Host, CLI and test harness
 
-- `BeuiTest` (`be-sdk-test/src/beui.rs`): remove the one-line `take_*`
-  wrappers that only pick a `ShellMessage` variant (about 15, with 3 to 17
-  callers each across the app tests) in favour of `take_shell_messages(pick)`,
-  keeping those that decode something. Remove `take_copies`,
-  `take_copied_text` and `take_copied_images` in favour of
-  `take_copied(format)`, with the serial of a copy in a separate accessor if a
-  test needs it (`take_copies` has two callers in be-sdk-beui-platform).
 - `be` CLI (`be-tool-cli/src/cli.rs`): a row's page is a text block target.
   `be ROW page` resolves to it, made on first write, and the text verbs
   (`cat`, `write`, `append`, `edit`) work on it; remove the copied `page`
