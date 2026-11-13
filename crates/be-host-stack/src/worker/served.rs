@@ -1,7 +1,8 @@
 //! The lane of server work beside the worker's loop (guides/blocks/host.md, Commands that need
-//! the server): commands that need only the server (`Command::served`) run one at a time in the
-//! order sent, each in a task, so a server that stopped answering holds up only the lane, not
-//! the loop and the edits queued in it.
+//! the server): commands that need only the server (`Command::served`), and version commands
+//! after the loop's part of them (`version`), run one at a time in the order sent, each in a
+//! task, so a server that stopped answering holds up only the lane, not the loop and the edits
+//! queued in it.
 //!
 //! Order. A command the loop carries out waits (`defer`) while:
 //! - the lane holds a block it needs (`Command::needs`), until the lane is done with it;
@@ -21,6 +22,7 @@ use be_wasm_threads::Mutex;
 use uuid::Uuid;
 
 use super::{Command, Peer, Shared, Store, Tasks};
+use crate::version::{Context, LoopCalls, Reach, Versions};
 
 #[derive(Default)]
 pub(super) struct Served {
@@ -50,6 +52,44 @@ impl Served {
             async move {
                 super::serve_command(&peer, &shared, &served_tasks, command).await;
             }
+        });
+    }
+
+    /// Hands a version command to the lane, after the loop sealed the open replicas
+    /// (`Ran::version`): it waits for the outbox to be sent, since it reads a whole tree from
+    /// the server, then runs, reaching the replicas through the loop (`calls`).
+    pub(super) fn version(
+        &mut self,
+        peer: &Arc<Peer<Store>>,
+        shared: &Arc<Mutex<Shared>>,
+        tasks: &Tasks,
+        calls: &LoopCalls,
+        block: Uuid,
+        command: be_sdk_api::VersionCommand,
+    ) {
+        let (peer, shared, served_tasks, calls) = (
+            Arc::clone(peer),
+            Arc::clone(shared),
+            tasks.clone(),
+            calls.clone(),
+        );
+        // The busy flag set by `Ran::version` lives in this stack's `Shared`: a task dropped
+        // with the stack (stopped or restarted) cannot leave it set on the next, which starts
+        // from a fresh `Shared`.
+        self.run(&shared.clone(), tasks, vec![block], async move {
+            served_tasks.sent(&peer, &shared, None).await;
+            let outcome = Versions::default()
+                .run(
+                    &mut Context {
+                        peer: &peer,
+                        shared: &shared,
+                        replicas: Reach::Loop(&calls),
+                    },
+                    block,
+                    command,
+                )
+                .await;
+            super::set_busy(&shared, block, false, outcome.err());
         });
     }
 

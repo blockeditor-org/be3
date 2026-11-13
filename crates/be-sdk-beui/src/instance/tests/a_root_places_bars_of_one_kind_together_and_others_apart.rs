@@ -2,7 +2,7 @@ use super::*;
 use be_sdk_api::{
     DockAlign, DockBar, DockBarEdge, DockBarPlace, DockBarPlacement, DockChildRequest,
     DockDeclaration, DockDeclaredChild, DockEdge, DockItem, DockItemKind, DockPane, DockRequest,
-    DockTab, DockTabPath, DockTree, DockUpdate, Size,
+    DockTab, DockTabPath, DockTree, DockUpdate, Vec2,
 };
 
 fn bar(tab: u64, key: &str, kind: &str) -> DockBar {
@@ -15,10 +15,7 @@ fn bar(tab: u64, key: &str, kind: &str) -> DockBar {
             edge: DockEdge::Top,
             align: DockAlign::Center,
         }),
-        size: Size {
-            width: 100.0,
-            height: 20.0,
-        },
+        size: Vec2 { x: 100.0, y: 20.0 },
         pane: None,
     }
 }

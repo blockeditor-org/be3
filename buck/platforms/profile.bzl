@@ -128,7 +128,7 @@ RELEASE_SYMBOL_FLAGS = select({
     "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
 })
 
-# Whether every action runs on this machine: .buckconfig.local names
+# Whether every action runs on this machine: a local build names
 # :execution_platforms_local when no build server is reachable
 # (guides/running/local_buck2.md). A rule cannot ask whether its execution
 # platform runs remotely (ExecutionPlatformInfo is not handed to analysis), and

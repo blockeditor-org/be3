@@ -1,9 +1,0 @@
-[Unit]
-Description=Pack NativeLink's small-object tier into one Bunny object
-After=nativelink-server.service
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/nl-small-pack.sh
-# A pack of a few GB of small files takes minutes; it must not take the disk or CPUs from NativeLink.
-Nice=10
-IOSchedulingClass=idle

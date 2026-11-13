@@ -290,6 +290,7 @@ enum Notice {
         from: ClientId,
         kind: RelayKind,
         payload: Vec<u8>,
+        received: i64,
     },
     Paired {
         from: ClientId,
@@ -353,11 +354,13 @@ impl Heard {
                             from,
                             kind,
                             payload,
+                            received,
                         })) => Poll::Ready(Some(Notice::Relayed {
                             block,
                             from,
                             kind,
                             payload,
+                            received,
                         })),
                         Poll::Ready(Some(_)) => continue,
                         other => other.map(|_| None),

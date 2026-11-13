@@ -92,7 +92,7 @@ def _run(ctx: AnalysisContext, info: TestRunInfo) -> Artifact:
 # Every test: harness, a RunInfo, run with args and env through
 # crates/be-tool-run-test, for buck2 test and as the action [run] alike. An
 # LD_LIBRARY_PATH in env is the test's alone (the launcher's --library-path),
-# since Namespace's workers replace an action's with their own. manifest is the
+# so a sysroot's libc in it does not load into the launcher. manifest is the
 # crate's Cargo.toml, whose directory is the test's CARGO_MANIFEST_DIR, for a
 # test that reads its snapshots/ from there. A local test, which needs this
 # machine (a browser), runs here and has no time limit.

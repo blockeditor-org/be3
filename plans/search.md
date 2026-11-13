@@ -20,8 +20,6 @@ up").
    Done: a host test opens a hit from quick open and the text shows the match
    selected, with a painting.
 
-More types answering `search-text` are in plans/search_library.md.
-
 ## Left open
 
 - **A block let go stays stale.** A block whose commit could not be read three times is
