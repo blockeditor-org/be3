@@ -11,7 +11,11 @@ fn edits_restored_after_a_restart_stay_sending_until_the_outbox_tip_drains() {
     assert_eq!(sending(&lacking), 2);
 
     lacking.drained(false, &[first]);
-    assert_eq!(sending(&lacking), 2, "the second kept commit has not drained");
+    assert_eq!(
+        sending(&lacking),
+        2,
+        "the second kept commit has not drained"
+    );
 
     lacking.drained(false, &[tip]);
     assert_eq!(sending(&lacking), 0);
