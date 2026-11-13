@@ -1,4 +1,4 @@
-use be_sdk_api::{Size, ViewRef, WindowOver};
+use be_sdk_api::{Vec2, ViewRef, WindowOver};
 
 use super::*;
 use crate::display::shown::ShownDisplay;
@@ -24,9 +24,9 @@ fn open_at(window: u64, at: Pos2, size: Vec2, level: be_sdk_api::WindowLevel) {
             screen: be_sdk_api::ScreenId::opened(window),
             opener: main,
             placement: WindowPlacement::Over(WindowOver { view: main, at }),
-            size: Size {
-                width: size.x,
-                height: size.y,
+            size: Vec2 {
+                x: size.x,
+                y: size.y,
             },
             level,
         })],

@@ -20,8 +20,6 @@ up").
    Done: a host test opens a hit from quick open and the text shows the match
    selected, with a painting.
 
-More types answering `search-text` are in plans/search_library.md.
-
 ## Left open
 
 - **A block let go stays stale.** A block whose commit could not be read three times is
@@ -35,11 +33,6 @@ More types answering `search-text` are in plans/search_library.md.
 - **The writer only.** The device whose session seals a commit indexes it
   (`Status::owner`); a follower's edits are indexed by the owner device. A
   device that cannot edit the root never writes its index.
-- **Compaction.** Each batch adds a segment; nothing merges them yet
-  (`Index::compact` exists), and `Index::forget_before` has no caller, so the
-  index's header keeps every block it ever masked. Compact on the device that writes, a few segments
-  at a time, when the count passes a threshold, and call
-  `Index::forget_before` past the index block's history retention.
 - **Rotation** reseals every part the index reuses at its next save, so a
   rotation costs one re-upload of the index;
   plans/deferred/large_blocks_lazy_rekeying.md would remove that.

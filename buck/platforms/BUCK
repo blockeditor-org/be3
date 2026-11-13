@@ -22,7 +22,7 @@ execution_platforms(
 )
 
 # The same platform with every action run on this machine, for when no build
-# server is reachable: .buckconfig.local names this list instead of the one
+# server is reachable: a local build names this list instead of the one
 # above (guides/running/local_buck2.md). It takes :default's label, so outputs
 # land where a build server's would.
 execution_platform(

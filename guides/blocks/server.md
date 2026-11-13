@@ -456,8 +456,11 @@ every summary), sealed blobs, pairing messages and relayed session messages
 have byte limits (refused as `InvalidRequest`). A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
 client that has left the session (or never joined) is dropped without an error:
-it is best-effort, and the sender cannot know the other left. The server cannot
-read a relay, so each names its `relay-kind`: `peer` (presence, channel messages,
+it is best-effort, and the sender cannot know the other left. Each relay, and
+each entry an `append` relays, reaches participants stamped with when the server
+took it (`received`, by its clock), which the owner writes into a follower's
+operation (`LiveEdit::arrival`) (guides/type_modules.md). The server cannot read a
+relay, so each names its `relay-kind`: `peer` (presence, channel messages,
 asking to catch up) needs view access, and `edit` (operations and session state)
 edit access (`rule`).
 Whether the sender holds the lease is not checked: an owner whose lease lapsed

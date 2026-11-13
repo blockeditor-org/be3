@@ -6,31 +6,21 @@ use tokio::{
 };
 
 pub mod host;
-mod namespace;
 pub mod products;
 pub mod queue;
 
-pub use namespace::{CLUSTER_KEY, LIFETIME, Waker};
 use products::{Product, is_commit};
 use queue::{Asked, Builds};
 
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
-pub struct Service {
-    pub waker: Option<Arc<Waker>>,
-    pub builds: Option<Arc<Builds>>,
-}
-
 pub async fn serve(
     listener: TcpListener,
-    service: Arc<Service>,
+    builds: Arc<Builds>,
     shutdown: impl Future<Output = ()>,
 ) -> io::Result<()> {
-    let worker = service
-        .builds
-        .as_ref()
-        .map(|builds| tokio::spawn(Arc::clone(builds).run()));
+    let worker = tokio::spawn(Arc::clone(&builds).run());
     tokio::pin!(shutdown);
     let result = loop {
         tokio::select! {
@@ -40,18 +30,16 @@ pub async fn serve(
                     Ok(accepted) => accepted,
                     Err(error) => break Err(error),
                 };
-                let service = Arc::clone(&service);
+                let builds = Arc::clone(&builds);
                 tokio::spawn(async move {
-                    if let Err(error) = respond(stream, &service).await {
+                    if let Err(error) = respond(stream, &builds).await {
                         tracing::debug!("request ended: {error}");
                     }
                 });
             }
         }
     };
-    if let Some(worker) = worker {
-        worker.abort();
-    }
+    worker.abort();
     result
 }
 
@@ -92,12 +80,12 @@ impl Response {
     }
 }
 
-async fn respond(mut stream: TcpStream, service: &Service) -> io::Result<()> {
+async fn respond(mut stream: TcpStream, builds: &Arc<Builds>) -> io::Result<()> {
     let (method, target) = match tokio::time::timeout(READ_TIMEOUT, read_head(&mut stream)).await {
         Ok(head) => head?,
         Err(_) => return Ok(()),
     };
-    let response = route(service, &method, &target).await;
+    let response = route(builds, &method, &target).await;
     let head = format!(
         "HTTP/1.1 {}\r\ncontent-type: {}\r\ncontent-length: {}\r\n{}cache-control: no-store\r\nconnection: close\r\n\r\n",
         response.status,
@@ -110,14 +98,9 @@ async fn respond(mut stream: TcpStream, service: &Service) -> io::Result<()> {
     stream.shutdown().await
 }
 
-async fn route(service: &Service, method: &str, target: &str) -> Response {
+async fn route(builds: &Arc<Builds>, method: &str, target: &str) -> Response {
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
-    if path == "/build/namespace"
-        && let Some(waker) = &service.waker
-    {
-        return namespace(waker, method).await;
-    }
-    if let (Some(rest), Some(builds)) = (path.strip_prefix("/build/products/"), &service.builds) {
+    if let Some(rest) = path.strip_prefix("/build/products/") {
         let parts: Vec<&str> = rest.split('/').collect();
         match parts[..] {
             [product, commit] => return products(builds, method, product, commit).await,
@@ -133,25 +116,6 @@ async fn route(service: &Service, method: &str, target: &str) -> Response {
         }
     }
     Response::text("404 Not Found", "Not found.\n")
-}
-
-async fn namespace(waker: &Waker, method: &str) -> Response {
-    if method != "GET" {
-        return Response::text(
-            "405 Method Not Allowed",
-            "GET asks for the cluster's hosts.\n",
-        );
-    }
-    match waker.answer().await {
-        Ok((text, age)) => Response {
-            headers: format!("age: {}\r\n", age.as_secs()),
-            ..Response::text("200 OK", text.to_string())
-        },
-        Err(error) => {
-            tracing::error!("{error}");
-            Response::text("502 Bad Gateway", format!("{error}\n"))
-        }
-    }
 }
 
 fn parse(product: &str, commit: &str) -> Result<Product, Response> {

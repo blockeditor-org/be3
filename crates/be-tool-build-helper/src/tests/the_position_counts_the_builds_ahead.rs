@@ -2,7 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn the_position_counts_the_builds_ahead() {
-    let mut running = start("position", None).await;
+    let mut running = start("position").await;
 
     let first = running.product("POST", "android", COMMIT).await.json();
     assert!(
