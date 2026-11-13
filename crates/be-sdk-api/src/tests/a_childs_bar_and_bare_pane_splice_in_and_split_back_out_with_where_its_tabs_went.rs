@@ -15,7 +15,11 @@ fn barred() -> DockDeclaration {
             edge: DockEdge::Top,
             align: DockAlign::Center,
         }),
-        size: Vec2 { x: 200.0, y: 32.0 },
+        size: Vec2 {
+            x: 200.0,
+            y: 32.0,
+        },
+        pane: None,
     });
     declaration
 }
@@ -67,6 +71,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
                     origin: Pos2::new(40.0, 60.0),
                 }),
                 hidden: false,
+                pane: None,
             }],
             outside: vec![DockOutside {
                 tab: moved,
@@ -103,6 +108,7 @@ fn a_childs_bar_and_bare_pane_splice_in_and_split_back_out_with_where_its_tabs_w
                 origin: Pos2::new(40.0, 60.0),
             }),
             hidden: false,
+            pane: None,
         }]
     );
     assert_eq!(part.layout.outside[0].tab, DockTabPath::own(5));

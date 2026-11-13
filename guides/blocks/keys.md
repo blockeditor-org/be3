@@ -153,8 +153,7 @@ Edit can write as someone else.
   `verify`, at most 64 KiB), so an app cannot make a signature that another
   app's `verify` accepts, even in a block both are shown. Apps put their own
   domain first in their bytes (chat's `be3.chat.message`) so their records can't
-  be mistaken for each other. `signing-block` names the block signatures bind to, which a record that names its chat or block inside its bytes uses (the block the revision is of, in a revision preview, where `editor.block_id()` is the preview's own). Signatures verify only in the app that made them: another app's `verify` answers `Bad`, which is not a forgery verdict. Reactions and deletions are not signed yet
-  (plans/authorship.md).
+  be mistaken for each other. `signing-block` names the block signatures bind to, which a record that names its chat or block inside its bytes uses (the block the revision is of, in a revision preview, where `editor.block_id()` is the preview's own). Signatures verify only in the app that made them: another app's `verify` answers `Bad`, which is not a forgery verdict.
 - **Apps** never hold it: host-services' `sign` and `verify`
   (guides/apps/host_services.md) answer from the worker (`be-host-stack`
   `authorship.rs`), in the block the editor shows.
@@ -169,7 +168,9 @@ Edit can write as someone else.
   contacts and the members of the organization open, which in the personal
   organization is every account) and is pinned the first time, unverified; a
   different key the server names later answers `Changed` for what it signed.
-  Nothing known that made the signature answers `Bad`.
+  Nothing known that made the signature answers `Bad`; a record found `Bad`
+  after asking the server is remembered for that connection (`Forged`), so a
+  forged row shown again asks nothing until the device reconnects.
 
 ## Contacts
 

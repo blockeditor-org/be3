@@ -1179,6 +1179,7 @@ pub(crate) fn declaration_to_api(
                     },
                     placement: placement_to_api(bar.placement),
                     size: size(bar.tab),
+                    pane: bar.pane.and_then(path),
                 })
             })
             .collect(),
@@ -1302,6 +1303,7 @@ fn declaration_from_api(
             kind: bar.kind.clone(),
             owner: bar.owner.as_ref().map(|owner| paths.tab(owner)),
             placement: placement_from_api(&bar.placement),
+            pane: bar.pane.as_ref().map(|pane| paths.tab(pane)),
         })
         .collect();
     Some(DockDeclaration {
@@ -1402,6 +1404,7 @@ fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
                     },
                     placement: placement_to_api(bar.placement),
                     hidden: bar.hidden,
+                    pane: bar.pane.and_then(path),
                 })
             })
             .collect(),
@@ -1484,6 +1487,7 @@ fn layout_to_spec(layout: &api::DockLayout, tab: TabOf<'_>) -> DockSpec {
                     },
                     placement: placement_from_api(&bar.placement),
                     hidden: bar.hidden,
+                    pane: bar.pane.as_ref().and_then(&mut *tab),
                 })
             })
             .collect(),
@@ -1705,3 +1709,6 @@ fn placement_from_api(placement: &api::DockBarPlacement) -> DockBarPlacement {
         },
     }
 }
+
+#[cfg(test)]
+mod tests;

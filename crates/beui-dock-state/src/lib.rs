@@ -1721,6 +1721,17 @@ impl DockState {
         let Some((leaf_id, index)) = self.locate(entry) else {
             return false;
         };
+        if let Entry::Tab(tab) = entry {
+            let entries = self.entries(leaf_id);
+            let staying = std::iter::once(self.active_index(leaf_id))
+                .chain(0..entries.len())
+                .filter(|at| *at != index)
+                .filter_map(|at| entries.get(at))
+                .find_map(|held| held.tab());
+            if let Some(staying) = staying {
+                self.repoint_bars(tab, staying);
+            }
+        }
         let Some(leaf) = self.leaf_mut(leaf_id) else {
             return false;
         };

@@ -1,13 +1,65 @@
 //! Signing what the account writes, and telling who signed what others wrote
 //! (plans/authorship.md).
 
+use std::collections::HashSet;
+use std::sync::{Arc, Weak};
+
 use be_block_keys::SigningPublic;
 use be_block_protocol::client;
 use be_block_store::ObjectStore;
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use super::Peer;
-use crate::ClientError;
+use crate::{ClientError, Connection};
+
+/// Records found forged after asking the server (`Peer::verify_authored`), while the
+/// connection that answered lasts: a forged row shown again asks nothing.
+#[derive(Default)]
+pub(super) struct Forged {
+    connection: Weak<Connection>,
+    records: HashSet<[u8; 32]>,
+}
+
+impl Forged {
+    fn holds(&mut self, connection: &Arc<Connection>, record: &[u8; 32]) -> bool {
+        if !std::ptr::eq(self.connection.as_ptr(), Arc::as_ptr(connection)) {
+            self.connection = Arc::downgrade(connection);
+            self.records.clear();
+        }
+        self.records.contains(record)
+    }
+
+    fn insert(&mut self, connection: &Arc<Connection>, record: [u8; 32]) {
+        if self.holds(connection, &record) {
+            return;
+        }
+        // Bounded: past the cap it starts over, and a forged row costs one round trip again.
+        if self.records.len() >= MAX_FORGED {
+            self.records.clear();
+        }
+        self.records.insert(record);
+    }
+
+    /// Forgets every record: a key this device learned since may have made one.
+    fn clear(&mut self) {
+        self.records.clear();
+    }
+}
+
+/// The most records `Forged` remembers.
+const MAX_FORGED: usize = 4096;
+
+/// A record's identity for `Forged`: who it names, where, what it says and its signature.
+fn record(account: Uuid, block: Uuid, bytes: &[u8], signature: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(account.as_bytes());
+    hasher.update(block.as_bytes());
+    hasher.update((bytes.len() as u64).to_be_bytes());
+    hasher.update(bytes);
+    hasher.update(signature);
+    hasher.finalize().into()
+}
 
 /// Who signed bytes, as far as this device can tell.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -64,11 +116,45 @@ impl<S: ObjectStore> Peer<S> {
         if !contact && known.iter().any(|known| made(known.key)) {
             return Ok(Signer::Unverified);
         }
+        let connection = self.connection();
+        let asked = record(account, block, bytes, signature);
+        if self.forged.lock().unwrap().holds(&connection, &asked) {
+            return Ok(Signer::Bad);
+        }
         if !self.is_attached() {
             return Err(ClientError::Disconnected(
                 "who signed this is known once the server is reachable".to_owned(),
             ));
         }
+        let found = self
+            .ask_about(account, block, bytes, signature, contact)
+            .await?;
+        let mut forged = self.forged.lock().unwrap();
+        // A key learned while asking (a contact's new phrase, a key pinned) may have made a
+        // record found forged before.
+        if self.refs.signers(account) != known {
+            forged.clear();
+        }
+        if found == Signer::Bad {
+            forged.insert(&connection, asked);
+        }
+        Ok(found)
+    }
+
+    /// `verify_authored` once no key this device holds made the signature: asks the server,
+    /// or refreshes the contacts for a contact's new key.
+    async fn ask_about(
+        &self,
+        account: Uuid,
+        block: Uuid,
+        bytes: &[u8],
+        signature: &[u8],
+        contact: bool,
+    ) -> Result<Signer, ClientError> {
+        let made = |key: [u8; 32]| {
+            SigningPublic(key).verifies_authored(block.into_bytes(), bytes, signature)
+        };
+        let known = self.refs.signers(account);
         if contact {
             // A contact's new phrase reaches this device with its next look at the contacts.
             self.refresh_contacts().await?;
