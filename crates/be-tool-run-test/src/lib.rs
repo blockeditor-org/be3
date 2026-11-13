@@ -233,7 +233,10 @@ fn run_command(
             use std::io::BufRead;
             let mut ran_one = false;
             let mut out = std::io::stdout();
-            for line in std::io::BufReader::new(stdout).split(b'\n').map_while(Result::ok) {
+            for line in std::io::BufReader::new(stdout)
+                .split(b'\n')
+                .map_while(Result::ok)
+            {
                 ran_one |= line == ONE_TEST.as_bytes();
                 let _ = out.write_all(&line);
                 let _ = out.write_all(b"\n");
