@@ -49,16 +49,6 @@ numbers are from when this plan was written.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
 
-## 12. beui: one form per concept
-
-- `StoredCell::new(x)` is the one form for `Copy` values; migrate the
-  `store(Cell::new(..))` uses. A first try showed most are not plain: they hold
-  non-`Copy` values (a callback, a state struct) or read the cell with
-  `with`/`try_with`, so each needs its own look (`StoredCell` has `replace`,
-  `take` and `set`; add what a use needs).
-
-Update beui-demo for every component that merges or goes.
-
 ## 13. beui: `Glide` and `Selectable` leave the base layer
 
 `Glide` and `Selectable` (`beui-view/src/primitives.rs`) are single-child
