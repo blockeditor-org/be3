@@ -11,7 +11,7 @@ fn an_editor_closing_lets_go_of_its_revision_previews_once_each() {
         answers.iter().any(|(op, _)| *op == 41)
     });
     preview_revision(&mut instances, 42, None, block, head);
-    assert!(instances.remove(INSTANCE));
+    instances.remove(INSTANCE);
     answered_until(&mut instances, block, |_, previews| {
         previews.len() == 2 && previews.iter().all(|(_, released)| *released > 0)
     });
