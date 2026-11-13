@@ -43,6 +43,7 @@ pub(crate) fn frame(
     rotate: Prop<f32>,
     opacity: Prop<f32>,
     fade_edges: Prop<Sides>,
+    raised: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = with_document(|document| {
@@ -61,6 +62,12 @@ pub(crate) fn frame(
     bind(frame, rotate, Document::set_frame_rotate);
     bind(frame, opacity, Document::set_frame_opacity);
     bind(frame, fade_edges, Document::set_frame_fade_edges);
+    if !matches!(raised, Prop::Static(false)) {
+        create_binding(move || {
+            let raised = raised.get();
+            with_document(|document| document.set_raised(frame.id(), raised));
+        });
+    }
     create_binding(move || {
         let style = FrameStyle {
             fill: fill.get(),

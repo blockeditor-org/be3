@@ -602,6 +602,11 @@ pub struct Shared {
     pub unsealed: usize,
     pub saves: u64,
     pub owing: usize,
+    /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
+    pub owing_blocks: Vec<be_block_type_host::Owing>,
+    /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
+    /// host keeps asking.
+    pub seals_owed: u64,
     /// Open replicas with edits that are not in the device's journal yet.
     pub undurable: usize,
     pub connected: bool,
@@ -764,7 +769,6 @@ impl Shared {
             ),
             (self.typing, "a block type module has yet to settle"),
             (self.uploading > 0, "the block store uploads files"),
-            (self.owing > 0, "the block store owes edits a seal"),
             (
                 self.undurable > 0,
                 "the block store keeps edits the device's journal does not hold yet",
@@ -777,6 +781,14 @@ impl Shared {
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
         .collect();
+        if self.owing > 0 {
+            let blocks: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
+            reasons.push(format!(
+                "the block store owes edits a seal, for {} (sealed what was owed {} time(s))",
+                blocks.join(", "),
+                self.seals_owed
+            ));
+        }
         if let Some(searching) = self.search.busy_with(super::search::wants_index(self)) {
             reasons.push(format!("the block store's search is busy: {searching}"));
         }
@@ -1240,7 +1252,7 @@ impl Session<'_> {
                         match command {
                             Command::Import(blocks) => {
                                 self.uploads.add(blocks);
-                                ran.done();
+                                ran.done(false);
                             }
                             command => {
                                 let runs = self
@@ -1559,6 +1571,11 @@ impl Session<'_> {
         }
         self.replicas.pump((peer, shared)).await;
         self.versions.reconnected();
+        shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .search
+            .reconnected();
         self.refresh_versions().await;
         self.in_arrive = false;
         // Rejoined already when the outbox had nothing to drain; otherwise `settle_outbox` says
@@ -2109,7 +2126,7 @@ impl Ran<'_> {
         if command.served() && self.peer.is_attached() {
             self.served
                 .start(self.peer, self.shared, self.tasks, command);
-            self.done();
+            self.done(false);
             return false;
         }
         // Boxed: the loop awaits this in several places, and `run`'s future is large.
@@ -2122,9 +2139,10 @@ impl Ran<'_> {
             false => refuse_offline(command, self.shared),
         };
         let Some(command) = command else {
-            self.done();
+            self.done(false);
             return false;
         };
+        let sealed_owed = matches!(command, Command::SealOwed);
         if let Some(block) = command.asks_server_of() {
             self.tasks.sent(self.peer, self.shared, Some(block)).await;
         }
@@ -2249,15 +2267,19 @@ impl Ran<'_> {
                 .await
             }
         };
-        self.done();
+        self.done(sealed_owed);
         applied
     }
 
-    fn done(&self) {
+    fn done(&self, sealed_owed: bool) {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
-            (held.unsealed, held.owing, held.undurable) = self.replicas.counts();
+            let owing;
+            (held.unsealed, owing, held.undurable) = self.replicas.counts();
+            held.owing = owing.len();
+            held.owing_blocks = owing;
+            held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
             held.typing = !self.replicas.modules.settled();
         }
@@ -3891,9 +3913,15 @@ async fn list(
         // As the outbox stands now, not when the request went: a creation or move kept since,
         // whose block is no longer pending in the graph, is in it (no await from here on).
         let summaries = peer.with_outbox(listing, summaries);
+        // A block the server refused to make left the files (`Graph::forget` when it was set
+        // aside), though its summary still answers from this device (`Peer::summary`), as do
+        // the blocks made in it. One whose edits were set aside for lost access is still on the
+        // server, and stays listed.
         let nodes = summaries
             .iter()
-            .filter(|summary| summary.access.can_know_exists())
+            .filter(|summary| {
+                summary.access.can_know_exists() && peer.refusal(summary.id).is_none()
+            })
             .map(|summary| node_of(peer, summary))
             .collect();
         shared

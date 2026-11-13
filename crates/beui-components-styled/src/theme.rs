@@ -522,11 +522,9 @@ pub fn provide_density(density: Memo<Density>) {
 }
 
 pub fn use_density() -> Memo<Density> {
-    density_context().unwrap_or_else(|| create_memo(|| Density::Compact))
-}
-
-pub(crate) fn density_context() -> Option<Memo<Density>> {
-    use_context::<DensityContext>().map(|DensityContext(density)| density)
+    use_context::<DensityContext>()
+        .map(|DensityContext(density)| density)
+        .unwrap_or_else(|| create_memo(|| Density::Compact))
 }
 
 pub const NARROW_WIDTH: f32 = 700.0;

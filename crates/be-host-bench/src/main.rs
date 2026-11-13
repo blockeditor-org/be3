@@ -126,13 +126,13 @@ fn first_device(
     host.click("MenuItem \"Folder\"")?;
     host.wait("TextInput \"Name\" value=\"Folder\" focused")?;
     host.run(&["key", "Enter"])?;
-    host.run(&["gone", "TextInput \"Name\""])?;
+    host.run(&["wait", "not", "TextInput \"Name\""])?;
     let folder = host.row_button("TreeItem \"Folder\"", ".more")?;
     host.click(&folder)?;
     host.click("#file-tree.zoom-in")?;
     host.wait("#file-tree.back")?;
     host.click("Button \"Close tab\"")?;
-    host.run(&["gone", "Tab \"Folder\""])?;
+    host.run(&["wait", "not", "Tab \"Folder\""])?;
     host.run(&["hurry", "off"])?;
 
     host.add("Canvas", "canvas")?;
@@ -483,7 +483,7 @@ impl Host {
             .and_then(value)
             .ok_or_else(|| format!("the sign-in shows no code:\n{tree}"))?;
         server.approve(&code)?;
-        self.run(&["gone", "#account.browser-code"])?;
+        self.run(&["wait", "not", "#account.browser-code"])?;
         Ok(())
     }
 
@@ -532,7 +532,7 @@ impl Host {
         be_tool_bench::time(&format!("{metric}.tab-open"), started.elapsed());
         self.wait(&format!("TreeItem \"{label}\""))?;
         be_tool_bench::time(&format!("{metric}.in-files"), started.elapsed());
-        self.run(&["gone", "#editor.loading"])?;
+        self.run(&["wait", "not", "#editor.loading"])?;
         be_tool_bench::time(&format!("{metric}.loaded"), started.elapsed());
         self.run(&["key", "Enter"])?;
         self.run(&["hurry", "on"])?;
@@ -547,7 +547,7 @@ impl Host {
     }
 
     fn paint(&mut self, metric: &str, path: &Path) -> Result<Snapshot, String> {
-        self.run(&["gone", "#editor.loading"])?;
+        self.run(&["wait", "not", "#editor.loading"])?;
         self.run(&["settle"])?;
         let started = Instant::now();
         let reply = self.driven().request(&["paint", BLOCK]);
@@ -567,7 +567,7 @@ impl Host {
         self.wait("Button \"Close tab\"")?;
         let started = Instant::now();
         self.run(&["--no-settle", "click", "Button \"Close tab\""])?;
-        self.run(&["gone", &format!("Pane \"{label}\"")])?;
+        self.run(&["wait", "not", &format!("Pane \"{label}\"")])?;
         be_tool_bench::time(metric, started.elapsed());
         Ok(())
     }
@@ -583,7 +583,7 @@ impl Host {
         let started = Instant::now();
         self.run(&["--no-settle", "click", row])?;
         self.wait(&format!("Pane \"{label}\""))?;
-        self.run(&["gone", "#editor.loading"])?;
+        self.run(&["wait", "not", "#editor.loading"])?;
         be_tool_bench::time(&format!("{metric}-open"), started.elapsed());
         let painted = self.paint(&format!("{metric}-paint"), painting)?;
         self.close_tab(label, &format!("{metric}-close"))?;

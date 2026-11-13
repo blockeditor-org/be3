@@ -126,9 +126,9 @@ export function wheelPixels(ticks) {
 
 export class Failure extends Error {}
 
-// Where each target shows, as native drive aims input: `ask(command, target)`
-// sends `reveal TARGET` or `shown TARGET` (the HTML core's automate and the
-// drive layer both answer them). A target a scroll cuts is revealed, at most
+// Where each target shows, as native drive aims input: `ask(target, mode)`
+// sends `find TARGET reveal` or `find TARGET shown` (the HTML core's automate
+// and the drive layer both answer them). A target a scroll cuts is revealed, at most
 // once, and every target is found again after it, since that scroll may have
 // moved the ones before. Each place is in CSS pixels, the tree's divided by ratio.
 export async function shownPlaces(ask, targets, ratio) {
@@ -136,7 +136,7 @@ export async function shownPlaces(ask, targets, ratio) {
     for (;;) {
         const found = [];
         for (const target of targets) {
-            const reply = await ask(revealed.has(target) ? "shown" : "reveal", target);
+            const reply = await ask(target, revealed.has(target) ? "shown" : "reveal");
             if (reply.trim().endsWith(" revealed")) {
                 revealed.add(target);
                 break;

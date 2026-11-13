@@ -103,6 +103,17 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
         .and_then(|node| node.metadata.get(&be_block::SEARCH_INDEX))
         .map(|be_block::be_block_model::BlockRef(index)| index)
         .expect("the workspace names its index");
+    // This writes the index as another device's indexer would, so this device's starts nothing
+    // meanwhile and finishes what it was writing: a batch of its own between the two writes
+    // would put the segment's text back, or seal over one of them.
+    crate::with_shared_mut(|shared| shared.search.off = true);
+    crate::wait_until(|shared| {
+        shared
+            .search
+            .busy_with(crate::search::wants_index(shared))
+            .is_none()
+            .then_some(())
+    });
     let peer = crate::with_shared(|shared| shared.peer.clone())
         .flatten()
         .expect("the host has a peer");
@@ -137,17 +148,15 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
             .await
             .expect("the put is written")
     });
+    crate::with_shared_mut(|shared| shared.search.off = false);
     let needs_text = needs_text.expect("the index has a head");
     assert_eq!(needs_text.len(), 1, "the index has no text for the segment");
     let read = parts_read();
-    crate::with_shared_mut(|shared| {
-        shared.search.reread(
-            needs_text
-                .iter()
-                .filter_map(|doc| Uuid::from_slice(&doc.block).ok()),
-        )
-    });
-    be_host_base::host::wake();
+    crate::reread_search(
+        needs_text
+            .iter()
+            .filter_map(|doc| Uuid::from_slice(&doc.block).ok()),
+    );
     crate::wait_until(|shared| (shared.search.parts_read > read).then_some(()));
     // In the race the chat's head is newer than the removal; here the removal was stamped
     // after the head, so the chat moves on once more and its segment is back.
