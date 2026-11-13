@@ -661,13 +661,34 @@ impl<H: Host> Replicas<H> {
         ticket: Ticket<T, E>,
         mut answered: tokio::sync::oneshot::Receiver<Outcome>,
     ) -> Result<T, OpError> {
+        let (_, shared) = ctx;
         loop {
             self.drain(ctx).await;
             if let Some(outcome) = answer_in(&mut answered) {
+                H::asking(shared, Vec::new());
                 return outcome.and_then(|outcome| ticket.decode(outcome));
             }
+            H::asking(shared, self.asking());
             self.woken().await;
         }
+    }
+
+    /// What is asked of the modules and not yet answered, by block.
+    fn asking(&self) -> Vec<String> {
+        self.asked
+            .values()
+            .map(|(replica, asked)| {
+                let block = self.open.get(replica).map(|open| open.block);
+                let what = match asked {
+                    Asked::Content => "its content".to_owned(),
+                    Asked::Seal(force) => format!("a seal (forced: {force})"),
+                };
+                match block {
+                    Some(block) => format!("{block}: {what}"),
+                    None => format!("a closed replica: {what}"),
+                }
+            })
+            .collect()
     }
 
     fn ask_later<T, E: Decode<T>>(

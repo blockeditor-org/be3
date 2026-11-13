@@ -20,6 +20,7 @@ use std::{
     hash::{Hash as _, Hasher as _},
     ops::Range,
     sync::{Arc, PoisonError},
+    time::Duration,
 };
 
 use be_block::{
@@ -217,6 +218,13 @@ pub struct Searching {
     /// Blocks whose index has no head on this device yet (made by another device, not
     /// arrived): queued again once it has one, not every round.
     parked: Vec<(Uuid, Vec<Uuid>)>,
+    /// Batches given back after `WRITE_ATTEMPTS` heads in a row were let go while they were
+    /// written (`Unwritten::Moved`): another device keeps publishing the index. Queued again
+    /// once the index's head moves on from the one it was given back at, which a watch on it
+    /// reports, or once its delay is up.
+    moving: Vec<Moving>,
+    /// Batches given back in a row, by index, for the delay before the next try.
+    moved: HashMap<Uuid, u32>,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
@@ -252,7 +260,9 @@ impl Searching {
 
     /// Whether blocks wait to be indexed, an index is being made or named, a batch is being
     /// written or a wanted search is not answered yet. The index counts in the size of the
-    /// tree it is under, so a painting taken before it is named would change.
+    /// tree it is under, so a painting taken before it is named would change. A batch held back
+    /// for an index whose head kept moving (`moving`) waits on another device, so it is not
+    /// busy; until it is written, searches answer that they are not complete (`indexed`).
     /// What keeps search busy (`busy`), named for the block store's busy reason.
     pub(crate) fn busy_with(&self, unindexed: bool) -> Option<&'static str> {
         let indexing = !self.off;
@@ -327,6 +337,7 @@ impl Searching {
             && self.writing.is_empty()
             && self.waiting.is_empty()
             && self.parked.is_empty()
+            && self.moving.is_empty()
             && self.creating.is_empty()
     }
 
@@ -501,6 +512,89 @@ impl Searching {
     pub(crate) fn park(&mut self, index: Uuid, blocks: Vec<Uuid>) {
         self.parked.push((index, blocks));
     }
+
+    /// Holds back a batch given back at `now` for an index whose head kept moving (`moving`),
+    /// at the heads it was given back at, for a delay that doubles with each batch given back
+    /// in a row.
+    pub(crate) fn hold_moving(
+        &mut self,
+        index: Uuid,
+        blocks: Vec<Uuid>,
+        heads: IndexHeads,
+        now: Duration,
+    ) {
+        let runs = self.moved.entry(index).or_default();
+        *runs = runs.saturating_add(1);
+        self.moving.push(Moving {
+            index,
+            blocks,
+            heads,
+            due: now + moving_delay(*runs),
+        });
+    }
+
+    /// Queues again the batches held back for an index whose head moved on, that no root names
+    /// any more or whose delay is up at `now`.
+    pub(crate) fn release_moving(
+        &mut self,
+        now: Duration,
+        heads: impl Fn(Uuid) -> IndexHeads,
+        named: impl Fn(Uuid) -> bool,
+    ) {
+        for moving in std::mem::take(&mut self.moving) {
+            match moving.due <= now || heads(moving.index) != moving.heads || !named(moving.index) {
+                true => self.dirty.extend(moving.blocks),
+                false => self.moving.push(moving),
+            }
+        }
+    }
+
+    /// When the first batch held back is due, for the worker to wake at.
+    pub(crate) fn moving_due(&self) -> Option<Duration> {
+        self.moving.iter().map(|moving| moving.due).min()
+    }
+
+    /// The indexes batches are held back for, which are watched for their next head.
+    fn moving_indexes(&self) -> impl Iterator<Item = Uuid> + '_ {
+        self.moving.iter().map(|moving| moving.index)
+    }
+
+    /// A batch was written to `index`: the next one given back waits the shortest delay.
+    pub(crate) fn wrote(&mut self, index: Uuid) {
+        self.moved.remove(&index);
+    }
+}
+
+/// The heads of an index a batch held back was given back at: the mirror's and the one the
+/// server last told this device of.
+pub(crate) type IndexHeads = (Option<CommitId>, Option<CommitId>);
+
+/// A batch held back for an index whose head kept moving (`Searching::moving`).
+struct Moving {
+    index: Uuid,
+    blocks: Vec<Uuid>,
+    heads: IndexHeads,
+    /// When it is tried again whatever the heads.
+    due: Duration,
+}
+
+/// The first delay before a batch given back is tried again whatever the index's heads.
+const MOVING_FIRST: Duration = Duration::from_secs(1);
+/// The longest.
+const MOVING_MOST: Duration = Duration::from_secs(60);
+
+/// The delay before a batch given back `runs` times in a row is tried again.
+fn moving_delay(runs: u32) -> Duration {
+    MOVING_FIRST
+        .saturating_mul(1 << runs.saturating_sub(1).min(16))
+        .min(MOVING_MOST)
+}
+
+fn index_heads(peer: &Peer<Store>, graph: &Graph, index: Uuid) -> IndexHeads {
+    (
+        graph.get(index).and_then(|node| node.head),
+        peer.known_remote_head(index),
+    )
 }
 
 enum Place {
@@ -551,11 +645,12 @@ pub(crate) async fn step(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     tasks: &Tasks,
+    clock: &be_block_client::Clock,
 ) -> bool {
     name_indexes(peer, shared, replicas, tasks).await;
     confirm_names(peer, shared, tasks);
     start_catch_ups(peer, shared, tasks);
-    let mut moved = index(peer, shared, replicas, tasks).await;
+    let mut moved = index(peer, shared, replicas, tasks, clock).await;
     moved |= search(peer, shared, tasks);
     moved |= show(peer, shared, replicas).await;
     moved
@@ -566,6 +661,7 @@ async fn index(
     shared: &Arc<Mutex<Shared>>,
     replicas: &mut Replicas,
     tasks: &Tasks,
+    clock: &be_block_client::Clock,
 ) -> bool {
     let (batches, roots) = {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -585,6 +681,11 @@ async fn index(
                 peer.local_head(index).is_some()
                     || graph.get(index).is_some_and(|node| node.head.is_some())
             },
+            |index| roots_naming.contains(&index),
+        );
+        state.search.release_moving(
+            clock.now(),
+            |index| index_heads(peer, graph, index),
             |index| roots_naming.contains(&index),
         );
         if held.search.dirty.is_empty() {
@@ -706,6 +807,7 @@ async fn index(
             }
         }
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
+        let clock = clock.clone();
         tasks.spawn(async move {
             let written = write(&peer, index, batch).await;
             // Sent before the batch stops counting as busy, so the host is never idle with the
@@ -717,6 +819,7 @@ async fn index(
                 match written {
                     // Every answer is read again, whichever index it read.
                     Ok(Some(needs_text)) => {
+                        held.search.wrote(index);
                         for block in &put_blocks {
                             held.search.caught.remove(block);
                         }
@@ -730,7 +833,16 @@ async fn index(
                     }
                     // Not on this device yet: made by a command still queued.
                     Ok(None) => held.search.park(index, blocks),
-                    Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
+                    // Written again once the index's head moves on, or after a while: another
+                    // device keeps publishing it, and trying at once would only read the parts
+                    // of heads already let go again.
+                    Err(Unwritten::Moved(_)) => {
+                        let heads = index_heads(&peer, &held.graph, index);
+                        held.search.hold_moving(index, blocks, heads, clock.now());
+                    }
+                    Err(Unwritten::Failed(error)) => {
+                        held.error = Some(format!("Indexing for search failed: {error}"))
+                    }
                 }
             }
             be_host_base::host::wake();
@@ -1383,7 +1495,17 @@ fn settle_indexes(
                     );
                 }
                 Ok(None) => {}
-                Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
+                // Settled again on the next pass.
+                Err(Unwritten::Moved(_)) => {
+                    held.search
+                        .settle
+                        .entry(index)
+                        .or_default()
+                        .insert(0, settle);
+                }
+                Err(Unwritten::Failed(error)) => {
+                    held.error = Some(format!("Indexing for search failed: {error}"))
+                }
             }
             drop(held);
             be_host_base::host::wake();
@@ -1519,30 +1641,147 @@ pub(crate) async fn entries<S: ObjectStore>(
         .unwrap_or_default()
 }
 
+/// How often a batch is applied to a head the server has let go of before it is given back
+/// (`Unwritten::Moved`).
+pub(crate) const WRITE_ATTEMPTS: usize = 4;
+
+/// Why a batch was not written.
+#[derive(Debug, PartialEq)]
+pub enum Unwritten {
+    /// Each head it was applied to was gone from the server before its objects were read: the
+    /// server keeps one state of an index per slot of time (`be_server::retention`), so a
+    /// batch another device published meanwhile let go of the head it replaced, with every
+    /// object only that head held. The indexer writes it again on its next pass.
+    Moved(String),
+    Failed(String),
+}
+
+impl std::fmt::Display for Unwritten {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Moved(error) | Self::Failed(error) => formatter.write_str(error),
+        }
+    }
+}
+
+impl From<be_block_client::ClientError> for Unwritten {
+    fn from(error: be_block_client::ClientError) -> Self {
+        match error {
+            be_block_client::ClientError::MissingObject(_) => Self::Moved(error.to_string()),
+            error => Self::Failed(error.to_string()),
+        }
+    }
+}
+
 /// Applies a batch to the index's newest head and seals the commit into the outbox, answering
 /// the documents the index lacks text for (a put without text whose entry is gone or holds
 /// another part's: `held` was read from an older head), for the indexer to read whole again.
 /// None when the index has no head on this device yet.
+///
+/// A head the server named can be gone by the time its objects are read (`Unwritten::Moved`):
+/// unless this device built on it, the batch is applied again to the server's head, a few
+/// times while that keeps moving.
 pub async fn write<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
-    mut batch: Batch,
-) -> Result<Option<Vec<DocId>>, String> {
+    batch: Batch,
+) -> Result<Option<Vec<DocId>>, Unwritten> {
     let Some(head) = head_of(peer, index).await else {
         return Ok(None);
     };
-    let mut content = load(peer, head).await?;
-    outdate_ancestors(peer, &content, &mut batch).await?;
-    let needs_text = content
-        .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch)
+    on_newer_heads(
+        head,
+        |head| write_at(peer, index, head, batch.clone()),
+        || async {
+            match peer.pending_commits(index).is_empty() {
+                true => peer.remote_head(index).await.ok().flatten(),
+                false => None,
+            }
+        },
+    )
+    .await
+    .map(Some)
+}
+
+/// `attempt`s at `head`, and again at the `newer` head while the one tried was let go of
+/// (`Unwritten::Moved`), up to `WRITE_ATTEMPTS` in all. `newer` answers None when there is no
+/// head to move to: one this device built on, or the server's unknown.
+pub(crate) async fn on_newer_heads<T, Tried, Newer>(
+    mut head: CommitId,
+    mut attempt: impl FnMut(CommitId) -> Tried,
+    mut newer: impl FnMut() -> Newer,
+) -> Result<T, Unwritten>
+where
+    Tried: Future<Output = Result<T, Unwritten>>,
+    Newer: Future<Output = Option<CommitId>>,
+{
+    for _ in 1..WRITE_ATTEMPTS {
+        match attempt(head).await {
+            Err(Unwritten::Moved(error)) => match newer().await {
+                Some(next) if next != head => head = next,
+                _ => return Err(Unwritten::Moved(error)),
+            },
+            done => return done,
+        }
+    }
+    attempt(head).await
+}
+
+async fn write_at<S: ObjectStore>(
+    peer: &Peer<S>,
+    index: Uuid,
+    head: CommitId,
+    mut batch: Batch,
+) -> Result<Vec<DocId>, Unwritten> {
+    let commit = peer.load_commit(head).await?;
+    let stored = peer.load_first_part(&commit.manifest).await?;
+    let mut content = SearchIndexContent::from_stored(&stored)
+        .map_err(|error| Unwritten::Failed(error.to_string()))?;
+    let parts = TellingParts {
+        peer,
+        gone: std::cell::Cell::new(false),
+    };
+    let unwritten = |error: String| match parts.gone.get() {
+        true => Unwritten::Moved(error),
+        false => Unwritten::Failed(error),
+    };
+    outdate_ancestors(&parts, &content, &mut batch)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(unwritten)?;
+    let needs_text = content
+        .apply(&parts, Uuid::new_v4().into_bytes(), batch)
+        .await
+        .map_err(|error| unwritten(error.to_string()))?;
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
         .described(Vec::new(), be_block::derived_metadata(&content));
-    peer.seal(index, write)
-        .await
-        .map_err(|error| error.to_string())?;
-    Ok(Some(needs_text))
+    peer.seal(index, write).await?;
+    Ok(needs_text)
+}
+
+/// Reads parts as `PeerParts` does, noting when one is nowhere to be found.
+struct TellingParts<'a, S: ObjectStore> {
+    peer: &'a Peer<S>,
+    gone: std::cell::Cell<bool>,
+}
+
+impl<S: ObjectStore> AsyncRead for TellingParts<'_, S> {
+    fn read(
+        &self,
+        part: PartRef,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(async move {
+            self.peer
+                .read_part(part, range.start, range.end - range.start)
+                .await
+                .map_err(|error| {
+                    if matches!(error, be_block_client::ClientError::MissingObject(_)) {
+                        self.gone.set(true);
+                    }
+                    error.to_string()
+                })
+        })
+    }
 }
 
 /// A put or removal wins over the entry the index holds for its document only when its commit
@@ -1550,7 +1789,7 @@ pub async fn write<S: ObjectStore>(
 /// id is arbitrary, so a change that descends from the held commit takes the time after it: a
 /// descendant is always the newer.
 async fn outdate_ancestors<S: ObjectStore>(
-    peer: &Peer<S>,
+    parts: &TellingParts<'_, S>,
     content: &SearchIndexContent,
     batch: &mut Batch,
 ) -> Result<(), String> {
@@ -1569,7 +1808,7 @@ async fn outdate_ancestors<S: ObjectStore>(
     for (doc, commit) in changes {
         if !entries.contains_key(&doc.block) {
             let read = content
-                .entries_of(&PeerParts(peer), &doc.block)
+                .entries_of(parts, &doc.block)
                 .await
                 .map_err(|error| error.to_string())?;
             entries.insert(
@@ -1596,7 +1835,8 @@ async fn outdate_ancestors<S: ObjectStore>(
             CommitId::from_hash(be_block_store::Hash::from_bytes(old.commit.id)),
             CommitId::from_hash(be_block_store::Hash::from_bytes(commit.id)),
         );
-        if peer
+        if parts
+            .peer
             .descends(new_id, old_id)
             .await
             .map_err(|error| error.to_string())?
@@ -1686,7 +1926,11 @@ fn heads(peer: &Peer<Store>, graph: &Graph, indexes: &[Uuid]) -> u64 {
     let mut hasher = std::hash::DefaultHasher::new();
     for index in indexes {
         index.hash(&mut hasher);
+        // What `head_of` reads.
         peer.local_head(*index).hash(&mut hasher);
+        peer.known_remote_head(*index).hash(&mut hasher);
+        peer.pending_commits(*index).is_empty().hash(&mut hasher);
+        peer.is_unsent(*index).hash(&mut hasher);
         graph
             .get(*index)
             .and_then(|node| node.head)
@@ -1754,6 +1998,10 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         .collect();
     followed.extend(hits.into_iter().map(GraphQuery::Block));
     let held = &mut *held;
+    // An index a batch is held back for is followed too, for its next head (`moving`).
+    let moving: Vec<Uuid> = held.search.moving_indexes().collect();
+    searched.extend(moving.iter().copied());
+    followed.extend(moving.into_iter().map(GraphQuery::Block));
     watch(peer, &held.graph, &mut held.search.watching, &searched);
     let mut seen = HashSet::new();
     followed.retain(|query| seen.insert(*query));

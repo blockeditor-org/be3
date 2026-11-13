@@ -73,6 +73,11 @@ pub trait Host: Sized + 'static {
     fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: Vec<Owing>, undurable: usize);
 
     fn leaving(shared: &Arc<Mutex<Self>>, leaving: bool);
+
+    /// What the worker waits on its modules for while it awaits one's answer (`Replicas::wait`),
+    /// each as "<block>: <what was asked>", empty once answered: for a host to name when it stays
+    /// busy.
+    fn asking(_shared: &Arc<Mutex<Self>>, _asking: Vec<String>) {}
 }
 
 #[cfg(test)]
