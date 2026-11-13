@@ -261,10 +261,7 @@ impl crate::embed::blocks::Call {
             }
             Self::Define { block, .. }
             | Self::WriteContent { block, .. }
-            | Self::ReplicaNew { block, .. }
-            | Self::HistoryWatchNew { block, .. }
-            | Self::HeadWatchNew { block, .. }
-            | Self::ArtifactWatchNew { block, .. } => visit(existing, block),
+            | Self::ReplicaNew { block, .. } => visit(existing, block),
             Self::Act { block, command, .. } => {
                 visit(existing, block);
                 command.visit_block_ids(visit);
@@ -274,7 +271,13 @@ impl crate::embed::blocks::Call {
                 command.visit_block_ids(visit);
             }
             Self::OpenBlock { request, .. } => request.visit_block_ids(visit),
-            Self::BlocksWatchNew { query, .. } => query.visit_block_ids(visit),
+            Self::BlockWatchNew { subject, .. } => match subject {
+                crate::blocks::BlockSubject::Blocks(query) => query.visit_block_ids(visit),
+                crate::blocks::BlockSubject::History(block)
+                | crate::blocks::BlockSubject::Head(block)
+                | crate::blocks::BlockSubject::Artifact(block) => visit(existing, block),
+                crate::blocks::BlockSubject::Version => {}
+            },
             Self::SearchWatchNew { within, .. } => {
                 if let Some(within) = within {
                     visit(existing, within);
@@ -282,13 +285,8 @@ impl crate::embed::blocks::Call {
             }
             Self::ReplicaFrames { .. }
             | Self::ReplicaSend { .. }
-            | Self::BlocksWatchNext { .. }
+            | Self::BlockWatchNext { .. }
             | Self::SearchWatchNext { .. }
-            | Self::HistoryWatchNext { .. }
-            | Self::HeadWatchNext { .. }
-            | Self::ArtifactWatchNext { .. }
-            | Self::VersionWatchNew { .. }
-            | Self::VersionWatchNext { .. }
             | Self::ShowRequestsNew { .. }
             | Self::ShowRequestsNext { .. } => {}
         }
