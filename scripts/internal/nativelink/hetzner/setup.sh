@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run as root on a new Hetzner server (Ubuntu 24.04): `scp -r` this directory there and run it with the server's public
-# name, `./setup.sh nl.be3.pfg.pw` (its DNS record must point at the server). It installs NativeLink (cache, scheduler and worker in one process,
+# name, `bash setup.sh nl.be3.pfg.pw` (its DNS record must point at the server). It installs NativeLink (cache, scheduler and worker in one process,
 # nativelink.json5) and Caddy (Caddyfile), and makes Caddy's token on first run. Running it again updates both.
 set -euo pipefail; cd "$(dirname "$(readlink -f "$0")")"; export DEBIAN_FRONTEND=noninteractive
 NL_HOST=${1:?usage: setup.sh PUBLIC_NAME}

@@ -56,7 +56,7 @@ itself for the hosts it has a rule for. BuildBuddy's key is `BE3_BUILD_SERVER_KE
 One Hetzner CPX62 (16 shared AMD EPYC Genoa vCPUs, 32 GB, 601 GB of local disk, in Helsinki, €111 a month) runs
 NativeLink's cache, scheduler and worker as one process, inside the image `worker_properties` names, so the worker
 hardlinks inputs from the same store clients upload to and nothing crosses a network between them. Everything it runs
-is in scripts/internal/nativelink/hetzner/ (none of it is a secret); `setup.sh nl.be3.pfg.pw`, run as root on a new
+is in scripts/internal/nativelink/hetzner/ (none of it is a secret); `bash setup.sh nl.be3.pfg.pw`, run as root on a new
 Ubuntu 24.04 server, installs it, and running it again updates it.
 
 - **The front door** is Caddy on port 443 (`Caddyfile`, `nl-caddy.service`), with a Let's Encrypt certificate it gets
