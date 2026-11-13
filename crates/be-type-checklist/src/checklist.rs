@@ -55,11 +55,7 @@ impl Root for Checklist {
     /// One document: each item's text on a line of its own, in order.
     fn search_text_in(document: &Document<Self>) -> Vec<SearchDocument> {
         let root = document.root();
-        let items: Vec<&str> = root
-            .items
-            .iter()
-            .map(|item| item.text.as_str())
-            .collect();
+        let items: Vec<&str> = root.items.iter().map(|item| item.text.as_str()).collect();
         vec![SearchDocument::whole(items.join("\n"))]
     }
 }
