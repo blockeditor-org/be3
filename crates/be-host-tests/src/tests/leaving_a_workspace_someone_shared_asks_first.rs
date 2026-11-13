@@ -61,10 +61,10 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     host.wait("TreeItem \"Team\"");
     host.run(&["click", "TreeItem \"Team\"", "right"]);
     host.click("#file-tree.section.leave");
-    host.wait("AlertDialog \"Leave?\"");
-    host.crop("AlertDialog \"Leave?\"");
+    host.wait("AlertDialog \"Leave \u{201c}Team\u{201d}?\"");
+    host.crop("AlertDialog \"Leave \u{201c}Team\u{201d}?\"");
     host.snapshot("leaving_a_workspace_someone_shared_asks_first");
     host.click("Button \"Stay\"");
-    host.gone("AlertDialog \"Leave?\"");
+    host.gone("AlertDialog \"Leave \u{201c}Team\u{201d}?\"");
     host.close();
 }

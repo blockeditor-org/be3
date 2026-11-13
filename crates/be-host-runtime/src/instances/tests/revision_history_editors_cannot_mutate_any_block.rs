@@ -32,6 +32,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
         panic!("preview opens");
     };
     let mut instances = placed_on(preview, CounterContent::CONTENT_TYPE);
+    let (_mailbox, heard) = hearing();
     let before = be_host_stack::content(block).unwrap().bytes().to_vec();
     for target in [block, preview] {
         assert!(!to_replica(
@@ -51,14 +52,24 @@ fn revision_history_editors_cannot_mutate_any_block() {
                 replace: true,
             }
         ));
-        assert!(!call(
-            &mut instances,
-            wire::Call::Act {
-                reply: reply(next_op()),
-                block: target.into_bytes(),
-                command: BlockCommand::Undo
-            }
-        ));
+        for command in [BlockCommand::Undo, BlockCommand::Share, BlockCommand::Leave] {
+            assert!(!call(
+                &mut instances,
+                wire::Call::Act {
+                    reply: reply(next_op()),
+                    block: target.into_bytes(),
+                    command,
+                }
+            ));
+        }
+        host::deliver();
+        assert!(
+            !heard.borrow().iter().any(|event| matches!(
+                event,
+                InstanceEvent::Action(crate::EditorAction::Command { .. })
+            )),
+            "a preview's acts never reach the host"
+        );
         instances.take_answers();
         instances.serve(crate::wire::Service {
             instance: INSTANCE,

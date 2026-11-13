@@ -214,6 +214,12 @@ alone even inside another dock's tab.
   edge, docked in a band, or popped into a window. At the root, bars are placed by key
   (`{block type}/{key}` across apps), so every canvas's `tools` bar shares one placement and one
   popped-out window. The dock offers no way to show a hidden bar again: its owner must.
+  A bar of a tab that hosts a joined dock (its dock's own bars, which the joined dock lends that
+  tab) shows on the joined dock's first pane until it is dropped on another of its panes
+  (`DockState::bar_panes`, `place_bar_on`, saved with the layout, and kept while a frame child
+  parks it). A bar stays with its pane, not with a tab: when the tab that names its pane leaves
+  that pane (moved or closed), another tab still there names it; on one pane, bars of outer
+  layers start nearer the edge, and a bar dropped among another layer's lands where it was dropped.
   Dragged by its grip (`unstyled/bars.rs`), a bar docks in an edge's band only within half a
   band of that edge (the band there, else the bar's thickness), and holds on to the band to half
   a band past it; a bar grabbed floating over an edge must first be pulled halfway from where it

@@ -40,12 +40,12 @@ fn a_change_with_clashing_edits_can_still_be_saved() {
     editor.run();
 
     assert_eq!(
-        editor.take_version_commands(),
+        editor.take_block_commands(),
         vec![(
             own(&editor),
-            VersionCommand::Finish {
+            BlockCommand::Version(VersionCommand::Finish {
                 description: "Brought in the other edits".into()
-            }
+            })
         )]
     );
 }
