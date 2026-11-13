@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_add_menu_opens_at_the_files_button_that_asked() {
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     open_add_to_my_files(&mut host);
     host.wait("#picker.more");
     let (button_x, button_y, _, button_height) = host.place(NEW);

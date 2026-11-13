@@ -214,7 +214,7 @@ itself: headless, with the dev workspace open as `:dev` has it, in a data direct
 driven with `drive`'s commands (guides/running/drive.md), painting the whole window with every
 app in it. A test fails unless the host exits cleanly at `close()`.
 
-    let mut host = HostTest::start();
+    let mut host = HostTest::start(Options::default());
     add_to_my_files(&mut host, "Canvas");
     add_to_canvas(&mut host, "Checklist");
     host.crop("#workspace.block");
@@ -231,8 +231,8 @@ app in it. A test fails unless the host exits cleanly at `close()`.
 - Every step settles as `drive` does, and the clock is stopped, so carets and animations paint
   the same every run; time passes only with `pause`. A pause runs a frame only once
   the apps have answered the one before (they work on threads of their own), so an animation
-  that spans a pause ends under load as it does idle. `HostTest`'s doc comments cover cropping,
-  previews, space and rendering.
+  that spans a pause ends under load as it does idle. `HostTest`'s doc comments cover cropping, and
+  `Options` covers the desktop, previews, space and rendering.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
   shown, whatever the crop.
 - Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK (the comment there

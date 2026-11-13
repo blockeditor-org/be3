@@ -33,24 +33,6 @@ what is not an event, and `child-bar` and `child-focused` carry the child
 only. What is left: the host's `docks::take_bars` still carries a `ViewId`
 nothing reads.
 
-## 4. Block watches are one resource
-
-`blocks.wit` has `blocks-watch(query)`, `history-watch(block)`,
-`head-watch(block)`, `artifact-watch(block)` and `version-watch()`. The host
-already merges them into one `Subject` enum
-(`be-host-runtime/src/instances/blocks.rs`).
-
-Replace them with:
-
-```wit
-variant block-subject { blocks(block-query), history(block-id), head(block-id), artifact(block-id), version }
-resource block-watch { constructor(subject: block-subject); next: async func() -> block-value; }
-```
-
-The guest's copied `watch_X` / `take_X_watch` / reconcile blocks
-(`be-sdk/src/link.rs`, `be-sdk/src/host.rs`) become one, which checks that a
-value matches its subject. `show-requests` stays separate: it is a queue.
-
 ## 5. Acting on a block is one call
 
 Today a block is changed through `blocks.act(block, block-command)`,
@@ -143,24 +125,6 @@ change notice reports what left.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
 
-## 10. GPU: one poll answers everything that settled
-
-The gpu interface (`be-wasm-gpu-abi/wit/device.wit`) mirrors WebGPU and wgpu's
-custom backend one to one, and keeps doing so: render bundle encoders, per
-encoder debug markers and typed `create-*` calls stay as WebGPU has them.
-
-What WebGPU expresses as promises (`mapAsync`, `onSubmittedWorkDone`,
-`device.lost`) is polled across the boundary today: `objects::settle`
-(`be-wasm-gpu-guest/src/objects.rs`) calls `poll`, then `map-state` per
-pending buffer, `submitted-work-done` per ticket, and `device-lost`. That is
-plumbing under the promises, not WebGPU's shape. Make `map-async` return a
-ticket as `on-submitted-work-done` does, and have
-`poll: func(wait: bool) -> settled` return
-`record settled { maps: list<tuple<u64, bool>>, work-done: list<u64>, lost: option<device-lost-info> }`.
-Remove `map-state` and its enum, `submitted-work-done` and `device-lost`. The
-host queues settled events per app. The calls stay `local`
-(decisions/guest_calls_are_async_ops_except_local_ones.md).
-
 ## 11. Type modules answer everything at start
 
 - At hello the host calls `blank` and then `describe(blank)` for every type
@@ -189,26 +153,6 @@ host queues settled events per app. The calls stay `local`
 
 Update beui-demo for every component that merges or goes.
 
-## 14. beui: density only sizes the tree
-
-Density is not ready to support everywhere. Today `Space` and `Size` resolve
-through `use_density()`, `use_space` and `use_size` build a dynamic prop when
-the two densities differ (`resolved` in
-`beui-components-styled/src/tokens.rs`), and `.px()` resolves at Compact,
-so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
-`use_space`).
-
-- `Space`, `Padding`, `Size` and `Length` resolve to one value each: remove
-  `resolve(density)`, `resolved` and the Comfortable tables, and keep one way
-  to get pixels (`.px()`; `use_space` and `use_size` go).
-- The styled `Tree` (`beui-components-styled/src/tree.rs`) keeps reading
-  `use_density()` and owns its Comfortable metrics (row height, indent,
-  spacing, glyph and chevron sizes) as its own table. be-app-file-tree's tree
-  rows keep reading it too.
-- `provide_density` (`be-sdk-beui/src/beui_frame.rs`) stays: it is how a
-  phone frame reaches the tree.
-- Update guides/beui/components.md: density sizes the tree only.
-
 ## 15. Host, CLI and test harness
 
 - `BeuiTest` (`be-sdk-test/src/beui.rs`): remove the one-line `take_*`
@@ -218,9 +162,6 @@ so the two disagree (`RadioGroup` uses `.px()`, `SegmentedControl` uses
   `take_copied_text` and `take_copied_images` in favour of
   `take_copied(format)`, with the serial of a copy in a separate accessor if a
   test needs it (`take_copies` has two callers in be-sdk-beui-platform).
-- `HostTest` (`be-host-tests/src/lib.rs`): `start`, `start_desktop`,
-  `start_in_space`, `start_drawing_previews` and `start_with` become
-  `start(Options)`.
 - `be` CLI (`be-tool-cli/src/cli.rs`): a row's page is a text block target.
   `be ROW page` resolves to it, made on first write, and the text verbs
   (`cat`, `write`, `append`, `edit`) work on it; remove the copied `page`

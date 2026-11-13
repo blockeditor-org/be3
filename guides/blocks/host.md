@@ -277,7 +277,7 @@ index and search it locally.
   deleted) is not masked yet: its text stays in the old root's index, which
   every viewer of that root can read, and only `show` hides it by access. Treat
   a moved or trashed block's old text as still readable by that root's viewers
-  (plans/search.md, "Left open").
+  (plans/deferred/search.md, "Limits accepted").
 - **The content** is `be_block::search_index::SearchIndexContent`, a
   `be_lib_search::Index` kept as the block's parts: the header first (all a
   replica loads, `Loads::FirstPart`), then every part the header names, read by
@@ -404,7 +404,7 @@ editor breaks where its core ends a group: at word boundaries (so quick typing
 undoes a word at a time), a paste, a caret move, formatting, blur; never for a
 peer's edit. A break leaves the editor's own open gesture alone, and another
 editor's burst. Apps call `act(block, block-command::undo)`
-and watch `history-watch`. A session restart (guides/type_modules.md, Peers)
+and watch a block's `history` with a `block-watch`. A session restart (guides/type_modules.md, Peers)
 drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying
 "Can't undo past here" with a button that sends `block-command::history` to
