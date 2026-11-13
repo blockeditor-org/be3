@@ -264,6 +264,7 @@ impl WatchHub {
     pub async fn register(&self, sender: Sender<Push>) -> u64 {
         let client = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         self.clients.lock().await.insert(client, sender);
+        eprintln!("DIAG register client {client}");
         client
     }
 

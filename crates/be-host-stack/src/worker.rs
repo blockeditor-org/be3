@@ -154,7 +154,9 @@ pub(super) enum Command {
         content_type: Uuid,
         bytes: Vec<u8>,
     },
-    Flush(std::sync::mpsc::Sender<()>),
+    /// Answered with how many open blocks keep edits the device's journal does not hold yet, and
+    /// imports unfinished, as of the answer: commands sent since do not count.
+    Flush(std::sync::mpsc::Sender<usize>),
     /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
     /// `Flush`, nothing stays to seal what is edited later.
     SealOwed,
@@ -1406,8 +1408,11 @@ impl Session<'_> {
                 }
                 if self.replicas.reported() {
                     kept_for_flushes = false;
+                    let (.., undurable) = self.replicas.counts();
+                    let unsaved = undurable.len()
+                        + shared.lock().unwrap_or_else(PoisonError::into_inner).importing;
                     for done in flushes.drain(..) {
-                        let _ = done.send(());
+                        let _ = done.send(unsaved);
                     }
                 }
             }
@@ -2088,7 +2093,7 @@ struct Ran<'a> {
     shared: &'a Arc<Mutex<Shared>>,
     config: &'a Config,
     versions: &'a mut Versions,
-    flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &'a mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &'a Tasks,
     served: &'a mut Served,
 }
@@ -2818,7 +2823,7 @@ async fn apply(
     wanted: &mut Wanted,
     shared: &Arc<Mutex<Shared>>,
     versions: &mut Versions,
-    flushes: &mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &Tasks,
     command: Command,
 ) -> bool {

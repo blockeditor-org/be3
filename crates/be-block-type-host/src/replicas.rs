@@ -429,6 +429,7 @@ pub struct Owing {
     /// Why its last publish failed, if it did.
     pub publish_error: Option<String>,
     pub journaled: bool,
+    pub why: String,
     /// Whether an editor sent it something its module has not reported on yet.
     pub unreported: bool,
     /// Publishes of it not yet answered.
@@ -444,6 +445,7 @@ impl Owing {
             content_type: open.content_type,
             publish_error: open.publish_error.clone(),
             journaled: open.status.journaled,
+            why: open.status.why.clone(),
             unreported: open.unreported,
             publishing: open.publishing,
             joining: open.joining,
@@ -456,7 +458,7 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (journaled: {}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
+            "{} of type {} (journaled: {}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, why: {})",
             self.block,
             self.content_type,
             self.journaled,
@@ -464,7 +466,8 @@ impl std::fmt::Display for Owing {
             self.publishing,
             self.joining,
             self.closing,
-            self.publish_error
+            self.publish_error,
+            self.why
         )
     }
 }
@@ -1912,9 +1915,12 @@ impl<H: Host> Replicas<H> {
                 payload,
             } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
+                    eprintln!("DIAG host relayed {block} from {from}: no replica");
                     return;
                 };
-                let bytes = match peer.unseal(payload) {
+                let unsealed = peer.unseal(payload);
+                eprintln!("DIAG host relayed {block} from {from}: unseal ok {} err {:?} joining {:?}", unsealed.is_ok(), unsealed.as_ref().err(), self.open.get(&replica).map(|o| o.joining));
+                let bytes = match unsealed {
                     Ok(bytes) => bytes,
                     Err(ClientError::Locked(key)) if peer.first_search_for(key) => {
                         self.unsealing
@@ -2119,6 +2125,7 @@ impl<H: Host> Replicas<H> {
             }
             Io::Sealed => self.release(),
             Io::Keyed { block, error } => {
+                eprintln!("DIAG host keyed {block} error {error:?}");
                 if let Some(error) = error
                     && !unreachable(&error)
                 {

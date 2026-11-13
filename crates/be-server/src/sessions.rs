@@ -100,6 +100,7 @@ impl SessionRegistry {
         let lease = sessions.lease(block, self.lease);
         lease.join(client, may_edit, now);
         let state = lease.state().clone();
+        eprintln!("DIAG join {block:?} client {client} may_edit {may_edit} -> {state:?}");
         sessions.joined(block, client);
         sessions.settle(block, now);
         state
@@ -120,6 +121,7 @@ impl SessionRegistry {
         let mut sessions = self.sessions.lock().await;
         let now = now_milliseconds();
         let mut changed = Vec::new();
+        eprintln!("DIAG leave_all client {client}");
         for block in sessions.joined.remove(&client).unwrap_or_default() {
             let Some(lease) = sessions.leases.get_mut(&block) else {
                 continue;

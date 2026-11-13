@@ -164,6 +164,7 @@ interface types {
         /// sequenced.
         journaled: bool,
         owes-seal: bool,
+        why: string,
         incompatible: bool,
         diverged: bool,
         unreadable: option<string>,

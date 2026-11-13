@@ -640,6 +640,7 @@ impl Client {
             hub.leave_live(account, client);
         }
         self.peer.close();
+        eprintln!("DIAG close client {client}");
         for (block, state) in registry.leave_all(client).await {
             let participants = registry.participants(block).await;
             hub.send_all(
@@ -2149,6 +2150,7 @@ impl Client {
                         return Err(not_joined());
                     }
                     let participants = state.participants;
+                    eprintln!("DIAG relay {:?} from {} to {:?} kind {:?} len {} participants {:?}", block.block, connection.client, to, kind, payload.len(), participants);
                     crate::limits::at_most("a relayed message", payload.len(), MAX_RELAY_BYTES)?;
                     let message = Push::Relayed {
                         block,
@@ -2201,6 +2203,7 @@ impl Client {
                         )?;
                     }
                     let owns = state.is_owner(connection.client) && state.generation == generation;
+                    eprintln!("DIAG append {:?} from {} owns {} relay {} entries {:?}", block.block, connection.client, owns, relay, entries.iter().map(|e| e.sequence).collect::<Vec<_>>());
                     if owns {
                         connection
                             .store
