@@ -1,12 +1,12 @@
 # The host as a platform adapter
 
-Depends on: none.
+Depends on: plans/local_accounts.md.
 
 be-host shrinks to what is the platform: windows and input, the GPU, the wasm engine and OS
 services. Everything with a UI moves into wasm guests: a root guest the host calls synchronously,
-which is the app, and below it the shell and apps as today. The block stack moves into a data
-guest. Items marked **(ask)** need a decision from the user; Open questions, at the end, lists
-them.
+which is the app, and below it the shell and apps as today. The block stack moves into the root
+guest, and the host knows nothing of it. Items marked **(ask)** need a decision from the user;
+Open questions, at the end, lists them.
 
 Why:
 
@@ -29,9 +29,9 @@ revision history editor being unable to change a block.
 
 ```
 host (native, per platform)
- ├─ root guest: the compositor, or Space while it is on, calling the compositor   synchronous
- │   └─ the shell (workspace-ui, or the desktop app under --desktop) and apps     asynchronous
- └─ data guest: blocks, sync, accounts, keys, storage                             asynchronous
+ └─ root guest: the compositor, or Space while it is on, calling the compositor   synchronous
+     ├─ the block stack, on the root guest's own threads
+     └─ the shell (workspace-ui, or the desktop app under --desktop) and apps     asynchronous
 ```
 
 The compositor is a fixed root. workspace-ui stays the shell, as an editor the compositor runs,
@@ -42,7 +42,7 @@ rather than becoming the root itself.
 - The platform adapters: winit, DRM, Android and the web page, with window state, input
   normalization, clipboard and IME. They use the types the beui platforms already use
   (`WindowRequests`, `WindowReports`, the input vocabulary), but no widgets, text or fonts.
-- A wgpu device shared with the root guest, the GPU proxy (`be-wasm-gpu-host`) and a pass that
+- A wgpu device every guest draws on, as apps do today, the GPU proxy (`be-wasm-gpu-host`) and a pass that
   composites the layer list (below).
 - The wasm engine, the linker (`be-wasm-link`) and the sandbox service (below).
 - Capabilities guests are granted:
@@ -66,7 +66,7 @@ no text and no fallback UI of its own.
 ## The root guest
 
 The root guest is the app. If it traps, be-host exits as it would on a panic today, so this is no
-worse than now. The same goes for the data guest. Apps below the root are restarted by the
+worse than now. Apps below the root are restarted by the
 compositor as the host restarts them today.
 
 The host calls it inline on its frame thread rather than stepping it on a worker:
@@ -83,7 +83,8 @@ Its rules:
 
 - It is be-host's own module, staged with it, never one from user bytes.
 - It never blocks its main thread: no waiting on atomics or on locks other threads hold. Its own
-  background threads may. These are the browser main thread's rules, which beui already follows.
+  background threads may, and the block stack runs on them. These are the browser main thread's
+  rules, which beui already follows.
 - Each call has a deadline, enforced with wasmtime's epoch interruption. On a miss the host keeps
   the previous frame (with a headset, the runtime reprojects it) and calls again on the next
   frame.
@@ -134,7 +135,7 @@ composition layers.
 
 ## The sandbox API
 
-A new WIT interface the host serves to the root and data guests, and later to apps:
+A new WIT interface the host serves to the root guest, and later to apps:
 
 - `compile(bytes) -> module`, hashed and cached.
 - `spawn(module, config, imports) -> instance and channel`. The config sets the memory limit, fuel
@@ -143,9 +144,6 @@ A new WIT interface the host serves to the root and data guests, and later to ap
   - **A staged app**, by app id. The host loads it with its manifest and binds the imports it
     serves to that app, as it does today.
   - **A module from bytes.** It gets only the imports its spawner serves.
-- An import can be served by another instance, and the host connects the two channels directly.
-  So an app's block imports go straight to the data guest, for that app, and never pass through
-  the compositor.
 - The channel speaks the existing app protocol (`be_wasm_guest_host::Channel`), with the spawner
   as the other end.
 - On the web, spawning makes a Web Worker from the page.
@@ -155,7 +153,7 @@ host directly for that app, and the compositor can turn them off for it.
 
 Other users:
 
-- The data guest spawns type modules.
+- The root guest spawns type modules for the block stack.
 - Once apps may use it, the Games app can run game modules on wasmtime natively, instead of on
   wasmi inside its own module (tabletop-host). The web has no canonical NaNs, so it may keep
   wasmi.
@@ -163,15 +161,10 @@ Other users:
 
 ## The GPU
 
-- **Devices:** only the root guest shares the host's device. Every other guest gets a device of
-  its own natively, as it already does on the web. Today every app's textures live in be-host's
-  own device (guides/apps/framework.md), so this is a change.
-- **Sharing textures:** an instance's presented texture reaches the host's device through
-  external memory, so it never leaves the GPU: dma-buf on Linux (be-lib-dmabuf, as Wayland
-  clients already use), shared handles on Windows, `AHardwareBuffer` on Android and `IOSurface`
-  on macOS, each with the fences the import needs. The host composites it from the layer list.
-  A lost device then takes down only its own guest. The cost is memory per device and
-  platform-specific import code in the host, which is platform code and belongs there.
+- **Devices:** natively every guest draws on the host's device, as every app does today
+  (guides/apps/framework.md), so an instance's presented texture is already on it and never
+  leaves the GPU. On the web each worker keeps its own device. A device per guest natively is
+  set aside in plans/deferred/gpu_devices_per_guest.md.
 - **Headsets:** the host creates its device through OpenXR, which a headset requires, only when
   `BEUI_LAYERS=xr` is set.
 - **Late latching:**
@@ -186,24 +179,24 @@ Other users:
   layer names an app's surface, and the host copies that surface into the panel's swapchain
   itself, so the layered panels never pass through the root guest.
 
-## The data guest
+## The block stack in the root guest
+
+The root guest runs the block stack in-process, on threads of its own, as the web build already
+runs it in `web/be-worker.js`: a second instance of the module on the page's shared memory. The
+host does not know it is there; it only grants the root guest capabilities.
 
 be-block-client, be-host-base and be-host-stack already run as wasm on the web: SQLite on OPFS,
-the browser's WebSocket and `fetch`, and the block stack in `web/be-worker.js`. They gain a third
-backend over the host's capabilities and drop the native tokio, rustls and tungstenite path, so
-each has one transport.
+and the browser's WebSocket and `fetch`. They gain a backend over the host's capabilities and drop
+the native tokio, rustls and tungstenite path, so each has one transport.
 
 - **Files:** a WASI preopen natively, OPFS on the web.
 - **Network:** WebSocket and HTTP. Natively the proxy credential header is allowed; the web
   refuses it, as a browser does.
-- **Block access:** apps' block imports are served by it directly (above), and it keeps the
-  per-app rules the host enforces now.
-- **Local accounts:** the embedded be-server becomes a channel inside the data guest instead of a
-  server on a port, which drops hyper, s3s and the HTTP transport from the host. It works the
-  same on the web, which then gets local accounts too. The tests that start the embedded server
-  (be-host-stack's and be-host-testing's `Harness`) can keep a real be-server as a test
-  dependency.
-- **Without a UI:** it runs without the compositor, for Android push and background sync.
+- **Apps' block calls** reach the root guest, which answers them on the block stack's threads, so
+  a slow query never holds up a frame, and keeps the per-app rules the host enforces now.
+- **Local accounts** need no server (plans/local_accounts.md), so be-server leaves be-host.
+- **Without a UI:** for Android push and background sync the host starts the root guest with no
+  window, and it runs the block stack alone.
 - **Native builds:** the crates stay portable, so their native tests, be-server and the CLIs keep
   building natively.
 
@@ -251,14 +244,12 @@ Decisions to rewrite when this lands:
 Each step lands on its own.
 
 1. The sandbox API for modules from bytes. Move the remapper onto it.
-2. Spawning staged apps, imports served by other instances, and devices of their own with
-   textures shared through external memory. A test guest embeds one editor without the host's
-   compositor.
+2. Spawning staged apps. A test guest embeds one editor without the host's compositor.
 3. The layer list and how native and the web realize it, with the host's current UI as its only
    producer, so nothing changes visibly.
 4. The synchronous root entry with deadlines. The compositor takes over `src/compositor`,
    `src/ui`, the camera and the orchestration.
-5. The data guest behind capabilities, with local accounts over a channel.
+5. The block stack in the root guest, behind capabilities.
 6. Space and the XR capability as above, with late latching.
 7. Strip the host: drop beui's widgets, text and fonts, the block stack, be-server and audio
    decoding. Update guides/apps/runtime.md, guides/desktop.md, guides/running/web.md,
