@@ -125,24 +125,6 @@ change notice reports what left.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
 
-## 10. GPU: one poll answers everything that settled
-
-The gpu interface (`be-wasm-gpu-abi/wit/device.wit`) mirrors WebGPU and wgpu's
-custom backend one to one, and keeps doing so: render bundle encoders, per
-encoder debug markers and typed `create-*` calls stay as WebGPU has them.
-
-What WebGPU expresses as promises (`mapAsync`, `onSubmittedWorkDone`,
-`device.lost`) is polled across the boundary today: `objects::settle`
-(`be-wasm-gpu-guest/src/objects.rs`) calls `poll`, then `map-state` per
-pending buffer, `submitted-work-done` per ticket, and `device-lost`. That is
-plumbing under the promises, not WebGPU's shape. Make `map-async` return a
-ticket as `on-submitted-work-done` does, and have
-`poll: func(wait: bool) -> settled` return
-`record settled { maps: list<tuple<u64, bool>>, work-done: list<u64>, lost: option<device-lost-info> }`.
-Remove `map-state` and its enum, `submitted-work-done` and `device-lost`. The
-host queues settled events per app. The calls stay `local`
-(decisions/guest_calls_are_async_ops_except_local_ones.md).
-
 ## 11. Type modules answer everything at start
 
 - At hello the host calls `blank` and then `describe(blank)` for every type
