@@ -611,10 +611,12 @@ impl<S: ObjectStore> Peer<S> {
     /// late: a summary read before this device published the newer one and answered after, or
     /// a merge of a divergence a later merge already settled.
     pub(crate) fn behind(&self) -> impl Fn(CommitId, CommitId) -> bool + '_ {
-        // A head this device does not hold is no ancestor of one it does: nothing to walk.
-        |head, known| {
-            self.commits.has(head).unwrap_or(false)
-                && self.commits.is_ancestor(head, known).unwrap_or(false)
+        |head, known| match self.commits.try_get(head) {
+            // The common case, a publish or a merge on the known head: the newer, at once.
+            Ok(Some(commit)) if commit.parents.contains(&known) => false,
+            Ok(Some(_)) => self.commits.is_ancestor(head, known).unwrap_or(false),
+            // A head this device does not hold is no ancestor of one it does.
+            Ok(None) | Err(_) => false,
         }
     }
 

@@ -730,7 +730,11 @@ async fn index(
                     }
                     // Not on this device yet: made by a command still queued.
                     Ok(None) => held.search.park(index, blocks),
-                    Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
+                    // Written again on the next pass, at whatever head the index has then.
+                    Err(Unwritten::Moved(_)) => held.search.dirty.extend(blocks),
+                    Err(Unwritten::Failed(error)) => {
+                        held.error = Some(format!("Indexing for search failed: {error}"))
+                    }
                 }
             }
             be_host_base::host::wake();
@@ -1383,7 +1387,13 @@ fn settle_indexes(
                     );
                 }
                 Ok(None) => {}
-                Err(error) => held.error = Some(format!("Indexing for search failed: {error}")),
+                // Settled again on the next pass.
+                Err(Unwritten::Moved(_)) => {
+                    held.search.settle.entry(index).or_default().insert(0, settle);
+                }
+                Err(Unwritten::Failed(error)) => {
+                    held.error = Some(format!("Indexing for search failed: {error}"))
+                }
             }
             drop(held);
             be_host_base::host::wake();
@@ -1506,37 +1516,90 @@ pub(crate) async fn entries<S: ObjectStore>(
         .unwrap_or_default()
 }
 
+/// How often a batch is applied to a head the server has let go of before it is given back
+/// (`Unwritten::Moved`).
+pub(crate) const WRITE_ATTEMPTS: usize = 4;
+
+/// Why a batch was not written.
+#[derive(Debug, PartialEq)]
+pub enum Unwritten {
+    /// Each head it was applied to was gone from the server before its objects were read: the
+    /// server keeps one state of an index per slot of time (`be_server::retention`), so a
+    /// batch another device published meanwhile let go of the head it replaced, with every
+    /// object only that head held. The indexer writes it again on its next pass.
+    Moved(String),
+    Failed(String),
+}
+
+impl std::fmt::Display for Unwritten {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Moved(error) | Self::Failed(error) => formatter.write_str(error),
+        }
+    }
+}
+
+impl From<be_block_client::ClientError> for Unwritten {
+    fn from(error: be_block_client::ClientError) -> Self {
+        match error {
+            be_block_client::ClientError::MissingObject(_) => Self::Moved(error.to_string()),
+            error => Self::Failed(error.to_string()),
+        }
+    }
+}
+
 /// Applies a batch to the index's newest head and seals the commit into the outbox, answering
 /// the documents the index lacks text for (a put without text whose entry is gone or holds
 /// another part's: `held` was read from an older head), for the indexer to read whole again.
 /// None when the index has no head on this device yet.
 ///
-/// A head the server named can be gone by the time its parts are read: the server keeps one
-/// state of an index per slot of time (`be_server::retention`), so another device's batch
-/// published meanwhile drops the head it replaced, with every part only it held. A batch that
-/// cannot be applied to a head this device has not built on is applied again to the server's
-/// head, for as long as that keeps moving.
+/// A head the server named can be gone by the time its objects are read (`Unwritten::Moved`):
+/// unless this device built on it, the batch is applied again to the server's head, a few
+/// times while that keeps moving.
 pub async fn write<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
     batch: Batch,
-) -> Result<Option<Vec<DocId>>, String> {
-    let Some(mut head) = head_of(peer, index).await else {
+) -> Result<Option<Vec<DocId>>, Unwritten> {
+    let Some(head) = head_of(peer, index).await else {
         return Ok(None);
     };
-    loop {
-        let error = match write_at(peer, index, head, batch.clone()).await {
-            Ok(needs_text) => return Ok(Some(needs_text)),
-            Err(error) => error,
-        };
-        if !peer.pending_commits(index).is_empty() {
-            return Err(error);
-        }
-        match peer.remote_head(index).await {
-            Ok(Some(newer)) if newer != head => head = newer,
-            _ => return Err(error),
+    on_newer_heads(
+        head,
+        |head| write_at(peer, index, head, batch.clone()),
+        || async {
+            match peer.pending_commits(index).is_empty() {
+                true => peer.remote_head(index).await.ok().flatten(),
+                false => None,
+            }
+        },
+    )
+    .await
+    .map(Some)
+}
+
+/// `attempt`s at `head`, and again at the `newer` head while the one tried was let go of
+/// (`Unwritten::Moved`), up to `WRITE_ATTEMPTS` in all. `newer` answers None when there is no
+/// head to move to: one this device built on, or the server's unknown.
+pub(crate) async fn on_newer_heads<T, Tried, Newer>(
+    mut head: CommitId,
+    mut attempt: impl FnMut(CommitId) -> Tried,
+    mut newer: impl FnMut() -> Newer,
+) -> Result<T, Unwritten>
+where
+    Tried: Future<Output = Result<T, Unwritten>>,
+    Newer: Future<Output = Option<CommitId>>,
+{
+    for _ in 1..WRITE_ATTEMPTS {
+        match attempt(head).await {
+            Err(Unwritten::Moved(error)) => match newer().await {
+                Some(next) if next != head => head = next,
+                _ => return Err(Unwritten::Moved(error)),
+            },
+            done => return done,
         }
     }
+    attempt(head).await
 }
 
 async fn write_at<S: ObjectStore>(
@@ -1544,19 +1607,56 @@ async fn write_at<S: ObjectStore>(
     index: Uuid,
     head: CommitId,
     mut batch: Batch,
-) -> Result<Vec<DocId>, String> {
-    let mut content = load(peer, head).await?;
-    outdate_ancestors(peer, &content, &mut batch).await?;
-    let needs_text = content
-        .apply(&PeerParts(peer), Uuid::new_v4().into_bytes(), batch)
+) -> Result<Vec<DocId>, Unwritten> {
+    let commit = peer.load_commit(head).await?;
+    let stored = peer.load_first_part(&commit.manifest).await?;
+    let mut content = SearchIndexContent::from_stored(&stored)
+        .map_err(|error| Unwritten::Failed(error.to_string()))?;
+    let parts = TellingParts {
+        peer,
+        gone: std::cell::Cell::new(false),
+    };
+    let unwritten = |error: String| match parts.gone.get() {
+        true => Unwritten::Moved(error),
+        false => Unwritten::Failed(error),
+    };
+    outdate_ancestors(&parts, &content, &mut batch)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(unwritten)?;
+    let needs_text = content
+        .apply(&parts, Uuid::new_v4().into_bytes(), batch)
+        .await
+        .map_err(|error| unwritten(error.to_string()))?;
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
         .described(Vec::new(), be_block::derived_metadata(&content));
-    peer.seal(index, write)
-        .await
-        .map_err(|error| error.to_string())?;
+    peer.seal(index, write).await?;
     Ok(needs_text)
+}
+
+/// Reads parts as `PeerParts` does, noting when one is nowhere to be found.
+struct TellingParts<'a, S: ObjectStore> {
+    peer: &'a Peer<S>,
+    gone: std::cell::Cell<bool>,
+}
+
+impl<S: ObjectStore> AsyncRead for TellingParts<'_, S> {
+    fn read(
+        &self,
+        part: PartRef,
+        range: Range<u64>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(async move {
+            self.peer
+                .read_part(part, range.start, range.end - range.start)
+                .await
+                .map_err(|error| {
+                    if matches!(error, be_block_client::ClientError::MissingObject(_)) {
+                        self.gone.set(true);
+                    }
+                    error.to_string()
+                })
+        })
+    }
 }
 
 /// A put or removal wins over the entry the index holds for its document only when its commit
@@ -1564,7 +1664,7 @@ async fn write_at<S: ObjectStore>(
 /// id is arbitrary, so a change that descends from the held commit takes the time after it: a
 /// descendant is always the newer.
 async fn outdate_ancestors<S: ObjectStore>(
-    peer: &Peer<S>,
+    parts: &TellingParts<'_, S>,
     content: &SearchIndexContent,
     batch: &mut Batch,
 ) -> Result<(), String> {
@@ -1583,7 +1683,7 @@ async fn outdate_ancestors<S: ObjectStore>(
     for (doc, commit) in changes {
         if !entries.contains_key(&doc.block) {
             let read = content
-                .entries_of(&PeerParts(peer), &doc.block)
+                .entries_of(parts, &doc.block)
                 .await
                 .map_err(|error| error.to_string())?;
             entries.insert(
@@ -1610,7 +1710,8 @@ async fn outdate_ancestors<S: ObjectStore>(
             CommitId::from_hash(be_block_store::Hash::from_bytes(old.commit.id)),
             CommitId::from_hash(be_block_store::Hash::from_bytes(commit.id)),
         );
-        if peer
+        if parts
+            .peer
             .descends(new_id, old_id)
             .await
             .map_err(|error| error.to_string())?

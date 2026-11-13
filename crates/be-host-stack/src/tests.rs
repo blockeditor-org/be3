@@ -9,6 +9,7 @@ use super::*;
 use crate::embedded_server;
 
 mod a_batch_on_an_index_head_the_server_let_go_is_written_on_the_newer_one;
+mod a_batch_whose_index_head_keeps_moving_is_given_back_after_a_few_tries;
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;

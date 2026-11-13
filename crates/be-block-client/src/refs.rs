@@ -575,27 +575,53 @@ impl Refs {
         head: CommitId,
         behind: impl Fn(CommitId, CommitId) -> bool,
     ) -> Result<(), StoreError> {
-        {
-            let mut state = self.state.lock().unwrap();
-            if !Self::moves_remote(&state, block, head, &behind) {
-                return Ok(());
-            }
-            state.remotes.insert(block, head);
+        let (mut state, news) = self.judged(&[(block, head)], behind);
+        if !news.contains(&block) {
+            return Ok(());
         }
+        state.remotes.insert(block, head);
+        drop(state);
         self.write(vec![row(Table::Remote, block.as_bytes().to_vec(), &head)])
     }
 
-    /// Whether `head` is news of `block`'s remote head: neither the one known nor `behind` it.
-    fn moves_remote(
-        state: &State,
-        block: Uuid,
-        head: CommitId,
+    /// The state, locked once each of `heads` is judged against the remote head it would
+    /// replace, with the blocks whose head is news: neither the one known nor `behind` it.
+    /// `behind` walks history, so it is asked with the lock let go, and asked again if the
+    /// remote head it was asked about moved meanwhile.
+    fn judged(
+        &self,
+        heads: &[(Uuid, CommitId)],
         behind: impl Fn(CommitId, CommitId) -> bool,
-    ) -> bool {
-        state
-            .remotes
-            .get(&block)
-            .is_none_or(|&known| known != head && !behind(head, known))
+    ) -> (std::sync::MutexGuard<'_, State>, HashSet<Uuid>) {
+        let mut judged: HashMap<(Uuid, CommitId), (CommitId, bool)> = HashMap::new();
+        loop {
+            let state = self.state.lock().unwrap();
+            let mut news = HashSet::new();
+            let mut unjudged = Vec::new();
+            for &(block, head) in heads {
+                match state.remotes.get(&block).copied() {
+                    None => {
+                        news.insert(block);
+                    }
+                    Some(known) if known == head => {}
+                    Some(known) => match judged.get(&(block, head)) {
+                        Some(&(asked, behind)) if asked == known => {
+                            if !behind {
+                                news.insert(block);
+                            }
+                        }
+                        _ => unjudged.push((block, head, known)),
+                    },
+                }
+            }
+            if unjudged.is_empty() {
+                return (state, news);
+            }
+            drop(state);
+            for (block, head, known) in unjudged {
+                judged.insert((block, head), (known, behind(head, known)));
+            }
+        }
     }
 
     /// The server holds `head` of `block`: drops `settled` from the outbox and moves the remote
@@ -612,7 +638,7 @@ impl Refs {
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
-            let mut state = self.state.lock().unwrap();
+            let (mut state, news) = self.judged(&[(block, head)], behind);
             for sequence in settled {
                 if state.outbox.remove(sequence).is_some() {
                     rows.push(Row {
@@ -622,7 +648,7 @@ impl Refs {
                     });
                 }
             }
-            if Self::moves_remote(&state, block, head, &behind) {
+            if news.contains(&block) {
                 state.remotes.insert(block, head);
                 rows.push(row(Table::Remote, block.as_bytes().to_vec(), &head));
             }
@@ -633,6 +659,31 @@ impl Refs {
         }
         self.write(rows)
     }
+
+    /// Keeps the heads `summaries` name as the server's, but not one `behind` the remote head
+    /// already known (`set_remote`).
+    pub fn observe(
+        &self,
+        summaries: &[BlockSummary],
+        behind: impl Fn(CommitId, CommitId) -> bool,
+    ) -> Result<(), StoreError> {
+        let heads: Vec<(Uuid, CommitId)> = summaries
+            .iter()
+            .filter_map(|summary| Some((summary.id, summary.head?)))
+            .collect();
+        let mut rows = Vec::new();
+        {
+            let (mut state, news) = self.judged(&heads, behind);
+            for (block, head) in heads {
+                if news.contains(&block) && state.remotes.insert(block, head) != Some(head) {
+                    rows.push(row(Table::Remote, block.as_bytes().to_vec(), &head));
+                }
+            }
+        }
+        self.write(rows)
+    }
+
+
 
     pub fn remote(&self, block: Uuid) -> Option<CommitId> {
         self.state.lock().unwrap().remotes.get(&block).copied()
@@ -649,26 +700,6 @@ impl Refs {
         self.write(vec![row(Table::Held, block.as_bytes().to_vec(), &head)])
     }
 
-    /// Keeps the heads `summaries` name as the server's, but not one `behind` the remote head
-    /// already known (`set_remote`).
-    pub fn observe(
-        &self,
-        summaries: &[BlockSummary],
-        behind: impl Fn(CommitId, CommitId) -> bool,
-    ) -> Result<(), StoreError> {
-        let mut rows = Vec::new();
-        {
-            let mut state = self.state.lock().unwrap();
-            for summary in summaries {
-                let Some(head) = summary.head else { continue };
-                if Self::moves_remote(&state, summary.id, head, &behind) {
-                    state.remotes.insert(summary.id, head);
-                    rows.push(row(Table::Remote, summary.id.as_bytes().to_vec(), &head));
-                }
-            }
-        }
-        self.write(rows)
-    }
 
     /// Keeps a summary unless this device already has a newer one of the block.
     fn put(state: &mut State, summary: &BlockSummary, rows: &mut Vec<Row>) {

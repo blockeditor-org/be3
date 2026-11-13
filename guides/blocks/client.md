@@ -180,7 +180,10 @@ settling: its outbox entries leave as the remote and local heads move on
 remote head never moves back to one it descends from (`Peer::behind`): the
 server's head only moves on, so such a head was heard of late, from a summary
 read before this device published and answered after, or from a merge settling
-a divergence a later one already settled. A record that no
+a divergence a later one already settled. A server restored from a backup, whose
+head is older, is caught up by the next publish: rejected with the server's
+real head, the device merges against it (`Peer::reconcile`) and the published
+merge moves the remote head on. A record that no
 longer decodes is skipped on load.
 
 It keeps one summary per block, the newest revision winning, and a listing is
