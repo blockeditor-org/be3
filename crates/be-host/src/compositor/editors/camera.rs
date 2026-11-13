@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::rc::Rc;
 use std::collections::HashMap;
 
 use be_sdk_api::{EditorInstanceId, FitArea, PanMode, ViewChange, ViewId};
@@ -8,7 +9,7 @@ use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use uuid::Uuid;
 
 use super::super::app_view::PanDrag;
-use be_host_runtime::EditorView;
+use be_host_runtime::{EditorView, InstanceEvent};
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
 pub(super) const MAX_ZOOM: f32 = 32.0;
@@ -244,13 +245,31 @@ pub(super) fn Camera(
         }
     });
     let pan_drags = create_signal(0u64);
+    // The view that holds the content when a change arrives takes it.
+    let changes = Rc::new(RefCell::new(Vec::new()));
+    let heard = create_signal(0u64);
+    let held = Rc::clone(&changes);
+    super::super::hear(app_id, instance, move |event| {
+        let InstanceEvent::ViewChange(change) = event else {
+            return;
+        };
+        let holding = match be_host_runtime::frame_rects(&app_id.value(), instance, shown_view) {
+            Some(frame) => frame.holds_content(),
+            None => shown_view == ViewId::MAIN,
+        };
+        if holding {
+            held.borrow_mut().push(change);
+            heard.update(|heard| *heard += 1);
+        }
+    });
     create_effect(move || {
-        revision.get();
+        heard.get();
         if !holds.get() {
             return;
         }
         let rect = rect.get_untracked();
-        for change in be_host_runtime::take_view_changes(&app_id.value(), instance) {
+        let taken = std::mem::take(&mut *changes.borrow_mut());
+        for change in taken {
             command(match change {
                 ViewChange::Pan(by) => Command::Pan(by),
                 ViewChange::Zoom { factor, anchor } => Command::Zoom {

@@ -250,6 +250,8 @@ pub(super) struct Runtime {
     session: Session,
     queued: Vec<Outbound>,
     held: Vec<Answer>,
+    /// The person asked to restart the app; the next `poll` does.
+    restart_asked: bool,
     taking_in: bool,
     layouts_heard: u64,
     presents_heard: u64,
@@ -546,6 +548,7 @@ impl Runtime {
             fonts_sent: false,
             described: false,
             painting: false,
+            restart_asked: false,
             placements: HashMap::default(),
             offers: HashMap::default(),
             fallbacks: super::fonts::Fallbacks::new(),
@@ -1761,26 +1764,8 @@ pub fn frames_answered(app_id: &str) -> (u64, u64) {
     .unwrap_or_default()
 }
 
-pub fn take_child_dismissals(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_dismissals(instance)
-    })
-    .unwrap_or_default()
-}
 
-pub fn take_child_closes(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::ChildId> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_closes(instance)
-    })
-    .unwrap_or_default()
-}
 
-pub fn take_child_commits(app_id: &str, instance: EditorInstanceId) -> Vec<super::ChildCommit> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_commits(instance)
-    })
-    .unwrap_or_default()
-}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FramePlacement {
@@ -1893,18 +1878,14 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
 
 pub fn poll() {
     let pass = host::pass();
-    for command in host::take_commands() {
-        match command {
-            host::HostCommand::RestartApp(app_id) => {
-                with(&app_id, Runtime::restart);
-            }
-        }
-    }
     let touched = be_host_stack::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         for runtime in host.runtimes.values_mut() {
             runtime.contain(|runtime| {
+                if std::mem::take(&mut runtime.restart_asked) {
+                    runtime.restart();
+                }
                 runtime.instances.touch(&touched);
                 runtime.detect_error();
                 runtime.taking_in = true;
@@ -1925,6 +1906,13 @@ pub fn poll() {
             host::request_repaint_after(wake);
         }
     });
+}
+
+/// Restarts the app at the next `poll`, as the person asked.
+pub fn restart_app(app_id: &str) {
+    if with(app_id, |runtime| runtime.restart_asked = true).is_some() {
+        host::request_repaint();
+    }
 }
 
 pub fn settle() -> bool {
@@ -2171,19 +2159,7 @@ pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
     });
 }
 
-pub fn take_focus_report(app_id: &str, instance: EditorInstanceId) -> Option<Focus> {
-    with(app_id, |runtime| {
-        runtime.instances.take_focus_report(instance)
-    })
-    .flatten()
-}
 
-pub fn take_artifact_watch(app_id: &str, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
-    with(app_id, |runtime| {
-        runtime.instances.take_artifact_watch(instance)
-    })
-    .flatten()
-}
 
 pub fn menu(app_id: &str, instance: EditorInstanceId) -> Vec<be_sdk_api::MenuEntry> {
     with(app_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
@@ -2196,16 +2172,6 @@ pub fn menu_pick(app_id: &str, instance: EditorInstanceId, id: String, anchor: O
     });
 }
 
-pub fn take_child_menu_picks(
-    app_id: &str,
-    instance: EditorInstanceId,
-    children: &[be_sdk_api::ChildId],
-) -> Vec<(be_sdk_api::ChildId, String, Option<beui::Rect>)> {
-    with(app_id, |runtime| {
-        runtime.instances.take_child_menu_picks(instance, children)
-    })
-    .unwrap_or_default()
-}
 
 pub fn show_dialog(
     app_id: &str,
@@ -2303,15 +2269,6 @@ pub fn regenerate_artifact(app_id: &str, instance: EditorInstanceId, data: &[u8]
     });
 }
 
-pub fn take_artifact_outcome(
-    app_id: &str,
-    instance: EditorInstanceId,
-) -> Option<Result<(), String>> {
-    with(app_id, |runtime| {
-        runtime.instances.take_artifact_outcome(instance)
-    })
-    .flatten()
-}
 
 pub fn view_size(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<Vec2> {
     with(app_id, |runtime| {
@@ -2344,9 +2301,6 @@ pub fn commit_creation(app_id: &str, instance: EditorInstanceId) {
     });
 }
 
-pub fn take_created(app_id: &str, instance: EditorInstanceId) -> Option<Result<Uuid, String>> {
-    with(app_id, |runtime| runtime.instances.take_created(instance)).flatten()
-}
 
 /// The child that has taken `instance`'s frame: the view placing it, the child and its block.
 pub fn frame_child(
@@ -2364,9 +2318,6 @@ pub fn revoke_frame_child(app_id: &str, instance: EditorInstanceId) {
     mark(app_id);
 }
 
-pub fn take_leaving(app_id: &str, instance: EditorInstanceId) -> bool {
-    with(app_id, |runtime| runtime.instances.take_leaving(instance)).unwrap_or_default()
-}
 
 pub fn hold(app_id: &str, instance: EditorInstanceId, region: ViewId) {
     with(app_id, |runtime| runtime.instances.hold(instance, region));
@@ -2420,9 +2371,9 @@ pub fn set_presence_visible(app_id: &str, instance: EditorInstanceId, visible: b
     });
 }
 
-/// Asks an instance to render a representation of its copy `serial`; poll
-/// `take_rendered` with the request it answers. `None` when the instance is
-/// gone.
+/// Asks an instance to render a representation of its copy `serial`; an
+/// `InstanceEvent::Rendered` with the request it answers answers it. `None` when
+/// the instance is gone.
 pub fn render_clip(
     app_id: &str,
     instance: EditorInstanceId,
@@ -2437,18 +2388,6 @@ pub fn render_clip(
     .flatten()
 }
 
-/// What an instance rendered for `request`, once it answered; `Some(None)`
-/// when it rendered nothing or is gone.
-pub fn take_rendered(
-    app_id: &str,
-    instance: EditorInstanceId,
-    request: u64,
-) -> Option<Option<Vec<u8>>> {
-    with(app_id, |runtime| {
-        runtime.instances.take_rendered(instance, request)
-    })
-    .unwrap_or(Some(None))
-}
 
 pub fn replace_child(
     app_id: &str,
@@ -2471,17 +2410,7 @@ pub fn resized(app_id: &str, instance: EditorInstanceId, size: Vec2) {
     });
 }
 
-pub fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
-    with(app_id, |runtime| {
-        runtime.instances.take_view_changes(instance)
-    })
-    .unwrap_or_default()
-}
 
-/// Whether `instance` asked for its details since the last call.
-pub fn take_details(app_id: &str, instance: EditorInstanceId) -> bool {
-    with(app_id, |runtime| runtime.instances.take_details(instance)).unwrap_or_default()
-}
 
 pub fn assigned_size(app_id: &str, instance: EditorInstanceId) -> Option<Vec2> {
     with(app_id, |runtime| runtime.instances.assigned_size(instance)).flatten()
@@ -3389,40 +3318,8 @@ pub fn frames(app_id: &str) -> u64 {
     with(app_id, |runtime| runtime.frames).unwrap_or_default()
 }
 
-pub fn take_focus_request(app_id: &str, instance: EditorInstanceId, region: ViewId) -> bool {
-    with(app_id, |runtime| {
-        runtime.instances.take_focus_request(instance, region)
-    })
-    .unwrap_or(false)
-}
 
-pub fn take_view_actions(app_id: &str, instance: EditorInstanceId) -> Vec<crate::EditorAction> {
-    use crate::EditorAction;
-    with(app_id, |runtime| {
-        let mut actions = Vec::new();
-        while let Some(open) = runtime.instances.take_open(instance) {
-            actions.push(EditorAction::OpenBlock(open));
-        }
-        while let Some((id, command)) = runtime.instances.take_block_command(instance) {
-            actions.push(EditorAction::Command { id, command });
-        }
-        for (id, command) in runtime.instances.take_shell_commands(instance) {
-            actions.push(EditorAction::Shell { id, command });
-        }
-        for (id, access) in runtime.instances.take_simulated_access(instance) {
-            actions.push(EditorAction::SimulateAccess { id, access });
-        }
-        actions
-    })
-    .unwrap_or_default()
-}
 
-pub fn take_block_drags(app_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {
-    with(app_id, |runtime| {
-        runtime.instances.take_block_drags(instance)
-    })
-    .unwrap_or_default()
-}
 
 pub fn drag_over_view(
     app_id: &str,

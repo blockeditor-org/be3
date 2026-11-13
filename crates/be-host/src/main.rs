@@ -617,6 +617,10 @@ struct HostCore {
     windows_sent: Option<(u64, Vec<be_sdk_api::HostWindowId>)>,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
+    /// What instances reported that the core acts on: focus, artifact watches, and their
+    /// children's commits, dismissals and closes.
+    instance_events: Vec<be_host_runtime::Heard>,
+    _instance_events: host::Mailbox,
     ui_settings: Option<(beui::PreferenceLayer, u32, u32)>,
     preferences: Option<beui::PreferenceLayer>,
     scale: Option<f32>,
@@ -928,6 +932,12 @@ impl HostCore {
             windows_sent: None,
             focus_reports: HashMap::new(),
             artifact_watches: HashMap::new(),
+            instance_events: Vec::new(),
+            _instance_events: {
+                let (mailbox, post) = desk().mailbox(HostCore::instance_heard);
+                be_host_runtime::listen(post);
+                mailbox
+            },
             ui_settings: None,
             preferences: None,
             scale: None,
@@ -2701,28 +2711,48 @@ impl HostCore {
             be_host_base::watches::publish::<be_sdk_api::WindowsWatch>(&listed);
             self.windows_sent = Some((Host::revision(), hidden));
         }
-        let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
+        let heard = std::mem::take(&mut self.instance_events);
+        let keys: HashMap<(String, be_sdk_api::EditorInstanceId), Uuid> =
             self.editors.with(|open| {
                 open.iter()
-                    .map(|(key, editor)| {
-                        (
-                            *key,
-                            editor.take_focus_report(),
-                            editor.take_artifact_watch(),
-                        )
+                    .filter_map(|(key, editor)| {
+                        let source = editor.source()?;
+                        Some(((source.app_id, source.instance), *key))
                     })
                     .collect()
             });
         let mut refocused = false;
         let mut rewatched = false;
-        for (id, focus, watch) in reports {
-            if let Some(focus) = focus {
-                self.focus_reports.insert(id, focus);
-                refocused = true;
-            }
-            if let Some(watch) = watch {
-                self.artifact_watches.insert(id, watch);
-                rewatched = true;
+        let mut children = Vec::new();
+        for heard in heard {
+            let key = keys.get(&(heard.app_id.clone(), heard.instance)).copied();
+            match (heard.event, key) {
+                (be_host_runtime::InstanceEvent::Focused(focus), Some(id)) => {
+                    self.focus_reports.insert(
+                        id,
+                        editors::FocusReport {
+                            block: focus.block,
+                            editor: focus.editor,
+                            via: focus.via,
+                        },
+                    );
+                    refocused = true;
+                }
+                (be_host_runtime::InstanceEvent::ArtifactWatch(watch), Some(id)) => {
+                    self.artifact_watches.insert(id, watch);
+                    rewatched = true;
+                }
+                (
+                    event @ (be_host_runtime::InstanceEvent::ChildCommitted(_)
+                    | be_host_runtime::InstanceEvent::ChildDismissed(_)
+                    | be_host_runtime::InstanceEvent::ChildClosed(_)),
+                    _,
+                ) => children.push(be_host_runtime::Heard {
+                    app_id: heard.app_id,
+                    instance: heard.instance,
+                    event,
+                }),
+                _ => {}
             }
         }
         if refocused && let Some(focus) = self.focus(shell) {
@@ -2731,7 +2761,7 @@ impl HostCore {
         if rewatched {
             self.watch_artifacts(self.watched());
         }
-        self.forward_child_commits();
+        self.forward_child_commits(children);
         self.editors.step_creations();
         for (from, action) in compositor::take_actions() {
             self.handle_editor_action(from, action);
@@ -2779,7 +2809,8 @@ impl HostCore {
         watched
     }
 
-    fn forward_child_commits(&mut self) {
+    /// Acts on what instances' children asked: commits, dismissals and closes.
+    fn forward_child_commits(&mut self, heard: Vec<be_host_runtime::Heard>) {
         let editors: Vec<(Uuid, InstanceSource)> = self.editors.with(|open| {
             open.iter()
                 .filter_map(|(key, editor)| Some((*key, editor.source()?)))
@@ -2787,10 +2818,22 @@ impl HostCore {
         });
         let hosted = self.editors.hosted_sources();
         for (id, source) in editors.iter().chain(&hosted) {
-            let (settings, commits): (Vec<_>, Vec<_>) =
-                be_host_runtime::take_child_commits(&source.app_id, source.instance)
-                    .into_iter()
-                    .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
+            let mut commits = Vec::new();
+            let mut dismissed = Vec::new();
+            let mut closed = Vec::new();
+            for heard in heard.iter().filter(|heard| heard.from(&source.app_id, source.instance)) {
+                match &heard.event {
+                    be_host_runtime::InstanceEvent::ChildCommitted(commit) => {
+                        commits.push(commit.clone());
+                    }
+                    be_host_runtime::InstanceEvent::ChildDismissed(child) => dismissed.push(*child),
+                    be_host_runtime::InstanceEvent::ChildClosed(child) => closed.push(*child),
+                    _ => {}
+                }
+            }
+            let (settings, commits): (Vec<_>, Vec<_>) = commits
+                .into_iter()
+                .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
             for commit in settings {
                 if let Some(block) = self.editors.settings_block(*id, commit.child) {
                     self.apply_artifact_settings(block);
@@ -2799,10 +2842,9 @@ impl HostCore {
             if !commits.is_empty() {
                 self.editors.commit_creations(*id, commits);
             }
-            let (settings, dismissed): (Vec<_>, Vec<_>) =
-                be_host_runtime::take_child_dismissals(&source.app_id, source.instance)
-                    .into_iter()
-                    .partition(|child| self.editors.settings_block(*id, *child).is_some());
+            let (settings, dismissed): (Vec<_>, Vec<_>) = dismissed
+                .into_iter()
+                .partition(|child| self.editors.settings_block(*id, *child).is_some());
             for child in settings {
                 if let Some(session) = self
                     .editors
@@ -2815,7 +2857,6 @@ impl HostCore {
             if !dismissed.is_empty() {
                 self.editors.dismiss_creations(*id, &dismissed);
             }
-            let closed = be_host_runtime::take_child_closes(&source.app_id, source.instance);
             if !closed.is_empty() {
                 self.editors.close_children(*id, &closed);
             }
@@ -3194,9 +3235,23 @@ impl HostCore {
         ));
     }
 
+    fn instance_heard(&mut self, heard: be_host_runtime::Heard) {
+        use be_host_runtime::InstanceEvent::{
+            ArtifactWatch, ChildClosed, ChildCommitted, ChildDismissed, Focused,
+        };
+        if matches!(
+            heard.event,
+            Focused(_) | ArtifactWatch(_) | ChildCommitted(_) | ChildDismissed(_) | ChildClosed(_)
+        ) {
+            self.instance_events.push(heard);
+        }
+    }
+
     fn run_frame(&mut self) {
         performance::begin_frame();
         be_host_runtime::poll();
+        // What the apps did in `poll` reaches its owners in this frame.
+        host::deliver();
         self.watch_shell();
         desk().deliver(self);
         #[cfg(target_os = "linux")]

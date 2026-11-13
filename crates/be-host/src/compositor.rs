@@ -29,6 +29,7 @@ thread_local! {
     static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+    static HEARD: RefCell<Option<be_host_base::host::Mailbox>> = const { RefCell::new(None) };
     static STALE: Cell<u64> = const { Cell::new(0) };
     static SEARCHED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     static OWED: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
@@ -50,6 +51,20 @@ pub(crate) fn install() {
     PALETTE_ASKS.with(|held| *held.borrow_mut() = Some(asks));
     let searched = create_signal(be_host_stack::search_revision());
     SEARCHED.with(|held| *held.borrow_mut() = Some(searched));
+    let (mailbox, post) = be_host_base::host::mailbox(heard);
+    be_host_runtime::listen(post);
+    HEARD.with(|held| *held.borrow_mut() = Some(mailbox));
+}
+
+/// Acts on what an instance asks of the host wherever it is shown.
+fn heard(heard: be_host_runtime::Heard) {
+    match heard.event {
+        be_host_runtime::InstanceEvent::Action(action) => {
+            act(editors::editors().key_of(&heard.app_id, heard.instance), action);
+        }
+        be_host_runtime::InstanceEvent::BlockDrag(drag) => app_view::carry(drag),
+        _ => {}
+    }
 }
 
 /// Moves whenever the block store answers a search again (`be_host_stack::search_revision`).
@@ -143,6 +158,22 @@ pub(crate) fn listen(app_id: &str) -> ReadSignal<u64> {
         });
     });
     revision.read_only()
+}
+
+/// Hands `receive` what the instance `instance` of `app_id` does from now on, until the
+/// calling scope is cleaned up.
+pub(crate) fn hear(
+    app_id: Stored<String>,
+    instance: be_sdk_api::EditorInstanceId,
+    receive: impl Fn(be_host_runtime::InstanceEvent) + 'static,
+) {
+    let (mailbox, post) = be_host_base::host::mailbox(move |heard: be_host_runtime::Heard| {
+        if app_id.try_with(|app_id| heard.from(app_id, instance)) == Some(true) {
+            receive(heard.event);
+        }
+    });
+    be_host_runtime::listen(post);
+    on_cleanup(move || drop(mailbox));
 }
 
 pub(crate) fn notify() {

@@ -8,17 +8,54 @@ use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
 };
+use std::{cell::RefCell, rc::Rc};
 use uuid::Uuid;
 
 use super::{
     ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
-    DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
+    DirectEditorResize, EditorRegistry, PendingCreation,
 };
 use crate::{compositor::ViewEditor, surfaces::HostedView};
 use be_host_base::host;
 use be_host_runtime::{
-    ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
+    ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, Heard, InstanceEvent,
+    InstanceRole,
 };
+
+/// What one instance's events left for the host object that runs it, until it takes them.
+struct Inbox<T> {
+    held: Rc<RefCell<Vec<T>>>,
+    _mailbox: host::Mailbox,
+}
+
+impl<T: 'static> Inbox<T> {
+    fn new(
+        app_id: &str,
+        instance: EditorInstanceId,
+        pick: impl Fn(InstanceEvent) -> Option<T> + 'static,
+    ) -> Self {
+        let held = Rc::new(RefCell::new(Vec::new()));
+        let into = Rc::clone(&held);
+        let app_id = app_id.to_owned();
+        let (mailbox, post) = host::mailbox(move |heard: Heard| {
+            if heard.from(&app_id, instance)
+                && let Some(value) = pick(heard.event)
+            {
+                into.borrow_mut().push(value);
+            }
+        });
+        be_host_runtime::listen(post);
+        Self {
+            held,
+            _mailbox: mailbox,
+        }
+    }
+
+    /// The latest it holds, forgetting the rest.
+    fn take_latest(&self) -> Option<T> {
+        std::mem::take(&mut *self.held.borrow_mut()).pop()
+    }
+}
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
@@ -43,18 +80,25 @@ pub(super) struct AppCreation {
     state: CreationState,
     committed: bool,
     dismissed: bool,
+    created: Inbox<Result<Uuid, String>>,
 }
 
 impl AppCreation {
     pub(super) fn new(app: Arc<AppManifest>, target: CreationTarget) -> Self {
+        let instance = next_instance();
+        let created = Inbox::new(&app.identity.id, instance, |event| match event {
+            InstanceEvent::Created(created) => Some(created),
+            _ => None,
+        });
         Self {
             app,
             target,
-            instance: next_instance(),
+            instance,
             opened: false,
             state: CreationState::Starting,
             committed: false,
             dismissed: false,
+            created,
         }
     }
 
@@ -228,7 +272,7 @@ impl PendingCreation for AppCreation {
             self.committed = true;
             be_host_runtime::commit_creation(&self.app.identity.id, self.instance);
         }
-        match be_host_runtime::take_created(&self.app.identity.id, self.instance) {
+        match self.created.take_latest() {
             None => Ok(None),
             Some(Ok(block_id)) => Ok(Some(block_id)),
             Some(Err(error)) => {
@@ -516,21 +560,7 @@ impl AppEditor {
         );
     }
 
-    pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
-        let app = self.app()?;
-        be_host_runtime::take_focus_report(&app.identity.id, self.instance).map(|focus| {
-            FocusReport {
-                block: focus.block,
-                editor: focus.editor,
-                via: focus.via,
-            }
-        })
-    }
 
-    pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
-        let app = self.app()?;
-        be_host_runtime::take_artifact_watch(&app.identity.id, self.instance)
-    }
 
     pub(crate) fn menu(&self) -> Vec<be_sdk_api::MenuEntry> {
         match self.app() {
@@ -577,6 +607,7 @@ pub(super) struct AppArtifact {
     resync: bool,
     dismissed: bool,
     outcome: Option<Result<(), String>>,
+    outcomes: Inbox<Result<(), String>>,
     regenerating: bool,
 }
 
@@ -589,6 +620,11 @@ impl AppArtifact {
         target_type: Uuid,
         client_id: Uuid,
     ) -> Self {
+        let instance = next_instance();
+        let outcomes = Inbox::new(&app.identity.id, instance, |event| match event {
+            InstanceEvent::ArtifactOutcome(outcome) => Some(outcome),
+            _ => None,
+        });
         Self {
             app,
             editor,
@@ -599,11 +635,12 @@ impl AppArtifact {
                 block_type: target_type,
                 view_block: None,
             },
-            instance: next_instance(),
+            instance,
             opened: false,
             resync: false,
             dismissed: false,
             outcome: None,
+            outcomes,
             regenerating: false,
         }
     }
@@ -631,9 +668,7 @@ impl ArtifactSession for AppArtifact {
             data,
             resync: std::mem::take(&mut self.resync),
         });
-        if let Some(outcome) =
-            be_host_runtime::take_artifact_outcome(&self.app.identity.id, self.instance)
-        {
+        if let Some(outcome) = self.outcomes.take_latest() {
             self.regenerating = false;
             self.outcome = Some(outcome);
         }

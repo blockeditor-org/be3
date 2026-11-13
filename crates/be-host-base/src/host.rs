@@ -72,6 +72,13 @@ impl<T> Clone for Post<T> {
 }
 
 impl<T: Send + 'static> Post<T> {
+    /// Whether its mailbox still takes letters: false once the mailbox is dropped. Only the
+    /// thread that made the mailbox can tell; elsewhere it answers true.
+    pub fn open(&self) -> bool {
+        self.thread != thread::current().id()
+            || MAILBOXES.with_borrow(|mailboxes| mailboxes.contains_key(&self.mailbox))
+    }
+
     pub fn send(&self, value: T) {
         POSTED
             .lock()
@@ -181,11 +188,6 @@ pub fn deliver() {
     FRAME.deliver(&mut ());
 }
 
-#[derive(Clone, Debug)]
-pub enum HostCommand {
-    RestartApp(String),
-}
-
 #[derive(Default)]
 pub struct Output {
     pub fullscreen: Option<bool>,
@@ -211,7 +213,6 @@ struct Host {
     screen_scale: f32,
     opens_windows: bool,
     preferences: be_sdk_api::Preferences,
-    commands: Vec<HostCommand>,
     changed: bool,
     output: Output,
 }
@@ -229,7 +230,6 @@ impl Default for Host {
             screen_scale: 1.0,
             opens_windows: false,
             preferences: be_sdk_api::Preferences::default(),
-            commands: Vec::new(),
             changed: false,
             output: Output::default(),
         }
@@ -418,14 +418,7 @@ pub fn note_animating() {
     with(|host| host.output.animating = true);
 }
 
-pub fn push_command(command: HostCommand) {
-    with(|host| host.commands.push(command));
-    wake();
-}
 
-pub fn take_commands() -> Vec<HostCommand> {
-    with(|host| std::mem::take(&mut host.commands))
-}
 
 #[cfg(test)]
 mod tests;
