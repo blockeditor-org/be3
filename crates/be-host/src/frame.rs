@@ -22,7 +22,7 @@ struct Export {
     read: std::sync::mpsc::Receiver<Option<beui::clipboard::ClipFile>>,
     left: usize,
     files: Vec<beui::clipboard::ClipFile>,
-    answer: Box<dyn FnOnce(Option<Vec<u8>>)>,
+    answer: beui::clip::RenderAnswer,
 }
 
 /// A representation of an app's copy that a paste asked the app to render.
@@ -30,7 +30,7 @@ struct Render {
     app_id: String,
     instance: be_sdk_api::EditorInstanceId,
     request: u64,
-    answer: Box<dyn FnOnce(Option<Vec<u8>>)>,
+    answer: beui::clip::RenderAnswer,
 }
 
 /// The clip an app copied: its ready items, and the rest rendered by the
@@ -46,13 +46,13 @@ fn app_clip(copied: host::CopiedClip) -> beui::Clip {
         .iter()
         .filter(|item| item.format == beui::clipboard::formats::BLOCKS)
         .find_map(|item| {
-            let item = beui::ClipItem::new(item.format.clone(), item.data.clone()?);
+            let item = beui::ClipItem::of_body(item.format.clone(), item.body.clone()?);
             item.decode::<beui::clipboard::Blocks>()
         });
     let clip = items
         .into_iter()
-        .fold(beui::Clip::new(), |clip, item| match item.data {
-            Some(data) => clip.with(beui::ClipItem::new(item.format, data)),
+        .fold(beui::Clip::new(), |clip, item| match item.body {
+            Some(body) => clip.with(beui::ClipItem::of_body(item.format, body)),
             None => {
                 let app_id = app_id.clone();
                 let format = item.format.clone();
@@ -101,7 +101,7 @@ fn app_clip(copied: host::CopiedClip) -> beui::Clip {
 /// Reads the plain file each block's type writes it as, for a paste of the
 /// blocks' files; a block the person cannot view, or without a file form, is
 /// left out.
-fn export_files(blocks: &[uuid::Uuid], answer: Box<dyn FnOnce(Option<Vec<u8>>)>) {
+fn export_files(blocks: &[uuid::Uuid], answer: beui::clip::RenderAnswer) {
     let (send, read) = std::sync::mpsc::channel();
     let mut left = 0;
     for block in blocks {
@@ -133,7 +133,7 @@ fn export_files(blocks: &[uuid::Uuid], answer: Box<dyn FnOnce(Option<Vec<u8>>)>)
 
 /// Answers the paste waiting for what an instance rendered.
 fn rendered(heard: be_host_runtime::Heard) {
-    let be_host_runtime::InstanceEvent::Rendered { request, data } = heard.event else {
+    let be_host_runtime::InstanceEvent::Rendered { request, body } = heard.event else {
         return;
     };
     let answered = WAITING.with(|waiting| {
@@ -150,7 +150,7 @@ fn rendered(heard: be_host_runtime::Heard) {
         Some(render.answer)
     });
     if let Some(answer) = answered {
-        answer(data);
+        answer(body);
     }
 }
 
@@ -194,7 +194,8 @@ pub(crate) fn begin(context: &beui::native::Context) {
             files: export.files,
         };
         (export.answer)(
-            (!files.files.is_empty()).then(|| beui::clipboard::ClipFormat::encode(&files).data),
+            (!files.files.is_empty())
+                .then(|| beui::clipboard::ClipFormat::encode(&files).into_body()),
         );
     }
     for (deliver, pick) in picked {

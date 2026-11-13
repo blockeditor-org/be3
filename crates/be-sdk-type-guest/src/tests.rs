@@ -1263,16 +1263,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             Call::ReportStatus { reply, status } => {
                 self.to(device, |host| reply.send(host, &()));
+                if let Some(undo) = &status.undo {
+                    self.devices[device].history = (undo.can_undo, undo.can_redo);
+                    self.devices[device].undo = undo.clone();
+                }
                 self.devices[device].status = status;
             }
             Call::Described { reply, description } => {
                 self.to(device, |host| reply.send(host, &()));
                 self.devices[device].described = Some(description);
-            }
-            Call::History { reply, history } => {
-                self.to(device, |host| reply.send(host, &()));
-                self.devices[device].history = (history.can_undo, history.can_redo);
-                self.devices[device].undo = history;
             }
             Call::Conflict {
                 reply,

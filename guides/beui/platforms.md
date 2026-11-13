@@ -155,7 +155,12 @@ content, richest first, each a format id and its data, or a `Render` that makes
 the data only when a paste asks for it. Format ids and the be3 formats (serde
 types encoded with postcard: `TextFragment`, `Blocks`, `CanvasItems`, `Files`)
 are in `be-lib-ui-types/src/clipboard.rs`; standard ones keep their MIME type
-(`text/plain`, `text/html`, `image/png`). `reactive::copy(Clip)` or
+(`text/plain`, `text/html`, `image/png`). An item names blocks only in its
+`refs`, beside its bytes, which index them by position (a format's
+`ClipFormat::refs` and `set_refs`; its ids are `#[serde(skip)]`), so whoever
+carries a clip translates them without decoding it: be-host-runtime does for an
+instance in a checkout on every path a clip crosses (a copy, a render on
+request, a drag, a paste into a screen). `reactive::copy(Clip)` or
 `Context::copy` writes; `Context::watch_copies` hears every copy, and
 `Context::read_clipboard` reads a format for the program itself;
 be-host-wayland bridges the Wayland clipboard with these two.
@@ -165,7 +170,8 @@ while it is still the clipboard's, so lazy representations and be3 formats
 survive where the system clipboard cannot carry them. Windows knows by the
 clipboard's sequence number and carries be3 formats as registered formats; the
 web writes them as `web ` types where `ClipboardItem.supports` says so
-(Chromium) and reads them from the async clipboard; elsewhere the plain text on
+(Chromium) and reads them from the async clipboard; both hold an item's
+`ClipItem::stored` bytes, refs and all; elsewhere the plain text on
 the clipboard is compared with the text written, as beui's HTML core does too
 (`page::copy` and `page::held`): a `paste` event on a node answers from the held
 clip when its text matches. On the system clipboard each

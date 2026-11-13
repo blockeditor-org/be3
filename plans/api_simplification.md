@@ -65,24 +65,6 @@ thing, and keep one.
 
 Update guides/blocks/server.md and guides/blocks/client.md.
 
-## 11. Type modules answer everything at start
-
-- At hello the host calls `blank` and then `describe(blank)` for every type
-  (`be-block-type-host/src/modules.rs`) only to fill `Kind`. Add `blank` and
-  `blank-description` to `type-info` and remove the `blank` export
-  (`be-sdk-type-api/wit/replicas.wit`). Update guides/type_modules.md's list of
-  stateless requests.
-- Remove `description.name`: no host reads it, and `derived` already carries
-  the intrinsic name.
-- Fold `undo-state` into the replica `status` report and remove `history`
-  (`be-sdk-type-api/wit/host.wit`): both are snapshots of one replica that the
-  host stores.
-- Remove the manifest's `plain-file` (`be-sdk-manifest/wit/manifest.wit`): it
-  repeats `type-info.plain`, and a test exists only to keep the two in step.
-  The host fills it from the type registry.
-- `be-sdk-type-host` registers with `Registration::of::<X>().undo::<X>()`;
-  use `be_block_types!` like every other crate.
-
 ## 12. beui: one form per concept
 
 - `StoredCell::new(x)` is the one form for `Copy` values; migrate the
