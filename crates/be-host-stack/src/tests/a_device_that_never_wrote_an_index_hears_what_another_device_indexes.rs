@@ -94,7 +94,9 @@ fn a_device_that_never_wrote_an_index_hears_what_another_device_indexes() {
     harness.connect();
     // As the files pane does: the roots are what a search reads the indexes of.
     crate::want(Owner::Host, vec![crate::graph::Query::Roots]);
-    wait_until("listed the workspace", |shared| shared.graph.get(workspace).is_some());
+    wait_until("listed the workspace", |shared| {
+        shared.graph.get(workspace).is_some()
+    });
     wait_until("knew the workspace's index", |shared| {
         shared
             .graph
@@ -104,7 +106,9 @@ fn a_device_that_never_wrote_an_index_hears_what_another_device_indexes() {
     });
     // Snippets are cut by the note's type, which this device loads as it opens one.
     open(apples, TextContent::CONTENT_TYPE);
-    wait_until("knew the note's type", |_| is_known(TextContent::CONTENT_TYPE));
+    wait_until("knew the note's type", |_| {
+        is_known(TextContent::CONTENT_TYPE)
+    });
     finds("apples", &[apples]);
 
     // Opening the note indexed it here too, so the index moved on from the head the other

@@ -159,7 +159,9 @@ fn what_is_typed_is_found_through_the_workspaces_search_index() {
 
     // A server that restarts: what this device indexes meanwhile reaches it once it is back.
     harness.stop_server();
-    wait_until("noticed the server was gone again", |shared| !shared.connected);
+    wait_until("noticed the server was gone again", |shared| {
+        !shared.connected
+    });
     type_text(bananas, 0, "grapes ");
     flush();
     finds("grapes", &[bananas]);

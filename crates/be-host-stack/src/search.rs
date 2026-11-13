@@ -1550,13 +1550,9 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
         followed.extend(indexes.iter().map(|index| GraphQuery::Block(*index)));
         let read = heads(peer, &held.graph, &indexes);
         if held.search.running.contains(&asked)
-            || held
-                .search
-                .answers
-                .get(&asked)
-                .is_some_and(|answer| {
-                    answer.read == read && answer.retry.is_none_or(|at| at == graph)
-                })
+            || held.search.answers.get(&asked).is_some_and(|answer| {
+                answer.read == read && answer.retry.is_none_or(|at| at == graph)
+            })
         {
             continue;
         }
