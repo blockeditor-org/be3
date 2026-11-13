@@ -21,9 +21,11 @@ pub enum InstanceEvent {
     Leaving,
     /// It asked the host to move its view.
     ViewChange(ViewChange),
-    /// It picked a command of a child's menu; `anchor` is in host coordinates.
+    /// It picked a command of a child's menu; `block` is what the child shows, when it is
+    /// placed, and `anchor` is in host coordinates.
     ChildMenuPick {
         child: ChildId,
+        block: Option<Uuid>,
         id: String,
         anchor: Option<Rect>,
     },
@@ -52,6 +54,8 @@ pub enum InstanceEvent {
     /// It gives the keyboard to this child, whose view takes it (`take_gift`) once it can; none
     /// when the gift ended without a child's view taking it, so the keys it held go back.
     KeyboardGift(Option<ChildId>),
+    /// The instance closed: nothing more comes from it.
+    Closed,
 }
 
 /// An event and the instance it is from.
@@ -68,21 +72,32 @@ impl Heard {
     }
 }
 
+/// Whose events a listener hears: one instance's, or every instance's.
+type Key = Option<(String, EditorInstanceId)>;
+
 thread_local! {
-    static LISTENERS: RefCell<Vec<host::Post<Heard>>> = const { RefCell::new(Vec::new()) };
+    static LISTENERS: RefCell<Vec<(Key, host::Post<Heard>)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Posts every event of every instance to `post` from now on, until its mailbox is dropped.
-/// Its mailbox hears them when its desk delivers.
-pub fn listen(post: host::Post<Heard>) {
-    LISTENERS.with_borrow_mut(|listeners| listeners.push(post));
+/// Posts the events of the instance `of` names (`(app ID, instance)`), or of every instance
+/// for `None`, to `post` from now on, until its mailbox is dropped. Its mailbox hears them
+/// when its desk delivers.
+pub fn listen(of: Option<(&str, EditorInstanceId)>, post: host::Post<Heard>) {
+    let key = of.map(|(app_id, instance)| (app_id.to_owned(), instance));
+    LISTENERS.with_borrow_mut(|listeners| listeners.push((key, post)));
 }
 
 pub(crate) fn emit(app_id: &str, instance: EditorInstanceId, event: InstanceEvent) {
-    LISTENERS.with_borrow_mut(|listeners| {
-        listeners.retain(host::Post::open);
-        for listener in listeners.iter() {
-            listener.send(Heard {
+    // At thread exit (an `Instances` dropped with its app) the listeners may be gone already.
+    let _ = LISTENERS.try_with(|listeners| {
+        let mut listeners = listeners.borrow_mut();
+        listeners.retain(|(_, post)| post.open());
+        let hears = |key: &Key| {
+            key.as_ref()
+                .is_none_or(|(app, of)| *of == instance && app == app_id)
+        };
+        for (_, post) in listeners.iter().filter(|(key, _)| hears(key)) {
+            post.send(Heard {
                 app_id: app_id.to_owned(),
                 instance,
                 event: event.clone(),

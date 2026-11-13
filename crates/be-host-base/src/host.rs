@@ -76,7 +76,9 @@ impl<T: Send + 'static> Post<T> {
     /// thread that made the mailbox can tell; elsewhere it answers true.
     pub fn open(&self) -> bool {
         self.thread != thread::current().id()
-            || MAILBOXES.with_borrow(|mailboxes| mailboxes.contains_key(&self.mailbox))
+            || MAILBOXES
+                .try_with(|mailboxes| mailboxes.borrow().contains_key(&self.mailbox))
+                .unwrap_or(false)
     }
 
     pub fn send(&self, value: T) {

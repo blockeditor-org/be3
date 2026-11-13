@@ -11,7 +11,7 @@ use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::{Icon, Text, TextColor};
 use crate::theme::field_border;
-use crate::tokens::{Length, Padding, Size, Space, Stroke, use_size, use_space};
+use crate::tokens::{Length, Padding, Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
@@ -238,12 +238,12 @@ fn PickerPanel(
         now_label,
         clear,
     } = handle;
-    let spacing = use_space(PANEL_SPACING);
+    let spacing = PANEL_SPACING.px();
     let panel_width = create_memo(move || {
         let least = match layout.get() {
             DateTimePanelLayout::Date | DateTimePanelLayout::Paged => CALENDAR_WIDTH,
             DateTimePanelLayout::Time => TIME_GRID_MIN_WIDTH,
-            DateTimePanelLayout::Beside => CALENDAR_WIDTH + spacing.get() + TIME_LIST_WIDTH,
+            DateTimePanelLayout::Beside => CALENDAR_WIDTH + spacing + TIME_LIST_WIDTH,
         };
         least.max(field_width.get())
     });
@@ -294,10 +294,9 @@ fn PanelBody(
     first_weekday: Weekday,
     step_minutes: u32,
 ) -> NodeId {
-    let spacing = use_space(PANEL_SPACING);
-    let beside = create_memo(move || {
-        (width.get() - spacing.get() - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH)
-    });
+    let spacing = PANEL_SPACING.px();
+    let beside =
+        create_memo(move || (width.get() - spacing - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH));
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
     let dates = create_memo(move || page.get() == 0);
     let times_shown = create_memo(move || page.get() == 1);
@@ -424,9 +423,9 @@ fn TimePane(
                 step_minutes
                 hour_cycle
                 focused
-                row_height={use_size(TIME_ROW_HEIGHT).get_untracked()}
+                row_height={TIME_ROW_HEIGHT.px()}
                 max_columns
-                spacing={if centred { use_space(TIME_GRID_SPACING).get_untracked() } else { 0.0 }}
+                spacing={if centred { TIME_GRID_SPACING.px() } else { 0.0 }}
                 label="Time"
                 scrollbar={scrollbar_style()}
                 option={move |handle: TimeOptionHandle| view! {

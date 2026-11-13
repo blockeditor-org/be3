@@ -36,15 +36,12 @@ impl<T: 'static> Inbox<T> {
     ) -> Self {
         let held = Rc::new(RefCell::new(Vec::new()));
         let into = Rc::clone(&held);
-        let app_id = app_id.to_owned();
         let (mailbox, post) = host::mailbox(move |heard: Heard| {
-            if heard.from(&app_id, instance)
-                && let Some(value) = pick(heard.event)
-            {
+            if let Some(value) = pick(heard.event) {
                 into.borrow_mut().push(value);
             }
         });
-        be_host_runtime::listen(post);
+        be_host_runtime::listen(Some((app_id, instance)), post);
         Self {
             held,
             _mailbox: mailbox,

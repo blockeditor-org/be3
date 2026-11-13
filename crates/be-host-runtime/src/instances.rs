@@ -805,7 +805,8 @@ pub(super) struct NextScreens {
 }
 
 impl Drop for Instances {
-    /// Answers the renders still asked of instances that go with their app.
+    /// Answers the renders still asked of instances that go with their app, and says they
+    /// closed.
     fn drop(&mut self) {
         for (instance, entry) in &mut self.entries {
             for request in entry.renders.drain() {
@@ -818,6 +819,7 @@ impl Drop for Instances {
                     },
                 );
             }
+            super::events::emit(&self.app_id, *instance, InstanceEvent::Closed);
         }
     }
 }
@@ -939,6 +941,7 @@ impl Instances {
                 },
             );
         }
+        super::events::emit(&self.app_id, instance, InstanceEvent::Closed);
         let shown: Vec<(Uuid, Uuid)> = entry.shown.iter().copied().collect();
         let shown_on = |block: Uuid| -> Vec<Uuid> {
             shown
@@ -3576,10 +3579,23 @@ impl Instances {
                 Err(_) => return false,
             },
             ShellMessage::ChildMenuPick(ChildMenuChoice { child, id, anchor }) => {
+                let anchored = entry.anchored.iter().map(|held| &held.screen);
+                let block = entry
+                    .screens
+                    .values()
+                    .chain(anchored)
+                    .flat_map(|screen| &screen.children.children)
+                    .find(|placed| placed.child == child)
+                    .and_then(|placed| shown_block(&placed.content));
                 super::events::emit(
                     &self.app_id,
                     instance,
-                    InstanceEvent::ChildMenuPick { child, id, anchor },
+                    InstanceEvent::ChildMenuPick {
+                        child,
+                        block,
+                        id,
+                        anchor,
+                    },
                 );
             }
             ShellMessage::Copy(ClipOffer { serial, items }) => {

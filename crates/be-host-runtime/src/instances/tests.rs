@@ -30,7 +30,7 @@ fn hearing() -> (
     let into = std::rc::Rc::clone(&heard);
     let (mailbox, post) =
         host::mailbox(move |heard: crate::Heard| into.borrow_mut().push(heard.event));
-    crate::events::listen(post);
+    crate::events::listen(None, post);
     (mailbox, heard)
 }
 
@@ -546,11 +546,13 @@ mod a_press_on_a_blocking_menus_trigger_closes_it_unless_the_press_reaches_the_t
 mod a_press_on_an_anchored_views_trigger_leaves_it_to_the_trigger;
 mod a_press_outside_a_dismissable_chain_closes_it_and_what_hangs_from_it;
 mod a_preview_keeps_the_menu_of_a_tell_and_drops_its_act;
+mod a_render_still_asked_is_answered_with_nothing_when_its_instance_goes;
 mod a_resize_leaves_children_where_their_frame_painted_them;
 mod a_restarted_app_hears_its_childrens_statuses_again;
 mod a_restarted_app_is_sent_its_content_and_blocks_again;
 mod a_restarted_app_no_longer_shows_its_views_stopped;
 mod a_stale_input_method_does_not_release_owed_keys;
+mod a_screen_asked_to_take_the_keyboard_reaches_its_view;
 mod a_tap_intercepted_for_an_app_reaches_it_unless_it_has_the_keyboard;
 mod a_view_attached_to_an_edge_stays_on_it_when_the_view_it_hangs_from_moves;
 mod a_view_not_reported_yet_is_backed_by_what_its_instance_last_reported;

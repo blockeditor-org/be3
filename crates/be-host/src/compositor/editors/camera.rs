@@ -10,45 +10,120 @@ use uuid::Uuid;
 use super::super::app_view::PanDrag;
 use be_host_runtime::EditorView;
 
-type ViewChanges = HashMap<(String, EditorInstanceId), Vec<ViewChange>>;
+type Key = (String, EditorInstanceId);
 
-thread_local! {
-    /// The view changes instances asked for, until the camera that holds the instance's
-    /// content takes them: one may not be shown yet when its instance asks.
-    static VIEW_CHANGES: RefCell<ViewChanges> = RefCell::new(HashMap::new());
-    static VIEW_CHANGED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+/// The view changes instances asked for, until the camera that holds an instance's content
+/// takes them: it may not be shown yet when its instance asks. What is held is compacted so
+/// that it means the same with less: the latest `keep-fitted` (sticky), a `fit` (an absolute
+/// reset, which clears the moves before it), then a run of moves where a pan after a pan adds
+/// and a zoom after a zoom about the same anchor multiplies. Only that run is capped. An
+/// instance's changes go when it closes.
+#[derive(Default)]
+pub(super) struct HeldChanges {
+    held: HashMap<Key, Held>,
 }
 
-pub(crate) fn install() {
-    let changed = create_signal(0u64);
-    VIEW_CHANGED.with(|held| *held.borrow_mut() = Some(changed));
+#[derive(Default)]
+struct Held {
+    keep_fitted: Option<Option<FitArea>>,
+    fit: bool,
+    moves: Vec<ViewChange>,
+}
+
+impl HeldChanges {
+    /// How many moves an instance keeps while no camera takes them.
+    const KEPT: usize = 16;
+
+    pub(super) fn hold(&mut self, key: Key, change: ViewChange) {
+        let held = self.held.entry(key).or_default();
+        match change {
+            ViewChange::KeepFitted(area) => held.keep_fitted = Some(area),
+            ViewChange::Fit => {
+                held.fit = true;
+                held.moves.clear();
+            }
+            ViewChange::Pan(by) => match held.moves.last_mut() {
+                Some(ViewChange::Pan(last)) => *last += by,
+                _ => held.moves.push(change),
+            },
+            ViewChange::Zoom { factor, anchor } => match held.moves.last_mut() {
+                Some(ViewChange::Zoom {
+                    factor: last,
+                    anchor: at,
+                }) if *at == anchor => *last *= factor,
+                _ => held.moves.push(change),
+            },
+            ViewChange::PanDrag => held.moves.push(change),
+        }
+        if held.moves.len() > Self::KEPT {
+            held.moves.remove(0);
+        }
+    }
+
+    pub(super) fn take(&mut self, key: &Key) -> Vec<ViewChange> {
+        let Some(held) = self.held.remove(key) else {
+            return Vec::new();
+        };
+        let keep = held.keep_fitted.map(ViewChange::KeepFitted);
+        let fit = held.fit.then_some(ViewChange::Fit);
+        keep.into_iter().chain(fit).chain(held.moves).collect()
+    }
+
+    pub(super) fn forget(&mut self, key: &Key) {
+        self.held.remove(key);
+    }
+}
+
+thread_local! {
+    static HELD: RefCell<HeldChanges> = RefCell::new(HeldChanges::default());
+    /// The cameras showing each instance, woken when it asks for a change.
+    static CAMERAS: RefCell<HashMap<Key, Vec<(u64, Signal<u64>)>>> = RefCell::new(HashMap::new());
+    static NEXT_CAMERA: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// Keeps a view change `instance` asked for until its camera takes it.
 pub(crate) fn heard_view_change(app_id: String, instance: EditorInstanceId, change: ViewChange) {
-    VIEW_CHANGES.with_borrow_mut(|changes| {
-        changes.entry((app_id, instance)).or_default().push(change);
-    });
-    if let Some(changed) = VIEW_CHANGED.with(|held| *held.borrow()) {
+    let key = (app_id, instance);
+    let cameras = CAMERAS.with_borrow(|cameras| cameras.get(&key).cloned().unwrap_or_default());
+    if change == ViewChange::PanDrag && cameras.is_empty() {
+        // A live gesture: one no camera is shown to follow is not replayed later.
+        return;
+    }
+    HELD.with_borrow_mut(|held| held.hold(key, change));
+    for (_, changed) in cameras {
         changed.update(|changed| *changed += 1);
     }
 }
 
-fn view_changed() -> ReadSignal<u64> {
-    VIEW_CHANGED.with(|held| {
-        held.borrow()
-            .as_ref()
-            .map(|changed| changed.read_only())
-            .expect("the compositor is installed while the document is built")
-    })
+/// The instance closed: the changes it asked for go with it.
+pub(crate) fn closed(app_id: String, instance: EditorInstanceId) {
+    HELD.with_borrow_mut(|held| held.forget(&(app_id, instance)));
+}
+
+/// A signal that moves when the instance asks for a change, while the calling scope lives.
+fn view_changed(app_id: &str, instance: EditorInstanceId) -> ReadSignal<u64> {
+    let changed = create_signal(0u64);
+    let id = NEXT_CAMERA.with(|next| {
+        next.set(next.get() + 1);
+        next.get()
+    });
+    let key = (app_id.to_owned(), instance);
+    CAMERAS.with_borrow_mut(|cameras| cameras.entry(key.clone()).or_default().push((id, changed)));
+    on_cleanup(move || {
+        CAMERAS.with_borrow_mut(|cameras| {
+            if let Some(held) = cameras.get_mut(&key) {
+                held.retain(|(camera, _)| *camera != id);
+                if held.is_empty() {
+                    cameras.remove(&key);
+                }
+            }
+        });
+    });
+    changed.read_only()
 }
 
 fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
-    VIEW_CHANGES.with_borrow_mut(|changes| {
-        changes
-            .remove(&(app_id.to_owned(), instance))
-            .unwrap_or_default()
-    })
+    HELD.with_borrow_mut(|held| held.take(&(app_id.to_owned(), instance)))
 }
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
@@ -285,7 +360,7 @@ pub(super) fn Camera(
         }
     });
     let pan_drags = create_signal(0u64);
-    let changed = view_changed();
+    let changed = view_changed(&app_id.value(), instance);
     create_effect(move || {
         changed.get();
         if !holds.get() {

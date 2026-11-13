@@ -478,19 +478,6 @@ pub(crate) fn AppView(
         });
         on_cleanup(move || super::desktop::note_work_area(key, None));
     }
-    super::hear(app_id, instance, move |event| {
-        if let InstanceEvent::ChildMenuPick { child, id, anchor } = event {
-            let block = state.with_untracked(|view| {
-                view.children
-                    .iter()
-                    .find(|placed| placed.child == child)
-                    .and_then(|placed| placed.block_id())
-            });
-            if let Some(block) = block {
-                super::editors::pick_frame_menu(block, id, anchor);
-            }
-        }
-    });
     let rect = create_memo(move || state.with(|view| view.rect));
     let catcher = NodeRef::new();
     let enclosing = use_context::<Enclosing>();
@@ -1623,7 +1610,7 @@ fn focus_when_asked(
 ) {
     let catcher = *catcher;
     let asked = create_signal(false);
-    super::hear(app_id, instance, move |event| {
+    super::hear(&app_id.value(), instance, move |event| {
         if matches!(event, InstanceEvent::FocusRequested(view) if view == region.id) {
             asked.set(true);
         }

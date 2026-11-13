@@ -1168,7 +1168,7 @@ fn frame_menu(editors: &Editors, block: Uuid) -> Vec<be_sdk_api::MenuEntry> {
         .unwrap_or_default()
 }
 
-pub(super) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
+pub(crate) fn pick_frame_menu(block: Uuid, pick: String, anchor: Option<Rect>) {
     let editors = editors();
     let owner = chrome_owner(&editors, block);
     let anchor = anchor.filter(|_| owner == block);
@@ -1534,7 +1534,7 @@ fn BlockFrameView(
         revision,
     };
     let tab = use_context::<TabContext>();
-    super::hear(app_id, instance, move |event| match event {
+    super::own_frame(&app_id.value(), instance, move |event| match event {
         InstanceEvent::Details => on_details.call(()),
         InstanceEvent::Leaving => {
             if let Some(tab) = tab {
