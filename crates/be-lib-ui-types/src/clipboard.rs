@@ -194,12 +194,21 @@ impl ClipFormat for TextFragment {
         self.blocks().map(|id| *id).collect()
     }
 
+    /// Also drops marks whose ranges do not fit their chunk: a fragment may
+    /// come from any program.
     fn set_refs(&mut self, refs: &[Uuid]) -> Option<()> {
         let mut refs = refs.iter();
         for id in self.blocks_mut() {
             *id = *refs.next()?;
         }
-        refs.next().is_none().then_some(())
+        refs.next().is_none().then_some(())?;
+        for chunk in &mut self.chunks {
+            let len = chunk.bytes.len();
+            chunk
+                .marks
+                .retain(|mark| mark.range.start <= mark.range.end && mark.range.end <= len);
+        }
+        Some(())
     }
 }
 
@@ -261,7 +270,7 @@ impl TextFragment {
             let at = joined.bytes.len();
             joined.bytes.extend_from_slice(&chunk.bytes);
             joined.marks.extend(chunk.marks.iter().map(|mark| TextMark {
-                range: mark.range.start + at..mark.range.end + at,
+                range: mark.range.start.saturating_add(at)..mark.range.end.saturating_add(at),
                 ..mark.clone()
             }));
         }

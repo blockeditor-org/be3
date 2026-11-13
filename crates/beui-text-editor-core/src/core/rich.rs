@@ -183,29 +183,43 @@ fn copied_value(schema: &dyn Schema, key: &Name, value: &Value) -> Option<MarkVa
 
 fn pasted_value(schema: &dyn Schema, key: &str, value: &MarkValue) -> Option<Value> {
     let names_block = schema.names_block(key);
-    match value {
+    let value = match value {
         MarkValue::Bool(value) => Some(Value::Bool(*value)),
         MarkValue::Int(value) => Some(Value::Int(*value)),
         MarkValue::Text(text) => (!names_block).then(|| Value::text(text)),
         MarkValue::Block { id } => names_block.then(|| Value::text(&id.to_string())),
-    }
+    }?;
+    schema.admits(key, &value).then_some(value)
 }
 
-/// Puts a fragment's `marks` on the text it just inserted over `range`. A
-/// block mark gives its props to the line it starts only where it starts a
-/// line here too.
+/// `at` within `inserted`, moved back to the start of its character when the
+/// bytes are UTF-8, so a mark never splits one.
+fn char_boundary(inserted: &[u8], at: usize) -> usize {
+    let mut at = at.min(inserted.len());
+    if std::str::from_utf8(inserted).is_ok() {
+        while at > 0 && at < inserted.len() && inserted[at] & 0xc0 == 0x80 {
+            at -= 1;
+        }
+    }
+    at
+}
+
+/// Puts a fragment's `marks` on the bytes it just `inserted` at `at`, each
+/// cut to whole characters. A block mark gives its props to the line it
+/// starts only where it starts a line here too.
 pub(super) fn paste_marks(
     edit: &mut dyn DocumentEdit,
     schema: &dyn Schema,
-    range: Range<usize>,
+    at: usize,
+    inserted: &[u8],
     marks: &[TextMark],
 ) {
     for mark in marks {
         let Some(value) = pasted_value(schema, &mark.key, &mark.value) else {
             continue;
         };
-        let start = range.start + mark.range.start.min(range.len());
-        let end = range.start + mark.range.end.min(range.len());
+        let start = at + char_boundary(inserted, mark.range.start);
+        let end = at + char_boundary(inserted, mark.range.end);
         let key = Name::new(&mark.key);
         if mark.block {
             let line_start =

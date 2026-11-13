@@ -1159,10 +1159,9 @@ fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
         });
     }
     let fragment = match pasted.format.as_str() {
-        formats::HTML => cx
-            .state
-            .schema()
-            .from_html(&String::from_utf8_lossy(&pasted.data)),
+        formats::HTML => cx.state.schema().html().map(|html| {
+            html.from_html(&String::from_utf8_lossy(&pasted.data))
+        }),
         _ => TextFragment::of(&pasted),
     };
     let Some(fragment) = fragment else {
@@ -1771,7 +1770,7 @@ fn Editing(field: Field) -> NodeId {
         pastes_images,
         on_image_paste,
     } = field;
-    let reads_html = cx.state.schema().from_html("").is_some();
+    let reads_html = cx.state.schema().html().is_some();
     let pastes = [formats::PNG]
         .into_iter()
         .filter(|_| pastes_images)

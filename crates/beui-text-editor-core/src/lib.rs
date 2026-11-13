@@ -23,7 +23,7 @@ pub use rich::{
     RichOp, Scope, Seed, VOID, Value,
 };
 pub use schema::{
-    Break, Line, LineLook, ListMarker, Plain, Schema, Selected, TableLine, TableRow, Tool,
+    Break, Line, LineLook, ListMarker, Plain, Schema, SchemaHtml, Selected, TableLine, TableRow, Tool,
 };
 
 #[cfg(test)]

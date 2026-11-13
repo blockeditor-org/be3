@@ -18,7 +18,10 @@ fn rich_text_html_written_from_a_copy_reads_back_into_its_marks() {
     select(&mut source, 0..len);
     let copied = source.editor.copy(CopyMode::Copy);
     let schema = source.editor.schema();
-    let html = schema.to_html(&copied).expect("a rich copy writes html");
+    let html = schema
+        .html()
+        .and_then(|html| html.to_html(&copied))
+        .expect("a rich copy writes html");
     assert_eq!(
         html,
         "<h1>Notes</h1><p>say <b>&lt;bold&gt;</b> &amp; \
@@ -26,7 +29,7 @@ fn rich_text_html_written_from_a_copy_reads_back_into_its_marks() {
     );
 
     let mut target = EditorTester::rich(b"");
-    let read = schema.from_html(&html).expect("and reads it back");
+    let read = schema.html().expect("and reads it back").from_html(&html);
     target.execute(EditorCommand::Paste(&read));
     assert_eq!(formatted(&target), formatted(&source));
 }

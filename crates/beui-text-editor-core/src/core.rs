@@ -2089,7 +2089,7 @@ impl Core {
                 };
                 rich::replace(transaction, &*schema, index, *delete_len, insert, typed);
                 if let Some(marks) = marks.as_ref().and_then(|marks| marks.get(at)) {
-                    rich::paste_marks(transaction, &*schema, index..index + insert.len(), marks);
+                    rich::paste_marks(transaction, &*schema, index, insert, marks);
                 }
                 result_positions.push(Position::at(transaction.document(), index + insert.len()));
             }

@@ -138,14 +138,14 @@ pub trait Schema: Send + Sync {
         false
     }
 
-    /// `text/html` written from a fragment of this schema, for other programs.
-    fn to_html(&self, _fragment: &TextFragment) -> Option<String> {
-        None
+    /// Whether a mark pasted from a fragment of this schema may be kept: a
+    /// fragment may come from any program.
+    fn admits(&self, _key: &str, _value: &Value) -> bool {
+        true
     }
 
-    /// A fragment of this schema read from `text/html`, which may be anything:
-    /// what the schema has no mark for is kept as text.
-    fn from_html(&self, _html: &str) -> Option<TextFragment> {
+    /// How this schema writes and reads `text/html`, if it does.
+    fn html(&self) -> Option<&dyn SchemaHtml> {
         None
     }
 
@@ -187,6 +187,16 @@ pub trait Schema: Send + Sync {
     fn check(&self, _checked: bool) -> Option<(Name, Option<Value>)> {
         None
     }
+}
+
+/// A schema's `text/html`, for copying to and pasting from other programs.
+pub trait SchemaHtml {
+    /// `text/html` written from a fragment of this schema.
+    fn to_html(&self, fragment: &TextFragment) -> Option<String>;
+
+    /// A fragment of this schema read from `text/html`, which may be anything:
+    /// what the schema has no mark for is kept as text.
+    fn from_html(&self, html: &str) -> TextFragment;
 }
 
 pub struct Plain;

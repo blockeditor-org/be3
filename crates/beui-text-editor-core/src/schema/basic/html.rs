@@ -592,7 +592,7 @@ impl Reader {
 const VOID_CHAR: char = '\u{fffc}';
 
 /// Whether a link may be followed: only the web and mail, never a script.
-fn safe(href: &str) -> bool {
+pub(super) fn safe(href: &str) -> bool {
     let href = href.trim().to_ascii_lowercase();
     ["http://", "https://", "mailto:"]
         .iter()

@@ -11,7 +11,7 @@ fn rich_text_pasting_html_from_a_browser_gives_bold_and_links() {
         <i>x < y</i></p><ul><li>one</li><li>two<ol><li>nested</li></ol></li></ul>\
         <!--EndFragment--></body></html>";
     let schema = schema::basic::Basic;
-    let fragment = schema.from_html(html).expect("the basic schema reads html");
+    let fragment = schema.from_html(html);
     let mut tester = EditorTester::rich(b"");
     tester.execute(EditorCommand::Paste(&fragment));
     assert_eq!(
@@ -35,7 +35,7 @@ fn rich_text_pasting_html_from_a_browser_gives_bold_and_links() {
         "</b></p>",
         "<!--",
     ] {
-        let read = schema.from_html(hostile).expect("any input reads");
+        let read = schema.from_html(hostile);
         assert!(
             read.chunks[0]
                 .marks

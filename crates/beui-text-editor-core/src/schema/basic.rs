@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{Break, Line, LineLook, ListMarker, Schema, Selected, Tool};
+use super::{Break, Line, LineLook, ListMarker, Schema, SchemaHtml, Selected, Tool};
 use crate::Language;
 use crate::core::{EditorCommand, TextFragment};
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
@@ -241,6 +241,16 @@ const TOOLS: [Tool; 12] = [
     },
 ];
 
+impl SchemaHtml for Basic {
+    fn to_html(&self, fragment: &TextFragment) -> Option<String> {
+        html::write(fragment)
+    }
+
+    fn from_html(&self, html: &str) -> TextFragment {
+        html::read(html)
+    }
+}
+
 impl Schema for Basic {
     fn name(&self) -> Option<&str> {
         Some(html::NAME)
@@ -250,12 +260,12 @@ impl Schema for Basic {
         key == EMBED
     }
 
-    fn to_html(&self, fragment: &TextFragment) -> Option<String> {
-        html::write(fragment)
+    fn admits(&self, key: &str, value: &Value) -> bool {
+        key != LINK || value.as_text().is_some_and(html::safe)
     }
 
-    fn from_html(&self, html: &str) -> Option<TextFragment> {
-        Some(html::read(html))
+    fn html(&self) -> Option<&dyn SchemaHtml> {
+        Some(self)
     }
 
     fn expand(&self, key: &str) -> Expand {

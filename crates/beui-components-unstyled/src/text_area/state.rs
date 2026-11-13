@@ -292,11 +292,12 @@ impl TextAreaState {
     pub fn copy_to_clipboard(&self, mode: CopyMode) {
         let fragment = self.copy(mode);
         if !fragment.is_empty() {
+            let schema = self.schema();
             let html = fragment
                 .schema
-                .is_some()
-                .then(|| self.schema().to_html(&fragment))
-                .flatten();
+                .as_ref()
+                .and(schema.html())
+                .and_then(|html| html.to_html(&fragment));
             copy(Clip::items(fragment.items(html)));
         }
     }
