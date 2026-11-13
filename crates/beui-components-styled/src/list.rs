@@ -3,8 +3,7 @@ use beui_view::primitives::{self, GridCell};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
-use crate::theme::Density;
-use crate::tokens::{Space, resolved};
+use crate::tokens::Space;
 use beui_view::types::Extent;
 use beui_view::types::{Align, Direction, Justify, Track};
 
@@ -17,17 +16,17 @@ pub fn List(
     spacing: Prop<Space>,
     children: Children<ListItem>,
 ) -> NodeId {
-    let spacing = resolved(spacing, Space::resolve);
+    let spacing = spacing.map(Space::px);
     view! {
         <primitives::List direction align justify wrap spacing children />
     }
 }
 
-fn spaced(space: Space, density: Density) -> Extent {
+fn spaced(space: Space) -> Extent {
     match space {
         Space::None => Extent::INTRINSIC,
         space => {
-            let length = space.resolve(density);
+            let length = space.px();
             Extent::px(length).min(length)
         }
     }
@@ -47,8 +46,8 @@ pub fn Spacer(
         true => 0.0,
         false => 1.0,
     }));
-    let width = resolved(width.unwrap_or(Prop::Static(Space::None)), spaced);
-    let height = resolved(height.unwrap_or(Prop::Static(Space::None)), spaced);
+    let width = width.unwrap_or(Prop::Static(Space::None)).map(spaced);
+    let height = height.unwrap_or(Prop::Static(Space::None)).map(spaced);
     view! {
         <primitives::ListItem grow>
             <primitives::Frame width height />
@@ -63,8 +62,8 @@ pub fn Grid(
     #[prop(default = Space::None)] row_spacing: Prop<Space>,
     children: Children<GridCell>,
 ) -> NodeId {
-    let column_spacing = resolved(column_spacing, Space::resolve);
-    let row_spacing = resolved(row_spacing, Space::resolve);
+    let column_spacing = column_spacing.map(Space::px);
+    let row_spacing = row_spacing.map(Space::px);
     view! {
         <primitives::Grid columns column_spacing row_spacing children />
     }

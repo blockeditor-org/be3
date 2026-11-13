@@ -222,9 +222,9 @@ fn RenameBody(
             .get()
             .map_or(TextColor::Muted, |color| TextColor::Custom(color.into()))
     });
-    let tile = use_size(TILE);
-    let gap = use_space(TILE_SPACING);
-    let row_size = create_memo(move || tile.get() + gap.get());
+    let tile = TILE.px();
+    let gap = TILE_SPACING.px();
+    let row_size = create_memo(move || tile + gap);
     let field = NodeRef::new();
     let built = view! {
         <DialogBody title="Rename" id="rename" scrolls=false on_dismiss={move || dismiss.call(())}>

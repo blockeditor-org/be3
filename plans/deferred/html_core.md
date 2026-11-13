@@ -27,3 +27,14 @@ Set aside until the user picks them up.
   needs a decision on one canonical rich-layout API; and `Piece` and
   `RichOptions` live in beui-core and are used through `beui::text` by host
   tests, the HTML core and be-host-runtime.
+- **`Sheet`'s stops as CSS scroll snap.** `Sheet` drives its own height and
+  its content's `Offset` on HTML, as natively. Done: on the HTML core a sheet
+  is a browser scroller whose stops are scroll snap points, and a sheet
+  released between stops settles on one by the browser's snapping, with no
+  beui animation. Set aside because it rebuilds the sheet on HTML rather than
+  porting a prop: its travel and its content's scroll become two chained
+  browser scrollers, so the browser decides the hand-off between raising the
+  sheet and scrolling its content (it scrolls the content first, where beui
+  raises the sheet first), and its handle drag, entering, leaving, morphing
+  into the next sheet, back gesture and `ModalSheet`'s outside drag each need
+  a scroll-driven form, all checked only in Chromium.

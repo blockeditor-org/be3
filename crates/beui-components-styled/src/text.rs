@@ -9,7 +9,7 @@ use beui_view::types::{TextCaret, TextMark};
 
 use crate::frame::ColorRole;
 use crate::theme::{ThemeStore, use_theme};
-use crate::tokens::{Space, use_space};
+use crate::tokens::Space;
 use beui_view::types::SpanBackground;
 use beui_view::types::Vec2;
 
@@ -462,7 +462,7 @@ pub fn Icon(
 
 #[component]
 pub fn Gap(width: Space) -> primitives::Gap {
-    let width = use_space(width).get_untracked();
+    let width = width.px();
     view! {
         <primitives::Gap width />
     }

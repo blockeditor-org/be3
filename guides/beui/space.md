@@ -263,7 +263,8 @@ physical key (`evdev` is `None`, built by `beui_core::input::typing`, which
 character in its own layout; guides/desktop/wayland.md, Keyboard layouts), and `Input::Text` for
 what no key types. The runner feeds them back as the next frame's input
 (`FrameOutput::typed`), so a beui field, an app and a Wayland program all take
-them as from a real keyboard. On the HTML core the keyboard shows only
-where a view places it, keys are dispatched as `KeyboardEvent`s, and
-`toggle_keyboard` shows the browser's own (`navigator.virtualKeyboard`). The
+them as from a real keyboard. On the web a focused field gets the browser's own keyboard,
+on both cores ([decision](../../decisions/beui_fields_on_the_web_use_the_browsers_keyboard.md)):
+beui's shows only where a view places it, keys are dispatched as `KeyboardEvent`s,
+and `toggle_keyboard` shows the browser's (`navigator.virtualKeyboard` on the HTML core). The
 Inputs page of beui-demo shows the keyboard in place.
