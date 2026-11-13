@@ -3294,6 +3294,16 @@ async fn apply(
             {
                 replicas.moved_here(block, head);
             }
+            // A new name is a commit of the block's that its search index has yet to take, as an
+            // edit an open block seals is (`Searching::sealed`), though no session of it is open
+            // (a rename in the files).
+            if defined.is_ok() && changes.iter().any(|(key, _)| *key == be_block::NAME.id) {
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .search
+                    .sealed(block);
+            }
             if let Err(error) = settled(peer, shared, Some(tasks), block, defined).await {
                 record(shared, error);
             }
