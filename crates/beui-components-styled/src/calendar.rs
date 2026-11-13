@@ -7,7 +7,7 @@ use crate::button::{ButtonFace, ButtonVariant};
 use crate::focus_ring::FocusRing;
 use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
-use crate::tokens::{Length, Size, Space, Stroke, use_space};
+use crate::tokens::{Length, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
@@ -46,7 +46,7 @@ pub fn Calendar(
                 first_weekday
                 focused
                 show
-                spacing={use_space(SPACING).get_untracked()}
+                spacing={SPACING.px()}
                 header={|handle: CalendarHeaderHandle| view! {
                     <CalendarHeader handle />
                 }}

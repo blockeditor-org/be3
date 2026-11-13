@@ -15,11 +15,11 @@ fn submitted_work_wakes_the_app_once_the_gpu_has_done_it() {
     wakes
         .recv_timeout(Duration::from_secs(30))
         .expect("the done work woke the app");
-    assert!(gpu.submitted_work_done(ticket));
+    assert_eq!(gpu.poll(false).work_done, [ticket]);
     assert_eq!(gpu.take_error(), None);
-    gpu.submitted_work_done(ticket);
-    let error = gpu
-        .take_error()
-        .expect("a ticket that answered true is forgotten");
-    assert!(error.contains("ticket"), "{error}");
+    assert_eq!(
+        gpu.poll(false).work_done,
+        Vec::<u64>::new(),
+        "each ticket is answered once"
+    );
 }
