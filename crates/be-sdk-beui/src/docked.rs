@@ -1186,10 +1186,7 @@ pub(crate) fn declaration_to_api(
                     },
                     placement: placement_to_api(bar.placement),
                     size: size(bar.tab),
-                    pane: match bar.pane {
-                        Some(pane) => Some(path(pane)?),
-                        None => None,
-                    },
+                    pane: bar.pane.and_then(path),
                 })
             })
             .collect(),
@@ -1719,3 +1716,6 @@ fn placement_from_api(placement: &api::DockBarPlacement) -> DockBarPlacement {
         },
     }
 }
+
+#[cfg(test)]
+mod tests;

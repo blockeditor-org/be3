@@ -80,3 +80,12 @@ when:
 - a block gift ends when no child shows the block (a block gift already
   turns into a child gift at a layout commit, `settle_block_focus`, with unit
   tests in be-host-runtime's `instances/tests`).
+
+## 7. The dock bars page's centre status bar fits its band
+
+On beui-demo's dock bars page, the page's centre status bar (`DockAlign::Center` along the
+bottom) is narrower than its tools even at rest, so it scrolls in its band, on main too, and
+which of its tools show depends on how earlier drags squeezed it. Done when, with the two tool
+bars docked beside it, it shows all its tools, or the band gives the centre group room before the
+start and end groups, and `a_tool_bar_dropped_before_another_along_the_edge_takes_its_place`
+shows no scroll thumb.
