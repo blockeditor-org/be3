@@ -74,3 +74,11 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   unless the asker already holds it) and may set it to reload. Done: the owner
   answers one sender at most once per interval, shown by a be-sdk-type-guest
   test where a viewer's repeated `Catchup`s get one `Snapshot`.
+
+## 8. Version control's caches
+
+- **Trees and commits read once.** A version command in the lane runs on a `Versions` of its
+  own (`Served::version`), so it reads again every tree and commit the loop's statuses already
+  hold, and what it writes never reaches theirs. Done: the loop's `Versions` and the lane's
+  share one cache of trees and commits (behind an `Arc`), and a status after a command reads
+  nothing the command already read.
