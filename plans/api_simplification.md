@@ -117,12 +117,6 @@ components.
 
 ## 15. Host, CLI and test harness
 
-- `desktop.wit` `program-action`: `run(string)` and `exec(program-exec)`
-  become one `exec`, and `DesktopHost::launch` (a shell line, clashing with
-  WIT `launch`) goes; a typed line is wrapped as the platform's shell command
-  by the launcher. `DesktopHost`'s `set_owned`, `set_blank_after`,
-  `set_lock_after` and `set_primary_selection` become
-  `configure(DesktopSettings)`; `set_locked` stays, being state.
 - `drive` (`beui-layer-drive`): `find`, `reveal` and `shown` become
   `find TARGET [reveal|shown]`, and `gone` becomes `wait not TEXT`. Update
   guides/running/drive.md.

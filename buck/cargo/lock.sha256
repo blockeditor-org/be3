@@ -2,3 +2,6 @@
 # the cargo that last brought them into step (crates/be-tool-bootstrap/src/lock.rs).
 # ./scripts/verify brings them up to date again when it differs.
 e24fc6d40e6bf81e3b3c2a3c2cbd4c0276780cdb964aa2b71f2cf5326b1d1bb3
+=======
+653f39a7d87f2a7252b5bbb63c559a6cafab7b6016f9e95e2a003a2878ae1e40
+>>>>>>> ed6a067f1

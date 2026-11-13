@@ -441,11 +441,10 @@ impl beui::native::Program for Shell {
             self.document.open_inspector();
         }
         let view = self.core.view();
-        Host::set_owned(
-            self.core.desktop
-                && view.screen == ui::Screen::Organization
-                && self.core.shell.is_some(),
-        );
+        let owned = self.core.desktop
+            && view.screen == ui::Screen::Organization
+            && self.core.shell.is_some();
+        be_host_desktop::desktop_host::configure(|desktop| desktop.owned = owned);
         let store = self.view;
         compositor::notify();
         beui::native::enter(&mut self.document, || {
