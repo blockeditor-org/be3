@@ -5,7 +5,7 @@ package be3:server@0.1.0;
 /// notification is sealed under the block's data key, and the server learns
 /// only which block it is about and whom it mentions.
 interface notifications {
-    use types.{account-id, block-id, error};
+    use types.{account-id, block-id, error, hash};
 
     /// The service a device takes pushes from.
     enum push-service {
@@ -77,6 +77,11 @@ interface notifications {
     /// server vouches for. At most `limits::MAX_NOTIFICATIONS_PER_MINUTE` a
     /// minute from one account and `limits::MAX_NOTIFICATIONS_PER_BLOCK` about
     /// one block. Answered once the pushes are queued; a push service's
-    /// refusal is never the caller's.
-    notify: async func(block: block-id, sealed: list<u8>, mentions: list<account-id>) -> result<_, error>;
+    /// refusal is never the caller's. `keys` name what it tells (an edit's
+    /// announcements as `be_block_protocol::told_key` digests, at most
+    /// `be_block_protocol::MAX_TOLD_KEYS`): one whose keys were all told about this
+    /// block from this account before is answered without a push, so a device
+    /// that never heard the answer may send it again. Without keys, every call
+    /// pushes.
+    notify: async func(block: block-id, sealed: list<u8>, mentions: list<account-id>, keys: list<hash>) -> result<_, error>;
 }
