@@ -24,12 +24,12 @@ All are signed with the account signing key (`RecoverySecret::signing`) in a
 domain of their own, kept by the server in the clear (it already knows who is
 granted what) and served to anyone who may know the block exists.
 
-- **Root.** A block's creator is fixed by its id: `CreateBlock` takes an id
-  derived from the creator's signing key and a random nonce, as version-8 ids
-  already mark owner-only keys (`be_block_protocol::owner_only_key`), and
-  carries the nonce. Anyone holding the id checks the creator's key against
-  it, so the server cannot swap the root. An organization's id is derived the
-  same way from its creator's.
+- **Root.** The first entry of a block's log names its creator and is signed
+  by them; how a device knows the server did not swap it is Q1. An
+  organization has a root the same way.
+- **Owner.** Block, new owner account and key, signed by the current owner:
+  ownership moves to another member. The owner holds what authorship gives
+  today (`Manage` while they can view the parent).
 - **Grant.** Block, grantee account and the grantee's signing key as the
   granter verified it, level, a sequence number, signed by the granter.
   Revocation is a grant to `None`.
@@ -44,7 +44,7 @@ A record is valid when its signer held the level it needs at that record's
 place in the block's log: `Manage` to grant or revoke, `Edit` on both ends to
 move (and `Manage` where `BlockGraph::move_refusal` asks for it), an
 administrator to change administrators. Authorship counts as `Manage`, proven
-by the root. Each block's records form one log whose entries name the hash of
+by the root or the latest owner record. Each block's records form one log whose entries name the hash of
 the previous one, so the server can withhold the newest but cannot reorder or
 drop an entry from the middle; a device pins the newest log head it has seen.
 
@@ -70,39 +70,72 @@ drop an entry from the middle; a device pins the newest log head it has seen.
    the server claim each acts on (grants, administrators, the subtree a
    rotation or move walks, which block a key row says it is for). Done: the
    list is in this plan, each entry marked with the step that removes it.
-2. **Roots.** Derived block and organization ids, checked on every summary a
-   device takes. Done: a summary whose creator does not match its id is
-   refused by the client, shown by a test with a forging server.
+2. **Roots and owners.** Root and owner records, anchored as Q1 decides, and
+   transferring ownership in the shell. Done: a test where a forging server
+   swaps a block's root and the device refuses it; one where ownership moves
+   and the old owner can no longer grant.
 3. **Signed grants and administrators.** Records, logs, the server's checks
-   and the devices'. Done: a test where the server lists a contact as granted
-   with no record and no key reaches them; one where a revoked grant's record
-   is withheld and the device refuses to roll back below its pinned head.
+   and the devices', and key epochs bound to log heads (below). Done: a test
+   where the server lists a contact as granted with no record and no key
+   reaches them; one where the server withholds a revocation from a device and
+   that device seals the new epoch to nobody until it has the log up to the
+   epoch's head.
 4. **Signed parents.** Done: a test where the server claims a block moved under
    a scope a contact manages and the next rotation wraps nothing under it.
 5. **Guides.** guides/blocks/keys.md's server section and
    guides/blocks/server.md's access section describe the records.
 
+## Revocations the server withholds
+
+A device knows the log only as far as the server has shown it. If Alice
+revokes Bob on her laptop, the server can keep showing Carol's phone the log
+without that entry, and Carol's phone, doing key work, would seal the next key
+to Bob. So every new key epoch names the log head it was made under, signed by
+the device that made it; a device seals or wraps an epoch only to members
+granted as of that head or later, and must hold the log up to that head to
+check it. A revocation is always followed by a rotation, whose new epoch names
+a head at or after the revocation, so no device can seal it to Bob without
+having seen him revoked. Withholding then only delays sealing to people still
+granted, which is denial, not reading.
+
 ## Accepted limits
 
-- The server can withhold records it has not yet shown a device: a revocation
-  it hides keeps the revoked account's grant alive to devices that never saw
-  it, until a device that did tends the block. Only the revoked person gains,
-  and only with the server's help.
+- What a revoked member already held stays readable to them: the keys of
+  every epoch before the rotation.
 - `Edit` and `View` hold the same keys; Edit stays enforced by the server, so
   a server granted View can write
   (decisions/the_server_never_vouches_for_an_identity.md).
 
 ## Open questions
 
-- **Q1. The root.** Derive block and organization ids from the creator's key
-  (above), or record the creator in a signed first log entry that devices pin
-  the first time they see the block? Deriving lets anyone who has only the id,
-  such as a Join member, check the chain with nothing pinned; it costs 16-byte
-  ids built from a hash and nonce instead of random ones.
-- **Q2. A creator's new phrase.** A new recovery phrase changes the signing
-  key the root names. Follow the key change chain contacts already follow
-  (`contacts::new_identity`), so the old root still checks through it, or
-  require the creator to re-sign the block's log with the new key?
-- **Q3. Withheld revocations.** Is the limit above acceptable, or should a
-  revocation also need a signed acknowledgement from a second manager or the
-  revoked account before devices treat the grant as live?
+- **Q1. Anchoring the root.** The log is stored in the clear on the server,
+  which is fine because every record is signed; what the server could do is
+  replace the whole log with one rooted at a creator it made up. Either:
+  - **Pinned**: a device takes the root's hash only from somewhere the server
+    cannot write: making the block itself, a grant a verified contact sealed
+    to it (which carries the hash beside the key), or a share link's secret
+    part. Later entries chain from it. A Join member gets it the same way.
+  - **Derived id**: the block's id is a hash of the creator's key and a nonce,
+    so the id alone proves the root. Anyone who knows only the id can check,
+    including someone who learned it from a reference.
+  Both allow transferring ownership: the root only fixes who owned the block
+  first, and owner records move it from there. Pinned is the recommendation:
+  it keeps ids random, and every way of getting real access already carries a
+  sealed or secret channel the hash can ride in.
+- **Q2. A new recovery phrase.** An account's signing key is derived from its
+  phrase. Someone who suspects their phrase leaked takes a new one; only a
+  device that still holds the old secret can, and it sends each contact a key
+  change, signed with the old key, naming the new one. Records the account
+  signed with the old key must still check (they were real), but whoever stole
+  the old phrase can also sign new records with it. Either:
+  - **Retire**: taking a new phrase appends a retirement entry, signed with the
+    new key and carrying the key change, to the log of every block where the
+    account holds a signed record; that log refuses old-key records after it.
+    Costs one entry per such block.
+  - **Re-sign**: the device re-signs each of the account's live records with
+    the new key, and old-key records stop counting at all. Costs one entry per
+    record, and a block whose records are not re-signed yet loses those
+    grants until they are.
+  Retire is the recommendation. Either way, a device that never sees the
+  retirement still accepts the stolen key, the same withholding as above, and
+  key epochs bound to log heads cover it the same way.
