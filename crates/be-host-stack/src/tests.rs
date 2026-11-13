@@ -21,6 +21,7 @@ mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
+mod a_catch_up_forgets_what_the_index_retired_before_the_states_the_server_keeps;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
 mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
 mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
@@ -85,11 +86,13 @@ mod an_edit_made_across_a_takeover_is_kept;
 mod an_edit_made_offline_is_lacking_until_the_drain_publishes_it;
 mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
 mod an_edit_made_offline_to_a_note_changed_elsewhere_is_held_once_the_merge_publishes;
+mod an_edits_batch_compacts_without_asking_the_server;
 mod an_empty_search_request_is_not_a_change;
 mod an_error_that_is_not_about_sending_outlasts_a_device_in_step;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
+mod an_offline_catch_up_forgets_nothing;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
@@ -1375,4 +1378,89 @@ impl Member {
             .expect("the logout is answered")
             .expect("the member signs out");
     }
+}
+
+/// A batch putting one document, made in this test rather than read from a block: compaction
+/// reads only what the index holds.
+fn one(word: &str, time: i64, watermark: Option<u64>) -> be_lib_search::Batch {
+    be_lib_search::Batch {
+        put: vec![be_lib_search::Put {
+            doc: be_lib_search::DocId {
+                block: Uuid::new_v4().as_bytes().to_vec(),
+                key: String::new(),
+            },
+            commit: be_lib_search::Commit {
+                time,
+                id: [u8::try_from(time % 251).unwrap_or(0); 32],
+            },
+            source: None,
+            text: Some(be_lib_search::Text {
+                name: "Note".to_owned(),
+                body: word.to_owned(),
+            }),
+        }],
+        watermark,
+        ..be_lib_search::Batch::default()
+    }
+}
+/// Words no other is a prefix of, as the index matches prefixes.
+fn word(n: usize) -> String {
+    format!("q{}z", n * 7 + 1000)
+}
+/// Makes a root with an index on `device`, for its batches.
+fn indexed(device: &Device) -> Uuid {
+    let peer = std::sync::Arc::clone(&device.peer.borrow());
+    let (root, index) = (Uuid::new_v4(), Uuid::new_v4());
+    device.runtime.block_on(async {
+        peer.create_with_id::<be_type_text::TextContent>(root, be_block_graph::BlockParent::Root)
+            .await
+            .expect("the root is made");
+        crate::search::make_index(&peer, root, index)
+            .await
+            .expect("the index is made");
+        peer.drain(|_| false).await.expect("the index is published");
+    });
+    index
+}
+/// Writes batches `range` on `device`, each published before the next; a catch-up's
+/// (`watermark`) moves the watermark to ten times its number.
+fn write_all(device: &Device, index: Uuid, range: std::ops::Range<usize>, catch_up: bool) {
+    let peer = std::sync::Arc::clone(&device.peer.borrow());
+    device.runtime.block_on(async {
+        for n in range {
+            let watermark = catch_up.then_some(n as u64 * 10);
+            assert_eq!(
+                crate::search::write(peer.as_ref(), index, one(&word(n), n as i64 + 1, watermark))
+                    .await,
+                Ok(true),
+                "batch {n} is written"
+            );
+            peer.drain(|_| false).await.expect("the batch is published");
+        }
+    });
+}
+fn index_of(device: &Device, index: Uuid) -> be_block::search_index::SearchIndexContent {
+    let peer = std::sync::Arc::clone(&device.peer.borrow());
+    device.runtime.block_on(async {
+        let head = crate::search::head_of(peer.as_ref(), index)
+            .await
+            .expect("the index has a head");
+        crate::search::load(peer.as_ref(), head)
+            .await
+            .expect("the index loads")
+    })
+}
+fn finds(device: &Device, index: Uuid, n: usize) -> usize {
+    let peer = std::sync::Arc::clone(&device.peer.borrow());
+    device.runtime.block_on(async {
+        crate::search::search_index(
+            peer.as_ref(),
+            index,
+            &be_lib_search::Query::parse(&word(n)),
+            10,
+        )
+        .await
+        .expect("the index is searched")
+        .len()
+    })
 }

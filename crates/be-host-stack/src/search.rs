@@ -1418,7 +1418,10 @@ async fn forget<S: ObjectStore>(peer: &Peer<S>, index: Uuid, content: &mut Searc
         .flat_map(|entry| entry.parents.iter().copied())
         .collect();
     let mut lowest: Option<u64> = None;
-    for entry in history.iter().filter(|entry| !merged.contains(&entry.commit)) {
+    for entry in history
+        .iter()
+        .filter(|entry| !merged.contains(&entry.commit))
+    {
         // One the server dropped since it listed it is no longer a state to merge in.
         if let Ok(kept) = load(peer, entry.commit).await {
             let watermark = kept.index().watermark();
