@@ -1,6 +1,6 @@
 use be_sdk_beui::{
-    BarAction, ChildStatus, EditorCapabilities, EditorInstanceId, InteractionMode, MenuCommand,
-    MenuEntry, ResizeMode, TopBar, ViewId,
+    ChildStatus, EditorCapabilities, EditorInstanceId, InteractionMode, MenuCommand, MenuEntry,
+    ResizeMode, TopBar, ViewId,
 };
 
 use super::*;
@@ -18,9 +18,9 @@ fn top_bar(fixture: &Fixture, id: Uuid) -> Option<TopBar> {
     placed(fixture, id).map(|placement| placement.top_bar)
 }
 
-fn bar(fixture: &mut Fixture, id: Uuid, action: BarAction) {
+fn details(fixture: &mut Fixture, id: Uuid) {
     let child = placed(fixture, id).expect("the block is on show").child;
-    fixture.test.child_bar(child, action);
+    fixture.test.child_details(child);
     fixture.settle();
 }
 
@@ -167,12 +167,17 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     fixture.test.click(at);
     fixture.settle();
     assert_eq!(
-        fixture.test.take_child_menu_picks(),
+        fixture
+            .test
+            .take_child_menu_picks()
+            .into_iter()
+            .map(|pick| (pick.child, pick.id))
+            .collect::<Vec<_>>(),
         [(child, "editor.rename".to_owned())],
         "the dock bar's menu is the block's own, and picking from it reaches the block"
     );
 
-    bar(&mut fixture, second, BarAction::Details);
+    details(&mut fixture, second);
     assert!(fixture.test.shown("workspace.details.rename"));
     fixture.test.settle();
     fixture
