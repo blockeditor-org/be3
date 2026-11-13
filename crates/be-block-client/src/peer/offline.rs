@@ -160,13 +160,11 @@ impl<S: ObjectStore> Peer<S> {
                 }
             }
         }
-        let local = self.local_head(block);
-        self.refs.remove(&settled)?;
         self.refs.commits_held(block, &commits)?;
-        self.refs.set_remote(block, head)?;
-        if local.is_none_or(|local| commits.contains(&local)) {
-            self.refs.set_head(block, head)?;
-        }
+        self.refs
+            .settle(block, &settled, head, self.behind(), |local| {
+                local.is_none_or(|local| commits.contains(&local))
+            })?;
         Ok(())
     }
 
@@ -469,13 +467,11 @@ impl<S: ObjectStore> Peer<S> {
             .filter(|(_, commit)| reached.contains(commit))
             .map(|(sequence, _)| *sequence)
             .collect();
-        let local = self.local_head(block);
-        self.refs.remove(&settled)?;
         self.refs.commits_held(block, &reached)?;
-        self.refs.set_remote(block, head)?;
-        if local.is_none_or(|local| local == head || reached.contains(&local)) {
-            self.refs.set_head(block, head)?;
-        }
+        self.refs
+            .settle(block, &settled, head, self.behind(), |local| {
+                local.is_none_or(|local| local == head || reached.contains(&local))
+            })?;
         Ok(())
     }
 
@@ -625,6 +621,13 @@ impl<S: ObjectStore> Peer<S> {
             }),
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
+            }
+            // The server will never take this commit as it is: what this device made of the
+            // block is set aside with the reason, to be restored or discarded, rather than
+            // sent again every round.
+            Err(ClientError::Refused(code, _)) if never_taken(code) => {
+                self.move_to_unsent(block, Some(code))?;
+                Ok(Drained::SetAside { block, code })
             }
             Err(error) => Err(error),
         }
@@ -815,4 +818,11 @@ pub(crate) fn unreachable(error: &ClientError) -> bool {
 
 pub(super) fn lost_access(code: ErrorCode) -> bool {
     matches!(code, ErrorCode::PermissionDenied | ErrorCode::BlockNotFound)
+}
+
+/// A refusal sending the same change again cannot get past: the change itself is wrong (a
+/// malformed request, an object over the size limit), where a quota, a missing key or the
+/// store may come right by the next try.
+fn never_taken(code: ErrorCode) -> bool {
+    matches!(code, ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge)
 }

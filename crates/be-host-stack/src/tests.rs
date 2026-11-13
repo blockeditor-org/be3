@@ -7,21 +7,31 @@ use uuid::Uuid;
 
 use super::*;
 use crate::embedded_server;
+use crate::search::Searching;
 
+mod a_batch_given_back_waits_for_its_index_to_move_on_or_a_growing_delay;
+mod a_batch_on_an_index_head_the_server_let_go_is_written_on_the_newer_one;
+mod a_batch_whose_index_head_keeps_moving_is_given_back_after_a_few_tries;
 mod a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else;
 mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id;
+mod a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside;
 mod a_block_file_brings_a_tree_back_as_a_copy;
+mod a_block_is_indexed_by_the_name_its_commit_carries;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
 mod a_block_made_while_a_listing_is_answered_stays_listed;
 mod a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
+mod a_block_of_a_type_without_a_module_is_found_by_its_name_until_a_full_put;
 mod a_block_opens_from_what_this_device_saved_before_its_session_is_joined;
+mod a_block_renamed_in_the_files_is_found_by_its_new_name;
 mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits;
+mod a_block_whose_module_does_not_start_is_found_by_its_name_then_its_text;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
 mod a_catch_up_moves_its_watermark_only_past_blocks_that_were_put;
+mod a_catch_up_settle_that_fails_to_write_is_settled_again_first;
 mod a_chat_is_reindexed_without_reading_its_closed_segments_again;
 mod a_chat_message_notifies_the_members_away_who_want_it_through_the_server;
 mod a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_drains;
@@ -40,6 +50,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_deleted_database_row_is_no_longer_found;
+mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
@@ -64,8 +75,12 @@ mod a_reconnected_session_hears_the_edits_of_what_it_versions;
 mod a_restore_on_a_follower_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
+mod a_search_finds_what_another_device_indexes_while_this_one_is_online;
 mod a_search_index_is_tried_again_when_the_reason_it_failed_has_passed;
 mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_error;
+mod a_search_index_set_aside_is_tried_again_after_a_growing_delay;
+mod a_search_index_that_fails_every_write_waits_for_the_next_connection;
+mod a_search_index_write_that_fails_is_queued_again;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
@@ -115,6 +130,7 @@ mod two_devices_that_edit_one_note_offline_merge_once_both_reconnect;
 mod two_peers_of_one_organization_share_a_counter;
 mod typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here;
 mod undo_steps_back_through_what_this_peer_did;
+mod version_history_lists_the_commits_kept_here_with_the_head_here_current;
 mod what_is_typed_is_found_through_the_workspaces_search_index;
 mod what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_sent_once;
 
@@ -944,11 +960,22 @@ struct Device {
 
 impl Device {
     fn online(harness: &Harness) -> Self {
+        Self::at(harness, harness.config(PathBuf::new()).socket_url())
+    }
+
+    /// Connects straight to the server, past the harness's relay: taking the relay offline
+    /// keeps the stack offline and this device online.
+    fn past_the_relay(harness: &Harness) -> Self {
+        let mut config = harness.config(PathBuf::new());
+        config.server_url = harness.url.clone();
+        Self::at(harness, config.socket_url())
+    }
+
+    fn at(harness: &Harness, url: String) -> Self {
         let runtime = runtime();
         let refs = be_block_client::RefsDb::memory();
         let store = be_block_store::MemoryStore::new();
-        let (url, identity, token, organization) = (
-            harness.config(PathBuf::new()).socket_url(),
+        let (identity, token, organization) = (
             harness.identity(),
             harness.token.clone(),
             harness.organization,
@@ -984,6 +1011,106 @@ impl Device {
     fn read(&self, block: Uuid) -> String {
         let peer = std::sync::Arc::clone(&self.peer.borrow());
         self.runtime.block_on(read_text(&peer, block))
+    }
+
+    /// Makes a workspace with its search index and publishes both: the workspace and the index.
+    fn index_workspace(&self) -> (Uuid, Uuid) {
+        let peer = std::sync::Arc::clone(&self.peer.borrow());
+        let (workspace, index) = (Uuid::new_v4(), Uuid::new_v4());
+        self.runtime.block_on(async {
+            peer.create_with_id::<be_type_workspace::WorkspaceContent>(
+                workspace,
+                be_block_graph::BlockParent::Root,
+            )
+            .await
+            .expect("the other device makes a workspace");
+            crate::search::make_index(peer.as_ref(), workspace, index)
+                .await
+                .expect("the other device makes its index");
+            peer.define(workspace, |metadata| {
+                metadata.insert(
+                    &be_block::SEARCH_INDEX,
+                    &be_block::be_block_model::BlockRef(index),
+                );
+            })
+            .await
+            .expect("the other device names the index");
+            peer.drain(|_| false)
+                .await
+                .expect("the other device publishes the index");
+        });
+        (workspace, index)
+    }
+
+    /// Makes a note under `workspace` and indexes it in `index`, as the device that edits it
+    /// does, and publishes both.
+    fn index_note(&self, workspace: Uuid, index: Uuid, text: &str) -> Uuid {
+        let peer = std::sync::Arc::clone(&self.peer.borrow());
+        self.runtime.block_on(async {
+            let block = Uuid::new_v4();
+            peer.create_with_id::<be_type_text::TextContent>(
+                block,
+                be_block_graph::BlockParent::Block(workspace),
+            )
+            .await
+            .expect("the other device makes a note");
+            let saved = peer
+                .save(block, &be_type_text::TextBlock::of(text), None)
+                .await
+                .expect("the other device saves it");
+            let head = saved.published().expect("the note is published");
+            let commit = peer.load_commit(head).await.expect("its commit loads");
+            let batch = be_lib_search::Batch {
+                put: vec![be_lib_search::Put {
+                    doc: be_lib_search::DocId {
+                        block: block.as_bytes().to_vec(),
+                        key: String::new(),
+                    },
+                    commit: be_lib_search::Commit {
+                        time: commit.time,
+                        id: *head.hash().as_bytes(),
+                    },
+                    source: None,
+                    text: Some(be_lib_search::Text {
+                        name: "Note".to_owned(),
+                        body: text.to_owned(),
+                    }),
+                    partial: false,
+                }],
+                ..be_lib_search::Batch::default()
+            };
+            // A host merges a batch that met another device's on the server (`merge_diverged`);
+            // this device, which runs no types, takes its own back and writes it again on the
+            // server's head instead.
+            loop {
+                let before = peer.local_head(index);
+                assert_eq!(
+                    crate::search::write(peer.as_ref(), index, batch.clone()).await,
+                    Ok(Some(Vec::new())),
+                    "the other device indexes its note"
+                );
+                let drained = peer
+                    .drain(|_| false)
+                    .await
+                    .expect("the other device publishes its batch");
+                let diverged = drained.iter().find_map(|outcome| match outcome {
+                    be_block_client::Drained::Diverged { block, local, .. } if *block == index => {
+                        Some(*local)
+                    }
+                    _ => None,
+                });
+                let Some(local) = diverged else {
+                    break;
+                };
+                peer.withdraw(index, local, before)
+                    .expect("the other device takes its batch back");
+            }
+            assert!(
+                peer.pending_commits(index).is_empty(),
+                "the other device's batch is on the server"
+            );
+            block
+        })
     }
 
     fn save_offline(&self, block: Uuid, text: &str) {

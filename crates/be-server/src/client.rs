@@ -2251,8 +2251,14 @@ impl Client {
                     prelude?;
                     let block = block?;
                     let state = connection.registry.state(block).await;
+                    if !state.participants.contains(&connection.client) {
+                        return Err(not_joined());
+                    }
+                    // Kept only from the current owner of its generation, as an append is: an
+                    // owner whose lease lapsed or passed rebases until the next `Lease` tells
+                    // it, and the journal is the new owner's to write.
                     if !state.is_owner(connection.client) || state.generation != generation {
-                        return Err(not_owner());
+                        return Ok(());
                     }
                     connection
                         .store
@@ -2910,11 +2916,4 @@ fn at_most_urls(objects: usize) -> Result<(), ServerError> {
         )),
         false => Ok(()),
     }
-}
-
-fn not_owner() -> ServerError {
-    ServerError::Refused(
-        ErrorCode::PermissionDenied,
-        "only the session's owner writes its journal".into(),
-    )
 }

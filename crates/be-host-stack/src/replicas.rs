@@ -167,8 +167,17 @@ impl be_block_type_host::Host for Shared {
         held.touch(block);
     }
 
-    fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize, undurable: usize) {
+    fn counted(
+        shared: &Arc<Mutex<Self>>,
+        unsealed: usize,
+        owing_blocks: Vec<be_block_type_host::Owing>,
+        undurable_blocks: Vec<be_block_type_host::Owing>,
+    ) {
+        let owing = owing_blocks.len();
+        let undurable = undurable_blocks.len();
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.owing_blocks = owing_blocks;
+        held.undurable_blocks = undurable_blocks;
         // A seal moved edits into the outbox, which `waiting` counts only at the next `report`.
         held.recounting |= unsealed < held.unsealed;
         if (held.unsealed, held.owing, held.undurable) != (unsealed, owing, undurable) {
@@ -183,6 +192,10 @@ impl be_block_type_host::Host for Shared {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         held.leaving = leaving;
         held.progressed += 1;
+    }
+
+    fn asking(shared: &Arc<Mutex<Self>>, asking: Vec<String>) {
+        shared.lock().unwrap_or_else(PoisonError::into_inner).asking = asking;
     }
 }
 

@@ -19,7 +19,7 @@ pause 16
 # gap it leaves closes over time rather than at once.
 down '#shelf.kale+10,2'
 move '#shelf.1+60,120'
-gone '#shelf.kale'
+wait not '#shelf.kale'
 wait 'value="Shelf full"'
 pause 40
 wait 'value="Shelf closing"'
