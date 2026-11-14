@@ -257,7 +257,6 @@ impl Sequencer {
 #[derive(Clone, Debug, Default)]
 pub struct Follower {
     client: ClientId,
-    counter: u64,
     applied: u64,
     pending: VecDeque<(OpId, Payload)>,
 }
@@ -270,7 +269,6 @@ impl Follower {
     pub fn continuing(client: ClientId, sequence: u64) -> Self {
         Self {
             client,
-            counter: sequence,
             applied: sequence,
             pending: VecDeque::new(),
         }
@@ -288,11 +286,12 @@ impl Follower {
         self.pending.len()
     }
 
-    pub fn submit(&mut self, payload: Payload) -> SessionMessage {
-        self.counter += 1;
+    /// Submits `payload` as this client's operation number `counter`, which its replica never
+    /// gave another operation: an owner refuses an id it took already.
+    pub fn submit(&mut self, counter: u64, payload: Payload) -> SessionMessage {
         let id = OpId {
             client: self.client,
-            counter: self.counter,
+            counter,
         };
         self.pending.push_back((id, payload.clone()));
         SessionMessage::Submit {

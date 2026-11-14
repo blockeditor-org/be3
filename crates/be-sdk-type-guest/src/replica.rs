@@ -515,6 +515,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     sealing_through: Option<(u64, Vec<u8>)>,
     reload: bool,
     catching_up: bool,
+    /// The number of the last operation this replica made, owner or follower, from a random
+    /// start: ids never repeat, nor meet those of another replica of the block on the same
+    /// connection, for an owner refuses an id it took already.
+    ids: u64,
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
     shown: BTreeMap<Uuid, Vec<u8>>,
     presence_changed: bool,
@@ -787,6 +791,8 @@ where
             sealed: 0,
             reload: false,
             catching_up: false,
+            // Leaves room for 2^48 operations after it.
+            ids: Uuid::new_v4().as_u64_pair().0 >> 16,
             presence: BTreeMap::new(),
             shown: BTreeMap::new(),
             presence_changed: false,
@@ -982,9 +988,10 @@ where
             let Role::Owner(sequencer) = &mut self.role else {
                 break;
             };
+            self.ids += 1;
             let id = OpId {
                 client: self.client,
-                counter: sequencer.sequence() + 1,
+                counter: self.ids,
             };
             if let Some(op) = sequencer.accept(id, payload) {
                 self.lacking.sequenced(op.sequence);
@@ -2678,9 +2685,10 @@ where
         }
         match &mut self.role {
             Role::Owner(sequencer) => {
+                self.ids += 1;
                 let id = OpId {
                     client: self.client,
-                    counter: sequencer.sequence() + 1,
+                    counter: self.ids,
                 };
                 let Some(op) = sequencer.accept(id, Payload::Inline(payload.clone())) else {
                     return true;
@@ -2717,7 +2725,8 @@ where
             Role::Follower(follower) => {
                 self.lacking
                     .add(payload.clone(), Until::Unsettled, announcements);
-                let message = follower.submit(Payload::Inline(payload));
+                self.ids += 1;
+                let message = follower.submit(self.ids, Payload::Inline(payload));
                 self.in_flight = 1;
                 let owner = self.state.owner;
                 self.send(owner, &message);
@@ -3551,7 +3560,8 @@ where
         let Role::Follower(follower) = &mut self.role else {
             return;
         };
-        let message = follower.submit(payload);
+        self.ids += 1;
+        let message = follower.submit(self.ids, payload);
         self.in_flight = weight;
         let owner = self.state.owner;
         self.send(owner, &message);
@@ -3799,9 +3809,10 @@ where
                 self.held.push_back(operation);
                 break;
             }
+            self.ids += 1;
             let id = OpId {
                 client: self.client,
-                counter: sequencer.sequence() + 1,
+                counter: self.ids,
             };
             let payload = Payload::Inline(C::encode_operation(&operation));
             if let Some(op) = sequencer.accept(id, payload) {

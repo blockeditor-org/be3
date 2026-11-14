@@ -8,12 +8,12 @@ fn a_follower_resubmits_only_what_the_owner_never_accepted() {
 
     let SessionMessage::Submit {
         id: first, payload, ..
-    } = follower.submit(Payload::Inline(b"insert one".to_vec()))
+    } = follower.submit(1, Payload::Inline(b"insert one".to_vec()))
     else {
         panic!("a submission is a submit message");
     };
     let SessionMessage::Submit { id: second, .. } =
-        follower.submit(Payload::Inline(b"insert two".to_vec()))
+        follower.submit(2, Payload::Inline(b"insert two".to_vec()))
     else {
         panic!("a submission is a submit message");
     };
