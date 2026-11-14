@@ -497,8 +497,10 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             server,
             time,
+            client: opened,
             ..
         } = client::organizations::open_organization(&connection, organization).await??;
+        connection.opened(opened);
         self.measured_server(time, connection.clock());
         *self.session.lock().unwrap() = (role, kind);
         self.keys
@@ -1987,18 +1989,6 @@ impl<S: ObjectStore> Peer<S> {
         self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
             .await?;
         Ok(part)
-    }
-
-    pub fn watch(&self, block: Uuid) {
-        self.connection().watch(block);
-    }
-
-    pub fn unwatch(
-        &self,
-        block: Uuid,
-    ) -> Result<impl Future<Output = Result<(), ClientError>> + Send + use<S>, ClientError> {
-        self.connection().unwatch(block);
-        Ok(async move { Ok(()) })
     }
 
     pub fn set_resolver(&self, resolver: Resolver) {

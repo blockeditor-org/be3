@@ -68,7 +68,8 @@ mirror (`Query::Subtree` under `Owner::Version`), re-listing before each
 operation so every head is current.
 
 A checkout replaces content someone has open through the replica's reconcile
-on `head-moved` (the block's `watch` stream's `moved`); the worker calls
+on `head-moved` (a head another connection published, which `changes` tells as
+`Event::BlockChanged` with `own` unset); the worker calls
 `head-moved` for what it publishes itself (`Replicas::moved_here`).
 
 ## Not built yet

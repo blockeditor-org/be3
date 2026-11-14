@@ -23,6 +23,7 @@ fn an_escrow_key_on_the_wire_encodes_as_the_one_clients_seal() {
     assert_eq!(EscrowKey::decode(&sealed), Some(frozen.clone()));
     let opened = OrganizationOpened {
         organization: Uuid::nil(),
+        client: 0,
         role: OrganizationRole::Editor,
         kind: OrganizationKind::Company,
         escrows: vec![frozen],

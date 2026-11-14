@@ -92,7 +92,7 @@ impl SqliteRefs {
 
     pub(crate) fn write(&self, scope: &Scope, rows: &[Row]) -> Result<(), StoreError> {
         let connection = self.connection.lock().unwrap();
-        let transaction = connection.unchecked_transaction().map_err(failed)?;
+        let transaction = be_block_sqlite_schema::write_transaction(&connection).map_err(failed)?;
         {
             let mut upsert = transaction
                 .prepare_cached(

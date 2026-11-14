@@ -11,15 +11,6 @@ numbers are from when this plan was written.
 
 ## 9. Block protocol requests that duplicate others
 
-- Remove the per-block `watch` stream, `block-event` and `head-moved`: the
-  `changes` stream already reports every head change for blocks the
-  connection read, and no consumer reads `head-moved.author`. `changes` gains
-  the originating client so a client skips its own publishes; deletion is a
-  summary with parent `detached`. The client's watch registry
-  (`be-block-client/src/connection.rs`) goes.
-- One convention for change streams: a stream carries the latest value and
-  starts with it. Remove `storage-usage` (only `be-block-frozen` calls it);
-  make the key-work stream `stream<key-work>` and remove `get-key-work`.
 - Invitations and contact links are one link family. Both are a code-sealed
   card, a lookup id, and an accept that makes two accounts contacts. Replace
   `invite`/`get-invitation`/`accept-invitation` and the five

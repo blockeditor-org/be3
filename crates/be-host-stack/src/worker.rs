@@ -1381,10 +1381,7 @@ impl Session<'_> {
                         }
                     }
                     for event in heard_all {
-                        if matches!(
-                            event,
-                            Some(Event::HeadChanged { .. } | Event::BlockChanged(_)) | None
-                        ) {
+                        if matches!(event, Some(Event::BlockChanged { .. }) | None) {
                             self.versions.announced();
                         }
                         match &event {
@@ -2517,7 +2514,20 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
 }
 
 async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    if let Err(error) = peer.tend().await {
+    tend_with(peer, shared, None).await;
+}
+
+/// Tends the keys from `work` when the server already sent it, or else reads it first.
+async fn tend_with(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    work: Option<be_block_protocol::KeyWork>,
+) {
+    let tended = match work {
+        Some(work) => peer.tend_with(work).await,
+        None => peer.tend().await,
+    };
+    if let Err(error) = tended {
         record(shared, error);
     }
     shared
@@ -3179,16 +3189,12 @@ async fn apply(
         }
         #[cfg(test)]
         Command::HearHead { block, head } => {
-            let mut events = vec![Event::HeadChanged {
-                block,
-                head,
-                author: peer.account(),
-            }];
             if let Some(mut summary) = peer.known_summary(block) {
                 summary.head = Some(head);
-                events.push(Event::BlockChanged(summary));
-            }
-            for event in events {
+                let event = Event::BlockChanged {
+                    block: summary,
+                    own: false,
+                };
                 heard(peer, shared, tasks, replicas, Some(event)).await;
             }
             false
@@ -3575,7 +3581,7 @@ async fn heard(
     event: Option<Event>,
 ) {
     match event {
-        Some(Event::BlockChanged(block)) => {
+        Some(Event::BlockChanged { block, .. }) => {
             let block = peer.summary_with_outbox(block);
             if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
                 record(shared, error);
@@ -3605,21 +3611,14 @@ async fn heard(
                 .graph
                 .remove(block, revision);
         }
-        Some(Event::HeadChanged { block, head, .. }) if !replicas.is_open(block) => {
-            shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .set_head(block, Some(head));
-        }
         Some(Event::Paired(be_block_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
         }
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
-        Some(Event::KeyWorkChanged) => {
+        Some(Event::KeyWork(work)) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-            tasks.spawn(async move { tend(&peer, &shared).await });
+            tasks.spawn(async move { tend_with(&peer, &shared, Some(work)).await });
         }
         Some(_) => {}
         None => relist(shared),

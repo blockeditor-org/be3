@@ -53,7 +53,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
         b"sealed with content"
     );
     let heard = loop {
-        if let Notice::BlockChanged { block: changed } = other.graph_change().await
+        if let Notice::BlockChanged { block: changed, .. } = other.graph_change().await
             && changed.id == block
             && changed.head == Some(head)
         {

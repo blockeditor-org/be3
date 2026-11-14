@@ -45,7 +45,8 @@ and the refs database.
 `be-host-stack/src/worker.rs` is the peer's loop. `be_block_type_host::Replicas`
 (shared with `be`; be-host's `Host` is `replicas.rs`, where reports land in
 `Shared`) is the host half of every open block's replica: it joins the session,
-watches the block, constructs the `replica` with the head, answers its calls
+reads the block's head (which lists it, so `changes` tells it the heads other
+connections publish), constructs the `replica` with the head, answers its calls
 with the real primitives (`Peer::seal` then `publish_sealed`, `Peer::stash`,
 resume, the lease, relays sealed with the block key, `sleep-until`) and keeps
 what it reports (`report-status`, which carries the undo state too, `described`, `conflict`).
@@ -92,7 +93,7 @@ own.
 
 The server keeps one open organization per connection, so only the worker
 opens one, after the last worker stopped (`Link::open_organization`). Opening
-it again drops the connection's watches and listings, so anything needing the
+it again drops the connection's listings, so anything needing the
 open organization's escrow key (inviting, creating an agent) goes through the
 worker's `Peer`.
 

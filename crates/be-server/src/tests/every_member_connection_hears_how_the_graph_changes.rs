@@ -14,7 +14,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let folder = author.create_block(BlockParent::Root).await;
     let created = other.graph_change().await;
     assert!(
-        matches!(&created, Notice::BlockChanged { block } if block.id == folder),
+        matches!(&created, Notice::BlockChanged { block, .. } if block.id == folder),
         "{created:?}"
     );
 
@@ -26,7 +26,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     assert!(matches!(response, Ok(_)), "{response:?}");
     let renamed = other.graph_change().await;
     assert!(
-        matches!(&renamed, Notice::BlockChanged { block }
+        matches!(&renamed, Notice::BlockChanged { block, .. }
             if block.id == folder && block.metadata == b"sealed name"),
         "{renamed:?}"
     );
@@ -42,7 +42,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     assert!(matches!(response, Ok(())), "{response:?}");
     let detached = other.graph_change().await;
     assert!(
-        matches!(&detached, Notice::BlockChanged { block }
+        matches!(&detached, Notice::BlockChanged { block, .. }
             if block.id == child && block.parent == Some(BlockParent::Detached)),
         "{detached:?}"
     );
