@@ -363,19 +363,22 @@ impl From<Edit> for ChatOp {
 }
 
 /// `edit` as a replica applies it, with `arrival` its operation's stamp: a change setting a
-/// message's `arrival` is dropped, and each message it sends is given the stamp (none when
-/// unknown), so a message's arrival is only ever what the owner stamped.
+/// message's `arrival` is dropped, and each message it inserts holds the stamp (none when
+/// unknown) inside the insert itself, so it lands only when the insert does (an insert of an id
+/// the chat holds already does nothing) and a message's arrival is only ever what the owner
+/// stamped.
 fn stamped(edit: &Edit, arrival: Option<i64>) -> Edit {
     let messages = Place {
         object: ObjectId::ROOT,
         field: ChatHeader::MESSAGES.index(),
     };
     let field = Message::ARRIVAL.index();
-    let mut sent = Vec::new();
-    let mut changes: Vec<Change> = edit
-        .0
+    let stamp = be_block_model::to_cbor(&arrival);
+    edit.0
         .iter()
         .filter(|change| match change {
+            // Every object but the root is a message: the header holds no other kind of
+            // object (its maps and series hold values), so the index alone names `arrival`.
             Change::Set {
                 object, field: set, ..
             }
@@ -385,21 +388,32 @@ fn stamped(edit: &Edit, arrival: Option<i64>) -> Edit {
             | Change::Add {
                 object, field: set, ..
             } => *object == ObjectId::ROOT || *set != field,
-            Change::Insert { place, objects, .. } => {
-                if *place == messages {
-                    sent.extend(objects.iter().map(|(id, _)| *id));
-                }
-                true
-            }
             _ => true,
         })
-        .cloned()
-        .collect();
-    changes.extend(
-        sent.into_iter()
-            .map(|id| Message::ARRIVAL.set(id, &arrival)),
-    );
-    Edit(changes)
+        .map(|change| match change {
+            Change::Insert {
+                place,
+                anchor,
+                client,
+                objects,
+            } if *place == messages => Change::Insert {
+                place: *place,
+                anchor: *anchor,
+                client: *client,
+                objects: objects
+                    .iter()
+                    .map(|(id, object)| {
+                        let mut object = object.clone();
+                        if object.parent() == Some(messages) {
+                            object.set_register(field, stamp.clone());
+                        }
+                        (*id, object)
+                    })
+                    .collect(),
+            },
+            change => change.clone(),
+        })
+        .collect()
 }
 
 /// A message as an editor shows it: what it says now and who reacted how.

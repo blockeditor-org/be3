@@ -19,8 +19,9 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   drops one), and the `segments` index of the closed segments.
 - **A message** is an object of registers, not `Text`: author, claimed time,
   body, the message it replies to, attachments (child blocks), its author's
-  signature and when the server took it (`arrival`, below). Its id is its `ObjectId`. It stores the hash of the last message
-  its author saw (`seen`); a message's hash is SHA-256 over its signed bytes.
+  signature and when the server took it (`arrival`, below). Its id is its
+  `ObjectId`. It stores the hash of the last message its author saw (`seen`);
+  a message's hash is SHA-256 over its signed bytes.
   `Message::signed_bytes`, `MessageEdit::signed_bytes`,
   `Deletion::signed_bytes` and `ReactionKey::signed_bytes` (`src/signed.rs`)
   define what a signature covers.
@@ -40,18 +41,25 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
 ## Arrival time
 
 - A message keeps when the server took the operation that sent it
-  (`Message::arrival`), which no member chooses: `ChatOp::Edit` carries the
-  stamp slot (`LiveEdit::arrival`, guides/type_modules.md "Arrival time"),
-  which the session owner fills on a follower's operation, and applying an edit
-  (`stamped` in `src/chat.rs`) gives each message it sends the slot's stamp
-  and drops any change that sets a message's `arrival`, so a member can claim
-  one neither by sending a message holding it nor by setting it after. A closed
-  segment keeps each message's stamp.
-- Unstamped means unknown: the owner's own messages (plans/chat.md), anything
-  carried in a commit rather than a live session.
-  Operations fold (`absorb_operation`) only when their stamps are equal, and
-  carrying one over a restart keeps its own stamp, never another's; undo makes
-  unstamped operations (`ChatOp::from`).
+  (`Message::arrival`), as the session owner stamped it: `ChatOp::Edit`
+  carries the stamp slot (`LiveEdit::arrival`, guides/type_modules.md
+  "Arrival time"), which the owner fills on a follower's operation. Applying
+  an edit (`stamped` in `src/chat.rs`) writes the slot's stamp into each
+  message it inserts, inside the insert, so it lands only when the insert does,
+  and drops any change that sets a message's `arrival`. So a follower in a
+  session an honest owner sequences cannot choose an arrival: not by sending a
+  message holding one, setting one after, or sending again under an existing
+  message's id. A closed segment keeps each message's stamp.
+- The guarantee holds only for operations an honest owner sequences. A member
+  whose replica owns the session (alone in the chat, say) writes its own
+  content, and a merge keeps whatever `arrival` a commit holds, so a member
+  who owns a session or commits directly can write any arrival; accepted, as
+  for any content a dishonest owner alters (plans/authorship.md).
+- Unstamped means unknown: the owner's own messages (plans/chat.md), and what
+  a device commits outside a live session. Operations fold
+  (`absorb_operation`) only when their stamps are equal, carrying one over a
+  restart keeps its own stamp, never another's, and undo makes unstamped
+  operations (`ChatOp::from`).
 - The editor shows a message's claimed time and, when it arrived
   `OFFLINE_AFTER` (5 minutes) or more after it (`Message::arrived_late`),
   "sent offline, arrived" and when. A message without a stamp shows no

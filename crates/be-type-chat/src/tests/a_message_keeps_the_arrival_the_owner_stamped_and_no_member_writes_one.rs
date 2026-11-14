@@ -11,7 +11,8 @@ fn stamped_at(edit: Edit, received: i64) -> ChatOp {
 
 /// A message keeps its operation's stamp (`LiveEdit::arrival`), into a closed segment too; one
 /// sent unstamped shows no arrival, never its claimed time; and a member cannot write one,
-/// by sending a message that holds it or by setting it after.
+/// by sending a message that holds it, by setting it after, or by sending again under a
+/// message's id.
 #[test]
 fn a_message_keeps_the_arrival_the_owner_stamped_and_no_member_writes_one() {
     let mut chat = ChatContent::default();
@@ -60,6 +61,22 @@ fn a_message_keeps_the_arrival_the_owner_stamped_and_no_member_writes_one() {
     assert_eq!(message(&chat, forged).arrival, None);
     assert_eq!(message(&chat, online).arrival, Some(2_500));
     assert_eq!(message(&chat, own).arrival, None);
+
+    // Or sends again under an id the chat holds, which inserts nothing, stamped or not.
+    let again = |id| ChatContent::send_as(id, &Message::new(BO, 0, "again"));
+    chat.apply(&stamped_at(again(own), 8_000_000));
+    chat.apply(&again(online).into());
+    assert_eq!(
+        message(&chat, own).arrival,
+        None,
+        "a stamp landed on another message"
+    );
+    assert_eq!(
+        message(&chat, online).arrival,
+        Some(2_500),
+        "a stamp was erased"
+    );
+    assert_eq!(message(&chat, online).body, "written online");
 
     // Two operations the server took at different times never fold into one.
     let (_, first) = chat.send(CHAT, Message::new(ADA, 5_000, "one"));

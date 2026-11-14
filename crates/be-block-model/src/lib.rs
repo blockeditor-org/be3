@@ -188,6 +188,15 @@ impl Object {
         &self.kept
     }
 
+    /// Makes field `index` a register holding `value` (as `FieldRef::set` encodes it), for
+    /// content that settles a field of an object as it is inserted, so the value lands exactly
+    /// when the insert does. An object without that field is left as it is.
+    pub fn set_register(&mut self, index: u16, value: Vec<u8>) {
+        if let Some(field) = self.fields.get_mut(usize::from(index)) {
+            *field = Value::Register(value);
+        }
+    }
+
     pub fn is_locked(&self) -> bool {
         self.kept.kind.is_some()
             || self

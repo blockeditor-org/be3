@@ -25,10 +25,10 @@ or that is forged.
   arrival times are what would tell them apart.
 - **Timestamps.** A signed time is only what the author claims. A follower's
   message carries when the server took it, stamped by the session owner
-  (guides/chat.md, "Arrival time"), which no member chooses; the owner's own
-  messages carry none yet (plans/chat.md). The stamp is stored in content,
-  which a dishonest session owner could alter; accepted. A member with Edit
-  who removes a message and sends it again under its id gives it a later,
-  honest arrival.
+  (guides/chat.md, "Arrival time"), which that follower cannot choose; the
+  owner's own messages carry none yet (plans/chat.md). The stamp is stored in
+  content, so a member who owns a session or commits directly can write any
+  arrival; accepted. A member with Edit who removes a message and sends it
+  again under its id gives it a later, honest arrival.
 - Signatures detect forgery; they don't stop someone with Edit rewriting or
   removing messages (plans/deferred/chat_moderation.md).
