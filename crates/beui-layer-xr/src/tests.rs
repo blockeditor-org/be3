@@ -25,7 +25,6 @@ static MONADO: Mutex<()> = Mutex::new(());
 struct Monado {
     service: Child,
     socket: PathBuf,
-    _listening: UnixListener,
 }
 
 impl Monado {
@@ -80,12 +79,18 @@ impl Monado {
             });
         }
         let service = command.spawn().expect("monado-service starts");
-        Self {
-            service,
-            socket,
-            _listening: listening,
-        }
+        // Only the service holds the socket now, so if it ends, a client is refused rather
+        // than queued for a service that will never accept it.
+        drop(listening);
+        Self { service, socket }
     }
+}
+
+/// What the service printed, for a failure that may be its.
+fn log(directory: &Path) -> String {
+    ["monado.log", "monado.err"]
+        .map(|name| std::fs::read_to_string(directory.join(name)).unwrap_or_default())
+        .concat()
 }
 
 fn remove(directory: &Path) {
