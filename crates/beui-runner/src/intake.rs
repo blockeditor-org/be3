@@ -60,6 +60,12 @@ impl Incoming {
         Self::Layer { layer, input }
     }
 
+    /// Whether this is pointer input, which only means something in a window. Keys, text and
+    /// modifiers change state every window shares.
+    pub fn points_into_window(&self) -> bool {
+        matches!(self, Self::Input { input, .. } if points_into_window(input))
+    }
+
     pub fn in_window(mut self, id: WindowId) -> Self {
         if let Self::Input { window, .. } = &mut self {
             *window = id;

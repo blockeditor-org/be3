@@ -201,11 +201,12 @@ struct ModuleRunner {
 
 /// Input held for the next frame (`ModuleRunner::held`).
 enum Held {
-    /// Pointer or key input for `target`'s window, heard through `region`.
+    /// Input for `target`'s window, heard through `region`, with the time that stamps it.
     Window {
         target: ViewRef,
         region: ViewRef,
         incoming: Incoming,
+        time: Option<Incoming>,
     },
     /// Input already routed, held only to keep its place.
     Routed(Incoming),
@@ -545,32 +546,49 @@ impl ModuleRunner {
     fn release_held(&mut self) -> bool {
         let mut released = false;
         for held in std::mem::take(&mut self.held) {
-            let incoming = match held {
-                Held::Routed(incoming) => Some(incoming),
+            match held {
+                Held::Routed(incoming) => {
+                    self.runner.push(incoming);
+                    released = true;
+                }
                 Held::Window {
                     target,
                     region,
                     incoming,
-                } => self
-                    .window_for(target, region)
-                    .map(|window| incoming.in_window(window)),
-            };
-            if let Some(incoming) = incoming {
-                self.runner.push(incoming);
-                released = true;
+                    time,
+                } => released |= self.push_for(target, region, incoming, time),
             }
         }
         released
     }
 
-    /// The window input for `target`, heard through `region`, goes to: the target's, else the
-    /// region's, so a press that moved over another view is released where it was pressed.
-    /// Input for neither has nowhere to go and is dropped, never sent to another view.
-    fn window_for(&self, target: ViewRef, region: ViewRef) -> Option<WindowId> {
-        self.windows
+    /// Hands the runner input for `target`, heard through `region`, and its time, and says
+    /// whether it took them. Input goes to the target's window, else the region's, so a press
+    /// that moved over another view is released where it was pressed. Pointer input for
+    /// neither has nowhere to go and is dropped, never sent to another view's window; keys,
+    /// text and modifiers change state every window shares, so they go in as they are.
+    fn push_for(
+        &mut self,
+        target: ViewRef,
+        region: ViewRef,
+        incoming: Incoming,
+        time: Option<Incoming>,
+    ) -> bool {
+        let window = self
+            .windows
             .get(&target)
             .or_else(|| self.windows.get(&region))
-            .copied()
+            .copied();
+        let incoming = match window {
+            Some(window) => incoming.in_window(window),
+            None if incoming.points_into_window() => return false,
+            None => incoming,
+        };
+        self.runner.push(incoming);
+        if let Some(time) = time {
+            self.runner.push(time);
+        }
+        true
     }
 
     /// Hands the runner input already routed, unless input before it is held for the next
@@ -917,17 +935,21 @@ impl Regions for ModuleRunner {
                 }
                 None => {
                     let incoming = input::translate(event);
+                    let time = input::time(event).map(Incoming::Time);
                     let unframed =
                         !self.windows.contains_key(&target) && !self.listed.contains(&target);
-                    if unframed || !self.held.is_empty() {
-                        self.held.push(Held::Window {
+                    match unframed || !self.held.is_empty() {
+                        true => self.held.push(Held::Window {
                             target,
                             region: id,
                             incoming,
-                        });
-                    } else if let Some(window) = self.window_for(target, id) {
-                        self.runner.push(incoming.in_window(window));
+                            time,
+                        }),
+                        false => {
+                            self.push_for(target, id, incoming, time);
+                        }
                     }
+                    return;
                 }
             }
         }
@@ -991,7 +1013,28 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
-        let released = self.release_held();
+        // Input held for views this frame opened windows for is taken in now, in a second
+        // frame, so the frame the host counts as answering a press has heard it.
+        let frame = match self.release_held() {
+            true => {
+                let Some(frame) = self
+                    .runner
+                    .frame(&mut HostPlatform(services), SafeArea::default())
+                else {
+                    return Err(self.stopped());
+                };
+                self.match_windows(ratio, regions, active);
+                frame
+            }
+            false => frame,
+        };
+        debug_assert!(
+            regions
+                .iter()
+                .filter(|region| region.view.is_main())
+                .all(|region| self.windows.contains_key(&region.id())),
+            "every main view the app frames has a window to hear its input"
+        );
         self.follow_actions(regions);
         self.count_toggles(regions, active);
         self.overflows = self
@@ -1002,10 +1045,7 @@ impl Regions for ModuleRunner {
         Ok(Ran {
             keyboard: self.keyboard_view(),
             asks: std::mem::take(&mut self.asks),
-            repaint_after: match released {
-                true => Some(std::time::Duration::ZERO),
-                false => frame.wait(),
-            },
+            repaint_after: frame.wait(),
             animating: frame.animating,
         })
     }
