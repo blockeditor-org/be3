@@ -91,7 +91,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         before + bytes_of(&[commit.hash()]),
         "a commit taking what the block held changes the charge only by the commit itself"
     );
-    let database = rusqlite::Connection::open(directory.join("metadata.sqlite")).unwrap();
+    let database = metadata_database(&directory);
     let held_since = |hash: Hash| -> Option<Option<i64>> {
         database
             .query_row(

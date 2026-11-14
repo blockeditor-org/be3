@@ -15,8 +15,7 @@ async fn an_upload_is_used_once_and_its_object_goes_once_collected() {
         .await;
     assert!(published.is_ok(), "{published:?}");
     let uploads = || {
-        rusqlite::Connection::open(harness.directory.join("metadata.sqlite"))
-            .unwrap()
+        metadata_database(&harness.directory)
             .query_row("SELECT COUNT(*) FROM object_uploads", [], |row| {
                 row.get::<_, i64>(0)
             })

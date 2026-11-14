@@ -276,7 +276,7 @@ impl Harness {
     }
 
     fn database(&self) -> rusqlite::Connection {
-        rusqlite::Connection::open(self.server.directory.join("metadata.sqlite")).unwrap()
+        be_block_sqlite_schema::open(self.server.directory.join("metadata.sqlite")).unwrap()
     }
 
     async fn stop(self) {

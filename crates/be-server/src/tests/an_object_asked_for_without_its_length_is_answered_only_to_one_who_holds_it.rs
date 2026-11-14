@@ -32,8 +32,7 @@ async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_hold
     );
 
     let sizes = || {
-        rusqlite::Connection::open(harness.directory.join("metadata.sqlite"))
-            .unwrap()
+        metadata_database(&harness.directory)
             .query_row("SELECT COUNT(*) FROM object_sizes", [], |row| {
                 row.get::<_, i64>(0)
             })
