@@ -22,11 +22,13 @@ const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
 const SHAPE: &str = "infinite-canvas.entity.";
-/// Puts the text's caret at its start, which scrolls it to the top: select all, then Left.
+/// Puts the text's caret at its start, which scrolls it to the top (select all, then Left), and
+/// takes focus from the window, so the painting has no blinking caret in it.
 const TEXT_START: &[&[&str]] = &[
     &["click", "#text.surface"],
     &["key", "ctrl+a"],
     &["key", "Left"],
+    &["blur"],
 ];
 
 fn main() -> ExitCode {
@@ -604,6 +606,9 @@ impl Host {
             self.run(words)?;
         }
         let painted = self.paint(&format!("{metric}-paint"), painting)?;
+        if !to_start.is_empty() {
+            self.run(&["focus"])?;
+        }
         self.close_tab(label, &format!("{metric}-close"))?;
         Ok(painted)
     }
@@ -695,32 +700,48 @@ impl Stroke {
 
     fn check(&self, export: &[u8]) -> Result<(), String> {
         let drawn = drawn_stroke(export)?;
-        let both = drawn.len().min(self.kept.len());
-        let (first, last) = (self.kept[0], self.kept[both - 1]);
-        let (start, end) = (drawn[0], drawn[both - 1]);
-        let scale = (end.0 - start.0) / (last.0 - first.0);
+        let (Some(&start), Some(&end)) = (drawn.first(), drawn.last()) else {
+            return Err("the exported stroke holds no points".to_owned());
+        };
+        let (first, last) = (self.kept[0], self.kept[self.kept.len() - 1]);
+        let span = last.0 - first.0;
+        let scale = if span == 0.0 {
+            1.0
+        } else {
+            (end.0 - start.0) / span
+        };
         let reach = scale * self.spacing / 2.0;
+        let mismatch = |found: &str| {
+            format!(
+                "the stroke holds {} points, but the canvas keeps {} of the {} samples drawn, each one more than a point from the last it kept; {found}",
+                drawn.len(),
+                self.kept.len(),
+                self.sent
+            )
+        };
         for (index, (kept, drawn)) in self.kept.iter().zip(&drawn).enumerate() {
             let expected = (
                 start.0 + (kept.0 - first.0) * scale,
                 start.1 + (kept.1 - first.1) * scale,
             );
             if (drawn.0 - expected.0).hypot(drawn.1 - expected.1) > reach {
-                return Err(format!(
-                    "point {index} of the {} the stroke holds is at {drawn:?}, not at {expected:?} where the sample the canvas should have kept was",
-                    self.kept.len()
-                ));
+                return Err(mismatch(&format!(
+                    "point {index} is at {drawn:?}, not at {expected:?} where the sample the canvas should have kept was"
+                )));
             }
         }
-        if drawn.len() != self.kept.len() {
-            return Err(format!(
-                "the stroke holds {} points, but the canvas keeps {} of the {} samples drawn: each one more than a point from the last it kept; the {} after those it should keep are {:?}",
-                drawn.len(),
-                self.kept.len(),
-                self.sent,
-                drawn.len().saturating_sub(self.kept.len()),
-                drawn.get(self.kept.len()..).unwrap_or_default()
-            ));
+        let both = drawn.len().min(self.kept.len());
+        if drawn.len() > both {
+            return Err(mismatch(&format!(
+                "the points from {both} on are extra: {:?}",
+                &drawn[both..]
+            )));
+        }
+        if self.kept.len() > both {
+            return Err(mismatch(&format!(
+                "the points from {both} on are missing, the samples drawn at {:?}",
+                &self.kept[both..]
+            )));
         }
         be_tool_bench::count("canvas.line-points", drawn.len() as u64);
         Ok(())
