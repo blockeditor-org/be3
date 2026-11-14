@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -39,6 +40,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -65,6 +67,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -91,6 +94,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -113,6 +117,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -135,6 +140,7 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -154,6 +160,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",
@@ -178,6 +185,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-type-host:be-block-type-host",
                 "//crates/be-block:be-block",
                 "//crates/be-host-base:be-host-base",

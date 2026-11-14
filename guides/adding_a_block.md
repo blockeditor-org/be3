@@ -168,7 +168,7 @@ Content that does not fit a document (a large file, `Blob<K>`) implements
 is a document but must not load whole wraps one and forwards those traits to
 it, saving it as the first part (`crates/be-type-chat`'s `ChatContent`). Its
 constructors and constants go on the kind (`PdfFile::from_file`), since a
-types crate cannot add methods to be-block's `Blob<K>`. Bump
+types crate cannot add methods to be-block-content's `Blob<K>`. Bump
 `BlobKind::SCHEMA` when the header changes so an old one would be misread;
 that offers blocks saved before the change for reset
 (guides/blocks/host.md, Blocks saved by another build).
@@ -244,8 +244,10 @@ Two registrations trip agents up:
 
 ## Types in be-block
 
-`crates/be-block` holds only the types the host applies itself and the
-libraries every type builds on. A frozen type would keep its `frozen_*.rs`
+`crates/be-block` holds only the types the host applies itself (settings,
+profiles, organizations, version control, the search index), and
+`crates/be-block-content` the traits and libraries every type builds on, which
+is all a types crate depends on (guides/type_modules.md). A frozen type would keep its `frozen_*.rs`
 tests in its types crate (guides/frozen_formats.md); none is frozen yet.
 
 If the block needs a UI, continue with [adding_an_app.md](adding_an_app.md).

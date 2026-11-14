@@ -84,3 +84,38 @@ _page_test = rule(
 def page_test(name, files):
     _page_test(name = name + "-harness", files = files)
     be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness")
+
+# A test of the whole web host (crates/be-host's :web bundle with its apps) in Chromium:
+# buck/program/web-host-test.mjs starts be-server and Caddy in front of the bundle, opens the
+# page, signs in as web-dev does and runs `test`, a module whose default export takes the page
+# and a drive function (the comment atop web-host-test.mjs). It runs on a worker, with the
+# browser above.
+def _web_host_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    runner = ctx.attrs._scripts[DefaultInfo].default_outputs[0]
+    command = cmd_args(
+        cmd_args(ctx.attrs._node[DefaultInfo].default_outputs[0], format = "{}/bin/node"),
+        cmd_args(runner, format = "{}/web-host-test.mjs"),
+        cmd_args(ctx.attrs.bundle[DefaultInfo].default_outputs[0], format = "--bundle={}"),
+        cmd_args(ctx.attrs.server[RunInfo], format = "--server={}"),
+        cmd_args(ctx.attrs._caddy[DefaultInfo].default_outputs[0], format = "--caddy={}"),
+        cmd_args(ctx.attrs.caddyfile, format = "--caddyfile={}"),
+        ctx.attrs.test,
+    )
+    return [DefaultInfo(), RunInfo(args = command)]
+
+_web_host_test = rule(
+    attrs = {
+        "bundle": attrs.dep(),
+        "caddyfile": attrs.source(),
+        "server": attrs.dep(providers = [RunInfo]),
+        "test": attrs.source(),
+        "_caddy": attrs.default_only(attrs.dep(default = "root//buck/tools:caddy")),
+        "_node": attrs.default_only(attrs.dep(default = "root//buck/tools:node")),
+        "_scripts": attrs.default_only(attrs.dep(default = "root//buck/program:drive-browser")),
+    },
+    impl = _web_host_test_impl,
+)
+
+def web_host_test(name, bundle, server, caddyfile, test):
+    _web_host_test(name = name + "-harness", bundle = bundle, caddyfile = caddyfile, server = server, test = test)
+    be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness")

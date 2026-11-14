@@ -38,7 +38,7 @@ async fn a_skipped_block_is_never_deleted_or_replaced() {
     assert_eq!(children(&peer, code).await.len(), 4);
 
     peer.define(upper, |metadata| {
-        metadata.insert(&be_block::NAME, &"Upper".to_owned());
+        metadata.insert(&be_block_content::NAME, &"Upper".to_owned());
     })
     .await
     .unwrap();

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use be_sdk_beui::be_block::be_block_model::BlockRef;
-use be_sdk_beui::be_block::{ObjectId, SettingsLayer};
+use be_sdk_beui::be_block_content::be_block_model::BlockRef;
+use be_sdk_beui::be_block_content::{ObjectId, SettingsLayer};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::accesskit::{Node, Role};
 use be_sdk_beui::beui::datetime::{DateTime, HourCycle};
@@ -220,7 +220,7 @@ fn paste_image(editor: Editor, chat: Chat, me: Uuid, composer: Composer, file: P
         me,
         composer,
         id,
-        <be_type_image::ImageContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+        <be_type_image::ImageContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
     );
 }
 

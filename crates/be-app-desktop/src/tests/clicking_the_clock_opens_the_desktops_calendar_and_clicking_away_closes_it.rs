@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::EditorViewContent;
+use be_sdk_beui::be_block_content::EditorViewContent;
 use be_sdk_beui::beui::Key;
 use be_type_database::database_view::DatabaseView;
 

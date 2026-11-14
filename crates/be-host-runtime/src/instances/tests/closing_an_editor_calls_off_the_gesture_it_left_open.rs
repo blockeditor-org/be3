@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_type_guest::editor::Gesture;
 use be_type_example_counter::{Counter, CounterContent};
 
@@ -22,7 +22,7 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
         watched,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

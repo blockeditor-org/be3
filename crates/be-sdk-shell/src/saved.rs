@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use be_sdk_beui::SavedDockLayout;
-use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_block_content::ViewState;
 use be_sdk_beui::beui::dock::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

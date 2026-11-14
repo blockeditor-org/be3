@@ -26,7 +26,7 @@ pub struct Kind {
     pub frozen: bool,
     pub schema: String,
     pub plain: Plain,
-    /// Loads only its first part (`be_block::Loads::FirstPart`): `Kind::load`.
+    /// Loads only its first part (`be_block_content::Loads::FirstPart`): `Kind::load`.
     pub first_part: bool,
     pub merges_parts: bool,
     /// The stored form read whole decodes to the content (`BlockContent::WHOLE_BYTES`).

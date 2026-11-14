@@ -1,10 +1,10 @@
 use super::*;
+use crate::ThemeKind;
 use crate::display_settings::{DisplayMode, Rotation};
 use crate::input_settings::{InputDevice, PointerSetting, PointerSpeed};
-use crate::settings::{
-    Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
-};
-use crate::{ChildChange, Root, ThemeKind};
+use crate::settings::{Settings, SettingsContent, SettingsProfile, SettingsProfileContent};
+use be_block_content::layered::layered;
+use be_block_content::{ChildChange, Root};
 
 #[test]
 fn a_profile_layers_its_settings_over_the_defaults() {

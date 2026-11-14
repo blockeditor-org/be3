@@ -1,6 +1,6 @@
 use super::*;
 use crate::EditorBlock;
-use be_block::BlockContent as _;
+use be_block_content::BlockContent as _;
 use be_sdk_api::{
     __args::{
         BLOCKS_CREATE_BLOCK, BlocksCreateBlockArgs, HOST_SERVICES_READ_PLAIN_FILE,

@@ -55,7 +55,7 @@ async fn what_a_policy_governs_waits_while_the_server_cannot_read_it() {
             Uuid::now_v7(),
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Another"),
+            &be_block_content::BlockMetadata::named("Another"),
             false,
         )
         .await

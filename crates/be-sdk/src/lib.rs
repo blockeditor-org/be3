@@ -1,4 +1,5 @@
 pub use be_block;
+pub use be_block_content;
 pub use be_lib_geometry as geometry;
 
 mod app;

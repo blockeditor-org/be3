@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use be_sdk_beui::be_block::Root;
-use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_block_content::Root;
+use be_sdk_beui::be_block_content::ViewState;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::datetime::{Date, HourCycle, SECONDS_PER_DAY, Time};
 use be_sdk_beui::beui::icons::ICON_CALENDAR_DAYS;

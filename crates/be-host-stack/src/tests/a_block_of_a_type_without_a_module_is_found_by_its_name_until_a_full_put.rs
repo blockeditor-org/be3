@@ -1,5 +1,5 @@
 use super::*;
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_type_text::{TextBlock, TextContent};
 use be_type_workspace::WorkspaceContent;
 
@@ -27,7 +27,7 @@ fn workspace_with_note(name: &str, text: &str) -> (Uuid, Uuid) {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Team"),
+        be_block_content::BlockMetadata::named("Team"),
         None,
         false,
     );
@@ -39,7 +39,7 @@ fn workspace_with_note(name: &str, text: &str) -> (Uuid, Uuid) {
         note,
         TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named(name),
+        be_block_content::BlockMetadata::named(name),
         Some(TextBlock::of(text).encode()),
         false,
     );

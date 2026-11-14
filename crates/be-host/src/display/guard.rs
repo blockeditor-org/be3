@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::time::Duration;
 
-use be_block::be_block_model::{Document, Edit};
+use be_block::DisplaySettings;
 use be_block::display_settings::{Arrangement, DisplayMode, ScreenUse};
-use be_block::{DisplaySettings, SettingsLayer};
+use be_block_content::SettingsLayer;
+use be_block_content::be_block_model::{Document, Edit};
 
 use crate::local_settings::{LayerContents, LayerEdit};
 

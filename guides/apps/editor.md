@@ -153,7 +153,7 @@ logic is the example.
 `presence_visible()` says whether anyone is looking at the block, which is
 when a collaborative cursor is worth publishing; `revealed()` asks the editor
 to scroll a peer's cursor into view. `editor.show(Some(&value))` publishes a
-`be_block::presence::PresenceKind` value through the replica (never saved,
+`be_block_content::presence::PresenceKind` value through the replica (never saved,
 removed when the instance closes); `editor.peers::<P>()` is everyone else's.
 A peer never sees its own, so an editor never draws a cursor for the person
 at the keyboard. Pick colours with `pick_free_color`.

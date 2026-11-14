@@ -2,7 +2,7 @@ use beui::reactive::Get;
 use std::collections::HashMap;
 use std::ops::Range;
 
-use be_sdk_beui::be_block::block_url::{block_url, parse_block_urls};
+use be_sdk_beui::be_block_content::block_url::{block_url, parse_block_urls};
 use be_sdk_beui::be_sdk_ui::{self, BlockLabel, Reach};
 use be_sdk_beui::label_glyph;
 use beui::Vec2;

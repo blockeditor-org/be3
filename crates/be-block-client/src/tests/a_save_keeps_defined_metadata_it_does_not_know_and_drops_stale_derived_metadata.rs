@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockMetadata, INTRINSIC_NAME, MetaKey, NAME};
+use be_block_content::{BlockMetadata, INTRINSIC_NAME, MetaKey, NAME};
 use be_type_image::{ImageContent, ImageFile};
 
 const PINNED: MetaKey<bool> = MetaKey::defined(0x7069_6e6e_6564, "pinned");

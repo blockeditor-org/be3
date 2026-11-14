@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::blob::BlobOp;
+use be_block_content::blob::BlobOp;
 
 fn payload() -> Vec<u8> {
     (0..64 * 1024u32)

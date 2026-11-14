@@ -90,7 +90,11 @@ SQLite for metadata (`schema.rs`, checked on open by
 `be_block_sqlite_schema::ensure`, which only lets a schema grow; the host's
 `host.sqlite3` is checked the same way and recreated, signing the device out,
 when it does not match), an object store (`objects.rs`, "Where objects live"
-below), and postcard frames over a websocket. Where a websocket cannot get through, `POST .../http` carries the
+below), and postcard frames over a websocket. Every transaction that writes
+begins with `be_block_sqlite_schema::write_transaction`, which takes the write
+lock up front, so a second connection to the database (a test or tool opening a
+`ServerStore` beside a running server) waits out `BUSY_TIMEOUT` rather than
+failing with `SQLITE_BUSY`. Where a websocket cannot get through, `POST .../http` carries the
 same frames (`http.rs`): the greeting's answer names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
 answered with whatever the server has for the client; notifications wait for

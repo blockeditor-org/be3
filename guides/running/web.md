@@ -71,8 +71,10 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
 - An app with an anchored view (crates/be-sdk-api/PROTOCOL.md, Anchored views) gets one overlay
   canvas in `#layers` above `#host`, with `pointer-events: none` (`web/overlay.rs`); input
   still lands on the host's canvas, which routes it. Scrims are drawn by the host, below every
-  overlay. A child placed in an anchored view shows under it on the web, since child screens
-  are behind `#host`.
+  overlay. A screen over an anchored view painted before it (a child placed in one) goes into
+  `#layers` too, stacked with the overlays by paint order, so it shows above the view as it does
+  natively; every other screen stays in `#apps`, under the host's chrome (`presenter::lifted`).
+  Screens and overlays carry `data-kind="screen"` or `"overlay"`.
 - Screens and overlays are placed from the host's last frame, so on the web they follow the host
   by one frame.
 
@@ -131,6 +133,14 @@ survives a reload. Traps that shape this code:
     (`web-test/sw.js`) reports what `sw.js` would show, moves its clock on, and raises the press
     and subscription-change events.
 - The host closes its tab when it exits, unless the page is already leaving.
+
+`web_host_test` (buck/program/drive.bzl) tests the whole page: `//crates/be-host:web-host-test`
+serves `:web` through caddy with a fresh be-server behind it, signs dev@localhost in through the
+portal (buck/program/web-sign-in.mjs, which registers it first), sizes the page by resizing it
+(the host takes its window's size from a resize, as `drive size` gives it), waits for the
+workspace, and hands a script in crates/be-host/web-test/ `drive(...)`, answered like `drive` by
+the page's `automate`, with the Playwright page beside it. A failure prints the host's tree and
+the ends of the server's and caddy's logs.
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the
 instance's be-server (or Playwright's `context.setOffline(true)`), type with

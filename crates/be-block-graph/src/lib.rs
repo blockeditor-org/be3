@@ -78,6 +78,9 @@ pub struct BlockNode {
     pub owner_only: bool,
 }
 
+/// The type of a workspace block (crates/be-type-workspace).
+pub const WORKSPACE_TYPE: Uuid = Uuid::from_u128(0x776f_726b_7370_6163_652d_626c_6f63_6b01);
+
 /// The type of an account's Unfiled (`be_block::unfiled`): a root with no content that holds
 /// every block whose parent names it.
 pub const UNFILED_TYPE: Uuid = Uuid::from_u128(0x756e_6669_6c65_642d_626c_6f63_6b73_3031);

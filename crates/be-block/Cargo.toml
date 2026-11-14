@@ -6,13 +6,13 @@ license.workspace = true
 
 [dependencies]
 be-block-commit = { path = "../be-block-commit", default-features = false }
+be-block-content = { path = "../be-block-content" }
 be-block-graph = { path = "../be-block-graph" }
 be-block-model = { path = "../be-block-model" }
 be-block-store = { path = "../be-block-store", default-features = false }
 be-lib-graphemes = { path = "../be-lib-graphemes" }
 be-lib-search = { path = "../be-lib-search" }
 icu_properties = "2.4"
-memchr = "2"
 postcard = { version = "1", features = ["use-std"] }
 serde = { version = "1", features = ["derive"] }
 be-lib-ui-preferences = { path = "../be-lib-ui-preferences" }

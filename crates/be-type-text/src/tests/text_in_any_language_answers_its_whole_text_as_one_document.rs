@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use be_block::{BlockContent, PartReader, SearchDocument};
+use be_block_content::{BlockContent, PartReader, SearchDocument};
 
 use super::*;
 

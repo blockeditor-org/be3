@@ -4,6 +4,7 @@ members = [
     "crates/be-host-bench",
     "crates/be-host-tests",
     "crates/be-block",
+    "crates/be-block-content",
     "crates/be-sdk-type-testing",
     "crates/be-tool-cli",
     "crates/be-block-client",

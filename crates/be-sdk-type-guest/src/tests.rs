@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use be_block::blob::{Blob, BlobKind};
-use be_block::{BlockContent, ChildChange, LiveEdit, Root};
 use be_block_commit::CommitId;
+use be_block_content::blob::{Blob, BlobKind};
+use be_block_content::{BlockContent, ChildChange, LiveEdit, Root};
 use be_block_model::{
     Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
@@ -21,7 +21,7 @@ use crate::{
     Module, Registration,
     editor::{EditorMirror, FromEditor, Gesture, ToEditor},
 };
-use be_block::{Merge, PartReader};
+use be_block_content::{Merge, PartReader};
 use std::cell::Cell;
 use std::future::Future;
 use std::pin::Pin;
@@ -825,10 +825,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn write(&mut self, bytes: Vec<u8>, parents: Vec<CommitId>) -> CommitId {
-        self.write_parts(be_block::Part::from(bytes), parents)
+        self.write_parts(be_block_content::Part::from(bytes), parents)
     }
 
-    fn write_parts(&mut self, parts: be_block::Part<'_>, parents: Vec<CommitId>) -> CommitId {
+    fn write_parts(
+        &mut self,
+        parts: be_block_content::Part<'_>,
+        parents: Vec<CommitId>,
+    ) -> CommitId {
         let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
         self.commit(manifest, parents)
     }
@@ -1172,7 +1176,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 }
                 let result = self
                     .vault
-                    .write(SEALING, Uuid::nil(), be_block::Part::from(bytes.as_slice()))
+                    .write(
+                        SEALING,
+                        Uuid::nil(),
+                        be_block_content::Part::from(bytes.as_slice()),
+                    )
                     .map_err(|error| error.to_string())
                     .and_then(|manifest| manifest.root.ok_or_else(|| "no bytes".to_owned()))
                     .map(be_sdk_type_api::PartRef::from);
@@ -1367,7 +1375,7 @@ impl Sim<ProseContent> {
 
 thread_local! {
     /// The part the merge below reads, and what it read.
-    static PART: Cell<Option<be_block::PartRef>> = const { Cell::new(None) };
+    static PART: Cell<Option<be_block_content::PartRef>> = const { Cell::new(None) };
     static READ: std::cell::RefCell<Vec<u8>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 /// A merge by parts that reads a saved part before it merges.
@@ -1409,7 +1417,7 @@ fn diverged() -> (Sim<ChecklistContent>, CommitId, CommitId) {
         .write(
             SEALING,
             Uuid::nil(),
-            be_block::Part::from(&b"a closed segment"[..]),
+            be_block_content::Part::from(&b"a closed segment"[..]),
         )
         .unwrap()
         .root
@@ -1431,7 +1439,7 @@ fn live() -> Sim<ChecklistContent> {
         .write(
             SEALING,
             Uuid::nil(),
-            be_block::Part::from(&b"a closed segment"[..]),
+            be_block_content::Part::from(&b"a closed segment"[..]),
         )
         .unwrap()
         .root

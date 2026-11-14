@@ -4,8 +4,8 @@ use be_block_model::{Document, Edit, Model, ObjectId, Sequence, Text};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::plain::extension;
-use be_block::{Root, SearchDocument};
+use be_block_content::plain::extension;
+use be_block_content::{Root, SearchDocument};
 use be_sdk_type_guest::DocumentFile;
 
 const MAX_NAME_BYTES: usize = 128;
@@ -173,7 +173,7 @@ impl TextBlock {
 
     pub fn linked_blocks(&self, organization: Option<Uuid>) -> Vec<Uuid> {
         let mut seen = std::collections::HashSet::new();
-        be_block::block_url::parse_block_urls(&self.body)
+        be_block_content::block_url::parse_block_urls(&self.body)
             .into_iter()
             .filter(|url| {
                 organization.is_none_or(|organization| url.organization_id == organization)

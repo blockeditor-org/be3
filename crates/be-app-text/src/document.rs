@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::be_block_model::{Document as Content, Edit, ObjectId};
-use be_sdk_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
+use be_sdk_beui::be_block_content::be_block_model::{Document as Content, Edit, ObjectId};
+use be_sdk_beui::be_block_content::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
 
 use be_sdk_text::live_text::{LiveText, TextField};
 use beui_text_editor_core::{TextIndentation, TextLanguage};

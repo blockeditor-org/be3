@@ -1,5 +1,5 @@
-use be_block::{BlockContent, LiveEdit, Merge, Undo};
 use be_block_commit::MergeResult;
+use be_block_content::{BlockContent, LiveEdit, Merge, Undo};
 
 use crate::{Counter, CounterContent};
 

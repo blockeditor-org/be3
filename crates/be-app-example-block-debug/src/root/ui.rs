@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{BlockQuery, Editor};
+use be_sdk_beui::{BlockQuery, ChildBlock, ChildLayer, ChildMode, ChildTarget, Editor};
 
 use super::entries::{self, Row};
 
@@ -43,8 +43,33 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                 })
         })
     });
+    // The block's first child, in an editor of its own: a block is never placed inside itself.
+    let children = editor.watch_blocks(BlockQuery::Children(editor.block_id()));
+    let target = create_memo(move || {
+        children.with(|listed| {
+            listed
+                .as_ref()
+                .ok()
+                .and_then(|list| list.first())
+                .map(|info| {
+                    // Never this editor: a child placed with the editor holding it shares its view.
+                    let types = editor.block_types();
+                    ChildTarget {
+                        editor: types
+                            .editors_for(info.block_type, None)
+                            .into_iter()
+                            .map(|entry| entry.editor)
+                            .find(|chosen| *chosen != DEBUG_EDITOR),
+                        ..ChildTarget::new(info.id, info.block_type)
+                    }
+                })
+        })
+    });
     view! {
         <List spacing=Space::None>
+            <Frame padding={Padding::symmetric(PADDING, Space::Xs)}>
+                <Preview editor target />
+            </Frame>
             <ListItem grow=1.0>
                 <Tree
                     keys={keys}
@@ -78,3 +103,27 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
         </List>
     }
 }
+
+/// The block's first child in its own editor, in a popover: a child placed above an anchored
+/// view, which every host shows over it (guides/running/web.md, Apps on the page).
+#[component]
+fn Preview(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
+    view! {
+        <Popover label="Preview" @test_id={"block-debug.preview"}>|_|
+            <Frame width={Length::Size(PREVIEW.0)} height={Length::Size(PREVIEW.1)}>
+                <ChildBlock
+                    editor
+                    block={target}
+                    mode=ChildMode::Live
+                    layer=ChildLayer::Above
+                    @test_id={"block-debug.preview.child"}
+                />
+            </Frame>
+        </Popover>
+    }
+}
+
+/// This app's editor (manifest.json).
+const DEBUG_EDITOR: uuid::Uuid = uuid::uuid!("777b1dfa-5369-402e-b22d-7eb56877ad4d");
+
+const PREVIEW: (Size, Size) = (Size::Custom(280.0), Size::Custom(180.0));

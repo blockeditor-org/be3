@@ -22,7 +22,7 @@ fn a_diff_names_what_was_added_removed_and_changed() {
         .get_mut(&kept)
         .unwrap()
         .metadata
-        .insert(&be_block::INTRINSIC_NAME, &"derived".to_owned());
+        .insert(&be_block_content::INTRINSIC_NAME, &"derived".to_owned());
     current.entries.remove(&removed);
     current
         .entries

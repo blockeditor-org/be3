@@ -1,6 +1,6 @@
 use super::*;
 use be_sdk_beui::GraphCommand;
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 
 #[test]
 fn a_new_view_starts_as_a_spreadsheet() {

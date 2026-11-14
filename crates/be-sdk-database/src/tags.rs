@@ -1,5 +1,6 @@
 use be_sdk_beui::BlockInfo;
-use be_sdk_beui::be_block::{BlockMetadata, TAG_COLOR, TagColor, workspace_settings::tagged};
+use be_sdk_beui::be_block::{TAG_COLOR, TagColor, workspace_settings::tagged};
+use be_sdk_beui::be_block_content::BlockMetadata;
 use be_type_database::database_schema::ChoiceColor;
 use beui::reactive::*;
 use beui::styled::*;

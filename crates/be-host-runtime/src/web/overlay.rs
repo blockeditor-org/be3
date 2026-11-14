@@ -22,14 +22,16 @@ pub fn overlays(
     scale: f32,
 ) -> HashMap<u32, Overlay> {
     let mut owners = Vec::<u32>::new();
+    let mut last = HashMap::<u32, usize>::default();
     let mut pieces = HashMap::<u32, Vec<f32>>::default();
     let mut bounds = HashMap::<u32, Rect>::default();
-    for blit in blits {
+    for (order, blit) in blits.iter().enumerate() {
         let Some(layer) = blit.layer else {
             continue;
         };
         owners.retain(|owner| *owner != blit.surface);
         owners.push(blit.surface);
+        last.insert(blit.surface, order);
         let target = blit.quad.rect;
         pieces.entry(blit.surface).or_default().extend([
             layer.surface as f32,
@@ -52,14 +54,16 @@ pub fn overlays(
         (viewport.y * pixels_per_point).ceil().max(1.0) as u32,
     );
     let (width, height) = (viewport.x * scale, viewport.y * scale);
+    // An overlay stacks by its last blit, as a screen in #layers stacks by its own
+    // (canvases::placement), so a child placed in an anchored view, lifted into #layers
+    // (presenter::lifted), shows above it.
     owners
         .into_iter()
-        .enumerate()
-        .map(|(order, owner)| {
+        .map(|owner| {
             let bounds = bounds[&owner];
             let style = format!(
                 "width:{width}px;height:{height}px;z-index:{};clip-path:inset({}px {}px {}px {}px)",
-                order + 1,
+                last[&owner],
                 (bounds.min.y * scale).max(0.0),
                 (width - bounds.max.x * scale).max(0.0),
                 (height - bounds.max.y * scale).max(0.0),
@@ -126,6 +130,7 @@ pub(super) fn show(
         .dyn_into()
         .map_err(|_| "an app's layer canvas could not be made".to_owned())?;
     let _ = element.set_attribute("style", &overlay.style);
+    let _ = element.set_attribute("data-kind", "overlay");
     layer.append_child(&element).map_err(failed)?;
     let offscreen = element
         .transfer_control_to_offscreen()

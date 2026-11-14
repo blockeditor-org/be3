@@ -33,6 +33,7 @@ members = [
     "crates/be-block",
     "crates/be-block-client",
     "crates/be-block-commit",
+    "crates/be-block-content",
     "crates/be-block-fault-relay",
     "crates/be-block-frozen",
     "crates/be-block-graph",

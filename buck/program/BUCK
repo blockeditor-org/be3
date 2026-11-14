@@ -13,12 +13,15 @@ export_file(
 )
 
 # The browser's side of drive: web-drive.mjs for web-dev.sh, web-test.mjs for
-# web_drive_test (drive.bzl), and the command parsing they share.
+# web_drive_test and web-host-test.mjs for web_host_test (drive.bzl), and the command
+# parsing and sign-in they share.
 filegroup(
     name = "drive-browser",
     srcs = [
         "drive-words.mjs",
         "web-drive.mjs",
+        "web-host-test.mjs",
+        "web-sign-in.mjs",
         "web-test.mjs",
     ],
 )

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use be_block_commit::MergeResult;
-use be_sdk_beui::be_block::Merge;
+use be_sdk_beui::be_block_content::Merge;
 
 use super::*;
 

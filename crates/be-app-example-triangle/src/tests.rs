@@ -1,4 +1,4 @@
-use be_sdk::be_block::BlockContent;
+use be_sdk::be_block_content::BlockContent;
 use be_sdk::{
     EditorHost, EditorInstanceId, FrameSpec, GraphCommand, Instance, Module, Rect, ShownView, View,
     pos2, vec2,
