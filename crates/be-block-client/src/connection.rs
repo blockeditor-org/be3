@@ -111,6 +111,9 @@ pub struct Connection {
     pumps: mpsc::UnboundedSender<Pump>,
     events: broadcast::Sender<Event>,
     closed: watch::Receiver<bool>,
+    /// Asked to close (`close`): closed to whoever asks from then on, though its worker may
+    /// still be shutting the socket.
+    asked_to_close: std::sync::atomic::AtomicBool,
     due: watch::Receiver<Duration>,
     registry: Mutex<Registry>,
     /// The clock the connection keeps time by (`Clock::real` for an offline one).
@@ -170,6 +173,7 @@ impl Connection {
             pumps,
             events,
             closed,
+            asked_to_close: std::sync::atomic::AtomicBool::new(false),
             due: watched,
             registry: Mutex::new(Registry::default()),
             clock: clock.clone(),
@@ -205,6 +209,7 @@ impl Connection {
             pumps,
             events,
             closed,
+            asked_to_close: std::sync::atomic::AtomicBool::new(true),
             due,
             registry: Mutex::new(Registry::default()),
             clock: Clock::real(),
@@ -441,11 +446,15 @@ impl Connection {
         self.due.clone()
     }
 
+    /// Whether the connection closed, or was asked to (`close`): one asked to close is never
+    /// handed on, though its socket may take a moment to shut.
     pub fn is_closed(&self) -> bool {
-        *self.closed.borrow()
+        self.asked_to_close.load(std::sync::atomic::Ordering::Acquire) || *self.closed.borrow()
     }
 
     pub fn close(&self) {
+        self.asked_to_close
+            .store(true, std::sync::atomic::Ordering::Release);
         let _ = self.shut.send(());
     }
 }
