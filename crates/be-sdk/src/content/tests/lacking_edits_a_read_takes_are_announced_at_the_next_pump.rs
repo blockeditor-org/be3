@@ -8,10 +8,14 @@ fn lacking_edits_a_read_takes_are_announced_at_the_next_pump() {
     let fixture = Fixture::new();
     let due = Rc::new(Cell::new(0));
     let asked = Rc::clone(&due);
-    fixture.projection.on_due(move || asked.set(asked.get() + 1));
+    fixture
+        .projection
+        .on_due(move || asked.set(asked.get() + 1));
     let heard = Rc::new(Cell::new(0));
     let told = Rc::clone(&heard);
-    let _following = fixture.projection.on_lacking(move || told.set(told.get() + 1));
+    let _following = fixture
+        .projection
+        .on_lacking(move || told.set(told.get() + 1));
     fixture.projection.follow_lacking();
     let (_, add) = Checklist::add("bread");
     fixture.host.receive_from_replica(
