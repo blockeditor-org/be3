@@ -154,7 +154,10 @@ pub(super) enum Command {
         content_type: Uuid,
         bytes: Vec<u8>,
     },
-    Flush(std::sync::mpsc::Sender<()>),
+    /// Answered with how many open blocks keep edits the device's journal does not hold yet,
+    /// commands sent before it that still wait their turn, and imports unfinished, as of the
+    /// answer: commands sent since do not count.
+    Flush(std::sync::mpsc::Sender<usize>),
     /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
     /// `Flush`, nothing stays to seal what is edited later.
     SealOwed,
@@ -1381,10 +1384,7 @@ impl Session<'_> {
                         }
                     }
                     for event in heard_all {
-                        if matches!(
-                            event,
-                            Some(Event::HeadChanged { .. } | Event::BlockChanged(_)) | None
-                        ) {
+                        if matches!(event, Some(Event::BlockChanged { .. }) | None) {
                             self.versions.announced();
                         }
                         match &event {
@@ -1468,8 +1468,21 @@ impl Session<'_> {
                 }
                 if self.replicas.reported() {
                     kept_for_flushes = false;
+                    // Measured now, not read from `Shared::pending` after the answer, which
+                    // counts commands sent since: a close asked as the window keeps sending
+                    // would otherwise never find the device saved. A flush that itself waited
+                    // its turn in `Served` (behind a command that is not order-safe) may count
+                    // commands sent after it that wait there too: that only over-counts.
+                    let (.., undurable) = self.replicas.counts();
+                    let unsaved = undurable.len()
+                        + self.uploads.deferred()
+                        + self.served.deferred()
+                        + shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .importing;
                     for done in flushes.drain(..) {
-                        let _ = done.send(());
+                        let _ = done.send(unsaved);
                     }
                 }
             }
@@ -2160,7 +2173,7 @@ struct Ran<'a> {
     wanted: &'a mut Wanted,
     shared: &'a Arc<Mutex<Shared>>,
     config: &'a Config,
-    flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &'a mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &'a Tasks,
     served: &'a mut Served,
     calls: &'a LoopCalls,
@@ -2517,7 +2530,20 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
 }
 
 async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    if let Err(error) = peer.tend().await {
+    tend_with(peer, shared, None).await;
+}
+
+/// Tends the keys from `work` when the server already sent it, or else reads it first.
+async fn tend_with(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    work: Option<be_block_protocol::KeyWork>,
+) {
+    let tended = match work {
+        Some(work) => peer.tend_with(work).await,
+        None => peer.tend().await,
+    };
+    if let Err(error) = tended {
         record(shared, error);
     }
     shared
@@ -2918,7 +2944,7 @@ async fn apply(
     replicas: &mut Replicas,
     wanted: &mut Wanted,
     shared: &Arc<Mutex<Shared>>,
-    flushes: &mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &Tasks,
     command: Command,
 ) -> bool {
@@ -3179,16 +3205,12 @@ async fn apply(
         }
         #[cfg(test)]
         Command::HearHead { block, head } => {
-            let mut events = vec![Event::HeadChanged {
-                block,
-                head,
-                author: peer.account(),
-            }];
             if let Some(mut summary) = peer.known_summary(block) {
                 summary.head = Some(head);
-                events.push(Event::BlockChanged(summary));
-            }
-            for event in events {
+                let event = Event::BlockChanged {
+                    block: summary,
+                    own: false,
+                };
                 heard(peer, shared, tasks, replicas, Some(event)).await;
             }
             false
@@ -3575,7 +3597,8 @@ async fn heard(
     event: Option<Event>,
 ) {
     match event {
-        Some(Event::BlockChanged(block)) => {
+        Some(Event::BlockChanged { block, .. }) => {
+            let block = peer.summary_with_outbox(block);
             if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
                 record(shared, error);
             }
@@ -3604,21 +3627,14 @@ async fn heard(
                 .graph
                 .remove(block, revision);
         }
-        Some(Event::HeadChanged { block, head, .. }) if !replicas.is_open(block) => {
-            shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .set_head(block, Some(head));
-        }
         Some(Event::Paired(be_block_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
         }
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
-        Some(Event::KeyWorkChanged) => {
+        Some(Event::KeyWork(work)) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-            tasks.spawn(async move { tend(&peer, &shared).await });
+            tasks.spawn(async move { tend_with(&peer, &shared, Some(work)).await });
         }
         Some(_) => {}
         None => relist(shared),
@@ -4158,6 +4174,7 @@ async fn settled(
     }
     match reply {
         Ok(summary) => {
+            let summary = peer.summary_with_outbox(summary);
             if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
                 record(shared, error);
             }

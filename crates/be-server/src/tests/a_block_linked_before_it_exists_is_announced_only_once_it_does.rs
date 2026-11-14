@@ -13,7 +13,7 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
     other.list(BlockParent::Root).await;
 
     let folder = author.create_block(BlockParent::Root).await;
-    let Notice::BlockChanged { block: created } = other.graph_change().await else {
+    let Notice::BlockChanged { block: created, .. } = other.graph_change().await else {
         panic!("the folder was not announced");
     };
     other.list(BlockParent::Block(folder)).await;
@@ -58,7 +58,7 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
     let mut newest = created.revision;
     loop {
         let (block, revision, present) = match other.graph_change().await {
-            Notice::BlockChanged { block } => (block.id, block.revision, true),
+            Notice::BlockChanged { block, .. } => (block.id, block.revision, true),
             Notice::BlockRemoved { block, revision } => (block, revision, false),
             unexpected => panic!("not a graph change: {unexpected:?}"),
         };

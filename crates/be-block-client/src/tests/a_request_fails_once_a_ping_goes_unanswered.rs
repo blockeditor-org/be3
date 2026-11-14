@@ -16,7 +16,7 @@ async fn a_request_fails_once_a_ping_goes_unanswered() {
 
     relay.stall();
     let answer = crate::ask(client::organizations::list_organizations(&connection));
-    let mut pings = relay.count(|method| method == be_block_protocol::__args::CONNECTION_PING);
+    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::CONNECTION_PING);
     clock.advance(PING_INTERVAL);
     pings.wait_for(|pings| *pings > 0).await.unwrap();
     clock.advance(PONG_WAIT);

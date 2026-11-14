@@ -497,8 +497,10 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             server,
             time,
+            client: opened,
             ..
         } = client::organizations::open_organization(&connection, organization).await??;
+        connection.opened(opened);
         self.measured_server(time, connection.clock());
         *self.session.lock().unwrap() = (role, kind);
         self.keys
@@ -1351,7 +1353,7 @@ impl<S: ObjectStore> Peer<S> {
         match response {
             Ok(block) => {
                 self.note(&block);
-                Ok(block)
+                Ok(self.summary_with_outbox(block))
             }
             Err(error) if error.is_unreachable() => match self.refs.summary(block) {
                 Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
@@ -1382,6 +1384,10 @@ impl<S: ObjectStore> Peer<S> {
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
             Ok(be_block_protocol::Listed { revision, blocks }) => {
                 self.observe(&blocks);
+                let blocks = blocks
+                    .into_iter()
+                    .map(|summary| self.summary_with_outbox(summary))
+                    .collect();
                 let blocks = self.with_outbox(listing, blocks);
                 let _ = self.refs.listed(listing, &blocks, revision);
                 Ok(blocks)
@@ -1416,6 +1422,13 @@ impl<S: ObjectStore> Peer<S> {
             _ => Vec::new(),
         };
         self.with_outbox(listing, blocks)
+    }
+
+    /// A summary the server answered, as this device has it: where a move waiting in the
+    /// outbox puts the block, and the metadata a waiting definition gives it
+    /// (`RefsDb::with_outbox`).
+    pub fn summary_with_outbox(&self, summary: BlockSummary) -> BlockSummary {
+        self.refs.with_outbox(summary)
     }
 
     /// A listing the server answered, as this device has it: what a creation or move waiting in
@@ -1529,7 +1542,10 @@ impl<S: ObjectStore> Peer<S> {
             for summary in &blocks {
                 self.note(summary);
             }
-            summaries.extend(blocks.into_iter().zip(journals));
+            let blocks = blocks
+                .into_iter()
+                .map(|summary| self.summary_with_outbox(summary));
+            summaries.extend(blocks.zip(journals));
         }
         futures_util::future::try_join_all(summaries.into_iter().map(
             |(summary, journal)| async move {
@@ -1973,18 +1989,6 @@ impl<S: ObjectStore> Peer<S> {
         self.hold(block, &objects, be_block_protocol::Hold::UntilCommitted)
             .await?;
         Ok(part)
-    }
-
-    pub fn watch(&self, block: Uuid) {
-        self.connection().watch(block);
-    }
-
-    pub fn unwatch(
-        &self,
-        block: Uuid,
-    ) -> Result<impl Future<Output = Result<(), ClientError>> + Send + use<S>, ClientError> {
-        self.connection().unwatch(block);
-        Ok(async move { Ok(()) })
     }
 
     pub fn set_resolver(&self, resolver: Resolver) {

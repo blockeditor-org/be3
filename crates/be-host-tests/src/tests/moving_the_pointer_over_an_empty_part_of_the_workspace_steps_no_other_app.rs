@@ -4,6 +4,10 @@ use super::*;
 fn moving_the_pointer_over_an_empty_part_of_the_workspace_steps_no_other_app() {
     let mut host = HostTest::start(Options::default());
     host.wait("Pane \"Files\"");
+    // The edits the workspace made as it opened are still being sent, and the server's word of
+    // each publish (its size, its parents' sizes) changes the listings the file tree shows:
+    // that is the file tree stepped for a change, not for the pointer. Measure once it is sent.
+    host.synced();
     let (x, y, width, height) = host.place("Heading \"No file open\"");
     let x = x + width / 2.0;
     let y = y + height * 10.0;

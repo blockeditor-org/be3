@@ -8,8 +8,8 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    BlockEvent, ClientId, Journal, JournalBase, JournalEntry, PairingMessage, RelayKind,
-    SessionEvent, SessionState, client, hello, read_hello,
+    ClientId, Journal, JournalBase, JournalEntry, PairingMessage, RelayKind, SessionEvent,
+    SessionState, client, hello, read_hello,
 };
 use be_block_store::Hash;
 use be_wasm_ops::{
@@ -64,18 +64,15 @@ type Pump = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Event {
-    BlockChanged(be_block_protocol::BlockSummary),
+    /// A block a listing of the connection holds changed: its head, metadata, place or access.
+    /// `own` when this connection's own call changed it, as its own publishes do.
+    BlockChanged {
+        block: be_block_protocol::BlockSummary,
+        own: bool,
+    },
     BlockRemoved {
         block: Uuid,
         revision: u64,
-    },
-    HeadChanged {
-        block: Uuid,
-        head: CommitId,
-        author: Uuid,
-    },
-    BlockDeleted {
-        block: Uuid,
     },
     SessionChanged {
         block: Uuid,
@@ -94,28 +91,17 @@ pub enum Event {
     ContactsChanged,
     /// The account's notification modes changed on another of its devices.
     NotifyModesChanged,
-    KeyWorkChanged,
-}
-
-/// A block this connection watches, however many holders want it. The server ends the stream
-/// when the connection can no longer view the block; the entry and its count then stay, with no
-/// `stop`, and the stream opens again when the connection views the block again (`resume`),
-/// which it learns from a `Changed` summary of the block: only a block a listing of the
-/// connection covers is told, so a user of the connection who wants a watch back lists it.
-struct Watching {
-    id: u64,
-    count: usize,
-    /// A `Changed` summary with the view arrived while the stream was still open: if it ends
-    /// now, open it again at once.
-    resume_wanted: bool,
-    stop: Option<tokio::sync::oneshot::Sender<()>>,
+    /// The organization's key work for this account, as it opens and as it changes
+    /// (`key-work-changed`).
+    KeyWork(be_block_protocol::KeyWork),
 }
 
 #[derive(Default)]
 struct Registry {
     subscribed: bool,
-    watching: HashMap<Uuid, Watching>,
-    watches_made: u64,
+    /// This connection as the server names it, once it opened an organization
+    /// (`organization-opened.client`).
+    client: Option<ClientId>,
     sessions: HashMap<Uuid, Arc<client::sessions::Session>>,
 }
 
@@ -244,17 +230,17 @@ impl Connection {
             return receiver;
         }
         let events = self.events.clone();
-        let connection = Arc::clone(self);
+        let connection = Arc::downgrade(self);
         let mut changes = client::blocks::changes(&self.peer);
         self.pump(async move {
             while let Some(change) = changes.recv().await {
-                if let be_block_protocol::BlockChange::Changed(block) = &change
-                    && block.access.can_view()
-                {
-                    connection.resume(block.id);
-                }
                 let _ = events.send(match change {
-                    be_block_protocol::BlockChange::Changed(block) => Event::BlockChanged(block),
+                    be_block_protocol::BlockChange::Changed { block, from } => {
+                        let own = connection
+                            .upgrade()
+                            .is_some_and(|connection| connection.registry().client == Some(from));
+                        Event::BlockChanged { block, own }
+                    }
                     be_block_protocol::BlockChange::Removed { block, revision } => {
                         Event::BlockRemoved { block, revision }
                     }
@@ -285,104 +271,17 @@ impl Connection {
         let events = self.events.clone();
         let mut key_work = client::keys::key_work_changed(&self.peer);
         self.pump(async move {
-            while key_work.recv().await.is_some() {
-                let _ = events.send(Event::KeyWorkChanged);
+            while let Some(work) = key_work.recv().await {
+                let _ = events.send(Event::KeyWork(work));
             }
         });
         receiver
     }
 
-    pub fn watch(self: &Arc<Self>, block: Uuid) {
-        let mut registry = self.registry();
-        match registry.watching.get_mut(&block) {
-            Some(watching) => {
-                watching.count += 1;
-                if watching.stop.is_some() {
-                    return;
-                }
-            }
-            None => {
-                registry.watching.insert(
-                    block,
-                    Watching {
-                        id: 0,
-                        count: 1,
-                        resume_wanted: false,
-                        stop: None,
-                    },
-                );
-            }
-        }
-        self.stream(registry, block);
-    }
-
-    /// Opens the stream again of a watch the server ended, now that the connection views the
-    /// block again; its holders still hold it.
-    fn resume(self: &Arc<Self>, block: Uuid) {
-        let mut registry = self.registry();
-        match registry.watching.get_mut(&block) {
-            Some(watching) if watching.stop.is_none() => self.stream(registry, block),
-            Some(watching) => watching.resume_wanted = true,
-            None => {}
-        }
-    }
-
-    /// Opens the stream of the entry for `block`, which has none.
-    fn stream(self: &Arc<Self>, mut registry: std::sync::MutexGuard<'_, Registry>, block: Uuid) {
-        registry.watches_made += 1;
-        let id = registry.watches_made;
-        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-        if let Some(watching) = registry.watching.get_mut(&block) {
-            watching.id = id;
-            watching.stop = Some(stop);
-        }
-        drop(registry);
-        let events = self.events.clone();
-        let connection = Arc::clone(self);
-        let mut heard = client::blocks::watch(&self.peer, block);
-        self.pump(async move {
-            let heard = async move {
-                while let Some(event) = heard.recv().await {
-                    let _ = events.send(match event {
-                        BlockEvent::Moved { head, author } => Event::HeadChanged {
-                            block,
-                            head,
-                            author,
-                        },
-                        BlockEvent::Deleted => Event::BlockDeleted { block },
-                    });
-                }
-                // The server ended it: keep the holders, drop the stream.
-                let mut registry = connection.registry();
-                if let Some(watching) = registry.watching.get_mut(&block)
-                    && watching.id == id
-                {
-                    watching.stop = None;
-                    if std::mem::take(&mut watching.resume_wanted) {
-                        connection.stream(registry, block);
-                    }
-                }
-            };
-            select(std::pin::pin!(heard), stopped).await;
-        });
-    }
-
-    /// One round trip to the server: what was sent before it has been taken in.
-    #[cfg(test)]
-    pub(crate) async fn round_trip(&self) {
-        client::connection::ping(&self.peer)
-            .await
-            .expect("the connection is open");
-    }
-
-    pub fn unwatch(&self, block: Uuid) {
-        let mut registry = self.registry();
-        if let Some(watching) = registry.watching.get_mut(&block) {
-            watching.count -= 1;
-            if watching.count == 0 {
-                registry.watching.remove(&block);
-            }
-        }
+    /// Takes this connection's id as the organization it opened names it, which tells its own
+    /// changes on `changes` (`Event::BlockChanged::own`).
+    pub fn opened(&self, client: ClientId) {
+        self.registry().client = Some(client);
     }
 
     /// Joins a block's session: this connection's id, the session's state and the block's

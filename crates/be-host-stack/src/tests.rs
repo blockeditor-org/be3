@@ -56,6 +56,8 @@ mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
+mod a_flush_counts_an_edit_that_waits_behind_a_command_on_a_silent_server;
+mod a_flush_counts_what_was_unsaved_as_it_answers_not_what_was_sent_after;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent;
 mod a_fork_pulls_and_pushes_through_its_upstream;
@@ -306,7 +308,7 @@ impl Harness {
     fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
         let mut joins = self
             .relay()
-            .count(|method| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
+            .count(|method, _| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
         open(block, content_type);
         runtime()
             .block_on(joins.wait_for(|joins| *joins > 0))

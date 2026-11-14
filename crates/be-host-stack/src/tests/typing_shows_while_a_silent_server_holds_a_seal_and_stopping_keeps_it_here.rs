@@ -12,7 +12,7 @@ fn typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here() 
     // would hold the outbox, and the seal this counts would never be sent at all.
     crate::flush_and_send();
 
-    let mut sending = harness.relay().count(|method| {
+    let mut sending = harness.relay().count(|method, _| {
         [
             be_block_protocol::__args::OBJECTS_UPLOAD_URLS,
             be_block_protocol::__args::BLOCKS_PUBLISH,

@@ -21,9 +21,13 @@ credentials), which is how a browser sign-in is begun and polled; every
 connection's first call is `authenticate` (guides/blocks/server.md, "Signing
 in").
 
-It opens connection-wide streams on the first `subscribe()` and per-block ones
-as `watch` and `join_session` are called, and pumps every stream into one
-`broadcast` of `be_block_client::Event`. A receiver that falls behind re-lists
+It opens connection-wide streams on the first `subscribe()` and a session's as
+`join_session` is called, and pumps every stream into one `broadcast` of
+`be_block_client::Event`. A block's heads arrive as `Event::BlockChanged` on
+the `changes` stream once the block is listed (reading its summary lists it);
+`own` marks a change this connection's own call made, which it learns from
+`organization-opened.client` (`Connection::opened`). Key work arrives as
+`Event::KeyWork`; `Peer::key_work` reads the first value of a stream of it. A receiver that falls behind re-lists
 what it wants and rejoins its sessions, as after a reconnect.
 
 **Deciding the server is gone.** A socket can stay open with nothing behind it
@@ -239,10 +243,16 @@ sends it. `Peer::write` does both.
   content (`Op::Define`); these rewrite the cached summary so listings show
   them, and later ones for a block queue behind earlier ones. `keep_creation`,
   `keep_definition` and `keep_move` put them there online too (the host's
-  path); a publish waits behind a creation, move or define of its block, and a
-  server listing is laid over with what the outbox adds or moves. Sending a
-  move carries its databases' prefixes along (`Moving::from`). Sharing, access,
-  members, invites, agents, contacts and pairing need the server.
+  path); a publish waits behind a creation, move or define of its block. Every
+  summary the server gives is laid over with what the outbox has yet to send of
+  its block, a waiting move's parent and a waiting define's metadata, as it is
+  kept (`RefsDb::set_listing`, which `Peer::note` and listings keep it
+  through) and where it is returned (`Peer::summary_with_outbox`), and a server
+  listing with what the outbox adds or moves (`Peer::with_outbox`): an answer
+  the server gave before those reached it would otherwise undo them here.
+  Sending a move carries its databases' prefixes along (`Moving::from`).
+  Sharing, access, members, invites, agents, contacts and pairing need the
+  server.
 - **`Peer::drain`** publishes the outbox in order once attached and reports a
   `Drained` per block. A rejected publish whose remote head already contains
   the commit is settled, not diverged; an entry is settled once a published
