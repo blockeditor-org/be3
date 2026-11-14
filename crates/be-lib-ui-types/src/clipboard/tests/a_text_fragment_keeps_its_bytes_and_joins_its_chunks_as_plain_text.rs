@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn a_text_fragment_keeps_its_bytes_and_joins_its_chunks_as_plain_text() {
-    let chars = TextFragment {
-        chunks: vec![b"one".to_vec(), vec![b't', 0xff, b'o']],
-        shape: TextShape::Chars,
-    };
+    let chars = TextFragment::plain([b"one".to_vec(), vec![b't', 0xff, b'o']], TextShape::Chars);
     let item = chars.encode();
     assert_eq!(item.format, formats::TEXT_FRAGMENT);
     assert_eq!(
@@ -19,10 +16,7 @@ fn a_text_fragment_keeps_its_bytes_and_joins_its_chunks_as_plain_text() {
         "chunks join with a line break"
     );
 
-    let lines = TextFragment {
-        chunks: vec![b"one\n".to_vec(), b"two\n".to_vec()],
-        shape: TextShape::Lines,
-    };
+    let lines = TextFragment::plain([b"one\n".to_vec(), b"two\n".to_vec()], TextShape::Lines);
     assert_eq!(
         lines.plain_text(),
         "one\ntwo\n",

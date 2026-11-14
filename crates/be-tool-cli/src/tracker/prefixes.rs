@@ -1,4 +1,5 @@
-use be_block::{BlockContent, PREFIXES, PrefixRegistryContent};
+use be_block::{PREFIXES, PrefixRegistryContent};
+use be_block_content::BlockContent;
 use be_block_graph::BlockParent;
 use be_block_store::ObjectStore;
 use be_type_database::database::DatabaseContent;
@@ -6,6 +7,7 @@ use uuid::Uuid;
 
 use super::Tracker;
 use crate::session::explain;
+use be_block_protocol::Listing;
 
 impl<S: ObjectStore> Tracker<S> {
     async fn registry_of(&self, block: Uuid) -> Result<Option<Uuid>, String> {
@@ -54,7 +56,7 @@ impl<S: ObjectStore> Tracker<S> {
                 BlockParent::Root => self.registry_of(entry.id).await?.into_iter().collect(),
                 BlockParent::Block(_) | BlockParent::Detached => self
                     .peer
-                    .open_settings(entry.id)
+                    .list(Listing::OpenSettings(entry.id))
                     .await
                     .map_err(explain)?
                     .into_iter()

@@ -3,11 +3,11 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, LiveEdit,
-    NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
-    SettingsContent, SettingsProfileContent, UNFILED_TYPE, VIEW_EDITOR, VIEW_TYPE,
+    DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, OfflineSettings, OfflineSettingsContent,
+    Resolution, ResolutionLayers, SettingsContent, SettingsProfileContent, UNFILED_TYPE,
     WORKSPACE_EDITOR, WORKSPACE_TYPE, organization_settings,
 };
+use be_block_content::{BlockContent, BlockMetadata, LiveEdit, NAME, Root, VIEW_EDITOR, VIEW_TYPE};
 use be_block_graph::BlockParent;
 use uuid::Uuid;
 
@@ -355,7 +355,7 @@ impl RootSettings {
             .collect()
     }
 
-    fn edit(&self, edit: &be_block::Edit) {
+    fn edit(&self, edit: &be_block_content::Edit) {
         let Some(block) = self.find() else {
             return;
         };
@@ -368,9 +368,9 @@ impl RootSettings {
             .unwrap_or_else(|| fallback.to_owned())
     }
 
-    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> be_block::Layers {
+    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> be_block_content::Layers {
         let Some(settings) = self.settings() else {
-            return be_block::Layers::default();
+            return be_block_content::Layers::default();
         };
         let profile = self
             .current_profile(&settings, client)

@@ -1,5 +1,5 @@
 use be_sdk_beui::Editor;
-use be_sdk_beui::be_block::metadata::MAX_NAME_BYTES;
+use be_sdk_beui::be_block_content::metadata::MAX_NAME_BYTES;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Key, KeyPhase};
 use uuid::Uuid;

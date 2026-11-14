@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::Root as _;
 use be_sdk_beui::be_block::{CheckoutContent, ConflictKind, Repository};
+use be_sdk_beui::be_block_content::Root as _;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{
     ICON_ARROW_DOWN_TO_LINE, ICON_CHECK, ICON_GIT_BRANCH, ICON_GIT_MERGE,

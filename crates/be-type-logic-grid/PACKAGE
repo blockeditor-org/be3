@@ -18,8 +18,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -34,8 +34,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -50,8 +50,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -66,8 +66,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -82,8 +82,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -98,8 +98,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -114,8 +114,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -130,8 +130,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",
@@ -146,8 +146,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/logicgame:logicgame",
                 "//third-party/rust:serde-1.0.228",

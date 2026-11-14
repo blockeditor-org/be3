@@ -1,7 +1,7 @@
 use be_block_model::{Anchor, Change, Document, Edit, Item, List, Model, ObjectId};
 use uuid::Uuid;
 
-use be_block::Root;
+use be_block_content::Root;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct BrowserTab {

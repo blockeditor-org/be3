@@ -2,11 +2,11 @@ use be_block_store::{ChunkerConfig, ContentKey, Keyring, MemoryStore, Vault};
 
 use super::*;
 
-fn empty_leaves(part: &be_block::Part<'_>) -> usize {
+fn empty_leaves(part: &be_block_content::Part<'_>) -> usize {
     match part {
-        be_block::Part::Bytes(bytes) => usize::from(bytes.is_empty()),
-        be_block::Part::Reused(_) => 0,
-        be_block::Part::Node { parts, .. } => parts.iter().map(empty_leaves).sum(),
+        be_block_content::Part::Bytes(bytes) => usize::from(bytes.is_empty()),
+        be_block_content::Part::Reused(_) => 0,
+        be_block_content::Part::Node { parts, .. } => parts.iter().map(empty_leaves).sum(),
     }
 }
 

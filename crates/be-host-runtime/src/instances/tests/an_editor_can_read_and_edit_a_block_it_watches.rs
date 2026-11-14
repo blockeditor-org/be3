@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_type_guest::editor::EditorOperation;
 use be_type_example_counter::{Counter, CounterContent};
 
@@ -22,7 +22,7 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
         other,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

@@ -22,7 +22,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "be-launcher": [
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
@@ -39,7 +39,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
@@ -64,7 +64,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "be-launcher": [
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
@@ -78,7 +78,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
@@ -100,7 +100,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "be-launcher": [
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
@@ -114,7 +114,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
@@ -136,7 +136,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "be-launcher": [
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
@@ -150,7 +150,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
@@ -172,7 +172,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "be-launcher": [
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
@@ -186,7 +186,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
@@ -208,7 +208,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "be-launcher": [
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
@@ -222,7 +222,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",
@@ -244,7 +244,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "be-launcher": [
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-sdk-terminal:be-sdk-terminal",
                     "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                     "//crates/be-type-terminal:be-type-terminal",
@@ -258,7 +258,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-terminal:be-sdk-terminal",
                 "//crates/be-tool-terminal-emulator:be-tool-terminal-emulator",
                 "//crates/be-type-terminal:be-type-terminal",

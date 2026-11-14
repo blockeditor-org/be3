@@ -37,7 +37,7 @@ fn a_restarted_app_is_sent_its_content_and_blocks_again() {
         block,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

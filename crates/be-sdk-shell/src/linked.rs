@@ -1,5 +1,5 @@
 use be_sdk_beui::BlockParent;
-use be_sdk_beui::be_block::VIEW_EDITOR;
+use be_sdk_beui::be_block_content::VIEW_EDITOR;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_LINK, ICON_UNLINK};
 use be_sdk_beui::beui::reactive::*;

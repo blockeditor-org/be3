@@ -104,12 +104,13 @@ mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
+mod an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
 mod an_owner_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
-mod an_upload_is_used_once_and_keeps_its_object_until_collected;
+mod an_upload_is_used_once_and_its_object_goes_once_collected;
 mod anonymous_mail_requests_never_fill_the_global_cap;
 mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
@@ -186,6 +187,12 @@ const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
 
 const BUILD: &str = "a test build";
+
+/// Opens the server's metadata database in `directory` beside a running server, with the busy
+/// timeout every server connection has, so it waits on the server's writes rather than failing.
+fn metadata_database(directory: &std::path::Path) -> rusqlite::Connection {
+    be_block_sqlite_schema::open(directory.join("metadata.sqlite")).unwrap()
+}
 
 struct Harness {
     mail: Arc<CapturedMail>,
@@ -689,23 +696,39 @@ impl TestClient {
     }
 
     /// Asks for URLs to upload `objects` to, without sending them.
-    async fn reserve(&mut self, objects: &[Vec<u8>]) -> Result<Vec<UploadUrl>, Error> {
+    async fn reserve(&mut self, objects: &[Vec<u8>]) -> Result<Vec<Option<UploadUrl>>, Error> {
         let lengths = objects
             .iter()
             .map(|bytes| ObjectLength {
                 hash: Hash::of(bytes),
-                length: bytes.len() as u64,
+                length: Some(bytes.len() as u64),
             })
             .collect();
         self.call(|peer| client::objects::upload_urls(peer, lengths))
             .await
     }
 
-    /// Uploads `objects` as a client does: asks for URLs, then PUTs each one's bytes.
+    /// The hashes of the `objects` the server asks this client to upload: those it does not hold
+    /// as far as the client may know (`upload-urls` answers them a URL).
+    async fn missing(&mut self, objects: &[Vec<u8>]) -> Result<Vec<Hash>, Error> {
+        let urls = self.reserve(objects).await?;
+        Ok(objects
+            .iter()
+            .zip(urls)
+            .filter(|(_, url)| url.is_some())
+            .map(|(bytes, _)| Hash::of(bytes))
+            .collect())
+    }
+
+    /// Uploads `objects` as a client does: asks for URLs, then PUTs the bytes of each one the
+    /// server does not hold already.
     async fn put(&mut self, objects: Vec<Vec<u8>>) -> Result<(), Error> {
         let urls = self.reserve(&objects).await?;
         assert_eq!(urls.len(), objects.len());
         for (url, bytes) in urls.into_iter().zip(objects) {
+            let Some(url) = url else {
+                continue;
+            };
             let status = put_to(url, bytes).await;
             assert_eq!(status, 200, "the upload was refused");
         }
@@ -728,9 +751,16 @@ impl TestClient {
     }
 
     async fn read_block(&mut self, block: Uuid) -> BlockSummary {
-        self.call(|peer| client::blocks::read_block(peer, block))
+        self.try_read_block(block).await.expect("read failed")
+    }
+
+    /// Reads a block's summary through `list-blocks`, answering the server's refusal.
+    async fn try_read_block(&mut self, block: Uuid) -> Result<BlockSummary, Error> {
+        let answered = read_block(&self.peer, block)
             .await
-            .expect("read failed")
+            .expect("the connection stayed open");
+        self.collect();
+        answered
     }
 
     async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
@@ -778,6 +808,24 @@ impl TestClient {
 }
 
 /// PUTs `bytes` to an upload URL with its headers, answering the status.
+/// A block's summary: what `list-blocks` lists for `Listing::Block`, which follows the block
+/// from then on. The call is sent at once, as any call is, and answered when awaited.
+fn read_block(
+    peer: &Peer,
+    block: Uuid,
+) -> impl Future<Output = Result<Result<BlockSummary, Error>, be_wasm_ops::OpError>> + use<> {
+    let listing = client::blocks::list_blocks(peer, Listing::Block(block));
+    async move {
+        Ok(listing.await?.map(|listed| {
+            listed
+                .blocks
+                .into_iter()
+                .next()
+                .expect("a block's listing lists the block")
+        }))
+    }
+}
+
 async fn put_to(url: UploadUrl, bytes: Vec<u8>) -> u16 {
     tokio::task::spawn_blocking(move || {
         let mut request = ureq::put(&url.url);

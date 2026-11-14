@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::CREATED_BY;
+use be_sdk_beui::be_block_content::CREATED_BY;
 use be_sdk_beui::beui::Input;
 use be_sdk_beui::{BlockCommand, BlockInfo, BlockParent, BlockQuery};
 
@@ -15,7 +15,7 @@ fn unfiled(id: u128, name: &str, made_by: Option<&str>) -> BlockInfo {
 
 #[test]
 fn unfiled_lists_what_no_one_placed_and_moves_the_unused_to_recently_deleted() {
-    use be_sdk_beui::be_block::BlockContent;
+    use be_sdk_beui::be_block_content::BlockContent;
     let mut fixture = editor();
     let dev_vms = named_block(0x10, FolderContent::CONTENT_TYPE, MY_FILES, "Dev VMs");
     my_files(&mut fixture, vec![dev_vms.clone()]);

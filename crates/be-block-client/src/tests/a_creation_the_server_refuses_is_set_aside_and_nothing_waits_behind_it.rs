@@ -4,8 +4,8 @@ use be_type_text::{TextBlock, TextContent};
 use super::*;
 
 /// A name too large for the server: it refuses the metadata (`InvalidRequest`).
-fn oversized() -> be_block::BlockMetadata {
-    be_block::BlockMetadata::named("n".repeat(70 * 1024))
+fn oversized() -> be_block_content::BlockMetadata {
+    be_block_content::BlockMetadata::named("n".repeat(70 * 1024))
 }
 
 #[tokio::test]

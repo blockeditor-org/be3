@@ -199,7 +199,7 @@ impl LoadedPart {
 
 /// A block's stored form as read from a manifest: the bytes `BlockContent::decode` reads, and
 /// the parts they were saved in, so content can hand unchanged ones back as `Part::Reused`.
-/// Content that loads part of itself (`be_block::Loads::FirstPart`) gets only the stored
+/// Content that loads part of itself (`be_block_content::Loads::FirstPart`) gets only the stored
 /// form's start in `bytes`; `holds` says which parts it has.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Stored {

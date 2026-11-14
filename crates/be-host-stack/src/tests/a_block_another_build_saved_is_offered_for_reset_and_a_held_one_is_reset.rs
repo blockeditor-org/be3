@@ -9,7 +9,7 @@ impl BlockContent for Unreadable {
         b"saved by another build".to_vec()
     }
 
-    fn decode(_: &[u8]) -> Result<Self, be_block::ContentError> {
+    fn decode(_: &[u8]) -> Result<Self, be_block_content::ContentError> {
         Ok(Self)
     }
 }
@@ -62,8 +62,8 @@ fn a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset() {
         shared
             .graph
             .get(shown)
-            .and_then(|node| node.metadata.get(&be_block::SCHEMA))
-            == Some(be_block::schema_fingerprint::<CounterContent>())
+            .and_then(|node| node.metadata.get(&be_block_content::SCHEMA))
+            == Some(be_block_content::schema_fingerprint::<CounterContent>())
     });
     assert_eq!(staleness(shown), None);
 

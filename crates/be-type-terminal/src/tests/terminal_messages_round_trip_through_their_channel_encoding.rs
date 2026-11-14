@@ -1,5 +1,5 @@
 use crate::terminal::{Key, Modifiers, TerminalKey, TerminalMessage, TerminalSize, TerminalWheel};
-use be_block::presence::ChannelKind;
+use be_block_content::presence::ChannelKind;
 
 #[test]
 fn terminal_messages_round_trip_through_their_channel_encoding() {

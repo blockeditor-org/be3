@@ -16,7 +16,7 @@ fn a_format_goes_out_as_a_mark_and_a_peers_mark_lands_on_its_text() {
     assert!(
         matches!(
             sent.as_slice(),
-            [be_block::Edit(changes)] if matches!(changes.as_slice(), [be_block::be_block_model::Change::Mark { .. }])
+            [be_block_content::Edit(changes)] if matches!(changes.as_slice(), [be_block_content::be_block_model::Change::Mark { .. }])
         ),
         "formatting is sent as one mark: {sent:?}"
     );

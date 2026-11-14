@@ -1,7 +1,7 @@
 use super::*;
 use be_type_workspace::FolderContent;
 
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 
 #[test]
 fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
@@ -12,7 +12,7 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         folder,
         FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
@@ -20,7 +20,7 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         child,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

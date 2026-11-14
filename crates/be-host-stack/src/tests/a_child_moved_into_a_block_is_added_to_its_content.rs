@@ -1,7 +1,7 @@
 use super::*;
 use uuid::Uuid;
 
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_type_presentation::PresentationContent;
 
 fn slides_of(shared: &Shared, block: Uuid) -> Option<Vec<Option<Uuid>>> {

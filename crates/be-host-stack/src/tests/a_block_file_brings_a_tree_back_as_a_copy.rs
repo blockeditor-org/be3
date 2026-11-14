@@ -16,8 +16,8 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
     let harness = Harness::start();
     harness.connect();
     let folder = Uuid::new_v4();
-    let mut named = be_block::BlockMetadata::default();
-    named.insert(&be_block::NAME, &"Trip".to_owned());
+    let mut named = be_block_content::BlockMetadata::default();
+    named.insert(&be_block_content::NAME, &"Trip".to_owned());
     create(
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
@@ -31,7 +31,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         inner,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
@@ -40,7 +40,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         counter,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
@@ -53,7 +53,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
             *block,
             CounterContent::CONTENT_TYPE,
             be_block_graph::BlockParent::Block(inner),
-            be_block::BlockMetadata::default(),
+            be_block_content::BlockMetadata::default(),
             None,
             false,
         );

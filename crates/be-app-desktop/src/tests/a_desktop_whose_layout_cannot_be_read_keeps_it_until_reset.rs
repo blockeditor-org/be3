@@ -1,5 +1,5 @@
 use be_sdk_beui::BlockCommand;
-use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_block_content::ViewState;
 
 use super::*;
 

@@ -1,7 +1,7 @@
 use super::*;
 
 #[tokio::test]
-async fn an_upload_is_used_once_and_keeps_its_object_until_collected() {
+async fn an_upload_is_used_once_and_its_object_goes_once_collected() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("reuser@example.com").await;
@@ -15,8 +15,7 @@ async fn an_upload_is_used_once_and_keeps_its_object_until_collected() {
         .await;
     assert!(published.is_ok(), "{published:?}");
     let uploads = || {
-        rusqlite::Connection::open(harness.directory.join("metadata.sqlite"))
-            .unwrap()
+        metadata_database(&harness.directory)
             .query_row("SELECT COUNT(*) FROM object_uploads", [], |row| {
                 row.get::<_, i64>(0)
             })
@@ -29,8 +28,16 @@ async fn an_upload_is_used_once_and_keeps_its_object_until_collected() {
         .unwrap();
     assert_eq!(usage.pending, 0);
 
-    client.upload(&author.store, &objects).await;
-    assert_eq!(uploads() as usize, objects.len());
+    // Asked again for what the block holds, the server reserves nothing and asks for none of it.
+    let bytes: Vec<Vec<u8>> = objects
+        .iter()
+        .map(|hash| author.store.get(*hash).unwrap().unwrap())
+        .collect();
+    let missing = client.missing(&bytes).await.unwrap();
+    assert!(missing.is_empty(), "the server holds what the block holds");
+    assert_eq!(uploads(), 0, "nothing held is reserved again");
+
+    // Once the last block that held them is collected, so are they, and they are asked for again.
     let deleted = client
         .call(|peer| {
             client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
@@ -41,15 +48,9 @@ async fn an_upload_is_used_once_and_keeps_its_object_until_collected() {
         .call(|peer| client::blocks::collect_detached(peer))
         .await
         .unwrap();
-    assert_eq!(
-        collected.objects, 0,
-        "an object with an unused upload outlives the last block that held it"
-    );
-    let missing = client
-        .call(|peer| client::objects::missing_objects(peer, objects.clone()))
-        .await
-        .unwrap();
-    assert!(missing.is_empty(), "the uploader may still use its upload");
+    assert_eq!(collected.objects as usize, objects.len());
+    let missing = client.missing(&bytes).await.unwrap();
+    assert_eq!(missing, objects, "collected objects are asked for again");
 
     harness.stop().await;
 }

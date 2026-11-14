@@ -25,7 +25,7 @@ async fn a_download_does_not_wait_behind_another_organizations_store_call() {
     let organization = busy.organization("busy").await;
     let held = busy.create_block(BlockParent::Root).await;
     let (started, release) = crate::store::held::hold(organization);
-    let waiting = client::blocks::read_block(&busy.peer, held);
+    let waiting = read_block(&busy.peer, held);
     started.await.expect("the call reached the store");
 
     // The busy organization's call holds the database lock until released; the download

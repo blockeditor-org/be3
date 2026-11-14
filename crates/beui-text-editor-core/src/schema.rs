@@ -1,5 +1,5 @@
 use crate::Language;
-use crate::core::EditorCommand;
+use crate::core::{EditorCommand, TextFragment};
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::rich::{Expand, Formats, MarkSet, Name, Value};
 
@@ -126,6 +126,29 @@ pub struct Tool {
 /// and Tab do to a block, its tools, each leaf's style, and which blocks a
 /// highlighter decorates; `Core` itself owns only generic mark and block edits.
 pub trait Schema: Send + Sync {
+    /// What a copied fragment's marks are keyed by: a paste keeps marks only
+    /// from a fragment of the same name. `None` copies and pastes none.
+    fn name(&self) -> Option<&str> {
+        None
+    }
+
+    /// Whether `key`'s text value is a block's id (an embed), which a copied
+    /// fragment carries in its refs for the host to translate.
+    fn names_block(&self, _key: &str) -> bool {
+        false
+    }
+
+    /// Whether a mark pasted from a fragment of this schema may be kept: a
+    /// fragment may come from any program.
+    fn admits(&self, _key: &str, _value: &Value) -> bool {
+        true
+    }
+
+    /// How this schema writes and reads `text/html`, if it does.
+    fn html(&self) -> Option<&dyn SchemaHtml> {
+        None
+    }
+
     fn expand(&self, _key: &str) -> Expand {
         Expand::After
     }
@@ -164,6 +187,16 @@ pub trait Schema: Send + Sync {
     fn check(&self, _checked: bool) -> Option<(Name, Option<Value>)> {
         None
     }
+}
+
+/// A schema's `text/html`, for copying to and pasting from other programs.
+pub trait SchemaHtml {
+    /// `text/html` written from a fragment of this schema.
+    fn to_html(&self, fragment: &TextFragment) -> Option<String>;
+
+    /// A fragment of this schema read from `text/html`, which may be anything:
+    /// what the schema has no mark for is kept as text.
+    fn from_html(&self, html: &str) -> TextFragment;
 }
 
 pub struct Plain;

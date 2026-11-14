@@ -1,4 +1,4 @@
-//! What edits made on this device announce (`be_block::Announcement`), kept beside the journal
+//! What edits made on this device announce (`be_block_content::Announcement`), kept beside the journal
 //! entry or outbox commit that holds each edit until the server holds it, then sent once
 //! (guides/type_modules.md, "Announcements"). The text is sealed with the block's key, as the
 //! journal is.
@@ -42,7 +42,7 @@ pub(crate) struct Made {
     pub(crate) key: String,
     #[serde(with = "serde_bytes")]
     pub(crate) sealed: Vec<u8>,
-    /// The text for several sent together (`be_block::Announcement::several`).
+    /// The text for several sent together (`be_block_content::Announcement::several`).
     pub(crate) several: String,
     pub(crate) mentions: Vec<Uuid>,
 }

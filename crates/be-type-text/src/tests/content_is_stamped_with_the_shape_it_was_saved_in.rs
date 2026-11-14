@@ -1,6 +1,6 @@
 use be_block_model::{Document, Model};
 
-use be_block::{BlockContent, Root, SCHEMA, derived_metadata, schema_fingerprint};
+use be_block_content::{BlockContent, Root, SCHEMA, derived_metadata, schema_fingerprint};
 
 use crate::{TextBlock, TextContent};
 
@@ -20,7 +20,7 @@ impl Root for GrownText {
 #[test]
 fn content_is_stamped_with_the_shape_it_was_saved_in() {
     let text = TextBlock::of("hello");
-    let stamped = be_block::BlockMetadata {
+    let stamped = be_block_content::BlockMetadata {
         derived: derived_metadata(&text),
         ..Default::default()
     };

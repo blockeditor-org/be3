@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_tool_drive::Driven;
 use be_type_infinite_canvas::{CanvasContent, CanvasEntity, CanvasShape};
 use beui_layer_drive::Reply;

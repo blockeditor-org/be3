@@ -61,10 +61,6 @@ impl TestClient {
                 answered(client::organizations::open_organization(peer, organization).await),
             ),
             (
-                "read-block",
-                answered(client::blocks::read_block(peer, block).await),
-            ),
-            (
                 "begin-browser-login",
                 answered(client::account::begin_browser_login(peer).await),
             ),
@@ -222,7 +218,10 @@ impl TestClient {
                 answered(
                     client::objects::upload_urls(
                         peer,
-                        vec![be_block_protocol::ObjectLength { hash, length: 9 }],
+                        vec![be_block_protocol::ObjectLength {
+                            hash,
+                            length: Some(9),
+                        }],
                     )
                     .await,
                 ),
@@ -230,10 +229,6 @@ impl TestClient {
             (
                 "download-urls",
                 answered(client::objects::download_urls(peer, vec![hash]).await),
-            ),
-            (
-                "missing-objects",
-                answered(client::objects::missing_objects(peer, vec![hash]).await),
             ),
             (
                 "hold-objects",

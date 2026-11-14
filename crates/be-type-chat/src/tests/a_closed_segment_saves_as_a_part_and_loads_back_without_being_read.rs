@@ -1,4 +1,4 @@
-use be_block::Part;
+use be_block_content::Part;
 use be_block_store::{ChunkerConfig, ContentKey, Keyring, MemoryStore, Vault};
 
 use super::*;

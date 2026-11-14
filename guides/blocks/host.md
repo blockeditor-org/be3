@@ -248,7 +248,7 @@ instance, `Owner::Open` for open blocks' parents, `Owner::Host`,
 
 ## Metadata
 
-`be_block::BlockMetadata` is two maps from key UUID to CBOR: `defined` (chosen
+`be_block_content::BlockMetadata` is two maps from key UUID to CBOR: `defined` (chosen
 by someone: `NAME`, `LOCAL_ID`, the artifact source) and `derived` (said by the
 content: `INTRINSIC_NAME`, `THUMBHASH`, `SCHEMA`). Keys are typed constants
 (`MetaKey::defined`/`derived`), so a new key, a third party's included, needs
@@ -263,7 +263,7 @@ its settings or tags.
 Metadata travels with content: every commit carries it, and `Publish` carries
 it sealed with the block's data key, so the server stores it in the step that
 moves the head. A save takes `defined` from the head it builds on and
-recomputes `derived` (`be_block::derived_metadata`); a merge merges `defined`
+recomputes `derived` (`be_block_content::derived_metadata`); a merge merges `defined`
 key by key (`BlockMetadata::merge_defined`). Unknown defined keys ride along;
 unknown derived keys are dropped on a new save, since they describe old
 content. `Peer::define` publishes a commit of the current content with new
@@ -349,6 +349,16 @@ index and search it locally.
   head, and drops hits the mirror shows
   detached, unviewable or outside `within`; it lists each hit block
   (`Owner::Search`) and shows a hit only once the mirror holds it.
+- **Opening a hit.** Quick open (`OpenableBlock::at`) and the file tree's hit
+  rows (`EditorHost::open_block_at`) open a hit's block with a
+  `search-location`: its document key and the words its first match covers.
+  be-host keeps it (`reveals::Reveals`) until the editor showing that block
+  is open, a few seconds at most, then sends it `editor-event.reveal`; a later
+  open of the block, or its editor closing, lets go of it. be-sdk hands it on
+  as `Pushed::Reveal` and `EditorHost::take_reveal`. The text app, once its
+  content has loaded and its saved position is back, selects the first place
+  the words occur as whole words, compared as the index folds them
+  (`be_lib_search::fold`); an editor that supports no location ignores it.
 - **Apps** watch a search with `search-watch` (`Editor::search` in
   be-sdk-beui); the file tree's filter lists the hits under "In content", and
   be-host's quick open (`found_blocks` in `compositor/palette.rs`) lists them
@@ -395,7 +405,7 @@ block in it.
 Moving a block into a container, deleting a child, replacing it or moving it
 among its siblings asks the container's content to change: `be_host_stack::change_child` sends the
 container's replica `Change::Child`, and the type's `Root::child_edit` turns a
-`be_block::ChildChange` into an ordinary edit. An editor asks for a reorder with
+`be_block_content::ChildChange` into an ordinary edit. An editor asks for a reorder with
 `EditorHost::reorder_block(block, parent, after)` (`BlockCommand::Reorder`);
 be-host queues it behind any move of the same block still under way
 (`queue_reorder` in its main.rs) and sends it only to a type whose manifest
@@ -413,7 +423,7 @@ of the parent (`Shared::log_dropped`), which a host test's failure shows in the 
 
 Undo lives in the block's replica, the one place that sees every edit from this
 device, whichever editor made it. A type registered with `undo` keeps
-`be_block::history::History` (`HISTORY_STEPS` deep): steps sent within 750 ms
+`be_block_content::history::History` (`HISTORY_STEPS` deep): steps sent within 750 ms
 of the last, by the frame-clock time each relayed frame is stamped with, may
 absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
 An editor groups a gesture into one step with `FromEditor::Gesture`

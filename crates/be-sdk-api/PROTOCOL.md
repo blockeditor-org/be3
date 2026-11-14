@@ -276,7 +276,9 @@ The host decides whether to honour the request; it is not answered, and a
 request for a block the host cannot open is discarded. The request may name
 the block the instance opened it from, which is what tells the host that the
 block was reached through a reference held by that container rather than on
-its own.
+its own, and a place in the block (`search-location`: a search hit's document
+and matched words), which the host hands the editor that shows the block as
+`editor-event.reveal` once it is open.
 
 The instance that draws the window rather than a block - the one the host
 opens on the workspace's own interface block - is where those requests end up:

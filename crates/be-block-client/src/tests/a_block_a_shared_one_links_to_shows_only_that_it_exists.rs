@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::block_url::block_url;
+use be_block_content::block_url::block_url;
 use be_block_graph::Access;
 use be_block_protocol::{BlockSummary, KeyKind};
 use be_type_text::{TextBlock, TextContent};
@@ -52,7 +52,7 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
         .await
         .unwrap();
 
-    let listed = guest.shared().await.unwrap();
+    let listed = guest.list(Listing::Shared).await.unwrap();
     guest.learn(&listed).await.unwrap();
     assert_eq!(
         listed

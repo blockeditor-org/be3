@@ -1,4 +1,5 @@
 pub use be_block;
+pub use be_block_content;
 pub use be_lib_geometry as geometry;
 
 mod app;
@@ -41,6 +42,7 @@ pub use app::{
 pub use app::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use asked::{Asked, Task};
 pub use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
+pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::accesskit;
 pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{

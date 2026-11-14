@@ -1,4 +1,4 @@
-use be_block::{BlockContent, LiveEdit, Merge};
+use be_block_content::{BlockContent, LiveEdit, Merge};
 
 mod a_map_keeps_its_points_in_bounds_and_follows_its_children;
 
