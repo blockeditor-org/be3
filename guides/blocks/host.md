@@ -148,8 +148,13 @@ its head.
   the moment they are made, so a leave and the next join reach the server in
   order; an answer older than the replica's session is dropped.
 - **Locked messages.** A relayed message is unsealed on the spot; one whose key
-  is missing (`ClientError::Locked`, first time: `Peer::first_search_for`)
-  fetches keys in a task, and that block's later events wait behind it.
+  is missing (`ClientError::Locked`) waits, with that block's later events
+  behind it, for one search per key (`Replicas::searching`), started by the
+  first such message whatever else searches for the key (`Peer::learn` may
+  answer only after it arrived). Once a search for its key has answered
+  (`searched`, cleared when a search opens keys and on reconnecting), a message
+  still locked is dropped and recorded, so a peer sealing with a key this device
+  cannot get costs one search.
 - **Stopping**: `be_host_stack::stop`, `stop_and_wait`. Tests stop as a crash
   would with `crash`: the worker ends without keeping the open blocks, so only
   what the device had written survives.
