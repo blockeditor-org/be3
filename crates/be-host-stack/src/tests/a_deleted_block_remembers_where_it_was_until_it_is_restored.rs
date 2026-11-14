@@ -1,7 +1,7 @@
 use super::*;
 use be_type_workspace::FolderContent;
 
-use be_block::{DELETED_FROM, DeletedFrom};
+use be_block_content::{DELETED_FROM, DeletedFrom};
 use be_block_graph::BlockParent;
 
 #[test]
@@ -13,7 +13,7 @@ fn a_deleted_block_remembers_where_it_was_until_it_is_restored() {
         folder,
         FolderContent::CONTENT_TYPE,
         BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
@@ -21,7 +21,7 @@ fn a_deleted_block_remembers_where_it_was_until_it_is_restored() {
         note,
         CounterContent::CONTENT_TYPE,
         BlockParent::Block(folder),
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

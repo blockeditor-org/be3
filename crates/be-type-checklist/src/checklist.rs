@@ -1,7 +1,7 @@
 use be_block_model::{Anchor, Change, Document, Edit, List, Model, ObjectId};
 use uuid::Uuid;
 
-use be_block::{Root, SearchDocument};
+use be_block_content::{Root, SearchDocument};
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 pub struct Checklist {

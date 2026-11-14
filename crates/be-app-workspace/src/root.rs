@@ -1,7 +1,8 @@
-use be_sdk_beui::be_block::EditorViewContent;
+use be_sdk_beui::be_block_content::EditorViewContent;
 use std::cell::Cell;
 
-use be_sdk_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent, ViewState};
+use be_sdk_beui::be_block::{FILES_EDITOR, SettingsContent};
+use be_sdk_beui::be_block_content::{BlockContent, ViewState};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::{
     DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId,

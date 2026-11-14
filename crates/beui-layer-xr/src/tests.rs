@@ -49,18 +49,54 @@ impl Monado {
             .stderr(std::fs::File::create(&errors).expect("a log"))
             .spawn()
             .expect("monado-service starts");
-        let listening = Instant::now() + Duration::from_secs(30);
-        while !socket.exists() {
-            assert!(Instant::now() < listening, "monado-service never listened");
-            assert!(
-                service.try_wait().expect("monado-service runs").is_none(),
-                "monado-service stopped: {}{}",
-                std::fs::read_to_string(&log).unwrap_or_default(),
-                std::fs::read_to_string(&errors).unwrap_or_default()
-            );
-            std::thread::yield_now();
-        }
+        wait_until_listening(&socket, &mut service, &log, &errors);
         Self { service }
+    }
+}
+
+/// Waits for the service's socket to appear, woken by the directory's inotify events and by the
+/// service's pidfd if it ends first.
+fn wait_until_listening(socket: &Path, service: &mut Child, log: &Path, errors: &Path) {
+    use rustix::event::{PollFd, PollFlags, Timespec, poll};
+    use rustix::fs::inotify;
+
+    let created = inotify::init(inotify::CreateFlags::CLOEXEC | inotify::CreateFlags::NONBLOCK)
+        .expect("an inotify instance");
+    inotify::add_watch(
+        &created,
+        socket.parent().expect("the socket's directory"),
+        inotify::WatchFlags::CREATE | inotify::WatchFlags::MOVED_TO,
+    )
+    .expect("the runtime directory is watched");
+    let ended = rustix::process::pidfd_open(
+        rustix::process::Pid::from_child(service),
+        rustix::process::PidfdFlags::empty(),
+    )
+    .expect("monado-service's pidfd");
+    let listening = Instant::now() + Duration::from_secs(30);
+    while !socket.exists() {
+        let left = listening.saturating_duration_since(Instant::now());
+        assert!(!left.is_zero(), "monado-service never listened");
+        assert!(
+            service.try_wait().expect("monado-service runs").is_none(),
+            "monado-service stopped: {}{}",
+            std::fs::read_to_string(log).unwrap_or_default(),
+            std::fs::read_to_string(errors).unwrap_or_default()
+        );
+        let timeout = Timespec {
+            tv_sec: left.as_secs() as _,
+            tv_nsec: left.subsec_nanos() as _,
+        };
+        let mut polled = [
+            PollFd::new(&created, PollFlags::IN),
+            PollFd::new(&ended, PollFlags::IN),
+        ];
+        match poll(&mut polled, Some(&timeout)) {
+            Ok(_) | Err(rustix::io::Errno::INTR) => {}
+            Err(error) => panic!("waiting for monado-service failed: {error}"),
+        }
+        let mut events = [0_u8; 4096];
+        while rustix::io::read(&created, &mut events[..]).is_ok_and(|read| read > 0) {}
     }
 }
 

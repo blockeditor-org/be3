@@ -5,9 +5,9 @@ Wants=network-online.target
 StartLimitIntervalSec=0
 
 [Service]
-# NL_TUNNEL_TOKEN=... and NL_HOST=..., readable by root only; systemd reads it before dropping to the dynamic user.
+# NL_TUNNEL_TOKEN=..., NL_DASH_TOKEN=... and NL_HOST=..., readable by root only; systemd reads it before dropping to the dynamic user.
 EnvironmentFile=/etc/nl-caddy.env
-ExecStartPre=/bin/sh -c 'test -n "$NL_TUNNEL_TOKEN" && test -n "$NL_HOST" || { echo "NL_TUNNEL_TOKEN or NL_HOST is not set (/etc/nl-caddy.env)" >&2; exit 1; }'
+ExecStartPre=/bin/sh -c 'test -n "$NL_TUNNEL_TOKEN" && test -n "$NL_DASH_TOKEN" && test -n "$NL_HOST" || { echo "NL_TUNNEL_TOKEN, NL_DASH_TOKEN or NL_HOST is not set (/etc/nl-caddy.env)" >&2; exit 1; }'
 ExecStart=/usr/local/bin/caddy run --adapter caddyfile --config /etc/caddy/Caddyfile
 DynamicUser=yes
 StateDirectory=caddy

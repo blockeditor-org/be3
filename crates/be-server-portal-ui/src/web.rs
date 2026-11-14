@@ -7,7 +7,7 @@ use crate::PortalPage;
 
 #[wasm_bindgen]
 pub fn start(page: String) -> Result<(), JsValue> {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     let page = Page::from_json(&page)
         .map_err(|error| JsValue::from_str(&format!("{PAGE_ID}: {error}")))?;
     beui::html::hydrate(ROOT_ID, move || {

@@ -88,7 +88,7 @@ device's value. Nothing is stored to say a profile was set up.
 A change syncs by default: it goes to the every-device block. A setting is kept
 on this device exactly when this device's profile block sets it; nothing else
 records that. A screen known only by its connector (no EDID serial) is always
-this device's alone. Each field is described once as a `be_block::Setting`
+this device's alone. Each field is described once as a `be_block_content::Setting`
 (`DisplaySettings::theme_setting()`, `mode_setting(id)`), and
 `Setting::layer` is the one rule for which layer a write goes to; every write
 goes through it (`be_sdk_beui::LayeredSettings` in apps, `display::keep` and
@@ -166,7 +166,7 @@ it in `VIEW_EDITOR` (the editor's manifest `id`, not a block type), set with
 block is a view and which editor opens it (the host skips `DELETED_FROM` for
 one, and a block's places leave views out).
 
-The content is `be_block::EditorView { content, state }` (`VIEW_TYPE`, served
+The content is `be_block_content::EditorView { content, state }` (`VIEW_TYPE`, served
 by workspace-ui's type module): the block shown, and a `LatestMap` of opaque
 `ViewState { bytes, refs }` the editor owns. `references()` is `content` plus
 every entry's refs, and a deleted or replaced child is blanked or repointed in

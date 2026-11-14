@@ -1,4 +1,4 @@
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_block_model::BlockRef;
 
 use super::*;

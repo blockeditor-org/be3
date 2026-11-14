@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{Artifact, BlockContent};
+use be_sdk_beui::be_block_content::{Artifact, BlockContent};
 use be_sdk_beui::{Artifacts, BlockList, BlockQuery, Blocks, EditorHost, OwnedContentProjection};
 use be_type_logic_grid::CompiledLogic;
 use be_type_logic_grid::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};

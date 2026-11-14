@@ -6,9 +6,9 @@ use std::{
 
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
-    AccountStorage, Authenticated, BlockChange, BlockEvent, BrowserLogin, BrowserLoginState,
-    Collected, Contents, CreatedAgent, Error, ErrorCode, Header, Listing, OrganizationOpened,
-    PairingMessage, RecoveryKey, RelayKind, SessionEvent, SessionState, UploadUrl, embed,
+    AccountStorage, Authenticated, BlockChange, BrowserLogin, BrowserLoginState, Collected,
+    Contents, CreatedAgent, Error, ErrorCode, Header, Listing, OrganizationOpened, PairingMessage,
+    RecoveryKey, RelayKind, SessionEvent, SessionState, UploadUrl, embed,
 };
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
@@ -83,9 +83,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | account::Call::PollBrowserLogin { .. }
             | account::Call::CreateLocalProfile { .. }
             | account::Call::Authenticate { .. } => Rule::Anyone,
-            account::Call::StorageUsage { .. } | account::Call::StorageChanged { .. } => {
-                Rule::Organization
-            }
+            account::Call::StorageChanged { .. } => Rule::Organization,
             account::Call::Logout { .. }
             | account::Call::Pair { .. }
             | account::Call::Paired { .. } => Rule::SignedIn,
@@ -137,7 +135,6 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
             blocks::Call::ListHistory { block: of, .. }
-            | blocks::Call::Watch { block: of, .. }
             | blocks::Call::ChangedSince { root: of, .. } => block(*of, Access::View),
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
@@ -174,7 +171,6 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             keys::Call::Rotate { roots, .. } => Rule::Blocks(roots.clone(), Access::Edit),
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
-            | keys::Call::GetKeyWork { .. }
             | keys::Call::PinEscrow { .. }
             | keys::Call::GetSigningKeys { .. } => Rule::Organization,
             keys::Call::KeyWorkChanged { .. } => Rule::SignedIn,
@@ -215,7 +211,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             account::Call::BeginBrowserLogin { .. }
             | account::Call::PollBrowserLogin { .. }
             | account::Call::CreateLocalProfile { .. }
-            | account::Call::StorageUsage { .. }
             | account::Call::StorageChanged { .. }
             | account::Call::Pair { .. }
             | account::Call::Paired { .. } => false,
@@ -271,7 +266,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::Unlist { .. }
             | blocks::Call::ListHistory { .. }
             | blocks::Call::ChangedSince { .. }
-            | blocks::Call::Watch { .. }
             | blocks::Call::Changes { .. } => true,
             blocks::Call::SetAccess { .. }
             | blocks::Call::ListAccess { .. }
@@ -289,7 +283,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
         Call::Keys(call) => match call {
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
-            | keys::Call::GetKeyWork { .. }
             | keys::Call::KeyWorkChanged { .. }
             | keys::Call::PinEscrow { .. }
             | keys::Call::ResealKeys { .. }
@@ -359,14 +352,18 @@ fn wire(error: ServerError) -> Error {
 
 #[derive(Clone, Copy, PartialEq)]
 enum Route {
-    Watch(Place),
     Changes,
     Paired,
     Contacts,
-    KeyWork,
+    /// A key work stream, by its op, so one opened takes its first value alone.
+    KeyWork(OpId),
     NotifyModes,
-    Storage,
-    Events { session: OpId, block: Place },
+    /// A storage stream, by its op, so one opened takes its first value alone.
+    Storage(OpId),
+    Events {
+        session: OpId,
+        block: Place,
+    },
 }
 
 struct Streams {
@@ -572,28 +569,39 @@ impl Client {
 
     pub(crate) async fn late(&mut self, late: Late) {
         match late {
-            Late::Storage => self.send_storage().await,
+            Late::Storage => self.send_storage(None).await,
         }
     }
 
     /// Sends the account's storage usage to its storage streams when it differs from the last
-    /// sent.
-    async fn send_storage(&mut self) {
+    /// sent, and to the one `only` names (just opened) whether or not it does. When the store
+    /// cannot say, that one ends with the failure rather than wait for a first value.
+    async fn send_storage(&mut self, only: Option<OpId>) {
         let Ok(identity) = self.connection.identity() else {
             return;
         };
-        let Ok(usage) = self.connection.store.storage_usage(identity).await else {
-            return;
+        let usage = match self.connection.store.storage_usage(identity).await {
+            Ok(usage) => usage,
+            Err(error) => {
+                tracing::warn!(%error, "the storage usage could not be read");
+                if let Some(op) = only {
+                    self.streams
+                        .outlets
+                        .end(&mut self.peer.lock(), op, Some(OpError::Unanswered));
+                }
+                return;
+            }
         };
-        if self.storage.as_ref() == Some(&usage) {
+        let changed = self.storage.as_ref() != Some(&usage);
+        if !changed && only.is_none() {
             return;
         }
         let mut lock = self.peer.lock();
-        if self
-            .streams
-            .send(&mut lock, usage.clone(), |route| *route == Route::Storage)
-            .is_ok()
-        {
+        let to = |route: &Route| match route {
+            Route::Storage(op) => changed || only == Some(*op),
+            _ => false,
+        };
+        if self.streams.send(&mut lock, usage.clone(), to).is_ok() && changed {
             self.storage = Some(usage);
         }
     }
@@ -658,95 +666,92 @@ impl Client {
     }
 
     pub(crate) async fn push(&mut self, push: Push) -> Result<(), ServerError> {
-        let mut unwatched = None;
-        {
-            let mut lock = self.peer.lock();
-            let streams = &mut self.streams;
-            let sessions = |block: Place| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
-            match push {
-                Push::BlockChanged(block) => {
-                    streams.send(&mut lock, BlockChange::Changed(block), |route| {
-                        *route == Route::Changes
-                    })?;
-                }
-                Push::BlockRemoved { block, revision } => {
-                    streams.send(
-                        &mut lock,
-                        BlockChange::Removed { block, revision },
-                        |route| *route == Route::Changes,
-                    )?;
-                }
-                Push::HeadChanged {
-                    block,
-                    head,
-                    author,
-                } => {
-                    streams.send(&mut lock, BlockEvent::Moved { head, author }, |route| {
-                        *route == Route::Watch(block)
-                    })?;
-                }
-                Push::BlockDeleted { block } | Push::Unwatched { block } => {
-                    let deleted = matches!(push, Push::BlockDeleted { .. });
-                    if deleted {
-                        streams.send(&mut lock, BlockEvent::Deleted, |route| {
-                            *route == Route::Watch(block)
-                        })?;
-                    }
-                    let ended: Vec<OpId> = streams
-                        .outlets
-                        .routes()
-                        .filter(|(_, route)| **route == Route::Watch(block))
-                        .map(|(op, _)| op)
-                        .collect();
-                    for op in ended {
-                        streams
-                            .outlets
-                            .end(&mut lock, op, (!deleted).then_some(OpError::Denied));
-                    }
-                    unwatched = Some(block);
-                }
-                Push::SessionChanged { block, state } => {
-                    streams.send(&mut lock, SessionEvent::Changed(state), sessions(block))?;
-                }
-                Push::Relayed {
-                    block,
-                    from,
-                    kind,
-                    payload,
-                    received,
-                } => {
-                    streams.send(
-                        &mut lock,
-                        SessionEvent::Relayed {
-                            from,
-                            kind,
-                            payload: payload.to_vec(),
-                            received,
-                        },
-                        sessions(block),
-                    )?;
-                }
-                Push::Paired(message) => {
-                    streams.send(&mut lock, message, |route| *route == Route::Paired)?;
-                }
-                Push::ContactsChanged => {
-                    streams.send(&mut lock, (), |route| *route == Route::Contacts)?;
-                }
-                Push::KeyWorkChanged => {
-                    streams.send(&mut lock, (), |route| *route == Route::KeyWork)?;
-                }
-                Push::NotifyModesChanged => {
-                    streams.send(&mut lock, (), |route| *route == Route::NotifyModes)?;
-                }
+        if let Push::KeyWorkChanged = push {
+            self.send_key_work(None).await;
+            return Ok(());
+        }
+        let mut lock = self.peer.lock();
+        let streams = &mut self.streams;
+        let sessions = |block: Place| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
+        match push {
+            Push::BlockChanged { block, from } => {
+                streams.send(&mut lock, BlockChange::Changed { block, from }, |route| {
+                    *route == Route::Changes
+                })?;
+            }
+            Push::BlockRemoved { block, revision } => {
+                streams.send(
+                    &mut lock,
+                    BlockChange::Removed { block, revision },
+                    |route| *route == Route::Changes,
+                )?;
+            }
+            Push::SessionChanged { block, state } => {
+                streams.send(&mut lock, SessionEvent::Changed(state), sessions(block))?;
+            }
+            Push::Relayed {
+                block,
+                from,
+                kind,
+                payload,
+                received,
+            } => {
+                streams.send(
+                    &mut lock,
+                    SessionEvent::Relayed {
+                        from,
+                        kind,
+                        payload: payload.to_vec(),
+                        received,
+                    },
+                    sessions(block),
+                )?;
+            }
+            Push::Paired(message) => {
+                streams.send(&mut lock, message, |route| *route == Route::Paired)?;
+            }
+            Push::ContactsChanged => {
+                streams.send(&mut lock, (), |route| *route == Route::Contacts)?;
+            }
+            Push::KeyWorkChanged => {}
+            Push::NotifyModesChanged => {
+                streams.send(&mut lock, (), |route| *route == Route::NotifyModes)?;
             }
         }
-        if let Some(block) = unwatched {
-            self.connection
-                .hub
-                .unwatch(block, self.connection.client)
-                .await;
-        }
         Ok(())
+    }
+
+    /// Sends the key work of the organization open to the connection's key work streams (only
+    /// to the one `only` names, when it names one), when it has any; nothing before an
+    /// organization is open. When the store cannot say, a stream just opened (`only`) ends with
+    /// the failure rather than wait for a first value; the others keep the value they have.
+    async fn send_key_work(&mut self, only: Option<OpId>) {
+        let to = move |route: &Route| match route {
+            Route::KeyWork(op) => only.is_none_or(|only| only == *op),
+            _ => false,
+        };
+        let streaming = self.streams.outlets.routes().any(|(_, route)| to(route));
+        let Ok(identity) = self.connection.identity() else {
+            return;
+        };
+        if !streaming {
+            return;
+        }
+        let work = match self.connection.store.key_work(identity).await {
+            Ok(work) => work,
+            Err(error) => {
+                tracing::warn!(%error, "the key work could not be read");
+                if let Some(op) = only {
+                    self.streams
+                        .outlets
+                        .end(&mut self.peer.lock(), op, Some(OpError::Unanswered));
+                }
+                return;
+            }
+        };
+        let mut lock = self.peer.lock();
+        // A latest-value stream: whatever was held back for it is replaced by this.
+        let _ = self.streams.send(&mut lock, work, to);
     }
 
     async fn canceled(&mut self, op: OpId) {
@@ -763,34 +768,16 @@ impl Client {
                 joined
                     .map(|(_, block)| block)
                     .filter(|block| !streams.in_session(*block))
-                    .map(|block| (block, true))
             } else {
-                match streams.outlets.end(&mut lock, op, canceled) {
-                    Some(Route::Watch(block)) => {
-                        let watched = streams
-                            .outlets
-                            .routes()
-                            .any(|(_, route)| *route == Route::Watch(block));
-                        (!watched).then_some((block, false))
-                    }
-                    _ => None,
-                }
+                streams.outlets.end(&mut lock, op, canceled);
+                None
             }
         };
-        match left {
-            Some((block, false)) => {
-                self.connection
-                    .hub
-                    .unwatch(block, self.connection.client)
-                    .await;
+        if let Some(block) = left {
+            let connection = &self.connection;
+            if let Some(state) = connection.registry.leave(block, connection.client).await {
+                connection.announce(block, &state).await;
             }
-            Some((block, true)) => {
-                let connection = &self.connection;
-                if let Some(state) = connection.registry.leave(block, connection.client).await {
-                    connection.announce(block, &state).await;
-                }
-            }
-            None => {}
         }
     }
 
@@ -1029,12 +1016,23 @@ impl Client {
                 .await;
                 self.reply(reply, authenticated);
             }
-            Call::Logout { reply } => {
+            Call::Logout {
+                reply,
+                push_address,
+            } => {
                 let connection = &mut self.connection;
                 let logged_out = async {
                     prelude?;
+                    // The session ends first: an endpoint that cannot be forgotten now is
+                    // dropped once its push service refuses a push, but a token the client
+                    // has let go of must not stay valid.
                     if let Some(token) = connection.token.take() {
                         connection.store.logout(&token).await?;
+                    }
+                    if let (Some(account), Some(address)) = (connection.account, push_address)
+                        && let Err(error) = connection.store.forget_endpoint_of(account, address).await
+                    {
+                        tracing::warn!(%account, %error, "a logout could not forget its push endpoint");
                     }
                     connection.account = None;
                     connection.closing = true;
@@ -1044,15 +1042,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, logged_out);
-            }
-            Call::StorageUsage { reply } => {
-                let connection = &self.connection;
-                let usage = async {
-                    prelude?;
-                    connection.store.storage_usage(connection.identity()?).await
-                }
-                .await;
-                self.reply(reply, usage);
             }
             Call::Pair { reply, to, payload } => {
                 let connection = &self.connection;
@@ -1095,28 +1084,15 @@ impl Client {
                 .await;
                 match payer {
                     Ok(payer) => {
-                        {
-                            let mut lock = self.peer.lock();
-                            let earlier: Vec<OpId> = self
-                                .streams
-                                .outlets
-                                .routes()
-                                .filter(|(_, route)| **route == Route::Storage)
-                                .map(|(op, _)| op)
-                                .collect();
-                            for op in earlier {
-                                self.streams.outlets.end(&mut lock, op, None);
-                            }
-                            self.streams.open_with(
-                                &mut lock,
-                                stream,
-                                Route::Storage,
-                                Backlog::Latest,
-                            );
-                        }
-                        self.storage = None;
+                        let op = stream.op();
+                        self.streams.open_with(
+                            &mut self.peer.lock(),
+                            stream,
+                            Route::Storage(op),
+                            Backlog::Latest,
+                        );
                         self.follow_storage(payer);
-                        self.send_storage().await;
+                        self.send_storage(Some(op)).await;
                     }
                     Err(error) => {
                         let mut lock = self.peer.lock();
@@ -1168,7 +1144,11 @@ impl Client {
                     self.connection.open(organization).await
                 }
                 .await;
+                let reopened = opened.is_ok();
                 self.reply(reply, opened);
+                if reopened {
+                    self.send_key_work(None).await;
+                }
             }
             Call::Invite {
                 reply,
@@ -1704,31 +1684,23 @@ impl Client {
                             references, metadata,
                         )
                         .await?;
-                    if let PublishOutcome::Published(_, Some(unlinked)) = &outcome {
-                        let mut blocks = vec![block];
-                        blocks.extend(unlinked);
-                        connection
-                            .reannounce(identity, blocks, false, BTreeSet::new())
-                            .await;
+                    match &outcome {
+                        // Its metadata or references changed: who may be told is the audience.
+                        PublishOutcome::Published(_, Some(unlinked)) => {
+                            let mut blocks = vec![block];
+                            blocks.extend(unlinked);
+                            connection
+                                .reannounce(identity, blocks, false, BTreeSet::new())
+                                .await;
+                        }
+                        // Only its head moved: only who was told of it already hears.
+                        PublishOutcome::Published(_, None) => {
+                            connection.announce_head(identity.organization, block).await;
+                        }
+                        PublishOutcome::Rejected(_) => {}
                     }
                     Ok(match outcome {
                         PublishOutcome::Published(head, _) => {
-                            let place = Place {
-                                organization: identity.organization,
-                                block,
-                            };
-                            connection
-                                .hub
-                                .broadcast(
-                                    place,
-                                    connection.client,
-                                    Push::HeadChanged {
-                                        block: place,
-                                        head,
-                                        author: identity.account,
-                                    },
-                                )
-                                .await;
                             be_block_protocol::PublishOutcome::Published(head)
                         }
                         PublishOutcome::Rejected(head) => {
@@ -1870,20 +1842,6 @@ impl Client {
                             .hub
                             .removed(identity.organization, *block, collected.revision)
                             .await;
-                        let place = Place {
-                            organization: identity.organization,
-                            block: *block,
-                        };
-                        connection
-                            .hub
-                            .broadcast(
-                                place,
-                                connection.client,
-                                Push::BlockDeleted { block: place },
-                            )
-                            .await;
-                        // The collector is left out of the broadcast, so it drops its own watch.
-                        connection.hub.unwatch(place, connection.client).await;
                     }
                     Ok(Collected {
                         blocks: collected.blocks,
@@ -1931,35 +1889,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, listed);
-            }
-            Call::Watch { stream, block } => {
-                let allowed = prelude.and_then(|()| connection.identity());
-                let Ok(identity) = allowed else {
-                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
-                };
-                let place = Place {
-                    organization: identity.organization,
-                    block,
-                };
-                if self.streams.outlets.len() >= MAX_STREAMS_PER_CONNECTION {
-                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
-                }
-                connection.hub.watch(place, connection.client).await;
-                // The right to view was checked before this call ran; whoever lost it since
-                // had nothing to evict yet.
-                if connection
-                    .store
-                    .require_access(identity, vec![block], Access::View)
-                    .await
-                    .is_err()
-                {
-                    // This drops the connection's watch of the block, not only this stream's: it
-                    // can no longer view the block, so none of its streams on it should hear.
-                    connection.hub.unwatch(place, connection.client).await;
-                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
-                }
-                self.streams
-                    .open(&mut self.peer.lock(), stream, Route::Watch(place));
             }
         }
     }
@@ -2453,24 +2382,18 @@ impl Client {
                 .await;
                 self.reply(reply, resealed);
             }
-            Call::GetKeyWork { reply } => {
-                let work = async {
-                    prelude?;
-                    connection.store.key_work(connection.identity()?).await
-                }
-                .await;
-                self.reply(reply, work);
-            }
             Call::KeyWorkChanged { stream } => {
                 if prelude.is_err() {
                     return stream.fail(&mut self.peer.lock(), OpError::Denied);
                 }
+                let op = stream.op();
                 self.streams.open_with(
                     &mut self.peer.lock(),
                     stream,
-                    Route::KeyWork,
+                    Route::KeyWork(op),
                     Backlog::Latest,
                 );
+                self.send_key_work(Some(op)).await;
             }
             Call::Rotate { reply, roots, keys } => {
                 let rotated = async {
@@ -2586,6 +2509,7 @@ impl Connection {
             kind,
             escrows,
             pinned,
+            client: self.client,
             server: self.store.server_account(),
             time: be_block_commit::now_milliseconds(),
         })
@@ -2748,16 +2672,11 @@ impl Connection {
         }
     }
 
-    /// Ends what `account` holds on blocks it can no longer view: its sessions and its watches.
-    /// With `within`, only what it holds on that block and below it.
+    /// Ends what `account` holds on blocks it can no longer view: its sessions. With `within`,
+    /// only what it holds on that block and below it.
     async fn evict_sessions(&self, organization: Uuid, account: Uuid, within: Option<Uuid>) {
         for (client, identity) in self.hub.clients_of(organization, account).await {
             let mut held = self.registry.blocks_of(client).await;
-            for block in self.hub.watched_by(client).await {
-                if !held.contains(&block) {
-                    held.push(block);
-                }
-            }
             if let Some(root) = within {
                 let ids = held
                     .iter()
@@ -2781,8 +2700,6 @@ impl Connection {
                 if kept {
                     continue;
                 }
-                self.hub.unwatch(block, client).await;
-                self.hub.send_to(client, Push::Unwatched { block }).await;
                 self.left_session(block, client).await;
             }
         }
@@ -2825,6 +2742,28 @@ impl Connection {
             .await;
     }
 
+    /// Tells the connections that know `block` its summary after a publish that moved only its
+    /// head, which changes no listing's match, so the audience at large need not be read.
+    async fn announce_head(&self, organization: Uuid, block: Uuid) {
+        let members = self.hub.knowing(organization, block).await;
+        if members.is_empty() {
+            return;
+        }
+        let identities = members.iter().map(|(_, member)| *member).collect();
+        let Ok(views) = self
+            .store
+            .graph_views(organization, identities, vec![block], false, self.client)
+            .await
+        else {
+            return;
+        };
+        for ((client, _), messages) in members.into_iter().zip(views) {
+            for (message, entry) in messages {
+                self.hub.tell(client, message, entry).await;
+            }
+        }
+    }
+
     async fn reannounce_in(
         &self,
         organization: Uuid,
@@ -2840,7 +2779,7 @@ impl Connection {
         let identities = members.iter().map(|(_, member)| *member).collect();
         let Ok(views) = self
             .store
-            .graph_views(organization, identities, blocks, subtree)
+            .graph_views(organization, identities, blocks, subtree, self.client)
             .await
         else {
             return;
@@ -2882,6 +2821,10 @@ impl Connection {
                 return Err(error);
             }
         };
+        #[cfg(test)]
+        if let Listing::Block(block) = listing {
+            crate::store::held::listing(block).await;
+        }
         self.hub.listed(self.client, listing, &listed.blocks).await;
         Ok(listed)
     }

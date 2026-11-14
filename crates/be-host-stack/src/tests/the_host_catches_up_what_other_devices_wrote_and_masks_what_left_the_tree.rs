@@ -1,5 +1,5 @@
 use super::*;
-use be_block::SEARCH_INDEX;
+use be_block_content::SEARCH_INDEX;
 use be_type_text::{TextBlock, TextContent};
 use be_type_workspace::WorkspaceContent;
 
@@ -32,7 +32,7 @@ fn workspace(name: &str) -> Uuid {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named(name),
+        be_block_content::BlockMetadata::named(name),
         None,
         false,
     );
@@ -115,7 +115,7 @@ fn the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree() {
     });
     let index = node(team)
         .and_then(|node| node.metadata.get(&SEARCH_INDEX))
-        .map(|be_block::be_block_model::BlockRef(index)| index)
+        .map(|be_block_content::be_block_model::BlockRef(index)| index)
         .expect("the workspace names its index");
     let hits = other.runtime.block_on(async {
         let peer = std::sync::Arc::clone(&other.peer.borrow());

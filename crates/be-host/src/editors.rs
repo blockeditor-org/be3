@@ -46,7 +46,7 @@ pub fn editor_access_ceiling(id: Uuid) -> Access {
     let Some(node) = be_host_stack::node(id) else {
         return Access::Manage;
     };
-    match node.metadata.contains(&be_block::ARTIFACT) {
+    match node.metadata.contains(&be_block_content::ARTIFACT) {
         true => node.access.min(Access::View),
         false => node.access,
     }

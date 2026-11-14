@@ -17,7 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -30,7 +30,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -43,7 +43,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -56,7 +56,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -69,7 +69,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -82,7 +82,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -95,7 +95,7 @@ write_package_value("be3.cargo", {
         "wasm32": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -108,7 +108,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",
@@ -121,7 +121,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:uuid-1.29.1",

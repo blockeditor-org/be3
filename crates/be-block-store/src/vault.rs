@@ -481,7 +481,7 @@ impl<S: ObjectStore> Vault<S> {
 
     /// Like `load`, but `Stored::bytes` holds only the root's first part (all of a stored
     /// form that has one part), for content that loads the rest on demand
-    /// (`be_block::Loads::FirstPart`).
+    /// (`be_block_content::Loads::FirstPart`).
     pub fn load_first(&self, manifest: &Manifest) -> Result<Stored, StoreError> {
         let root = self.outline(manifest)?;
         let end = root.as_ref().map_or(0, LoadedPart::first_end);

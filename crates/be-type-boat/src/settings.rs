@@ -1,5 +1,5 @@
-use be_block::Root;
-use be_block::settings::{KindVisibility, Layered, union};
+use be_block_content::Root;
+use be_block_content::layered::{KindVisibility, Layered, union};
 use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

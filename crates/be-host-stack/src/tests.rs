@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_type_checklist::{Checklist, ChecklistContent};
 use be_type_example_counter::{Counter, CounterContent};
 use uuid::Uuid;
@@ -56,6 +56,8 @@ mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
+mod a_flush_counts_an_edit_that_waits_behind_a_command_on_a_silent_server;
+mod a_flush_counts_what_was_unsaved_as_it_answers_not_what_was_sent_after;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent;
 mod a_fork_pulls_and_pushes_through_its_upstream;
@@ -306,7 +308,7 @@ impl Harness {
     fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
         let mut joins = self
             .relay()
-            .count(|method| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
+            .count(|method, _| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
         open(block, content_type);
         runtime()
             .block_on(joins.wait_for(|joins| *joins > 0))
@@ -752,7 +754,7 @@ fn start_versioning(text: &str) -> Versioned {
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Notes"),
+        be_block_content::BlockMetadata::named("Notes"),
         Some(listing.encode()),
         false,
     );
@@ -760,7 +762,7 @@ fn start_versioning(text: &str) -> Versioned {
         note,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::named("Note"),
+        be_block_content::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
@@ -768,7 +770,7 @@ fn start_versioning(text: &str) -> Versioned {
         repository,
         be_block::RepositoryContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("History"),
+        be_block_content::BlockMetadata::named("History"),
         Some(be_block::RepositoryContent::default().encode()),
         false,
     );
@@ -939,7 +941,7 @@ fn written(block: Uuid, text: &str) {
         block,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Plan"),
+        be_block_content::BlockMetadata::named("Plan"),
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
@@ -1039,8 +1041,8 @@ impl Device {
                 .expect("the other device makes its index");
             peer.define(workspace, |metadata| {
                 metadata.insert(
-                    &be_block::SEARCH_INDEX,
-                    &be_block::be_block_model::BlockRef(index),
+                    &be_block_content::SEARCH_INDEX,
+                    &be_block_content::be_block_model::BlockRef(index),
                 );
             })
             .await
@@ -1326,7 +1328,7 @@ impl ChatRoom {
             block,
             be_type_chat::ChatContent::CONTENT_TYPE,
             be_block_graph::BlockParent::Root,
-            be_block::BlockMetadata::named("Lunch"),
+            be_block_content::BlockMetadata::named("Lunch"),
             Some(chat.encode()),
             false,
         );
@@ -1519,6 +1521,7 @@ impl Member {
         self.runtime
             .block_on(be_block_protocol::client::account::logout(
                 &self.peer.connection(),
+                None,
             ))
             .expect("the logout is answered")
             .expect("the member signs out");

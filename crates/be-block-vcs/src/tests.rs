@@ -1,4 +1,4 @@
-use be_block::BlockMetadata;
+use be_block_content::BlockMetadata;
 use be_block_store::{ChunkerConfig, ContentKey, Keyring, Manifest, MemoryStore, Vault};
 use uuid::Uuid;
 

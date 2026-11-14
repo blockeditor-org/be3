@@ -4,6 +4,7 @@
 import { createRequire } from "node:module";
 
 import { Failure, commands, leadingOptions, shownPlaces } from "./drive-words.mjs";
+import { signIn } from "./web-sign-in.mjs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -100,52 +101,9 @@ const number = (index) => {
     return value;
 };
 switch (command) {
-    case "dev-sign-in": {
-        await started();
-        const tree = await page.evaluate(async (timeoutMs) => {
-            await globalThis.blockStarted;
-            const app = await import(new URL("be_host.js", document.baseURI).href);
-            const deadline = performance.now() + timeoutMs;
-            while (performance.now() < deadline) {
-                const tree = await app.automate(["tree"], 1000);
-                if (/https?:\/\/[^\s"]+\/auth\?code=[a-f0-9-]+/.test(tree) || tree.includes('"My files"')) return tree;
-                await new Promise(requestAnimationFrame);
-            }
-            throw new Error("The development app did not show its sign-in code or workspace.");
-        }, timeout * 1000);
-        const url = tree.match(/https?:\/\/[^\s"]+\/auth\?code=[a-f0-9-]+/)?.[0];
-        if (!url) break;
-        const portal = await page.context().newPage();
-        await portal.goto(url);
-        const another = portal.getByText("Use another account", { exact: true });
-        if (await another.count()) await another.click();
-        await portal.getByLabel("Email", { exact: true }).fill("dev@localhost");
-        await portal.getByLabel("Password", { exact: true }).fill("dev-password");
-        await portal.getByRole("button", { name: "Sign in", exact: true }).click();
-        const unknown = portal.getByText(/no account matches those credentials/i);
-        await unknown.or(
-            portal.getByRole("button", { name: "Approve sign-in", exact: true }),
-        ).first().waitFor();
-        if (await unknown.count()) {
-            await portal.getByRole("link", { name: "Create an account", exact: true }).click();
-            await portal.getByLabel("Display name", { exact: true }).fill("Dev");
-            await portal.getByLabel("Email", { exact: true }).fill("dev@localhost");
-            await portal.locator('[name="password"]').fill("dev-password");
-            await portal.getByLabel("Confirm password", { exact: true }).fill("dev-password");
-            await portal.getByRole("button", { name: "Create account", exact: true }).click();
-            await portal.getByText("Check your email", { exact: true }).first().waitFor();
-            const { readFile } = await import("node:fs/promises");
-            const log = await readFile(rest[0], "utf8");
-            const links = log.match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
-            if (!links?.length) throw new Error("The development server did not log a verification link.");
-            await portal.goto(links.at(-1));
-            await portal.getByRole("button", { name: "Verify email", exact: true }).click();
-        }
-        await portal.getByRole("button", { name: "Approve sign-in", exact: true }).click();
-        await portal.getByText("Sign-in approved", { exact: true }).first().waitFor();
-        await portal.close();
+    case "dev-sign-in":
+        await signIn(page, rest[0], rest[1], timeout);
         break;
-    }
 
     default:
         if (!(await platform(command, rest)) && !(await browserCommand(command, rest, number))) {

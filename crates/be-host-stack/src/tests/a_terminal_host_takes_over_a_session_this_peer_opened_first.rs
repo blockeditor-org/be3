@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::presence::ChannelKind;
+use be_block_content::presence::ChannelKind;
 use be_tool_cli::terminal_host::{Host, HostOptions};
 use be_type_terminal::{
     Key, Modifiers, TerminalContent, TerminalKey, TerminalMessage, TerminalSize,

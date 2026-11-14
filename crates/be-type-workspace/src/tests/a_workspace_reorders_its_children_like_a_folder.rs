@@ -1,6 +1,6 @@
 use super::*;
 use crate::workspace::{Workspace, WorkspaceContent};
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 use uuid::Uuid;
 
 #[test]

@@ -1,6 +1,6 @@
 use super::*;
-use be_sdk_beui::be_block::Edit;
-use be_sdk_beui::be_block::be_block_model::ObjectId;
+use be_sdk_beui::be_block_content::Edit;
+use be_sdk_beui::be_block_content::be_block_model::ObjectId;
 use be_sdk_beui::beui::pos2;
 use be_sdk_beui::beui::styled::{TextAreaApi, TextAreaSurfaceApi};
 use be_type_infinite_canvas::Entity;

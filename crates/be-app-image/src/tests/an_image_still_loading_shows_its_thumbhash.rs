@@ -1,13 +1,13 @@
 use super::*;
 
-use be_sdk_beui::be_block::{BlockMetadata, THUMBHASH};
+use be_sdk_beui::be_block_content::{BlockMetadata, THUMBHASH};
 
 #[test]
 fn an_image_still_loading_shows_its_thumbhash() {
     let loaded = editor(png(8, 3));
     let image = loaded.content::<ImageContent>(None);
     let derived = BlockMetadata::default()
-        .with_derived(be_sdk_beui::be_block::derived_metadata(&image))
+        .with_derived(be_sdk_beui::be_block_content::derived_metadata(&image))
         .get(&THUMBHASH)
         .expect("decoding an image records its thumbhash in the header");
     assert_eq!((derived.width, derived.height), (8, 3));

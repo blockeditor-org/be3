@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::EditorView;
+use be_sdk_beui::be_block_content::EditorView;
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;

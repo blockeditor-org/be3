@@ -39,7 +39,7 @@ fn a_module_answers_stateless_requests() {
     assert_eq!(types[0].blank, ChecklistContent::default().encode());
     assert_eq!(
         types[0].blank_description.derived,
-        be_block::derived_metadata(&ChecklistContent::default())
+        be_block_content::derived_metadata(&ChecklistContent::default())
     );
 
     let module = block_types();
@@ -63,7 +63,10 @@ fn a_module_answers_stateless_requests() {
         ORGANIZATION,
     ))
     .expect("a description");
-    assert_eq!(description.derived, be_block::derived_metadata(&ours));
+    assert_eq!(
+        description.derived,
+        be_block_content::derived_metadata(&ours)
+    );
     let text = FileContent::new("notes.txt".into(), b"hello".to_vec());
     assert_eq!(
         pollster::block_on(module.to_file(FileContent::CONTENT_TYPE, text.encode())),

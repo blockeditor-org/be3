@@ -67,8 +67,11 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   when the proxy holds a stream back, and one streaming POST, whose lines arrive late when it collects a body first.
 - **In a cloud session** the proxy adds `Authorization: Bearer TOKEN` for the host nl.be3.pfg.pw as a network secret,
   and the session's environment sets `BE3_BUILD_SERVER=nl.be3.pfg.pw` and no key, so buck2 sends no header.
-- **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 450 GB
-  (`/var/lib/nativelink/cas`) and the action cache 2 GB, each evicting the least recently used. Nothing is copied
+- **Storage** is the server's own disk, which survives a reboot: the CAS keeps up to 270 GB
+  (`/var/lib/nativelink/cas`) and the action cache 2 GB, each evicting the least recently used. The CAS's limit counts
+  only `cas/content`: NativeLink also keeps a mode-0555 copy of each blob an action takes as an executable in
+  `cas/content.exec`, which the limit does not see and which can grow as large again, so the limit is under half the
+  disk. Nothing is copied
   elsewhere: a lost server means a new one and a cold cache, whose first `./scripts/verify` took 30 minutes, most of it
   the client uploading toolchain archives. buck2 and the relay remember for hours which blobs the server holds, so
   after emptying the cache by hand restart every client's daemon (`./scripts/buck kill`).
@@ -81,6 +84,27 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
     86% busy (61% user, 25% system) with no steal, memory peaked at 11 GB, and 50 GB of the cache was in use. It is
     CPU-bound: a second machine would be the way to more.
 - **Cost**: €110.99 a month flat with its IPv4 address and 20 TB of traffic, whatever it builds.
+
+### The dashboard
+
+https://nl.be3.pfg.pw/ is a Grafana dashboard of the server and of every build (`scripts/internal/nativelink/dashboard`,
+which `setup.sh` installs). Caddy lets a browser through when it holds the cookie `be3_dash=NL_DASH_TOKEN` (from
+`/etc/nl-caddy.env`); without it, the only page is `/gate`, which asks for the token and sets the cookie.
+
+- **The machine**: node_exporter's CPU by mode (steal is a shared vCPU given to another machine), pressure (the share of
+  time something waited for a CPU, memory or the disk), memory and swap, disk and network.
+- **The build server**: `nl-stats.py` counts the actions running, one directory each under `/var/lib/nativelink/run`,
+  every 5 s, for node_exporter's textfile collector. NativeLink sends its own metrics over OTLP to 127.0.0.1:4317 (it
+  always tries), where the OpenTelemetry Collector (`otel-collector.yaml`) keeps them for Prometheus, minus a series
+  per action digest: queue depth and queue time, actions finished, each action's peak memory, CAS reads and bytes.
+  Prometheus keeps a year of both (`/var/lib/nl-prometheus`).
+- **Builds**: at its end, every `./scripts/verify` and `./scripts/ci` that built on a named server sends a record
+  (crates/be-tool-verify's stats.rs, from buck2's event log) to `/__be3-stats/build` with the build token, which
+  `nl-stats.py` keeps in `/var/lib/nl-stats/builds.db`: how long buck2 took, the actions that ran and were cached,
+  their total queue time, the critical path, every test run and every other action over 10 s. Its kind is
+  `ci-EVENT` in CI, `verify-cloud` behind a proxy, and `verify` otherwise; `target/verify-record.json` is the last one
+  sent. Ask it anything with `sqlite3 /var/lib/nl-stats/builds.db` on the server.
+- The dashboard is `build-server.json`; the UI cannot save changes to it, so change the file and run `setup.sh`.
 
 ## When a build keeps failing
 

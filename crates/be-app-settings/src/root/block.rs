@@ -1,6 +1,5 @@
-use be_sdk_beui::be_block::{
-    ANYONE_INSIDE, BlockContent, EDIT_KINDS, SettingsContent, WORKSPACE_TYPE,
-};
+use be_sdk_beui::be_block::{ANYONE_INSIDE, EDIT_KINDS, SettingsContent, WORKSPACE_TYPE};
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_EXTERNAL_LINK, ICON_TRASH};

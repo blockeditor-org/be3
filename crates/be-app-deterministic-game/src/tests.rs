@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 
 use be_sdk_beui::beui::{Pos2, Vec2};
 use be_sdk_beui::{Creation, EditorHost, OwnedEditor};

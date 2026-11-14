@@ -580,7 +580,7 @@ impl<S: ObjectStore> Peer<S> {
                     .vault()
                     .open(&defining.metadata)
                     .map_err(super::locked)?;
-                let defined = be_block::BlockMetadata::decode(&plain)?.defined;
+                let defined = be_block_content::BlockMetadata::decode(&plain)?.defined;
                 self.define(block, |metadata| metadata.defined = defined.clone())
                     .await?;
                 Ok(Drained::Defined { block })

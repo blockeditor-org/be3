@@ -6,7 +6,7 @@ cargo_package()
 
 # beui's demo (crates/beui-demo) on beui's
 # HTML core: `./scripts/buck run //crates/beui-demo:web-html` serves it with
-# Caddy on http://127.0.0.1:8075, or on the address after `--`.
+# Caddy on http://127.0.0.1:8075, or on the address given as `-- --addr HOST:PORT`.
 web_library(
     role = "html",
     target_compatible_with = ["root//buck/constraints:html"],

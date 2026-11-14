@@ -1,7 +1,7 @@
 use super::*;
 use be_type_workspace::WorkspaceContent;
 
-use be_block::block_url::block_url;
+use be_block_content::block_url::block_url;
 use be_type_text::{TextBlock, TextContent};
 
 #[test]
@@ -39,7 +39,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
                 Uuid::now_v7(),
                 WorkspaceContent::CONTENT_TYPE,
                 be_block_graph::BlockParent::Root,
-                &be_block::BlockMetadata::named("Sharer's"),
+                &be_block_content::BlockMetadata::named("Sharer's"),
                 false,
             )
             .await

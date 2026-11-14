@@ -15,18 +15,14 @@ async fn an_upload_is_used_once_and_its_object_goes_once_collected() {
         .await;
     assert!(published.is_ok(), "{published:?}");
     let uploads = || {
-        rusqlite::Connection::open(harness.directory.join("metadata.sqlite"))
-            .unwrap()
+        metadata_database(&harness.directory)
             .query_row("SELECT COUNT(*) FROM object_uploads", [], |row| {
                 row.get::<_, i64>(0)
             })
             .unwrap()
     };
     assert_eq!(uploads(), 0, "publishing used the uploads it held");
-    let usage = client
-        .call(|peer| client::account::storage_usage(peer))
-        .await
-        .unwrap();
+    let usage = client.storage().await.unwrap();
     assert_eq!(usage.pending, 0);
 
     // Asked again for what the block holds, the server reserves nothing and asks for none of it.

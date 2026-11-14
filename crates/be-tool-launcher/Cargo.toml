@@ -12,7 +12,7 @@ name = "be-launcher"
 path = "src/main.rs"
 
 [dependencies]
-be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host" }
 comrak = { version = "0.55", default-features = false }

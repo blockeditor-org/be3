@@ -1,3 +1,5 @@
 mod a_binary_the_pins_do_not_name_replaces_its_pin;
+mod a_builds_record_counts_what_ran_and_what_was_cached;
 mod a_link_that_prefers_this_machine_is_reported;
 mod a_release_that_matches_its_pins_is_current;
+mod a_wildcard_bind_outside_a_deployment_is_reported;

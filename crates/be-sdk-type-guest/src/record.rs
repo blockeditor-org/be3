@@ -1,4 +1,4 @@
-use be_block::{LiveEdit, Undo, history::History};
+use be_block_content::{LiveEdit, Undo, history::History};
 
 pub trait Recorder<C: LiveEdit>: Default {
     fn record(&mut self, content: &C, operation: &C::Op, origin: Option<u64>, at: u64) {

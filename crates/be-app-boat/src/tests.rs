@@ -3,8 +3,8 @@
 
 use std::time::Duration;
 
-use be_sdk_beui::be_block::Root;
-use be_sdk_beui::be_block::{EditorView, EditorViewContent};
+use be_sdk_beui::be_block_content::Root;
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_beui::network::ResponseHead;
 use be_sdk_beui::{
     BlockAgent, EditorHost, Failure, OwnedEditor, TerminalHostBe, TerminalHostDownload,

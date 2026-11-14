@@ -45,7 +45,8 @@ and the refs database.
 `be-host-stack/src/worker.rs` is the peer's loop. `be_block_type_host::Replicas`
 (shared with `be`; be-host's `Host` is `replicas.rs`, where reports land in
 `Shared`) is the host half of every open block's replica: it joins the session,
-watches the block, constructs the `replica` with the head, answers its calls
+reads the block's head (which lists it, so `changes` tells it the heads other
+connections publish), constructs the `replica` with the head, answers its calls
 with the real primitives (`Peer::seal` then `publish_sealed`, `Peer::stash`,
 resume, the lease, relays sealed with the block key, `sleep-until`) and keeps
 what it reports (`report-status`, which carries the undo state too, `described`, `conflict`).
@@ -92,7 +93,7 @@ own.
 
 The server keeps one open organization per connection, so only the worker
 opens one, after the last worker stopped (`Link::open_organization`). Opening
-it again drops the connection's watches and listings, so anything needing the
+it again drops the connection's listings, so anything needing the
 open organization's escrow key (inviting, creating an agent) goes through the
 worker's `Peer`.
 
@@ -147,19 +148,31 @@ its head.
   the moment they are made, so a leave and the next join reach the server in
   order; an answer older than the replica's session is dropped.
 - **Locked messages.** A relayed message is unsealed on the spot; one whose key
-  is missing (`ClientError::Locked`, first time: `Peer::first_search_for`)
-  fetches keys in a task, and that block's later events wait behind it.
+  is missing (`ClientError::Locked`) waits, with that block's later events
+  behind it, for one search per key (`Replicas::searching`), started by the
+  first such message whatever else searches for the key (`Peer::learn` may
+  answer only after it arrived). Once a search for its key has answered
+  (`searched`, cleared when a search opens keys and on reconnecting), a message
+  still locked is dropped and recorded, so a peer sealing with a key this device
+  cannot get costs one search.
 - **Stopping**: `be_host_stack::stop`, `stop_and_wait`. Tests stop as a crash
   would with `crash`: the worker ends without keeping the open blocks, so only
   what the device had written survives.
 
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and
-`unsaved` (what closing or switching would lose: edits not yet in the device's
-journal, `Replicas::counts`' third number, plus queued commands and imports; an
-edit that is journaled but not yet committed is durable and not counted). The
-close and switch guards flush, then ask only while `unsaved` is above zero, and
-the "Saving changes" toast shows only while it stays above zero.
+`unsaved` (edits not yet in the device's journal, `Replicas::counts`' third
+number, plus every command sent and not yet carried out, `Shared::pending`, and
+imports; an edit that is journaled but not yet committed is durable and not
+counted). The "Saving changes" toast follows `unsaved`.
+
+The close and switch guards ask only while `be_host_stack::flush()` returns
+more than zero. It returns the worker's count as it answers the flush: open
+blocks whose edits the journal does not hold, commands sent before the flush
+that still wait in `Uploads` or `Served`, and unfinished imports. Commands sent
+after the flush do not count, so a window that keeps sending as it is asked to
+close still closes. On a timeout, and on the web, which cannot wait, it returns
+`unsaved` as read before the flush.
 
 Not built yet: a closing web tab cannot wait for `flush()`, so it asks first
 (`beforeunload`) while anything is unsaved (`Replicas::counts`).
@@ -248,7 +261,7 @@ instance, `Owner::Open` for open blocks' parents, `Owner::Host`,
 
 ## Metadata
 
-`be_block::BlockMetadata` is two maps from key UUID to CBOR: `defined` (chosen
+`be_block_content::BlockMetadata` is two maps from key UUID to CBOR: `defined` (chosen
 by someone: `NAME`, `LOCAL_ID`, the artifact source) and `derived` (said by the
 content: `INTRINSIC_NAME`, `THUMBHASH`, `SCHEMA`). Keys are typed constants
 (`MetaKey::defined`/`derived`), so a new key, a third party's included, needs
@@ -263,7 +276,7 @@ its settings or tags.
 Metadata travels with content: every commit carries it, and `Publish` carries
 it sealed with the block's data key, so the server stores it in the step that
 moves the head. A save takes `defined` from the head it builds on and
-recomputes `derived` (`be_block::derived_metadata`); a merge merges `defined`
+recomputes `derived` (`be_block_content::derived_metadata`); a merge merges `defined`
 key by key (`BlockMetadata::merge_defined`). Unknown defined keys ride along;
 unknown derived keys are dropped on a new save, since they describe old
 content. `Peer::define` publishes a commit of the current content with new
@@ -405,7 +418,7 @@ block in it.
 Moving a block into a container, deleting a child, replacing it or moving it
 among its siblings asks the container's content to change: `be_host_stack::change_child` sends the
 container's replica `Change::Child`, and the type's `Root::child_edit` turns a
-`be_block::ChildChange` into an ordinary edit. An editor asks for a reorder with
+`be_block_content::ChildChange` into an ordinary edit. An editor asks for a reorder with
 `EditorHost::reorder_block(block, parent, after)` (`BlockCommand::Reorder`);
 be-host queues it behind any move of the same block still under way
 (`queue_reorder` in its main.rs) and sends it only to a type whose manifest
@@ -423,7 +436,7 @@ of the parent (`Shared::log_dropped`), which a host test's failure shows in the 
 
 Undo lives in the block's replica, the one place that sees every edit from this
 device, whichever editor made it. A type registered with `undo` keeps
-`be_block::history::History` (`HISTORY_STEPS` deep): steps sent within 750 ms
+`be_block_content::history::History` (`HISTORY_STEPS` deep): steps sent within 750 ms
 of the last, by the frame-clock time each relayed frame is stamped with, may
 absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
 An editor groups a gesture into one step with `FromEditor::Gesture`

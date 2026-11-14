@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use be_sdk_beui::BlockQuery;
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor};

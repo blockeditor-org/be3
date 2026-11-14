@@ -91,8 +91,8 @@ pub(crate) fn answer_in(
 }
 
 /// An announcement as the type module sent it.
-fn announcement(sent: be_sdk_type_api::Announcement) -> be_block::Announcement {
-    be_block::Announcement {
+fn announcement(sent: be_sdk_type_api::Announcement) -> be_block_content::Announcement {
+    be_block_content::Announcement {
         key: sent.key,
         text: sent.text,
         several: sent.several,
@@ -214,9 +214,10 @@ pub enum Io {
     Relayed,
     Left,
     Sealed,
+    /// A search for `key`, which relayed messages waited on, answered: how many keys it opened.
     Keyed {
-        block: Uuid,
-        error: Option<ClientError>,
+        key: Uuid,
+        fetched: Result<usize, ClientError>,
     },
     Joined {
         replica: ReplicaId,
@@ -418,6 +419,9 @@ struct Open {
     publishing: usize,
     moved: Vec<CommitId>,
     published: Vec<CommitId>,
+    /// The head the replica opened at or was last told moved to: news of a block whose head is
+    /// still this (another device renamed or shared it) moves nothing.
+    heard: Option<CommitId>,
     replay: Vec<Replayed>,
     /// Editors that detached while `replay` holds edits of theirs, and whether they could edit:
     /// what a replica opened again is given their edits as (`resend`).
@@ -487,6 +491,9 @@ impl std::fmt::Display for Owing {
 /// How many commits sealed here `Replicas` remembers per block.
 const SEALED_REMEMBERED: usize = 16;
 
+/// The most keys `Replicas::searched` holds before it starts over.
+const MOST_SEARCHED_KEYS: usize = 4096;
+
 pub struct Replicas<H: Host> {
     pub modules: Modules,
     answers: UnboundedReceiver<Io>,
@@ -502,7 +509,19 @@ pub struct Replicas<H: Host> {
     pending: Vec<Io>,
     relaying: usize,
     left: usize,
+    /// Per block, events behind a relayed message whose key is being searched for.
     unsealing: HashMap<Uuid, VecDeque<Event>>,
+    /// Keys a search is on its way for, which relayed messages wait on.
+    searching: HashSet<Uuid>,
+    /// Keys a search answered for since a search last opened any or this device last
+    /// reconnected: a message still sealed with one is let go.
+    searched: HashSet<Uuid>,
+    /// How many searches for keys relayed messages started.
+    #[cfg(test)]
+    key_searches: usize,
+    /// What peers' relayed messages said, unsealed.
+    #[cfg(test)]
+    heard_from_peers: Vec<Vec<u8>>,
     leaving: Vec<Uuid>,
     rejoins: u64,
     /// Blocks opened here while their creation waited in the outbox: they join their session
@@ -519,6 +538,9 @@ pub struct Replicas<H: Host> {
     /// reopens: a journal rebased on one hands its announcements to it (`Peer::rebase_journal`).
     sealed: HashMap<Uuid, VecDeque<CommitId>>,
     pub handled: u64,
+    /// How many heads replicas were told moved, for tests.
+    #[cfg(test)]
+    pub(crate) heads_told: usize,
     host: std::marker::PhantomData<fn() -> H>,
 }
 
@@ -543,6 +565,12 @@ impl<H: Host> Replicas<H> {
             relaying: 0,
             left: 0,
             unsealing: HashMap::new(),
+            searching: HashSet::new(),
+            searched: HashSet::new(),
+            #[cfg(test)]
+            key_searches: 0,
+            #[cfg(test)]
+            heard_from_peers: Vec::new(),
             leaving: Vec::new(),
             rejoins: 0,
             uncreated: HashSet::new(),
@@ -554,6 +582,8 @@ impl<H: Host> Replicas<H> {
             bookmarks: HashMap::new(),
             sealed: HashMap::new(),
             handled: 0,
+            #[cfg(test)]
+            heads_told: 0,
             host: std::marker::PhantomData,
         }
     }
@@ -568,15 +598,11 @@ impl<H: Host> Replicas<H> {
 
     fn leave(&mut self, shared: &Arc<Mutex<H>>, peer: &Peer<H::Store>, block: Uuid) {
         let left = peer.connection().leave_session(block);
-        let unwatched = peer.unwatch(block);
         self.left += 1;
         H::leaving(shared, true);
         let io = self.io.clone();
         H::spawn(async move {
             let _ = left.await;
-            if let Ok(unwatched) = unwatched {
-                let _ = unwatched.await;
-            }
             let _ = io.send(Io::Left);
             H::wake();
         });
@@ -842,7 +868,7 @@ impl<H: Host> Replicas<H> {
                     reset::<H>(peer, block, &kind).await?;
                 }
                 let (client, session, journal) = peer.connection().join_session(block).await?;
-                peer.watch(block);
+                // Reading the head lists the block, so `changes` tells its next ones.
                 let head = peer.remote_head(block).await?;
                 let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
                 Ok::<_, ClientError>((client, session, head, false, journal))
@@ -979,6 +1005,7 @@ impl<H: Host> Replicas<H> {
                 publishing: 0,
                 moved: Vec::new(),
                 published: Vec::new(),
+                heard: head,
                 replay: Vec::new(),
                 departed: BTreeMap::new(),
                 closing: false,
@@ -1095,6 +1122,7 @@ impl<H: Host> Replicas<H> {
         open.publishing = 0;
         open.moved.clear();
         open.published.clear();
+        open.heard = head;
         open.reporting = None;
         open.status.head = head;
         open.replay.retain(Replayed::local_edit);
@@ -1219,6 +1247,10 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
+        #[cfg(test)]
+        if let Replayed::Moved { .. } = replayed {
+            self.heads_told += 1;
+        }
         open.replay.push(replayed.clone());
         self.with_replica(replica, |handle, connection| {
             replayed.send(handle, connection);
@@ -1341,6 +1373,7 @@ impl<H: Host> Replicas<H> {
             open.moved.push(head);
             return;
         }
+        open.heard = Some(head);
         if let Some(index) = open.published.iter().position(|held| *held == head) {
             open.published.drain(..=index);
             return;
@@ -1649,7 +1682,7 @@ impl<H: Host> Replicas<H> {
         }))
     }
 
-    /// A commit's searchable text (`be_block::BlockContent::search_text`), as the indexer can
+    /// A commit's searchable text (`be_block_content::BlockContent::search_text`), as the indexer can
     /// trust it whatever the type answered: only the documents `keys` names (none for every
     /// one), each key once, a `source` only if it is a part of this commit, and no body for a
     /// document whose source is in `indexed`, the hashes of parts whose text the index holds
@@ -1909,12 +1942,34 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// Whether what peers sent about `block` waits for keys to unseal it.
+    #[cfg(test)]
+    pub(crate) fn waits_for_keys(&self, block: Uuid) -> bool {
+        self.unsealing.contains_key(&block)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn key_searches(&self) -> usize {
+        self.key_searches
+    }
+
+    #[cfg(test)]
+    pub(crate) fn heard_from_peers(&self) -> &[Vec<u8>] {
+        &self.heard_from_peers
+    }
+
+    /// Takes what the session told this device about an open block. A relayed message sealed
+    /// with a key this device does not hold waits, with the events behind it, for one search for
+    /// that key: a peer seals with a block's key as soon as it has it, and a search started
+    /// elsewhere (`Peer::learn`) may answer only after the message arrived. Once a search for its
+    /// key has answered, a message still sealed with it is let go and recorded.
     pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
-        let (Event::SessionChanged { block, .. }
-        | Event::Relayed { block, .. }
-        | Event::HeadChanged { block, .. }) = event
-        else {
-            return;
+        let block = match event {
+            Event::SessionChanged { block, .. } | Event::Relayed { block, .. } => block,
+            // A head another connection published; this connection's own publishes are the
+            // replica's, which it heard of as it made them.
+            Event::BlockChanged { block, own: false } if block.head.is_some() => &block.id,
+            _ => return,
         };
         if let Some(waiting) = self.unsealing.get_mut(block) {
             waiting.push_back(event.clone());
@@ -1950,19 +2005,27 @@ impl<H: Host> Replicas<H> {
                 };
                 let bytes = match peer.unseal(payload) {
                     Ok(bytes) => bytes,
-                    Err(ClientError::Locked(key)) if peer.first_search_for(key) => {
+                    Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
                             .insert(*block, VecDeque::from([event.clone()]));
-                        let (peer, io, block) = (Arc::clone(peer), self.io.clone(), *block);
-                        H::spawn(async move {
-                            let error = peer.refresh_keys(None).await.err();
-                            let _ = io.send(Io::Keyed { block, error });
-                            H::wake();
-                        });
+                        if self.searching.insert(key) {
+                            #[cfg(test)]
+                            {
+                                self.key_searches += 1;
+                            }
+                            let (peer, io) = (Arc::clone(peer), self.io.clone());
+                            H::spawn(async move {
+                                let fetched = peer.refresh_keys(None).await;
+                                let _ = io.send(Io::Keyed { key, fetched });
+                                H::wake();
+                            });
+                        }
                         return;
                     }
                     Err(error) => return H::record(shared, error),
                 };
+                #[cfg(test)]
+                self.heard_from_peers.push(bytes.clone());
                 let replayed = Replayed::Message {
                     from: Endpoint::Peer(*from),
                     bytes,
@@ -1979,14 +2042,31 @@ impl<H: Host> Replicas<H> {
                 }
                 self.replay(replica, replayed);
             }
-            Event::HeadChanged { block, head, .. } => {
+            Event::BlockChanged {
+                block:
+                    be_block_protocol::BlockSummary {
+                        id: block,
+                        head: Some(head),
+                        ..
+                    },
+                ..
+            } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
-                if let Some(open) = self.open.get_mut(&replica)
-                    && open.joining
-                {
-                    return open.early.push(Replayed::Moved { head: *head });
+                if let Some(open) = self.open.get_mut(&replica) {
+                    // A change that left the head as the replica has it, or as it published
+                    // or was already told it, is no news of the head.
+                    if open.heard == Some(*head)
+                        || open.published.contains(head)
+                        || open.moved.contains(head)
+                    {
+                        return;
+                    }
+                    if open.joining {
+                        open.heard = Some(*head);
+                        return open.early.push(Replayed::Moved { head: *head });
+                    }
                 }
                 self.moved(replica, *head, false);
             }
@@ -1995,6 +2075,9 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn resynchronize(&mut self, (peer, _): Ctx<'_, H>) {
+        // A search that ended as the connection dropped answered nothing, and the server may
+        // have keys now that it lacked: what is relayed from here on is searched for again.
+        self.searched.clear();
         for (replica, block) in self
             .open
             .iter()
@@ -2149,14 +2232,26 @@ impl<H: Host> Replicas<H> {
                 H::leaving(shared, self.left > 0);
             }
             Io::Sealed => self.release(),
-            Io::Keyed { block, error } => {
-                if let Some(error) = error
-                    && !unreachable(&error)
-                {
-                    H::record(shared, error);
+            Io::Keyed { key, fetched } => {
+                self.searching.remove(&key);
+                match fetched {
+                    // Keys it opened may open what earlier searches could not.
+                    Ok(opened) if opened > 0 => self.searched.clear(),
+                    Ok(_) => {}
+                    Err(error) if unreachable(&error) => {}
+                    Err(error) => H::record(shared, error),
                 }
-                for event in self.unsealing.remove(&block).unwrap_or_default() {
-                    self.heard((peer, shared), &event);
+                // Keys peers name that this device cannot get, forged ones too, are kept only
+                // up to a bound: past it, they are searched for again.
+                if self.searched.len() >= MOST_SEARCHED_KEYS {
+                    self.searched.clear();
+                }
+                self.searched.insert(key);
+                // Each waiting message is unsealed now, let go, or waits again for its own key.
+                for (_, events) in std::mem::take(&mut self.unsealing) {
+                    for event in events {
+                        self.heard((peer, shared), &event);
+                    }
                 }
             }
             Io::Joined {
@@ -2257,7 +2352,6 @@ impl<H: Host> Replicas<H> {
         H::spawn(async move {
             let joined = async {
                 let (client, session, _) = peer.connection().join_session(block).await?;
-                peer.watch(block);
                 let head = peer.remote_head(block).await?;
                 Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block)))
             }
@@ -2637,7 +2731,7 @@ impl<H: Host> Replicas<H> {
                 relay,
                 announcements,
             } => {
-                let announcements: Vec<(u64, be_block::Announcement)> = announcements
+                let announcements: Vec<(u64, be_block_content::Announcement)> = announcements
                     .into_iter()
                     .map(|announced| (announced.sequence, announcement(announced.announcement)))
                     .collect();
@@ -3128,7 +3222,6 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
         peer.ensure_type(block, content_type, BlockParent::Detached)
             .await?;
         let (client, session, journal) = peer.connection().join_session(block).await?;
-        peer.watch(block);
         let head = peer.remote_head(block).await?;
         let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
         Ok((client, session, head, ahead(&peer, block), journal))

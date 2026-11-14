@@ -4,7 +4,7 @@ use be_block_model::Edit;
 use serde::{Deserialize, Serialize};
 
 use crate::display_settings::{DisplaySettings, Motion, ThemeKind};
-use crate::setting::Setting;
+use be_block_content::setting::Setting;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum DeviceClass {

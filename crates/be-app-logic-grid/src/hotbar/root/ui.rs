@@ -1,7 +1,7 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_type_logic_grid::CompiledLogicContent;
 
-use be_sdk_beui::be_block::Item;
+use be_sdk_beui::be_block_content::Item;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::icons::{ICON_FOLDER, ICON_TRASH};

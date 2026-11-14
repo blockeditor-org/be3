@@ -117,7 +117,7 @@ impl ServerStore {
                 block.to_string(),
                 identity.account.to_string(),
             );
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let mut new = false;
             for key in &keys {
                 new |= transaction.execute(
@@ -159,7 +159,7 @@ impl ServerStore {
                 identity.account.to_string(),
                 identity.organization.to_string(),
             );
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "DELETE FROM push_endpoints
                  WHERE account_id = ?1 AND organization_id = ?2 AND address = ?3",
@@ -207,6 +207,22 @@ impl ServerStore {
                     identity.organization.to_string(),
                     address
                 ],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Forgets `account`'s endpoint at `address` in every organization: the device signed out.
+    pub(crate) async fn forget_endpoint_of(
+        &self,
+        account: Uuid,
+        address: String,
+    ) -> Result<(), ServerError> {
+        self.with_database(move |_, database| {
+            database.execute(
+                "DELETE FROM push_endpoints WHERE account_id = ?1 AND address = ?2",
+                params![account.to_string(), address],
             )?;
             Ok(())
         })

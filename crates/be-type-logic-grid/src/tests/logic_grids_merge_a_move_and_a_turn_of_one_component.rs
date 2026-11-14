@@ -1,6 +1,6 @@
 use crate::logic_grid::{LogicGridContent, LogicGridOperation};
-use be_block::Merge;
 use be_block_commit::MergeResult;
+use be_block_content::Merge;
 use logicgame::grid::{Component, ComponentId, ComponentKind, ComponentOrientation, Point, Scale};
 
 fn not_gate(id: u64) -> Component {

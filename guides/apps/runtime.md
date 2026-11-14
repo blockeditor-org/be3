@@ -50,6 +50,11 @@ frame is held until the placer's layout commit lands (`Host::request_frames`),
 so it is asked once, at its new place; `Host::held_behind` breaks a cycle of
 two apps placing each other. Input the host routes always brings a request.
 
+Input reaches an app on its own stream, apart from the screens it is given, so
+input aimed at a screen the host just took back can follow the screens that
+dropped it: the app ignores it (`be_sdk::session::ClientSession`), and refuses
+input for a screen it was never given.
+
 ### Settling
 
 After laying out, the host sends each runtime its views' new sizes and places,

@@ -77,16 +77,16 @@ interface account {
     /// of the request's Authorization header.
     authenticate: async func(token: option<string>) -> result<authenticated, error>;
 
-    /// Ends the session the token named and signs this connection out.
-    logout: async func() -> result<_, error>;
+    /// Ends the session the token named and signs this connection out. With
+    /// `push-address`, the device's push endpoint, the account forgets that
+    /// endpoint in every organization too, as the device stops taking its pushes.
+    logout: async func(push-address: option<string>) -> result<_, error>;
 
-    /// The signed-in account's storage usage and quota.
-    storage-usage: async func() -> result<account-storage, error>;
-
-    /// The signed-in account's storage usage: its value as the stream opens,
-    /// then each new value as the bytes it pays for change. A connection has
-    /// one: opening another ends the first. Ends at once, denied, before an
-    /// organization is open.
+    /// The signed-in account's storage usage and quota: its value as the stream opens,
+    /// then each new value as the bytes it pays for change. A latest-value
+    /// stream: a connection may hold several, each starting with the current
+    /// value, and one whose first value cannot be read ends with the failure.
+    /// Ends at once, denied, before an organization is open.
     storage-changed: func() -> stream<account-storage>;
 
     /// Sends a pairing message to one of the account's other connections, or

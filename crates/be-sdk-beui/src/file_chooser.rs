@@ -131,7 +131,7 @@ pub fn ContentFileCreation<C>(
     import: Func<PickedFile, Result<C, String>>,
 ) -> NodeId
 where
-    C: be_block::BlockContent + 'static,
+    C: be_block_content::BlockContent + 'static,
 {
     let chooser = FileChooser::new(filter, move |file| import.call(file));
     let chosen_file = create_signal(false);

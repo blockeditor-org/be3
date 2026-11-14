@@ -30,6 +30,44 @@ pub(crate) mod held {
         (started, release)
     }
 
+    type HeldListing = (
+        tokio::sync::oneshot::Sender<()>,
+        tokio::sync::oneshot::Receiver<()>,
+    );
+
+    static LISTINGS: Mutex<Option<HashMap<Uuid, HeldListing>>> = Mutex::new(None);
+
+    /// Makes the next read of `block`'s own listing tell `reached` once the store answered it,
+    /// then wait, before the connection records what it was told, until the returned sender
+    /// sends or is dropped.
+    pub(crate) fn hold_listing(
+        block: Uuid,
+    ) -> (
+        tokio::sync::oneshot::Receiver<()>,
+        tokio::sync::oneshot::Sender<()>,
+    ) {
+        let (reached, started) = tokio::sync::oneshot::channel();
+        let (release, held) = tokio::sync::oneshot::channel();
+        LISTINGS
+            .lock()
+            .unwrap()
+            .get_or_insert_with(HashMap::new)
+            .insert(block, (reached, held));
+        (started, release)
+    }
+
+    pub(crate) async fn listing(block: Uuid) {
+        let held = LISTINGS
+            .lock()
+            .unwrap()
+            .as_mut()
+            .and_then(|held| held.remove(&block));
+        if let Some((reached, held)) = held {
+            let _ = reached.send(());
+            let _ = held.await;
+        }
+    }
+
     pub(super) fn wait(organization: Uuid) {
         let held = HELD
             .lock()
@@ -48,7 +86,7 @@ use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
     path::{Path, PathBuf},
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 pub use usage::{DEFAULT_ACCOUNT_QUOTA, DEFAULT_UPLOAD_GRACE, StorageLimits};
 
@@ -188,8 +226,7 @@ impl ServerStore {
     ) -> Result<Self, ServerError> {
         let root: PathBuf = root.as_ref().to_path_buf();
         std::fs::create_dir_all(&root)?;
-        let connection = Connection::open(root.join("metadata.sqlite"))?;
-        connection.busy_timeout(Duration::from_secs(5))?;
+        let connection = be_block_sqlite_schema::open(root.join("metadata.sqlite"))?;
         schema::initialize(&connection)?;
         let object_refs = load_object_refs(&connection)?;
         let server = crate::organization::ServerKey::load_or_create(&connection)?;
@@ -198,7 +235,7 @@ impl ServerStore {
             root.join("metadata.sqlite"),
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
-        reader.busy_timeout(Duration::from_secs(5))?;
+        reader.busy_timeout(be_block_sqlite_schema::BUSY_TIMEOUT)?;
         let floor = reserve_revisions(&connection, None)?;
         Ok(Self(Arc::new(Shared {
             database: Arc::new(Mutex::new(connection)),
@@ -225,7 +262,7 @@ impl ServerStore {
         let display_name = crate::limits::name("a display name", display_name)?.to_owned();
         let account = Uuid::new_v4();
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "INSERT INTO accounts (id, email, display_name, password_hash, local_profile) VALUES (?1, ?2, ?3, '', 1)",
                 params![
@@ -283,7 +320,7 @@ impl ServerStore {
                     "that email is already registered".into(),
                 ));
             }
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)",
                 params![account.to_string(), email, display_name, hash],
@@ -354,7 +391,7 @@ impl ServerStore {
         self.passwords.succeeded(&email, address, Instant::now());
         let account = parse_uuid(&id)?;
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let unchanged: bool = transaction.query_row(
                 "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?2)",
                 params![id, previous_hash],
@@ -610,7 +647,7 @@ impl ServerStore {
         }
         let found = self.invitation(account, invitation).await?;
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let code: Vec<u8> = transaction.query_row(
                 "SELECT code FROM invitations WHERE id = ?1",
                 [invitation.to_string()],
@@ -801,7 +838,7 @@ impl ServerStore {
                 }
                 before = graph.audience(block);
             }
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let (created, most, what): (i64, i64, &str) = match bound_to {
                 Some(block) => (
                     transaction.query_row(
@@ -944,7 +981,7 @@ impl ServerStore {
         let removed = self
             .with_graph(organization, move |_, graph, database| {
                 require_agent_of(graph, database, caller, organization, agent)?;
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let revoked = delete_agent(graph, &transaction, organization, agent)?;
                 transaction.commit()?;
                 Ok(revoked)
@@ -966,7 +1003,7 @@ impl ServerStore {
         let token = self
             .with_graph(organization, move |_, graph, database| {
                 require_agent_of(graph, database, caller, organization, agent)?;
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 transaction.execute(
                     "DELETE FROM sessions WHERE account_id = ?1",
                     [agent.to_string()],
@@ -1087,7 +1124,7 @@ impl ServerStore {
             if current == OrganizationRole::Administrator {
                 refuse_last_administrator(database, organization)?;
             }
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "UPDATE memberships SET role = ?3 WHERE organization_id = ?1 AND account_id = ?2",
                 params![
@@ -1122,7 +1159,7 @@ impl ServerStore {
             if role == OrganizationRole::Administrator {
                 refuse_last_administrator(database, organization)?;
             }
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let revoked = remove_from(graph, &transaction, organization, account)?;
             let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
             transaction.commit()?;

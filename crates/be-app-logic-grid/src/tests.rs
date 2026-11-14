@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_type_logic_grid::CompiledLogicContent;
 
 use be_sdk_beui::beui::{Key, Pos2, Vec2};

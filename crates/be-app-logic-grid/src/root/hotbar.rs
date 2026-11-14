@@ -1,7 +1,7 @@
 use super::canvas::ScaleDirection;
 use super::*;
 use be_sdk_beui::ContentProjection;
-use be_sdk_beui::be_block::Item;
+use be_sdk_beui::be_block_content::Item;
 use be_type_logic_grid::hotbar::{HotbarContent, HotbarSlot as BlockHotbarSlot, SlotKind};
 
 pub(super) fn default_hotbar() -> Vec<HotbarSlot> {

@@ -62,7 +62,7 @@ interface objects {
 /// The blocks of the organization this connection opened.
 interface blocks {
     use types.{
-        access-level, account-id, block-id, block-parent, block-summary, commit-id,
+        access-level, account-id, block-id, block-parent, block-summary, client-id, commit-id,
         content-type-id, error, hash, journal, key-id, key-set, listing, organization-role,
     };
 
@@ -174,25 +174,22 @@ interface blocks {
         revision: u64,
     }
 
+    /// A block as a change left it, and the connection whose call changed it
+    /// (its `organization-opened.client`), so a client tells its own
+    /// publishes from those of others. A block moved to the trash, or made
+    /// for one, has parent `detached`; once collected it is `removed`.
+    record block-changed {
+        block: block-summary,
+        %from: client-id,
+    }
+
     /// What a connection's `changes` stream tells of the blocks it listed.
     variant block-change {
-        /// A block it listed, or one that now matches a listing, changed.
-        changed(block-summary),
+        /// A block it listed, or one that now matches a listing, changed: its
+        /// head, its metadata, where it lies or who may view it.
+        changed(block-changed),
         /// A block it was told of matches none of its listings any more.
         removed(block-removed),
-    }
-
-    record head-moved {
-        head: commit-id,
-        author: account-id,
-    }
-
-    /// What a `watch` stream tells of its block.
-    variant block-event {
-        /// Another connection published a new head.
-        moved(head-moved),
-        /// The block was collected for good; the stream then ends.
-        deleted,
     }
 
     create-block: async func(
@@ -249,7 +246,10 @@ interface blocks {
 
     /// Changes to the blocks of everything this connection listed, each
     /// block told once however many listings hold it, from the next listing
-    /// on; `open-organization` starts the listings over.
+    /// on; `open-organization` starts the listings over. A block listed on
+    /// its own (`listing.block`, as reading a block's summary does) is
+    /// followed for as long as the connection may view it: every head
+    /// another connection publishes reaches it here.
     changes: func() -> stream<block-change>;
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
@@ -260,11 +260,6 @@ interface blocks {
     set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, error>;
 
     list-access: async func(block: block-id) -> result<access-list, error>;
-
-    /// Head moves of a block made by other connections, until it is collected,
-    /// the connection loses the right to view it, or the stream is dropped. Each stream is its own: two on one block both
-    /// hear, and dropping one leaves the other.
-    watch: func(block: block-id) -> stream<block-event>;
 }
 
 /// Live sessions on blocks, whose connections relay edits to each other and

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use be_block::{MY_FILES, NAME, ROW_PREFIX};
 use be_block_client::ask;
 use be_block_client::{Connection, contacts};
+use be_block_content::{MY_FILES, NAME, ROW_PREFIX};
 use be_block_keys::{InviteCode, RecoveryPhrase};
 use be_block_protocol::{KeyKind, OrganizationKind, OrganizationRole, client};
 use be_server::backup::{self, BackupKey, Directory};
@@ -469,7 +469,8 @@ async fn check(snapshot: &Snapshot) {
         holiday.size + holiday_note.tree_size + friend_note.tree_size,
         "{name}: what the friend made in the owner's folder is not in its tree"
     );
-    let friend_storage = ask(client::account::storage_usage(&friend.connection()))
+    let friend_storage = client::account::storage_changed(&friend.connection())
+        .recv()
         .await
         .unwrap();
     assert_eq!(
@@ -627,7 +628,8 @@ async fn check_storage(
         my_files.size + notes.tree_size,
         "{name}"
     );
-    let storage = ask(client::account::storage_usage(&owner.connection()))
+    let storage = client::account::storage_changed(&owner.connection())
+        .recv()
         .await
         .unwrap();
     assert!(
@@ -673,7 +675,10 @@ async fn check_storage(
     ))
     .await
     .unwrap();
-    let charged = ask(client::account::storage_usage(&agent)).await.unwrap();
+    let charged = client::account::storage_changed(&agent)
+        .recv()
+        .await
+        .unwrap();
     assert_eq!(
         (charged.held, charged.pending),
         (storage.held, storage.pending),

@@ -2,7 +2,7 @@ use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use be_block::{BlockMetadata, Definition};
+use be_block_content::{BlockMetadata, Definition};
 use be_sdk::{
     AccessLevel, BlockGraph, BlockInfo, BlockParent, BlockQuery, BlockWatch, EditorHost,
     Subscription,
@@ -39,11 +39,15 @@ impl Blocks {
         self.graph.account_id()
     }
 
-    pub fn create<C: be_block::BlockContent>(&self, content: &C, parent: BlockParent) -> Uuid {
+    pub fn create<C: be_block_content::BlockContent>(
+        &self,
+        content: &C,
+        parent: BlockParent,
+    ) -> Uuid {
         self.graph.create(content, parent)
     }
 
-    pub fn create_named<C: be_block::BlockContent>(
+    pub fn create_named<C: be_block_content::BlockContent>(
         &self,
         content: &C,
         parent: BlockParent,
@@ -52,12 +56,12 @@ impl Blocks {
         self.graph.create_named(content, parent, name)
     }
 
-    pub fn create_artifact<C: be_block::BlockContent>(
+    pub fn create_artifact<C: be_block_content::BlockContent>(
         &self,
         content: &C,
         parent: BlockParent,
         name: Option<String>,
-        artifact: be_block::Artifact,
+        artifact: be_block_content::Artifact,
     ) -> Uuid {
         self.graph.create_artifact(content, parent, name, artifact)
     }
