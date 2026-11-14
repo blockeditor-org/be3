@@ -194,11 +194,9 @@ pub(crate) struct Session {
     pub kind: OrganizationKind,
     pub escrows: Vec<EscrowKey>,
     pub pinned: Option<EscrowKey>,
-    #[serde(default)]
     pub server: Option<be_block_protocol::ServerAccount>,
     /// The server's clock less this device's, as last measured (`Peer::server_now`), for
     /// stamping commits offline after a restart.
-    #[serde(default)]
     pub server_offset: Option<i64>,
 }
 
@@ -225,7 +223,6 @@ pub struct Creation {
     pub parent: BlockParent,
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
-    #[serde(default)]
     pub references: Vec<Uuid>,
     pub key: Uuid,
     pub keys: KeySet,
@@ -1615,3 +1612,6 @@ fn newest(state: &State) -> u64 {
         .max()
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests;

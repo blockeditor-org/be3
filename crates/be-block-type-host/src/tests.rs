@@ -20,6 +20,7 @@ mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
+mod a_replica_opened_again_takes_the_servers_journal_and_never_this_devices_entries;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
@@ -196,6 +197,72 @@ fn with_devices<F: Future<Output = ()>>(
         .await;
         server.stop().await;
     });
+}
+
+/// Gives `mirror` what the replica sent `editor` since the frames were last taken, as the
+/// editor would take it.
+fn receive_frames<C: be_block_content::LiveEdit + Clone + Default>(
+    shared: &Arc<Mutex<Quiet>>,
+    editor: EditorId,
+    mirror: &mut be_sdk_type_guest::editor::EditorMirror<C>,
+) {
+    let frames: Vec<Vec<u8>> = std::mem::take(&mut shared.lock().unwrap().frames)
+        .into_iter()
+        .filter(|(to, _)| *to == editor)
+        .map(|(_, frame)| frame)
+        .collect();
+    for frame in frames {
+        let message = frame
+            .split_first_chunk::<4>()
+            .filter(|(length, payload)| u32::from_be_bytes(**length) as usize == payload.len())
+            .and_then(|(_, payload)| be_sdk_type_guest::editor::ToEditor::decode(payload))
+            .or_else(|| be_sdk_type_guest::editor::ToEditor::decode(&frame));
+        if let Some(message) = message {
+            mirror.receive(message);
+        }
+    }
+}
+
+/// Attaches `editor` to the open `block` and waits until it is shown its content.
+async fn attach_mirror<C: be_block_content::LiveEdit + Clone + Default>(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    editor: EditorId,
+) -> be_sdk_type_guest::editor::EditorMirror<C> {
+    let mut mirror = be_sdk_type_guest::editor::EditorMirror::<C>::default();
+    replicas.attach(block, editor, true);
+    replicas.relay_from_editor(
+        block,
+        editor,
+        be_sdk_type_guest::editor::FromEditor::Resend.encode(),
+        std::time::Instant::now(),
+    );
+    replicas.pump((peer, shared)).await;
+    receive_frames(shared, editor, &mut mirror);
+    while mirror.content().is_none() {
+        replicas.woken().await;
+        replicas.pump((peer, shared)).await;
+        receive_frames(shared, editor, &mut mirror);
+    }
+    mirror
+}
+
+/// Types `text` at the start of what `mirror` shows, as its editor, numbered by the session
+/// state it was shown, as an editor's edits are.
+fn type_at_start(
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    editor: EditorId,
+    mirror: &mut be_sdk_type_guest::editor::EditorMirror<be_type_text::TextContent>,
+    text: &str,
+) {
+    let shown = mirror.content().expect("the editor was shown the text");
+    let typed = be_type_text::TextBlock::insert(shown, 3, 0, text.as_bytes())
+        .expect("there is somewhere to type");
+    let message = mirror.operate(typed).expect("the editor has content");
+    replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
 }
 
 /// The modules of the `Sections`, `Probe` and text types, on `clock`.

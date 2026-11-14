@@ -54,8 +54,9 @@ what it reports (`report-status`, which carries the undo state too, `described`,
 A module runs on its own thread natively, in a web worker on the web
 (`WebGuest`), and in process in unit tests (`InProcess`); the worker never
 waits on one. A module that stops (a panic, or a step past `STEP_TIMEOUT`) is
-restarted and its replicas reopened from their last heads, editors attached and
-messages since the last seal replayed. `native.rs` and `web.rs` run the loop
+restarted and its replicas reopened from their last heads with this device's
+journal base on them (Opening again, below), editors attached and messages since
+the last seal replayed. `native.rs` and `web.rs` run the loop
 over a `FileStore` (on the web in the origin private file system).
 
 Nothing in the worker runs on a timer: it waits on commands and the
@@ -120,20 +121,29 @@ block. Meanwhile it keeps serving from the same `Peer` (the loop's `Line`:
 `Up` or `Down`), and every open replica is handed a session it owns
 (`Replicas::disconnected`), so a follower takes over what it had not confirmed,
 and each is asked to seal at once, locally, since reconnecting reopens it from
-its head.
+its head. `Replicas::reconnect` asks the same of a replica opened offline that
+holds edits (one that replayed this device's journal), and a join's answer
+waits (`Replicas::settling`) while a seal of the replica is asked, on its way,
+or answered and not yet reported, since its head is moving past the reported
+one. `Connection::is_closed` reads true as soon as `close` is called, a moment
+before `Connection::closed` says so, so be-host's link never hands a new stack
+the connection a stopping stack closed.
 
-- **Reopening a replica** (joining, rejoining, a module restart) starts it on
-  the last head it reported, with the journal on that head (`journal_on`: the
-  server's or this device's, whichever holds more), and gives it again the
-  editors' edits since its last clean report. The journal carries the session's
-  state, which numbers each writer's next edit: without it an edit an editor made
-  on what it was shown is refused as out of order. A join's answer waits
-  (`Replicas::settling`) while a seal of the replica is asked, on its way, or
-  answered and not yet reported, since its head is moving past the reported one.
-- **A connection asked to close** reads as closed at once
-  (`Connection::is_closed`), so be-host's link never hands a new stack the one a
-  stopping stack closed.
-
+- **Opening again.** A replica opened again (on joining, rejoining or a module
+  restart) starts on a head: rejoining and a restart on the last head it
+  reported, joining on the server's head unless it was edited meanwhile or
+  holds commits ahead of it. It is handed the server's journal when that is on
+  the head, otherwise only the base of this device's journal there (the
+  session's state, which numbers each writer's next edit: without it an edit an
+  editor made on what it was shown is refused as out of order), never this
+  device's entries (`reopening_journal`). It is given again the local edits its
+  module had not reported taking in a clean status (`Open::replay`). What it
+  opens on holds the editors' edits not in `replay` and, after a clean status,
+  none of those in it: what this device sequenced past the head was sealed
+  before it rejoined, and the server's entries are other owners'. A seal that
+  lands while an editor keeps typing is reported unclean, and `replay` then still
+  holds edits its head holds: `be_block_model` types refuse them again, another
+  type would apply them twice.
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened

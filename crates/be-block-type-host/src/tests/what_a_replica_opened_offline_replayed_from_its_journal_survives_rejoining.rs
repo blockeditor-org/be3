@@ -22,8 +22,9 @@ async fn text(
 
 /// A replica opened offline after a crash holds what it replayed from this device's journal,
 /// which no editor gives it again. Rejoining its session once the device is connected reopens
-/// it on its head with the journal on that head, this device's when the server's is on another
-/// commit, so what it replayed is not lost.
+/// it on its head, so reconnecting has it seal what it holds first, and the rejoin's answer,
+/// however early it comes, waits until that seal is reported: reopened on the head it opened
+/// on, what it replayed would be lost.
 #[test]
 fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() {
     let clock = be_block_client::Clock::manual();
@@ -87,6 +88,9 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() 
             .await
             .expect("the device is connected again");
         replicas.reconnect((&peer, &shared));
+        // The server answers the rejoin before the replica's module has said anything of the
+        // seal reconnecting asked of it: the answer waits for that seal.
+        replicas.rejoin_answered().await;
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;

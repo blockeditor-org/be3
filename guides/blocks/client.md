@@ -196,7 +196,8 @@ real head, the device merges against it (`Peer::reconcile`) and the published
 merge moves the remote head on. A record that no
 longer decodes is skipped on load. Records are postcard, which is not
 self-describing: a field marked `skip_serializing_if` is written as nothing and
-never decodes again, so a refs type never uses it.
+never decodes again, so a refs type never uses it, and `#[serde(default)]` does
+nothing for a field missing from an older record.
 
 `Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
 only shorthands): every page of a long one (`listed.next`, in the order of

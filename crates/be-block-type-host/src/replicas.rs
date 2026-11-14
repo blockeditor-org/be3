@@ -718,6 +718,19 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// Waits for an answer to a rejoin and keeps it, with what came before it, for the next
+    /// `pump`, which handles them before what the modules said meanwhile.
+    #[cfg(test)]
+    pub(crate) async fn rejoin_answered(&mut self) {
+        while let Some(io) = self.answers.recv().await {
+            let rejoined = matches!(io, Io::Rejoined { .. });
+            self.pending.push(io);
+            if rejoined {
+                return;
+            }
+        }
+    }
+
     pub async fn woken(&mut self) {
         let notified = std::pin::pin!(self.modules.notified());
         let answered = std::pin::pin!(self.answers.recv());
