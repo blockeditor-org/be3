@@ -15,9 +15,14 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
     });
     flush();
 
-    let mut listings = harness
-        .relay()
-        .count(|method| method == be_block_protocol::__args::BLOCKS_LIST_BLOCKS);
+    // The note's own listing, which is how the new connection hears its heads again: the
+    // graph's relist after a reconnect lists much else besides.
+    let note = versioned.note;
+    let mut listings = harness.relay().count(move |method, args| {
+        method == be_block_protocol::__args::BLOCKS_LIST_BLOCKS
+            && be_wasm_ops::decode::<be_block_protocol::__args::BlocksListBlocksArgs>(args)
+                .is_some_and(|asked| asked.listing == be_block_protocol::Listing::Block(note))
+    });
     harness.relay().stall();
     harness.miss_a_ping();
     retry_now();
@@ -27,7 +32,6 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
         .expect("the new connection lists what the session versions");
 
     // Another device edits the note in the checkout, which the new connection must hear.
-    let note = versioned.note;
     let device = Device::online(&harness);
     device.runtime.block_on(async {
         let peer = std::sync::Arc::clone(&device.peer.borrow());

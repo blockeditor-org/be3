@@ -193,3 +193,28 @@ impl HeldClip {
         self.clip.is_some()
     }
 }
+
+/// The `items` whose costs fit within `budget`, in order, leaving out each one
+/// that would overrun it: what a system clipboard with a size limit carries
+/// of a clip, the rest staying in the held clip.
+pub fn fitting<T>(
+    items: impl IntoIterator<Item = T>,
+    budget: usize,
+    cost: impl Fn(&T) -> usize,
+) -> Vec<T> {
+    let mut left = budget;
+    items
+        .into_iter()
+        .filter(|item| {
+            let cost = cost(item);
+            let fits = cost <= left;
+            if fits {
+                left -= cost;
+            }
+            fits
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests;

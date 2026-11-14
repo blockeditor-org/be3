@@ -10,7 +10,7 @@ fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_s
     wait_for_count(block, 1);
     flush_and_send();
 
-    let mut sending = harness.relay().count(|method| {
+    let mut sending = harness.relay().count(|method, _| {
         [
             be_block_protocol::__args::OBJECTS_UPLOAD_URLS,
             be_block_protocol::__args::BLOCKS_PUBLISH,

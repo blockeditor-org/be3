@@ -357,7 +357,8 @@ enum Route {
     /// A key work stream, by its op, so one opened takes its first value alone.
     KeyWork(OpId),
     NotifyModes,
-    Storage,
+    /// A storage stream, by its op, so one opened takes its first value alone.
+    Storage(OpId),
     Events {
         session: OpId,
         block: Place,
@@ -567,28 +568,39 @@ impl Client {
 
     pub(crate) async fn late(&mut self, late: Late) {
         match late {
-            Late::Storage => self.send_storage().await,
+            Late::Storage => self.send_storage(None).await,
         }
     }
 
     /// Sends the account's storage usage to its storage streams when it differs from the last
-    /// sent.
-    async fn send_storage(&mut self) {
+    /// sent, and to the one `only` names (just opened) whether or not it does. When the store
+    /// cannot say, that one ends with the failure rather than wait for a first value.
+    async fn send_storage(&mut self, only: Option<OpId>) {
         let Ok(identity) = self.connection.identity() else {
             return;
         };
-        let Ok(usage) = self.connection.store.storage_usage(identity).await else {
-            return;
+        let usage = match self.connection.store.storage_usage(identity).await {
+            Ok(usage) => usage,
+            Err(error) => {
+                tracing::warn!(%error, "the storage usage could not be read");
+                if let Some(op) = only {
+                    self.streams
+                        .outlets
+                        .end(&mut self.peer.lock(), op, Some(OpError::Unanswered));
+                }
+                return;
+            }
         };
-        if self.storage.as_ref() == Some(&usage) {
+        let changed = self.storage.as_ref() != Some(&usage);
+        if !changed && only.is_none() {
             return;
         }
         let mut lock = self.peer.lock();
-        if self
-            .streams
-            .send(&mut lock, usage.clone(), |route| *route == Route::Storage)
-            .is_ok()
-        {
+        let to = |route: &Route| match route {
+            Route::Storage(op) => changed || only == Some(*op),
+            _ => false,
+        };
+        if self.streams.send(&mut lock, usage.clone(), to).is_ok() && changed {
             self.storage = Some(usage);
         }
     }
@@ -710,7 +722,8 @@ impl Client {
 
     /// Sends the key work of the organization open to the connection's key work streams (only
     /// to the one `only` names, when it names one), when it has any; nothing before an
-    /// organization is open, or when the store cannot say.
+    /// organization is open. When the store cannot say, a stream just opened (`only`) ends with
+    /// the failure rather than wait for a first value; the others keep the value they have.
     async fn send_key_work(&mut self, only: Option<OpId>) {
         let to = move |route: &Route| match route {
             Route::KeyWork(op) => only.is_none_or(|only| only == *op),
@@ -723,8 +736,17 @@ impl Client {
         if !streaming {
             return;
         }
-        let Ok(work) = self.connection.store.key_work(identity).await else {
-            return;
+        let work = match self.connection.store.key_work(identity).await {
+            Ok(work) => work,
+            Err(error) => {
+                tracing::warn!(%error, "the key work could not be read");
+                if let Some(op) = only {
+                    self.streams
+                        .outlets
+                        .end(&mut self.peer.lock(), op, Some(OpError::Unanswered));
+                }
+                return;
+            }
         };
         let mut lock = self.peer.lock();
         // A latest-value stream: whatever was held back for it is replaced by this.
@@ -1050,28 +1072,15 @@ impl Client {
                 .await;
                 match payer {
                     Ok(payer) => {
-                        {
-                            let mut lock = self.peer.lock();
-                            let earlier: Vec<OpId> = self
-                                .streams
-                                .outlets
-                                .routes()
-                                .filter(|(_, route)| **route == Route::Storage)
-                                .map(|(op, _)| op)
-                                .collect();
-                            for op in earlier {
-                                self.streams.outlets.end(&mut lock, op, None);
-                            }
-                            self.streams.open_with(
-                                &mut lock,
-                                stream,
-                                Route::Storage,
-                                Backlog::Latest,
-                            );
-                        }
-                        self.storage = None;
+                        let op = stream.op();
+                        self.streams.open_with(
+                            &mut self.peer.lock(),
+                            stream,
+                            Route::Storage(op),
+                            Backlog::Latest,
+                        );
                         self.follow_storage(payer);
-                        self.send_storage().await;
+                        self.send_storage(Some(op)).await;
                     }
                     Err(error) => {
                         let mut lock = self.peer.lock();
@@ -1565,12 +1574,20 @@ impl Client {
                             references, metadata,
                         )
                         .await?;
-                    if let PublishOutcome::Published(_, unlinked) = &outcome {
-                        let mut blocks = vec![block];
-                        blocks.extend(unlinked.iter().flatten());
-                        connection
-                            .reannounce(identity, blocks, false, BTreeSet::new())
-                            .await;
+                    match &outcome {
+                        // Its metadata or references changed: who may be told is the audience.
+                        PublishOutcome::Published(_, Some(unlinked)) => {
+                            let mut blocks = vec![block];
+                            blocks.extend(unlinked);
+                            connection
+                                .reannounce(identity, blocks, false, BTreeSet::new())
+                                .await;
+                        }
+                        // Only its head moved: only who was told of it already hears.
+                        PublishOutcome::Published(_, None) => {
+                            connection.announce_head(identity.organization, block).await;
+                        }
+                        PublishOutcome::Rejected(_) => {}
                     }
                     Ok(match outcome {
                         PublishOutcome::Published(head, _) => {
@@ -2613,6 +2630,28 @@ impl Connection {
     ) {
         self.reannounce_in(identity.organization, blocks, subtree, before)
             .await;
+    }
+
+    /// Tells the connections that know `block` its summary after a publish that moved only its
+    /// head, which changes no listing's match, so the audience at large need not be read.
+    async fn announce_head(&self, organization: Uuid, block: Uuid) {
+        let members = self.hub.knowing(organization, block).await;
+        if members.is_empty() {
+            return;
+        }
+        let identities = members.iter().map(|(_, member)| *member).collect();
+        let Ok(views) = self
+            .store
+            .graph_views(organization, identities, vec![block], false, self.client)
+            .await
+        else {
+            return;
+        };
+        for ((client, _), messages) in members.into_iter().zip(views) {
+            for (message, entry) in messages {
+                self.hub.tell(client, message, entry).await;
+            }
+        }
     }
 
     async fn reannounce_in(

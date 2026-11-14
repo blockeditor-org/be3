@@ -81,9 +81,10 @@ interface account {
     logout: async func() -> result<_, error>;
 
     /// The signed-in account's storage usage and quota: its value as the stream opens,
-    /// then each new value as the bytes it pays for change. A connection has
-    /// one: opening another ends the first. Ends at once, denied, before an
-    /// organization is open.
+    /// then each new value as the bytes it pays for change. A latest-value
+    /// stream: a connection may hold several, each starting with the current
+    /// value, and one whose first value cannot be read ends with the failure.
+    /// Ends at once, denied, before an organization is open.
     storage-changed: func() -> stream<account-storage>;
 
     /// Sends a pairing message to one of the account's other connections, or

@@ -1,8 +1,8 @@
 use std::ops::Range;
 
-use super::{Break, Line, LineLook, ListMarker, Schema, Selected, Tool};
+use super::{Break, Line, LineLook, ListMarker, Schema, SchemaHtml, Selected, Tool};
 use crate::Language;
-use crate::core::EditorCommand;
+use crate::core::{EditorCommand, TextFragment};
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::rich::{Expand, Formats, MarkSet, Name, Scope, Seed, Value};
 
@@ -13,6 +13,8 @@ pub const STRIKETHROUGH: &str = "strikethrough";
 pub const CODE: &str = "code";
 pub const LINK: &str = "link";
 pub const MENTION: &str = "mention";
+/// A block shown in the text, on a void: its value is the block's id.
+pub const EMBED: &str = "embed";
 
 pub const HEADING: &str = "heading";
 pub const LIST: &str = "list";
@@ -24,6 +26,8 @@ pub const CODE_BLOCK: &str = "code_block";
 pub const BULLET: &str = "bullet";
 pub const NUMBER: &str = "number";
 pub const CHECK: &str = "check";
+
+mod html;
 
 const MAX_INDENT: i64 = 4;
 
@@ -237,10 +241,36 @@ const TOOLS: [Tool; 12] = [
     },
 ];
 
+impl SchemaHtml for Basic {
+    fn to_html(&self, fragment: &TextFragment) -> Option<String> {
+        html::write(fragment)
+    }
+
+    fn from_html(&self, html: &str) -> TextFragment {
+        html::read(html)
+    }
+}
+
 impl Schema for Basic {
+    fn name(&self) -> Option<&str> {
+        Some(html::NAME)
+    }
+
+    fn names_block(&self, key: &str) -> bool {
+        key == EMBED
+    }
+
+    fn admits(&self, key: &str, value: &Value) -> bool {
+        key != LINK || value.as_text().is_some_and(html::safe)
+    }
+
+    fn html(&self) -> Option<&dyn SchemaHtml> {
+        Some(self)
+    }
+
     fn expand(&self, key: &str) -> Expand {
         match key {
-            LINK | MENTION => Expand::Never,
+            LINK | MENTION | EMBED => Expand::Never,
             _ => Expand::After,
         }
     }

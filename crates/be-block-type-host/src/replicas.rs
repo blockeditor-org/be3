@@ -418,6 +418,9 @@ struct Open {
     publishing: usize,
     moved: Vec<CommitId>,
     published: Vec<CommitId>,
+    /// The head the replica opened at or was last told moved to: news of a block whose head is
+    /// still this (another device renamed or shared it) moves nothing.
+    heard: Option<CommitId>,
     replay: Vec<Replayed>,
     /// Editors that detached while `replay` holds edits of theirs, and whether they could edit:
     /// what a replica opened again is given their edits as (`resend`).
@@ -519,6 +522,9 @@ pub struct Replicas<H: Host> {
     /// reopens: a journal rebased on one hands its announcements to it (`Peer::rebase_journal`).
     sealed: HashMap<Uuid, VecDeque<CommitId>>,
     pub handled: u64,
+    /// How many heads replicas were told moved, for tests.
+    #[cfg(test)]
+    pub(crate) heads_told: usize,
     host: std::marker::PhantomData<fn() -> H>,
 }
 
@@ -554,6 +560,8 @@ impl<H: Host> Replicas<H> {
             bookmarks: HashMap::new(),
             sealed: HashMap::new(),
             handled: 0,
+            #[cfg(test)]
+            heads_told: 0,
             host: std::marker::PhantomData,
         }
     }
@@ -975,6 +983,7 @@ impl<H: Host> Replicas<H> {
                 publishing: 0,
                 moved: Vec::new(),
                 published: Vec::new(),
+                heard: head,
                 replay: Vec::new(),
                 departed: BTreeMap::new(),
                 closing: false,
@@ -1091,6 +1100,7 @@ impl<H: Host> Replicas<H> {
         open.publishing = 0;
         open.moved.clear();
         open.published.clear();
+        open.heard = head;
         open.reporting = None;
         open.status.head = head;
         open.replay.retain(Replayed::local_edit);
@@ -1337,9 +1347,14 @@ impl<H: Host> Replicas<H> {
             open.moved.push(head);
             return;
         }
+        open.heard = Some(head);
         if let Some(index) = open.published.iter().position(|held| *held == head) {
             open.published.drain(..=index);
             return;
+        }
+        #[cfg(test)]
+        {
+            self.heads_told += 1;
         }
         self.replay(replica, Replayed::Moved { head });
     }
@@ -1988,10 +2003,19 @@ impl<H: Host> Replicas<H> {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
-                if let Some(open) = self.open.get_mut(&replica)
-                    && open.joining
-                {
-                    return open.early.push(Replayed::Moved { head: *head });
+                if let Some(open) = self.open.get_mut(&replica) {
+                    // A change that left the head as the replica has it, or as it published
+                    // or was already told it, is no news of the head.
+                    if open.heard == Some(*head)
+                        || open.published.contains(head)
+                        || open.moved.contains(head)
+                    {
+                        return;
+                    }
+                    if open.joining {
+                        open.heard = Some(*head);
+                        return open.early.push(Replayed::Moved { head: *head });
+                    }
                 }
                 self.moved(replica, *head, false);
             }

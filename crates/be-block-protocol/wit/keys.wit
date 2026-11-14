@@ -68,8 +68,12 @@ interface keys {
 
     /// The organization's key work for the caller: its value as the stream
     /// opens, then each new value as it may have changed through another
-    /// connection; a latest-value stream, so values the client has not taken
-    /// yet are one item.
+    /// connection, or as the connection opens an organization. Opened before
+    /// any is, it waits for one to open, unlike `storage-changed`, which ends
+    /// denied. A latest-value stream, so values the client has not taken yet
+    /// are one item; a connection may hold several, each starting with the
+    /// current value, and one whose first value cannot be read ends with the
+    /// failure.
     key-work-changed: func() -> stream<key-work>;
 
     /// Gives every block below `roots` a new key.

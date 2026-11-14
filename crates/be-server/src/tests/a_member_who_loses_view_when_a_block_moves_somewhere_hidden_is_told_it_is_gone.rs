@@ -5,7 +5,7 @@ use be_block_graph::Access;
 async fn a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_is_gone() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let owner_id = owner.register("owner@example.com").await;
     owner.personal().await;
     let mut guest = harness.client().await;
     let guest_id = guest.register("guest@example.com").await;
@@ -37,5 +37,17 @@ async fn a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_
             _ => {}
         }
     }
+
+    // Back where the guest may view it, its next head reaches the guest again: the note's own
+    // listing outlived the view.
+    let restored = owner.move_to(note, BlockParent::Block(shared)).await;
+    assert!(matches!(restored, Ok(())), "{restored:?}");
+    let author = Author::new(owner_id);
+    let (head, chunks) = author.compose(b"written once it was back\n", 1_000, None);
+    let published = owner
+        .publish(&author, note, head, chunks, None, 1_000)
+        .await;
+    assert!(published.is_ok(), "{published:?}");
+    guest.heard_head(note, head).await;
     harness.stop().await;
 }
