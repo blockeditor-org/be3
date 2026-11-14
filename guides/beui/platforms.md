@@ -173,7 +173,12 @@ web writes them as `web ` types where `ClipboardItem.supports` says so
 (Chromium) and reads them from the async clipboard; X11 offers them as targets
 of its selection and reads them from another program's; macOS knows by the
 pasteboard's change count and writes them as pasteboard types, reverse-DNS UTIs
-made from their format id (`org.be3.clip.blocks`). All of them hold an item's
+made from their format id (`org.be3.clip.blocks`); Android lists them among
+the clip's description's MIME types and keeps them, base64, in its extras, with
+a nonce of the copy that tells its clip from another's, and leaves out what
+would overrun 256 KB there (`clip::fitting`), which stays in the held clip
+(`beui-platform-android/src/clipboard.rs`, written without an emulator: only
+its compiling is checked). All of them hold an item's
 `ClipItem::stored` bytes, refs and all. Elsewhere the plain text on the
 clipboard is compared with the text written, as beui's HTML core does too
 (`page::copy` and `page::held`): a `paste` event on a node answers from the

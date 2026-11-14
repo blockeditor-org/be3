@@ -25,9 +25,12 @@ Fixed items are removed as they land.
 The typed clipboard is in (guides/beui/platforms.md, Clipboard and paste;
 guides/apps/host_services.md, Copying and cutting blocks). Left of it:
 
-- **Android.** be3 formats stay in memory there, matched by plain text. Done:
-  they travel as `ClipData` MIME types, checked on an Android emulator
-  (guides/running/android.md).
+- **A copy too large for Android's clipboard.** Plain text beyond about
+  450 KB (a Parcel holds it as UTF-16, under Binder's ~1 MB) makes
+  `setPrimaryClip` throw, and the copy is lost without a word
+  (`beui-platform-android/src/clipboard.rs`). Done: such a copy puts its
+  text there cut short with a notice, or says it is too large to copy, and
+  pastes in the program still get it whole from the held clip.
 
 ## 7. Sessions
 
