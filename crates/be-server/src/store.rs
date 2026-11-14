@@ -30,6 +30,44 @@ pub(crate) mod held {
         (started, release)
     }
 
+    type HeldListing = (
+        tokio::sync::oneshot::Sender<()>,
+        tokio::sync::oneshot::Receiver<()>,
+    );
+
+    static LISTINGS: Mutex<Option<HashMap<Uuid, HeldListing>>> = Mutex::new(None);
+
+    /// Makes the next read of `block`'s own listing tell `reached` once the store answered it,
+    /// then wait, before the connection records what it was told, until the returned sender
+    /// sends or is dropped.
+    pub(crate) fn hold_listing(
+        block: Uuid,
+    ) -> (
+        tokio::sync::oneshot::Receiver<()>,
+        tokio::sync::oneshot::Sender<()>,
+    ) {
+        let (reached, started) = tokio::sync::oneshot::channel();
+        let (release, held) = tokio::sync::oneshot::channel();
+        LISTINGS
+            .lock()
+            .unwrap()
+            .get_or_insert_with(HashMap::new)
+            .insert(block, (reached, held));
+        (started, release)
+    }
+
+    pub(crate) async fn listing(block: Uuid) {
+        let held = LISTINGS
+            .lock()
+            .unwrap()
+            .as_mut()
+            .and_then(|held| held.remove(&block));
+        if let Some((reached, held)) = held {
+            let _ = reached.send(());
+            let _ = held.await;
+        }
+    }
+
     pub(super) fn wait(organization: Uuid) {
         let held = HELD
             .lock()

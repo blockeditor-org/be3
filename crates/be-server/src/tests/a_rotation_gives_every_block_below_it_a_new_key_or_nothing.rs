@@ -72,7 +72,7 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
 }
 
 async fn work(client: &mut TestClient) -> be_block_protocol::KeyWork {
-    let response = client.call(|peer| client::keys::get_key_work(peer)).await;
+    let response = client.key_work().await;
     let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };

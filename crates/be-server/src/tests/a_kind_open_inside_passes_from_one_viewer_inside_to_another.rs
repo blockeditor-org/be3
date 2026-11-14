@@ -27,7 +27,7 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
 }
 
 async fn unsealed(client: &mut TestClient) -> Vec<(Uuid, Uuid)> {
-    let response = client.call(|peer| client::keys::get_key_work(peer)).await;
+    let response = client.key_work().await;
     let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };
