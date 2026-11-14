@@ -1468,9 +1468,10 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// The server's answer to `listing`, every page of it, with the summaries of each page's
-    /// `rest` read after it. Summaries read after the first page are newer than the listing's
-    /// revision, so one the listing would no longer hold is left out (`still_in`).
+    /// The server's answer to `listing`, every page of it (in the order of block ids, each
+    /// after the last), with the summaries of each page's `rest` read after it. Summaries read
+    /// after the first page are newer than the listing's revision, so one the listing would no
+    /// longer hold is left out (`still_in`). A block's references are put in its own order.
     async fn list_online(&self, listing: Listing) -> Result<(u64, Vec<BlockSummary>), ClientError> {
         let mut first_revision = None;
         let mut after = None;
@@ -1493,7 +1494,9 @@ impl<S: ObjectStore> Peer<S> {
             );
             entries.extend(page.rest.into_iter().map(Err));
             match page.next {
-                Some(next) => after = Some(next),
+                // Pages go in the order of block ids, so each starts past the last.
+                Some(next) if after.is_none_or(|after| next > after) => after = Some(next),
+                Some(_) => return Err(ClientError::Unexpected),
                 None => break,
             }
         }
@@ -1509,7 +1512,7 @@ impl<S: ObjectStore> Peer<S> {
             .map(|summary| (summary.id, summary))
             .collect();
         let mut seen = HashSet::new();
-        let blocks = entries
+        let mut blocks: Vec<BlockSummary> = entries
             .into_iter()
             .filter_map(|entry| match entry {
                 Ok(summary) => Some(summary),
@@ -1517,6 +1520,20 @@ impl<S: ObjectStore> Peer<S> {
             })
             .filter(|summary| seen.insert(summary.id))
             .collect();
+        // A block's references come in the order of their ids; the block lists their order.
+        if let Listing::References(referrer) = listing
+            && blocks.len() > 1
+        {
+            let order: HashMap<Uuid, usize> = self
+                .server_summary(referrer)
+                .await?
+                .references
+                .into_iter()
+                .enumerate()
+                .map(|(index, reference)| (reference, index))
+                .collect();
+            blocks.sort_by_key(|summary| order.get(&summary.id).copied().unwrap_or(usize::MAX));
+        }
         Ok((first_revision.unwrap_or_default(), blocks))
     }
 

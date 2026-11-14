@@ -38,6 +38,8 @@ pub struct StorageLimits {
     pub max_index_bytes: u64,
     /// The bytes of keys one `get-keys` page holds (`ServerConfig::key_page_bytes`).
     pub key_page_bytes: usize,
+    /// The bytes of summaries one `list-blocks` page holds (`ServerConfig::listing_page_bytes`).
+    pub listing_page_bytes: usize,
 }
 
 impl StorageLimits {
@@ -46,6 +48,7 @@ impl StorageLimits {
         upload_grace: DEFAULT_UPLOAD_GRACE,
         max_index_bytes: crate::limits::MAX_INDEX_BYTES,
         key_page_bytes: crate::limits::KEY_PAGE_BYTES,
+        listing_page_bytes: crate::limits::LISTING_PAGE_BYTES,
     };
 }
 
@@ -378,8 +381,17 @@ impl ServerStore {
         self.limits.max_index_bytes
     }
 
+    /// Never more than a frame holds, whatever a configuration asks.
     pub(crate) fn key_page_bytes(&self) -> usize {
-        self.limits.key_page_bytes
+        self.limits
+            .key_page_bytes
+            .min(crate::limits::KEY_PAGE_BYTES)
+    }
+
+    pub(crate) fn listing_page_bytes(&self) -> usize {
+        self.limits
+            .listing_page_bytes
+            .min(crate::limits::LISTING_PAGE_BYTES)
     }
 
     pub(crate) fn upload_grace(&self) -> Duration {

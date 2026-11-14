@@ -553,6 +553,7 @@ impl Graph {
 
     fn placed(&mut self, parent: Uuid, references: &[Uuid]) {
         let nodes = &self.nodes;
+        let references: std::collections::HashSet<&Uuid> = references.iter().collect();
         let mut taken = Vec::new();
         self.placing.retain(|child| {
             let placed = references.contains(child)
@@ -574,7 +575,12 @@ impl Graph {
     /// Notes the children placed in `parent` that its references, just set `by` something, no
     /// longer hold though they still name it. Children that moved elsewhere are forgotten.
     fn check_dropped(&mut self, parent: Uuid, by: &'static str) {
-        let Some(references) = self.nodes.get(&parent).map(|node| node.references.clone()) else {
+        let Some(references) = self.nodes.get(&parent).map(|node| {
+            node.references
+                .iter()
+                .copied()
+                .collect::<std::collections::HashSet<Uuid>>()
+        }) else {
             return;
         };
         let nodes = &self.nodes;
@@ -720,12 +726,14 @@ impl Graph {
     pub fn query(&self, query: Query) -> Vec<Node> {
         let mut found: Vec<Node> = match query {
             Query::Roots => self.with_parent(BlockParent::Root),
-            Query::Detached => self
-                .nodes
-                .values()
-                .filter(|node| node.parent.is_some() && !self.holds(node))
-                .cloned()
-                .collect(),
+            Query::Detached => {
+                let mut sets = HashMap::new();
+                self.nodes
+                    .values()
+                    .filter(|node| node.parent.is_some() && !self.holds_in(node, &mut sets))
+                    .cloned()
+                    .collect()
+            }
             Query::Shared => self
                 .listings
                 .get(&Listing::Shared)
@@ -844,6 +852,16 @@ impl Graph {
     }
 
     fn holds(&self, node: &Node) -> bool {
+        self.holds_in(node, &mut HashMap::new())
+    }
+
+    /// Whether `node`'s parent holds it, with each parent's references made a set once in
+    /// `sets`, so asking of every child of a folder of many is not quadratic.
+    fn holds_in(
+        &self,
+        node: &Node,
+        sets: &mut HashMap<Uuid, std::collections::HashSet<Uuid>>,
+    ) -> bool {
         if self.placing.contains(&node.id) {
             return true;
         }
@@ -852,7 +870,11 @@ impl Graph {
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => match self.nodes.get(&parent) {
                 Some(parent) if parent.access.can_view() => {
-                    parent.unfiled() || parent.references.contains(&node.id)
+                    parent.unfiled()
+                        || sets
+                            .entry(parent.id)
+                            .or_insert_with(|| parent.references.iter().copied().collect())
+                            .contains(&node.id)
                 }
                 _ => node.held,
             },

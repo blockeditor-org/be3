@@ -141,17 +141,17 @@ interface blocks {
     /// that changes after the answer does so at a later revision.
     record listed {
         revision: u64,
-        /// The first of the listing's blocks (after `after`), as many as fit
-        /// in a quarter of a frame and at least one.
+        /// The listing's first blocks in the order of their ids (after
+        /// `after`), as many as fit in an eighth of a frame and at least one.
         blocks: list<block-summary>,
-        /// The listing's next blocks after those, in order, as many ids as
-        /// fit in an eighth of a frame: the ids are as of `revision`, and a
-        /// client reads their summaries with `read-summaries`, which are as
-        /// of when it reads them. The connection is told of their changes
-        /// as of `blocks`'.
+        /// The listing's next blocks after those, as many ids as fit in a
+        /// sixteenth of a frame: the ids are as of `revision`, and a client
+        /// reads their summaries with `read-summaries`, which are as of when
+        /// it reads them. The connection is told of their changes as of
+        /// `blocks`'.
         rest: list<block-id>,
-        /// The last block of `rest` when the listing goes on past it: a
-        /// client lists again from there.
+        /// The last block of the page when the listing goes on past it: a
+        /// client lists again after it.
         next: option<block-id>,
     }
 
@@ -251,10 +251,12 @@ interface blocks {
     /// Moves a block, with the keys it needs under its new parent.
     set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
 
-    /// The blocks of a listing, which the connection's `changes` stream then
-    /// follows until `unlist`: from the start, or after the block `after`
-    /// (a `listed.next`) as the listing is now, or from the start again
-    /// when `after` has left it, so a client keeps each block once.
+    /// A page of the blocks of a listing, in the order of their ids, which
+    /// the connection's `changes` stream then follows until `unlist`: from
+    /// the first, or from the first id past `after` (a `listed.next`) as
+    /// the listing is now. A block that stays in the listing is on exactly
+    /// one page; one that joins or leaves between pages is told on
+    /// `changes`.
     list-blocks: async func(listing: listing, after: option<block-id>) -> result<listed, error>;
 
     /// The summaries of the first of `blocks` (at most 4096 asked), as many

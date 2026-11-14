@@ -5,7 +5,7 @@ use be_block_graph::{
 };
 use be_block_protocol::{
     AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
-    Hold, KeyKind, KeySet, Listed, ObjectChange, OrganizationRole, ReferenceChange,
+    Hold, KeyKind, KeySet, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -782,6 +782,17 @@ impl ServerStore {
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        // Checked before the graph is taken, so no change too large to keep holds it up.
+        crate::limits::references(&references.removed)?;
+        if references.added.len() > crate::limits::MAX_REFERENCES {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!(
+                    "a block may reference at most {} blocks",
+                    crate::limits::MAX_REFERENCES
+                ),
+            ));
+        }
         let latest = be_block_commit::now_milliseconds().saturating_add(MAX_COMMIT_AHEAD);
         if time > latest {
             return Err(ServerError::Refused(
@@ -859,7 +870,12 @@ impl ServerStore {
                     Some(_) => graph.references(block),
                     None => Vec::new(),
                 };
-                let references = distinct(references.apply(&listed));
+                let references = references.apply(&listed).ok_or_else(|| {
+                    ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a reference change must be as `ReferenceChange::between` makes it".into(),
+                    )
+                })?;
                 crate::limits::references(&references)?;
                 require_keeping_settings(graph, &visibility(identity), block, &references)?;
                 require_one_index(graph, block, &references)?;
@@ -1440,139 +1456,48 @@ impl ServerStore {
         .await
     }
 
-    pub async fn list_shared(&self, identity: Identity) -> Result<Listed, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
-            let seen = visibility(identity);
-            if seen.administrator {
-                return Ok(listed(graph, Vec::new()));
-            }
-            Ok(listed(
-                graph,
-                graph
-                    .shared(identity.account)
-                    .into_iter()
-                    .filter_map(|block| summary_with(graph, &seen, block))
-                    .filter(|block| block.access.can_view())
-                    .collect(),
-            ))
-        })
-        .await
-    }
-
-    pub async fn list_children(
+    /// A page of `listing` (any but `Listing::Block`) in the order of block ids: the blocks after
+    /// `after`, the first whose summaries fit in `room` bytes (at least one), then the next ids
+    /// that fit in half that, and `next` when the listing goes on. Only the page's blocks are
+    /// summarized. With the page, what the connection is told of each of its blocks.
+    pub(crate) async fn list_page(
         &self,
         identity: Identity,
-        parent: BlockParent,
-    ) -> Result<Listed, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
+        listing: Listing,
+        after: Option<Uuid>,
+    ) -> Result<(Listed, Vec<(Uuid, crate::watch::Facts)>), ServerError> {
+        self.with_graph(identity.organization, move |store, graph, _| {
             let seen = visibility(identity);
-            let settings = crate::organization::settings_of(identity.organization);
-            Ok(listed(
-                graph,
-                graph
-                    .children(parent)
-                    .into_iter()
-                    .filter(|block| *block != settings)
-                    .filter_map(|block| summary_with(graph, &seen, block))
-                    .filter(|block| block.access.can_know_exists())
-                    .collect(),
-            ))
-        })
-        .await
-    }
-
-    pub async fn list_deleted(&self, identity: Identity) -> Result<Listed, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
-            let seen = visibility(identity);
-            let deleted = match seen.candidates(graph) {
-                None => graph.deleted_roots(),
-                Some(blocks) => blocks
-                    .into_iter()
-                    .filter(|block| graph.contains(*block) && !graph.holds(*block))
-                    .collect(),
-            };
-            Ok(listed(
-                graph,
-                deleted
-                    .into_iter()
-                    .filter_map(|block| summary_with(graph, &seen, block))
-                    .filter(|block| block.access.can_know_exists())
-                    .collect(),
-            ))
-        })
-        .await
-    }
-
-    pub async fn list_backrefs(
-        &self,
-        identity: Identity,
-        block: Uuid,
-    ) -> Result<Listed, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
-            let seen = visibility(identity);
-            Ok(listed(
-                graph,
-                graph
-                    .backrefs(block)
-                    .into_iter()
-                    .filter_map(|referrer| summary_with(graph, &seen, referrer))
-                    .filter(|block| block.access.can_know_exists())
-                    .collect(),
-            ))
-        })
-        .await
-    }
-
-    pub async fn list_open_settings(
-        &self,
-        identity: Identity,
-        block: Uuid,
-    ) -> Result<Listed, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
-            let seen = visibility(identity);
-            let mut found: BTreeMap<Uuid, BlockSummary> = BTreeMap::new();
-            for owner in graph.ancestors(block) {
-                if seen.can_view(graph, owner) || !graph.is_inside(owner, block) {
-                    continue;
-                }
-                for kind in graph.kinds_of(owner) {
-                    let Some(node) = graph.get(kind) else {
-                        continue;
-                    };
-                    if !node.is_open_inside() || found.contains_key(&node.content_type) {
-                        continue;
+            let ids = listing_ids(graph, &seen, identity, listing);
+            let start = after.map_or(0, |after| ids.partition_point(|id| *id <= after));
+            let entry = listing == Listing::Shared;
+            let mut told = Vec::new();
+            let mut page = listed(graph, Vec::new());
+            let mut room = store.listing_page_bytes();
+            let mut rest_room = room / 2;
+            let mut ids = ids[start..].iter().copied().peekable();
+            while let Some(id) = ids.peek().copied() {
+                let summary = summary_with(graph, &seen, id).ok_or(ServerError::Corrupt)?;
+                let size = be_block_protocol::encoded_len(&summary);
+                if page.rest.is_empty() && (size <= room || page.blocks.is_empty()) {
+                    room = room.saturating_sub(size);
+                    told.push((id, crate::watch::Facts::of(&summary, entry)));
+                    page.blocks.push(summary);
+                } else {
+                    let size = be_block_protocol::encoded_len(&id);
+                    if size > rest_room {
+                        break;
                     }
-                    if let Some(summary) =
-                        summary_with(graph, &seen, kind).filter(|summary| summary.access.can_view())
-                    {
-                        found.insert(node.content_type, summary);
-                    }
+                    rest_room -= size;
+                    told.push((id, crate::watch::Facts::of(&summary, entry)));
+                    page.rest.push(id);
                 }
+                ids.next();
             }
-            Ok(listed(graph, found.into_values().collect()))
-        })
-        .await
-    }
-
-    pub async fn list_references(
-        &self,
-        identity: Identity,
-        block: Uuid,
-    ) -> Result<Listed, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
-            let seen = visibility(identity);
-            if !seen.can_view(graph, block) {
-                return Ok(listed(graph, Vec::new()));
+            if ids.peek().is_some() {
+                page.next = told.last().map(|(id, _)| *id);
             }
-            Ok(listed(
-                graph,
-                graph
-                    .references(block)
-                    .into_iter()
-                    .filter_map(|reference| summary_with(graph, &seen, reference))
-                    .filter(|block| block.access.can_know_exists())
-                    .collect(),
-            ))
+            Ok((page, told))
         })
         .await
     }
@@ -2594,6 +2519,72 @@ fn commit_objects(
 }
 
 /// A listing's blocks, as of the revision the graph read them at.
+/// The blocks of `listing` (any but `Listing::Block`) the caller may know of, as a listing
+/// holds them, in the order of their ids.
+fn listing_ids(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    identity: Identity,
+    listing: Listing,
+) -> Vec<Uuid> {
+    let knows =
+        |block: &Uuid| graph.contains(*block) && seen.access(graph, *block).can_know_exists();
+    let mut ids: Vec<Uuid> = match listing {
+        Listing::Shared if seen.administrator => Vec::new(),
+        Listing::Shared => graph
+            .shared(identity.account)
+            .into_iter()
+            .filter(|block| graph.contains(*block) && seen.access(graph, *block).can_view())
+            .collect(),
+        Listing::Children(parent) => {
+            let settings = crate::organization::settings_of(identity.organization);
+            graph
+                .children(parent)
+                .into_iter()
+                .filter(|block| *block != settings)
+                .filter(knows)
+                .collect()
+        }
+        Listing::Deleted => match seen.candidates(graph) {
+            None => graph.deleted_roots(),
+            Some(blocks) => blocks
+                .into_iter()
+                .filter(|block| graph.contains(*block) && !graph.holds(*block))
+                .collect(),
+        }
+        .into_iter()
+        .filter(knows)
+        .collect(),
+        Listing::Backrefs(block) => graph.backrefs(block).into_iter().filter(knows).collect(),
+        Listing::References(block) if !seen.can_view(graph, block) => Vec::new(),
+        Listing::References(block) => graph.references(block).into_iter().filter(knows).collect(),
+        Listing::OpenSettings(block) => {
+            let mut found: BTreeMap<Uuid, Uuid> = BTreeMap::new();
+            for owner in graph.ancestors(block) {
+                if seen.can_view(graph, owner) || !graph.is_inside(owner, block) {
+                    continue;
+                }
+                for kind in graph.kinds_of(owner) {
+                    let Some(node) = graph.get(kind) else {
+                        continue;
+                    };
+                    if !node.is_open_inside() || found.contains_key(&node.content_type) {
+                        continue;
+                    }
+                    if seen.access(graph, kind).can_view() {
+                        found.insert(node.content_type, kind);
+                    }
+                }
+            }
+            found.into_values().collect()
+        }
+        Listing::Block(block) => vec![block],
+    };
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
 fn listed(graph: &BlockGraph, blocks: Vec<BlockSummary>) -> Listed {
     Listed {
         revision: graph.revision(),

@@ -16,8 +16,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
-    Identity, LISTING_BYTES, PublishOutcome, REST_BYTES, SUMMARY_BYTES, ServerConfig, ServerError,
-    ServerStore, Services, SessionRegistry, WatchHub,
+    Identity, PublishOutcome, SUMMARY_BYTES, ServerConfig, ServerError, ServerStore, Services,
+    SessionRegistry, WatchHub,
     address::{Anonymous, Eviction},
     browser_auth, contacts, contents_room,
     limits::{
@@ -2755,29 +2755,20 @@ impl Connection {
     ) -> Result<be_block_protocol::Listed, ServerError> {
         let identity = self.identity()?;
         let new = self.hub.list(self.client, listing).await?;
-        let listed = async {
-            Ok::<_, ServerError>(match listing {
-                Listing::Shared => self.store.list_shared(identity).await?,
-                Listing::Children(parent) => self.store.list_children(identity, parent).await?,
-                Listing::Deleted => self.store.list_deleted(identity).await?,
-                Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
-                Listing::References(block) => self.store.list_references(identity, block).await?,
-                Listing::Block(block) => {
-                    let summary = self.store.read_block(identity, block).await?;
-                    be_block_protocol::Listed {
-                        revision: summary.revision,
-                        blocks: vec![summary],
-                        rest: Vec::new(),
-                        next: None,
-                    }
-                }
-                Listing::OpenSettings(block) => {
-                    self.store.list_open_settings(identity, block).await?
-                }
-            })
-        }
-        .await;
-        let listed = match listed {
+        let listed = match listing {
+            Listing::Block(block) => self.store.read_block(identity, block).await.map(|summary| {
+                let told = vec![(block, crate::watch::Facts::of(&summary, false))];
+                let listed = be_block_protocol::Listed {
+                    revision: summary.revision,
+                    blocks: vec![summary],
+                    rest: Vec::new(),
+                    next: None,
+                };
+                (listed, told)
+            }),
+            _ => self.store.list_page(identity, listing, after).await,
+        };
+        let (listed, told) = match listed {
             Ok(listed) => listed,
             Err(error) => {
                 self.hub.refused(self.client, listing, new).await;
@@ -2788,8 +2779,8 @@ impl Connection {
         if let Listing::Block(block) = listing {
             crate::store::held::listing(block).await;
         }
-        self.hub.listed(self.client, listing, &listed.blocks).await;
-        Ok(page(listed, after))
+        self.hub.listed(self.client, listing, told).await;
+        Ok(listed)
     }
 
     async fn announce(&self, block: Place, state: &SessionState) {
@@ -2804,50 +2795,6 @@ impl Connection {
             )
             .await;
     }
-}
-
-/// A page of a listing: after the block `after` (from the start when it has left the
-/// listing), the first blocks whose summaries fit in `LISTING_BYTES` (at least one), then the
-/// next ids that fit in `REST_BYTES` for the client to read with `read-summaries`, and `next`
-/// when the listing goes on.
-fn page(mut listed: be_block_protocol::Listed, after: Option<Uuid>) -> be_block_protocol::Listed {
-    if let Some(after) = after
-        && let Some(position) = listed.blocks.iter().position(|summary| summary.id == after)
-    {
-        listed.blocks.drain(..=position);
-    }
-    let mut room = LISTING_BYTES;
-    let fit = listed
-        .blocks
-        .iter()
-        .enumerate()
-        .take_while(|(index, summary)| {
-            let size = be_block_protocol::encoded_len(summary);
-            let fits = *index == 0 || size <= room;
-            room = room.saturating_sub(size);
-            fits
-        })
-        .count();
-    let rest = listed.blocks.split_off(fit);
-    let mut room = REST_BYTES;
-    let mut ids = rest.iter().map(|summary| summary.id).peekable();
-    while let Some(id) = ids.next_if(|id| {
-        let size = be_block_protocol::encoded_len(id);
-        let fits = size <= room;
-        room = room.saturating_sub(size);
-        fits
-    }) {
-        listed.rest.push(id);
-    }
-    listed.next = match ids.peek() {
-        Some(_) => listed
-            .rest
-            .last()
-            .or(listed.blocks.last().map(|summary| &summary.id))
-            .copied(),
-        None => None,
-    };
-    listed
 }
 
 /// Refuses an `upload-urls` or `download-urls` call that names more objects than one answer

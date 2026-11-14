@@ -52,6 +52,8 @@ pub const MAX_METADATA_BYTES: usize = 64 * 1024;
 pub use be_block_protocol::MAX_REFERENCES;
 /// The bytes of keys, with their wraps, one `get-keys` page holds.
 pub const KEY_PAGE_BYTES: usize = MAX_FRAME_BYTES / 2;
+/// The bytes of summaries one `list-blocks` page holds; its ids take half that more.
+pub const LISTING_PAGE_BYTES: usize = MAX_FRAME_BYTES / 8;
 /// A sealed blob the server keeps for a client: contact cards and their sealed copies, invitation
 /// payloads, pinned escrows, pending grants.
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;

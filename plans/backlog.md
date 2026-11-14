@@ -72,3 +72,13 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   pending entries and local heads that name them move too. Done: a client test
   whose first commits are made offline with a clock two hours fast sends them
   once it connects.
+
+## 11. Large folders
+
+- **Republishing a large folder's summary.** A folder's summary lists every
+  entry (up to `MAX_REFERENCES`), and every change to it is announced to each
+  watching connection with its whole summary (`BlockChanged`), so adding N
+  entries one at a time sends O(N²) bytes to each watcher. Done: a change
+  announces only what moved in its references (as `publish` sends a
+  `ReferenceChange`), and a test adding thousands of entries to a watched
+  folder sends bytes linear in them.

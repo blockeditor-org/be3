@@ -150,6 +150,9 @@ pub struct ServerConfig {
     /// The bytes of keys one `get-keys` page holds (`limits::KEY_PAGE_BYTES` unless a test pages
     /// through a few keys).
     pub key_page_bytes: usize,
+    /// The bytes of summaries one `list-blocks` page holds, its ids taking half that more
+    /// (`limits::LISTING_PAGE_BYTES` unless a test lists in many pages; never more).
+    pub listing_page_bytes: usize,
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
     /// only this host, where the reverse proxy runs.
     pub trusted_proxies: Cow<'static, [IpAddr]>,
@@ -183,6 +186,7 @@ impl ServerConfig {
         upload_grace: store::DEFAULT_UPLOAD_GRACE,
         max_index_bytes: limits::MAX_INDEX_BYTES,
         key_page_bytes: limits::KEY_PAGE_BYTES,
+        listing_page_bytes: limits::LISTING_PAGE_BYTES,
         trusted_proxies: Cow::Borrowed(&[
             IpAddr::V4(Ipv4Addr::LOCALHOST),
             IpAddr::V6(Ipv6Addr::LOCALHOST),
@@ -344,12 +348,13 @@ const _: () = assert!(
     SUMMARY_BYTES + CONTENTS_BYTES + CONTENTS_BYTES / 2 + be_block_protocol::FRAME_ENVELOPE_BYTES
         <= MAX_FRAME_BYTES
 );
-/// The summaries one `list-blocks` page answers; the rest of the page goes as ids.
-const LISTING_BYTES: usize = MAX_FRAME_BYTES / 4;
-/// The ids of one `list-blocks` page past its summaries; a client lists again for more.
-const REST_BYTES: usize = MAX_FRAME_BYTES / 8;
+// A page of a listing: its summaries, then ids in half as many bytes, with one summary larger.
 const _: () = assert!(
-    LARGEST_SUMMARY_BYTES + REST_BYTES + be_block_protocol::FRAME_ENVELOPE_BYTES <= MAX_FRAME_BYTES
+    limits::LISTING_PAGE_BYTES
+        + LARGEST_SUMMARY_BYTES
+        + limits::LISTING_PAGE_BYTES / 2
+        + be_block_protocol::FRAME_ENVELOPE_BYTES
+        <= MAX_FRAME_BYTES
 );
 
 pub async fn serve_with_config(
@@ -387,6 +392,7 @@ pub async fn serve_with_mail(
             upload_grace: config.upload_grace,
             max_index_bytes: config.max_index_bytes,
             key_page_bytes: config.key_page_bytes,
+            listing_page_bytes: config.listing_page_bytes,
         },
         config.bucket.as_ref(),
     )?);

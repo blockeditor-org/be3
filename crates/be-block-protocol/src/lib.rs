@@ -191,48 +191,42 @@ impl ReferenceChange {
         self.removed.is_empty() && self.added.is_empty()
     }
 
-    /// `before` without what was removed, with each added reference put in at its index (or
-    /// at the end, past it), each reference once.
-    pub fn apply(&self, before: &[Uuid]) -> Vec<Uuid> {
+    /// `before` without what was removed, with each added reference put in at its index (or at
+    /// the end, past it), in one pass. Only a change shaped as `between` makes one applies:
+    /// each added reference new to what is left of `before` and named once, at indices that
+    /// increase; any other is none, and a server refuses it. Removing a reference `before` lacks
+    /// changes nothing.
+    pub fn apply(&self, before: &[Uuid]) -> Option<Vec<Uuid>> {
         let removed: std::collections::HashSet<_> = self.removed.iter().collect();
-        let mut references: Vec<Uuid> = before
+        let kept: Vec<Uuid> = before
             .iter()
             .filter(|reference| !removed.contains(reference))
             .copied()
             .collect();
         let added: std::collections::HashSet<Uuid> =
             self.added.iter().map(|placed| placed.block).collect();
-        // As `between` makes it, each added reference is new and its index past the last: they
-        // merge in in one pass, which putting each in at its index would match in many.
-        let merges = added.len() == self.added.len()
+        let canonical = added.len() == self.added.len()
             && self
                 .added
                 .windows(2)
                 .all(|pair| pair[0].index < pair[1].index)
-            && !references.iter().any(|reference| added.contains(reference));
-        if merges {
-            let mut merged = Vec::with_capacity(references.len() + self.added.len());
-            let mut kept = references.into_iter().peekable();
-            for placed in &self.added {
-                let index = usize::try_from(placed.index).unwrap_or(usize::MAX);
-                while merged.len() < index
-                    && let Some(reference) = kept.next()
-                {
-                    merged.push(reference);
-                }
-                merged.push(placed.block);
-            }
-            merged.extend(kept);
-            return merged;
+            && !kept.iter().any(|reference| added.contains(reference));
+        if !canonical {
+            return None;
         }
+        let mut merged = Vec::with_capacity(kept.len() + self.added.len());
+        let mut kept = kept.into_iter();
         for placed in &self.added {
-            references.retain(|reference| *reference != placed.block);
-            let index = usize::try_from(placed.index)
-                .unwrap_or(usize::MAX)
-                .min(references.len());
-            references.insert(index, placed.block);
+            let index = usize::try_from(placed.index).unwrap_or(usize::MAX);
+            while merged.len() < index
+                && let Some(reference) = kept.next()
+            {
+                merged.push(reference);
+            }
+            merged.push(placed.block);
         }
-        references
+        merged.extend(kept);
+        Some(merged)
     }
 }
 

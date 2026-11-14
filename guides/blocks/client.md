@@ -197,7 +197,9 @@ merge moves the remote head on. A record that no
 longer decodes is skipped on load.
 
 `Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
-only shorthands): every page of a long one (`listed.next`), and the summaries
+only shorthands): every page of a long one (`listed.next`, in the order of
+block ids, so a `References` listing is put back in the block's own order),
+and the summaries
 of each page's `rest` with `read-summaries`, `MAX_SUMMARIES_ASKED` at a time,
 keeping each block once and leaving out a summary read later that the listing
 would no longer hold (`still_in`). A block's references past
