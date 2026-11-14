@@ -20,7 +20,10 @@ const ALLOWED_LINES: &[(&str, &str)] = &[
     ("crates/be-host/web/serve.sh", "bind=\"[::]\""),
     ("crates/be-host/web/serve.sh", WILDCARD_SITE),
     ("buck/program/serve-bundle.sh", WILDCARD_SITE),
-    ("crates/be-tool-paint-review-web/web/serve.sh", WILDCARD_SITE),
+    (
+        "crates/be-tool-paint-review-web/web/serve.sh",
+        WILDCARD_SITE,
+    ),
 ];
 
 const WILDCARD_SITE: &str = "0.0.0.0 | \"[::]\") site=\"http://:$port\" ;;";
