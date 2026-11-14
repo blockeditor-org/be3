@@ -14,16 +14,3 @@ rules:
       policies:
         actions/*: ref-pin
         '*': hash-pin
-
-  # zizmor prefers GitHub's newer "$/..." spelling over "./..." for an action
-  # that lives in this repository. Both resolve to the same checked-out file and
-  # neither widens what is trusted, so this is a style preference rather than a
-  # finding, and taking it would mean changing every call site in the workflow
-  # to a spelling that is younger than the runners some of them target.
-  self-repository:
-    ignore:
-      - broad.yml
-      - ci.yml
-      - thorough.yml
-      - tracker.yml
-

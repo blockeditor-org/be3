@@ -123,7 +123,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
 
-      - uses: ./.github/actions/buck2
+      - uses: $/.github/actions/buck2
         if: ${{ !cancelled() }}
 
       # What draws the browser paintings in the previews: Playwright, driving
