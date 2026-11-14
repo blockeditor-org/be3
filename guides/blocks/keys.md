@@ -123,12 +123,13 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   follows changes one at a time from the key it holds, reseals what that
   account sealed to it (`ResealKeys`) and replaces its row (`PutContact`).
 - **Inviting**: the only way into an organization, and it hands over no key.
-  The inviting device makes an `InviteCode` (200 bits) and names the invitation
-  by `InviteCode::lookup`, so the link is `{server}/#invite/{CODE}`
-  (`invite_link.rs`). The invitation carries the inviter's card and escrow key
-  sealed with the code; accepting returns the invitee's card like a contact
-  link. The web build takes the code from the address bar and replaces it with
-  `#`; the server never sees what follows `#`.
+  An invitation is a link of kind `invitation` (see Contacts below): the
+  inviting device makes an `InviteCode` (200 bits) and names the link by
+  `InviteCode::lookup`, so it is `{server}/#invite/{CODE}` (`invite_link.rs`).
+  It carries the inviter's card and escrow key sealed with the code; accepting
+  it returns the invitee's card as any link does, pins the escrow key and joins
+  the organization. The web build takes the code from the address bar and
+  replaces it with `#`; the server never sees what follows `#`.
 - **Adding a device**: the new device shows an eight-character code, typed on a
   device of the same account; the two run SPAKE2 over the server's relay
   (`Pair`, `Paired`), and the open device seals the identity secret under the
@@ -183,13 +184,22 @@ device seals a key only to a contact's public key verified that way.
   account keeps for itself (cards, link codes) is sealed with a key derived
   from its identity secret (`RecoverySecret::seal_own`): sealing to the public
   key would let the server forge a row the owner trusts.
+- **Links** are one family (`contacts.wit`): a card sealed with the code, a
+  lookup id derived from it, and an accept that makes the two accounts
+  contacts. Its `link-kind` says what else accepting does: a `contact` link may
+  carry a pending grant (below); an `invitation` joins its organization with
+  its role. Any account makes a contact link; only an administrator of the
+  organization makes an invitation (`rule` splits `create-link` on the kind),
+  only the account with its email reads or accepts it, and a new one for an
+  email replaces the one outstanding. `list-links` lists the caller's links,
+  outstanding ones included, and `delete-link` revokes one.
 - **The exchange** (`be_block_client::contacts`): the maker posts
-  `CreateContactLink`; the other side reads it, opens the card, and on
-  "Connect with NAME (EMAIL)?" accepts with its own card. The server records
-  both `contacts` rows and sends `ContactsChanged`; the maker's device then
-  opens the accepter's card, writes its row and deletes the link
-  (`finish_links`, on connect and on `ContactsChanged`). Invitations finish
-  the same way.
+  `create-link` (`make_link`, `invite`); the other side reads it
+  (`open_link`), opens the card, and on "Connect with NAME (EMAIL)?" (or the
+  invitation's join dialog) accepts with its own card (`accept_link`). The
+  server records both `contacts` rows and sends `ContactsChanged`; the maker's
+  device then opens the accepter's card, writes its row and deletes the link
+  (`finish_links`, on connect and on `ContactsChanged`).
 - **A pending grant**: a link may carry a block, an access level and the
   block's scope key sealed with the code (`Peer::offer`). Accepting applies the
   grant at once, so a share works while the maker is offline; finishing

@@ -7,8 +7,8 @@ use std::{
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     AccountStorage, Authenticated, BlockChange, BrowserLogin, BrowserLoginState, Collected,
-    Contents, CreatedAgent, Error, ErrorCode, Header, Listing, OrganizationOpened, PairingMessage,
-    RecoveryKey, RelayKind, SessionEvent, SessionState, UploadUrl, embed,
+    Contents, CreatedAgent, Error, ErrorCode, Header, LinkKind, Listing, OrganizationOpened,
+    PairingMessage, RecoveryKey, RelayKind, SessionEvent, SessionState, UploadUrl, embed,
 };
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
@@ -89,30 +89,33 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | account::Call::Paired { .. } => Rule::SignedIn,
         },
         Call::Organizations(call) => match call {
-            organizations::Call::Invite { organization, .. } => {
-                Rule::AdministratorOf(*organization)
-            }
             organizations::Call::ListOrganizations { .. }
             | organizations::Call::CreateOrganization { .. }
-            | organizations::Call::OpenOrganization { .. }
-            | organizations::Call::GetInvitation { .. }
-            | organizations::Call::AcceptInvitation { .. } => Rule::SignedIn,
+            | organizations::Call::OpenOrganization { .. } => Rule::SignedIn,
         },
         Call::Members(call) => match call {
-            members::Call::ListMembers { .. }
-            | members::Call::SetRole { .. }
-            | members::Call::RemoveMember { .. } => Rule::Administrator,
-            members::Call::CreateAgent { .. }
-            | members::Call::ListAgents { .. }
-            | members::Call::RotateAgentToken { .. }
-            | members::Call::RemoveAgent { .. } => Rule::SignedIn,
+            members::Call::SetRole { .. } => Rule::Administrator,
+            // Anyone lists and removes the agents it made; an administrator, every member.
+            members::Call::ListMembers { .. } | members::Call::RemoveMember { .. } => {
+                Rule::Organization
+            }
+            members::Call::CreateAgent { .. } | members::Call::RotateAgentToken { .. } => {
+                Rule::SignedIn
+            }
         },
         Call::Contacts(call) => match call {
-            contacts::Call::CreateContactLink { .. }
-            | contacts::Call::GetContactLink { .. }
-            | contacts::Call::AcceptContactLink { .. }
-            | contacts::Call::ListContactLinks { .. }
-            | contacts::Call::DeleteContactLink { .. }
+            contacts::Call::CreateLink {
+                kind: LinkKind::Invitation(invitation),
+                ..
+            } => Rule::AdministratorOf(invitation.organization),
+            contacts::Call::CreateLink {
+                kind: LinkKind::Contact(_),
+                ..
+            }
+            | contacts::Call::GetLink { .. }
+            | contacts::Call::AcceptLink { .. }
+            | contacts::Call::ListLinks { .. }
+            | contacts::Call::DeleteLink { .. }
             | contacts::Call::PutContact { .. }
             | contacts::Call::ListContacts { .. }
             | contacts::Call::RemoveContact { .. }
@@ -218,27 +221,22 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
         Call::Organizations(call) => match call {
             organizations::Call::ListOrganizations { .. }
             | organizations::Call::OpenOrganization { .. } => true,
-            organizations::Call::CreateOrganization { .. }
-            | organizations::Call::Invite { .. }
-            | organizations::Call::GetInvitation { .. }
-            | organizations::Call::AcceptInvitation { .. } => false,
+            organizations::Call::CreateOrganization { .. } => false,
         },
         Call::Members(call) => match call {
             members::Call::ListMembers { .. }
             | members::Call::SetRole { .. }
             | members::Call::RemoveMember { .. }
             | members::Call::CreateAgent { .. }
-            | members::Call::ListAgents { .. }
-            | members::Call::RotateAgentToken { .. }
-            | members::Call::RemoveAgent { .. } => false,
+            | members::Call::RotateAgentToken { .. } => false,
         },
         Call::Contacts(call) => match call {
             contacts::Call::ListContacts { .. } | contacts::Call::ContactsChanged { .. } => true,
-            contacts::Call::CreateContactLink { .. }
-            | contacts::Call::GetContactLink { .. }
-            | contacts::Call::AcceptContactLink { .. }
-            | contacts::Call::ListContactLinks { .. }
-            | contacts::Call::DeleteContactLink { .. }
+            contacts::Call::CreateLink { .. }
+            | contacts::Call::GetLink { .. }
+            | contacts::Call::AcceptLink { .. }
+            | contacts::Call::ListLinks { .. }
+            | contacts::Call::DeleteLink { .. }
             | contacts::Call::PutContact { .. }
             | contacts::Call::RemoveContact { .. } => false,
         },
@@ -1150,69 +1148,6 @@ impl Client {
                     self.send_key_work(None).await;
                 }
             }
-            Call::Invite {
-                reply,
-                invitation,
-                organization,
-                email,
-                role,
-                sealed,
-                code,
-                escrow,
-            } => {
-                let connection = &self.connection;
-                let invited = async {
-                    prelude?;
-                    connection
-                        .store
-                        .invite(
-                            connection.account()?,
-                            invitation,
-                            organization,
-                            &email,
-                            role,
-                            sealed,
-                            code,
-                            escrow,
-                        )
-                        .await
-                }
-                .await;
-                self.reply(reply, invited);
-            }
-            Call::GetInvitation { reply, invitation } => {
-                let connection = &self.connection;
-                let found = async {
-                    prelude?;
-                    connection
-                        .store
-                        .invitation(connection.account()?, invitation)
-                        .await
-                }
-                .await;
-                self.reply(reply, found);
-            }
-            Call::AcceptInvitation {
-                reply,
-                invitation,
-                card,
-                contact,
-                escrow,
-            } => {
-                let connection = &self.connection;
-                let accepted = async {
-                    prelude?;
-                    let account = connection.account()?;
-                    let inviter = connection
-                        .store
-                        .accept_invitation(account, invitation, card, contact, escrow)
-                        .await?;
-                    connection.contacts_changed(&[account, inviter]).await;
-                    Ok(())
-                }
-                .await;
-                self.reply(reply, accepted);
-            }
         }
     }
 
@@ -1321,38 +1256,6 @@ impl Client {
                 .await;
                 self.reply(reply, rotated);
             }
-            Call::ListAgents {
-                reply,
-                organization,
-            } => {
-                let listed = async {
-                    prelude?;
-                    connection
-                        .store
-                        .list_agents(connection.account()?, organization)
-                        .await
-                }
-                .await;
-                self.reply(reply, listed);
-            }
-            Call::RemoveAgent {
-                reply,
-                organization,
-                account,
-            } => {
-                let removed = async {
-                    prelude?;
-                    let revoked = connection
-                        .store
-                        .remove_agent(connection.account()?, organization, account)
-                        .await?;
-                    connection.hub.drop_member(organization, account).await;
-                    connection.revoked(&revoked, &[account]).await;
-                    Ok(())
-                }
-                .await;
-                self.reply(reply, removed);
-            }
         }
     }
 
@@ -1360,35 +1263,32 @@ impl Client {
         use embed::contacts::Call;
         let connection = &self.connection;
         match call {
-            Call::CreateContactLink {
+            Call::CreateLink {
                 reply,
                 link,
                 card,
                 code,
-                grant,
+                kind,
             } => {
                 let created = async {
                     prelude?;
                     connection
                         .store
-                        .create_contact_link(connection.account()?, link, card, code, grant)
+                        .create_link(connection.account()?, link, card, code, kind)
                         .await
                 }
                 .await;
                 self.reply(reply, created);
             }
-            Call::GetContactLink { reply, link } => {
+            Call::GetLink { reply, link } => {
                 let found = async {
                     prelude?;
-                    connection
-                        .store
-                        .contact_link(connection.account()?, link)
-                        .await
+                    connection.store.link(connection.account()?, link).await
                 }
                 .await;
                 self.reply(reply, found);
             }
-            Call::AcceptContactLink {
+            Call::AcceptLink {
                 reply,
                 link,
                 card,
@@ -1400,7 +1300,7 @@ impl Client {
                     let account = connection.account()?;
                     let accepted = connection
                         .store
-                        .accept_contact_link(account, link, card, contact, key)
+                        .accept_link(account, link, card, contact, key)
                         .await?;
                     if let Some(granted) = accepted.granted {
                         connection
@@ -1420,20 +1320,20 @@ impl Client {
                 .await;
                 self.reply(reply, accepted);
             }
-            Call::ListContactLinks { reply } => {
+            Call::ListLinks { reply } => {
                 let listed = async {
                     prelude?;
-                    connection.store.contact_links(connection.account()?).await
+                    connection.store.links(connection.account()?).await
                 }
                 .await;
                 self.reply(reply, listed);
             }
-            Call::DeleteContactLink { reply, link } => {
+            Call::DeleteLink { reply, link } => {
                 let deleted = async {
                     prelude?;
                     connection
                         .store
-                        .delete_contact_link(connection.account()?, link)
+                        .delete_link(connection.account()?, link)
                         .await
                 }
                 .await;

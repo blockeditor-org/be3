@@ -143,6 +143,7 @@ impl Surfaces {
     ) -> Result<PresentCommit, String> {
         let repaint = ran.repaint;
         let animating = ran.animating;
+        let input_waiting = ran.input_waiting;
         let mut presented = None;
         if let Some((gpu, format)) = &self.gpu
             && !ran.painting.is_empty()
@@ -169,6 +170,7 @@ impl Surfaces {
             repaint_after_micros: repaint.map(|delay| delay.as_micros() as u64),
             animating,
             presented,
+            input_waiting,
         })
     }
 }

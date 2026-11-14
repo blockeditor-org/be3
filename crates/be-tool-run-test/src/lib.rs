@@ -20,13 +20,13 @@
 //!   one test (its `running 1 test` line): a run_apart part, which names its
 //!   file's test with --exact, so that a file whose test is not named after it
 //!   cannot pass having run nothing.
-//! - `--paintings OUT` makes OUT/used and OUT/changed and names them in
-//!   USED_PAINTINGS and CHANGED_PAINTINGS, where a painting test writes what
-//!   it compared and what it accepted (guides/testing_a_gui.md).
+//! - `--paintings OUT` makes the directory OUT and names it in
+//!   MADE_PAINTINGS, where a painting test writes every painting it makes and
+//!   reads none (guides/testing_a_gui.md).
 //! - `--passed OUT` writes an empty OUT when the test passes.
 //! - `--record OUT` writes the test's output to OUT/log and its exit status to
-//!   OUT/status, names OUT/changed in CHANGED_PAINTINGS, and exits 0, so a
-//!   failure is kept like a pass (./scripts/test, buck/dev/test.bxl).
+//!   OUT/status, names OUT/made in MADE_PAINTINGS, and exits 0, so a failure
+//!   is kept like a pass (./scripts/test, buck/dev/test.bxl).
 //!
 //! Otherwise it exits with the test's status, 128 and the signal for a test a
 //! signal stopped, and 124 for one the time limit stopped.
@@ -121,18 +121,14 @@ pub fn run(options: &Options) -> Result<i32, String> {
         command.env("LD_LIBRARY_PATH", library_path);
     }
     if let Some(out) = &options.paintings {
-        let (used, changed) = (out.join("used"), out.join("changed"));
-        create_dir(&used)?;
-        create_dir(&changed)?;
-        command
-            .env("USED_PAINTINGS", used)
-            .env("CHANGED_PAINTINGS", changed);
+        create_dir(out)?;
+        command.env("MADE_PAINTINGS", out);
     }
     let mut log = None;
     if let Some(out) = &options.record {
-        let changed = out.join("changed");
-        create_dir(&changed)?;
-        command.env("CHANGED_PAINTINGS", changed);
+        let made = out.join("made");
+        create_dir(&made)?;
+        command.env("MADE_PAINTINGS", made);
         let file = File::create(out.join("log"))
             .map_err(|error| format!("cannot write {}: {error}", out.join("log").display()))?;
         let stderr = file.try_clone().map_err(|error| error.to_string())?;

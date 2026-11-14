@@ -437,7 +437,7 @@ def app_tests(exports = [], env = {}, extra_deps = []):
 # ships, so the accepted paintings in the crate's snapshots/ stay put. The guest
 # finds them from CARGO_MANIFEST_DIR, taken from the crate's real Cargo.toml
 # rather than a staged copy, and app-test-runner opens that directory, and
-# USED_PAINTINGS' and CHANGED_PAINTINGS', to it and nothing else.
+# MADE_PAINTINGS' when it is set, to it and nothing else.
 #
 # The module is compiled for wasmtime once, in an action, rather than by every
 # test process - about forty seconds a module. It is compiled for the x86_64

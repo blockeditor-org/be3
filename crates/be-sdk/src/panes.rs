@@ -19,6 +19,7 @@ pub(crate) struct Panes {
 pub(crate) struct Ran {
     pub(crate) repaint: Option<Duration>,
     pub(crate) animating: bool,
+    pub(crate) input_waiting: bool,
     pub(crate) painting: Vec<ScreenPlacement>,
 }
 
@@ -33,6 +34,7 @@ impl Panes {
     ) -> Ran {
         let mut repaint = Duration::MAX;
         let mut animating = false;
+        let mut input_waiting = false;
         let dirty = screens.take_dirty();
         let repainting = std::mem::take(&mut self.repainting);
         let unpainted = match seen {
@@ -60,6 +62,7 @@ impl Panes {
             return Ran {
                 repaint: None,
                 animating,
+                input_waiting,
                 painting,
             };
         }
@@ -82,6 +85,7 @@ impl Panes {
             let fresh = fresh.contains(&placement.surface);
             let changed = fresh || frame.changed;
             animating |= frame.animating;
+            input_waiting |= frame.input_waiting;
             if let Some(after) = frame.repaint_after {
                 repaint = repaint.min(after);
                 self.repainting.insert(placement.instance);
@@ -112,6 +116,7 @@ impl Panes {
         Ran {
             repaint: (repaint < Duration::MAX).then_some(repaint),
             animating,
+            input_waiting,
             painting,
         }
     }

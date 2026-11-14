@@ -26,6 +26,7 @@ mod an_edit_coming_back_as_mine_runs_nothing_again;
 mod an_edit_rereads_only_the_objects_it_touched;
 mod an_operation_runs_only_the_watchers_of_what_it_touched;
 mod an_undecodable_operation_asks_for_a_fresh_snapshot;
+mod lacking_edits_a_read_takes_are_announced_at_the_next_pump;
 mod updates_for_another_block_reach_only_its_projection;
 
 struct Fixture {

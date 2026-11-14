@@ -19,12 +19,12 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
     };
     let wrong_key = owner
         .call(|peer| {
-            client::contacts::create_contact_link(
+            client::contacts::create_link(
                 peer,
                 Uuid::new_v4(),
                 Vec::new(),
                 Vec::new(),
-                Some(pending(other_root.scope)),
+                be_block_protocol::LinkKind::Contact(Some(pending(other_root.scope))),
             )
         })
         .await;

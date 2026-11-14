@@ -7,7 +7,7 @@ fn ms(milliseconds: u64) -> Duration {
 #[test]
 fn an_app_repaint_deadline_wakes_the_host_on_every_frame_until_it_is_due() {
     let mut pacing = Pacing::default();
-    pacing.ready(ms(1000), Some(ms(500)));
+    pacing.ready(ms(1000), Some(ms(500)), false);
     assert_eq!(pacing.wake_after(ms(1000), true), Some(ms(500)));
     assert_eq!(
         pacing.wake_after(ms(1016), true),
@@ -22,7 +22,7 @@ fn an_app_repaint_deadline_wakes_the_host_on_every_frame_until_it_is_due() {
     assert_eq!(pacing.wake_after(ms(1500), true), Some(FRAME_TIMEOUT));
     assert!(!pacing.due(ms(1516), 4), "a frame is not asked for twice");
 
-    pacing.ready(ms(1520), None);
+    pacing.ready(ms(1520), None, false);
     assert_eq!(pacing.wake_after(ms(1520), true), None);
     assert!(!pacing.due(ms(3000), 5));
 }

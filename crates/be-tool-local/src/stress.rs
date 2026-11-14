@@ -38,7 +38,7 @@ const ENVIRONMENT: [&str; 6] = [
 
 /// Runs the host tests whose names contain NAME again and again, several at once, and says how
 /// many failed and why: a flake that shows only under load shows here (guides/testing_a_gui.md,
-/// 6, Debugging). `./scripts/test` caches a passing run, so running it again proves
+/// 6, Debugging), a painting that differs from the accepted one included. `./scripts/test` caches a passing run, so running it again proves
 /// nothing.
 ///
 /// Every run uses the one host that has every app (`:host-with-all`), where `./scripts/test`
@@ -126,7 +126,10 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
                         return;
                     }
                     let log = output.join(format!("{run}.log"));
-                    if let Err(reason) = once(&built, &options.name, options.limit, &log) {
+                    let paintings = output.join(run.to_string());
+                    if let Err(reason) =
+                        once(&built, &options.name, options.limit, &log, &paintings)
+                    {
                         failures
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -148,7 +151,10 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
     );
     print!("{}", report(&failures));
     if !failures.is_empty() {
-        println!("The failing runs' output is in {}/.", output.display());
+        println!(
+            "The failing runs' output is in {}/, as N.log, and the paintings of run N that differ from the accepted ones in N/changed/.",
+            output.display()
+        );
     }
     Ok(failures.len())
 }
@@ -280,11 +286,22 @@ fn build() -> Result<Built, String> {
 }
 
 /// One run of the tests named, which fails with what went wrong: the panic's message, how the
-/// harness ended when it did not panic, or that it ran past `limit` and was killed.
-fn once(built: &Built, name: &str, limit: Duration, log: &Path) -> Result<(), String> {
+/// harness ended when it did not panic, that it ran past `limit` and was killed, or that a
+/// painting differs from the accepted one. The run writes its paintings into `paintings`/made
+/// (MADE_PAINTINGS) rather than comparing them itself, so that every run keeps its own: those
+/// that differ stay in `paintings`/changed with a `.why` beside each, and the rest is removed.
+fn once(
+    built: &Built,
+    name: &str,
+    limit: Duration,
+    log: &Path,
+    paintings: &Path,
+) -> Result<(), String> {
+    let made = paintings.join("made");
     let mut child = Command::new(&built.harness)
         .arg(name)
         .envs(built.environment.iter().map(|(key, value)| (key, value)))
+        .env("MADE_PAINTINGS", &made)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -300,10 +317,25 @@ fn once(built: &Built, name: &str, limit: Duration, log: &Path) -> Result<(), St
         .flatten()
         .map(|reader| reader.join().unwrap_or_default())
         .collect();
+    let accepted = built
+        .environment
+        .iter()
+        .find(|(key, _)| *key == "CARGO_MANIFEST_DIR")
+        .map(|(_, manifest)| Path::new(manifest).join("snapshots"))
+        .unwrap_or_default();
+    let changed = changed_paintings(&made, &accepted, &paintings.join("changed"));
+    let _ = fs::remove_dir_all(&made);
+    if changed.is_empty() {
+        let _ = fs::remove_dir_all(paintings);
+    }
     if let (Some(status), false) = (status, timed_out)
         && status.success()
     {
-        return Ok(());
+        let Some((painting, why)) = changed.into_iter().next() else {
+            return Ok(());
+        };
+        let _ = fs::write(log, &text);
+        return Err(format!("the painting {painting} changed: {why}"));
     }
     let _ = fs::write(log, &text);
     Err(match (timed_out, status) {
@@ -314,6 +346,38 @@ fn once(built: &Built, name: &str, limit: Duration, log: &Path) -> Result<(), St
         (false, Some(status)) => reason(&text, &ended(status)),
         (false, None) => reason(&text, "the harness could not be waited for"),
     })
+}
+
+/// Each painting in `made` that differs from the one in `accepted`, by name with what changed,
+/// copied into `changed` with that in a `.why` beside it.
+fn changed_paintings(made: &Path, accepted: &Path, changed: &Path) -> Vec<(String, String)> {
+    let mut names: Vec<_> = fs::read_dir(made)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name())
+        .collect();
+    names.sort();
+    let mut differ = Vec::new();
+    for name in names {
+        let Ok(bytes) = fs::read(made.join(&name)) else {
+            continue;
+        };
+        let why = match fs::read(accepted.join(&name)) {
+            Ok(previous) => match beui_paint_snapshot::changed(&previous, &bytes) {
+                Some(why) => why,
+                None => continue,
+            },
+            Err(_) => "there is no accepted painting".to_owned(),
+        };
+        let mut why_name = name.clone();
+        why_name.push(".why");
+        let _ = fs::create_dir_all(changed);
+        let _ = fs::write(changed.join(&name), &bytes);
+        let _ = fs::write(changed.join(why_name), &why);
+        differ.push((name.to_string_lossy().into_owned(), why));
+    }
+    differ
 }
 
 fn reader(mut pipe: impl std::io::Read + Send + 'static) -> thread::JoinHandle<String> {

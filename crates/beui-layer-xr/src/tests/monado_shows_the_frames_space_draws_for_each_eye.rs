@@ -10,8 +10,9 @@ fn monado_shows_the_frames_space_draws_for_each_eye() {
     let link = Link::new("beui-layer-xr test");
     assert!(
         matches!(link.status(), Status::Found(_)),
-        "a running Monado is found at once: {:?}",
-        link.status()
+        "a running Monado is found at once: {:?}\n{}",
+        link.status(),
+        log(&directory)
     );
     let gpu = pollster::block_on(beui_renderer_wgpu::present::create_offscreen(
         beui_renderer_wgpu::offscreen::FORMAT,

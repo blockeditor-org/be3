@@ -253,6 +253,12 @@ sends it. `Peer::write` does both.
   Sending a move carries its databases' prefixes along (`Moving::from`).
   Sharing, access, members, invites, agents, contacts and pairing need the
   server.
+- **Links** (`contacts.rs`): `make_link` and `invite` make a contact link or an
+  invitation, and `open_link` and `accept_link` read and accept the kind the
+  caller asks consent for (`Expected`), refusing the other, and answer the
+  `Link` with its owner's card; accepting an invitation pins the
+  escrow key it carries. Agents are members: `Peer::members` lists them with
+  their creator, and `Peer::remove_member` removes one.
 - **`Peer::drain`** publishes the outbox in order once attached and reports a
   `Drained` per block. A rejected publish whose remote head already contains
   the commit is settled, not diverged; an entry is settled once a published

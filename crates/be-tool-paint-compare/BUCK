@@ -1,0 +1,5 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# What compares a painting test's paintings with the accepted ones, in an
+# action of its own after the test's (run_test in buck/dev/test.bzl).
+cargo_crate()

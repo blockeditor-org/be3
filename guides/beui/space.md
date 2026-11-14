@@ -212,7 +212,12 @@ Windows; elsewhere the `Link` fails at once and space stays the simulator.
 - beui-layer-xr's tests run Monado's service with its null compositor on
   lavapipe (`//buck/sysroot:amd64-xr`) and check frames are shown, including a
   headset that appears after the `Link` started and a service restart. They
-  share one `XDG_RUNTIME_DIR`, so each holds the `MONADO` lock.
+  share one `XDG_RUNTIME_DIR`, so each holds the `MONADO` lock. The fixture
+  starts the service by socket activation, as systemd's `monado.socket` does:
+  it binds and listens on `monado_comp_ipc` itself and passes it on fd 3 with
+  `LISTEN_FDS` and `LISTEN_PID`, so a client that connects before the service
+  is ready is queued rather than refused. The service binding its own socket
+  would refuse clients between its `bind` and `listen`.
 
 ## The on-screen keyboard
 

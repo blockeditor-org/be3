@@ -152,13 +152,15 @@ be-sdk holds app state as plain values and knows no UI framework:
 `EditorHost`'s pushed and watched values. A read that may not have arrived
 answers `Result<T, Unready>`. Every change is announced by a callback returning
 a `Subscription` (unregistered on drop): content `on_touched`, `on_change`,
-`on_revision`; graph `BlockWatch::on_change`, `BlockGraph::on_info`; host
+`on_revision`, `on_lacking`; graph `BlockWatch::on_change`, `BlockGraph::on_info`; host
 `on_pushed`, `on_watched::<W>`.
 
 A callback runs once per change, after the whole operation, delivery or answer
 is applied, in registration order. Graph callbacks wait while
 `EditorHost::defer_graph_changes_unless` says so, until `flush_graph`. Content
-callbacks run inside `pump` and `operate`; pushed and watched values change
+callbacks run inside `pump` and `operate`. A read between frames (`ready`,
+`read`, `take_projected`) adopts the updates waiting and asks for a pump
+(`on_due`) when it took anything a callback announces. Pushed and watched values change
 while host frames are delivered, so an adapter queues them and applies them in
 its next frame (`on_pumped`). A framework adapts these and nothing else:
 be-sdk-beui turns each into a signal, so beui editors never see callbacks.

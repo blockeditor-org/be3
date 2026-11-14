@@ -169,6 +169,7 @@ members = [
     "crates/logicgame",
     "crates/beui-lucide",
     "crates/beui-paint-format",
+    "crates/be-tool-paint-compare",
     "crates/be-tool-paint-review",
     "crates/be-tool-paint-review-manifest",
     "crates/be-tool-paint-review-web",

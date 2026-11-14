@@ -12,7 +12,8 @@ use crate::ServerError;
 pub const MAX_BLOCKS_PER_ACCOUNT: usize = 250_000;
 /// Company organizations one account may have created.
 pub const MAX_ORGANIZATIONS_PER_ACCOUNT: i64 = 50;
-/// Contact links one account may have open (made and not deleted).
+/// Contact links one account may have open (made and not deleted); invitations are bounded by
+/// `MAX_INVITATIONS_PER_ORGANIZATION` instead.
 pub const MAX_CONTACT_LINKS_PER_ACCOUNT: i64 = 1_000;
 /// Contacts one account may have.
 pub const MAX_CONTACTS_PER_ACCOUNT: i64 = 10_000;

@@ -57,18 +57,7 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, account_id)
     );
 
-    CREATE TABLE invitations (
-        id              TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-        email           TEXT NOT NULL,
-        role            TEXT NOT NULL,
-        invited_by      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        sealed          BLOB NOT NULL DEFAULT x'',
-        code            BLOB NOT NULL DEFAULT x'',
-        escrow          BLOB NOT NULL DEFAULT x''
-    );
-
-    CREATE TABLE contact_links (
+    CREATE TABLE links (
         id              TEXT PRIMARY KEY,
         owner_id        TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         card            BLOB NOT NULL,
@@ -78,12 +67,16 @@ const SCHEMA: &str = "
         grant_access    TEXT NOT NULL DEFAULT '',
         grant_key       TEXT NOT NULL DEFAULT '',
         grant_sealed    BLOB NOT NULL DEFAULT x'',
+        invite_organization TEXT NOT NULL DEFAULT '',
+        invite_email    TEXT NOT NULL DEFAULT '',
+        invite_role     TEXT NOT NULL DEFAULT '',
+        invite_escrow   BLOB NOT NULL DEFAULT x'',
         accepter_id     TEXT NOT NULL DEFAULT '',
         accepter_card   BLOB NOT NULL DEFAULT x''
     );
 
-    CREATE INDEX contact_links_owner
-        ON contact_links (owner_id);
+    CREATE INDEX links_owner
+        ON links (owner_id);
 
     CREATE TABLE contacts (
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -264,8 +257,8 @@ const SCHEMA: &str = "
 
     CREATE INDEX organizations_owner
         ON organizations (owner_id);
-    CREATE INDEX invitations_organization
-        ON invitations (organization_id);
+    CREATE INDEX links_invite_organization
+        ON links (invite_organization);
     CREATE TABLE server_account (
         id              INTEGER PRIMARY KEY CHECK (id = 1),
         account_id      TEXT NOT NULL REFERENCES accounts(id),
