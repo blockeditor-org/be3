@@ -3227,10 +3227,10 @@ dependencies = [
  "beui-runner",
  "beui-types",
  "glam",
+ "libc",
  "libloading 0.9.0",
  "openxr",
  "pollster",
- "rustix 1.1.4",
  "serde_json",
  "wgpu",
 ]

@@ -26,7 +26,7 @@ beui-font-freetype = { path = "../beui-font-freetype" }
 pollster = "0.4"
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
-rustix = { version = "1", features = ["event", "fs", "process"] }
+libc = "0.2"
 
 [lints]
 workspace = true
