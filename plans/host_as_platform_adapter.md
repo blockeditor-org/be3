@@ -60,23 +60,16 @@ rather than becoming the root itself.
 - OpenXR: the runtime, session, frame loop, poses, swapchains and composition layers
   (beui-layer-xr without its beui `Layer` wrapper).
 
-The host has no text and no fallback UI of its own, so it shows a window only once the root guest
-has committed that window's first frame, for every window, the first and any opened later. The
-first frame needs the window's size and scale, which each platform gives without showing anything:
+The host has no text and no fallback UI of its own. A window opens at once, so the user sees
+something happening, and shows a plain background colour until the root guest commits its first
+frame. Where be-host already owns what the screen shows before then, it keeps that instead:
 
-- **Wayland:** the surface is committed with no buffer, the compositor answers with its size and
-  scale, and the window appears when the first composited frame is attached.
-- **X11 and macOS:** the window is created unmapped or unordered, and mapped or ordered front
-  after its first frame.
-- **Windows:** the window is created hidden and cloaked (`DWMWA_CLOAK`) until its first present,
-  so no white frame flashes.
 - **Android:** the system splash screen stays (`setKeepOnScreenCondition`) until the first frame.
 - **The login session (DRM):** the display keeps what it showed, such as the display manager's
   last image, until the first frame.
 - **Web:** the page may show DOM text while the root guest loads.
 
-A failure before the first frame is logged; on Windows and macOS the host may also show the OS's
-own message box.
+A failure before the first frame is logged.
 
 ## The root guest
 
