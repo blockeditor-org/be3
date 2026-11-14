@@ -24,7 +24,9 @@ unsafe extern "C" {
 }
 
 /// Told, or dropped, when the stack started last has ended: the next waits for it, so two
-/// stacks never serve the same files at once. Only the page starts stacks, so only it locks this.
+/// stacks never serve the same files at once. A trap (panic=abort) ends the worker without
+/// dropping it, so the next stack never starts after one, as before. Only the page starts
+/// stacks, so only it locks this.
 static LAST_ENDED: std::sync::Mutex<Option<tokio::sync::oneshot::Receiver<()>>> =
     std::sync::Mutex::new(None);
 

@@ -28,9 +28,12 @@ fn initialize_thread_pointer() {
 }
 
 /// Starts a module instance on a browser page's own thread, which may never wait on a lock.
+/// Every entry the page calls first may call it: after the first it does nothing.
 pub fn initialize_page() {
+    if PAGE.replace(true) {
+        return;
+    }
     initialize_thread_pointer();
-    PAGE.set(true);
 }
 
 /// Starts a module instance on a worker, which waits for a held lock as a native thread does.

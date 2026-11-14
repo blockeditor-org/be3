@@ -62,12 +62,16 @@ where
 /// The server's VAPID public key, which the browser subscribes with.
 #[wasm_bindgen]
 pub async fn push_server_key() -> Result<Vec<u8>, JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     answered(be_host_stack::push_key).await
 }
 
 /// Registers the subscription the browser made.
 #[wasm_bindgen]
 pub async fn push_register(address: String, p256dh: Vec<u8>, auth: Vec<u8>) -> Result<(), JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     let endpoint = PushEndpoint {
         service: PushService::WebPush,
         address,
@@ -79,6 +83,8 @@ pub async fn push_register(address: String, p256dh: Vec<u8>, auth: Vec<u8>) -> R
 
 #[wasm_bindgen]
 pub async fn push_unregister(address: String) -> Result<(), JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     answered(|reply| be_host_stack::unregister_push_endpoint(address, reply)).await
 }
 
@@ -87,6 +93,8 @@ pub async fn push_unregister(address: String) -> Result<(), JsValue> {
 /// null when this device cannot open it (no key yet, another block's, too old).
 #[wasm_bindgen]
 pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     let Some(message) = PushMessage::decode(&bytes) else {
         return Ok(JsValue::NULL);
     };
@@ -121,6 +129,8 @@ pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
 /// A notification was pressed: the host opens its block on the next frame.
 #[wasm_bindgen]
 pub fn push_open_block(organization: String, block: String) {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     if let (Ok(organization), Ok(block)) = (organization.parse::<Uuid>(), block.parse::<Uuid>()) {
         hold(Opening {
             organization,

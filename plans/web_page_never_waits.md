@@ -45,8 +45,9 @@ a thread that runs beside it.
   message to a mailbox.
 - The page makes no file calls: everything that reads a file runs in a worker. A file call on
   the page fails loudly instead of spinning.
-- `be_wasm_threads::Mutex` is gone and every lock is `std::sync::Mutex`; `initialize_page`
-  makes a lock the page finds held panic with a clear message instead of trapping.
+- The page starts no std thread on its own memory either (a `thread.js` worker shares its heap
+  as the stack's worker does now), so it holds no lock another thread takes, and every lock is
+  `std::sync::Mutex`: `be_wasm_threads::Mutex` is gone.
 
 ## Steps
 
@@ -64,6 +65,3 @@ a thread that runs beside it.
    own encodings), and stop binding the page's files channel.
 5. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
    `web/wasi.js`.
-
-`web/files.js` also polls every millisecond (`setTimeout`) where a browser has no
-`Atomics.waitAsync`; a `MessagePort` from each caller would wake it instead.
