@@ -1,0 +1,12 @@
+[package]
+name = "be-lib-build-record"
+description = "The record of a build that ./scripts/verify, ./scripts/ci, ./scripts/test and ./scripts/buck send the build server's dashboard, made from buck2's event log"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true

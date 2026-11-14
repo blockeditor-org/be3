@@ -1762,6 +1762,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-lib-build-record"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "be-lib-crate-pins"
 version = "0.1.0"
 
@@ -2258,6 +2265,7 @@ version = "0.1.0"
 name = "be-tool-bootstrap"
 version = "0.1.0"
 dependencies = [
+ "be-lib-build-record",
  "be-lib-crate-pins",
  "be-lib-prompt",
  "flate2",
@@ -2451,6 +2459,9 @@ dependencies = [
 [[package]]
 name = "be-tool-run-test"
 version = "0.1.0"
+dependencies = [
+ "be-lib-build-record",
+]
 
 [[package]]
 name = "be-tool-terminal-emulator"
@@ -2491,6 +2502,7 @@ dependencies = [
 name = "be-tool-verify"
 version = "0.1.0"
 dependencies = [
+ "be-lib-build-record",
  "serde_json",
  "sha2 0.10.9",
 ]

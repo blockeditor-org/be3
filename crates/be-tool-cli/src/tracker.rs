@@ -367,7 +367,7 @@ impl<S: ObjectStore> Tracker<S> {
             .map_err(explain)?
         {
             Saved::Rejected { .. } => Ok(false),
-            Saved::Published(_) | Saved::Unchanged(_) => Ok(true),
+            Saved::Published(_) | Saved::Unchanged(_) | Saved::Kept(_) => Ok(true),
         }
     }
 

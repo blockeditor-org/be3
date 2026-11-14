@@ -1269,6 +1269,17 @@ impl Refs {
             .any(|op| matches!(op, Op::Create(creation) if creation.block == block))
     }
 
+    /// Whether the block's creation was set aside among the unsent edits.
+    pub fn creation_set_aside(&self, block: Uuid) -> bool {
+        let state = self.state.lock().unwrap();
+        state.unsent.get(&block).is_some_and(|unsent| {
+            unsent
+                .ops
+                .iter()
+                .any(|op| matches!(op, Op::Create(creation) if creation.block == block))
+        })
+    }
+
     pub fn outbox(&self) -> Vec<(u64, Op)> {
         let state = self.state.lock().unwrap();
         state

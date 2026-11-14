@@ -255,7 +255,9 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   filter runs nothing else.
 - These tests take a second or two each and run in parallel, each as its own action, so a
   failing test loses only its own paintings. Use them for what only the host shows; test an
-  editor's own behaviour in its crate.
+  editor's own behaviour in its crate. Each costs the build server about 2.5 CPU seconds, and a
+  change to be-host or to any app it names reruns it (guides/performance.md, Keeping verify
+  cheap).
 
 ### Devices of one account
 

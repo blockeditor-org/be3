@@ -46,8 +46,8 @@ Environment:
   BUNNY_API_KEY       the account's API key, to purge mutable entry points from the CDN
   BE3_DEPLOY_STORAGE  where be and the downloads go (https://la.storage.bunnycdn.com/be-app)
   BE3_DEPLOY_MIRROR   where it is read back from (https://be3.pfg.pw)
-  BE3_DEPLOY_HOST     the server, for ssh and scp (ubuntu@api.be3.pfg.pw)
-  BE3_DEPLOY_DIR      the directory there that holds be-server (be-server)
+  BE3_DEPLOY_HOST     the server, for ssh and scp (root@api.be3.pfg.pw)
+  BE3_DEPLOY_DIR      the directory there that holds be-server (/srv/be-server)
   BE3_DEPLOY_UNITS    the units stopped around the swap (be-server)
   Web files are uploaded under data/BUILD/web/; /index.html selects the live build.";
 
@@ -350,8 +350,8 @@ fn run(options: &mut Options) -> Result<(), String> {
     }
 
     if !options.skip_server {
-        let host = setting("BE3_DEPLOY_HOST", "ubuntu@api.be3.pfg.pw");
-        let directory = setting("BE3_DEPLOY_DIR", "be-server");
+        let host = setting("BE3_DEPLOY_HOST", "root@api.be3.pfg.pw");
+        let directory = setting("BE3_DEPLOY_DIR", "/srv/be-server");
         let units = setting("BE3_DEPLOY_UNITS", "be-server");
         let build_id = options
             .be

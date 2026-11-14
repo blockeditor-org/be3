@@ -1,0 +1,87 @@
+# api.be3.pfg.pw's front door (default.nix). be-server is not yet trusted to face the internet, so a request reaches it
+# only with the gateway key API_GATEWAY_KEY (/mnt/data/secrets/gateway.env): native clients send it as
+# Be3-Gateway-Authorization, browsers as the cookie be3_gateway that the page at / sets (guides/hosting.md, Routes,
+# the proxy and the gateway). The matchers below exclude each other, so their order does not matter.
+
+# What a request with the key gets: be-server, and the web build's CORS headers when it comes from there.
+(be_server) {
+	@web header Origin https://be3.pfg.pw
+	header @web {
+		Access-Control-Allow-Origin https://be3.pfg.pw
+		Access-Control-Allow-Credentials true
+		Vary Origin
+	}
+	reverse_proxy 127.0.0.1:9090 {
+		header_up -Be3-Gateway-Authorization
+	}
+}
+
+{$API_HOST} {
+	# Presigned object URLs are fetched with no credentials and carry their own signature over the path, host and
+	# query; be-server answers their CORS itself.
+	@storage path /api/be/storage/*
+	handle @storage {
+		reverse_proxy 127.0.0.1:9090
+	}
+
+	# The web build's preflights carry no cookie.
+	@preflight {
+		not path /api/be/storage/*
+		method OPTIONS
+		header Origin https://be3.pfg.pw
+	}
+	handle @preflight {
+		header Access-Control-Allow-Origin https://be3.pfg.pw
+		header Access-Control-Allow-Credentials true
+		header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+		header Access-Control-Allow-Headers "{http.request.header.Access-Control-Request-Headers}"
+		header Access-Control-Max-Age 86400
+		header Vary Origin
+		respond 204
+	}
+
+	@key {
+		not path /api/be/storage/*
+		not method OPTIONS
+		header Be3-Gateway-Authorization {env.API_GATEWAY_KEY}
+	}
+	handle @key {
+		import be_server
+	}
+
+	@cookie {
+		not path /api/be/storage/*
+		not method OPTIONS
+		not header Be3-Gateway-Authorization *
+		header Cookie *be3_gateway={env.API_GATEWAY_KEY}*
+	}
+	handle @cookie {
+		# With the cookie set, the page that sets it sends the browser on to the web build.
+		redir / https://be3.pfg.pw/ 302
+		import be_server
+	}
+
+	# Without the key: the page that asks for it, and that browsers are sent to; nothing else.
+	@gate {
+		path / /gate.html
+		not header Cookie *be3_gateway={env.API_GATEWAY_KEY}*
+	}
+	handle @gate {
+		root * {$API_SITE}
+		rewrite * /gate.html
+		file_server
+	}
+	@browser {
+		not path / /gate.html /api/be/storage/*
+		not header Be3-Gateway-Authorization {env.API_GATEWAY_KEY}
+		not header Cookie *be3_gateway={env.API_GATEWAY_KEY}*
+		method GET
+		header Accept *text/html*
+	}
+	handle @browser {
+		redir * "/#next={uri}" 302
+	}
+	handle {
+		respond "api.be3: the gateway key is missing or wrong" 401
+	}
+}

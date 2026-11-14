@@ -31,13 +31,39 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
             ];
             test.extend(arguments.into_iter().skip(1));
             let quiet = !env_set("BE3_VERBOSE") && !in_ci();
-            retrying(&buck2, &test, quiet, false, None)?
+            recorded(&buck2, test, quiet)?
         }
         "run" => return run(&buck2, arguments),
+        "build" | "bxl" => recorded(&buck2, arguments, false)?,
         _ => retrying(&buck2, &arguments, false, false, None)?,
     };
     print_captured(&output);
     Ok(exit_code(status))
+}
+
+/// `retrying` for a command that builds, which writes buck2's event log and sends the build's record to the build
+/// server's dashboard from it (crates/be-lib-build-record).
+fn recorded(buck2: &Path, mut arguments: Vec<String>, quiet: bool) -> Result<(i32, Vec<u8>)> {
+    let command = arguments.first().cloned().unwrap_or_default();
+    let named = before_separator(&arguments)
+        .any(|argument| argument == "--event-log" || argument.starts_with("--event-log="));
+    let events = repository().join(format!("target/{command}-events.json-lines"));
+    if !named {
+        let _ = std::fs::remove_file(&events);
+        arguments.splice(
+            1..1,
+            [
+                "--event-log".to_owned(),
+                events.to_string_lossy().into_owned(),
+            ],
+        );
+    }
+    let (status, output) = retrying(buck2, &arguments, quiet, false, None)?;
+    if !named {
+        let context = be_lib_build_record::Context::here(&command, String::new(), status == 0);
+        be_lib_build_record::report(&repository(), &events, &context);
+    }
+    Ok((status, output))
 }
 
 pub fn prepare() -> Result<PathBuf> {
@@ -106,7 +132,7 @@ fn run(buck2: &Path, mut arguments: Vec<String>) -> Result<ExitCode> {
             build.push(argument);
         }
     }
-    let (status, output) = retrying(buck2, &build, false, false, None)?;
+    let (status, output) = recorded(buck2, build, false)?;
     print_captured(&output);
     if status != 0 {
         return Ok(exit_code(status));

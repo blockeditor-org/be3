@@ -1,6 +1,8 @@
-//! A record of each ./scripts/verify and ./scripts/ci build, sent to the build server's dashboard
-//! (scripts/internal/nativelink/dashboard, guides/build_server.md): how long buck2 took, what ran and what was
-//! cached, the critical path, every test run and every other action over 10 s. buck2's event log has it all.
+//! A record of each build, sent to the build server's dashboard (scripts/internal/nativelink/dashboard,
+//! guides/build_server.md): how long buck2 took, what ran and what was cached, the critical path, every test run and
+//! every other action over 10 s. buck2's event log has it all, down to the CPU each test that ran used, which its
+//! launcher (crates/be-tool-run-test) writes last. crates/be-tool-verify sends one for ./scripts/verify and
+//! ./scripts/ci, and crates/be-tool-bootstrap for ./scripts/test and ./scripts/buck's build, run, test and bxl.
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -9,6 +11,15 @@ use std::process::{Command, Stdio};
 
 use serde_json::{Value, json};
 
+/// What starts the line crates/be-tool-run-test writes last, saying how much CPU the test used.
+pub const USAGE_LINE: &str = "run-test: the test used ";
+
+/// The CPU seconds a launcher's line says the test used, or None for a line that is not one.
+pub fn cpu_seconds(line: &str) -> Option<f64> {
+    let rest = line.trim_start().strip_prefix(USAGE_LINE)?;
+    rest.split(' ').next()?.parse().ok()
+}
+
 /// What the event log does not say about a build.
 pub struct Context {
     pub kind: String,
@@ -16,6 +27,56 @@ pub struct Context {
     pub branch: Option<String>,
     pub parts: String,
     pub passed: bool,
+}
+
+impl Context {
+    /// A build of `command` (`verify`, `test`, `build`, `run`, `bxl`) in this checkout. Its kind is the command, with
+    /// `-cloud` behind a proxy (a cloud session's) and `ci-EVENT` before it in CI, except that CI's ./scripts/ci is
+    /// `ci-EVENT` alone.
+    pub fn here(command: &str, parts: String, passed: bool) -> Self {
+        let variable = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
+        let git = |arguments: &[&str]| {
+            Command::new("git")
+                .args(arguments)
+                .stderr(Stdio::null())
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+                .filter(|text| !text.is_empty())
+        };
+        let kind = match variable("GITHUB_EVENT_NAME") {
+            Some(event) if command == "verify" => format!("ci-{event}"),
+            Some(event) => format!("ci-{event}-{command}"),
+            None if variable("HTTPS_PROXY")
+                .or_else(|| variable("https_proxy"))
+                .is_some() =>
+            {
+                format!("{command}-cloud")
+            }
+            None => command.to_owned(),
+        };
+        Context {
+            kind,
+            commit: git(&["rev-parse", "HEAD"]),
+            branch: variable("GITHUB_HEAD_REF")
+                .or_else(|| variable("GITHUB_REF_NAME"))
+                .or_else(|| git(&["rev-parse", "--abbrev-ref", "HEAD"])),
+            parts,
+            passed,
+        }
+    }
+}
+
+/// Sends the record of the build the event log at `events` describes, when the build server is one that takes them.
+pub fn report(repository: &Path, events: &Path, context: &Context) {
+    if destination(repository).is_none() {
+        return;
+    }
+    let events = std::fs::read_to_string(events).unwrap_or_default();
+    if let Some(record) = record(&events, context) {
+        send(repository, &record);
+    }
 }
 
 /// An action other than a test run is in the record when it ran for at least this long.
@@ -99,12 +160,19 @@ pub fn record(events: &str, context: &Context) -> Option<Value> {
             queue_us += queue.unwrap_or(0);
         }
         let category = action["name"]["category"].as_str().unwrap_or("?");
-        if category == "test_run" || wall >= SLOW_US {
+        let test = matches!(category, "test_run" | "painting_test");
+        if test || wall >= SLOW_US {
+            let output = action["commands"]
+                .as_array()
+                .and_then(|commands| commands.last())
+                .and_then(|command| command["details"]["stderr"].as_str());
+            let cpu = output.and_then(|output| output.lines().rev().find_map(cpu_seconds));
             slow.push(json!({
                 "target": target(&action["key"]["owner"]),
                 "category": category,
                 "seconds": wall as f64 / 1e6,
                 "queue_seconds": queue.map(|us| us as f64 / 1e6),
+                "cpu_seconds": cpu,
                 "failed": action["failed"] == true,
             }));
         }
@@ -185,11 +253,11 @@ fn destination(repository: &Path) -> Option<(String, Option<String>)> {
 
 /// Sends the record to the build server with curl, printing why when it could not. A cloud session's proxy adds the
 /// token when buck2's config has none.
-pub fn send(repository: &Path, record: &Value) {
+fn send(repository: &Path, record: &Value) {
     let Some((url, header)) = destination(repository) else {
         return;
     };
-    let path = repository.join("target/verify-record.json");
+    let path = repository.join("target/build-record.json");
     if let Err(error) = std::fs::write(&path, record.to_string()) {
         println!("Could not write {}: {error}", path.display());
         return;
@@ -227,3 +295,6 @@ pub fn send(repository: &Path, record: &Value) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

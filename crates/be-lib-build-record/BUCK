@@ -1,0 +1,4 @@
+load("@root//buck/cargo:defs.bzl", "cargo_crate")
+
+# The build records crates/be-tool-verify and crates/be-tool-bootstrap send the build server's dashboard.
+cargo_crate()

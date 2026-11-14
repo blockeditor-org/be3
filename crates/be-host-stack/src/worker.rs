@@ -598,6 +598,9 @@ pub struct Shared {
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
     pub peer_message_count: u64,
     pub wakes: u64,
+    /// Passes of the loop in a row whose wait was over before it began: a loop that keeps
+    /// waking itself shows here.
+    pub unwaited_passes: u64,
     /// Counts what the stack got done: a loop that moved something, a block touched, a revision
     /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops
     /// waking. Bump it beside any state a test may wait on.
@@ -1259,14 +1262,35 @@ impl Session<'_> {
                 };
                 #[cfg(test)]
                 let woken = parked(shared, self.changed, wake_at, woken);
-                woken.await
+                let mut woken = std::pin::pin!(woken);
+                let mut polls = 0_u32;
+                let woken = std::future::poll_fn(|context| {
+                    polls += 1;
+                    woken.as_mut().poll(context)
+                })
+                .await;
+                (woken, polls == 1)
             };
+            let (woken, unwaited) = woken;
             let handled = self.replicas.handled;
             step(shared, Some(woken.name()));
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
             if !matches!(woken, Woken::Module | Woken::Finished) || self.replicas.handled != handled
             {
                 shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
+            }
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.unwaited_passes = match unwaited {
+                    true => held.unwaited_passes + 1,
+                    false => 0,
+                };
+            }
+            // The tasks spawned beside the loop (publishes, drains, reads) run only while it
+            // waits: a pass whose wait was over before it began lets them run, so a loop that
+            // keeps waking itself costs time rather than stopping what it waits on.
+            if unwaited {
+                yielded().await;
             }
             let mut moved = match woken {
                 Woken::Stopped => {
@@ -1566,9 +1590,6 @@ impl Session<'_> {
 
     async fn settle_outbox(&mut self) -> bool {
         let (peer, shared) = (self.peer, self.shared);
-        if self.replicas.take_kept() {
-            self.tasks.0.sync(peer, shared);
-        }
         if !self.tasks.0.syncing() {
             self.replicas.created((peer, shared));
         }
@@ -1583,15 +1604,31 @@ impl Session<'_> {
         let diverged = self.tasks.0.take_diverged();
         let merged = !diverged.is_empty();
         for (block, local, remote) in diverged {
+            let waiting = peer.pending_commits(block);
             match self
                 .replicas
                 .merge_diverged((peer, shared), block, remote)
                 .await
             {
-                // The merge holds what this device kept up to its diverged head.
-                Ok(_) => self.replicas.drained(block, false, vec![local]),
+                // The server holds what left the outbox: the replica's kept commits among them
+                // are sent. One kept behind the merge stays sending.
+                Ok(_) => {
+                    let left = peer.pending_commits(block);
+                    let sent: Vec<CommitId> = waiting
+                        .into_iter()
+                        .chain([local])
+                        .filter(|commit| !left.contains(commit))
+                        .collect();
+                    if !sent.is_empty() {
+                        self.replicas.drained(block, false, sent);
+                    }
+                }
                 Err(error) => record(shared, error),
             }
+        }
+        // What was kept since the last drain, a merge waiting behind what goes first among it.
+        if self.replicas.take_kept() {
+            self.tasks.0.sync(peer, shared);
         }
         if !self.rejoin || self.tasks.0.syncing() {
             return merged;
@@ -2138,6 +2175,19 @@ async fn parked<T>(
     .await;
     shared.lock().unwrap_or_else(PoisonError::into_inner).parked = None;
     woken
+}
+
+/// Lets the executor run its other tasks once before going on.
+async fn yielded() {
+    let mut once = false;
+    std::future::poll_fn(|context| match std::mem::replace(&mut once, true) {
+        true => std::task::Poll::Ready(()),
+        false => {
+            context.waker().wake_by_ref();
+            std::task::Poll::Pending
+        }
+    })
+    .await;
 }
 
 async fn wait(

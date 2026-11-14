@@ -106,7 +106,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             match self.save(kind, &content, head).await? {
                 Saved::Rejected { .. } => continue,
-                Saved::Published(_) | Saved::Unchanged(_) => return Ok(()),
+                Saved::Published(_) | Saved::Unchanged(_) | Saved::Kept(_) => return Ok(()),
             }
         }
         Err(ClientError::Contended)

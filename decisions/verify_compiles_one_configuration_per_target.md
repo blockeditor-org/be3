@@ -6,7 +6,10 @@ configurations (Windows, macOS, Android, the web's wasm32, host wasi, beui's HTM
 its tests, release copies) and does not run clippy; each can still be checked by hand
 (guides/buck2.md, guides/build_server.md), and all of them at once by the broad check
 (.github/workflows/broad.yml, buck/dev/broad.bxl), a workflow that runs only when dispatched
-by hand: on no push or pull request, so it costs a change nothing.
+by hand: on no push or pull request, so it costs a change nothing. The web's be-host is the
+exception: verify builds `//crates/be-host:web-dist`, which the web host tests built before they
+became thorough tests (guides/buck2.md, What verify builds), so a change that breaks the web
+bundle's compile or link still fails verify.
 
 ## Why
 

@@ -31,7 +31,7 @@
    "id": 2,
    "type": "timeseries",
    "title": "Build time",
-   "description": "Minutes from buck2's start to its end for each ./scripts/verify and ./scripts/ci, by where it ran.",
+   "description": "Minutes from buck2's start to its end for every build that sent a record, by command: CI's ./scripts/ci, ./scripts/verify, ./scripts/test, and ./scripts/buck build, run and bxl. A cloud session's builds are in with the rest; the Recent builds table tells them apart.",
    "datasource": {
     "type": "frser-sqlite-datasource",
     "uid": "builds"
@@ -72,8 +72,8 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
-     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci-%' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci-%' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -85,8 +85,8 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
-     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify\" FROM builds WHERE kind IN ('verify', 'verify-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify\" FROM builds WHERE kind IN ('verify', 'verify-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -98,8 +98,21 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
-     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"test\" FROM builds WHERE kind IN ('test', 'test-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"test\" FROM builds WHERE kind IN ('test', 'test-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "timeColumns": [
+      "time"
+     ]
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "time series",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"build, run, bxl\" FROM builds WHERE kind IN ('build', 'build-cloud', 'run', 'run-cloud', 'bxl', 'bxl-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"build, run, bxl\" FROM builds WHERE kind IN ('build', 'build-cloud', 'run', 'run-cloud', 'bxl', 'bxl-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -213,7 +226,7 @@
   {
    "id": 5,
    "type": "table",
-   "title": "Slowest test runs",
+   "title": "Costliest tests, by CPU",
    "description": "Each test binary's runs that were not cached, over the time range. A host test file runs as its own action.",
    "datasource": {
     "type": "frser-sqlite-datasource",
@@ -241,8 +254,8 @@
       "uid": "builds"
      },
      "queryType": "table",
-     "queryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
-     "rawQueryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
+     "queryText": "SELECT target, round(avg(cpu_seconds), 1) AS \"average CPU s\", round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY coalesce(avg(cpu_seconds), avg(seconds)) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, round(avg(cpu_seconds), 1) AS \"average CPU s\", round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY coalesce(avg(cpu_seconds), avg(seconds)) DESC LIMIT 40",
      "timeColumns": [
       "time"
      ]
@@ -280,8 +293,8 @@
       "uid": "builds"
      },
      "queryType": "table",
-     "queryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
-     "rawQueryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "queryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category NOT IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category NOT IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
      "timeColumns": [
       "time"
      ]
