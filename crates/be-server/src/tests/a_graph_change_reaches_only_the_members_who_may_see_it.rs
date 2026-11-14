@@ -51,7 +51,7 @@ async fn changes(client: &mut TestClient, count: usize) -> Vec<(Uuid, bool)> {
     let mut seen = Vec::new();
     for _ in 0..count {
         seen.push(match client.graph_change().await {
-            Notice::BlockChanged { block } => (block.id, true),
+            Notice::BlockChanged { block, .. } => (block.id, true),
             Notice::BlockRemoved { block, .. } => (block, false),
             other => panic!("{other:?}"),
         });

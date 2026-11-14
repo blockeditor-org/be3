@@ -9,12 +9,27 @@ use super::Peer;
 use crate::ClientError;
 
 impl<S: ObjectStore> Peer<S> {
+    /// The organization's key work for this account: the first value of a `key-work-changed`
+    /// stream, which starts with it.
     pub async fn key_work(&self) -> Result<KeyWork, ClientError> {
-        Ok(client::keys::get_key_work(&self.connection()).await??)
+        let mut work = client::keys::key_work_changed(&self.connection());
+        match work.recv().await {
+            Some(work) => Ok(work),
+            None => Err(match work.ended() {
+                Some(Err(error)) => ClientError::from(error),
+                _ => ClientError::Disconnected("the key work stream ended".into()),
+            }),
+        }
     }
 
     pub async fn tend(&self) -> Result<(), ClientError> {
-        let mut work = self.key_work().await?;
+        let work = self.key_work().await?;
+        self.tend_with(work).await
+    }
+
+    /// `tend` from key work already read, such as a value of the connection's
+    /// `key-work-changed` stream (`Event::KeyWork`).
+    pub async fn tend_with(&self, mut work: KeyWork) -> Result<(), ClientError> {
         self.adopt_escrows(work.escrows.clone());
         let mut failed = None;
         let escrow_rotation = work.escrow_rotation && self.keys.can_make_escrow();

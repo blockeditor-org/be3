@@ -3,7 +3,7 @@ package be3:server@0.1.0;
 /// An account's organizations, and invitations into them.
 interface organizations {
     use types.{
-        account-id, error, escrow-key, invitation-id, organization-id, organization-kind,
+        account-id, client-id, error, escrow-key, invitation-id, organization-id, organization-kind,
         organization-role, public-key,
     };
 
@@ -37,6 +37,9 @@ interface organizations {
     /// (empty when none).
     record organization-opened {
         organization: organization-id,
+        /// This connection, as `block-changed.from`, pairing and sessions name
+        /// it.
+        client: client-id,
         role: organization-role,
         kind: organization-kind,
         escrows: list<escrow-key>,
