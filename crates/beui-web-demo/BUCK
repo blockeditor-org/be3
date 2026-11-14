@@ -5,7 +5,7 @@ cargo_package()
 
 # beui's demo (crates/beui-demo) in a browser, drawn with wgpu:
 # `./scripts/buck run //crates/beui-web-demo:web`, which serves it with Caddy
-# on http://127.0.0.1:8070, or on the address after `--`.
+# on http://127.0.0.1:8070, or on the address given as `-- --addr HOST:PORT`.
 web_library(
     role = "program",
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],

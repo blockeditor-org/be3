@@ -33,7 +33,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
             parsed.code.clone(),
         ))
         .expect("the guest reads the invitation");
-    assert_eq!(invitation.organization, harness.organization);
+    assert_eq!(invitation.invitation.organization, harness.organization);
 
     let join = |someone: &Someone| {
         runtime().block_on(crate::accounts::accept_invitation(

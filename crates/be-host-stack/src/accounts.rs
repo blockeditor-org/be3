@@ -1,5 +1,5 @@
 use be_block_client::{ClientError, Connection, ask};
-use be_block_protocol::{Authenticated, ErrorCode, Organization, OrganizationInvitation, client};
+use be_block_protocol::{Authenticated, ErrorCode, Invitation, LinkKind, Organization, client};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -210,10 +210,16 @@ async fn authenticated(
     )
 }
 
-pub async fn logout(server_url: String, token: String) -> Result<(), AccountError> {
+/// Ends the session `token` names; with `push_address`, this device's push endpoint, the
+/// account forgets it in every organization too.
+pub async fn logout(
+    server_url: String,
+    token: String,
+    push_address: Option<String>,
+) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token.clone()).await?;
     crate::link::forget(&server_url, &token).await;
-    ask(client::account::logout(&connection)).await?;
+    ask(client::account::logout(&connection, push_address)).await?;
     Ok(())
 }
 
@@ -261,17 +267,36 @@ impl Me {
     }
 }
 
+/// An invitation into an organization, as the invited account reads it.
+#[derive(Clone, Debug)]
+pub struct Invited {
+    pub organization_name: String,
+    pub invitation: Invitation,
+}
+
+/// The invitation `code` opens; a contact link's code is refused as not one
+/// (`contacts::Expected`).
 pub async fn invitation(
     server_url: String,
     token: String,
     code: be_block_keys::InviteCode,
-) -> Result<OrganizationInvitation, AccountError> {
+) -> Result<Invited, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(be_block_client::contacts::invitation(&connection, &code)
-        .await?
-        .0)
+    let (link, _) = be_block_client::contacts::open_link(
+        &connection,
+        &code,
+        be_block_client::contacts::Expected::Invitation,
+    )
+    .await?;
+    let organization_name = link.organization_name.clone();
+    Ok(Invited {
+        organization_name,
+        invitation: invitation_of(link)?,
+    })
 }
 
+/// Accepts the invitation `code` opens, refusing a contact link's; answers the organization
+/// joined.
 pub async fn accept_invitation(
     server_url: String,
     token: String,
@@ -279,10 +304,26 @@ pub async fn accept_invitation(
     code: be_block_keys::InviteCode,
 ) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let invitation =
-        be_block_client::contacts::accept_invitation(&connection, &me.secret(), &me.card(), &code)
-            .await?;
-    Ok(invitation.organization)
+    let (link, _) = be_block_client::contacts::accept_link(
+        &connection,
+        &me.secret(),
+        &me.card(),
+        &code,
+        be_block_client::contacts::Expected::Invitation,
+    )
+    .await?;
+    Ok(invitation_of(link)?.organization)
+}
+
+/// The invitation a link opened as one carries.
+fn invitation_of(link: be_block_protocol::Link) -> Result<Invitation, AccountError> {
+    match link.kind {
+        LinkKind::Invitation(invitation) => Ok(invitation),
+        LinkKind::Contact(_) => Err(AccountError {
+            message: "That is a contact link, not an invitation: open it from Contacts.".into(),
+            invalid_token: false,
+        }),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -310,31 +351,6 @@ impl AgentCredentials {
         }
         bundle.to_string()
     }
-}
-
-pub async fn agents(
-    server_url: String,
-    token: String,
-    organization: Uuid,
-) -> Result<Vec<be_block_protocol::Agent>, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::members::list_agents(&connection, organization)).await?)
-}
-
-pub async fn remove_agent(
-    server_url: String,
-    token: String,
-    organization: Uuid,
-    account: Uuid,
-) -> Result<(), AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    ask(client::members::remove_agent(
-        &connection,
-        organization,
-        account,
-    ))
-    .await?;
-    Ok(())
 }
 
 #[derive(Clone, Debug, Default)]

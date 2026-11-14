@@ -7,7 +7,7 @@ mod format;
 mod highlight;
 mod raster;
 
-pub use accepted::{HOW_TO_ACCEPT, assert_accepted, assert_painting};
+pub use accepted::{HOW_TO_ACCEPT, assert_accepted, assert_painting, changed};
 pub use beui_paint_format::{
     Content, Fade, Frame, Glyph, Painting, Pixels, Primitive, RoundedRect, TextureKey, Triangle,
     Turn, Vertex,

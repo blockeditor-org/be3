@@ -357,14 +357,18 @@ pub fn retry_now() {
     }
 }
 
+/// Seals what the open blocks owe and waits for the worker to answer, then returns what closing
+/// now would lose, as the worker counted it when it answered: open blocks whose edits the
+/// device's journal does not hold yet, commands sent before the flush that still wait their turn
+/// (behind an upload or the server lane), and unfinished imports. Commands sent after the flush
+/// do not count. When the worker does not answer in time, and on the web, which cannot wait, it
+/// is `status().unsaved` as read before the flush. The close and switch guards ask while it is
+/// above zero.
 pub fn flush() -> usize {
     let unsaved = status().unsaved;
     let (done, sealed) = std::sync::mpsc::channel();
     send(Command::Flush(done));
-    match platform::await_flush(sealed) {
-        true => status().unsaved,
-        false => unsaved,
-    }
+    platform::await_flush(sealed).unwrap_or(unsaved)
 }
 
 #[cfg(any(test, feature = "testing"))]
@@ -1494,6 +1498,48 @@ pub fn remove_member(account: Uuid, reply: MembersReply) {
         account,
         reply,
     }));
+}
+
+/// The person's own agents in the organization open: the members it made, bound to no block.
+pub async fn agents() -> Result<Vec<be_block_protocol::Agent>, String> {
+    let (reply, listed) = tokio::sync::oneshot::channel();
+    list_members(Box::new(move |listed| {
+        let _ = reply.send(listed);
+    }));
+    own_agents(listed.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))?)
+}
+
+/// Removes one of the person's own agents (`remove-member`); answers those left. Anything else
+/// is refused here, before the server is asked: an administrator's `remove-member` would remove
+/// any member.
+pub async fn remove_agent(agent: Uuid) -> Result<Vec<be_block_protocol::Agent>, String> {
+    let own = agents().await?;
+    if own.iter().all(|listed| listed.account != agent) {
+        return Err("That is not one of your agents.".to_owned());
+    }
+    let (reply, listed) = tokio::sync::oneshot::channel();
+    remove_member(
+        agent,
+        Box::new(move |listed| {
+            let _ = reply.send(listed);
+        }),
+    );
+    own_agents(listed.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))?)
+}
+
+fn own_agents(
+    members: Vec<be_block_protocol::Member>,
+) -> Result<Vec<be_block_protocol::Agent>, String> {
+    let me = account().ok_or_else(|| NOT_OPEN.to_owned())?;
+    Ok(members
+        .into_iter()
+        .filter(|member| member.created_by == Some(me) && member.bound_to.is_none())
+        .map(|member| be_block_protocol::Agent {
+            account: member.account,
+            name: member.display_name,
+            email: member.email,
+        })
+        .collect())
 }
 
 pub async fn invite(

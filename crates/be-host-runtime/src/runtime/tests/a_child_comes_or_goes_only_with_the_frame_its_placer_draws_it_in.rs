@@ -41,6 +41,7 @@ fn presented(serial: u64) -> Heard {
         serial,
         repaint_after_micros: None,
         animating: false,
+        input_waiting: false,
         presented: None,
     })
 }

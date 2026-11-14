@@ -22,6 +22,7 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
             &guest.phrase.secret(),
             &guest.me().card(),
             &code,
+            be_block_client::contacts::Expected::Contact,
         ))
         .expect("the guest accepts");
     wait_until("confirmed the guest as a contact", |shared| {

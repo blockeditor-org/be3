@@ -54,6 +54,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/beui-font-freetype:beui-font-freetype",
+                "//third-party/rust:libc-0.2.186",
                 "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],
@@ -78,6 +79,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/beui-font-freetype:beui-font-freetype",
+                "//third-party/rust:libc-0.2.186",
                 "//third-party/rust:pollster-0.4.0",
             ],
             "test_features": [],

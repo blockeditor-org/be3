@@ -25,5 +25,8 @@ wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 beui-font-freetype = { path = "../beui-font-freetype" }
 pollster = "0.4"
 
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+libc = "0.2"
+
 [lints]
 workspace = true

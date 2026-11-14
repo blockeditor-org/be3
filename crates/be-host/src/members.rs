@@ -100,14 +100,14 @@ impl Members {
                 .map(|member| MemberRow {
                     account: member.account,
                     name: named(member),
-                    detail: match (member.agent, member.role) {
+                    detail: match (member.created_by.is_some(), member.role) {
                         (true, _) => format!("{}, agent", member.email),
                         (false, role) if member.email.is_empty() => role.label().to_owned(),
                         (false, role) => format!("{}, {}", member.email, role.label()),
                     },
                     administrator: member.role == OrganizationRole::Administrator,
                     me: member.account == me,
-                    agent: member.agent,
+                    agent: member.created_by.is_some(),
                 })
                 .collect(),
             removing,

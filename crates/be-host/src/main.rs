@@ -39,7 +39,7 @@ use accounts::{AccountError, Session};
 use be_block::{DisplaySettings, InputSettings, WORKSPACE_EDITOR};
 use be_block_content::Root;
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{Organization, OrganizationInvitation, OrganizationRole};
+use be_block_protocol::{Organization, OrganizationRole};
 use be_host_base::{host, host_state, notices, panic_guard, performance, platform};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
@@ -195,7 +195,7 @@ fn hand_over(
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     panic_guard::install();
     be_host_stack::discovery::load().await;
     let mut core =
@@ -723,7 +723,7 @@ struct PendingAccountRequest {
 
 struct Joining {
     link: InviteLink,
-    invitation: Option<OrganizationInvitation>,
+    invitation: Option<accounts::Invited>,
 }
 
 enum OrganizationOperation {
@@ -732,16 +732,16 @@ enum OrganizationOperation {
     LookUp(be_block_keys::InviteCode),
     Join(be_block_keys::InviteCode),
     Invite(String, OrganizationRole),
-    ListAgents(Uuid),
-    CreateAgent(Uuid, String),
-    RemoveAgent(Uuid, Uuid),
+    ListAgents,
+    CreateAgent(String),
+    RemoveAgent(Uuid),
 }
 
 enum OrganizationResult {
     Loaded(Vec<Organization>, accounts::Keys),
     Cached(Vec<Organization>),
     Created(Organization),
-    Invitation(OrganizationInvitation),
+    Invitation(accounts::Invited),
     Joined(Uuid),
     Invited(String),
     Agents(
@@ -1490,17 +1490,16 @@ impl HostCore {
     }
 
     fn forget_account(&mut self, account: &Account) {
-        #[cfg(target_arch = "wasm32")]
-        if self.account.server == account.server && self.account.id == account.id {
-            web_push::forget_this_device(self.accounts.len() <= 1);
-        }
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
         let token = account.token.clone();
+        #[cfg(target_arch = "wasm32")]
+        web_push::sign_out(url, token, self.accounts.len() <= 1);
+        #[cfg(not(target_arch = "wasm32"))]
         platform::spawn_request(async move {
-            let _ = accounts::logout(url, token).await;
+            let _ = accounts::logout(url, token, None).await;
         });
 
         if let Err(error) = self.host_state.remove_account(account) {
@@ -1572,27 +1571,30 @@ impl HostCore {
                         message,
                         invalid_token: false,
                     }),
-                OrganizationOperation::ListAgents(organization) => {
-                    accounts::agents(url, token, organization)
-                        .await
-                        .map(|agents| OrganizationResult::Agents(Some(agents), None))
-                }
-                OrganizationOperation::CreateAgent(organization, name) => {
+                OrganizationOperation::ListAgents => be_host_stack::agents()
+                    .await
+                    .map(|agents| OrganizationResult::Agents(Some(agents), None))
+                    .map_err(|message| AccountError {
+                        message,
+                        invalid_token: false,
+                    }),
+                OrganizationOperation::CreateAgent(name) => {
                     let created = be_host_stack::create_agent(name).await.map_err(|message| {
                         AccountError {
                             message,
                             invalid_token: false,
                         }
                     })?;
-                    let agents = accounts::agents(url, token, organization).await.ok();
+                    let agents = be_host_stack::agents().await.ok();
                     Ok(OrganizationResult::Agents(agents, Some(created)))
                 }
-                OrganizationOperation::RemoveAgent(organization, account) => {
-                    accounts::remove_agent(url.clone(), token.clone(), organization, account)
-                        .await?;
-                    let agents = accounts::agents(url, token, organization).await?;
-                    Ok(OrganizationResult::Agents(Some(agents), None))
-                }
+                OrganizationOperation::RemoveAgent(account) => be_host_stack::remove_agent(account)
+                    .await
+                    .map(|agents| OrganizationResult::Agents(Some(agents), None))
+                    .map_err(|message| AccountError {
+                        message,
+                        invalid_token: false,
+                    }),
             }
         };
         self.organization_error = None;
@@ -1759,7 +1761,7 @@ impl HostCore {
                     let url = self.server_url.clone();
                     let token = session.token;
                     platform::spawn_request(async move {
-                        let _ = accounts::logout(url, token).await;
+                        let _ = accounts::logout(url, token, None).await;
                     });
                     reauth.error =
                         Some("Sign in to the same account to restore this session.".into());
@@ -3753,9 +3755,8 @@ impl HostCore {
             UiCommand::OpenAgents => {
                 self.agents_open = true;
                 self.agent_created = None;
-                if let Some(organization) = &self.organization {
-                    let id = organization.id;
-                    self.begin_organization_request(OrganizationOperation::ListAgents(id));
+                if self.organization.is_some() {
+                    self.begin_organization_request(OrganizationOperation::ListAgents);
                 }
             }
             UiCommand::OpenContacts => self.contacts.show(),
@@ -3780,19 +3781,13 @@ impl HostCore {
                 self.agent_created = None;
             }
             UiCommand::CreateAgent(name) => {
-                if let Some(organization) = &self.organization
-                    && !name.trim().is_empty()
-                {
-                    let id = organization.id;
-                    self.begin_organization_request(OrganizationOperation::CreateAgent(id, name));
+                if self.organization.is_some() && !name.trim().is_empty() {
+                    self.begin_organization_request(OrganizationOperation::CreateAgent(name));
                 }
             }
             UiCommand::RemoveAgent(account) => {
-                if let Some(organization) = &self.organization {
-                    let id = organization.id;
-                    self.begin_organization_request(OrganizationOperation::RemoveAgent(
-                        id, account,
-                    ));
+                if self.organization.is_some() {
+                    self.begin_organization_request(OrganizationOperation::RemoveAgent(account));
                 }
             }
             UiCommand::Discard => self.discard(context),
@@ -3971,8 +3966,8 @@ impl HostCore {
                     .and_then(|joining| joining.invitation.as_ref())
                     .map(|invitation| ui::JoiningRow {
                         organization: invitation.organization_name.clone(),
-                        role: invitation.role.label().to_lowercase(),
-                        email: invitation.email.clone(),
+                        role: invitation.invitation.role.label().to_lowercase(),
+                        email: invitation.invitation.email.clone(),
                     }),
                 busy: self.pending_organization_request.is_some(),
                 error: self.organization_error.clone(),

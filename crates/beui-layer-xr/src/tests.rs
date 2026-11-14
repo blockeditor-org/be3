@@ -1,3 +1,6 @@
+use std::os::fd::AsRawFd;
+use std::os::unix::net::UnixListener;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
@@ -21,6 +24,7 @@ static MONADO: Mutex<()> = Mutex::new(());
 
 struct Monado {
     service: Child,
+    socket: PathBuf,
 }
 
 impl Monado {
@@ -36,32 +40,57 @@ impl Monado {
         (held, directory)
     }
 
+    /// Starts monado-service by socket activation, as systemd's `monado.socket` does: the
+    /// socket listens before the service starts, so a client that connects at any point after
+    /// this returns is queued until the service accepts it. The service binding its own socket
+    /// would leave a moment, between its `bind` and `listen`, in which the file is there but a
+    /// client is refused.
     fn start(directory: &Path) -> Self {
-        let log = directory.join("monado.log");
-        let errors = directory.join("monado.err");
         let socket = directory.join("monado_comp_ipc");
         let _ = std::fs::remove_file(&socket);
-        let mut service = Command::new(std::env::var_os("MONADO_SERVICE").expect("MONADO_SERVICE"))
+        let listening = UnixListener::bind(&socket).expect("Monado's socket listens");
+        let passed = listening.as_raw_fd();
+        let mut command = Command::new("sh");
+        // `sd_listen_fds` takes the socket only if `LISTEN_PID` is the service's own pid, which
+        // the shell knows and keeps when it `exec`s the service.
+        command
+            .args(["-c", "export LISTEN_PID=$$; exec \"$0\""])
+            .arg(std::env::var_os("MONADO_SERVICE").expect("MONADO_SERVICE"))
+            .env("LISTEN_FDS", "1")
             .env("XRT_COMPOSITOR_NULL", "1")
             .env("XDG_RUNTIME_DIR", directory)
-            .stdin(Stdio::piped())
-            .stdout(std::fs::File::create(&log).expect("a log"))
-            .stderr(std::fs::File::create(&errors).expect("a log"))
-            .spawn()
-            .expect("monado-service starts");
-        let listening = Instant::now() + Duration::from_secs(30);
-        while !socket.exists() {
-            assert!(Instant::now() < listening, "monado-service never listened");
-            assert!(
-                service.try_wait().expect("monado-service runs").is_none(),
-                "monado-service stopped: {}{}",
-                std::fs::read_to_string(&log).unwrap_or_default(),
-                std::fs::read_to_string(&errors).unwrap_or_default()
-            );
-            std::thread::yield_now();
+            .stdin(Stdio::null())
+            .stdout(std::fs::File::create(directory.join("monado.log")).expect("a log"))
+            .stderr(std::fs::File::create(directory.join("monado.err")).expect("a log"));
+        // unsafe(ffi)
+        unsafe {
+            // The first socket passed is fd 3 (`SD_LISTEN_FDS_START`). `dup2` clears
+            // close-on-exec on the copy, but does nothing if the socket is fd 3 already.
+            command.pre_exec(move || {
+                let moved = if passed == 3 {
+                    libc::fcntl(3, libc::F_SETFD, 0)
+                } else {
+                    libc::dup2(passed, 3)
+                };
+                match moved {
+                    -1 => Err(std::io::Error::last_os_error()),
+                    _ => Ok(()),
+                }
+            });
         }
-        Self { service }
+        let service = command.spawn().expect("monado-service starts");
+        // Only the service holds the socket now, so if it ends, a client is refused rather
+        // than queued for a service that will never accept it.
+        drop(listening);
+        Self { service, socket }
     }
+}
+
+/// What the service printed, for a failure that may be its.
+fn log(directory: &Path) -> String {
+    ["monado.log", "monado.err"]
+        .map(|name| std::fs::read_to_string(directory.join(name)).unwrap_or_default())
+        .concat()
 }
 
 fn remove(directory: &Path) {
@@ -69,9 +98,12 @@ fn remove(directory: &Path) {
 }
 
 impl Drop for Monado {
+    /// Stops the service and its socket with it, so a client finds no runtime, as when systemd
+    /// stops both.
     fn drop(&mut self) {
         let _ = self.service.kill();
         let _ = self.service.wait();
+        let _ = std::fs::remove_file(&self.socket);
     }
 }
 

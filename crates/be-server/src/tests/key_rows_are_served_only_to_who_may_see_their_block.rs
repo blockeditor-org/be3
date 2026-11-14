@@ -44,22 +44,24 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
     let guest_id = guest.register("guest@example.com").await;
     let response = owner
         .call(|peer| {
-            client::organizations::invite(
+            client::contacts::create_link(
                 peer,
                 Uuid::from_u128(1),
-                organization,
-                "guest@example.com".into(),
-                OrganizationRole::Editor,
                 Vec::new(),
                 Vec::new(),
-                Vec::new(),
+                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    organization,
+                    email: "guest@example.com".into(),
+                    role: OrganizationRole::Editor,
+                    escrow: Vec::new(),
+                }),
             )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = guest
         .call(|peer| {
-            client::organizations::accept_invitation(
+            client::contacts::accept_link(
                 peer,
                 Uuid::from_u128(1),
                 Vec::new(),

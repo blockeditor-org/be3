@@ -214,9 +214,10 @@ pub enum Io {
     Relayed,
     Left,
     Sealed,
+    /// A search for `key`, which relayed messages waited on, answered: how many keys it opened.
     Keyed {
-        block: Uuid,
-        error: Option<ClientError>,
+        key: Uuid,
+        fetched: Result<usize, ClientError>,
     },
     Joined {
         replica: ReplicaId,
@@ -490,6 +491,9 @@ impl std::fmt::Display for Owing {
 /// How many commits sealed here `Replicas` remembers per block.
 const SEALED_REMEMBERED: usize = 16;
 
+/// The most keys `Replicas::searched` holds before it starts over.
+const MOST_SEARCHED_KEYS: usize = 4096;
+
 pub struct Replicas<H: Host> {
     pub modules: Modules,
     answers: UnboundedReceiver<Io>,
@@ -505,7 +509,19 @@ pub struct Replicas<H: Host> {
     pending: Vec<Io>,
     relaying: usize,
     left: usize,
+    /// Per block, events behind a relayed message whose key is being searched for.
     unsealing: HashMap<Uuid, VecDeque<Event>>,
+    /// Keys a search is on its way for, which relayed messages wait on.
+    searching: HashSet<Uuid>,
+    /// Keys a search answered for since a search last opened any or this device last
+    /// reconnected: a message still sealed with one is let go.
+    searched: HashSet<Uuid>,
+    /// How many searches for keys relayed messages started.
+    #[cfg(test)]
+    key_searches: usize,
+    /// What peers' relayed messages said, unsealed.
+    #[cfg(test)]
+    heard_from_peers: Vec<Vec<u8>>,
     leaving: Vec<Uuid>,
     rejoins: u64,
     /// Blocks opened here while their creation waited in the outbox: they join their session
@@ -549,6 +565,12 @@ impl<H: Host> Replicas<H> {
             relaying: 0,
             left: 0,
             unsealing: HashMap::new(),
+            searching: HashSet::new(),
+            searched: HashSet::new(),
+            #[cfg(test)]
+            key_searches: 0,
+            #[cfg(test)]
+            heard_from_peers: Vec::new(),
             leaving: Vec::new(),
             rejoins: 0,
             uncreated: HashSet::new(),
@@ -1920,6 +1942,27 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// Whether what peers sent about `block` waits for keys to unseal it.
+    #[cfg(test)]
+    pub(crate) fn waits_for_keys(&self, block: Uuid) -> bool {
+        self.unsealing.contains_key(&block)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn key_searches(&self) -> usize {
+        self.key_searches
+    }
+
+    #[cfg(test)]
+    pub(crate) fn heard_from_peers(&self) -> &[Vec<u8>] {
+        &self.heard_from_peers
+    }
+
+    /// Takes what the session told this device about an open block. A relayed message sealed
+    /// with a key this device does not hold waits, with the events behind it, for one search for
+    /// that key: a peer seals with a block's key as soon as it has it, and a search started
+    /// elsewhere (`Peer::learn`) may answer only after the message arrived. Once a search for its
+    /// key has answered, a message still sealed with it is let go and recorded.
     pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
         let block = match event {
             Event::SessionChanged { block, .. } | Event::Relayed { block, .. } => block,
@@ -1962,19 +2005,27 @@ impl<H: Host> Replicas<H> {
                 };
                 let bytes = match peer.unseal(payload) {
                     Ok(bytes) => bytes,
-                    Err(ClientError::Locked(key)) if peer.first_search_for(key) => {
+                    Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
                             .insert(*block, VecDeque::from([event.clone()]));
-                        let (peer, io, block) = (Arc::clone(peer), self.io.clone(), *block);
-                        H::spawn(async move {
-                            let error = peer.refresh_keys(None).await.err();
-                            let _ = io.send(Io::Keyed { block, error });
-                            H::wake();
-                        });
+                        if self.searching.insert(key) {
+                            #[cfg(test)]
+                            {
+                                self.key_searches += 1;
+                            }
+                            let (peer, io) = (Arc::clone(peer), self.io.clone());
+                            H::spawn(async move {
+                                let fetched = peer.refresh_keys(None).await;
+                                let _ = io.send(Io::Keyed { key, fetched });
+                                H::wake();
+                            });
+                        }
                         return;
                     }
                     Err(error) => return H::record(shared, error),
                 };
+                #[cfg(test)]
+                self.heard_from_peers.push(bytes.clone());
                 let replayed = Replayed::Message {
                     from: Endpoint::Peer(*from),
                     bytes,
@@ -2024,6 +2075,9 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn resynchronize(&mut self, (peer, _): Ctx<'_, H>) {
+        // A search that ended as the connection dropped answered nothing, and the server may
+        // have keys now that it lacked: what is relayed from here on is searched for again.
+        self.searched.clear();
         for (replica, block) in self
             .open
             .iter()
@@ -2178,14 +2232,26 @@ impl<H: Host> Replicas<H> {
                 H::leaving(shared, self.left > 0);
             }
             Io::Sealed => self.release(),
-            Io::Keyed { block, error } => {
-                if let Some(error) = error
-                    && !unreachable(&error)
-                {
-                    H::record(shared, error);
+            Io::Keyed { key, fetched } => {
+                self.searching.remove(&key);
+                match fetched {
+                    // Keys it opened may open what earlier searches could not.
+                    Ok(opened) if opened > 0 => self.searched.clear(),
+                    Ok(_) => {}
+                    Err(error) if unreachable(&error) => {}
+                    Err(error) => H::record(shared, error),
                 }
-                for event in self.unsealing.remove(&block).unwrap_or_default() {
-                    self.heard((peer, shared), &event);
+                // Keys peers name that this device cannot get, forged ones too, are kept only
+                // up to a bound: past it, they are searched for again.
+                if self.searched.len() >= MOST_SEARCHED_KEYS {
+                    self.searched.clear();
+                }
+                self.searched.insert(key);
+                // Each waiting message is unsealed now, let go, or waits again for its own key.
+                for (_, events) in std::mem::take(&mut self.unsealing) {
+                    for event in events {
+                        self.heard((peer, shared), &event);
+                    }
                 }
             }
             Io::Joined {

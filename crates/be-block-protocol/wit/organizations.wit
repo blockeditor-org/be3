@@ -1,9 +1,9 @@
 package be3:server@0.1.0;
 
-/// An account's organizations, and invitations into them.
+/// An account's organizations; invitations into them are links (`contacts`).
 interface organizations {
     use types.{
-        account-id, client-id, error, escrow-key, invitation-id, organization-id, organization-kind,
+        account-id, client-id, error, escrow-key, organization-id, organization-kind,
         organization-role, public-key,
     };
 
@@ -12,17 +12,6 @@ interface organizations {
         name: string,
         kind: organization-kind,
         role: organization-role,
-    }
-
-    record organization-invitation {
-        id: invitation-id,
-        organization: organization-id,
-        organization-name: string,
-        email: string,
-        role: organization-role,
-        invited-by: account-id,
-        sealed: list<u8>,
-        escrow: list<u8>,
     }
 
     /// The server's own account, which blocks shared with the server are
@@ -60,29 +49,6 @@ interface organizations {
     /// of this connection works in, and starts over what the connection
     /// listed.
     open-organization: async func(organization: organization-id) -> result<organization-opened, error>;
-
-    /// Invites `email` into `organization` with `role`; `sealed` and
-    /// `escrow` are sealed with the invite code, which `code` names.
-    invite: async func(
-        invitation: invitation-id,
-        organization: organization-id,
-        email: string,
-        role: organization-role,
-        sealed: list<u8>,
-        code: list<u8>,
-        escrow: list<u8>,
-    ) -> result<_, error>;
-
-    get-invitation: async func(invitation: invitation-id) -> result<organization-invitation, error>;
-
-    /// Joins the organization an invitation is for, leaving the caller's
-    /// card, its contact card for the inviter, and the escrow key it pins.
-    accept-invitation: async func(
-        invitation: invitation-id,
-        card: list<u8>,
-        contact: list<u8>,
-        escrow: list<u8>,
-    ) -> result<_, error>;
 }
 
 /// The members and agents of the organization this connection opened, or of
@@ -95,7 +61,10 @@ interface members {
         email: string,
         display-name: string,
         role: organization-role,
-        agent: bool,
+        /// For an agent, the account that made it; none for a person.
+        created-by: option<account-id>,
+        /// For a block's agent, its block (`create-agent`'s `bound-to`).
+        bound-to: option<block-id>,
         contact: bool,
     }
 
@@ -111,17 +80,23 @@ interface members {
         token: string,
     }
 
+    /// The members of the organization open: every one, to an
+    /// administrator; to anyone else, the agents it made.
     list-members: async func() -> result<list<member>, error>;
 
     set-role: async func(account: account-id, role: organization-role) -> result<_, error>;
 
+    /// Removes a member of the organization open: any, by an administrator;
+    /// an agent, by the account that made it (a block's agent, only while it
+    /// manages the block). An agent removed is deleted, with what it was
+    /// granted and what was sealed to it.
     remove-member: async func(account: account-id) -> result<_, error>;
 
     /// Makes an agent account in `organization` with the recovery key
     /// `recovery` and the signing key `signing` derived with it, a contact card for the caller, and its escrow key sealed
     /// for it. With `bound-to`, which needs Manage on that block, the agent
-    /// is granted Edit on it and reaches nothing else: it is a block's agent,
-    /// left out of `list-agents` and removed with its grant or its block.
+    /// is granted Edit on it and reaches nothing else: it is a block's agent
+    /// (`member.bound-to`), removed with its grant or its block.
     create-agent: async func(
         organization: organization-id,
         name: string,
@@ -132,12 +107,7 @@ interface members {
         bound-to: option<block-id>,
     ) -> result<created-agent, error>;
 
-    /// The caller's agents that are bound to no block.
-    list-agents: async func(organization: organization-id) -> result<list<agent>, error>;
-
     /// A new token for an agent the caller made; every older one stops
     /// signing it in, and its connections close.
     rotate-agent-token: async func(organization: organization-id, account: account-id) -> result<string, error>;
-
-    remove-agent: async func(organization: organization-id, account: account-id) -> result<_, error>;
 }

@@ -45,6 +45,7 @@ mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
 mod a_block_made_offline_takes_the_access_the_server_will_give_it;
 mod a_block_moved_out_of_a_listed_folder_is_listed_where_it_went_offline;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
+mod a_block_named_then_written_offline_keeps_the_metadata_it_was_sealed_with;
 mod a_block_placed_in_a_folder_after_it_was_listed_is_listed_there_offline;
 mod a_block_the_server_refused_to_make_is_not_listed_offline;
 mod a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send;
@@ -86,6 +87,7 @@ mod a_stale_card_does_not_make_a_replaced_signing_key_current;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod a_summary_read_before_a_publish_never_brings_back_the_old_head;
 mod a_summary_read_before_a_rotation_never_brings_back_the_old_key;
+mod a_summary_read_while_a_move_waits_to_be_sent_shows_the_move;
 mod a_workspace_not_kept_for_offline_use_is_forgotten_but_its_unsent_edits_stay;
 mod an_administrator_reads_a_workspace_nobody_shared_with_them;
 mod an_artifact_is_a_backref_of_the_block_it_describes;
@@ -200,11 +202,12 @@ impl Harness {
         .await
         .unwrap();
         let theirs = crate::contacts::card(own.account(), own.keys().identity(), email, email);
-        crate::contacts::accept_invitation(
+        crate::contacts::accept_link(
             &own.connection(),
             own.keys().identity(),
             &theirs,
             &code,
+            crate::contacts::Expected::Invitation,
         )
         .await
         .unwrap();

@@ -324,10 +324,8 @@ own block or a child it placed, or from the shell. A `leave` asks the person
 to confirm in a dialog of the host's that names the block from the host's own
 graph; a second `leave` while one is asked is ignored, and the confirm leaves
 only the block the dialog named. A `share` while the shell's share dialog is
-open is ignored, and that dialog's actions touch only the block it shows. Both
-dialogs quote a name through `be_block::quoted_name`, which drops control and
-format characters, straightens curly quotes and shortens it, so no name can
-pass for the dialog's own words. None of them is answered either.
+open is ignored, and that dialog's actions touch only the block it shows. None
+of them is answered either.
 
 An instance may ask the host to tell it about the dynamic artifacts of the
 blocks it names, which the host answers with, and repeats whenever any of it
@@ -1023,6 +1021,13 @@ is present only for a screen it changed; one a frame leaves out still holds
 at the frame's serial, since an app lays out again every instance whose
 host state changed. A frame may move children without painting anything, and
 may paint without moving any.
+
+The host counts the first frame drawn after it sent input as the one that
+answers it: keys typed after a press wait for that frame, as it may move the
+keyboard. A frame that has not yet taken in all the input it was sent sets
+`input-waiting` in its present commit, and the host counts the next frame
+instead, for up to four frames in a row, so an app that always sets it cannot
+hold an answer for ever. An app that never sets it is answered by every frame.
 
 The host decides when an app draws. An app paints only when the host asks
 it for a frame, and never on its own: when a call changes what it shows, or

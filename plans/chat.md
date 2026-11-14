@@ -37,8 +37,6 @@ counts are built (guides/chat.md). What is left:
   "Not sent" after a host or module restart: `refused-commits` names commits,
   not edits. An `unsent_over` against the refused commit's parent would name
   them.
-- **A `drive` command that cuts the server**, so a host test can cover
-  sending state through be-host.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a
   follower's message is told by the follower's replica once the owner accepts
   it, so a follower that closes or restarts before then tells nobody, as its

@@ -56,6 +56,8 @@ mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
 mod a_first_connect_that_fails_is_retried_without_moving_a_manual_clock_by_hand;
+mod a_flush_counts_an_edit_that_waits_behind_a_command_on_a_silent_server;
+mod a_flush_counts_what_was_unsaved_as_it_answers_not_what_was_sent_after;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent;
 mod a_fork_pulls_and_pushes_through_its_upstream;
@@ -100,6 +102,7 @@ mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod a_version_command_waiting_on_a_silent_server_holds_up_no_edit;
 mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
 mod an_account_unlocks_with_its_recovery_phrase;
+mod an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator;
 mod an_apps_signature_verifies_and_a_forged_one_does_not;
 mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
 mod an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published;
@@ -115,6 +118,7 @@ mod an_empty_search_request_is_not_a_change;
 mod an_error_that_is_not_about_sending_outlasts_a_device_in_step;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
+mod an_invitation_code_opened_as_a_contact_link_is_refused;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner;
@@ -1460,6 +1464,7 @@ impl Member {
             .block_on(be_block_client::contacts::open_link(
                 &peer.connection(),
                 &code,
+                be_block_client::contacts::Expected::Contact,
             ))
             .expect("the member opens the link");
         runtime
@@ -1468,6 +1473,7 @@ impl Member {
                 &someone.phrase.secret(),
                 &someone.me().card(),
                 &code,
+                be_block_client::contacts::Expected::Contact,
             ))
             .expect("the member accepts");
         let account = someone.session.account;
@@ -1519,6 +1525,7 @@ impl Member {
         self.runtime
             .block_on(be_block_protocol::client::account::logout(
                 &self.peer.connection(),
+                None,
             ))
             .expect("the logout is answered")
             .expect("the member signs out");

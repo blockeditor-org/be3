@@ -96,9 +96,7 @@ use argon2::{
 };
 use be_block_commit::CommitId;
 use be_block_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
-use be_block_protocol::{
-    Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind, OrganizationRole,
-};
+use be_block_protocol::{Agent, ErrorCode, Organization, OrganizationKind, OrganizationRole};
 use be_block_store::Hash;
 use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -502,202 +500,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn invite(
-        &self,
-        account: Uuid,
-        invitation: Uuid,
-        organization: Uuid,
-        email: &str,
-        role: OrganizationRole,
-        sealed: Vec<u8>,
-        code: Vec<u8>,
-        escrow: Vec<u8>,
-    ) -> Result<(), ServerError> {
-        if self.membership(account, organization).await? != OrganizationRole::Administrator {
-            return Err(ServerError::Refused(
-                ErrorCode::PermissionDenied,
-                "only an organization administrator can invite people".into(),
-            ));
-        }
-        let email = normalize_email(email)?;
-        for (what, bytes) in [
-            ("an invitation", &sealed),
-            ("an invitation code", &code),
-            ("an invitation's escrow", &escrow),
-        ] {
-            crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
-        }
-        self.with_database(move |_, database| {
-            let linked: bool = database.query_row(
-                "SELECT EXISTS(SELECT 1 FROM contact_links WHERE id = ?1)",
-                [invitation.to_string()],
-                |row| row.get(0),
-            )?;
-            if linked {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "an invitation needs an id of its own".into(),
-                ));
-            }
-            let outstanding: i64 = database
-                .prepare_cached(
-                    "SELECT COUNT(*) FROM invitations WHERE organization_id = ?1 AND email != ?2",
-                )?
-                .query_row(params![organization.to_string(), email], |row| row.get(0))?;
-            if outstanding >= crate::limits::MAX_INVITATIONS_PER_ORGANIZATION {
-                return Err(crate::limits::too_many(
-                    "invitations an organization has outstanding",
-                    crate::limits::MAX_INVITATIONS_PER_ORGANIZATION,
-                ));
-            }
-            database.execute(
-                "DELETE FROM invitations WHERE organization_id = ?1 AND email = ?2",
-                params![organization.to_string(), email],
-            )?;
-            let inserted = database.execute(
-                "INSERT OR IGNORE INTO invitations
-                    (id, organization_id, email, role, invited_by, sealed, code, escrow)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![
-                    invitation.to_string(),
-                    organization.to_string(),
-                    email,
-                    encode_role(role),
-                    account.to_string(),
-                    sealed,
-                    code,
-                    escrow
-                ],
-            )?;
-            if inserted == 0 {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "an invitation with that id already exists".into(),
-                ));
-            }
-            Ok(())
-        })
-        .await
-    }
-
-    pub async fn invitation(
-        &self,
-        account: Uuid,
-        invitation: Uuid,
-    ) -> Result<OrganizationInvitation, ServerError> {
-        let email = self.profile(account).await?.email;
-        self.with_database(move |_, database| {
-            let found = database
-                .query_row(
-                    "SELECT invitations.organization_id, organizations.name, invitations.role,
-                            invitations.invited_by, invitations.sealed, invitations.escrow
-                     FROM invitations JOIN organizations ON organizations.id = invitations.organization_id
-                     WHERE invitations.id = ?1 AND invitations.email = ?2",
-                    params![invitation.to_string(), email],
-                    |row| {
-                        Ok((
-                            row.get::<_, String>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, String>(2)?,
-                            row.get::<_, String>(3)?,
-                            row.get::<_, Vec<u8>>(4)?,
-                            row.get::<_, Vec<u8>>(5)?,
-                        ))
-                    },
-                )
-                .optional()?;
-            let Some((organization, organization_name, role, invited_by, sealed, escrow)) = found
-            else {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvitationNotFound,
-                    "that invitation does not exist, or was sent to another email address".into(),
-                ));
-            };
-            let organization = parse_uuid(&organization)?;
-            if is_member(&database, account, organization)? {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "you are already a member of that organization".into(),
-                ));
-            }
-            Ok(OrganizationInvitation {
-                id: invitation,
-                organization,
-                organization_name,
-                email,
-                role: decode_role(&role)?,
-                invited_by: parse_uuid(&invited_by)?,
-                sealed,
-                escrow,
-            })
-        })
-        .await
-    }
-
-    pub async fn accept_invitation(
-        &self,
-        account: Uuid,
-        invitation: Uuid,
-        card: Vec<u8>,
-        contact: Vec<u8>,
-        escrow: Vec<u8>,
-    ) -> Result<Uuid, ServerError> {
-        for (what, bytes) in [("a contact card", &card), ("a sealed contact", &contact)] {
-            crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
-        }
-        let found = self.invitation(account, invitation).await?;
-        self.with_database(move |_, database| {
-            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let code: Vec<u8> = transaction.query_row(
-                "SELECT code FROM invitations WHERE id = ?1",
-                [invitation.to_string()],
-                |row| row.get(0),
-            )?;
-            let linked = transaction.execute(
-                "INSERT OR IGNORE INTO contact_links (id, owner_id, card, code, accepter_id, accepter_card)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![
-                    invitation.to_string(),
-                    found.invited_by.to_string(),
-                    found.sealed,
-                    code,
-                    account.to_string(),
-                    card
-                ],
-            )?;
-            if linked == 0 {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "this invitation's id is already another contact link's".into(),
-                ));
-            }
-            crate::contacts::befriend(&transaction, found.invited_by, &[], account, &contact)?;
-            crate::keys::pin_escrow(&transaction, account, found.organization, &escrow)?;
-            transaction.execute(
-                "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
-                 VALUES (?1, ?2, ?3)",
-                params![
-                    found.organization.to_string(),
-                    account.to_string(),
-                    encode_role(found.role)
-                ],
-            )?;
-            let removed = transaction.execute(
-                "DELETE FROM invitations WHERE id = ?1",
-                [invitation.to_string()],
-            )?;
-            if removed == 0 {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvitationNotFound,
-                    "that invitation was just used".into(),
-                ));
-            }
-            transaction.commit()?;
-            Ok(found.invited_by)
-        })
-        .await
-    }
-
     pub async fn list_organizations(
         &self,
         account: Uuid,
@@ -931,66 +733,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn list_agents(
-        &self,
-        caller: Uuid,
-        organization: Uuid,
-    ) -> Result<Vec<Agent>, ServerError> {
-        self.with_database(move |_, database| {
-            if !is_member(&database, caller, organization)? {
-                return Err(not_a_member());
-            }
-            let mut statement = database.prepare(
-                "SELECT accounts.id, accounts.display_name, accounts.email FROM agents
-                 JOIN accounts ON accounts.id = agents.account_id
-                 WHERE agents.organization_id = ?1 AND agents.created_by = ?2
-                    AND agents.bound_to IS NULL
-                 ORDER BY accounts.display_name, accounts.id",
-            )?;
-            let rows = statement.query_map(
-                params![organization.to_string(), caller.to_string()],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                    ))
-                },
-            )?;
-            let mut agents = Vec::new();
-            for row in rows {
-                let (account, name, email) = row?;
-                agents.push(Agent {
-                    account: parse_uuid(&account)?,
-                    name,
-                    email,
-                });
-            }
-            Ok(agents)
-        })
-        .await
-    }
-
-    pub async fn remove_agent(
-        &self,
-        caller: Uuid,
-        organization: Uuid,
-        agent: Uuid,
-    ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-        self.membership(caller, organization).await?;
-        let removed = self
-            .with_graph(organization, move |_, graph, database| {
-                require_agent_of(graph, database, caller, organization, agent)?;
-                let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                let revoked = delete_agent(graph, &transaction, organization, agent)?;
-                transaction.commit()?;
-                Ok(revoked)
-            })
-            .await;
-        self.sessions_changed();
-        removed
-    }
-
     /// Issues `agent`, one of `caller`'s, a new token and revokes every older one, so a copy
     /// of an older one no longer signs in and its connections close.
     pub async fn rotate_agent_token(
@@ -1057,42 +799,52 @@ impl ServerStore {
         }
     }
 
+    /// The members of the organization open: every one, to an administrator; to anyone else,
+    /// the agents it made.
     pub async fn list_members(
         &self,
         identity: Identity,
     ) -> Result<Vec<be_block_protocol::Member>, ServerError> {
-        require_administrator(identity)?;
         self.with_database(move |_, database| {
             let contacts = crate::contacts::contacts_of(&database, identity.account)?;
             let mut statement = database.prepare(
                 "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, memberships.role,
-                        agents.account_id IS NOT NULL
+                        agents.created_by, agents.bound_to
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
                  LEFT JOIN agents ON agents.account_id = memberships.account_id
                     AND agents.organization_id = memberships.organization_id
-                 WHERE memberships.organization_id = ?1
+                 WHERE memberships.organization_id = ?1 AND (?2 OR agents.created_by = ?3)
                  ORDER BY accounts.display_name, accounts.email",
             )?;
-            let rows = statement.query_map([identity.organization.to_string()], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, bool>(4)?,
-                ))
-            })?;
+            let rows = statement.query_map(
+                params![
+                    identity.organization.to_string(),
+                    identity.is_administrator(),
+                    identity.account.to_string()
+                ],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                    ))
+                },
+            )?;
             let mut members = Vec::new();
             for row in rows {
-                let (account, email, display_name, role, agent) = row?;
+                let (account, email, display_name, role, created_by, bound_to) = row?;
                 let account = parse_uuid(&account)?;
                 members.push(be_block_protocol::Member {
                     account,
                     email,
                     display_name,
                     role: decode_role(&role)?,
-                    agent,
+                    created_by: created_by.as_deref().map(parse_uuid).transpose()?,
+                    bound_to: bound_to.as_deref().map(parse_uuid).transpose()?,
                     contact: contacts.contains(&account),
                 });
             }
@@ -1146,24 +898,38 @@ impl ServerStore {
         .await
     }
 
+    /// Removes a member of the organization open: any, by an administrator; an agent, by the
+    /// account that made it (a block's agent, while it manages the block). An agent removed is
+    /// deleted, and its connections close.
     pub async fn remove_member(
         &self,
         identity: Identity,
         account: Uuid,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-        require_administrator(identity)?;
         let organization = identity.organization;
         self.with_graph(organization, move |store, graph, database| {
-            let role = crate::contacts::role_in(database, account, organization)?
-                .ok_or_else(not_a_member)?;
+            if !identity.is_administrator() {
+                require_agent_of(graph, database, identity.account, organization, account)?;
+            }
+            let role =
+                crate::contacts::role_in(database, account, organization)?.ok_or_else(|| {
+                    ServerError::Refused(
+                        ErrorCode::MemberNotFound,
+                        "that account is not a member of this organization".into(),
+                    )
+                })?;
             if role == OrganizationRole::Administrator {
                 refuse_last_administrator(database, organization)?;
             }
+            let agent = is_agent(database, account)?;
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let revoked = remove_from(graph, &transaction, organization, account)?;
+            let revoked = match agent {
+                true => delete_agent(graph, &transaction, organization, account)?,
+                false => remove_from(graph, &transaction, organization, account)?,
+            };
             let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
             transaction.commit()?;
-            if !forgotten.is_empty() {
+            if agent || !forgotten.is_empty() {
                 store.sessions_changed();
             }
             Ok(revoked)
@@ -1799,7 +1565,7 @@ fn require_agent_of(
         .optional()?;
     let Some(bound) = found else {
         return Err(ServerError::Refused(
-            ErrorCode::AgentNotFound,
+            ErrorCode::MemberNotFound,
             "that account is not an agent of this organization".into(),
         ));
     };

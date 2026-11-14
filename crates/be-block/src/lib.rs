@@ -17,7 +17,7 @@ pub mod workspace_settings;
 
 pub use be_block_graph::{ANYONE_INSIDE, WORKSPACE_TYPE};
 pub use device_class::{ClassDefault, DeviceClass};
-pub use display::quoted_name;
+pub use display::quotable_name;
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};

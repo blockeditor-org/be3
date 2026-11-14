@@ -50,6 +50,11 @@ frame is held until the placer's layout commit lands (`Host::request_frames`),
 so it is asked once, at its new place; `Host::held_behind` breaks a cycle of
 two apps placing each other. Input the host routes always brings a request.
 
+Input reaches an app on its own stream, apart from the screens it is given, so
+input aimed at a screen the host just took back can follow the screens that
+dropped it: the app ignores it (`be_sdk::session::ClientSession`), and refuses
+input for a screen it was never given.
+
 ### Settling
 
 After laying out, the host sends each runtime its views' new sizes and places,
@@ -77,6 +82,13 @@ requests, child placements, docks), then a `PresentCommit` with the painted
 surfaces. The host places and asks the frame's children to draw while the
 parent paints. It reads a frame's placements against the state at that
 frame's serial (`be-host-runtime/src/sent.rs`).
+
+A present commit answers the input sent before its frame was asked for
+(`Pacing::answered`, which the keyboard gift's `GiftTo::Answer` waits on)
+unless it sets `input-waiting`: be-sdk-beui-platform does when input for a
+view whose window its frame opened was taken in only after that frame
+(guides/apps/framework.md), and the host then counts the next frame, up to
+`INPUT_WAITING_FRAMES` in a row.
 
 Only what draws the frame (texture, layout, placements that move existing
 children) is applied at once; the rest (children coming or going, window

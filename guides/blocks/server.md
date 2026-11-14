@@ -568,17 +568,25 @@ reach it (`store/portal.rs`). Resets need no global cap: at most three per
 account. A reset for an email with no account does the same work, counts
 against the address and a separate cap of its own, and sends nothing. `Be3-Gateway-Authorization` is left to a gateway in front.
 
-An administrator `Invite`s an email under an id the inviting client picks;
-only an account with that email can read or accept it, once, and the id
-reaches the invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and devices").
+Contact links and invitations are one table, `links`, and one set of calls
+(`create-link`, `get-link`, `accept-link`, `list-links`, `delete-link`;
+guides/blocks/keys.md, "Contacts"). An administrator invites an email with a
+link of kind `invitation` under an id the inviting client picks; only an
+account with that email can read or accept it, once, and the id reaches the
+invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and
+devices"). Its inviter lists it and revokes it as any link of its own.
 `CreateAgent` makes a passwordless editor account with a token
-(guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator; only its
-creator lists, rotates the token of (`RotateAgentToken`, which revokes every
-older one) or removes it. One `bound-to` a block is that block's agent
-(guides/tracker.md, A block's agent): `Identity::bound` limits what it
-reaches, `client::bound_may` what it may call, and `WatchHub::go_live` keeps
-one connection of it open. Accepting an
-invitation, or creating an agent, makes the two accounts contacts.
+(guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator. Agents are
+members: `list-members` names an agent's creator (`created-by`) and, for a
+block's agent, its block (`bound-to`), and lists every member to an
+administrator but only the agents it made to anyone else; `remove-member`
+removes any member for an administrator and an agent for its creator, deleting
+an agent's account, and tells the organization's key work as any removal does.
+Only its creator rotates its token (`RotateAgentToken`, which revokes every
+older one). One `bound-to` a block is that block's agent (guides/tracker.md, A
+block's agent): `Identity::bound` limits what it reaches, `client::bound_may`
+what it may call, and `WatchHub::go_live` keeps one connection of it open.
+Accepting a link, or creating an agent, makes the two accounts contacts.
 
 ### Notifications
 
@@ -595,19 +603,22 @@ text's length reaches the push service.
   (`register-endpoint`): Web Push (RFC 8030) at an `https://` URL on port 443,
   or an FCM registration token, with the device's RFC 8291 keys. At most
   `MAX_PUSH_ENDPOINTS`, the oldest going first; a member's go when they leave
-  the organization. A Web Push URL may only resolve to a public unicast address
+  the organization, and `logout` with the device's address forgets it in every
+  organization. A Web Push URL may only resolve to a public unicast address
   (`push::is_public`: no private, shared or reserved IPv4, and IPv6 only in
   `2000::/3` outside 6to4, Teredo and the IETF's `2001::/23`) and no redirect
   is followed, so a client cannot have the server post into its own network;
-  `PushConfig::allow_local_endpoints` lifts both for tests. The host must be a
-  known push service's (`push::allowed_host`: FCM, Mozilla, Apple, Windows) or
-  one the operator added (`--push-host`, `PushConfig::hosts`), checked at
-  registration and again at send, so the server is no relay for POSTs to hosts
-  a member names (decisions/push_endpoints_are_allowlisted.md). The device key
-  must be a point on P-256. An endpoint is dropped when its service says it is gone (Web Push 404 or 410;
-  FCM only `UNREGISTERED`, since a wrong project also answers 404), or after
-  `MAX_FAILURES` failures in a row over at least `FAILING_FOR` (counted per
-  account, organization and address); 429 and 503 count as neither.
+  `PushConfig::allow_local_endpoints` (`--allow-local-push-endpoints`) lifts
+  both for tests. The host must be a known push service's
+  (`push::allowed_host`: FCM, Mozilla, Apple, Windows) or one the operator
+  added (`--push-host`, `PushConfig::hosts`), checked at registration and
+  again at send, so the server is no relay for POSTs to hosts a member names
+  (decisions/push_endpoints_are_allowlisted.md). The device key must be a
+  point on P-256. An endpoint is dropped when its service says it is gone (Web
+  Push 404 or 410; FCM only `UNREGISTERED`, since a wrong project also answers
+  404), or after `MAX_FAILURES` failures in a row over at least `FAILING_FOR`
+  (counted per account, organization and address); 429 and 503 count as
+  neither.
 - **Modes.** Each account's mode per block (`notify_modes`: `all` keeps no row,
   `mentions`, `off`), deleted with the block, the member or the organization.
   `notify-modes` lists an account's; a device reads them when it connects and

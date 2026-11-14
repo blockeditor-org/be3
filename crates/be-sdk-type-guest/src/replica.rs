@@ -1664,7 +1664,9 @@ where
                         .iter()
                         .map(C::encode_operation)
                         .collect();
-                    self.lacking.kept_unsent(unsent);
+                    if let Some(tip) = self.base {
+                        self.lacking.kept_unsent(unsent, tip);
+                    }
                 }
                 self.load(loaded)
             }
@@ -2142,9 +2144,9 @@ where
                     self.lacking.kept_here(keeping.commit);
                 }
                 self.published(then, Some(head));
-                self.lacking.sealed(self.sealed, held);
+                self.lacking.sealed(self.sealed, held, head);
                 if !sealing {
-                    self.lacking.replaced(held);
+                    self.lacking.replaced(held, head);
                 }
             }
             (Some(Wait::Publish { then, .. }), HeadEvent::Rejected { head, .. }) => {

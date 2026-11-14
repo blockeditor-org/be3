@@ -1153,8 +1153,10 @@ dependencies = [
  "be-block-graph",
  "be-block-model",
  "be-block-store",
+ "be-lib-graphemes",
  "be-lib-search",
  "be-lib-ui-preferences",
+ "icu_properties",
  "postcard",
  "serde",
  "uuid",
@@ -2405,6 +2407,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-tool-paint-compare"
+version = "0.1.0"
+dependencies = [
+ "beui-paint-snapshot",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "be-tool-paint-review"
 version = "0.1.0"
 dependencies = [
@@ -3225,6 +3235,7 @@ dependencies = [
  "beui-runner",
  "beui-types",
  "glam",
+ "libc",
  "libloading 0.9.0",
  "openxr",
  "pollster",

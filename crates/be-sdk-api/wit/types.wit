@@ -786,6 +786,9 @@ interface types {
         repaint-after-micros: option<u64>,
         animating: bool,
         presented: option<presented-frame>,
+        /// The frame has not yet taken in all the input it was sent: the host
+        /// counts the next frame, not this one, as the one that answers it.
+        input-waiting: bool,
     }
 
     record open-block {

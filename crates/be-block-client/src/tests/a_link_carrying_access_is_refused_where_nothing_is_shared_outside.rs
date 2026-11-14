@@ -63,6 +63,7 @@ async fn a_link_carrying_access_is_refused_where_nothing_is_shared_outside() {
         member.keys().identity(),
         &member_card,
         &early,
+        crate::contacts::Expected::Contact,
     )
     .await
     .expect("the link still makes a contact");

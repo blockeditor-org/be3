@@ -77,6 +77,14 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
   after emptying the cache by hand restart every client's daemon (`./scripts/buck kill`).
 - **One worker runs 16 actions**, one per vCPU. A rustc runs many threads, so a full queue keeps the load far above 16
   (up to 280), and a lone tail action, such as the last big compile or link, gets all 16 vCPUs.
+- **CI waits behind everyone else.** Among actions waiting for a slot NativeLink runs the highest priority first, then
+  the oldest. CI's builds send -1 and everything else 0 (`REMOTE_PRIORITY`, buck/platforms/profile.bzl), so a merge
+  queue's actions never hold up a person's or an agent's. The priority is in the request, not the action, so it changes
+  no cache key. NativeLink does not raise the priority of an action it is already running for CI when an agent asks
+  for the same one, so that agent waits as CI would.
+- **Only the merge queue's last entry is built.** Every merge queue run shares one concurrency group in
+  `.github/workflows/ci.yml`, and the newest cancels the rest: its merge group holds every entry ahead of it. The
+  queue is set not to require every entry's checks to pass, so when it passes, the entries ahead merge with it.
 - **Speed**, measured when it was set up:
   - `./scripts/verify` with everything cached: 56 s.
   - A one-file change to be-lib-geometry, one build alone: 192 s.

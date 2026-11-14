@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
 pub fn start() -> Result<(), JsValue> {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     beui::html::run("app", || {
         view! {
             <DemoRoot today={Date::today()} />

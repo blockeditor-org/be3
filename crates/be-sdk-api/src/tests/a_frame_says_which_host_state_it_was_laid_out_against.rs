@@ -8,6 +8,7 @@ fn a_frame_says_which_host_state_it_was_laid_out_against() {
         serial: laid.serial,
         repaint_after_micros: Some(16_000),
         animating: true,
+        input_waiting: false,
         presented: Some(PresentedFrame {
             sequence: 3,
             damage: vec![ScreenDamage {

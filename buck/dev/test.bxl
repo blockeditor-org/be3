@@ -4,7 +4,9 @@ load("@root//buck/dev:test.bzl", "TestRunInfo", "run_test")
 # buck2 test, crates/be-tool-bootstrap/src/test.rs): each test it names, run as
 # run_test's "record" action (buck/dev/test.bzl) with libtest's --nocapture and
 # the name to filter by, so that what comes back is the test's output and the
-# paintings it accepted rather than its binary and everything it reads. A test
+# paintings that changed rather than its binary and everything it reads; a
+# test that paints is compared with its accepted paintings in an action after
+# its own, which has none of them among its inputs. A test
 # whose inputs have not changed comes from the cache. Each prints
 # "<name><TAB><directory>", the record, for crates/be-tool-bootstrap to print
 # and to copy its paintings into the crate's snapshots/.
@@ -36,11 +38,10 @@ def _impl(ctx: bxl.Context):
             runs = [("", info, filters)]
         for suffix, run, run_filters in runs:
             name = str(target.label.raw_target()) + suffix
-            out = actions.declare_output("test/{}/{}{}".format(target.label.package, target.label.name, suffix), dir = True)
-            run_test(
+            out = run_test(
                 actions,
                 run,
-                out,
+                "test/{}/{}{}".format(target.label.package, target.label.name, suffix),
                 "record",
                 env = {"BE3_TEST_NONCE": args.nonce} if name in args.again else {},
                 filters = run_filters,

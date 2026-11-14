@@ -410,6 +410,9 @@ pub fn Span(
     #[prop(default = None)] underline: Prop<Option<bool>>,
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
     #[prop(default = false)] break_after: Prop<bool>,
+    /// Isolates the run for bidi (`primitives::Span`'s `isolate`).
+    #[prop(default = false)]
+    isolate: Prop<bool>,
     background: Option<Prop<ColorRole>>,
     children: Children<SpanText>,
 ) -> primitives::Span {
@@ -440,6 +443,7 @@ pub fn Span(
             strikethrough
             background
             break_after
+            isolate
         >
             {children}
         </primitives::Span>

@@ -55,6 +55,9 @@ mod a_head_published_while_its_block_is_being_read_reaches_the_reader;
 mod a_key_work_stream_starts_with_the_current_value;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_listing_answers_the_revision_it_was_read_at_and_later_changes_come_after_it;
+mod a_logout_naming_the_devices_endpoint_forgets_it_in_every_organization;
+mod a_member_makes_contact_links_but_only_an_administrator_invites;
+mod a_member_removes_only_the_agents_it_made_while_it_may;
 mod a_member_who_loses_view_of_a_trashed_block_leaves_its_session;
 mod a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone;
 mod a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_is_gone;
@@ -92,18 +95,20 @@ mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
+mod accepting_either_kind_of_link_makes_two_contacts;
 mod an_account_creates_a_bounded_number_of_agents;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
+mod an_administrator_creates_lists_and_revokes_an_invitation;
 mod an_administrator_sees_a_members_unfiled_as_their_my_files;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
 mod an_agent_stores_against_its_creators_quota;
+mod an_agents_creator_removes_it_as_a_member_and_key_work_is_told;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
 mod an_endpoint_its_push_service_says_is_gone_is_dropped;
 mod an_endpoint_on_a_host_taken_off_the_list_is_dropped_at_send;
 mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
-mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
@@ -1110,23 +1115,54 @@ impl TestClient {
     async fn link(&mut self, grant: Option<be_block_protocol::PendingGrant>) -> Uuid {
         let link = Uuid::new_v4();
         let response = self
-            .call(|peer| {
-                client::contacts::create_contact_link(
-                    peer,
-                    link,
-                    b"the owner's card".to_vec(),
-                    b"the code, sealed for the owner".to_vec(),
-                    grant,
-                )
-            })
+            .create_link(link, be_block_protocol::LinkKind::Contact(grant))
             .await;
         assert!(response.is_ok(), "{response:?}");
         link
     }
 
+    async fn create_link(
+        &mut self,
+        link: Uuid,
+        kind: be_block_protocol::LinkKind,
+    ) -> Result<(), Error> {
+        self.call(|peer| {
+            client::contacts::create_link(
+                peer,
+                link,
+                b"the owner's card".to_vec(),
+                b"the code, sealed for the owner".to_vec(),
+                kind,
+            )
+        })
+        .await
+    }
+
+    /// Invites `email` into `organization` as an editor; answers the link, or the refusal.
+    async fn invite(&mut self, organization: Uuid, email: &str) -> Result<Uuid, Error> {
+        let link = Uuid::new_v4();
+        self.create_link(
+            link,
+            be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                organization,
+                email: email.into(),
+                role: OrganizationRole::Editor,
+                escrow: Vec::new(),
+            }),
+        )
+        .await
+        .map(|()| link)
+    }
+
+    async fn links(&mut self) -> Vec<be_block_protocol::OwnLink> {
+        self.call(|peer| client::contacts::list_links(peer))
+            .await
+            .expect("listing links failed")
+    }
+
     async fn accept(&mut self, link: Uuid, key: &[u8]) -> Result<(), Error> {
         self.call(|peer| {
-            client::contacts::accept_contact_link(
+            client::contacts::accept_link(
                 peer,
                 link,
                 b"the accepter's card".to_vec(),
@@ -1620,7 +1656,7 @@ impl TestClient {
 
     /// Signs out, which leaves the server's record of who is connected before it answers.
     async fn sign_out(&mut self) {
-        let logged_out = self.call(|peer| client::account::logout(peer)).await;
+        let logged_out = self.call(|peer| client::account::logout(peer, None)).await;
         assert!(logged_out.is_ok(), "{logged_out:?}");
     }
 }

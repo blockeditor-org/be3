@@ -15,9 +15,12 @@ use crate::{Conflict, Host, Replicas, in_process, started};
 
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
 mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_noted_seal;
+mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
+mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
+mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
@@ -30,6 +33,8 @@ mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
 #[derive(Default)]
 struct Quiet {
     to_editors: Vec<EditorId>,
+    /// What was recorded as failing.
+    errors: Vec<String>,
 }
 
 impl Host for Quiet {
@@ -41,8 +46,9 @@ impl Host for Quiet {
 
     fn wake() {}
 
-    fn record(_: &Arc<Mutex<Self>>, error: ClientError) {
+    fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
         eprintln!("{error}");
+        shared.lock().unwrap().errors.push(error.to_string());
     }
 
     fn record_sync(shared: &Arc<Mutex<Self>>, error: ClientError) {
@@ -94,6 +100,40 @@ impl Host for Quiet {
 fn with_test_types<F: Future<Output = ()>>(
     test: impl FnOnce(Arc<Peer<MemoryStore>>, Arc<Mutex<Quiet>>, Replicas<Quiet>) -> F,
 ) {
+    with_devices(false, |peer, _, shared, replicas| {
+        test(peer, shared, replicas)
+    });
+}
+
+/// As `with_test_types`, with another device of the same account, signed in on a store of its
+/// own.
+fn with_another_device<F: Future<Output = ()>>(
+    test: impl FnOnce(
+        Arc<Peer<MemoryStore>>,
+        Peer<MemoryStore>,
+        Arc<Mutex<Quiet>>,
+        Replicas<Quiet>,
+    ) -> F,
+) {
+    with_devices(true, |peer, another, shared, replicas| {
+        test(
+            peer,
+            another.expect("another device signed in"),
+            shared,
+            replicas,
+        )
+    });
+}
+
+fn with_devices<F: Future<Output = ()>>(
+    another: bool,
+    test: impl FnOnce(
+        Arc<Peer<MemoryStore>>,
+        Option<Peer<MemoryStore>>,
+        Arc<Mutex<Quiet>>,
+        Replicas<Quiet>,
+    ) -> F,
+) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -102,16 +142,27 @@ fn with_test_types<F: Future<Output = ()>>(
         be_lib_build_id::install("test");
         let server = be_server::Running::start(be_server::ServerConfig::OPEN).await;
         let email = format!("{}@example.com", Uuid::new_v4().simple());
-        let peer = Peer::connect(
-            PeerConfig::new(
-                be_block_client::socket_url(&server.url),
-                be_block_keys::RecoveryPhrase::generate().secret(),
-                Credentials::Token(server.register(&email, "Owner").await),
-            ),
-            MemoryStore::new(),
-        )
-        .await
-        .expect("the peer signs in");
+        let phrase = be_block_keys::RecoveryPhrase::generate();
+        let token = server.register(&email, "Owner").await;
+        let url = be_block_client::socket_url(&server.url);
+        let device = |organization| {
+            let config = PeerConfig::new(
+                url.clone(),
+                phrase.secret(),
+                Credentials::Token(token.clone()),
+            )
+            .organization(organization);
+            async move {
+                Peer::connect(config, MemoryStore::new())
+                    .await
+                    .expect("the peer signs in")
+            }
+        };
+        let peer = device(None).await;
+        let another = match another {
+            true => Some(device(Some(peer.organization())).await),
+            false => None,
+        };
         let modules = started(
             vec![
                 in_process::<sections::BlockTypes>("test.sections"),
@@ -123,6 +174,7 @@ fn with_test_types<F: Future<Output = ()>>(
         .await;
         test(
             Arc::new(peer),
+            another,
             Arc::new(Mutex::new(Quiet::default())),
             Replicas::new(modules),
         )

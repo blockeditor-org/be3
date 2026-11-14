@@ -10,6 +10,7 @@ use beui::icons::{
     ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
+use beui::text::Phrase;
 use beui::{Align, CanvasView, Extent};
 
 const COLUMN_SPACING: Space = Space::Xl2;
@@ -513,6 +514,9 @@ pub(crate) fn TextPage() -> NodeId {
             <Sample title="Icons in text" code={vec![InlineIcons::SOURCE]}>
                 <InlineIcons />
             </Sample>
+            <Sample title="Quoting a name" code={vec![QuotedNames::SOURCE]}>
+                <QuotedNames />
+            </Sample>
             <Sample title="Inherited style" code={vec![InheritedStyle::SOURCE]}>
                 <InheritedStyle />
             </Sample>
@@ -617,6 +621,25 @@ fn InlineIcons() -> NodeId {
                 "folder and the "
                 <Icon glyph=ICON_PAPERCLIP color=TextColor::Muted />
                 "attachment keep their room from the text, and a selection never takes them."
+            </Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn QuotedNames() -> NodeId {
+    let name = "\u{5e9}\u{5dc}\u{5d5}\u{5dd}";
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text>
+                "User "
+                <Span isolate=true>{name}</Span>
+                ": 3 posts"
+            </Text>
+            <Text>{Phrase::new().text("Leave ").quoted(name).text("?")}</Text>
+            <Text style=TextStyle::CAPTION>
+                "A name someone typed is isolated for bidi, so a right-to-left name cannot carry the words beside it across itself. The browser applies it today; native layout will once it has bidi."
             </Text>
         </List>
     }

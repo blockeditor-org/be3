@@ -165,7 +165,9 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   After a host or type module restart, the messages the device's own
   commits in the outbox add over the server's last head show as sending
   (`ChatContent::unsent_over`) until they drain. be-host-stack tests and
-  chat's editor tests cover it; `drive` cannot cut the server.
+  chat's editor tests cover it, and a host test sends a message with the
+  server cut (`HostTest::offline`) and sees it show as sending until the
+  device is back.
 - **Authorship.** It signs each message, edit, deletion and reaction record
   (kept or taken back) through the host's `sign` before writing it, and marks
   a message whose records `verify` does not answer verified: "not verified",

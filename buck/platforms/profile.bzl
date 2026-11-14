@@ -151,6 +151,12 @@ def _local_build() -> bool:
 
 LOCAL_BUILD = _local_build()
 
+# The priority of every action this build sends the build server: among actions waiting for a slot, NativeLink runs
+# a higher one first, then the oldest. CI's builds send -1 (crates/be-tool-bootstrap's server.rs writes
+# be3.remote_priority into the generated config), so a person's or an agent's build is not stuck behind a merge
+# queue's. buck2 puts it in the Execute request rather than the action, so it changes no cache key.
+REMOTE_PRIORITY = int(read_root_config("be3", "remote_priority", "0"))
+
 # The threads rustc's frontend runs on. The flag is on every first-party rustc
 # command line, so it is part of every cache key: on a build server it is eight
 # whoever asks, and be3.rustc_threads is read only when the build is local, where
