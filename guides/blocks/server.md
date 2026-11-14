@@ -600,15 +600,17 @@ text's length reaches the push service.
   (`push::is_public`: no private, shared or reserved IPv4, and IPv6 only in
   `2000::/3` outside 6to4, Teredo and the IETF's `2001::/23`) and no redirect
   is followed, so a client cannot have the server post into its own network;
-  `PushConfig::allow_local_endpoints` (`--allow-local-push-endpoints`) lifts both for tests. The host must be a
-  known push service's (`push::allowed_host`: FCM, Mozilla, Apple, Windows) or
-  one the operator added (`--push-host`, `PushConfig::hosts`), checked at
-  registration and again at send, so the server is no relay for POSTs to hosts
-  a member names (decisions/push_endpoints_are_allowlisted.md). The device key
-  must be a point on P-256. An endpoint is dropped when its service says it is gone (Web Push 404 or 410;
-  FCM only `UNREGISTERED`, since a wrong project also answers 404), or after
-  `MAX_FAILURES` failures in a row over at least `FAILING_FOR` (counted per
-  account, organization and address); 429 and 503 count as neither.
+  `PushConfig::allow_local_endpoints` (`--allow-local-push-endpoints`) lifts
+  both for tests. The host must be a known push service's
+  (`push::allowed_host`: FCM, Mozilla, Apple, Windows) or one the operator
+  added (`--push-host`, `PushConfig::hosts`), checked at registration and
+  again at send, so the server is no relay for POSTs to hosts a member names
+  (decisions/push_endpoints_are_allowlisted.md). The device key must be a
+  point on P-256. An endpoint is dropped when its service says it is gone (Web
+  Push 404 or 410; FCM only `UNREGISTERED`, since a wrong project also answers
+  404), or after `MAX_FAILURES` failures in a row over at least `FAILING_FOR`
+  (counted per account, organization and address); 429 and 503 count as
+  neither.
 - **Modes.** Each account's mode per block (`notify_modes`: `all` keeps no row,
   `mentions`, `off`), deleted with the block, the member or the organization.
   `notify-modes` lists an account's; a device reads them when it connects and

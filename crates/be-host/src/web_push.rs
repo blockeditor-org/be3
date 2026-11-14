@@ -131,25 +131,26 @@ pub fn push_open_block(organization: String, block: String) {
     }
 }
 
-/// Signing out of an account on this browser: ends its session (`accounts::logout`), naming this
-/// browser's push endpoint, which the server then forgets for the account in every
-/// organization, and drops the browser's subscription too when `unsubscribe` (no saved account
-/// is left to use it). It needs no organization open, so it works from the accounts screen too.
-/// A server that cannot be reached keeps the endpoint until the push service answers 404 or 410
-/// to a push to a dropped subscription.
+/// Signing out of an account on this browser: drops the browser's subscription when
+/// `unsubscribe` (no saved account is left to use it), then ends the account's session
+/// (`accounts::logout`), naming the endpoint, which the server forgets for the account in every
+/// organization. The subscription goes before the server's round trip, so a later sign-in that
+/// turns pushes on keeps the one it makes. It needs no organization open, so it works from the
+/// accounts screen too. A server that cannot be reached keeps the endpoint until the push
+/// service answers 404 or 410 to a push to a dropped subscription.
 pub(crate) fn sign_out(server_url: String, token: String, unsubscribe: bool) {
     wasm_bindgen_futures::spawn_local(async move {
         let address = call("address")
             .await
             .ok()
             .and_then(|address| address.as_string());
-        let _ = be_host_stack::accounts::logout(server_url, token, address).await;
         if unsubscribe && let Err(error) = call("unsubscribe").await {
             web_sys::console::warn_1(&JsValue::from_str(&format!(
                 "be-host: the browser's push subscription was not dropped: {error}"
             )));
         }
         refresh().await;
+        let _ = be_host_stack::accounts::logout(server_url, token, address).await;
     });
 }
 
