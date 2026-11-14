@@ -1837,16 +1837,21 @@ impl<S: ObjectStore> Peer<S> {
         let Some((sequence, pending)) = self.pending_publish(block, commit) else {
             return Err(ClientError::MissingObject(commit.hash()));
         };
-        // A creation, move or definition of the block waits ahead of it in the outbox: the drain
-        // sends them in order. Offline, sending fails as any other does.
+        // A creation, move or definition of the block waits in the outbox, or a commit of it
+        // sealed before this one that this one does not build on (a definition's commit on the
+        // same head): the drain sends them in order, and the server refuses this one as stale
+        // once they moved its head on, to be merged with them (`Drained::Diverged`). Offline,
+        // sending fails as any other does.
         if self.is_attached()
-            && (self.refs.has_structural(block) || self.refs.refused(block).is_some())
+            && (self.refs.has_structural(block)
+                || self.refs.refused(block).is_some()
+                || self.beside(block, sequence, commit)?)
         {
             return Ok(Saved::Unchanged(commit));
         }
         let saved = self.send_pending(&pending).await?;
         if let Saved::Published(head) = saved {
-            self.settle(sequence, &pending, head, true)?;
+            self.settle(sequence, &pending, head)?;
         }
         Ok(saved)
     }
@@ -2145,21 +2150,22 @@ impl<S: ObjectStore> Peer<S> {
         access: Access,
         public: &be_block_keys::RecoveryPublic,
     ) -> Result<(), ClientError> {
-        self.grant(block, account, access).await?;
-        if !access.can_view() {
-            return Ok(());
+        // The key goes first: the grant tells the account's devices at once, and a device that
+        // finds no key for the block then shows it locked until something else opens a key.
+        if access.can_view() {
+            self.seal_share(block, account, public).await?;
         }
-        self.seal_share(block, account, public).await
+        self.grant(block, account, access).await
     }
 
     pub async fn open_inside(&self, block: Uuid, access: Access) -> Result<(), ClientError> {
-        self.grant(block, be_block_graph::ANYONE_INSIDE, access)
-            .await?;
-        if !access.can_view() {
-            return Ok(());
+        // As `share`: the key before the grant.
+        if access.can_view() {
+            let keys = self.own_scope(block).await?;
+            self.put_keys(keys).await?;
         }
-        let keys = self.own_scope(block).await?;
-        self.put_keys(keys).await
+        self.grant(block, be_block_graph::ANYONE_INSIDE, access)
+            .await
     }
 
     pub async fn seal_share(

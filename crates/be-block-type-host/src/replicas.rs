@@ -2330,7 +2330,18 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             if !open.status.clean || !peer.pending_commits(block).is_empty() {
-                self.seal_later(block, false);
+                // Asked once, while nothing seals it: this runs every pass of the loop, and a
+                // seal asked again while one is on its way, or of a replica with nothing to
+                // seal whose commits only wait for the drain, wakes its module and the loop
+                // again, so the loop never rests and what it waits for never runs.
+                let sealing = open.publishing > 0
+                    || self
+                        .asked
+                        .values()
+                        .any(|(asked, ask)| *asked == replica && matches!(ask, Asked::Seal(_)));
+                if !open.status.clean && !sealing {
+                    self.seal_later(block, false);
+                }
                 continue;
             }
             self.uncreated.remove(&block);

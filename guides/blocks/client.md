@@ -243,7 +243,11 @@ sends it. `Peer::write` does both.
   content (`Op::Define`); these rewrite the cached summary so listings show
   them, and later ones for a block queue behind earlier ones. `keep_creation`,
   `keep_definition` and `keep_move` put them there online too (the host's
-  path); a publish waits behind a creation, move or define of its block. Every
+  path); a publish waits behind a creation, move or define of its block, and
+  behind a commit of it sealed earlier that it does not build on (a definition
+  `keep_definition` sealed on the head it went on too): sent first, it would
+  leave that commit behind, so the drain sends both in order and merges them
+  (`Drained::Diverged`). Every
   summary the server gives is laid over with what the outbox has yet to send of
   its block, a waiting move's parent and a waiting define's metadata, as it is
   kept (`RefsDb::set_listing`, which `Peer::note` and listings keep it
