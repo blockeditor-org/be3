@@ -115,7 +115,7 @@ def _run_test(actions, info: TestRunInfo, name: str, mode: str, filters: list, u
         local_only = info.local,
     )
     if not compared:
-        return struct(out = out, ran = None, changed = None)
+        return struct(changed = None, out = out, ran = None)
     changed = actions.declare_output(name + "-changed") if mode == "paintings" else None
     accepted = actions.symlinked_dir(name + "-accepted", {painting.basename: painting for painting in info.paintings})
     actions.run(
@@ -134,7 +134,7 @@ def _run_test(actions, info: TestRunInfo, name: str, mode: str, filters: list, u
         category = "painting_compare",
         identifier = identifier,
     )
-    return struct(out = out, ran = ran if changed else None, changed = changed)
+    return struct(changed = changed, out = out, ran = ran if changed else None)
 
 # A painting test's second run, which says whether its paintings are flaky: when
 # the first run (`ran`) made a painting that is new or differs from the accepted
@@ -178,7 +178,7 @@ def _again(actions, info: TestRunInfo, ran: Artifact, changed: Artifact) -> Arti
             category = "painting_flaky",
         )
 
-    actions.dynamic_output(dynamic = [changed], inputs = [], outputs = [report.as_output()], f = again)
+    actions.dynamic_output(dynamic = [changed], f = again, inputs = [], outputs = [report.as_output()])
     return report
 
 # A test's [run], and for a painting test the report of its second run.
@@ -223,12 +223,12 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
         runs = [part[DefaultInfo].sub_targets["run"][DefaultInfo].default_outputs[0] for part in ctx.attrs.parts.values()]
         flakes = [flake for part in ctx.attrs.parts.values() for flake in part[TestRunInfo].flakes]
     else:
-        run, flakes = _run(ctx, TestRunInfo(runs = [], flakes = [], **fields))
+        run, flakes = _run(ctx, TestRunInfo(flakes = [], runs = [], **fields))
         sub_targets["run"] = [DefaultInfo(default_output = run)]
         if flakes:
             sub_targets["again"] = [DefaultInfo(default_output = flakes[0])]
         runs = [run]
-    info = TestRunInfo(runs = runs, flakes = flakes, **fields)
+    info = TestRunInfo(flakes = flakes, runs = runs, **fields)
     command = cmd_args(launcher, "--", info.command, hidden = info.hidden)
     remote = not (ctx.attrs.local or LOCAL_BUILD)
     return [
