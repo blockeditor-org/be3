@@ -9,14 +9,21 @@ use super::worker::WorkerChannel;
 use crate::presenter::Blit;
 
 const LAYER: &str = "apps";
+/// Where a screen goes that lies over an anchored view painted before it: above the host's
+/// canvas, in the anchored views' layer (overlay.rs), so a child placed in an anchored view
+/// shows over it (`presenter::lifted`).
+const ABOVE: &str = "layers";
 
 pub struct Placement {
     screen: ScreenId,
     surface: u32,
     style: String,
+    above: bool,
 }
 
-pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
+/// Where a screen shows: `order` is its blit's place in the frame's paint order, and `above`
+/// whether it lies over an anchored view painted before it (`presenter::lifted`).
+pub fn placement(blit: &Blit, order: usize, above: bool, scale: f32) -> Option<Placement> {
     if blit.layer.is_some() {
         return None;
     }
@@ -76,6 +83,7 @@ pub fn placement(blit: &Blit, order: usize, scale: f32) -> Option<Placement> {
         screen: blit.screen,
         surface: placement.surface,
         style,
+        above,
     })
 }
 
@@ -86,7 +94,7 @@ pub fn set_background(color: Color32) {
     if SHOWN.with(|shown| shown.replace(Some(color))) == Some(color) {
         return;
     }
-    let Ok(layer) = layer() else {
+    let Ok(layer) = layer(false) else {
         return;
     };
     let [red, green, blue, _] = color.to_array();
@@ -100,6 +108,7 @@ struct Shown {
     element: web_sys::HtmlCanvasElement,
     surface: u32,
     style: String,
+    above: bool,
 }
 
 #[derive(Default)]
@@ -128,7 +137,7 @@ impl Canvases {
                     }
                     shown
                 }
-                None => match create(channel, placement.surface) {
+                None => match create(channel, placement.surface, placement.above) {
                     Ok(shown) => shown,
                     Err(error) => {
                         result = result.and(Err(error));
@@ -136,6 +145,16 @@ impl Canvases {
                     }
                 },
             };
+            if shown.above != placement.above {
+                // Moving a canvas keeps the offscreen canvas its worker draws into.
+                match layer(placement.above) {
+                    Ok(layer) => {
+                        let _ = layer.append_child(&shown.element);
+                        shown.above = placement.above;
+                    }
+                    Err(error) => result = result.and(Err(error)),
+                }
+            }
             if shown.style != placement.style {
                 let _ = shown.element.set_attribute("style", &placement.style);
                 shown.style = placement.style;
@@ -156,12 +175,12 @@ impl Canvases {
     }
 }
 
-fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
+fn create(channel: &WorkerChannel, surface: u32, above: bool) -> Result<Shown, String> {
     thread_local! {
         static NEXT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
     let failed = |_| "an app screen's canvas could not be made".to_owned();
-    let layer = layer()?;
+    let layer = layer(above)?;
     let document = web_sys::window()
         .and_then(|window| window.document())
         .ok_or("the page has no document")?;
@@ -170,6 +189,8 @@ fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
         .map_err(failed)?
         .dyn_into()
         .map_err(|_| "an app screen's canvas could not be made".to_owned())?;
+    // Which kind of canvas this is, for whatever inspects the page (crates/be-host/web-test).
+    let _ = element.set_attribute("data-kind", "screen");
     layer.append_child(&element).map_err(failed)?;
     let id = NEXT.with(|next| {
         let id = next.get();
@@ -181,6 +202,7 @@ fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
         element,
         surface,
         style: String::new(),
+        above,
     };
     let offscreen = shown
         .element
@@ -195,10 +217,14 @@ fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
     }
 }
 
-fn layer() -> Result<web_sys::HtmlElement, String> {
+fn layer(above: bool) -> Result<web_sys::HtmlElement, String> {
+    let id = match above {
+        true => ABOVE,
+        false => LAYER,
+    };
     web_sys::window()
         .and_then(|window| window.document())
-        .and_then(|document| document.get_element_by_id(LAYER))
+        .and_then(|document| document.get_element_by_id(id))
         .and_then(|layer| layer.dyn_into().ok())
-        .ok_or_else(|| format!("the page has no #{LAYER} element for apps to show in"))
+        .ok_or_else(|| format!("the page has no #{id} element for apps to show in"))
 }
