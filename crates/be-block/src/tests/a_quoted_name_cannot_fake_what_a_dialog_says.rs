@@ -89,7 +89,9 @@ fn a_quoted_name_cannot_fake_what_a_dialog_says() {
         "a mark with no letter under it goes, at the start or after a space"
     );
     assert_eq!(
-        quotable_name("\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467} \u{0645}\u{06cc}\u{200c}\u{0634}\u{0648}\u{0645}"),
+        quotable_name(
+            "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467} \u{0645}\u{06cc}\u{200c}\u{0634}\u{0648}\u{0645}"
+        ),
         "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467} \u{0645}\u{06cc}\u{200c}\u{0634}\u{0648}\u{0645}",
         "joiners between letters stay: an emoji family, a Persian spelling"
     );
