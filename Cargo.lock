@@ -1646,6 +1646,7 @@ dependencies = [
  "be-type-workspace",
  "be-wasm-guest-abi",
  "be-wasm-host",
+ "be-wasm-ops",
  "be-wasm-threads",
  "futures-util",
  "js-sys",

@@ -36,10 +36,17 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
         Some(held),
         "a second stream opens with the usage too"
     );
-    assert!(
-        usage.recv().await.is_none(),
-        "a connection keeps one storage stream: opening another ends the first"
-    );
+    let (second, more) = author.compose(b"and a little more\n", 2_000, None);
+    let other = client.create_block(BlockParent::Root).await;
+    let published = client
+        .publish(&author, other, second, more, None, 2_000)
+        .await;
+    assert!(published.is_ok(), "{published:?}");
+    let grown = usage
+        .recv()
+        .await
+        .expect("the first stream stays open beside the second");
+    assert!(grown.held > held, "{grown:?}");
 
     let mut stranger = harness.client().await;
     let mut refused = client::account::storage_changed(&stranger.peer);

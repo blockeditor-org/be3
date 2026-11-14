@@ -2514,7 +2514,20 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
 }
 
 async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    if let Err(error) = peer.tend().await {
+    tend_with(peer, shared, None).await;
+}
+
+/// Tends the keys from `work` when the server already sent it, or else reads it first.
+async fn tend_with(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    work: Option<be_block_protocol::KeyWork>,
+) {
+    let tended = match work {
+        Some(work) => peer.tend_with(work).await,
+        None => peer.tend().await,
+    };
+    if let Err(error) = tended {
         record(shared, error);
     }
     shared
@@ -3598,9 +3611,9 @@ async fn heard(
         }
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
-        Some(Event::KeyWork(_)) => {
+        Some(Event::KeyWork(work)) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-            tasks.spawn(async move { tend(&peer, &shared).await });
+            tasks.spawn(async move { tend_with(&peer, &shared, Some(work)).await });
         }
         Some(_) => {}
         None => relist(shared),

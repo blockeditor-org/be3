@@ -163,7 +163,11 @@ counts and records nothing: `upload-urls` did before it signed.
   changes and relays; dropping it leaves the session. A latest-value stream
   that carries a value starts with the current one and then sends each new one
   (`account.storage-changed`, `keys.key-work-changed`), so there is no call that
-  reads the value apart from it; one with no value
+  reads the value apart from it. A connection may hold several of one, each
+  starting with its own first value (`Route::Storage` and `Route::KeyWork`
+  carry the stream's op for that), and one whose first value cannot be read
+  ends with the failure rather than wait; `key-work-changed` opened before an
+  organization waits for one to open. A latest-value stream with no value
   (`contacts.contacts-changed`, `notifications.notify-modes-changed`) says only
   to read again.
 - **Who may call what.** Every call states its requirement once, in `rule`
@@ -285,8 +289,7 @@ counts and records nothing: `upload-urls` did before it signed.
   account's `held`, `pending` and `quota`: its value on opening, then again whenever the payer's `account_usage` row
   changes (`ServerStore::usage_changes`, a broadcast of payers each connection
   following its own filters; one that falls `USAGE_CHANGES_QUEUED` behind reads
-  again). It needs an organization open, and a connection keeps one: opening
-  another ends the first. An object no block holds any more stays while an
+  again). It needs an organization open. An object no block holds any more stays while an
   upload row names it (`forget_objects`), so a free never races an upload that
   is about to write the same file.
 - **Objects** are served only to a member who can view a block that holds them
@@ -410,7 +413,9 @@ member's access allows or a `BlockRemoved`, when a listing matches the block
 now or the connection heard of it before (so a block moving out of a listed
 folder is still announced, then forgotten). The blocks a change starts or stops
 referencing are announced with it. Every publish is announced, so a block's
-own listing hears each head; `block-changed.from` names the connection whose
+own listing hears each head; one that moves only the head changes no listing's
+match, so it is told only to the connections that already know the block
+(`WatchHub::knowing`) rather than worked out for the whole audience; `block-changed.from` names the connection whose
 call made the change (`organization-opened.client`), so a client skips its own
 publishes (`Event::BlockChanged::own`). A block moved to the trash is a summary
 with parent `detached`; one collected for good is `removed`. `unlist` drops a listing; a refused listing

@@ -23,7 +23,13 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn tend(&self) -> Result<(), ClientError> {
-        let mut work = self.key_work().await?;
+        let work = self.key_work().await?;
+        self.tend_with(work).await
+    }
+
+    /// `tend` from key work already read, such as a value of the connection's
+    /// `key-work-changed` stream (`Event::KeyWork`).
+    pub async fn tend_with(&self, mut work: KeyWork) -> Result<(), ClientError> {
         self.adopt_escrows(work.escrows.clone());
         let mut failed = None;
         let escrow_rotation = work.escrow_rotation && self.keys.can_make_escrow();

@@ -14,7 +14,7 @@ fn a_block_made_while_a_listing_is_answered_stays_listed() {
 
     let mut listed = harness
         .relay()
-        .count(|method| method == be_block_protocol::__args::BLOCKS_LIST_BLOCKS);
+        .count(|method, _| method == be_block_protocol::__args::BLOCKS_LIST_BLOCKS);
     let before = *listed.borrow_and_update();
     harness.relay().hold_answers(true);
     refetch(Query::Roots);

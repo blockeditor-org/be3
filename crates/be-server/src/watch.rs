@@ -330,6 +330,31 @@ impl WatchHub {
         }
     }
 
+    /// The connections to `organization` already told of `block`: the only ones a change that
+    /// moves nothing but its head can reach, since it leaves which listings match the block as
+    /// they were.
+    pub async fn knowing(&self, organization: Uuid, block: Uuid) -> Vec<(u64, Identity)> {
+        let joined = self.joined.lock().await;
+        joined
+            .by_organization
+            .get(&organization)
+            .into_iter()
+            .flatten()
+            .filter(|client| {
+                joined
+                    .interests
+                    .get(client)
+                    .is_some_and(|interest| interest.known.contains_key(&block))
+            })
+            .filter_map(|client| {
+                joined
+                    .organizations
+                    .get(client)
+                    .map(|identity| (*client, *identity))
+            })
+            .collect()
+    }
+
     pub async fn removed(&self, organization: Uuid, block: Uuid, revision: u64) {
         let targets: Vec<u64> = {
             let mut joined = self.joined.lock().await;
