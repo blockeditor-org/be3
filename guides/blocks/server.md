@@ -574,11 +574,12 @@ text's length reaches the push service.
   (`register-endpoint`): Web Push (RFC 8030) at an `https://` URL on port 443,
   or an FCM registration token, with the device's RFC 8291 keys. At most
   `MAX_PUSH_ENDPOINTS`, the oldest going first; a member's go when they leave
-  the organization. A Web Push URL may only resolve to a public unicast address
+  the organization, and `logout` with the device's address forgets it in every
+  organization. A Web Push URL may only resolve to a public unicast address
   (`push::is_public`: no private, shared or reserved IPv4, and IPv6 only in
   `2000::/3` outside 6to4, Teredo and the IETF's `2001::/23`) and no redirect
   is followed, so a client cannot have the server post into its own network;
-  `PushConfig::allow_local_endpoints` lifts both for tests. The host must be a
+  `PushConfig::allow_local_endpoints` (`--allow-local-push-endpoints`) lifts both for tests. The host must be a
   known push service's (`push::allowed_host`: FCM, Mozilla, Apple, Windows) or
   one the operator added (`--push-host`, `PushConfig::hosts`), checked at
   registration and again at send, so the server is no relay for POSTs to hosts

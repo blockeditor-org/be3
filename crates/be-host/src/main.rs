@@ -1485,17 +1485,16 @@ impl HostCore {
     }
 
     fn forget_account(&mut self, account: &Account) {
-        #[cfg(target_arch = "wasm32")]
-        if self.account.server == account.server && self.account.id == account.id {
-            web_push::forget_this_device(self.accounts.len() <= 1);
-        }
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
         let token = account.token.clone();
+        #[cfg(target_arch = "wasm32")]
+        web_push::sign_out(url, token, self.accounts.len() <= 1);
+        #[cfg(not(target_arch = "wasm32"))]
         platform::spawn_request(async move {
-            let _ = accounts::logout(url, token).await;
+            let _ = accounts::logout(url, token, None).await;
         });
 
         if let Err(error) = self.host_state.remove_account(account) {
@@ -1754,7 +1753,7 @@ impl HostCore {
                     let url = self.server_url.clone();
                     let token = session.token;
                     platform::spawn_request(async move {
-                        let _ = accounts::logout(url, token).await;
+                        let _ = accounts::logout(url, token, None).await;
                     });
                     reauth.error =
                         Some("Sign in to the same account to restore this session.".into());

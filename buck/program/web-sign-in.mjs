@@ -1,14 +1,17 @@
-// Signs the web host on a page into dev@localhost on the page's own be-server, as a person
+// Signs the web host on a page into an account on the page's own be-server, as a person
 // would through the portal, making the account the first time: what web-drive.mjs's
 // dev-sign-in and web-host-test.mjs do. serverLog is the server's log, where a development
 // server writes the link that verifies a new account's email, and invite an invite code
-// (`be-server invite-code create`), which registering needs.
+// (`be-server invite-code create`), which registering needs. The account is dev@localhost,
+// named Dev, unless `account` names another ({ name, email }).
 
 import { readFile } from "node:fs/promises";
 
 const CODE = /https?:\/\/[^\s"]+\/auth\?code=[a-f0-9-]+/;
 
-export async function signIn(page, serverLog, invite, timeout) {
+const DEV = { name: "Dev", email: "dev@localhost" };
+
+export async function signIn(page, serverLog, invite, timeout, account = DEV) {
     await page.waitForFunction(() => globalThis.blockStarted !== undefined, null, { timeout: timeout * 1000 });
     const tree = await page.evaluate(async (timeoutMs) => {
         await globalThis.blockStarted;
@@ -26,7 +29,7 @@ export async function signIn(page, serverLog, invite, timeout) {
     if (!url) return;
     const portal = await page.context().newPage();
     try {
-        await approve(portal, url, serverLog, invite);
+        await approve(portal, url, serverLog, invite, account);
     } catch (error) {
         const shown = await portal.locator("body").innerText().catch(() => "");
         throw new Error(`${error.message}\nThe portal at ${portal.url()} shows:\n${shown}`);
@@ -34,11 +37,11 @@ export async function signIn(page, serverLog, invite, timeout) {
     await portal.close();
 }
 
-async function approve(portal, url, serverLog, invite) {
+async function approve(portal, url, serverLog, invite, { name, email }) {
     await portal.goto(url);
     const another = portal.getByText("Use another account", { exact: true });
     if (await another.count()) await another.click();
-    await portal.getByLabel("Email", { exact: true }).fill("dev@localhost");
+    await portal.getByLabel("Email", { exact: true }).fill(email);
     await portal.getByLabel("Password", { exact: true }).fill("dev-password");
     await portal.getByRole("button", { name: "Sign in", exact: true }).click();
     const unknown = portal.getByText(/no account matches those credentials/i);
@@ -49,8 +52,8 @@ async function approve(portal, url, serverLog, invite) {
         await portal.getByLabel("Invite code", { exact: true }).fill(invite);
         // Filled once: typing that lands before the page hydrates must still reach it.
         const fields = [
-            [portal.getByLabel("Display name", { exact: true }), "Dev"],
-            [portal.getByLabel("Email", { exact: true }), "dev@localhost"],
+            [portal.getByLabel("Display name", { exact: true }), name],
+            [portal.getByLabel("Email", { exact: true }), email],
             [portal.locator('[name="password"]'), "dev-password"],
             [portal.getByLabel("Confirm password", { exact: true }), "dev-password"],
         ];
@@ -61,7 +64,12 @@ async function approve(portal, url, serverLog, invite) {
         }
         await portal.getByRole("button", { name: "Create account", exact: true }).click();
         await portal.getByText("Check your email", { exact: true }).first().waitFor();
-        const links = (await readFile(serverLog, "utf8")).match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
+        // The link the server logged last, for this address.
+        const links = (await readFile(serverLog, "utf8"))
+            .split("\n")
+            .filter((line) => line.includes(email))
+            .join("\n")
+            .match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
         if (!links?.length) throw new Error("The development server did not log a verification link.");
         await portal.goto(links.at(-1));
         await portal.getByRole("button", { name: "Verify email", exact: true }).click();

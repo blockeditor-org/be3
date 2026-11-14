@@ -57,6 +57,7 @@ mod a_member_who_loses_view_of_a_trashed_block_leaves_its_session;
 mod a_member_who_loses_view_when_a_block_is_trashed_stops_watching_it;
 mod a_member_who_loses_view_when_a_block_moves_somewhere_hidden_stops_watching_it;
 mod a_message_arriving_slowly_is_not_taken_for_silence;
+mod a_logout_naming_the_devices_endpoint_forgets_it_in_every_organization;
 mod a_mode_set_on_one_device_is_announced_to_the_others;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
@@ -1557,7 +1558,7 @@ impl TestClient {
 
     /// Signs out, which leaves the server's record of who is connected before it answers.
     async fn sign_out(&mut self) {
-        let logged_out = self.call(|peer| client::account::logout(peer)).await;
+        let logged_out = self.call(|peer| client::account::logout(peer, None)).await;
         assert!(logged_out.is_ok(), "{logged_out:?}");
     }
 }

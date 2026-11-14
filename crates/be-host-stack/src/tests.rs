@@ -1519,6 +1519,7 @@ impl Member {
         self.runtime
             .block_on(be_block_protocol::client::account::logout(
                 &self.peer.connection(),
+                None,
             ))
             .expect("the logout is answered")
             .expect("the member signs out");

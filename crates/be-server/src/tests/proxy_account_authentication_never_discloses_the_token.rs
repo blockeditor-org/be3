@@ -28,7 +28,7 @@ async fn proxy_account_authentication_never_discloses_the_token() {
                         .await,
                     Ok(_)
                 ));
-                let _ = client.call(|peer| client::account::logout(peer)).await;
+                let _ = client.call(|peer| client::account::logout(peer, None)).await;
             }
             _ => assert!(matches!(response, Err(_))),
         }

@@ -77,8 +77,10 @@ interface account {
     /// of the request's Authorization header.
     authenticate: async func(token: option<string>) -> result<authenticated, error>;
 
-    /// Ends the session the token named and signs this connection out.
-    logout: async func() -> result<_, error>;
+    /// Ends the session the token named and signs this connection out. With
+    /// `push-address`, the device's push endpoint, the account forgets that
+    /// endpoint in every organization too, as the device stops taking its pushes.
+    logout: async func(push-address: option<string>) -> result<_, error>;
 
     /// The signed-in account's storage usage and quota.
     storage-usage: async func() -> result<account-storage, error>;

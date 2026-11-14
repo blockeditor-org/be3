@@ -112,26 +112,29 @@ survives a reload. Traps that shape this code:
     pressed comes back as "New message" without a sound. The store is deleted with the
     subscription.
   - *The switch.* `globalThis.bePush.enable()` asks permission, subscribes and registers the
-    endpoint (call it from a gesture); `disable()` and signing out unregister. The settings
+    endpoint (call it from a gesture); `disable()` unregisters it. The settings
     list's "Notifications" row asks the host through `set_push_device`
     (`be_host_base::push_device`, installed by `web_push::install` and published as
     `PushDeviceWatch`).
   - *Registering.* An endpoint is registered per organization, so the host registers the
     browser's subscription again (`bePush.sync`) each time it connects to an organization with
     pushes on, which also finds a subscription the push service replaced
-    (`pushsubscriptionchange`, which `sw.js` renews). Signing out unregisters the endpoint and
-    drops the browser's subscription only when no saved account is left; another account
-    removed while one is open keeps its endpoint until a push to it fails.
+    (`pushsubscriptionchange`, which `sw.js` renews).
+  - *Signing out.* Logging an account out (`web_push::sign_out`) sends the browser's endpoint
+    with `logout`, so the server forgets it for that account in every organization, with no
+    organization open; the browser's subscription is dropped only when no saved account is left.
   - *Pressing.* A pressed notification focuses a window and posts the block to it
     (`push_open_block`), or opens `?open-block=ORGANIZATION/BLOCK`, which any link can do. A block
     of another organization first opens that organization, unless changes are unsaved; the host
     holds it until the organizations, the graph or the unsaved changes change, and drops it
     after 30 s. A worker killed before a loading page says it is ready (30 s) loses a press.
-  - *Test.* `//crates/be-host:push-web-test` runs the real `sw.js` and `push.js` in Chromium with
-    pushes delivered through DevTools (`deliverPush` in buck/program/page-test.mjs); headless
-    Chromium never grants the permission to show a notification, so the test's worker
-    (`web-test/sw.js`) reports what `sw.js` would show, moves its clock on, and raises the press
-    and subscription-change events.
+  - *Tests.* `//crates/be-host:push-web-host-test` runs the whole page (`web_host_test`, below):
+    Ada writes in a chat Dev shared while Dev's tab is closed, be-server pushes it to Dev's
+    endpoint, and Dev's worker shows it named, once, or "New message" without a tab or the key;
+    signing out forgets the endpoint. `//crates/be-host:push-web-test` runs the real `sw.js` and
+    `push.js` beside a page standing in for the host, with pushes delivered through DevTools
+    (`deliverPush` in buck/program/page-test.mjs); its worker (`web-test/sw.js`) reports what
+    `sw.js` would show, moves its clock on, and raises the press and subscription-change events.
 - The host closes its tab when it exits, unless the page is already leaving.
 
 `web_host_test` (buck/program/drive.bzl) tests the whole page: `//crates/be-host:web-host-test`
@@ -139,8 +142,16 @@ serves `:web` through caddy with a fresh be-server behind it, signs dev@localhos
 portal (buck/program/web-sign-in.mjs, which registers it first), sizes the page by resizing it
 (the host takes its window's size from a resize, as `drive size` gives it), waits for the
 workspace, and hands a script in crates/be-host/web-test/ `drive(...)`, answered like `drive` by
-the page's `automate`, with the Playwright page beside it. A failure prints the host's tree and
-the ends of the server's and caddy's logs.
+the page's `automate`, with the Playwright page beside it; `test.account(name)` signs another
+account in, in a browser context of its own. A failure prints the host's tree and the ends of the
+server's and caddy's logs.
+
+The harness stands in for the push service, which headless Chromium lacks along with the
+permission to show notifications: each page's `PushManager` subscribes to an endpoint the
+harness serves and decrypts (RFC 8291) what be-server posts to it (`pushes.next()`), the worker's
+`showNotification` and `getNotifications` keep what it shows (`notifications()`), and
+`deliverPush` dispatches a push in the worker, since DevTools' `deliverPushMessage` carries text,
+not a push's bytes, and needs an open page. buck/program/web-host-test.mjs lists the rest.
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the
 instance's be-server (or Playwright's `context.setOffline(true)`), type with

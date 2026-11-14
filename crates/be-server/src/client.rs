@@ -1032,10 +1032,19 @@ impl Client {
                 .await;
                 self.reply(reply, authenticated);
             }
-            Call::Logout { reply } => {
+            Call::Logout {
+                reply,
+                push_address,
+            } => {
                 let connection = &mut self.connection;
                 let logged_out = async {
                     prelude?;
+                    if let (Some(account), Some(address)) = (connection.account, push_address) {
+                        connection
+                            .store
+                            .forget_endpoint_of(account, address)
+                            .await?;
+                    }
                     if let Some(token) = connection.token.take() {
                         connection.store.logout(&token).await?;
                     }
