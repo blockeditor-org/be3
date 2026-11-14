@@ -1,14 +1,16 @@
 # Hosting be-server
 
-`./scripts/deploy` updates an existing server. The host's systemd service, reverse proxy (Caddy),
-data directory and backup schedule are managed on the host, with no templates in this
-repository, and deployment leaves them alone.
+`./scripts/deploy` updates the be-server binary on the server. Everything else on it (the
+systemd unit, Caddy and its gateway, the data directory on the volume) is its NixOS
+configuration, `servers/api` (guides/servers.md).
 
 ## Server layout
 
-`BE3_DEPLOY_HOST` (`ubuntu@api.be3.pfg.pw`), `BE3_DEPLOY_DIR` (`be-server`, under the SSH user's
-home) and `BE3_DEPLOY_UNITS` (`be-server`, restarted with `sudo systemctl`) name where it goes.
-The directory holds only `be-server` and the `build-info.json` it reads beside it.
+`BE3_DEPLOY_HOST` (`root@api.be3.pfg.pw`), `BE3_DEPLOY_DIR` (`/srv/be-server`) and
+`BE3_DEPLOY_UNITS` (`be-server`, restarted with `sudo systemctl`) name where it goes. The
+directory holds only `be-server` and the `build-info.json` it reads beside it. The unit runs it
+as the user `be-server` with `--data-dir /mnt/data/be-server`, on the volume, listening on
+127.0.0.1:9090 only.
 
 `--data-dir` holds `metadata.sqlite` and `objects/`, or `object-cache/` when objects live in a
 bucket (below). The server adds missing tables, indexes and
@@ -46,9 +48,10 @@ answers these itself.
 
 The server speaks WebSockets at `/api/be` and the same protocol over HTTP posts at
 `/api/be/http`, for clients behind proxies that refuse WebSockets; signing in through the
-browser is one-shot posts to `/api/be/call`. Caddy supplies TLS at
-`api.be3.pfg.pw`, routes the API, `/auth` and `/auth/*` to the server and `/build/*` to the build
-helper (guides/build_server.md). be-host's web build is served by Bunny at `be3.pfg.pw`.
+browser is one-shot posts to `/api/be/call`. Caddy (`servers/api/Caddyfile`) supplies TLS at
+`api.be3.pfg.pw` and passes everything with the gateway key to the server; nothing serves
+`/build/*` (the build helper, guides/build_server.md) there now. be-host's web build is served
+by Bunny at `be3.pfg.pw`.
 
 be-server takes a client's address from `X-Forwarded-For` only when the connection comes from a
 trusted proxy: loopback, where Caddy runs, or an address named with `--trusted-proxy`. Anyone
@@ -57,10 +60,14 @@ else's header is ignored, so the server can also face the internet directly. Lim
 "Limits") count by that
 address, so a proxy elsewhere must be named or every client counts as the proxy.
 
-The gateway accepts `Be3-Gateway-Authorization` from native clients and, from browsers (whose
-WebSocket API can't set headers), a host-only cookie on `api.be3.pfg.pw` that visiting
-`https://api.be3.pfg.pw/` sets before redirecting to the web build. The public web bundle holds
-no gateway key. Because the page is on another origin, the proxy must allow the web build's
+be-server is not yet trusted to face the internet, so the gateway passes a request on only
+with the key, `API_GATEWAY_KEY` in `/mnt/data/secrets/gateway.env` on the server (made once, on
+the volume). It accepts `Be3-Gateway-Authorization` from native clients and, from browsers
+(whose WebSocket API can't set headers), the host-only cookie `be3_gateway` on `api.be3.pfg.pw`:
+the page at `https://api.be3.pfg.pw/` asks for the key, sets the cookie and goes on to the web
+build, and a browser sent anywhere else without it is sent to that page and back. Without the
+key everything else is 401. The public web bundle holds no gateway key; the tracker's CI has it
+as `BE3_TRACKER_AUTHORIZATION`, and `./scripts/be` as `BE3_AUTHORIZATION`. Because the page is on another origin, the proxy must allow the web build's
 exact origin with credentials and let preflights through without the cookie; any HTTP fetch
 added for API access must include credentials. The S3 endpoint, `/api/be/storage/*`
 (guides/blocks/server.md, "Objects over S3"), is the exception: its presigned URLs are fetched
@@ -82,7 +89,8 @@ phrase kept for decryption).
 
 Remote accounts are made only through the server's `/auth` portal: password sign-in needs
 `--allow-login`, registration also `--allow-registration` and an invite code. Codes are made on
-the VPS against the data directory, which works while the server runs:
+the server against the data directory (`sudo -u be-server /srv/be-server/be-server invite-code
+... --data-dir /mnt/data/be-server`), which works while the server runs:
 
 ```
 be-server invite-code create --data-dir DATA [--uses N] [--expires DAYS]   # prints the code once
@@ -206,7 +214,8 @@ especially).
 
 ## Backups and restoring
 
-Backups are scheduled on the host; `be-server --help` describes the commands.
+Nothing schedules backups yet: the volume is the only copy. `be-server --help` describes the
+commands; on the server, run them as `be-server` with the binary in `/srv/be-server`.
 
 - `be-server backup-key > backup.key` makes the key. Keep a copy off the VPS: without it nothing
   can be restored.
