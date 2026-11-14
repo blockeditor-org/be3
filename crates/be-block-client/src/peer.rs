@@ -1474,6 +1474,7 @@ impl<S: ObjectStore> Peer<S> {
     /// longer hold is left out (`still_in`). A block's references are put in its own order.
     async fn list_online(&self, listing: Listing) -> Result<(u64, Vec<BlockSummary>), ClientError> {
         let mut first_revision = None;
+        let mut last_revision;
         let mut after = None;
         // The listing in order: a summary given, or an id whose summary is read below.
         let mut entries: Vec<Result<BlockSummary, Uuid>> = Vec::new();
@@ -1486,6 +1487,7 @@ impl<S: ObjectStore> Peer<S> {
             .await?;
             let later = first_revision.is_some();
             first_revision.get_or_insert(page.revision);
+            last_revision = page.revision;
             entries.extend(
                 page.blocks
                     .into_iter()
@@ -1520,19 +1522,25 @@ impl<S: ObjectStore> Peer<S> {
             })
             .filter(|summary| seen.insert(summary.id))
             .collect();
-        // A block's references come in the order of their ids; the block lists their order.
+        // A block's references come in the order of their ids; the block's own summary, read
+        // without listing it, gives their order. Read after the pages, it is as new as any of
+        // them, so a block it no longer references has left the listing. (A summary older than
+        // the pages, as one kept offline would be, could miss a reference newly made: such
+        // blocks would go to the end rather than be dropped.)
         if let Listing::References(referrer) = listing
             && blocks.len() > 1
+            && let Some(summary) = self.read_summaries(&[referrer]).await?.pop()
         {
-            let order: HashMap<Uuid, usize> = self
-                .server_summary(referrer)
-                .await?
+            let order: HashMap<Uuid, usize> = summary
                 .references
-                .into_iter()
+                .iter()
                 .enumerate()
-                .map(|(index, reference)| (reference, index))
+                .map(|(index, reference)| (*reference, index))
                 .collect();
-            blocks.sort_by_key(|summary| order.get(&summary.id).copied().unwrap_or(usize::MAX));
+            if summary.revision >= last_revision {
+                blocks.retain(|block| order.contains_key(&block.id));
+            }
+            blocks.sort_by_key(|block| order.get(&block.id).copied().unwrap_or(usize::MAX));
         }
         Ok((first_revision.unwrap_or_default(), blocks))
     }

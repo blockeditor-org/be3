@@ -53,14 +53,18 @@ fn a_reference_change_carries_only_what_moved_and_rebuilds_the_list() {
         }],
     };
     assert_eq!(tolerant.apply(&ids(&[1, 2])), Some(ids(&[2, 1])));
-    // Any change `between` would not make is refused: adding one already there, naming one
-    // twice, or indices out of order.
     let placed = |index: u32, seed: u128| PlacedReference {
         index,
         block: Uuid::from_u128(seed),
     };
+    // Adding one the list already holds moves it to its index.
+    let readded = ReferenceChange {
+        removed: Vec::new(),
+        added: vec![placed(0, 2), placed(2, 9)],
+    };
+    assert_eq!(readded.apply(&ids(&[1, 2])), Some(ids(&[2, 1, 9])));
+    // A change `between` never makes is refused: naming one twice, or indices out of order.
     for added in [
-        vec![placed(0, 2)],
         vec![placed(0, 7), placed(1, 7)],
         vec![placed(1, 7), placed(0, 8)],
     ] {

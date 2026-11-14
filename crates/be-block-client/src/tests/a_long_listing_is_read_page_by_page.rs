@@ -60,6 +60,14 @@ async fn a_long_listing_is_read_page_by_page() {
     ))
     .await;
     assert!(referred.is_ok(), "{referred:?}");
+    let first = crate::ask(be_block_protocol::client::blocks::list_blocks(
+        &author.connection(),
+        Listing::References(referrer),
+        None,
+    ))
+    .await
+    .unwrap();
+    assert!(first.next.is_some(), "the references fit one page");
     let references: Vec<Uuid> = reader
         .list(Listing::References(referrer))
         .await

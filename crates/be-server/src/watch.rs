@@ -83,6 +83,24 @@ pub(crate) struct Facts {
 }
 
 impl Facts {
+    /// What a block's summary tells, given apart (`blocks::facts_of` reads it from the graph
+    /// without making a summary).
+    pub(crate) fn new(
+        parent: Option<BlockParent>,
+        held: bool,
+        entry: bool,
+        references: HashSet<Uuid>,
+        opens_inside: bool,
+    ) -> Self {
+        Self {
+            parent,
+            held,
+            entry,
+            references,
+            opens_inside,
+        }
+    }
+
     pub(crate) fn of(summary: &BlockSummary, entry: bool) -> Self {
         Self {
             parent: summary.parent,

@@ -438,6 +438,33 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
     })
 }
 
+/// What `summary_with` would tell a connection of `block` that decides which of its listings
+/// hold it, read from the graph without making the summary (its metadata and references).
+fn facts_of(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    block: Uuid,
+    entry: bool,
+) -> Option<crate::watch::Facts> {
+    let node = graph.get(block)?;
+    if !seen.access(graph, block).can_view() {
+        return Some(crate::watch::Facts::new(
+            None,
+            true,
+            entry,
+            HashSet::new(),
+            false,
+        ));
+    }
+    Some(crate::watch::Facts::new(
+        Some(node.parent),
+        graph.holds(block),
+        entry,
+        node.references.iter().copied().collect(),
+        node.is_open_inside() && graph.settings_owner(block).is_some(),
+    ))
+}
+
 impl ServerStore {
     #[allow(clippy::too_many_arguments)]
     pub async fn create_block(
@@ -1476,22 +1503,30 @@ impl ServerStore {
             let mut room = store.listing_page_bytes();
             let mut rest_room = room / 2;
             let mut ids = ids[start..].iter().copied().peekable();
+            // The first blocks, summarized while their summaries fit (at least one).
             while let Some(id) = ids.peek().copied() {
                 let summary = summary_with(graph, &seen, id).ok_or(ServerError::Corrupt)?;
                 let size = be_block_protocol::encoded_len(&summary);
-                if page.rest.is_empty() && (size <= room || page.blocks.is_empty()) {
-                    room = room.saturating_sub(size);
-                    told.push((id, crate::watch::Facts::of(&summary, entry)));
-                    page.blocks.push(summary);
-                } else {
-                    let size = be_block_protocol::encoded_len(&id);
-                    if size > rest_room {
-                        break;
-                    }
-                    rest_room -= size;
-                    told.push((id, crate::watch::Facts::of(&summary, entry)));
-                    page.rest.push(id);
+                if size > room && !page.blocks.is_empty() {
+                    break;
                 }
+                room = room.saturating_sub(size);
+                told.push((id, crate::watch::Facts::of(&summary, entry)));
+                page.blocks.push(summary);
+                ids.next();
+            }
+            // Then ids, with no summary made.
+            while let Some(id) = ids.peek().copied() {
+                let size = be_block_protocol::encoded_len(&id);
+                if size > rest_room {
+                    break;
+                }
+                rest_room -= size;
+                told.push((
+                    id,
+                    facts_of(graph, &seen, id, entry).ok_or(ServerError::Corrupt)?,
+                ));
+                page.rest.push(id);
                 ids.next();
             }
             if ids.peek().is_some() {

@@ -425,7 +425,8 @@ only the page's blocks): the summaries that fit in
 (`listed.rest`), and `listed.next` when it goes on, which the client passes
 back as `after` for the ids past it. A block that stays in the listing is on
 exactly one page, and one that joins or leaves between pages is told on
-`changes`. The hub records each page's blocks as told; the client reads
+`changes`. The hub records each page's blocks as told (`Facts`, read from the
+graph for `rest` ids, with no summary made); the client reads
 `rest`'s summaries with `read-summaries` (at most `MAX_SUMMARIES_ASKED` ids),
 which lists nothing. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
@@ -546,8 +547,9 @@ journals while they fit in a quarter of a frame.
 `MAX_METADATA_BYTES` and at most `MAX_REFERENCES` references (as many as an
 account may author blocks, so a folder of all of them still fits; refused past
 it by `create-block`, `set-metadata` and `publish`, which also refuses a
-`ReferenceChange` not shaped as `between` makes it, whose `apply` is one
-pass), so one summary fits a
+`ReferenceChange` `between` never makes, naming an added reference twice or
+with indices that do not increase; `apply` is one pass, and moves an added
+reference the list already holds, since a client diffs against its own view), so one summary fits a
 frame on its own (`LARGEST_SUMMARY_BYTES`, held by a const assertion).
 Answers of many summaries bound them by encoded size
 (`be_block_protocol::encoded_len`), not by count, and always take at least one,

@@ -82,3 +82,11 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   announces only what moved in its references (as `publish` sends a
   `ReferenceChange`), and a test adding thousands of entries to a watched
   folder sends bytes linear in them.
+- **What the hub keeps of a large folder.** `WatchHub` keeps, per connection,
+  the `Facts` of every block it told the connection of, references included
+  (`watch.rs`), so each connection listing or reading a folder of
+  `MAX_REFERENCES` entries holds a copy of its whole reference set beside the
+  graph's. Done: the hub reads references from the graph when it matches a
+  change, keeping only what the connection was told that the graph cannot
+  answer, and a server test shows its memory per connection does not grow with
+  a folder's references.

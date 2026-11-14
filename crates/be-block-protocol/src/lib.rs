@@ -192,30 +192,27 @@ impl ReferenceChange {
     }
 
     /// `before` without what was removed, with each added reference put in at its index (or at
-    /// the end, past it), in one pass. Only a change shaped as `between` makes one applies:
-    /// each added reference new to what is left of `before` and named once, at indices that
-    /// increase; any other is none, and a server refuses it. Removing a reference `before` lacks
-    /// changes nothing.
+    /// the end, past it), in one pass. An added reference `before` already holds moves to its
+    /// index, since a client diffs against its own view of the list, which may already hold it;
+    /// removing one `before` lacks changes nothing. A change `between` never makes, naming an
+    /// added reference twice or with indices that do not increase, is none, and a server
+    /// refuses it.
     pub fn apply(&self, before: &[Uuid]) -> Option<Vec<Uuid>> {
-        let removed: std::collections::HashSet<_> = self.removed.iter().collect();
-        let kept: Vec<Uuid> = before
-            .iter()
-            .filter(|reference| !removed.contains(reference))
-            .copied()
-            .collect();
-        let added: std::collections::HashSet<Uuid> =
-            self.added.iter().map(|placed| placed.block).collect();
-        let canonical = added.len() == self.added.len()
+        let mut added = std::collections::HashSet::with_capacity(self.added.len());
+        let canonical = self.added.iter().all(|placed| added.insert(placed.block))
             && self
                 .added
                 .windows(2)
-                .all(|pair| pair[0].index < pair[1].index)
-            && !kept.iter().any(|reference| added.contains(reference));
+                .all(|pair| pair[0].index < pair[1].index);
         if !canonical {
             return None;
         }
-        let mut merged = Vec::with_capacity(kept.len() + self.added.len());
-        let mut kept = kept.into_iter();
+        let gone: std::collections::HashSet<&Uuid> = self.removed.iter().chain(&added).collect();
+        let mut kept = before
+            .iter()
+            .filter(|reference| !gone.contains(reference))
+            .copied();
+        let mut merged = Vec::with_capacity(before.len() + self.added.len());
         for placed in &self.added {
             let index = usize::try_from(placed.index).unwrap_or(usize::MAX);
             while merged.len() < index
