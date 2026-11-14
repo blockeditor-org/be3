@@ -234,13 +234,13 @@ fn navigate(state: State, press: KeyPress) -> bool {
     let current = cursor_range(state).start;
     let modifiers = press.modifiers;
     let target = match press.key {
+        Key::ArrowUp | Key::Home if modifiers.ctrl => 0,
+        Key::ArrowDown | Key::End if modifiers.ctrl => len,
         Key::ArrowLeft => current.saturating_sub(1),
         Key::ArrowRight => (current + 1).min(len),
         Key::ArrowUp => current.saturating_sub(BYTES_PER_ROW),
         Key::ArrowDown => (current + BYTES_PER_ROW).min(len),
-        Key::Home if modifiers.ctrl => 0,
         Key::Home => current - current % BYTES_PER_ROW,
-        Key::End if modifiers.ctrl => len,
         Key::End => (current - current % BYTES_PER_ROW + BYTES_PER_ROW - 1).min(len),
         Key::PageUp => current.saturating_sub(BYTES_PER_ROW * PAGE_ROWS),
         Key::PageDown => (current + BYTES_PER_ROW * PAGE_ROWS).min(len),

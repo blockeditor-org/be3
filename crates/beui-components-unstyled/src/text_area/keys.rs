@@ -103,7 +103,9 @@ fn command(cx: &Context, press: KeyPress) -> bool {
                 false => MoveMode::Move,
             },
             direction,
-            stop: if matches!(press.key, Key::Home | Key::End) {
+            stop: if matches!(press.key, Key::Home | Key::End) && modifiers.ctrl {
+                CursorLeftRightStop::Document
+            } else if matches!(press.key, Key::Home | Key::End) {
                 CursorLeftRightStop::Line
             } else if modifiers.alt || modifiers.ctrl {
                 CursorLeftRightStop::Word
@@ -121,6 +123,19 @@ fn command(cx: &Context, press: KeyPress) -> bool {
         };
         if modifiers.alt && modifiers.ctrl {
             state.move_by_row(direction, VerticalMoveMode::Duplicate);
+        } else if modifiers.ctrl {
+            // Cmd+Up and Cmd+Down on Apple's systems, where Command is `ctrl`.
+            state.execute(EditorCommand::MoveCursorLeftRight {
+                mode: match modifiers.shift {
+                    true => MoveMode::Select,
+                    false => MoveMode::Move,
+                },
+                direction: match direction {
+                    UDDirection::Up => LRDirection::Left,
+                    UDDirection::Down => LRDirection::Right,
+                },
+                stop: CursorLeftRightStop::Document,
+            });
         } else if modifiers.alt {
             state.execute(EditorCommand::SelectSyntaxNode(
                 match direction == UDDirection::Up {
