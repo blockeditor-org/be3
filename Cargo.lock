@@ -3248,6 +3248,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "accesskit_android",
+ "base64 0.22.1",
  "beui-core",
  "beui-runner",
  "beui-types",
@@ -3257,6 +3258,7 @@ dependencies = [
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
  "raw-window-handle",
+ "uuid",
 ]
 
 [[package]]
