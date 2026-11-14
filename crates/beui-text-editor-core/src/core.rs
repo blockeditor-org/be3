@@ -978,6 +978,13 @@ impl Core {
                 classification = UndoClassification::AlwaysSplit;
             } else {
                 let focus = cursor.pos.focus.resolve(&document);
+                // At a line's edge a delete to it takes the line break, not the next line.
+                let stop = match stop == CursorLeftRightStop::Line
+                    && at_line_edge(document.bytes(), focus, direction)
+                {
+                    true => CursorLeftRightStop::UnicodeGraphemeCluster,
+                    false => stop,
+                };
                 let moved = to_boundary(
                     document.bytes(),
                     focus,

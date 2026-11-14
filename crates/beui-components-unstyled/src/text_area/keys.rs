@@ -138,11 +138,7 @@ fn command(cx: &Context, press: KeyPress) -> bool {
                 Key::Backspace => LRDirection::Left,
                 _ => LRDirection::Right,
             },
-            stop: if modifiers.alt || modifiers.ctrl {
-                CursorLeftRightStop::Word
-            } else {
-                CursorLeftRightStop::UnicodeGraphemeCluster
-            },
+            stop: delete_stop(press, apple_keys()),
         }),
         Key::Enter if command => state.execute(EditorCommand::InsertLine(match modifiers.shift {
             true => UDDirection::Up,
@@ -217,6 +213,17 @@ pub fn caret_key(press: KeyPress, apple: bool) -> Option<CaretKey> {
         Key::ArrowUp => vertical(UDDirection::Up),
         Key::ArrowDown => vertical(UDDirection::Down),
         _ => None,
+    }
+}
+
+/// How far Backspace or Delete reaches, on Apple's systems (`apple`) or elsewhere:
+/// Alt, and Ctrl elsewhere, take a word; Apple's Cmd takes the rest of the line.
+pub fn delete_stop(press: KeyPress, apple: bool) -> CursorLeftRightStop {
+    let modifiers = press.modifiers;
+    match () {
+        _ if apple && modifiers.ctrl => CursorLeftRightStop::Line,
+        _ if modifiers.alt || modifiers.ctrl => CursorLeftRightStop::Word,
+        _ => CursorLeftRightStop::UnicodeGraphemeCluster,
     }
 }
 

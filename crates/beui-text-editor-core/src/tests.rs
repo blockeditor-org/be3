@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::*;
 
+mod a_delete_to_the_lines_edge_takes_only_the_break_when_already_there;
 mod a_long_fenced_block_stays_code_wherever_it_is_read;
 mod atomic_units_are_single_cursor_units;
 mod changes_since_coalesce_the_edits_after_a_revision;

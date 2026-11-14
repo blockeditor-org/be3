@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::text_area::keys::{CaretKey, caret_key};
+use crate::unstyled::text_area::keys::{CaretKey, caret_key, delete_stop};
 use beui_text_editor_core::{CursorLeftRightStop, LRDirection, UDDirection};
 
 fn press(key: Key, modifiers: Modifiers) -> KeyPress {
@@ -54,4 +54,15 @@ fn text_area_caret_keys_follow_apples_conventions_there_and_ctrls_elsewhere() {
             Some(CaretKey::Row(UDDirection::Down))
         )
     );
+
+    // Cmd+Backspace and Cmd+Delete take the rest of the line on Apple's systems; Ctrl takes a word elsewhere.
+    for key in [Key::Backspace, Key::Delete] {
+        let stop = |modifiers, apple| delete_stop(press(key, modifiers), apple);
+        assert_eq!((stop(ctrl, true), stop(ctrl, false)), (Line, Word));
+        assert_eq!((stop(alt, true), stop(alt, false)), (Word, Word));
+        assert_eq!(
+            stop(Modifiers::NONE, true),
+            CursorLeftRightStop::UnicodeGraphemeCluster
+        );
+    }
 }

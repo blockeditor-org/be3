@@ -41,7 +41,8 @@ control's exact keys are in its code and tests. The patterns that span them:
   word too and Ctrl+Up and Ctrl+Down by row; on Apple's systems Cmd+Left and
   Cmd+Right go to the line's ends and Cmd+Up and Cmd+Down to the document's
   (`text_area::keys::caret_key`; the hex view follows it). Shift extends the
-  selection with any of them.
+  selection with any of them. Backspace and Delete take a word with Alt, and
+  with Ctrl elsewhere; Cmd takes the rest of the line (`delete_stop`).
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
 - The inspector is a document of its own; Ctrl+Shift+F moves the focus into
