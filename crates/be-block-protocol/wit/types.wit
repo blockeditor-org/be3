@@ -32,7 +32,6 @@ interface types {
         parent-cycle,
         storage,
         organization-not-found,
-        invitation-not-found,
         login-disabled,
         block-has-content,
         key-missing,
@@ -44,9 +43,9 @@ interface types {
         over-quota,
         /// A sign-in was polled sooner than its interval allows.
         slow-down,
-        /// No agent of the caller's has that account: it was removed, or
-        /// collected with its block.
-        agent-not-found,
+        /// No member the caller may remove has that account: it was removed,
+        /// an agent collected with its block, or never a member.
+        member-not-found,
     }
 
     /// A connection, as the server numbers them; a session's participants and
@@ -55,8 +54,6 @@ interface types {
 
     /// A key a client minted: a data, scope or escrow key.
     type key-id = uuid;
-
-    type invitation-id = uuid;
 
     type link-id = uuid;
 

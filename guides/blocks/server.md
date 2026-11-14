@@ -558,17 +558,25 @@ reach it (`store/portal.rs`). Resets need no global cap: at most three per
 account. A reset for an email with no account does the same work, counts
 against the address and a separate cap of its own, and sends nothing. `Be3-Gateway-Authorization` is left to a gateway in front.
 
-An administrator `Invite`s an email under an id the inviting client picks;
-only an account with that email can read or accept it, once, and the id
-reaches the invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and devices").
+Contact links and invitations are one table, `links`, and one set of calls
+(`create-link`, `get-link`, `accept-link`, `list-links`, `delete-link`;
+guides/blocks/keys.md, "Contacts"). An administrator invites an email with a
+link of kind `invitation` under an id the inviting client picks; only an
+account with that email can read or accept it, once, and the id reaches the
+invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and
+devices"). Its inviter lists it and revokes it as any link of its own.
 `CreateAgent` makes a passwordless editor account with a token
-(guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator; only its
-creator lists, rotates the token of (`RotateAgentToken`, which revokes every
-older one) or removes it. One `bound-to` a block is that block's agent
-(guides/tracker.md, A block's agent): `Identity::bound` limits what it
-reaches, `client::bound_may` what it may call, and `WatchHub::go_live` keeps
-one connection of it open. Accepting an
-invitation, or creating an agent, makes the two accounts contacts.
+(guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator. Agents are
+members: `list-members` names an agent's creator (`created-by`) and, for a
+block's agent, its block (`bound-to`), and lists every member to an
+administrator but only the agents it made to anyone else; `remove-member`
+removes any member for an administrator and an agent for its creator, deleting
+an agent's account, and tells the organization's key work as any removal does.
+Only its creator rotates its token (`RotateAgentToken`, which revokes every
+older one). One `bound-to` a block is that block's agent (guides/tracker.md, A
+block's agent): `Identity::bound` limits what it reaches, `client::bound_may`
+what it may call, and `WatchHub::go_live` keeps one connection of it open.
+Accepting a link, or creating an agent, makes the two accounts contacts.
 
 ### Notifications
 

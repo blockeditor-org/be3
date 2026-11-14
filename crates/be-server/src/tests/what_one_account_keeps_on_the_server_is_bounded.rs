@@ -69,19 +69,20 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         for index in 0..MAX_CONTACT_LINKS_PER_ACCOUNT {
             transaction
                 .execute(
-                    "INSERT INTO contact_links (id, owner_id, card, code) VALUES (?1, ?2, x'', x'')",
+                    "INSERT INTO links (id, owner_id, card, code) VALUES (?1, ?2, x'', x'')",
                     params![Uuid::new_v4().to_string(), account.to_string()],
                 )
                 .unwrap();
             transaction
                 .execute(
-                    "INSERT INTO invitations (id, organization_id, email, role, invited_by)
-                     VALUES (?1, ?2, ?3, 'editor', ?4)",
+                    "INSERT INTO links (id, owner_id, card, code, invite_organization, invite_email,
+                                        invite_role)
+                     VALUES (?1, ?2, x'', x'', ?3, ?4, 'editor')",
                     params![
                         Uuid::new_v4().to_string(),
+                        account.to_string(),
                         organization.to_string(),
-                        format!("{index}@example.com"),
-                        account.to_string()
+                        format!("{index}@example.com")
                     ],
                 )
                 .unwrap();
@@ -133,32 +134,40 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         .unwrap();
     refused(
         store
-            .create_contact_link(account, Uuid::new_v4(), Vec::new(), Vec::new(), None)
+            .create_link(
+                account,
+                Uuid::new_v4(),
+                Vec::new(),
+                Vec::new(),
+                be_block_protocol::LinkKind::Contact(None),
+            )
             .await,
         ErrorCode::OverQuota,
     );
     refused(
         store
-            .create_contact_link(
+            .create_link(
                 account,
                 Uuid::new_v4(),
                 vec![0; MAX_SEALED_BYTES + 1],
                 Vec::new(),
-                None,
+                be_block_protocol::LinkKind::Contact(None),
             )
             .await,
         ErrorCode::InvalidRequest,
     );
     let invite = |email: &'static str| {
-        store.invite(
+        store.create_link(
             account,
             Uuid::new_v4(),
-            organization,
-            email,
-            OrganizationRole::Editor,
             Vec::new(),
             Vec::new(),
-            Vec::new(),
+            be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                organization,
+                email: email.into(),
+                role: OrganizationRole::Editor,
+                escrow: Vec::new(),
+            }),
         )
     };
     refused(invite("new@example.com").await, ErrorCode::OverQuota);

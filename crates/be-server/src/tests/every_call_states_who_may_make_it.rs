@@ -91,35 +91,9 @@ impl TestClient {
                 answered(client::organizations::create_organization(peer, "mine".into()).await),
             ),
             (
-                "invite",
+                "create-link (invitation)",
                 answered(
-                    client::organizations::invite(
-                        peer,
-                        other,
-                        organization,
-                        "invited@example.com".into(),
-                        OrganizationRole::Administrator,
-                        sealed(),
-                        sealed(),
-                        sealed(),
-                    )
-                    .await,
-                ),
-            ),
-            (
-                "get-invitation",
-                answered(client::organizations::get_invitation(peer, other).await),
-            ),
-            (
-                "accept-invitation",
-                answered(
-                    client::organizations::accept_invitation(
-                        peer,
-                        other,
-                        sealed(),
-                        sealed(),
-                        sealed(),
-                    )
+                    client::contacts::create_link(peer, other, sealed(), sealed(), be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation { organization, email: "invited@example.com".into(), role: OrganizationRole::Administrator, escrow: sealed() }))
                     .await,
                 ),
             ),
@@ -154,32 +128,24 @@ impl TestClient {
                 ),
             ),
             (
-                "list-agents",
-                answered(client::members::list_agents(peer, organization).await),
-            ),
-            (
                 "rotate-agent-token",
                 answered(client::members::rotate_agent_token(peer, organization, other).await),
             ),
             (
-                "remove-agent",
-                answered(client::members::remove_agent(peer, organization, other).await),
-            ),
-            (
-                "create-contact-link",
+                "create-link",
                 answered(
-                    client::contacts::create_contact_link(peer, other, sealed(), sealed(), None)
+                    client::contacts::create_link(peer, other, sealed(), sealed(), be_block_protocol::LinkKind::Contact(None))
                         .await,
                 ),
             ),
             (
-                "get-contact-link",
-                answered(client::contacts::get_contact_link(peer, other).await),
+                "get-link",
+                answered(client::contacts::get_link(peer, other).await),
             ),
             (
-                "accept-contact-link",
+                "accept-link",
                 answered(
-                    client::contacts::accept_contact_link(
+                    client::contacts::accept_link(
                         peer,
                         other,
                         sealed(),
@@ -190,12 +156,12 @@ impl TestClient {
                 ),
             ),
             (
-                "list-contact-links",
-                answered(client::contacts::list_contact_links(peer).await),
+                "list-links",
+                answered(client::contacts::list_links(peer).await),
             ),
             (
-                "delete-contact-link",
-                answered(client::contacts::delete_contact_link(peer, other).await),
+                "delete-link",
+                answered(client::contacts::delete_link(peer, other).await),
             ),
             (
                 "put-contact",

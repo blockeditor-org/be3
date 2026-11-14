@@ -19,13 +19,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            client::contacts::create_contact_link(
-                peer,
-                link,
-                honest.seal(&code, CardRole::Owner),
-                Vec::new(),
-                None,
-            )
+            client::contacts::create_link(peer, link, honest.seal(&code, CardRole::Owner), Vec::new(), be_block_protocol::LinkKind::Contact(None))
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -37,7 +31,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
     let database = rusqlite::Connection::open(harness.directory.join("metadata.sqlite")).unwrap();
     database
         .execute(
-            "UPDATE contact_links SET card = ?1 WHERE id = ?2",
+            "UPDATE links SET card = ?1 WHERE id = ?2",
             rusqlite::params![
                 forged.seal(&InviteCode::generate(), CardRole::Owner),
                 link.to_string()
@@ -46,7 +40,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
         .unwrap();
 
     let Ok(found) = other
-        .call(|peer| client::contacts::get_contact_link(peer, link))
+        .call(|peer| client::contacts::get_link(peer, link))
         .await
     else {
         panic!("the link could not be read");

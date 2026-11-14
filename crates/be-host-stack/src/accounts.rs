@@ -1,5 +1,5 @@
 use be_block_client::{ClientError, Connection, ask};
-use be_block_protocol::{Authenticated, ErrorCode, Organization, OrganizationInvitation, client};
+use be_block_protocol::{Authenticated, ErrorCode, Invitation, LinkKind, Organization, client};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -261,17 +261,31 @@ impl Me {
     }
 }
 
+/// An invitation into an organization, as the invited account reads it.
+#[derive(Clone, Debug)]
+pub struct Invited {
+    pub organization_name: String,
+    pub invitation: Invitation,
+}
+
+/// The invitation `code` opens; a contact link's code is refused as not one.
 pub async fn invitation(
     server_url: String,
     token: String,
     code: be_block_keys::InviteCode,
-) -> Result<OrganizationInvitation, AccountError> {
+) -> Result<Invited, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(be_block_client::contacts::invitation(&connection, &code)
-        .await?
-        .0)
+    let (link, _) = be_block_client::contacts::open_link(&connection, &code).await?;
+    match link.kind {
+        LinkKind::Invitation(invitation) => Ok(Invited {
+            organization_name: link.organization_name,
+            invitation,
+        }),
+        LinkKind::Contact(_) => Err(not_an_invitation()),
+    }
 }
 
+/// Accepts the invitation `code` opens; answers the organization joined.
 pub async fn accept_invitation(
     server_url: String,
     token: String,
@@ -279,10 +293,25 @@ pub async fn accept_invitation(
     code: be_block_keys::InviteCode,
 ) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let invitation =
-        be_block_client::contacts::accept_invitation(&connection, &me.secret(), &me.card(), &code)
+    if let (LinkKind::Contact(_), _) =
+        be_block_client::contacts::open_link(&connection, &code).await?
+    {
+        return Err(not_an_invitation());
+    }
+    let (link, _) =
+        be_block_client::contacts::accept_link(&connection, &me.secret(), &me.card(), &code)
             .await?;
-    Ok(invitation.organization)
+    match link.kind {
+        LinkKind::Invitation(invitation) => Ok(invitation.organization),
+        LinkKind::Contact(_) => Err(not_an_invitation()),
+    }
+}
+
+fn not_an_invitation() -> AccountError {
+    AccountError {
+        message: "That is a contact link, not an invitation: open it from Contacts.".into(),
+        invalid_token: false,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -310,31 +339,6 @@ impl AgentCredentials {
         }
         bundle.to_string()
     }
-}
-
-pub async fn agents(
-    server_url: String,
-    token: String,
-    organization: Uuid,
-) -> Result<Vec<be_block_protocol::Agent>, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::members::list_agents(&connection, organization)).await?)
-}
-
-pub async fn remove_agent(
-    server_url: String,
-    token: String,
-    organization: Uuid,
-    account: Uuid,
-) -> Result<(), AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    ask(client::members::remove_agent(
-        &connection,
-        organization,
-        account,
-    ))
-    .await?;
-    Ok(())
 }
 
 #[derive(Clone, Debug, Default)]

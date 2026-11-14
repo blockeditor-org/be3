@@ -43,22 +43,27 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     assert!(sealed.is_empty());
 
     let response = owner
-        .call(|peer| client::members::list_agents(peer, organization))
+        .call(|peer| client::members::list_members(peer))
         .await;
-    let Ok(agents) = response else {
-        panic!("listing agents failed: {response:?}");
+    let Ok(members) = response else {
+        panic!("listing members failed: {response:?}");
     };
-    assert_eq!(agents, [agent.clone()]);
+    assert!(
+        members.iter().any(|member| member.account == agent.account
+            && member.created_by.is_some()
+            && member.bound_to.is_none()),
+        "the agent is a member its creator made: {members:?}"
+    );
 
     let response = owner
-        .call(|peer| client::members::remove_agent(peer, organization, agent.account))
+        .call(|peer| client::members::remove_member(peer, agent.account))
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let response = owner
-        .call(|peer| client::members::remove_agent(peer, organization, agent.account))
+        .call(|peer| client::members::remove_member(peer, agent.account))
         .await;
     assert!(
-        refused_as(&response, ErrorCode::AgentNotFound),
+        refused_as(&response, ErrorCode::MemberNotFound),
         "an agent removed already is not found: {response:?}"
     );
     let mut again = harness.client().await;

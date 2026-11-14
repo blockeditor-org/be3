@@ -200,7 +200,7 @@ impl Harness {
         .await
         .unwrap();
         let theirs = crate::contacts::card(own.account(), own.keys().identity(), email, email);
-        crate::contacts::accept_invitation(
+        crate::contacts::accept_link(
             &own.connection(),
             own.keys().identity(),
             &theirs,

@@ -6,8 +6,8 @@ use be_block_keys::{
 use std::collections::HashMap;
 
 use be_block_protocol::{
-    ContactLink, ErrorCode, EscrowKey, KeyChange, OrganizationInvitation, OrganizationRole,
-    OwnKind, OwnSealed, PendingGrant, SealedKey, client,
+    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OrganizationRole, OwnKind,
+    OwnSealed, PendingGrant, SealedKey, client,
 };
 use uuid::Uuid;
 
@@ -278,22 +278,23 @@ pub async fn make_link(
         key: offer.key,
         sealed: code.seal_grant(offer.key.into_bytes(), &offer.secret),
     });
-    client::contacts::create_contact_link(
+    client::contacts::create_link(
         connection,
         link_id(&code),
         me.seal(&code, CardRole::Owner),
         identity.seal_own(&code.to_bytes()),
-        grant,
+        LinkKind::Contact(grant),
     )
     .await??;
     Ok(code)
 }
 
+/// A link of either kind, and its owner's card opened with the code.
 pub async fn open_link(
     connection: &Arc<Connection>,
     code: &InviteCode,
-) -> Result<(ContactLink, ContactCard), ClientError> {
-    let link = client::contacts::get_contact_link(connection, link_id(code)).await??;
+) -> Result<(Link, ContactCard), ClientError> {
+    let link = client::contacts::get_link(connection, link_id(code)).await??;
     let card = ContactCard::open(code, CardRole::Owner, &link.card).map_err(|_| tampered())?;
     if card.account != link.owner.into_bytes() {
         return Err(tampered());
@@ -301,15 +302,17 @@ pub async fn open_link(
     Ok((link, card))
 }
 
+/// Accepts a link of either kind: a contact link's grant, or an invitation's escrow key, is
+/// sealed to `identity` as it is taken.
 pub async fn accept_link(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     code: &InviteCode,
-) -> Result<ContactCard, ClientError> {
+) -> Result<(Link, ContactCard), ClientError> {
     let (link, card) = open_link(connection, code).await?;
-    let key = match &link.grant {
-        Some(grant) => {
+    let key = match &link.kind {
+        LinkKind::Contact(Some(grant)) => {
             let secret = code
                 .open_grant(grant.key.into_bytes(), &grant.sealed)
                 .map_err(|_| tampered())?;
@@ -319,9 +322,18 @@ pub async fn accept_link(
             };
             identity.seal_for(me.account, &mine, grant.key.as_bytes(), &secret)
         }
-        None => Vec::new(),
+        LinkKind::Contact(None) => Vec::new(),
+        LinkKind::Invitation(invitation) if invitation.escrow.is_empty() => Vec::new(),
+        LinkKind::Invitation(invitation) => {
+            let opened = code
+                .open_escrow(invitation.organization.into_bytes(), &invitation.escrow)
+                .ok()
+                .and_then(|bytes| EscrowKey::decode(&bytes))
+                .ok_or_else(tampered)?;
+            seal_pin(identity, invitation.organization, &opened)
+        }
     };
-    client::contacts::accept_contact_link(
+    client::contacts::accept_link(
         connection,
         link.id,
         me.seal(code, CardRole::Accepter),
@@ -329,7 +341,7 @@ pub async fn accept_link(
         key,
     )
     .await??;
-    Ok(card)
+    Ok((link, card))
 }
 
 pub async fn finish_links(
@@ -337,7 +349,7 @@ pub async fn finish_links(
     identity: &RecoverySecret,
     organization: Uuid,
 ) -> Result<Vec<Finished>, ClientError> {
-    let links = client::contacts::list_contact_links(connection).await??;
+    let links = client::contacts::list_links(connection).await??;
     let mut finished = Vec::new();
     for link in links {
         let Some(accepter) = link.accepter else {
@@ -363,19 +375,19 @@ pub async fn finish_links(
                 Err(error) => return Err(error),
             }
         }
-        let elsewhere = link
-            .grant
+        let grant = match link.kind {
+            LinkKind::Contact(grant) => grant,
+            LinkKind::Invitation(_) => None,
+        };
+        let elsewhere = grant
             .as_ref()
             .is_some_and(|grant| grant.organization != organization);
         if kept && elsewhere {
             continue;
         }
-        client::contacts::delete_contact_link(connection, link.id).await??;
+        client::contacts::delete_link(connection, link.id).await??;
         if let Some(card) = opened.filter(|_| kept) {
-            finished.push(Finished {
-                card,
-                grant: link.grant,
-            });
+            finished.push(Finished { card, grant });
         }
     }
     Ok(finished)
@@ -389,6 +401,7 @@ pub async fn remove_contact(
     Ok(())
 }
 
+/// Invites `email` into `organization` with `role`: a link only that account accepts.
 pub async fn invite(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
@@ -402,58 +415,18 @@ pub async fn invite(
     let escrow = escrow.map_or_else(Vec::new, |escrow| {
         code.seal_escrow(organization.into_bytes(), &escrow.encode())
     });
-    client::organizations::invite(
+    client::contacts::create_link(
         connection,
         link_id(&code),
-        organization,
-        email,
-        role,
         me.seal(&code, CardRole::Owner),
         identity.seal_own(&code.to_bytes()),
-        escrow,
+        LinkKind::Invitation(Invitation {
+            organization,
+            email,
+            role,
+            escrow,
+        }),
     )
     .await??;
     Ok(code)
-}
-
-pub async fn invitation(
-    connection: &Arc<Connection>,
-    code: &InviteCode,
-) -> Result<(OrganizationInvitation, ContactCard), ClientError> {
-    let invitation = client::organizations::get_invitation(connection, link_id(code)).await??;
-    let card =
-        ContactCard::open(code, CardRole::Owner, &invitation.sealed).map_err(|_| tampered())?;
-    if card.account != invitation.invited_by.into_bytes() {
-        return Err(tampered());
-    }
-    Ok((invitation, card))
-}
-
-pub async fn accept_invitation(
-    connection: &Arc<Connection>,
-    identity: &RecoverySecret,
-    me: &ContactCard,
-    code: &InviteCode,
-) -> Result<OrganizationInvitation, ClientError> {
-    let (invitation, card) = invitation(connection, code).await?;
-    let escrow = match invitation.escrow.is_empty() {
-        true => Vec::new(),
-        false => {
-            let opened = code
-                .open_escrow(invitation.organization.into_bytes(), &invitation.escrow)
-                .ok()
-                .and_then(|bytes| EscrowKey::decode(&bytes))
-                .ok_or_else(tampered)?;
-            seal_pin(identity, invitation.organization, &opened)
-        }
-    };
-    client::organizations::accept_invitation(
-        connection,
-        invitation.id,
-        me.seal(code, CardRole::Accepter),
-        card.seal_own(identity),
-        escrow,
-    )
-    .await??;
-    Ok(invitation)
 }

@@ -16,16 +16,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     let invitation = Uuid::from_u128(7);
     let response = owner
         .call(|peer| {
-            client::organizations::invite(
-                peer,
-                invitation,
-                organization,
-                "guest@example.com".into(),
-                OrganizationRole::Editor,
-                b"sealed to the invite code".to_vec(),
-                Vec::new(),
-                Vec::new(),
-            )
+            client::contacts::create_link(peer, invitation, b"sealed to the invite code".to_vec(), Vec::new(), be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation { organization, email: "guest@example.com".into(), role: OrganizationRole::Editor, escrow: Vec::new() }))
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -33,12 +24,12 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     let mut outsider = harness.member("outsider@example.com").await;
     for refused in [
         outsider
-            .call(|peer| client::organizations::get_invitation(peer, invitation))
+            .call(|peer| client::contacts::get_link(peer, invitation))
             .await
             .map(|_| ()),
         outsider
             .call(|peer| {
-                client::organizations::accept_invitation(
+                client::contacts::accept_link(
                     peer,
                     invitation,
                     Vec::new(),
@@ -55,17 +46,17 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     }
 
     let fetched = guest
-        .call(|peer| client::organizations::get_invitation(peer, invitation))
+        .call(|peer| client::contacts::get_link(peer, invitation))
         .await;
     let Ok(found) = fetched else {
         panic!("reading the invitation failed: {fetched:?}");
     };
     assert_eq!(found.organization_name, "shared");
-    assert_eq!(found.sealed, b"sealed to the invite code");
+    assert_eq!(found.card, b"sealed to the invite code");
 
     let response = guest
         .call(|peer| {
-            client::organizations::accept_invitation(
+            client::contacts::accept_link(
                 peer,
                 invitation,
                 Vec::new(),
@@ -77,7 +68,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     assert!(matches!(response, Ok(())), "{response:?}");
     guest.open(organization).await;
     let again = guest
-        .call(|peer| client::organizations::get_invitation(peer, invitation))
+        .call(|peer| client::contacts::get_link(peer, invitation))
         .await;
     assert!(
         matches!(again, Err(_)),

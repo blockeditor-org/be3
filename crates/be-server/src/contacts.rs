@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use be_block_graph::Access;
 use be_block_protocol::{
-    ContactLink, ContactRow, ErrorCode, KeyKind, OwnContactLink, OwnKind, OwnSealed, PendingGrant,
-    WrappedBy,
+    ContactRow, ErrorCode, Invitation, KeyKind, Link, LinkKind, OrganizationRole, OwnKind, OwnLink,
+    OwnSealed, PendingGrant, WrappedBy,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -13,7 +13,8 @@ use crate::{
     blocks::{visibility, write_grant},
     keys::{encode_wrapped_by, key_row},
     store::{
-        Identity, ServerStore, decode_access, decode_role, encode_access, is_member_of, parse_uuid,
+        Identity, ServerStore, decode_access, decode_role, encode_access, encode_role,
+        is_member_of, normalize_email, parse_uuid,
     },
 };
 
@@ -31,7 +32,7 @@ pub struct Granted {
 fn link_not_found() -> ServerError {
     ServerError::Refused(
         ErrorCode::LinkNotFound,
-        "that contact link does not exist, or was already used".into(),
+        "that link does not exist, or was already used".into(),
     )
 }
 
@@ -132,11 +133,7 @@ pub(crate) fn own_sealed(
         ),
         (
             OwnKind::Link,
-            "SELECT id, code FROM contact_links WHERE owner_id = ?1 AND length(code) > 0",
-        ),
-        (
-            OwnKind::Link,
-            "SELECT id, code FROM invitations WHERE invited_by = ?1 AND length(code) > 0",
+            "SELECT id, code FROM links WHERE owner_id = ?1 AND length(code) > 0",
         ),
         (
             OwnKind::Escrow,
@@ -174,11 +171,7 @@ pub(crate) fn reseal_own(
         }
         OwnKind::Link => {
             connection.execute(
-                "UPDATE contact_links SET code = ?3 WHERE owner_id = ?1 AND id = ?2",
-                params![account, id, resealed.sealed],
-            )?;
-            connection.execute(
-                "UPDATE invitations SET code = ?3 WHERE invited_by = ?1 AND id = ?2",
+                "UPDATE links SET code = ?3 WHERE owner_id = ?1 AND id = ?2",
                 params![account, id, resealed.sealed],
             )?;
         }
@@ -225,7 +218,7 @@ struct StoredLink {
     owner: Uuid,
     card: Vec<u8>,
     code: Vec<u8>,
-    grant: Option<PendingGrant>,
+    kind: LinkKind,
     accepter: Option<Uuid>,
     accepter_card: Vec<u8>,
 }
@@ -234,55 +227,65 @@ fn stored_link(connection: &Connection, link: Uuid) -> Result<Option<StoredLink>
     let row = connection
         .query_row(
             "SELECT owner_id, card, code, grant_organization, grant_block, grant_access,
-                    grant_key, grant_sealed, accepter_id, accepter_card
-             FROM contact_links WHERE id = ?1",
+                    grant_key, grant_sealed, invite_organization, invite_email, invite_role,
+                    invite_escrow, accepter_id, accepter_card
+             FROM links WHERE id = ?1",
             [link.to_string()],
             |row| {
                 Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, Vec<u8>>(1)?,
-                    row.get::<_, Vec<u8>>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, Vec<u8>>(7)?,
-                    row.get::<_, String>(8)?,
-                    row.get::<_, Vec<u8>>(9)?,
+                    (
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Vec<u8>>(1)?,
+                        row.get::<_, Vec<u8>>(2)?,
+                    ),
+                    (
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                        row.get::<_, String>(6)?,
+                        row.get::<_, Vec<u8>>(7)?,
+                    ),
+                    (
+                        row.get::<_, String>(8)?,
+                        row.get::<_, String>(9)?,
+                        row.get::<_, String>(10)?,
+                        row.get::<_, Vec<u8>>(11)?,
+                    ),
+                    (row.get::<_, String>(12)?, row.get::<_, Vec<u8>>(13)?),
                 ))
             },
         )
         .optional()?;
     let Some((
-        owner,
-        card,
-        code,
-        organization,
-        block,
-        access,
-        key,
-        sealed,
-        accepter,
-        accepter_card,
+        (owner, card, code),
+        (organization, block, access, key, sealed),
+        (invited_to, email, role, escrow),
+        (accepter, accepter_card),
     )) = row
     else {
         return Ok(None);
     };
-    let grant = match organization.is_empty() {
-        true => None,
-        false => Some(PendingGrant {
+    let kind = match (invited_to.is_empty(), organization.is_empty()) {
+        (false, _) => LinkKind::Invitation(Invitation {
+            organization: parse_uuid(&invited_to)?,
+            email,
+            role: decode_role(&role)?,
+            escrow,
+        }),
+        (true, true) => LinkKind::Contact(None),
+        (true, false) => LinkKind::Contact(Some(PendingGrant {
             organization: parse_uuid(&organization)?,
             block: parse_uuid(&block)?,
             access: decode_access(&access)?,
             key: parse_uuid(&key)?,
             sealed,
-        }),
+        })),
     };
     Ok(Some(StoredLink {
         owner: parse_uuid(&owner)?,
         card,
         code,
-        grant,
+        kind,
         accepter: match accepter.is_empty() {
             true => None,
             false => Some(parse_uuid(&accepter)?),
@@ -298,7 +301,7 @@ fn mark_accepted(
     card: &[u8],
 ) -> Result<(), ServerError> {
     let marked = connection.execute(
-        "UPDATE contact_links SET accepter_id = ?2, accepter_card = ?3
+        "UPDATE links SET accepter_id = ?2, accepter_card = ?3
          WHERE id = ?1 AND accepter_id = ''",
         params![link.to_string(), accepter.to_string(), card],
     )?;
@@ -308,14 +311,51 @@ fn mark_accepted(
     }
 }
 
+/// What a link's kind stores in its row's grant and invitation columns.
+struct KindColumns {
+    grant: (String, String, String, String, Vec<u8>),
+    invitation: (String, String, String, Vec<u8>),
+}
+
+fn kind_columns(kind: &LinkKind) -> KindColumns {
+    match kind {
+        LinkKind::Contact(None) => KindColumns {
+            grant: Default::default(),
+            invitation: Default::default(),
+        },
+        LinkKind::Contact(Some(grant)) => KindColumns {
+            grant: (
+                grant.organization.to_string(),
+                grant.block.to_string(),
+                encode_access(grant.access).unwrap_or_default(),
+                grant.key.to_string(),
+                grant.sealed.clone(),
+            ),
+            invitation: Default::default(),
+        },
+        LinkKind::Invitation(invitation) => KindColumns {
+            grant: Default::default(),
+            invitation: (
+                invitation.organization.to_string(),
+                invitation.email.clone(),
+                encode_role(invitation.role).to_owned(),
+                invitation.escrow.clone(),
+            ),
+        },
+    }
+}
+
 impl ServerStore {
-    pub async fn create_contact_link(
+    /// Makes a link. The dispatcher checked that an invitation's caller administers its
+    /// organization (`client::rule`); a grant is checked here, since its block's organization
+    /// need not be the one open.
+    pub async fn create_link(
         &self,
         owner: Uuid,
         link: Uuid,
         card: Vec<u8>,
         code: Vec<u8>,
-        grant: Option<PendingGrant>,
+        mut kind: LinkKind,
     ) -> Result<(), ServerError> {
         crate::limits::at_most(
             "a contact card",
@@ -323,85 +363,81 @@ impl ServerStore {
             crate::limits::MAX_SEALED_BYTES,
         )?;
         crate::limits::at_most("a link code", code.len(), crate::limits::MAX_SEALED_BYTES)?;
-        if let Some(grant) = &grant {
-            crate::limits::at_most(
-                "a pending grant",
-                grant.sealed.len(),
-                crate::limits::MAX_SEALED_BYTES,
-            )?;
-        }
-        if let Some(grant) = &grant {
-            let role = self.membership(owner, grant.organization).await?;
-            let identity = Identity {
-                account: owner,
-                organization: grant.organization,
-                role,
-                bound: None,
-            };
-            let grant = grant.clone();
-            self.with_graph(grant.organization, move |store, graph, database| {
-                if !visibility(identity).can_manage(graph, grant.block) {
-                    return Err(ServerError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!("block {} is not managed by this account", grant.block),
-                    ));
-                }
-                if graph.owner_only_root(grant.block).is_some() {
-                    return Err(ServerError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!(
-                            "block {} is readable by its author alone, so it is shared with no one",
-                            grant.block
-                        ),
-                    ));
-                }
-                if !store
-                    .policies(graph, database, grant.organization)?
-                    .shares_outside()
-                {
-                    return Err(crate::organization::refused(
-                        "this organization shares nothing outside it, and a link reaches whoever holds it",
-                    ));
-                }
-                let key = key_row(database, grant.organization, grant.key)?;
-                if !key.is_some_and(|key| key.block == grant.block && key.kind == KeyKind::Scope)
-                    || grant.access == Access::None
-                {
-                    return Err(ServerError::Refused(
-                        ErrorCode::InvalidRequest,
-                        "a pending grant needs an access level and the block's own scope key"
-                            .into(),
-                    ));
-                }
-                Ok(())
-            })
-            .await?;
-        }
-        let (organization, block, access, key, sealed) = match &grant {
-            Some(grant) => (
-                grant.organization.to_string(),
-                grant.block.to_string(),
-                encode_access(grant.access).unwrap_or_default(),
-                grant.key.to_string(),
-                grant.sealed.clone(),
-            ),
-            None => Default::default(),
-        };
-        self.with_database(move |_, database| {
-            let open: i64 = database
-                .prepare_cached("SELECT COUNT(*) FROM contact_links WHERE owner_id = ?1")?
-                .query_row([owner.to_string()], |row| row.get(0))?;
-            if open >= crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT {
-                return Err(crate::limits::too_many(
-                    "contact links one account has open",
-                    crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT,
-                ));
+        match &mut kind {
+            LinkKind::Contact(Some(grant)) => {
+                crate::limits::at_most(
+                    "a pending grant",
+                    grant.sealed.len(),
+                    crate::limits::MAX_SEALED_BYTES,
+                )?;
+                self.check_grant(owner, grant.clone()).await?;
             }
-            let inserted = database.execute(
-                "INSERT OR IGNORE INTO contact_links
+            LinkKind::Contact(None) => {}
+            LinkKind::Invitation(invitation) => {
+                crate::limits::at_most(
+                    "an invitation's escrow",
+                    invitation.escrow.len(),
+                    crate::limits::MAX_SEALED_BYTES,
+                )?;
+                invitation.email = normalize_email(&invitation.email)?;
+                if self.membership(owner, invitation.organization).await?
+                    != OrganizationRole::Administrator
+                {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "only an organization administrator can invite people".into(),
+                    ));
+                }
+            }
+        }
+        let columns = kind_columns(&kind);
+        self.with_database(move |_, database| {
+            let transaction = database.unchecked_transaction()?;
+            if let LinkKind::Contact(_) = &kind {
+                let open: i64 = transaction
+                    .prepare_cached(
+                        "SELECT COUNT(*) FROM links WHERE owner_id = ?1 AND invite_organization = ''",
+                    )?
+                    .query_row([owner.to_string()], |row| row.get(0))?;
+                if open >= crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT {
+                    return Err(crate::limits::too_many(
+                        "contact links one account has open",
+                        crate::limits::MAX_CONTACT_LINKS_PER_ACCOUNT,
+                    ));
+                }
+            }
+            if let LinkKind::Invitation(invitation) = &kind {
+                let organization = invitation.organization.to_string();
+                let outstanding: i64 = transaction
+                    .prepare_cached(
+                        "SELECT COUNT(*) FROM links
+                         WHERE invite_organization = ?1 AND invite_email != ?2
+                            AND accepter_id = ''",
+                    )?
+                    .query_row(params![organization, invitation.email], |row| row.get(0))?;
+                if outstanding >= crate::limits::MAX_INVITATIONS_PER_ORGANIZATION {
+                    return Err(crate::limits::too_many(
+                        "invitations an organization has outstanding",
+                        crate::limits::MAX_INVITATIONS_PER_ORGANIZATION,
+                    ));
+                }
+                // One invitation per email: a new one replaces what is outstanding.
+                transaction.execute(
+                    "DELETE FROM links
+                     WHERE invite_organization = ?1 AND invite_email = ?2 AND accepter_id = ''",
+                    params![organization, invitation.email],
+                )?;
+            }
+            let KindColumns {
+                grant: (organization, block, access, key, sealed),
+                invitation: (invited_to, email, role, escrow),
+            } = columns;
+            let inserted = transaction.execute(
+                "INSERT OR IGNORE INTO links
                     (id, owner_id, card, code, grant_organization, grant_block, grant_access,
-                     grant_key, grant_sealed)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                     grant_key, grant_sealed, invite_organization, invite_email, invite_role,
+                     invite_escrow)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     link.to_string(),
                     owner.to_string(),
@@ -411,13 +447,67 @@ impl ServerStore {
                     block,
                     access,
                     key,
-                    sealed
+                    sealed,
+                    invited_to,
+                    email,
+                    role,
+                    escrow
                 ],
             )?;
             if inserted == 0 {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
-                    "a contact link with that id already exists".into(),
+                    "a link with that id already exists".into(),
+                ));
+            }
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Refuses a pending grant its owner may not make: on a block it does not manage, one only
+    /// its author reads, in an organization that shares nothing outside, or without the block's
+    /// own scope key.
+    async fn check_grant(&self, owner: Uuid, grant: PendingGrant) -> Result<(), ServerError> {
+        let role = self.membership(owner, grant.organization).await?;
+        let identity = Identity {
+            account: owner,
+            organization: grant.organization,
+            role,
+            bound: None,
+        };
+        self.with_graph(grant.organization, move |store, graph, database| {
+            if !visibility(identity).can_manage(graph, grant.block) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("block {} is not managed by this account", grant.block),
+                ));
+            }
+            if graph.owner_only_root(grant.block).is_some() {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!(
+                        "block {} is readable by its author alone, so it is shared with no one",
+                        grant.block
+                    ),
+                ));
+            }
+            if !store
+                .policies(graph, database, grant.organization)?
+                .shares_outside()
+            {
+                return Err(crate::organization::refused(
+                    "this organization shares nothing outside it, and a link reaches whoever holds it",
+                ));
+            }
+            let key = key_row(database, grant.organization, grant.key)?;
+            if !key.is_some_and(|key| key.block == grant.block && key.kind == KeyKind::Scope)
+                || grant.access == Access::None
+            {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a pending grant needs an access level and the block's own scope key".into(),
                 ));
             }
             Ok(())
@@ -425,7 +515,10 @@ impl ServerStore {
         .await
     }
 
-    pub async fn contact_link(&self, caller: Uuid, link: Uuid) -> Result<ContactLink, ServerError> {
+    /// A link not yet accepted, as `caller` reads it: not its own, and an invitation only when
+    /// it is for `caller`'s email and `caller` is not yet a member.
+    pub async fn link(&self, caller: Uuid, link: Uuid) -> Result<Link, ServerError> {
+        let email = self.profile(caller).await?.email;
         self.with_database(move |_, database| {
             let stored = stored_link(&database, link)?
                 .filter(|stored| stored.accepter.is_none())
@@ -433,21 +526,41 @@ impl ServerStore {
             if stored.owner == caller {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
-                    "this is your own contact link: send it to the person you want to connect with"
-                        .into(),
+                    "this is your own link: send it to the person you want to connect with".into(),
                 ));
             }
-            Ok(ContactLink {
+            let organization_name = match &stored.kind {
+                LinkKind::Contact(_) => String::new(),
+                LinkKind::Invitation(invitation) => {
+                    // Read by anyone else, an invitation is not there at all.
+                    if invitation.email != email {
+                        return Err(link_not_found());
+                    }
+                    if is_member_of(&database, caller, invitation.organization)? {
+                        return Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            "you are already a member of that organization".into(),
+                        ));
+                    }
+                    database.query_row(
+                        "SELECT name FROM organizations WHERE id = ?1",
+                        [invitation.organization.to_string()],
+                        |row| row.get(0),
+                    )?
+                }
+            };
+            Ok(Link {
                 id: link,
                 owner: stored.owner,
                 card: stored.card,
-                grant: stored.grant,
+                kind: stored.kind,
+                organization_name,
             })
         })
         .await
     }
 
-    pub async fn accept_contact_link(
+    pub async fn accept_link(
         &self,
         caller: Uuid,
         link: Uuid,
@@ -458,25 +571,57 @@ impl ServerStore {
         for (what, bytes) in [
             ("a contact card", &card),
             ("a sealed contact", &contact),
-            ("a granted key", &key),
+            ("a sealed key", &key),
         ] {
             crate::limits::at_most(what, bytes.len(), crate::limits::MAX_SEALED_BYTES)?;
         }
-        let found = self.contact_link(caller, link).await?;
+        let found = self.link(caller, link).await?;
         let owner = found.owner;
-        let Some(grant) = found.grant else {
-            return self
-                .with_database(move |_, database| {
-                    let transaction = database.unchecked_transaction()?;
-                    mark_accepted(&transaction, link, caller, &card)?;
-                    befriend(&transaction, owner, &[], caller, &contact)?;
-                    transaction.commit()?;
-                    Ok(Accepted {
-                        owner,
-                        granted: None,
+        let grant = match found.kind {
+            LinkKind::Contact(Some(grant)) => grant,
+            LinkKind::Contact(None) => {
+                return self
+                    .with_database(move |_, database| {
+                        let transaction = database.unchecked_transaction()?;
+                        mark_accepted(&transaction, link, caller, &card)?;
+                        befriend(&transaction, owner, &[], caller, &contact)?;
+                        transaction.commit()?;
+                        Ok(Accepted {
+                            owner,
+                            granted: None,
+                        })
                     })
-                })
-                .await;
+                    .await;
+            }
+            LinkKind::Invitation(invitation) => {
+                return self
+                    .with_database(move |_, database| {
+                        let transaction = database.unchecked_transaction()?;
+                        mark_accepted(&transaction, link, caller, &card)?;
+                        befriend(&transaction, owner, &[], caller, &contact)?;
+                        crate::keys::pin_escrow(
+                            &transaction,
+                            caller,
+                            invitation.organization,
+                            &key,
+                        )?;
+                        transaction.execute(
+                            "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
+                             VALUES (?1, ?2, ?3)",
+                            params![
+                                invitation.organization.to_string(),
+                                caller.to_string(),
+                                encode_role(invitation.role)
+                            ],
+                        )?;
+                        transaction.commit()?;
+                        Ok(Accepted {
+                            owner,
+                            granted: None,
+                        })
+                    })
+                    .await;
+            }
         };
         let granted = self
             .with_graph(grant.organization, move |store, graph, database| {
@@ -537,12 +682,11 @@ impl ServerStore {
         Ok(Accepted { owner, granted })
     }
 
-    pub async fn contact_links(&self, caller: Uuid) -> Result<Vec<OwnContactLink>, ServerError> {
+    pub async fn links(&self, caller: Uuid) -> Result<Vec<OwnLink>, ServerError> {
         self.with_database(move |_, database| {
             let mut ids = Vec::new();
             {
-                let mut statement =
-                    database.prepare("SELECT id FROM contact_links WHERE owner_id = ?1")?;
+                let mut statement = database.prepare("SELECT id FROM links WHERE owner_id = ?1")?;
                 let rows =
                     statement.query_map([caller.to_string()], |row| row.get::<_, String>(0))?;
                 for row in rows {
@@ -554,12 +698,12 @@ impl ServerStore {
                 let Some(stored) = stored_link(&database, id)? else {
                     continue;
                 };
-                links.push(OwnContactLink {
+                links.push(OwnLink {
                     id,
                     code: stored.code,
+                    kind: stored.kind,
                     accepter: stored.accepter,
                     card: stored.accepter_card,
-                    grant: stored.grant,
                 });
             }
             Ok(links)
@@ -567,10 +711,10 @@ impl ServerStore {
         .await
     }
 
-    pub async fn delete_contact_link(&self, caller: Uuid, link: Uuid) -> Result<(), ServerError> {
+    pub async fn delete_link(&self, caller: Uuid, link: Uuid) -> Result<(), ServerError> {
         self.with_database(move |_, database| {
             database.execute(
-                "DELETE FROM contact_links WHERE id = ?1 AND owner_id = ?2",
+                "DELETE FROM links WHERE id = ?1 AND owner_id = ?2",
                 params![link.to_string(), caller.to_string()],
             )?;
             Ok(())

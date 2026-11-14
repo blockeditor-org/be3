@@ -38,7 +38,7 @@ use std::path::Path;
 use accounts::{AccountError, Session};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{Organization, OrganizationInvitation, OrganizationRole};
+use be_block_protocol::{Organization, OrganizationRole};
 use be_host_base::{host, host_state, notices, panic_guard, performance, platform};
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
@@ -722,7 +722,7 @@ struct PendingAccountRequest {
 
 struct Joining {
     link: InviteLink,
-    invitation: Option<OrganizationInvitation>,
+    invitation: Option<accounts::Invited>,
 }
 
 enum OrganizationOperation {
@@ -731,16 +731,16 @@ enum OrganizationOperation {
     LookUp(be_block_keys::InviteCode),
     Join(be_block_keys::InviteCode),
     Invite(String, OrganizationRole),
-    ListAgents(Uuid),
-    CreateAgent(Uuid, String),
-    RemoveAgent(Uuid, Uuid),
+    ListAgents,
+    CreateAgent(String),
+    RemoveAgent(Uuid),
 }
 
 enum OrganizationResult {
     Loaded(Vec<Organization>, accounts::Keys),
     Cached(Vec<Organization>),
     Created(Organization),
-    Invitation(OrganizationInvitation),
+    Invitation(accounts::Invited),
     Joined(Uuid),
     Invited(String),
     Agents(
@@ -1571,27 +1571,30 @@ impl HostCore {
                         message,
                         invalid_token: false,
                     }),
-                OrganizationOperation::ListAgents(organization) => {
-                    accounts::agents(url, token, organization)
-                        .await
-                        .map(|agents| OrganizationResult::Agents(Some(agents), None))
-                }
-                OrganizationOperation::CreateAgent(organization, name) => {
+                OrganizationOperation::ListAgents => be_host_stack::agents()
+                    .await
+                    .map(|agents| OrganizationResult::Agents(Some(agents), None))
+                    .map_err(|message| AccountError {
+                        message,
+                        invalid_token: false,
+                    }),
+                OrganizationOperation::CreateAgent(name) => {
                     let created = be_host_stack::create_agent(name).await.map_err(|message| {
                         AccountError {
                             message,
                             invalid_token: false,
                         }
                     })?;
-                    let agents = accounts::agents(url, token, organization).await.ok();
+                    let agents = be_host_stack::agents().await.ok();
                     Ok(OrganizationResult::Agents(agents, Some(created)))
                 }
-                OrganizationOperation::RemoveAgent(organization, account) => {
-                    accounts::remove_agent(url.clone(), token.clone(), organization, account)
-                        .await?;
-                    let agents = accounts::agents(url, token, organization).await?;
-                    Ok(OrganizationResult::Agents(Some(agents), None))
-                }
+                OrganizationOperation::RemoveAgent(account) => be_host_stack::remove_agent(account)
+                    .await
+                    .map(|agents| OrganizationResult::Agents(Some(agents), None))
+                    .map_err(|message| AccountError {
+                        message,
+                        invalid_token: false,
+                    }),
             }
         };
         self.organization_error = None;
@@ -3752,9 +3755,8 @@ impl HostCore {
             UiCommand::OpenAgents => {
                 self.agents_open = true;
                 self.agent_created = None;
-                if let Some(organization) = &self.organization {
-                    let id = organization.id;
-                    self.begin_organization_request(OrganizationOperation::ListAgents(id));
+                if self.organization.is_some() {
+                    self.begin_organization_request(OrganizationOperation::ListAgents);
                 }
             }
             UiCommand::OpenContacts => self.contacts.show(),
@@ -3779,19 +3781,13 @@ impl HostCore {
                 self.agent_created = None;
             }
             UiCommand::CreateAgent(name) => {
-                if let Some(organization) = &self.organization
-                    && !name.trim().is_empty()
-                {
-                    let id = organization.id;
-                    self.begin_organization_request(OrganizationOperation::CreateAgent(id, name));
+                if self.organization.is_some() && !name.trim().is_empty() {
+                    self.begin_organization_request(OrganizationOperation::CreateAgent(name));
                 }
             }
             UiCommand::RemoveAgent(account) => {
-                if let Some(organization) = &self.organization {
-                    let id = organization.id;
-                    self.begin_organization_request(OrganizationOperation::RemoveAgent(
-                        id, account,
-                    ));
+                if self.organization.is_some() {
+                    self.begin_organization_request(OrganizationOperation::RemoveAgent(account));
                 }
             }
             UiCommand::Discard => self.discard(context),
@@ -3970,8 +3966,8 @@ impl HostCore {
                     .and_then(|joining| joining.invitation.as_ref())
                     .map(|invitation| ui::JoiningRow {
                         organization: invitation.organization_name.clone(),
-                        role: invitation.role.label().to_lowercase(),
-                        email: invitation.email.clone(),
+                        role: invitation.invitation.role.label().to_lowercase(),
+                        email: invitation.invitation.email.clone(),
                     }),
                 busy: self.pending_organization_request.is_some(),
                 error: self.organization_error.clone(),

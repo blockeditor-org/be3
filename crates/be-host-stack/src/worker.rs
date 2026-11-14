@@ -2631,9 +2631,8 @@ async fn create_agent(
     .await;
     if let Err(error) = finished {
         // An agent the person never got the credentials of is of no use to anyone.
-        let _ = ask(client::members::remove_agent(
+        let _ = ask(client::members::remove_member(
             &peer.connection(),
-            organization,
             agent.account,
         ))
         .await;
@@ -2656,11 +2655,16 @@ async fn create_agent(
 async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange) {
     let connection = peer.connection();
     let organization = peer.organization();
-    let own = match ask(client::members::list_agents(&connection, organization)).await {
-        Ok(agents) => agents.iter().any(|listed| listed.account == agent),
+    // Only a block's agent the person made: an administrator may remove any member, which an
+    // app must not do in their name. One not listed is left for the server to answer.
+    let refused = match ask(client::members::list_members(&connection)).await {
+        Ok(members) => members.iter().any(|listed| {
+            listed.account == agent
+                && (listed.bound_to.is_none() || listed.created_by != Some(peer.account()))
+        }),
         Err(error) => return change.fail(error.to_string()),
     };
-    if own {
+    if refused {
         return change.fail("That agent is not a block's agent.".to_owned());
     }
     match change {
@@ -2676,16 +2680,11 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
         // An agent the server no longer has (removed, or collected with its block) is as
         // removed as asked.
         AgentChange::Remove(reply) => reply(
-            match ask(client::members::remove_agent(
-                &connection,
-                organization,
-                agent,
-            ))
-            .await
+            match ask(client::members::remove_member(&connection, agent)).await
             {
                 Ok(_)
                 | Err(be_block_client::ClientError::Refused(
-                    be_block_protocol::ErrorCode::AgentNotFound,
+                    be_block_protocol::ErrorCode::MemberNotFound,
                     _,
                 )) => Ok(()),
                 Err(error) => Err(error.to_string()),

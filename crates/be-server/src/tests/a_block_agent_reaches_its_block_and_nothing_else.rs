@@ -7,26 +7,21 @@ const REACHING_PAST: &[&str] = &[
     "begin-browser-login",
     "poll-browser-login",
     "create-local-profile",
-    "storage-usage",
     "storage-changed",
     "pair",
     "paired",
     "create-organization",
-    "invite",
-    "get-invitation",
-    "accept-invitation",
     "list-members",
     "set-role",
     "remove-member",
     "create-agent",
-    "list-agents",
     "rotate-agent-token",
-    "remove-agent",
-    "create-contact-link",
-    "get-contact-link",
-    "accept-contact-link",
-    "list-contact-links",
-    "delete-contact-link",
+    "create-link",
+    "create-link (invitation)",
+    "get-link",
+    "accept-link",
+    "list-links",
+    "delete-link",
     "put-contact",
     "remove-contact",
     "set-parent",
@@ -80,11 +75,13 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     let (account, token) = owner.block_agent(organization, terminal).await.unwrap();
 
     let response = owner
-        .call(|peer| client::members::list_agents(peer, organization))
+        .call(|peer| client::members::list_members(peer))
         .await;
     assert!(
-        matches!(&response, Ok(agents) if agents.is_empty()),
-        "a block's agent is listed with the creator's own: {response:?}"
+        matches!(&response, Ok(members) if members.iter().any(|member| member.account == account
+            && member.created_by == Some(me)
+            && member.bound_to == Some(terminal))),
+        "a block's agent is listed as its block's: {response:?}"
     );
     let response = owner
         .call(|peer| client::blocks::list_access(peer, terminal))

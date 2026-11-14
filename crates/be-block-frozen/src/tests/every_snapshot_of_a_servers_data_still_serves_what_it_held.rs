@@ -504,7 +504,7 @@ async fn check(snapshot: &Snapshot) {
         "Taker",
         "taker@example.com",
     );
-    let card = contacts::accept_link(&taker.connection(), taker.keys().identity(), &me, &code)
+    let (_, card) = contacts::accept_link(&taker.connection(), taker.keys().identity(), &me, &code)
         .await
         .unwrap_or_else(|error| panic!("{name}: the pending link no longer opens: {error}"));
     assert_eq!(card.email, scene::OWNER_EMAIL);
@@ -529,11 +529,15 @@ async fn check(snapshot: &Snapshot) {
         scene::INVITED_EMAIL,
     );
     let code = InviteCode::parse(snapshot.invite_code).unwrap();
-    let invitation =
-        contacts::accept_invitation(&invited.connection(), invited.keys().identity(), &me, &code)
+    let (link, _) =
+        contacts::accept_link(&invited.connection(), invited.keys().identity(), &me, &code)
             .await
             .unwrap_or_else(|error| panic!("{name}: the invitation no longer opens: {error}"));
-    assert_eq!(invitation.organization, organization);
+    assert!(
+        matches!(&link.kind, be_block_protocol::LinkKind::Invitation(invitation)
+            if invitation.organization == organization),
+        "{name}: {link:?}"
+    );
     let invited = Peer::connect(
         PeerConfig::new(
             socket(&server),
