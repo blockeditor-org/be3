@@ -166,7 +166,9 @@ host owes a replica (the WIT documents each call):
   kept and re-asks what was unanswered. It keeps each local edit (an editor's
   message, a `change`) until a clean status covers it: `status.taken` counts
   the local edits the replica took since it opened, so a status made before
-  it took the latest does not let the host drop them.
+  it took the latest does not let the host drop them. The host numbers each
+  opening (`opening.epoch`) and ignores a status whose `epoch` is not the
+  current one: an earlier opening made it.
 - **What the server holds.** `append` answers whether the server took the
   entries, `publish` answers `kept` for a commit sealed on this device alone
   (offline, or behind others in its outbox), `drained` says those commits

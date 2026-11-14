@@ -137,7 +137,8 @@ impl Relay {
     }
 
     /// Delays what the server answers on each connection opened from now on by `by`, as a
-    /// distant or busy server would, in order: a flake that needs a slow server shows under
+    /// distant or busy server would: each read from the server goes on `by` after it came, in
+    /// order, so a burst arrives together, late. A flake that needs a slow server shows under
     /// `stress --latency` (guides/testing_a_gui.md), not only on a loaded build server.
     pub fn delay_answers(&self, by: std::time::Duration) {
         *self
@@ -294,15 +295,31 @@ async fn pump(
     };
     let mut let_go = holding.subscribe();
     let mut held: Vec<u8> = Vec::new();
+    // Answers on their way, each due its delay after it was read (`delay_answers`): a burst
+    // arrives together, late, rather than one delay after another.
+    let mut delayed: std::collections::VecDeque<(tokio::time::Instant, Vec<u8>)> =
+        std::collections::VecDeque::new();
     loop {
         if *link.jammed.borrow() {
             std::future::pending::<()>().await;
         }
+        let due = delayed.front().map(|(due, _)| *due);
         let read = tokio::select! {
             read = from.read(&mut buffer) => Some(read),
             let_go = let_go.wait_for(|holding| !*holding), if !held.is_empty() => {
                 drop(let_go);
                 None
+            }
+            () = tokio::time::sleep_until(due.unwrap_or_else(tokio::time::Instant::now)),
+                if due.is_some() =>
+            {
+                if let Some((_, bytes)) = delayed.pop_front()
+                    && let Some(to) = &mut to
+                    && to.write_all(&bytes).await.is_err()
+                {
+                    return;
+                }
+                continue;
             }
         };
         let Some(read) = read else {
@@ -316,7 +333,17 @@ async fn pump(
             continue;
         };
         let read = match read {
-            Ok(0) | Err(_) => return,
+            Ok(0) | Err(_) => {
+                for (due, bytes) in delayed {
+                    tokio::time::sleep_until(due).await;
+                    if let Some(to) = &mut to
+                        && to.write_all(&bytes).await.is_err()
+                    {
+                        return;
+                    }
+                }
+                return;
+            }
             Ok(read) => read,
         };
         if let Some(state) = heard {
@@ -369,7 +396,11 @@ async fn pump(
             held.clear();
         }
         if heard.is_none() && !link.answer_delay.is_zero() {
-            tokio::time::sleep(link.answer_delay).await;
+            delayed.push_back((
+                tokio::time::Instant::now() + link.answer_delay,
+                buffer[..read].to_vec(),
+            ));
+            continue;
         }
         if let Some(to) = &mut to
             && to.write_all(&buffer[..read]).await.is_err()

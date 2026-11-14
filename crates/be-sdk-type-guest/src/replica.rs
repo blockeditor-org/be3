@@ -105,6 +105,7 @@ pub(crate) struct Opened {
     pub(crate) commits_kept: be_sdk_type_api::KeptCommits,
     pub(crate) refused_commits: Vec<CommitId>,
     pub(crate) server_head: Option<CommitId>,
+    pub(crate) epoch: u64,
     pub(crate) account: Uuid,
     pub(crate) from_file: Option<FromFileFn>,
     /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
@@ -565,6 +566,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// since it opened, applied or dropped, which its status reports (`Status::taken`): the
     /// host keeps each one it sent past that count to give again should the replica reopen.
     taken: u64,
+    /// Which opening this is (`Opened::epoch`), said with every status.
+    epoch: u64,
     beaten: Option<u64>,
     active: bool,
     sealing: bool,
@@ -833,6 +836,7 @@ where
             restarted_at: None,
             lost_edits: opened.lost_edits,
             taken: 0,
+            epoch: opened.epoch,
             beaten: None,
             active: false,
             sealing: false,
@@ -3197,6 +3201,7 @@ where
             },
             owes_seal: self.loaded && self.seal_would_settle(),
             taken: self.taken,
+            epoch: self.epoch,
             incompatible: self.incompatible,
             diverged: self.diverged,
             unreadable: self.unreadable.clone(),

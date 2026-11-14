@@ -403,6 +403,7 @@ fn opening(
         refused_commits: Vec::new(),
         server_head: None,
         sealed_head: None,
+        epoch: 0,
     }
 }
 

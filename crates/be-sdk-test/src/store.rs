@@ -590,6 +590,7 @@ impl Inner {
                 // replica follows what it carried, never more.
                 server_head: head,
                 sealed_head: None,
+                epoch: 0,
             },
         );
         if let Some(held) = self.blocks.get_mut(&block) {

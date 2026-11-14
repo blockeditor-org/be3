@@ -311,8 +311,10 @@ Debugging:
   run that takes more than SECONDS (300). It prints how many runs failed, grouped by the
   panic's message with the numbers blurred and the first logs of each group, which are under
   target/stress/NAME/. Every run uses the host that has every app unless `--apps` lists the apps
-  the test names in `APPS`; verify stages only those, which changes the timing, so try both. `--latency`
-  delays each answer the server sends a device of a test's `Server` (`HostTest::device`, through
+  the test names in `APPS`; verify stages only those, which changes the timing, so try both.
+  `--apps` builds the host apps.bzl defines for that set, so it takes only a set some test in
+  `APPS` names already. `--latency`
+  delays each read of what the server sends a device of a test's `Server` (`HostTest::device`, through
   its relay), as a build server busy with other tests does: a flake that shows there with the CPU
   idle (the run-test line says a few seconds of CPU in forty) is a slow server, not load, and
   shows here at 50 to 100 ms where `--parallel` alone never shows it. `./scripts/test` caches a passing run, so repeating it proves nothing. More at

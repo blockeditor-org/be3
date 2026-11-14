@@ -173,6 +173,9 @@ interface types {
         /// the replica has taken since it was opened or reopened, in the order
         /// the host sent them: what this status reflects of them.
         taken: u64,
+        /// The `opening.epoch` the replica was opened with, which `taken`
+        /// counts from.
+        epoch: u64,
     }
 
     variant endpoint {

@@ -1546,11 +1546,8 @@ async fn name_indexes(
         for (root, _) in gone {
             held.search.drop_made(root);
         }
-        let (ready, waiting): (Vec<_>, Vec<_>) = named.into_iter().partition(|(root, _)| {
-            replicas
-                .status(*root)
-                .is_none_or(|status| status.clean && !status.owes_seal)
-        });
+        let (ready, waiting): (Vec<_>, Vec<_>) =
+            named.into_iter().partition(|(root, _)| replicas.settled(*root));
         held.search.made = waiting;
         ready
     };
