@@ -45,6 +45,8 @@ pub struct SpanContent {
     pub strikethrough: Option<bool>,
     pub background: Option<SpanBackground>,
     pub break_after: bool,
+    /// Isolated for bidi (`Piece::Text::isolate`).
+    pub isolate: bool,
     pub icon: Option<IconSpan>,
 }
 
@@ -554,6 +556,7 @@ impl TextNode {
                         text: &content.text,
                         style: content.style(style),
                         break_after: content.break_after,
+                        isolate: content.isolate,
                     },
                 },
                 Flow::Inline(index, size, text) => Piece::Inline {

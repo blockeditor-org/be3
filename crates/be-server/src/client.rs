@@ -1016,12 +1016,23 @@ impl Client {
                 .await;
                 self.reply(reply, authenticated);
             }
-            Call::Logout { reply } => {
+            Call::Logout {
+                reply,
+                push_address,
+            } => {
                 let connection = &mut self.connection;
                 let logged_out = async {
                     prelude?;
+                    // The session ends first: an endpoint that cannot be forgotten now is
+                    // dropped once its push service refuses a push, but a token the client
+                    // has let go of must not stay valid.
                     if let Some(token) = connection.token.take() {
                         connection.store.logout(&token).await?;
+                    }
+                    if let (Some(account), Some(address)) = (connection.account, push_address)
+                        && let Err(error) = connection.store.forget_endpoint_of(account, address).await
+                    {
+                        tracing::warn!(%account, %error, "a logout could not forget its push endpoint");
                     }
                     connection.account = None;
                     connection.closing = true;

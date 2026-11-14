@@ -65,6 +65,12 @@ pub fn Span(
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
     #[prop(default = None)] background: Prop<Option<SpanBackground>>,
     #[prop(default = false)] break_after: Prop<bool>,
+    /// Isolates the run for bidi, as HTML's `<bdi>`: it takes its own direction, and the text
+    /// around it sees it as one neutral character, so a right-to-left name cannot carry the
+    /// words or punctuation beside it across itself. Text that quotes what someone typed (a
+    /// name in a sentence) isolates it.
+    #[prop(default = false)]
+    isolate: Prop<bool>,
     children: Children<SpanText>,
 ) -> Span {
     crate::text_children::span(
@@ -78,6 +84,7 @@ pub fn Span(
         strikethrough,
         background,
         break_after,
+        isolate,
         children,
     )
 }

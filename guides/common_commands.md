@@ -95,7 +95,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/buck run //crates/beui-host:example-survey` | a crate example; every example is `example-<name>` |
 | `./scripts/buck run //crates/be-tool-bench:suite -- run [NAME]` | every benchmark, built in release (guides/performance.md) |
 | `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
-| `./scripts/buck run //crates/be-tool-paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.webp` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
+| `./scripts/buck run //crates/be-tool-paint-review-web:web -- DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.webp` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
 | `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
 | `./scripts/buck run //crates/be-lib-sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buckify` | brings `Cargo.lock` and the crates' facts (each `crates/<crate>/PACKAGE`, `buck/cargo/members.bzl`, `third-party/rust/crates.bzl`) up to date with the manifests (the bootstrap's lock step, then the plans on a worker); `BE3_BOOTSTRAP=cargo` until a bootstrap with it is pinned |

@@ -131,27 +131,26 @@ pub fn push_open_block(organization: String, block: String) {
     }
 }
 
-/// Signing out: asks the server to forget this browser's endpoint for the account, and drops
-/// the browser's subscription too when `unsubscribe` (no saved account is left to use it). The
-/// server's request may not get through before the account's connection closes; a dropped
-/// subscription makes the push service answer 404 or 410 to the next push, and the server drops
-/// the endpoint then. Another account removed while this one is open keeps its endpoint until
-/// then.
-pub(crate) fn forget_this_device(unsubscribe: bool) {
+/// Signing out of an account on this browser: drops the browser's subscription when
+/// `unsubscribe` (no saved account is left to use it), then ends the account's session
+/// (`accounts::logout`), naming the endpoint, which the server forgets for the account in every
+/// organization. The subscription goes before the server's round trip, so a later sign-in that
+/// turns pushes on keeps the one it makes. It needs no organization open, so it works from the
+/// accounts screen too. A server that cannot be reached keeps the endpoint until the push
+/// service answers 404 or 410 to a push to a dropped subscription.
+pub(crate) fn sign_out(server_url: String, token: String, unsubscribe: bool) {
     wasm_bindgen_futures::spawn_local(async move {
-        if let Some(address) = call("address")
+        let address = call("address")
             .await
             .ok()
-            .and_then(|address| address.as_string())
-        {
-            let _ = push_unregister(address).await;
-        }
+            .and_then(|address| address.as_string());
         if unsubscribe && let Err(error) = call("unsubscribe").await {
             web_sys::console::warn_1(&JsValue::from_str(&format!(
                 "be-host: the browser's push subscription was not dropped: {error}"
             )));
         }
         refresh().await;
+        let _ = be_host_stack::accounts::logout(server_url, token, address).await;
     });
 }
 

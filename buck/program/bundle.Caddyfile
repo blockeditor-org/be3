@@ -1,10 +1,14 @@
-# A web bundle, BUNDLE_ROOT, at BUNDLE_ADDRESS (serve-bundle.sh). The module's
+# A web bundle, BUNDLE_ROOT, at the site BUNDLE_SITE on BUNDLE_BIND
+# (serve-bundle.sh). Caddy listens on every interface unless told otherwise,
+# whatever host the site address names, so default_bind names the interface
+# and falls back to loopback (guides/hosting.md, "Listening"). The module's
 # memory is shared, which a browser only hands to a cross-origin isolated page.
 {
 	admin off
+	default_bind {$BUNDLE_BIND:127.0.0.1}
 }
 
-{$BUNDLE_ADDRESS} {
+{$BUNDLE_SITE} {
 	header {
 		Cross-Origin-Opener-Policy same-origin
 		Cross-Origin-Embedder-Policy require-corp
