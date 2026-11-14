@@ -1,5 +1,5 @@
 use be_sdk::TimedInput;
-use beui::primitives::{Frame, Interactive};
+use beui::styled::*;
 
 use super::*;
 
@@ -17,7 +17,7 @@ fn a_pointer_resting_on_a_view_before_its_first_frame_hovers_that_views_window()
             };
             view! {
                 <Interactive on_hover_change={hovered}>
-                    <Frame width=80.0 height=60.0 />
+                    <Frame width=Length::FILL height=Length::FILL />
                 </Interactive>
             }
         }),
