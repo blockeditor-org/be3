@@ -7,6 +7,7 @@ use super::*;
 mod a_clean_handoff_needs_no_merge;
 mod a_follower_resubmits_only_what_the_owner_never_accepted;
 mod a_new_owner_keeps_the_numbering_of_what_the_old_one_accepted_late;
+mod a_sequencer_tells_again_only_the_numbers_it_gave;
 mod a_sequencer_that_takes_over_owes_a_seal_for_what_it_inherited;
 mod an_expired_lease_can_be_claimed_but_a_held_one_cannot;
 mod only_a_participant_that_may_edit_is_granted_the_lease;

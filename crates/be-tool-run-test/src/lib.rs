@@ -50,9 +50,9 @@ use std::time::{Duration, Instant};
 
 pub const USAGE: &str = "usage: run-test [--library-path PATHS] [--time-limit 20m] [--one-test] [--paintings OUT] [--passed OUT] [--record OUT] -- COMMAND...";
 
-/// What starts the line that says how much CPU the test used, which
-/// crates/be-tool-verify's stats.rs reads back out of the action's output.
-pub const USAGE_LINE: &str = "run-test: the test used ";
+/// What starts the line that says how much CPU the test used, which a build's
+/// record (crates/be-lib-build-record) reads back out of the action's output.
+pub use be_lib_build_record::{USAGE_LINE, cpu_seconds};
 
 /// What libtest prints first when it runs exactly one test.
 const ONE_TEST: &str = "running 1 test";
@@ -347,12 +347,6 @@ impl Usage {
             self.max_resident_kb / 1024,
         )
     }
-}
-
-/// The CPU seconds a launcher's line says the test used, or None for a line that is not one.
-pub fn cpu_seconds(line: &str) -> Option<f64> {
-    let rest = line.trim_start().strip_prefix(USAGE_LINE)?;
-    rest.split(' ').next()?.parse().ok()
 }
 
 /// Has a signal that stops the launcher, as buck2 stops an action it

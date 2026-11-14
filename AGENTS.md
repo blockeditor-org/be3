@@ -30,6 +30,7 @@ Guides:
 - guides/build_server.md
 - guides/frozen_formats.md: that no saved format is frozen yet, and how to freeze one later: the rules, and the tests that would hold it
 - guides/hosting.md
+- guides/servers.md: the servers' NixOS configurations in servers/, deploying a change, installing a new machine
 - guides/desktop.md: be-host as a desktop, what every host shares: the `be3:desktop` package, DesktopHost and the mailbox, program windows as tabs, displays as one space, a shell that stops
 - guides/desktop/shell.md: the desktop app: its bars per display, the Status bar and Quick settings, the Apps panel, window chips, window keys
 - guides/desktop/linux.md: the Linux host: running it windowed or as a login session (`BEUI_PLATFORM=drm`), where the code is, displays and outputs, files opened in programs

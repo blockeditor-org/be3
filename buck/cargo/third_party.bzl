@@ -75,7 +75,7 @@ THIRD_PARTY_OPT = select({
 # at -O0 while its Rust was at 1: SQLite, which every server, host and host test queries, ran
 # unoptimised.
 def _build_script_opt(crate):
-    _, wasm, release = OPT_LEVELS["toolchain"]
+    _, wasm, release, _ = OPT_LEVELS["toolchain"]
     host, wasm = str(_THIRD_PARTY_HOST_OPT), str(wasm)
     for flag in crate.get("profile_flags", []):
         if flag.startswith("-Copt-level="):

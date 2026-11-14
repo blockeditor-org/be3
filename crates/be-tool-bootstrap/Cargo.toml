@@ -10,6 +10,7 @@ name = "bootstrap"
 path = "src/main.rs"
 
 [dependencies]
+be-lib-build-record = { path = "../be-lib-build-record" }
 be-lib-crate-pins = { path = "../be-lib-crate-pins" }
 be-lib-prompt = { path = "../be-lib-prompt" }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

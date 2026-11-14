@@ -10,7 +10,7 @@ name = "verify"
 path = "src/main.rs"
 
 [dependencies]
-be-tool-run-test = { path = "../be-tool-run-test" }
+be-lib-build-record = { path = "../be-lib-build-record" }
 serde_json = "1"
 sha2 = "0.10"
 
