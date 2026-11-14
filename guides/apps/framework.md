@@ -74,10 +74,8 @@ another view is released where it began. Pointer input with neither is
 dropped, never sent to another view; keys, text and modifiers, which every
 window shares, go in all the same. Input for a view the host announced after
 the module's last frame waits until the frame opens its window, and so does
-everything heard after it, so the runner hears input in the order it came.
-The platform then runs a second frame within the same host frame, so the frame
-the host counts as answering a press has heard it: a pointer resting where a
-view appears hovers that view.
+everything heard after it, so the runner hears input in the order it came: a
+pointer resting where a view appears hovers that view.
 
 The app surface is not an sRGB format, so beui encodes gamma there and linear
 where it draws its own window.

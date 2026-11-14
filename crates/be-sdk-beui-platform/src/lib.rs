@@ -1013,21 +1013,7 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
-        // Input held for views this frame opened windows for is taken in now, in a second
-        // frame, so the frame the host counts as answering a press has heard it.
-        let frame = match self.release_held() {
-            true => {
-                let Some(frame) = self
-                    .runner
-                    .frame(&mut HostPlatform(services), SafeArea::default())
-                else {
-                    return Err(self.stopped());
-                };
-                self.match_windows(ratio, regions, active);
-                frame
-            }
-            false => frame,
-        };
+        let released = self.release_held();
         debug_assert!(
             regions
                 .iter()
@@ -1045,7 +1031,10 @@ impl Regions for ModuleRunner {
         Ok(Ran {
             keyboard: self.keyboard_view(),
             asks: std::mem::take(&mut self.asks),
-            repaint_after: frame.wait(),
+            repaint_after: match released {
+                true => Some(std::time::Duration::ZERO),
+                false => frame.wait(),
+            },
             animating: frame.animating,
         })
     }

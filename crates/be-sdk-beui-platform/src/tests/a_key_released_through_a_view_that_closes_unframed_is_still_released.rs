@@ -29,7 +29,9 @@ fn a_key_released_through_a_view_that_closes_unframed_is_still_released() {
         &TimedInput::from(Input::Modifiers(Modifiers::default())),
         None,
     );
-    surface.frame(&[main.clone(), pressed.clone()]);
+    for _ in 0..2 {
+        surface.frame(&[main.clone(), pressed.clone()]);
+    }
     assert!(
         !surface.regions().runner.modifiers().ctrl,
         "the key let go in a view that never showed is let go all the same"
