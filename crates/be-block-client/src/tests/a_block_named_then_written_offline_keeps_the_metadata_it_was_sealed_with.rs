@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockContent, INTRINSIC_NAME, NAME};
+use be_block_content::{BlockContent, INTRINSIC_NAME, NAME};
 use be_type_image::{ImageContent, ImageFile};
 
 /// A name given offline to a block with no content waits in the outbox; content written after it
@@ -28,7 +28,7 @@ async fn a_block_named_then_written_offline_keeps_the_metadata_it_was_sealed_wit
         .unwrap();
     let image = ImageFile::from_file("beach.png", vec![1, 2, 3]);
     let written = Write::encoded(ImageContent::CONTENT_TYPE, image.parts(), None)
-        .described(Vec::new(), be_block::derived_metadata(&image));
+        .described(Vec::new(), be_block_content::derived_metadata(&image));
     offline.seal(block, written).await.unwrap();
 
     let kept = offline.known_summary(block).unwrap();
