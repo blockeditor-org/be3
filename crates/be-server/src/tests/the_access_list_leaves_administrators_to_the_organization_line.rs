@@ -12,7 +12,18 @@ pub(super) async fn join(
 ) {
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(peer, Uuid::from_u128(invitation), Vec::new(), Vec::new(), be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation { organization, email: email.into(), role: role, escrow: Vec::new() }))
+            client::contacts::create_link(
+                peer,
+                Uuid::from_u128(invitation),
+                Vec::new(),
+                Vec::new(),
+                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    organization,
+                    email: email.into(),
+                    role: role,
+                    escrow: Vec::new(),
+                }),
+            )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");

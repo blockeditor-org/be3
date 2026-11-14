@@ -11,7 +11,18 @@ async fn read(client: &mut TestClient, hash: Hash) -> Option<Vec<u8>> {
 async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid, email: &str) {
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(peer, Uuid::from_u128(1), Vec::new(), Vec::new(), be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation { organization, email: email.into(), role: OrganizationRole::Editor, escrow: Vec::new() }))
+            client::contacts::create_link(
+                peer,
+                Uuid::from_u128(1),
+                Vec::new(),
+                Vec::new(),
+                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    organization,
+                    email: email.into(),
+                    role: OrganizationRole::Editor,
+                    escrow: Vec::new(),
+                }),
+            )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");

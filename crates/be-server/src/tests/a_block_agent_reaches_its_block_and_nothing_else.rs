@@ -74,9 +74,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     let under = owner.create_block(BlockParent::Block(elsewhere)).await;
     let (account, token) = owner.block_agent(organization, terminal).await.unwrap();
 
-    let response = owner
-        .call(|peer| client::members::list_members(peer))
-        .await;
+    let response = owner.call(|peer| client::members::list_members(peer)).await;
     assert!(
         matches!(&response, Ok(members) if members.iter().any(|member| member.account == account
             && member.created_by == Some(me)

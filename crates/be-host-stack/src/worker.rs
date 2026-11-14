@@ -2693,8 +2693,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
         // An agent the server no longer has (removed, or collected with its block) is as
         // removed as asked.
         AgentChange::Remove(reply) => reply(
-            match ask(client::members::remove_member(&connection, agent)).await
-            {
+            match ask(client::members::remove_member(&connection, agent)).await {
                 Ok(_)
                 | Err(be_block_client::ClientError::Refused(
                     be_block_protocol::ErrorCode::MemberNotFound,

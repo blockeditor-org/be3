@@ -28,7 +28,13 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(peer, link, owner_card.seal(&code, CardRole::Owner), owner_secret.seal_own(&code.to_bytes()), be_block_protocol::LinkKind::Contact(None))
+            client::contacts::create_link(
+                peer,
+                link,
+                owner_card.seal(&code, CardRole::Owner),
+                owner_secret.seal_own(&code.to_bytes()),
+                be_block_protocol::LinkKind::Contact(None),
+            )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -110,10 +116,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let _ = owners_device
         .call(|peer| client::contacts::delete_link(peer, link))
         .await;
-    let Ok(links) = owner
-        .call(|peer| client::contacts::list_links(peer))
-        .await
-    else {
+    let Ok(links) = owner.call(|peer| client::contacts::list_links(peer)).await else {
         panic!("listing links failed");
     };
     assert!(links.is_empty());

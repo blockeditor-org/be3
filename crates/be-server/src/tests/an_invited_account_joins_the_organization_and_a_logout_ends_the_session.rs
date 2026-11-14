@@ -16,7 +16,18 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     let invitation = Uuid::from_u128(7);
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(peer, invitation, b"sealed to the invite code".to_vec(), Vec::new(), be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation { organization, email: "guest@example.com".into(), role: OrganizationRole::Editor, escrow: Vec::new() }))
+            client::contacts::create_link(
+                peer,
+                invitation,
+                b"sealed to the invite code".to_vec(),
+                Vec::new(),
+                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    organization,
+                    email: "guest@example.com".into(),
+                    role: OrganizationRole::Editor,
+                    escrow: Vec::new(),
+                }),
+            )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -29,13 +40,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
             .map(|_| ()),
         outsider
             .call(|peer| {
-                client::contacts::accept_link(
-                    peer,
-                    invitation,
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                )
+                client::contacts::accept_link(peer, invitation, Vec::new(), Vec::new(), Vec::new())
             })
             .await,
     ] {
@@ -56,13 +61,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
 
     let response = guest
         .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                invitation,
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
+            client::contacts::accept_link(peer, invitation, Vec::new(), Vec::new(), Vec::new())
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");

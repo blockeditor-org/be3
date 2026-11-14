@@ -42,9 +42,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     assert_eq!(public, Some([7; 32]));
     assert!(sealed.is_empty());
 
-    let response = owner
-        .call(|peer| client::members::list_members(peer))
-        .await;
+    let response = owner.call(|peer| client::members::list_members(peer)).await;
     let Ok(members) = response else {
         panic!("listing members failed: {response:?}");
     };

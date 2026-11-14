@@ -45,7 +45,9 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
     );
 
     let mut work = client::keys::key_work_changed(&admin.peer);
-    work.recv().await.expect("the stream starts with the key work");
+    work.recv()
+        .await
+        .expect("the stream starts with the key work");
     let removed = creator
         .call(|peer| client::members::remove_member(peer, agent.account))
         .await;

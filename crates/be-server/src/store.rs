@@ -96,9 +96,7 @@ use argon2::{
 };
 use be_block_commit::CommitId;
 use be_block_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
-use be_block_protocol::{
-    Agent, ErrorCode, Organization, OrganizationKind, OrganizationRole,
-};
+use be_block_protocol::{Agent, ErrorCode, Organization, OrganizationKind, OrganizationRole};
 use be_block_store::Hash;
 use rand::TryRngCore;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -914,14 +912,13 @@ impl ServerStore {
             if !identity.is_administrator() {
                 require_agent_of(graph, database, identity.account, organization, account)?;
             }
-            let role = crate::contacts::role_in(database, account, organization)?.ok_or_else(
-                || {
+            let role =
+                crate::contacts::role_in(database, account, organization)?.ok_or_else(|| {
                     ServerError::Refused(
                         ErrorCode::MemberNotFound,
                         "that account is not a member of this organization".into(),
                     )
-                },
-            )?;
+                })?;
             if role == OrganizationRole::Administrator {
                 refuse_last_administrator(database, organization)?;
             }

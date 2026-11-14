@@ -801,7 +801,7 @@ impl ServerStore {
                     params![caller.to_string(), other.to_string()],
                 )?;
                 transaction.execute(
-                    "DELETE FROM contact_links WHERE (owner_id = ?1 AND accepter_id = ?2)
+                    "DELETE FROM links WHERE (owner_id = ?1 AND accepter_id = ?2)
                         OR (owner_id = ?2 AND accepter_id = ?1)",
                     params![caller.to_string(), other.to_string()],
                 )?;

@@ -57,10 +57,7 @@ async fn members_manage_only_the_agents_they_created() {
             let denied = owner
                 .call(|peer| client::members::remove_member(peer, agent.account))
                 .await;
-            assert!(
-                refused_as(&denied, ErrorCode::MemberNotFound),
-                "{denied:?}"
-            );
+            assert!(refused_as(&denied, ErrorCode::MemberNotFound), "{denied:?}");
         }
         let removed = other
             .call(|peer| client::members::remove_member(peer, agent.account))

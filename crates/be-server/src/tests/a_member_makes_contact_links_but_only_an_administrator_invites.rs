@@ -28,7 +28,10 @@ async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
     let made = editor
         .create_link(link, be_block_protocol::LinkKind::Contact(None))
         .await;
-    assert!(matches!(made, Ok(())), "an editor makes a contact link: {made:?}");
+    assert!(
+        matches!(made, Ok(())),
+        "an editor makes a contact link: {made:?}"
+    );
     assert!(editor.links().await.iter().any(|own| own.id == link));
 
     harness.stop().await;

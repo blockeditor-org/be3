@@ -12,7 +12,18 @@ async fn join(
     let account = member.register(email).await;
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(peer, Uuid::from_u128(invitation), Vec::new(), Vec::new(), be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation { organization, email: email.into(), role: OrganizationRole::Editor, escrow: Vec::new() }))
+            client::contacts::create_link(
+                peer,
+                Uuid::from_u128(invitation),
+                Vec::new(),
+                Vec::new(),
+                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    organization,
+                    email: email.into(),
+                    role: OrganizationRole::Editor,
+                    escrow: Vec::new(),
+                }),
+            )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");

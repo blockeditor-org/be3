@@ -19,7 +19,13 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(peer, link, honest.seal(&code, CardRole::Owner), Vec::new(), be_block_protocol::LinkKind::Contact(None))
+            client::contacts::create_link(
+                peer,
+                link,
+                honest.seal(&code, CardRole::Owner),
+                Vec::new(),
+                be_block_protocol::LinkKind::Contact(None),
+            )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");

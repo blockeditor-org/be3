@@ -93,7 +93,18 @@ impl TestClient {
             (
                 "create-link (invitation)",
                 answered(
-                    client::contacts::create_link(peer, other, sealed(), sealed(), be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation { organization, email: "invited@example.com".into(), role: OrganizationRole::Administrator, escrow: sealed() }))
+                    client::contacts::create_link(
+                        peer,
+                        other,
+                        sealed(),
+                        sealed(),
+                        be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                            organization,
+                            email: "invited@example.com".into(),
+                            role: OrganizationRole::Administrator,
+                            escrow: sealed(),
+                        }),
+                    )
                     .await,
                 ),
             ),
@@ -134,8 +145,14 @@ impl TestClient {
             (
                 "create-link",
                 answered(
-                    client::contacts::create_link(peer, other, sealed(), sealed(), be_block_protocol::LinkKind::Contact(None))
-                        .await,
+                    client::contacts::create_link(
+                        peer,
+                        other,
+                        sealed(),
+                        sealed(),
+                        be_block_protocol::LinkKind::Contact(None),
+                    )
+                    .await,
                 ),
             ),
             (
@@ -145,14 +162,7 @@ impl TestClient {
             (
                 "accept-link",
                 answered(
-                    client::contacts::accept_link(
-                        peer,
-                        other,
-                        sealed(),
-                        sealed(),
-                        sealed(),
-                    )
-                    .await,
+                    client::contacts::accept_link(peer, other, sealed(), sealed(), sealed()).await,
                 ),
             ),
             (
