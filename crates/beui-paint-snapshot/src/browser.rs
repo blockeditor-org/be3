@@ -96,7 +96,7 @@ impl BrowserSnapshot {
             .expect("the browser painting could not be encoded");
         crate::accepted::assert_bytes(
             name,
-            "UPDATE_SNAPSHOTS=1 ./scripts/test TEST_NAME",
+            crate::HOW_TO_ACCEPT,
             "push it and review the browser painting in the pull request's text diff and painting comment",
             &bytes,
         );

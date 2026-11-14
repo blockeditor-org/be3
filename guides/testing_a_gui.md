@@ -149,9 +149,7 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
   what it painted (`MADE_PAINTINGS`), and an action after it compares that with `snapshots/`
   (guides/buck2.md, Tests). So the test's result is cached on its code alone, and a test that
   paints nondeterministically keeps one painting until its code changes instead of flipping on
-  every run. Such a painting still flips when the test reruns. Not built yet: rerunning a test
-  uncached once when CI accepts a changed painting of it, and calling it flaky when the two runs
-  disagree.
+  every run. Such a painting still flips when the test reruns (plans/flaky_paintings.md).
 - Git never merges a painting. On a conflict take either side (`git checkout --theirs`) and let
   verify repaint it.
 - Changed paintings need no explanation in your work: a person reviews them on the pull
@@ -315,11 +313,9 @@ Debugging:
   once slows every step down, but at 7 or more per core single steps pass 30 seconds with
   nothing wrong. Report a fix with its failure counts before and after, such as "3 of 200
   before, 0 of 800 after": a rate of one in a few hundred needs hundreds of runs.
-  A run whose painting differs from the accepted one fails with what changed. To keep the
-  variant, `MADE_PAINTINGS=DIR` has each run write its paintings to DIR instead of comparing
-  them, and `paint-compare --made DIR --accepted crates/be-host-tests/snapshots --out OUT
-  --update` (`./scripts/buck run //crates/be-tool-paint-compare:bin --`) keeps in OUT/changed
-  those that differ, with a `.why` beside each (`rasterize`, then compare the pictures).
+  A run whose painting differs from the accepted one fails with what changed, and keeps that
+  variant in target/stress/NAME/N/changed/ with a `.why` beside it (`rasterize`, then compare
+  the pictures).
 
 Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says why these):
 

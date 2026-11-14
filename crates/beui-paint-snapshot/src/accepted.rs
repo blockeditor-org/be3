@@ -14,9 +14,14 @@ pub fn assert_painting(name: &str, painting: beui_paint_format::Painting) {
 }
 
 pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
-    let made = snapshot
-        .encode()
-        .expect("the painting could not be encoded");
+    let body = snapshot.body().expect("the painting could not be encoded");
+    if std::env::var_os("MADE_PAINTINGS").is_none()
+        && let Ok(accepted) = std::fs::read(accepted_path(name))
+        && Snapshot::body_of(&accepted).is_ok_and(|accepted| accepted == body)
+    {
+        return;
+    }
+    let made = Snapshot::compress(&body).expect("the painting could not be compressed");
     assert_bytes(name, how_to_accept, REVIEW, &made);
 }
 

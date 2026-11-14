@@ -209,8 +209,7 @@ and the crate's `snapshots/`, writes `changed/` (each new or changed painting an
 `used/` (the SHA-256 of each accepted painting it compared with). So editing or accepting a
 painting reruns only that cheap compare, and a test that paints differently from run to run gives
 one painting per build of its code, from the cache, rather than flipping with the accepted
-painting it read: when a test's input was its own painting, CI's autofix pushed the painting back
-and forth on every run without running the test. Only `buck2 test` (a plain `./scripts/test`)
+painting it read. Only `buck2 test` (a plain `./scripts/test`)
 still hands the test the accepted paintings (`hidden`), which it compares in-process to pass or
 fail.
 
