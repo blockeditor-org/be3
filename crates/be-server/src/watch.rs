@@ -72,21 +72,41 @@ struct Joined {
     interests: HashMap<u64, Interest>,
 }
 
-struct Facts {
+/// What a connection was told of a block that decides which of its listings hold it.
+pub(crate) struct Facts {
     parent: Option<BlockParent>,
     held: bool,
     entry: bool,
-    references: Vec<Uuid>,
+    /// A set, since a referrer's may run to `MAX_REFERENCES` and is asked of every change.
+    references: HashSet<Uuid>,
     opens_inside: bool,
 }
 
 impl Facts {
-    fn of(summary: &BlockSummary, entry: bool) -> Self {
+    /// What a block's summary tells, given apart (`blocks::facts_of` reads it from the graph
+    /// without making a summary).
+    pub(crate) fn new(
+        parent: Option<BlockParent>,
+        held: bool,
+        entry: bool,
+        references: HashSet<Uuid>,
+        opens_inside: bool,
+    ) -> Self {
+        Self {
+            parent,
+            held,
+            entry,
+            references,
+            opens_inside,
+        }
+    }
+
+    pub(crate) fn of(summary: &BlockSummary, entry: bool) -> Self {
         Self {
             parent: summary.parent,
             held: summary.held,
             entry,
-            references: summary.references.clone(),
+            references: summary.references.iter().copied().collect(),
             opens_inside: summary.opens_inside,
         }
     }
@@ -298,13 +318,15 @@ impl WatchHub {
         }
     }
 
-    pub async fn listed(&self, client: u64, listing: Listing, blocks: &[BlockSummary]) {
+    /// A page of a listing was read: `told` is what the connection is told of each of its
+    /// blocks.
+    pub(crate) async fn listed(&self, client: u64, listing: Listing, told: Vec<(Uuid, Facts)>) {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
         interest.reading = interest.reading.saturating_sub(1);
         interest.refused.remove(&listing);
-        for summary in blocks {
-            interest.told(summary.id, Facts::of(summary, listing == Listing::Shared));
+        for (block, facts) in told {
+            interest.told(block, facts);
         }
     }
 

@@ -28,6 +28,12 @@ interface keys {
         account: account-id,
     }
 
+    /// A page of `get-keys`, and the last key it holds when more follow.
+    record key-page {
+        keys: key-set,
+        next: option<key-id>,
+    }
+
     /// What an organization's keys wait for that the caller may do: blocks
     /// whose keys to rotate, whether to rotate the escrow key, keys to seal
     /// to accounts, scope keys not yet wrapped under the escrow key, and the
@@ -40,8 +46,11 @@ interface keys {
         escrows: list<escrow-key>,
     }
 
-    /// The keys of `blocks`, or every key the caller holds with none.
-    get-keys: async func(blocks: option<list<block-id>>) -> result<key-set, error>;
+    /// One page of the keys of `blocks`, or of every key the caller holds
+    /// with none: the keys after `after` in the order of their ids, as many
+    /// as fit in half a frame with the wraps of each, and at least one. A
+    /// client asks again from `next` until it is none.
+    get-keys: async func(blocks: option<list<block-id>>, after: option<key-id>) -> result<key-page, error>;
 
     /// Stores rows, and tells `keys-changed` to every other connection of an
     /// account a key in them is sealed to or that may view a block they are

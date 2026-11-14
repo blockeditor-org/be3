@@ -55,6 +55,7 @@ mod a_head_published_while_its_block_is_being_read_reaches_the_reader;
 mod a_key_work_stream_starts_with_the_current_value;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_listing_answers_the_revision_it_was_read_at_and_later_changes_come_after_it;
+mod a_listing_pages_in_id_order_without_skipping_a_block_that_stays;
 mod a_logout_naming_the_devices_endpoint_forgets_it_in_every_organization;
 mod a_member_makes_contact_links_but_only_an_administrator_invites;
 mod a_member_removes_only_the_agents_it_made_while_it_may;
@@ -67,8 +68,10 @@ mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_notification_sent_again_with_the_keys_it_told_pushes_nothing;
+mod a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_block;
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
+mod a_publish_adding_a_reference_the_block_already_holds_moves_it;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
 mod a_push_hosts_cap_is_keyed_by_its_allowlist_entry_and_statuses_are_judged;
 mod a_push_reaches_members_who_are_not_connected_and_want_it;
@@ -134,6 +137,7 @@ mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod email_changes_wait_for_verification_and_notify_the_old_address;
 mod every_call_states_who_may_make_it;
 mod every_graph_change_advances_a_blocks_version;
+mod every_key_is_read_a_page_at_a_time_without_one_skipped;
 mod every_member_connection_hears_how_the_graph_changes;
 mod expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded;
 mod fcm_sends_a_data_message_with_the_service_accounts_token;
@@ -162,6 +166,7 @@ mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
 mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents;
+mod read_summaries_leaves_out_what_the_caller_may_not_know_of;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
 mod registration_checks_its_invite_code_before_hashing_the_password;
@@ -691,10 +696,23 @@ impl TestClient {
         assert!(response.is_ok(), "{response:?}");
     }
 
+    /// Every page of `get-keys`, as a client reads them.
     async fn keys(&mut self, blocks: Option<Vec<Uuid>>) -> KeySet {
-        self.call(|peer| client::keys::get_keys(peer, blocks))
-            .await
-            .expect("reading keys failed")
+        let mut keys = KeySet::default();
+        let mut after = None;
+        loop {
+            let asked = blocks.clone();
+            let page = self
+                .call(|peer| client::keys::get_keys(peer, asked, after))
+                .await
+                .expect("reading keys failed");
+            keys.keys.extend(page.keys.keys);
+            keys.wrapped.extend(page.keys.wrapped);
+            match page.next {
+                Some(next) => after = Some(next),
+                None => return keys,
+            }
+        }
     }
 
     async fn upload(&mut self, store: &MemoryStore, hashes: &[Hash]) {
@@ -775,7 +793,7 @@ impl TestClient {
     }
 
     async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
-        self.call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent)))
+        self.call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent), None))
             .await
             .expect("listing failed")
             .blocks
@@ -825,7 +843,7 @@ fn read_block(
     peer: &Peer,
     block: Uuid,
 ) -> impl Future<Output = Result<Result<BlockSummary, Error>, be_wasm_ops::OpError>> + use<> {
-    let listing = client::blocks::list_blocks(peer, Listing::Block(block));
+    let listing = client::blocks::list_blocks(peer, Listing::Block(block), None);
     async move {
         Ok(listing.await?.map(|listed| {
             listed

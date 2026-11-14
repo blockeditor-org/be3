@@ -10,6 +10,7 @@ async fn listed(client: &mut TestClient, shared: bool) -> Vec<Uuid> {
                     true => Listing::Shared,
                     false => Listing::Children(BlockParent::Root),
                 },
+                None,
             )
         })
         .await;

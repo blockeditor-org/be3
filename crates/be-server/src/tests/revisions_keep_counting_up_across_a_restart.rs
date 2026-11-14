@@ -12,7 +12,7 @@ async fn revisions_keep_counting_up_across_a_restart() {
         client.create_block(BlockParent::Root).await;
     }
     let listed = client
-        .call(|peer| client::blocks::list_blocks(peer, Listing::Children(BlockParent::Root)))
+        .call(|peer| client::blocks::list_blocks(peer, Listing::Children(BlockParent::Root), None))
         .await
         .expect("listing failed");
     let token = client.token.clone();

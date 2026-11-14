@@ -418,7 +418,17 @@ children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`, or one
 `Block`, which is how a client reads a block's summary) registers with
 `WatchHub` *before* reading, so nothing changed
 during the read is missed, and the hub remembers each block it told a
-connection of. A change is sent to each connected member in the block's
+connection of. A listing comes a page at a time, in the order of block ids
+(`ServerStore::list_page`, which works out the listing's ids and summarizes
+only the page's blocks): the summaries that fit in
+`ServerConfig::listing_page_bytes`, then the next ids in half that more
+(`listed.rest`), and `listed.next` when it goes on, which the client passes
+back as `after` for the ids past it. A block that stays in the listing is on
+exactly one page, and one that joins or leaves between pages is told on
+`changes`. The hub records each page's blocks as told (`Facts`, read from the
+graph for `rest` ids, with no summary made); the client reads
+`rest`'s summaries with `read-summaries` (at most `MAX_SUMMARIES_ASKED` ids),
+which lists nothing. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
 member's access allows or a `BlockRemoved`, when a listing matches the block
 now or the connection heard of it before (so a block moving out of a listed
@@ -469,9 +479,11 @@ the ids of blocks that left THAT tree and are not in it now (ids of blocks a
 reader may not view are named too: a reader of a tree is told that a block left
 it, except blocks only their author may read), a cursor, and the organization's current sequence, which counts the writes
 the organization has made. A page ends at `MAX_CHANGES_PER_PAGE` blocks of either
-kind or `MAX_SCANNED` rows looked at; a page that stops on another tree's change
-reads on to the end of that change's sequence and returns a cursor that names no
-block, so a cursor never carries a block id the caller may not know.
+kind, `MAX_PAGE_SUMMARY_BYTES` of summaries (so a tree of blocks with large
+metadata still pages within a frame) or `MAX_SCANNED` rows looked at; a page
+that stops on another tree's change reads on until the next block of this tree
+in that change's sequence, or else to its end and returns a cursor that names
+no block, so a cursor never carries a block id the caller may not know.
 
 ### Limits
 
@@ -530,6 +542,31 @@ lease lapsed writes on until the next `Lease` tells it (an append is relayed
 either way, as a relay is). An append is refused when the journal is another tag's until
 the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
 journals while they fit in a quarter of a frame.
+
+**Answers that fit a frame.** A summary carries metadata of up to
+`MAX_METADATA_BYTES` and at most `MAX_REFERENCES` references (as many as an
+account may author blocks, so a folder of all of them still fits; refused past
+it by `create-block`, `set-metadata` and `publish`, which also refuses a
+`ReferenceChange` `between` never makes, naming an added reference twice or
+with indices that do not increase; `apply` is one pass, and moves an added
+reference the list already holds, since a client diffs against its own view), so one summary fits a
+frame on its own (`LARGEST_SUMMARY_BYTES`, held by a const assertion).
+Answers of many summaries bound them by encoded size
+(`be_block_protocol::encoded_len`), not by count, and always take at least one,
+so a summary larger than the budget goes alone: `list-blocks` and
+`read-summaries` as above; `read-contents` answers the first blocks whose
+summaries fit in `SUMMARY_BYTES` and the client asks again for the rest, with
+its objects and journals in what is left beside them (`contents_room`:
+`CONTENTS_BYTES` and half that, or less beside a large summary);
+`changed-since` ends a page at `MAX_PAGE_SUMMARY_BYTES`, and one that reads on
+through another tree's change sequence stops at the next block of its own;
+`get-keys` pages by key id (`ServerConfig::key_page_bytes`,
+guides/blocks/keys.md). Each budget, with the largest summary and
+`FRAME_ENVELOPE_BYTES`, is held under `MAX_FRAME_BYTES` by a const assertion.
+`list-history` still answers every entry kept at once. Code that walks a block's references must stay linear at `MAX_REFERENCES`:
+`BlockGraph::set_references`, `relinked`, `ReferenceChange::apply`, the
+hub's `Facts` and be-host-stack's `Graph::holds_in` use sets, not
+`Vec::contains`.
 
 Nothing the store does blocks the runtime's threads. Its SQL runs as owned
 jobs on tokio's blocking pool, one at a time under the database lock:

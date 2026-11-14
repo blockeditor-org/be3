@@ -56,9 +56,12 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   the expected head's (`held_by`, `references_of`). A merge, or new objects over
   half a frame, upload first (`push`): only what `MissingObjects` says is
   missing, through URLs (below).
-- `read_contents` reads many heads at once (one `ReadContents` per 256 blocks,
-  chunks that fit in half a frame), so a tree costs one round trip, not three
-  per block. Export and `be download` use it.
+- `read_contents` reads many heads at once, asking for up to `CONTENTS_BLOCKS`
+  blocks per `ReadContents`, all sent together, so a tree costs one round trip,
+  not three per block. The server decides how much of each comes back: the
+  first blocks whose summaries fit its answer, and of their heads' objects and
+  journals what fits beside them; `read_contents` asks again for the rest of a
+  group, and fetches objects left out by URL. Export and `be download` use it.
 - `stream_header` and `stream_range` read a `Streamed` type without its
   payload.
 - `fetch` verifies hashes; `fetch_history` must run before asking history a
@@ -194,7 +197,14 @@ merge moves the remote head on. A record that no
 longer decodes is skipped on load.
 
 `Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
-only shorthands). The refs database keeps one summary per block, the newest
+only shorthands): every page of a long one (`listed.next`, in the order of
+block ids, so a `References` listing is put back in the block's own order),
+and the summaries
+of each page's `rest` with `read-summaries`, `MAX_SUMMARIES_ASKED` at a time,
+keeping each block once and leaving out a summary read later that the listing
+would no longer hold (`still_in`). A block's references past
+`MAX_REFERENCES` are refused before anything is sealed or put in the outbox
+(`bounded`). The refs database keeps one summary per block, the newest
 revision winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 listing answers as the summaries place its blocks now:
