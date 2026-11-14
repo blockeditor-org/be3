@@ -117,20 +117,22 @@ whether it is shown. The surfaces are:
 - surfaces the host owns, such as program windows;
 - later, web documents (iframes).
 
-- **Native:** a wgpu pass draws the layers. It is a crate of its own, below beui, which Space
-  uses too (Space and headsets). OS compositor planes may take it over later.
+- **Native:** a wgpu pass in the host draws the layers. OS compositor planes may take it over
+  later.
 - **Web:** the page applies the list as CSS to the canvases it already places
   (`be-host-runtime/src/web/canvases.rs` and `overlay.rs`). A child's `OffscreenCanvas` goes to
   its worker when it is spawned, and the root guest names it only by handle.
-- **The compositor arranges app surfaces and never reads their pixels.** On the web it cannot,
-  since each app worker has its own GPU device. Space, natively, is the one exception (Space and
-  headsets). Nothing in the host blurs; an app that wants a blurred backdrop draws one from its
-  own content.
+- **Only the host composites app surfaces.** No guest reads another instance's pixels: on the
+  web it could not, since each app worker has its own GPU device. A guest gets back only windows
+  the host composited for it (Space and headsets). Nothing in the host blurs; an app that wants a
+  blurred backdrop draws one from its own content.
 - **Damage:** each surface reports damage rectangles and layers keep stable ids. The host
   transforms each surface's damage and adds layers that moved, for e-paper's `FB_DAMAGE_CLIPS`.
 - **OS windows:** the root guest opens, sizes and closes them (one per display, dock tabs floated
   out, popups that escape their window) with `WindowRequests`, and the host answers with
   `WindowReports`.
+- **Offscreen windows:** the root guest may also open a window the host composites into a texture
+  or a headset swapchain image instead of onto a screen. Only Space uses them.
 
 ## Input
 
@@ -235,18 +237,19 @@ the compositor inline. Neither the compositor nor any app knows about VR.
   `Layer` does today (`WindowHosting::Any`): each window the compositor opens becomes a panel, and
   a dock tab popped out becomes a panel rather than an OS window. The simulator is one real
   window.
-- **Pixels:** Space composites each window's layer list into its panel's texture itself, with the
-  same compositing crate the host uses, and only for windows with damage. It runs on the host's
-  device, so it reads app surfaces natively; WebXR, where it could not, is not planned. A panel
-  the headset shows as a composition layer is composited straight into that layer's swapchain
-  image.
+- **Pixels:** Space opens an offscreen window for each panel and passes the compositor's layer
+  list for it through to the host, which composites it into the panel's texture, only when it has
+  damage. A panel the headset shows as a composition layer is composited straight into that
+  layer's swapchain image, so nothing is drawn twice. Space draws the other panels into the eye
+  buffer from their textures, with mipmaps, so distant text doesn't shimmer. It never reads an
+  app's surface itself. WebXR is not planned.
 - **Input:** Space takes all input, ray-tests its panels for a window and a point, then runs the
   forwarding router with a 2D test over that window's layer list.
 - **The host's part:** OpenXR, as beui-layer-xr without its `Layer` wrapper: the frame loop and
   poses, swapchains, and submitting the quad, cylinder and projection layers Space describes.
-- **Not planned:** drawing some of a window's layers apart in 3D, such as a popup in front of its
-  panel. Compositing per window keeps that possible. It would cost a draw per eye for each
-  separated layer, under a budget Space keeps, and a ray test against each.
+- **Menus and popovers** are windows of their own already (roles `Popup` and `Keyboard`,
+  guides/beui/space.md), so Space places them as panels of their own. Drawing a window's layers
+  apart in 3D is not planned.
 
 ## The block stack in the root guest
 
@@ -314,12 +317,12 @@ Each step lands on its own.
 
 1. The sandbox API for modules from bytes. Move the remapper onto it.
 2. Spawning staged apps. A test guest embeds one editor without the host's compositor.
-3. The layer list, the compositing crate and the forwarding router, and how native and the web
-   realize them, with the host's current UI as their only producer, so nothing changes visibly.
+3. The layer list and the forwarding router, and how native and the web realize them, with the
+   host's current UI as their only producer, so nothing changes visibly.
 4. The synchronous root entry with deadlines. The compositor takes over `src/compositor`,
    `src/ui`, the camera and the orchestration.
 5. The block stack in the root guest, behind capabilities.
-6. Space as a guest, and the host's OpenXR part, with late latching.
+6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.
 7. Strip the host: drop beui's widgets, text and fonts, the block stack, be-server and audio
    decoding. Update guides/apps/runtime.md, guides/desktop.md, guides/running/web.md,
    guides/running/drive.md, guides/beui/space.md, guides/pan_and_zoom.md and
