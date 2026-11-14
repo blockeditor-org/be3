@@ -192,8 +192,9 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 # takes no --extern for it by itself. LD_LIBRARY_PATH is the test's at run time
 # alone: a sysroot's libc in it would load into the compiler.
 #
-# A test that paints (guides/testing_a_gui.md) reads and accepts the paintings
-# in the crate's snapshots/, as app tests do (buck/wasm/defs.bzl).
+# A test that paints (guides/testing_a_gui.md) is compared with the paintings
+# in the crate's snapshots/, as app tests are (buck/wasm/defs.bzl), after its
+# own action (run_test in buck/dev/test.bzl).
 # crates/be-host-tests is one: be-host with its apps, driven headless. With
 # run_apart, each test file is a :test-<file> of its own, so the files run
 # side by side on workers rather than in one process, and a test that fails
