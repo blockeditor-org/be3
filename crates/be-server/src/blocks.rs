@@ -34,6 +34,10 @@ fn tree_of(graph: &BlockGraph, block: Uuid) -> Option<Uuid> {
 
 /// The most blocks of either kind a page of `changed-since` holds.
 const MAX_CHANGES_PER_PAGE: usize = 500;
+/// The summaries of one `changed-since` page: once they come to this, the page ends, so with
+/// one summary more (whose metadata is at most `MAX_METADATA_BYTES`) it stays well inside a
+/// frame.
+const MAX_PAGE_SUMMARY_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 4;
 
 /// The most changes one page of `changed-since` looks at, those of other trees included.
 const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
@@ -681,11 +685,14 @@ impl ServerStore {
         .await
     }
 
+    /// The summaries of the first of `blocks` that fit in `room` bytes (the first always does),
+    /// and the objects of their heads but those `held`.
     pub async fn read_contents(
         &self,
         identity: Identity,
         blocks: Vec<Uuid>,
         held: Vec<CommitId>,
+        mut room: usize,
     ) -> Result<(Vec<BlockSummary>, Vec<Hash>), ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
@@ -700,6 +707,11 @@ impl ServerStore {
             for block in blocks {
                 require(graph, &seen, block, Access::View, "readable")?;
                 let summary = summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)?;
+                let size = be_block_protocol::encoded_len(&summary);
+                if size > room && !summaries.is_empty() {
+                    break;
+                }
+                room = room.saturating_sub(size);
                 if let Some(head) = summary.head
                     && !held.contains(&head)
                 {
@@ -1550,8 +1562,9 @@ impl ServerStore {
 
     /// What changed after `since` in `root`'s tree (a top-level block's), from `after`
     /// (`changes.rs`): the blocks in the tree now that changed, and the blocks that left that
-    /// tree (moved out, or deleted for good from it) since, and are not in it. A page ends at `limit` blocks of either kind, or at `MAX_SCANNED` changes looked
-    /// at (the changes of other trees count), with `next` set.
+    /// tree (moved out, or deleted for good from it) since, and are not in it. A page ends at `limit` blocks of either kind, at
+    /// `MAX_PAGE_SUMMARY_BYTES` of summaries, or at `MAX_SCANNED` changes looked at (the changes
+    /// of other trees count), with `next` set.
     pub async fn changed_since(
         &self,
         identity: Identity,
@@ -1601,7 +1614,7 @@ impl ServerStore {
             // A page that stops on a block of another tree must not name it in its cursor:
             // it reads on to the end of that sequence (one write's blocks) and ends on a
             // cursor that names no block.
-            let (mut scanned, mut next) = (0, None);
+            let (mut scanned, mut next, mut summary_bytes) = (0, None, 0);
             let mut finishing: Option<i64> = None;
             while let Some(row) = rows.next()? {
                 let (id, changed, departed): (String, i64, bool) =
@@ -1622,6 +1635,7 @@ impl ServerStore {
                     if seen.can_view(graph, id)
                         && let Some(summary) = summary_with(graph, &seen, id)
                     {
+                        summary_bytes += be_block_protocol::encoded_len(&summary);
                         summaries.push(summary);
                         ours = true;
                     }
@@ -1629,8 +1643,17 @@ impl ServerStore {
                     removed.push(id);
                     ours = true;
                 }
+                // Finishing, the first block of this tree ends the page, which may name it.
+                if finishing.is_some() && ours {
+                    next = Some(ChangeCursor {
+                        changed: changed as u64,
+                        block: id,
+                    });
+                    break;
+                }
                 if finishing.is_none()
                     && (summaries.len() >= limit
+                        || summary_bytes >= MAX_PAGE_SUMMARY_BYTES
                         || removed.len() >= limit
                         || scanned >= MAX_SCANNED)
                 {

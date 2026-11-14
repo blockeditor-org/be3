@@ -58,7 +58,8 @@ each `due()` until it gives up. The fault relay (guides/blocks/server.md,
   missing, through URLs (below).
 - `read_contents` reads many heads at once (one `ReadContents` per 256 blocks,
   chunks that fit in half a frame), so a tree costs one round trip, not three
-  per block. Export and `be download` use it.
+  per block. The server answers only the first blocks whose summaries fit its
+  answer, and `read_contents` asks again for the rest of that group. Export and `be download` use it.
 - `stream_header` and `stream_range` read a `Streamed` type without its
   payload.
 - `fetch` verifies hashes; `fetch_history` must run before asking history a

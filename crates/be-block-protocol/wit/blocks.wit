@@ -126,8 +126,9 @@ interface blocks {
         head: bool,
     }
 
-    /// The summaries asked for, and as many of the objects of their heads as
-    /// fit in half a frame, in order; a client asks again for the rest.
+    /// The summaries of the first blocks asked for that fit in a sixteenth of
+    /// a frame, and as many of the objects of their heads as fit in half a
+    /// frame, in order; a client asks again for the rest.
     record contents {
         blocks: list<block-summary>,
         objects: list<list<u8>>,
@@ -230,8 +231,10 @@ interface blocks {
     /// `root`.
     changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
 
-    /// Summaries of `blocks`, their journals, and the objects of their heads
-    /// the caller does not hold, those of the commits in `held` left out.
+    /// Summaries of the first of `blocks`, as many as fit in the answer and
+    /// at least one, their journals, and the objects of their heads the
+    /// caller does not hold, those of the commits in `held` left out. A
+    /// client asks again for the blocks left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
 
     /// Moves a block, with the keys it needs under its new parent.

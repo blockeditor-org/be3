@@ -16,8 +16,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
-    CONTENTS_BYTES, Identity, PublishOutcome, ServerConfig, ServerError, ServerStore, Services,
-    SessionRegistry, WatchHub,
+    CONTENTS_BYTES, Identity, PublishOutcome, SUMMARY_BYTES, ServerConfig, ServerError,
+    ServerStore, Services, SessionRegistry, WatchHub,
     address::{Anonymous, Eviction},
     browser_auth, contacts,
     limits::{
@@ -1626,7 +1626,7 @@ impl Client {
                     prelude?;
                     let (blocks, hashes) = connection
                         .store
-                        .read_contents(connection.identity()?, blocks, held)
+                        .read_contents(connection.identity()?, blocks, held, SUMMARY_BYTES)
                         .await?;
                     let objects = connection.store.get_objects(hashes, CONTENTS_BYTES).await?;
                     let journals = connection

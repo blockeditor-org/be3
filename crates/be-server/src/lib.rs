@@ -314,7 +314,13 @@ fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
 }
 
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
+/// The share of a `read-contents` answer its objects take; its journals take half that, and
+/// its summaries `SUMMARY_BYTES`, leaving the rest of a frame to spare.
 const CONTENTS_BYTES: usize = MAX_FRAME_BYTES / 2;
+/// The summaries of one `read-contents` answer: hundreds of blocks as they usually are, and a
+/// few with metadata near `limits::MAX_METADATA_BYTES`. The client asks again for those left
+/// out.
+const SUMMARY_BYTES: usize = MAX_FRAME_BYTES / 16;
 
 pub async fn serve_with_config(
     listener: TcpListener,

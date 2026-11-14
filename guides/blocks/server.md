@@ -469,9 +469,11 @@ the ids of blocks that left THAT tree and are not in it now (ids of blocks a
 reader may not view are named too: a reader of a tree is told that a block left
 it, except blocks only their author may read), a cursor, and the organization's current sequence, which counts the writes
 the organization has made. A page ends at `MAX_CHANGES_PER_PAGE` blocks of either
-kind or `MAX_SCANNED` rows looked at; a page that stops on another tree's change
-reads on to the end of that change's sequence and returns a cursor that names no
-block, so a cursor never carries a block id the caller may not know.
+kind, `MAX_PAGE_SUMMARY_BYTES` of summaries (so a tree of blocks with large
+metadata still pages within a frame) or `MAX_SCANNED` rows looked at; a page
+that stops on another tree's change reads on until the next block of this tree
+in that change's sequence, or else to its end and returns a cursor that names
+no block, so a cursor never carries a block id the caller may not know.
 
 ### Limits
 
@@ -530,6 +532,14 @@ lease lapsed writes on until the next `Lease` tells it (an append is relayed
 either way, as a relay is). An append is refused when the journal is another tag's until
 the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
 journals while they fit in a quarter of a frame.
+
+**Answers that fit a frame.** A summary carries metadata of up to
+`MAX_METADATA_BYTES`, so a call answering many summaries bounds them by their
+encoded size (`be_block_protocol::encoded_len`), not by count:
+`read-contents` answers the first of the blocks asked whose summaries fit in
+`SUMMARY_BYTES` (at least one) and the client asks again for the rest, with
+the objects of their heads in `CONTENTS_BYTES` and their journals in half that;
+`changed-since` ends a page at `MAX_PAGE_SUMMARY_BYTES`.
 
 Nothing the store does blocks the runtime's threads. Its SQL runs as owned
 jobs on tokio's blocking pool, one at a time under the database lock:

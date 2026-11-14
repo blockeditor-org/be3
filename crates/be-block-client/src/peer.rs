@@ -39,8 +39,9 @@ pub struct BlockRead {
 }
 
 const CARRIED_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 2;
-/// How many blocks one `ReadContents` asks for. Tests read across several such calls with a few
-/// blocks each, rather than making hundreds of blocks to cross one.
+/// How many blocks one `ReadContents` asks for; the server may answer fewer, as many as fit
+/// its answer, and the rest are asked for again. Tests read across several such calls with a
+/// few blocks each, rather than making hundreds of blocks to cross one.
 pub(crate) const CONTENTS_BLOCKS: usize = if cfg!(test) { 8 } else { 256 };
 
 mod authorship;
@@ -1569,38 +1570,56 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         blocks: &[(Uuid, Option<CommitId>)],
     ) -> Result<Vec<BlockRead>, ClientError> {
-        let mut asked = Vec::new();
-        for group in blocks.chunks(CONTENTS_BLOCKS) {
+        let ask = |group: &[(Uuid, Option<CommitId>)]| {
             let ids: Vec<Uuid> = group.iter().map(|(id, _)| *id).collect();
             let held = group
                 .iter()
                 .filter_map(|(_, head)| *head)
                 .filter(|head| self.holds(*head))
                 .collect();
-            let answer = client::blocks::read_contents(&self.connection(), ids.clone(), held);
-            asked.push((ids, answer));
-        }
+            client::blocks::read_contents(&self.connection(), ids, held)
+        };
+        let asked: Vec<_> = blocks
+            .chunks(CONTENTS_BLOCKS)
+            .map(|group| (group, ask(group)))
+            .collect();
         let mut summaries = Vec::with_capacity(blocks.len());
-        for (ids, answer) in asked {
-            let be_block_protocol::Contents {
-                blocks,
-                objects,
-                journals,
-            } = answer.await??;
-            if !blocks.iter().map(|summary| summary.id).eq(ids) || journals.len() != blocks.len() {
-                return Err(ClientError::Unexpected);
+        for (mut group, mut answer) in asked {
+            loop {
+                let be_block_protocol::Contents {
+                    blocks,
+                    objects,
+                    journals,
+                } = answer.await??;
+                // The server answers the first of the blocks asked whose summaries fit in its
+                // answer, at least one; the rest are asked for again.
+                if blocks.is_empty()
+                    || blocks.len() > group.len()
+                    || !blocks
+                        .iter()
+                        .zip(group)
+                        .all(|(summary, (id, _))| summary.id == *id)
+                    || journals.len() != blocks.len()
+                {
+                    return Err(ClientError::Unexpected);
+                }
+                let store = self.commits.vault().store();
+                for object in &objects {
+                    store.put(object)?;
+                }
+                for summary in &blocks {
+                    self.note(summary);
+                }
+                group = &group[blocks.len()..];
+                let blocks = blocks
+                    .into_iter()
+                    .map(|summary| self.summary_with_outbox(summary));
+                summaries.extend(blocks.zip(journals));
+                if group.is_empty() {
+                    break;
+                }
+                answer = ask(group);
             }
-            let store = self.commits.vault().store();
-            for object in &objects {
-                store.put(object)?;
-            }
-            for summary in &blocks {
-                self.note(summary);
-            }
-            let blocks = blocks
-                .into_iter()
-                .map(|summary| self.summary_with_outbox(summary));
-            summaries.extend(blocks.zip(journals));
         }
         futures_util::future::try_join_all(summaries.into_iter().map(
             |(summary, journal)| async move {

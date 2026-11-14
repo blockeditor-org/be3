@@ -42,6 +42,12 @@ pub use sessions::*;
 pub use types::*;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+/// The bytes `value` takes in a frame, whose values are postcard: what a server measures an
+/// answer by so that it fits.
+pub fn encoded_len<T: Serialize + ?Sized>(value: &T) -> usize {
+    postcard::serialize_with_flavor(value, postcard::ser_flavors::Size::default())
+        .unwrap_or(usize::MAX)
+}
 /// The largest object the server stores.
 pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
 /// The most objects one `upload-urls` or `download-urls` call names, which keeps its answer
