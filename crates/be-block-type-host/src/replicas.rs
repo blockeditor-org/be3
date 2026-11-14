@@ -202,8 +202,11 @@ pub enum Io {
         answer: Box<Answered>,
         published: Option<CommitId>,
     },
+    /// A read of the replica's met a key this device does not hold: `arrivals` as the read
+    /// started (`Peer::arrivals`), so one that keys arrived during is not taken for locked.
     Locked {
         replica: ReplicaId,
+        arrivals: u64,
     },
     Published {
         publish: u64,
@@ -223,6 +226,8 @@ pub enum Io {
         replica: ReplicaId,
         block: Uuid,
         joined: Box<Joined>,
+        /// `Peer::arrivals` as the join started.
+        arrivals: u64,
     },
     Rejoined {
         replica: ReplicaId,
@@ -819,6 +824,7 @@ impl<H: Host> Replicas<H> {
         let Some(kind) = self.kind(content_type).await else {
             return;
         };
+        let arrivals = peer.arrivals();
         let owned = !kind.frozen && H::owned(shared, block);
         let known = peer
             .known_summary(block)
@@ -851,7 +857,7 @@ impl<H: Host> Replicas<H> {
                         false,
                         None,
                     ) {
-                        self.join_later(replica, block, joining);
+                        self.join_later(replica, block, joining, arrivals);
                     }
                     return;
                 }
@@ -898,9 +904,13 @@ impl<H: Host> Replicas<H> {
                 (client, offline_session(head), head, true, None)
             }
             Ok(joined) => joined,
-            Err(ClientError::Locked(_)) => {
+            Err(ClientError::Locked(_)) if peer.arrivals() == arrivals => {
                 self.lock(shared, block);
                 return;
+            }
+            // Keys arrived while it opened, after `unlock` ran: it opens again.
+            Err(ClientError::Locked(_)) => {
+                return Box::pin(self.open((peer, shared), block, content_type, reader)).await;
             }
             Err(error) => {
                 H::record(shared, error);
@@ -1029,7 +1039,13 @@ impl<H: Host> Replicas<H> {
         Some(replica)
     }
 
-    fn join_later(&mut self, replica: ReplicaId, block: Uuid, joining: Pending<Joined>) {
+    fn join_later(
+        &mut self,
+        replica: ReplicaId,
+        block: Uuid,
+        joining: Pending<Joined>,
+        arrivals: u64,
+    ) {
         let io = self.io.clone();
         H::spawn(async move {
             let joined = joining.await;
@@ -1037,6 +1053,7 @@ impl<H: Host> Replicas<H> {
                 replica,
                 block,
                 joined: Box::new(joined),
+                arrivals,
             });
             H::wake();
         });
@@ -1046,7 +1063,14 @@ impl<H: Host> Replicas<H> {
         self.open.values().any(|open| open.joining)
     }
 
-    fn joined(&mut self, shared: &Arc<Mutex<H>>, replica: ReplicaId, block: Uuid, joined: Joined) {
+    fn joined(
+        &mut self,
+        (peer, shared): Ctx<'_, H>,
+        replica: ReplicaId,
+        block: Uuid,
+        joined: Joined,
+        arrivals: u64,
+    ) {
         let Some(open) = self.open.get_mut(&replica) else {
             if joined.is_ok() && !self.blocks.contains_key(&block) {
                 self.leaving.push(block);
@@ -1061,15 +1085,21 @@ impl<H: Host> Replicas<H> {
             Ok(joined) => joined,
             Err(error) if unreachable(&error) => return,
             Err(error) => {
-                if let ClientError::Locked(_) = &error {
+                let locked = matches!(error, ClientError::Locked(_));
+                let keyed = locked && peer.arrivals() != arrivals;
+                if locked && !keyed {
                     self.locked.insert(block);
                     H::set_locked(shared, block, true);
-                } else {
+                } else if !locked {
                     H::record(shared, error);
                 }
                 open.joining = false;
                 self.make_up_session(replica);
                 self.close_if_asked(replica);
+                // Keys arrived while it joined, after `unlock` ran: it joins again.
+                if keyed {
+                    self.read_again(block);
+                }
                 return;
             }
         };
@@ -1353,20 +1383,37 @@ impl<H: Host> Replicas<H> {
     }
 
     /// Keys this account may open arrived (`Event::KeysChanged`, after `Peer::keys_changed`):
-    /// every block found locked is no longer, an open one is opened again, and relayed
-    /// messages search for their keys again. Answers the locked blocks that are not open, for
-    /// the host to open again if it still wants them.
+    /// every block found locked is no longer, an open one reads again (`read_again`), and
+    /// relayed messages search for their keys again. Answers the locked blocks that are not
+    /// open, for the host to open again if it still wants them.
     pub fn unlock(&mut self, shared: &Arc<Mutex<H>>) -> Vec<Uuid> {
         self.searched.clear();
         let mut closed = Vec::new();
         for block in std::mem::take(&mut self.locked) {
             H::set_locked(shared, block, false);
             match self.blocks.contains_key(&block) {
-                true => self.reopen(block),
+                true => self.read_again(block),
                 false => closed.push(block),
             }
         }
         closed
+    }
+
+    /// Opens a replica again to read what a missing key kept from it, if that loses nothing:
+    /// one that never joined its session, or that holds no edit it has not sealed and
+    /// reported. Opening again drops the instance, so one with edits keeps it instead, and its
+    /// next read asks for the key again. One the host is closing stays closed.
+    fn read_again(&mut self, block: Uuid) {
+        let Some((_, open)) = self.replica_of(block) else {
+            return;
+        };
+        let settled = open.status.clean
+            && !open.status.owes_seal
+            && !open.unreported
+            && !open.replay.iter().any(Replayed::local_edit);
+        if !open.closing && (open.made_up || settled) {
+            self.reopen(block);
+        }
     }
 
     pub fn reopen(&mut self, block: Uuid) {
@@ -2222,9 +2269,13 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
-            Io::Locked { replica } => {
+            Io::Locked { replica, arrivals } => {
                 if let Some(block) = self.open.get(&replica).map(|open| open.block) {
-                    self.lock(shared, block);
+                    match peer.arrivals() == arrivals {
+                        true => self.lock(shared, block),
+                        // Keys arrived while it read, after `unlock` ran: it reads again.
+                        false => self.read_again(block),
+                    }
                 }
             }
             Io::Published {
@@ -2284,7 +2335,8 @@ impl<H: Host> Replicas<H> {
                 replica,
                 block,
                 joined,
-            } => self.joined(shared, replica, block, *joined),
+                arrivals,
+            } => self.joined((peer, shared), replica, block, *joined, arrivals),
             Io::Rejoined {
                 replica,
                 block,
@@ -2873,6 +2925,7 @@ impl<H: Host> Replicas<H> {
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
+                    let arrivals = peer.arrivals();
                     let read = async {
                         let loaded = peer.load_commit(commit).await?;
                         let read = match first_part {
@@ -2886,7 +2939,7 @@ impl<H: Host> Replicas<H> {
                     }
                     .await;
                     if let Err(ClientError::Locked(_)) = &read {
-                        let _ = io.send(Io::Locked { replica });
+                        let _ = io.send(Io::Locked { replica, arrivals });
                     }
                     let result = read
                         .map(be_sdk_type_api::Loaded::of)
@@ -2899,11 +2952,12 @@ impl<H: Host> Replicas<H> {
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
+                    let arrivals = peer.arrivals();
                     let read = peer
                         .read_part(part.into(), range.offset, range.length)
                         .await;
                     if let Err(ClientError::Locked(_)) = &read {
-                        let _ = io.send(Io::Locked { replica });
+                        let _ = io.send(Io::Locked { replica, arrivals });
                     }
                     let result = read.map_err(|error| error.to_string());
                     (Answered::ReadPart(reply, result), None)
@@ -2914,6 +2968,7 @@ impl<H: Host> Replicas<H> {
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
+                    let arrivals = peer.arrivals();
                     let put = match made_up {
                         true => Err(ClientError::Disconnected(
                             "the server does not have this block yet".to_owned(),
@@ -2921,7 +2976,7 @@ impl<H: Host> Replicas<H> {
                         false => peer.put_part(block, &bytes).await,
                     };
                     if let Err(ClientError::Locked(_)) = &put {
-                        let _ = io.send(Io::Locked { replica });
+                        let _ = io.send(Io::Locked { replica, arrivals });
                     }
                     let result = put
                         .map(be_sdk_type_api::PartRef::from)

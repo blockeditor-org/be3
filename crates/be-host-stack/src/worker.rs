@@ -1660,6 +1660,8 @@ impl Session<'_> {
         self.line = Line::up(peer, open);
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            // A reread cut off with the connection it ran on never ended (`Tasks::relearn_locked`).
+            held.relearning = None;
             held.set_connected(true);
             held.connection = Some(peer.connection());
             #[cfg(test)]
@@ -4014,8 +4016,12 @@ impl Tasks {
                     record(&shared, error);
                 }
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                // As this device knows each now: a change heard while it asked is newer.
                 for summary in &summaries {
-                    held.graph.reread(node_of(&peer, summary));
+                    if let Some(known) = peer.known_summary(summary.id) {
+                        let known = peer.summary_with_outbox(known);
+                        held.graph.reread(node_of(&peer, &known), known.revision);
+                    }
                 }
                 if held.relearning != Some(true) {
                     held.relearning = None;

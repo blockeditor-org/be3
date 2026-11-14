@@ -55,7 +55,9 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   `Peer::keys_changed` forgets what was
   found missing, and a `learn` or read asking as keys arrive asks once more.
   The worker then reads its locked nodes again with one `learn`, and
-  `Replicas::unlock` opens again the replicas found locked. So a grant may reach
+  `Replicas::unlock` opens again each replica found locked that loses nothing by
+  it (one with unsealed edits reads again on its next read); a read that keys
+  arrived during (`Peer::arrivals`) reads again rather than lock. So a grant may reach
   a device before its key: a share's seal, a pending grant sealed later, or a
   seal key work asks of another editor all unlock it.
 - **Moving and sharing.** `Peer::set_parent` into another scope rewraps the

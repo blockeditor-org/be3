@@ -725,7 +725,10 @@ impl<S: ObjectStore> Peer<S> {
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     }
 
-    fn arrivals(&self) -> u64 {
+    /// How many times keys arrived (`keys_changed`): a read that found a key missing, taken
+    /// before it started, tells whether keys arrived during it, so it should read again rather
+    /// than take the block for locked.
+    pub fn arrivals(&self) -> u64 {
         self.keys_arrived.load(std::sync::atomic::Ordering::SeqCst)
     }
 
