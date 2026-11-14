@@ -41,8 +41,8 @@ mod a_zoomed_out_views_menu_paints_all_of_itself;
 mod an_anchored_view_left_empty_keeps_a_finite_place;
 mod an_overlay_brings_only_what_it_draws_not_the_views_clear_color;
 mod each_view_reads_its_own_viewport_size;
-mod input_held_for_a_new_view_keeps_its_place_before_input_for_another;
 mod every_view_is_a_window_painted_in_the_frame_that_first_asks_for_it;
+mod input_held_for_a_new_view_keeps_its_place_before_input_for_another;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
