@@ -46,6 +46,8 @@ pub fn TextInput(
     #[prop(default = false)] multiline: bool,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
+    /// An image pasted into the field, which it takes only when this is given.
+    on_image_paste: Callback<beui_view::types::PickedFile>,
 ) -> NodeId {
     let mut style = text_input_style();
     if multiline {
@@ -77,6 +79,7 @@ pub fn TextInput(
             style={style}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
+            on_image_paste={on_image_paste}
         >|handle|
             <TextInputFrame
                 handle

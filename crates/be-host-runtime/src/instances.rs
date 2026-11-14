@@ -5,8 +5,8 @@ use be_sdk_api::{
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
     OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped, View, ViewAnchor, ViewId,
-    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId, ViewPlacement,
+    ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -144,7 +144,7 @@ struct Instance {
     /// reported yet is filled with.
     backdrop: Option<be_sdk_api::accessibility::Color>,
     heads: Heads,
-    revision_previews: HashSet<Uuid>,
+    revision_previews: HashMap<be_sdk_api::ops::OpId, services::RevisionPreview>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
     audio: Option<AudioPlayer>,
@@ -295,7 +295,7 @@ impl Instance {
             menu_picked: None,
             backdrop: None,
             heads: Heads::default(),
-            revision_previews: HashSet::default(),
+            revision_previews: HashMap::default(),
             drag_accepted: false,
             intrinsic: None,
             audio: None,
@@ -688,8 +688,8 @@ impl Screen {
         let fitted = match self.request.fit {
             true => Vec2::splat(1.0),
             false => vec2(
-                ratio(rect.width(), metrics.logical.width),
-                ratio(rect.height(), metrics.logical.height),
+                ratio(rect.width(), metrics.logical.x),
+                ratio(rect.height(), metrics.logical.y),
             ),
         };
         fitted * ratio(painted, metrics.scale_factor)
@@ -970,8 +970,10 @@ impl Instances {
         for (block, link) in &mut entry.watched {
             link.detach(instance, *block, &shown_on(*block));
         }
-        for preview in &entry.revision_previews {
-            be_host_stack::revisions::release(*preview);
+        for preview in entry.revision_previews.values() {
+            if let Some(block) = preview.block() {
+                be_host_stack::revisions::release(block);
+            }
         }
         entry.opened
     }
@@ -1134,15 +1136,20 @@ impl Instances {
     pub(super) fn awaiting_content(&self) -> bool {
         self.entries.values().any(|entry| {
             let mounted = entry.screens.values().any(|screen| screen.mounted > 0);
-            match (entry.role.block(), &entry.content) {
-                (Some(block), Some(link)) => {
-                    mounted
-                        && link.attached.is_some()
-                        && !link.delivered
-                        && be_host_stack::may_load(block.id)
-                }
-                _ => false,
-            }
+            let own = entry
+                .role
+                .block()
+                .zip(entry.content.as_ref())
+                .map(|(block, link)| (block.id, link));
+            // A block it watches besides its own (its view's state, where the text app keeps
+            // where it was left) is waited for as its own block is.
+            mounted
+                && own
+                    .into_iter()
+                    .chain(entry.watched.iter().map(|(block, link)| (*block, link)))
+                    .any(|(block, link)| {
+                        link.attached.is_some() && !link.delivered && be_host_stack::may_load(block)
+                    })
         })
     }
 
@@ -1472,8 +1479,8 @@ impl Instances {
                 .inputs()
                 .filter_map(beui::Event::press)
                 .any(|press| press.key == beui::Key::Escape && press.pressed);
-        let zoom = match screen.request.metrics.logical.width > 0.0 && !screen.request.fit {
-            true => input.rect.width() / screen.request.metrics.logical.width,
+        let zoom = match screen.request.metrics.logical.x > 0.0 && !screen.request.fit {
+            true => input.rect.width() / screen.request.metrics.logical.x,
             false => 1.0,
         };
         let every_sample = screen.window.every_sample;
@@ -1842,9 +1849,9 @@ impl Instances {
         entry.reported_size = Some(size);
         vec![Outbound::Event(
             instance,
-            EditorEvent::Resized(Size {
-                width: size.x,
-                height: size.y,
+            EditorEvent::Resized(Vec2 {
+                x: size.x,
+                y: size.y,
             }),
         )]
     }
@@ -1990,6 +1997,13 @@ impl Instances {
             entry.reported_presenting = false;
             entry.published.forget_reported();
             entry.heads = Heads::default();
+            // The old app's previews close with it: the new one numbers its ops afresh, so a
+            // preview kept here could answer to an op of the new app's.
+            for (_, preview) in entry.revision_previews.drain() {
+                if let Some(block) = preview.block() {
+                    be_host_stack::revisions::release(block);
+                }
+            }
             super::events::emit(
                 &self.app_id,
                 *instance,
@@ -2367,7 +2381,7 @@ impl Instances {
     pub(super) fn set_view_sizes(&mut self, sizes: Vec<ViewSize>) -> bool {
         let mut changed = false;
         for size in sizes {
-            let used = vec2(size.logical.width, size.logical.height);
+            let used = size.logical;
             for entry in self.entries.values_mut() {
                 let Some(screen) = entry
                     .screens
@@ -2719,8 +2733,8 @@ impl Instances {
                 clip: child_clip,
                 layer: child.layer,
                 mode,
-                intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
-                fit: child.fit.map(|size| vec2(size.width, size.height) * scale),
+                intrinsic: child.intrinsic,
+                fit: child.fit.map(|size| size * scale),
                 rotation: child.rotation,
                 opacity: child.opacity,
                 corner_radius: match layer {
@@ -2871,9 +2885,9 @@ impl Instances {
                 view: region,
                 child: status.child,
                 available: status.available,
-                intrinsic: status.intrinsic.map(|size| Size {
-                    width: size.x,
-                    height: size.y,
+                intrinsic: status.intrinsic.map(|size| Vec2 {
+                    x: size.x,
+                    y: size.y,
                 }),
                 active: status.active,
                 interaction: status.interaction,
@@ -2954,7 +2968,7 @@ impl Instances {
                         super::ScreenStatus {
                             screen: screen.request.screen,
                             view: screen.request.view,
-                            logical: vec2(metrics.logical.width, metrics.logical.height),
+                            logical: metrics.logical,
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
                             raster: metrics.raster,
@@ -3052,7 +3066,7 @@ impl Instances {
         {
             return;
         }
-        let size = vec2(open.size.width, open.size.height);
+        let size = open.size;
         let shown = Rect::from_min_size(beui::Pos2::ZERO, size);
         entry.screens.insert(
             open.view,
@@ -3694,7 +3708,7 @@ impl Instances {
                 if entry.screens.values().any(|screen| screen.request.fit) {
                     return false;
                 }
-                let intrinsic = size.map(|size| vec2(size.width, size.height));
+                let intrinsic = size;
                 let changed = entry.intrinsic != intrinsic;
                 entry.intrinsic = intrinsic;
                 return changed;
@@ -3922,6 +3936,18 @@ impl Instances {
             instance,
             EditorEvent::ShowDialog(DialogRequest { block, dialog }),
         )]
+    }
+
+    /// Tells the instance where in its block it was opened (`editor-event.reveal`).
+    pub(super) fn reveal(
+        &self,
+        instance: EditorInstanceId,
+        at: be_sdk_api::SearchLocation,
+    ) -> Vec<Outbound> {
+        match self.entries.contains_key(&instance) {
+            true => vec![Outbound::Event(instance, EditorEvent::Reveal(at))],
+            false => Vec::new(),
+        }
     }
 
     pub(super) fn publish(&mut self, open: be_sdk_api::ops::MethodId, value: Arc<Vec<u8>>) -> bool {

@@ -1146,7 +1146,8 @@ fn release(cx: &Context, active: bool) {
 }
 
 /// A paste: an image to `on_image_paste`; text as a fragment, whose shape the
-/// core places, and of which a single line keeps the first line.
+/// core places, and of which a single line keeps the first line; `text/html`
+/// as the fragment the schema reads from it.
 fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
     if cx.locked.get_untracked() {
         return;
@@ -1157,7 +1158,15 @@ fn paste(cx: &Context, pasted: ClipItem, on_image_paste: Callback<PickedFile>) {
             data: pasted.data,
         });
     }
-    let Some(fragment) = TextFragment::of(&pasted) else {
+    let fragment = match pasted.format.as_str() {
+        formats::HTML => cx
+            .state
+            .schema()
+            .html()
+            .map(|html| html.from_html(&String::from_utf8_lossy(&pasted.data))),
+        _ => TextFragment::of(&pasted),
+    };
+    let Some(fragment) = fragment else {
         return;
     };
     if cx.single_line {
@@ -1289,7 +1298,6 @@ struct Field {
     ime_text: Memo<Option<ImeText>>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
-    pastes_images: bool,
     on_image_paste: Callback<PickedFile>,
 }
 
@@ -1344,7 +1352,6 @@ pub fn TextArea(
     on_submit: Callback<()>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
-    #[prop(default = false)] pastes_images: bool,
     on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
     let focus_request = focused;
@@ -1637,7 +1644,9 @@ pub fn TextArea(
         revealing.start(Duration::ZERO);
     });
     // `rights` changes as rows are laid out (each reports its right edge), so it stands for
-    // "rows laid out": what moves a pending `scroll_to` on once its line's row is built.
+    // "rows laid out": what moves a pending `scroll_to` on once its line's row is built. It
+    // moves it on at once, in the layout that built the row, so the scroll settles in the frame
+    // that started it rather than in later frames that ask for no time.
     let rights = cx.rights;
     create_effect(move || {
         let position = scroll.get();
@@ -1646,7 +1655,7 @@ pub fn TextArea(
             return;
         }
         untrack(|| match state.pending_scroll() {
-            Some(_) => revealing.start(Duration::ZERO),
+            Some(anchor) => cx.scroll_to_anchor(anchor),
             None => {
                 if let Some(anchor) = cx.top_anchor(position.clamped()) {
                     state.set_scrolled(anchor);
@@ -1681,7 +1690,6 @@ pub fn TextArea(
         ime_text,
         on_focus_change,
         on_hover_change,
-        pastes_images,
         on_image_paste,
     };
     let multi_line = !single_line;
@@ -1758,13 +1766,17 @@ fn Editing(field: Field) -> NodeId {
         ime_text,
         on_focus_change,
         on_hover_change,
-        pastes_images,
         on_image_paste,
     } = field;
+    let reads_html = cx.state.schema().html().is_some();
+    // An image is offered only to a text area that takes one.
+    let pastes_images = !on_image_paste.is_empty();
     let pastes = [formats::PNG]
         .into_iter()
         .filter(|_| pastes_images)
-        .chain([formats::TEXT_FRAGMENT, formats::TEXT])
+        .chain([formats::TEXT_FRAGMENT])
+        .chain([formats::HTML].into_iter().filter(|_| reads_html))
+        .chain([formats::TEXT])
         .map(str::to_owned)
         .collect::<Vec<_>>();
     let focused = cx.focused;

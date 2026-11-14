@@ -26,7 +26,7 @@ fn exercise(index: &Index, other: &Index, store: &Store) {
         "\"mark5 sign5\"",
         "stone river ",
     ] {
-        let _ = run(index.search(store, &Query::parse(query), 5));
+        let _ = run(index.search(store, &Query::parse(query), 5, i64::MAX));
     }
     let _ = run(index.entry(store, &doc(5)));
     let _ = run(index.entries_of(store, &doc(5).block));
@@ -39,10 +39,12 @@ fn exercise(index: &Index, other: &Index, store: &Store) {
             removed: vec![(doc(6), commit(9))],
             removed_blocks: vec![(doc(7).block, commit(9))],
             watermark: None,
+            at: 0,
         },
+        i64::MAX,
     ));
     let mut compacted = index.clone();
-    let _ = run(compacted.compact(store, id(91)));
+    let _ = run(compacted.compact(store, id(91), 0, usize::MAX, u64::MAX, |_| 0));
     let _ = run(index.merge(other, store, id(92)));
     let _ = run(other.merge(index, store, id(93)));
 }

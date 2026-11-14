@@ -39,13 +39,10 @@ fn revision_history_previews_a_file_on_a_phone() {
     fixture.settle();
     let request = fixture
         .test
-        .take_requests()
-        .into_iter()
-        .find_map(|call| match call {
-            HostCall::PreviewRevision { reply, .. } => Some(reply),
-            _ => None,
-        })
-        .unwrap();
+        .take_revision_previews()
+        .pop()
+        .expect("selecting asks for a preview")
+        .reply;
     let preview = Uuid::new_v4();
     fixture.test.answer(request, Ok(preview.into_bytes()));
     fixture.settle();

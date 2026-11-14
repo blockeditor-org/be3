@@ -20,7 +20,7 @@ apk_name = "be-host"
 build_targets = ["aarch64-linux-android"]
 
 [package.metadata.android.sdk]
-min_sdk_version = 23
+min_sdk_version = 24
 target_sdk_version = 35
 
 [[package.metadata.android.uses_permission]]

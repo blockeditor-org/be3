@@ -46,7 +46,12 @@ the server are in guides/blocks/keys.md.
   ones with `drop_after`), never keeping less than `history_kept_for`. A
   pruned commit truncates a chain; a device merges an offline edit against
   its last-known remote head, which it holds locally, so the server pruning
-  that head costs nothing (`Peer::reconcile`).
+  that head costs nothing (`Peer::reconcile`). A reader that has a head but
+  not yet its objects can find them gone once a newer head replaces it in its
+  slot: it reads the server's head again (`be_host_stack::search::write`). The
+  indexer gives a batch back after a few such heads in a row and holds it until
+  the index's head moves on, which it watches the index for, or until a delay
+  that doubles with each batch given back runs out (`Searching::moving`).
 - **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
   having been away), and `Sequencer`/`Follower`. Operations carry an `OpId`, so
@@ -85,7 +90,11 @@ SQLite for metadata (`schema.rs`, checked on open by
 `be_block_sqlite_schema::ensure`, which only lets a schema grow; the host's
 `host.sqlite3` is checked the same way and recreated, signing the device out,
 when it does not match), an object store (`objects.rs`, "Where objects live"
-below), and postcard frames over a websocket. Where a websocket cannot get through, `POST .../http` carries the
+below), and postcard frames over a websocket. Every transaction that writes
+begins with `be_block_sqlite_schema::write_transaction`, which takes the write
+lock up front, so a second connection to the database (a test or tool opening a
+`ServerStore` beside a running server) waits out `BUSY_TIMEOUT` rather than
+failing with `SQLITE_BUSY`. Where a websocket cannot get through, `POST .../http` carries the
 same frames (`http.rs`): the greeting's answer names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
 answered with whatever the server has for the client; notifications wait for
@@ -98,9 +107,15 @@ with no bytes moving either way, so a large post on a slow link goes through.
 ### Objects over S3
 
 Clients move object bytes only through presigned S3 URLs (decisions/objects_live_in_s3_compatible_storage.md):
-`objects.upload-urls` takes (hash, length) pairs, reserves them as an upload
-(below, "Storage") and answers a presigned PUT per object (`upload-url`: the
-URL and the headers to send with it); `objects.download-urls` answers a
+`objects.upload-urls` takes (hash, length) pairs and answers, per object, none
+for one the caller holds already (`held_objects`: it uploaded it, or may read
+it) and otherwise a presigned PUT (`upload-url`: the URL and the headers to
+send with it), reserving only those as an upload (below, "Storage"). An object
+with no length (one the caller reuses by its ref and does not hold) asks only
+whether the caller holds it: it is answered none if so, and otherwise refuses the
+call as `object-not-found`, alike whether another organization stored it or no
+one did, with nothing reserved, so a real uploader is never held to a length no
+one gave and the answer leaks nothing. `objects.download-urls` answers a
 presigned GET for each object the caller may read (`may_read_objects`) and none
 for the rest. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
 Only `publish`'s carried objects and `read-contents`' objects travel inside
@@ -224,7 +239,13 @@ counts and records nothing: `upload-urls` did before it signed.
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
-  `Rejected` with the head to merge against. It carries what changed since the
+  `Rejected` with the head to merge against. A head moves only to a commit that
+  descends from it: a publish lists the expected head among its parents, or it
+  is refused (`InvalidRequest`); one onto no head may list any (a merge onto a
+  block with no commit yet carries the commit refused before it). These are the
+  parents the client declares, not the commit's own, which the server cannot
+  read: a guard against a buggy or stale client, not against an editor who
+  lies. A merge's other parent may be a commit the server never held, carried in. It carries what changed since the
   expected head: an `ObjectChange` (objects added and removed; the server
   lists the commit's objects in `commit_objects` from the expected head's) and
   a `ReferenceChange` (references removed, and added at their index in the new
@@ -323,7 +344,7 @@ until `forget_objects`, with the reserved length, and answers usage's sizes.
 Bytes arrive after the reservation, so an object counts as stored
 (`store::stored`, its `confirmed` column) only once `confirm_uploads` saw it
 in the store with that length (`Objects::len_many`, a HEAD each on a bucket):
-`publish`, `hold-objects` and `missing-objects` confirm the caller's own
+`publish`, `hold-objects` and `upload-urls` confirm the caller's own
 unconfirmed reservations among the objects they name first, and a held
 object is confirmed already, so downloads ask nothing. Carried objects are
 confirmed when written (`put_objects`). Reads and writes of several objects go
@@ -383,8 +404,9 @@ blocks.
 ### Announcements and listings
 
 A connection hears only of what it listed. `list-blocks` (a `Listing`:
-children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`) and
-`read-block` register with `WatchHub` *before* reading, so nothing changed
+children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`, or one
+`Block`, which is how a client reads a block's summary) registers with
+`WatchHub` *before* reading, so nothing changed
 during the read is missed, and the hub remembers each block it told a
 connection of. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
@@ -394,7 +416,7 @@ folder is still announced, then forgotten). The blocks a change starts or stops
 referencing are announced with it. `unlist` drops a listing; a refused listing
 stays until then, so a block read before it is made is announced once it is,
 but a connection keeps at most `REFUSED_LISTINGS` of them (`watch.rs`) and
-drops any refused past that at once. A block's own listing (`read-block`),
+drops any refused past that at once. A block's own listing (`Listing::Block`),
 which clients never unlist, does not count against
 `MAX_LISTINGS_PER_CONNECTION`: it is bounded by the blocks the caller may know
 of.
@@ -442,11 +464,26 @@ organizations created, open contact links, contacts, invitations outstanding and
 escrow keys per organization (refused as `OverQuota`); and per connection,
 sessions, listings and streams. Names, metadata (held in the graph and sent in
 every summary), sealed blobs, pairing messages and relayed session messages
-have byte limits (refused as `InvalidRequest`). A relay is shared by every
+have byte limits (refused as `InvalidRequest`). A commit of a search index may
+hold at most `MAX_INDEX_BYTES` (refused as `OverQuota`), since any editor of its
+root writes what every viewer's search reads, and no commit's time may be more
+than `MAX_COMMIT_AHEAD` (an hour) past the server's clock (refused as
+`InvalidRequest`), since a far-future time wins every comparison by commit time
+and escapes history's thinning by age. `open-organization` answers the server's
+clock, and a peer stamps its commits no later than that plus
+`COMMIT_CLOCK_SLACK` (`Peer::commit_time`), so a device whose clock runs fast is
+not refused: it keeps the measurement by its monotonic clock, and the offset in
+its refs for offline use after a restart, and ignores one that would pull its
+stamps back more than a day (`MAX_CLOCK_PULLBACK`). The index cap sums the base
+commit's objects in one query and adds and removes only what the publish
+changes. A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
 client that has left the session (or never joined) is dropped without an error:
-it is best-effort, and the sender cannot know the other left. The server cannot
-read a relay, so each names its `relay-kind`: `peer` (presence, channel messages,
+it is best-effort, and the sender cannot know the other left. Each relay, and
+each entry an `append` relays, reaches participants stamped with when the server
+took it (`received`, by its clock), which the owner writes into a follower's
+operation (`LiveEdit::arrival`) (guides/type_modules.md). The server cannot read a
+relay, so each names its `relay-kind`: `peer` (presence, channel messages,
 asking to catch up) needs view access, and `edit` (operations and session state)
 edit access (`rule`).
 Whether the sender holds the lease is not checked: an owner whose lease lapsed
@@ -470,8 +507,10 @@ Each block's journal (guides/blocks/client.md, "The journal") is two tables,
 `block_journals` (tag, generation, base) and `journal_entries`, written by
 `be_server::journal` and deleted with the block. It is kept whether or not
 anyone is in the session, so a crashed owner's edits wait for the next one. An
-`append` is kept only from the current owner of its generation (it is relayed
-either way, as a relay is), refused when the journal is another tag's until
+`append` or a rebase is kept only from the current owner of its generation; from
+any other participant it is answered as done and not kept, since an owner whose
+lease lapsed writes on until the next `Lease` tells it (an append is relayed
+either way, as a relay is). An append is refused when the journal is another tag's until
 the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
 journals while they fit in a quarter of a frame.
 

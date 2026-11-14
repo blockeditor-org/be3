@@ -234,7 +234,7 @@ impl InputState {
                         self.pointer.outside = false;
                     }
                     if *pressed && *button == PointerButton::Primary {
-                        self.pointer.count_click(*pos, now);
+                        self.pointer.count_click(*pos, self.window, now);
                     }
                     let phase = match pressed {
                         true => PointerPhase::Down(*button),
@@ -352,7 +352,7 @@ impl InputState {
             PenPhase::Move => PointerPhase::Move,
             PenPhase::Down(button) => {
                 if button == PointerButton::Primary {
-                    self.pointer.count_click(pos, now);
+                    self.pointer.count_click(pos, self.window, now);
                 }
                 PointerPhase::Down(button)
             }
@@ -380,7 +380,7 @@ impl InputState {
                     pointer.pos = Some(pos);
                     pointer.window = self.window;
                     pointer.from_touch = true;
-                    pointer.count_click(pos, now);
+                    pointer.count_click(pos, self.window, now);
                 }
                 self.touches.push((id, pos));
                 self.emit(
@@ -445,8 +445,10 @@ pub struct Pointer {
 }
 
 impl Pointer {
-    fn count_click(&mut self, pos: Pos2, now: Instant) {
-        self.clicks.count(pos, now);
+    /// Counts a press in `window`, the input's own (not where the pointer was last placed,
+    /// which a press may count before it moves it).
+    fn count_click(&mut self, pos: Pos2, window: beui_types::WindowId, now: Instant) {
+        self.clicks.count(pos, window, now);
     }
 
     pub fn clicks(&self) -> u32 {
@@ -485,3 +487,6 @@ impl Pointer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

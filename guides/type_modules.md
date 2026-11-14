@@ -203,7 +203,7 @@ not joined yet, is refused.
 
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
-nothing (the server holds it, so `missing-objects` names none of it) and
+nothing (the server holds it, so `upload-urls` asks for none of it) and
 downloading its nodes, never its chunks: its top object to learn its key, and
 the rest to list the commit's objects. That needs the server, so an owner
 offline cannot seal a commit reusing a part it never fetched. A type that only
@@ -312,6 +312,26 @@ it, so two builds of a type never edit one session.
 
 The session (`crates/be-block-session`) is owner sequencing with follower
 rebase. The rules an agent most needs:
+
+- **Arrival time.** The host hands a peer's message to the replica with when
+  the server took it (`delivery.received`). The owner, sequencing a
+  follower's `Submit`, fills the operation's stamp slot (`LiveEdit::arrival`)
+  and sequences the operation as that changed it, so the stamp is the
+  operation's own content and every replica, journal, snapshot and later owner
+  holds it. One slot reads and writes the stamp, so the check and the stamp
+  cannot disagree; an operation holding others exposes one slot at most. Only
+  the owner stamps: a replica refuses an edit whose slot is already filled, so
+  an honest follower never sends one, and the owner drops a `Submit` that claims
+  one, inline or by its part, and reports it as incompatible, so a type that
+  pre-stamps shows. Undo goes through the same check, so an inverse operation
+  leaves the stamp off. A missing stamp
+  means the arrival is unknown, and content then shows no time, never one the
+  edit claims. Unstamped: the owner's own operations (plans/chat.md), one that
+  travels as a part, and one that stamping would take past
+  `LARGEST_RELAYED_OPERATION`. An operation an old owner never accepted and the
+  follower resubmits to a new one gets the later time, an upper bound on when a
+  sequencing owner first had it. Types that keep no arrival time leave the
+  hook at its default and are unchanged.
 
 - Every operation the owner sequences goes to the block's journal
   (guides/blocks/client.md, "The journal") through the host's `append`: with

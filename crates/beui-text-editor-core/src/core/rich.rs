@@ -1,12 +1,16 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use super::{Core, CursorPosition, Position, UDDirection, UndoClassification, resolve_selection};
+use super::{
+    Core, CursorPosition, MarkValue, Position, TextMark, UDDirection, UndoClassification,
+    resolve_selection,
+};
 use crate::document::{DocumentEdit, DocumentRead, DocumentView};
 use crate::rich::{
     Change, Expand, Formats, MarkSet, Name, Scope, VOID, Value, line_end, line_start,
 };
 use crate::schema::{Break, Line, Plain, Schema, Selected};
+use be_lib_ui_types::clipboard::Uuid;
 
 pub struct Transform<'a> {
     edit: &'a mut dyn DocumentEdit,
@@ -104,6 +108,131 @@ pub(super) fn replace(
     }
     edit.replace(index, removed, insert);
     conform_inserted(edit, schema, index, insert, typed);
+}
+
+/// The marks over `range` as a fragment carries them: inline runs joined
+/// where a key and value continue, and the props of each line starting in it.
+pub(super) fn copied_marks(
+    formats: &Formats,
+    schema: &dyn Schema,
+    range: Range<usize>,
+) -> Vec<TextMark> {
+    let left = range.start;
+    let mut marks: Vec<TextMark> = Vec::new();
+    let mut open: Vec<usize> = Vec::new();
+    for (within, set) in formats.marks_in(range.clone()) {
+        let mut continued = Vec::new();
+        for (key, value) in set.iter() {
+            let Some(value) = copied_value(schema, key, value) else {
+                continue;
+            };
+            let held = open.iter().copied().find(|at| {
+                let mark = &marks[*at];
+                mark.range.end == within.start - left
+                    && mark.key == key.as_str()
+                    && mark.value == value
+            });
+            match held {
+                Some(at) => {
+                    marks[at].range.end = within.end - left;
+                    continued.push(at);
+                }
+                None => {
+                    continued.push(marks.len());
+                    marks.push(TextMark {
+                        range: within.start - left..within.end - left,
+                        block: false,
+                        key: key.as_str().to_owned(),
+                        value,
+                    });
+                }
+            }
+        }
+        open = continued;
+    }
+    for held in formats
+        .blocks
+        .iter()
+        .filter(|held| held.start >= range.start && held.start < range.end)
+    {
+        for (key, value) in held.props.iter() {
+            let Some(value) = copied_value(schema, key, value) else {
+                continue;
+            };
+            marks.push(TextMark {
+                range: held.start - left..held.end.min(range.end) - left,
+                block: true,
+                key: key.as_str().to_owned(),
+                value,
+            });
+        }
+    }
+    marks
+}
+
+fn copied_value(schema: &dyn Schema, key: &Name, value: &Value) -> Option<MarkValue> {
+    Some(match value {
+        Value::Bool(value) => MarkValue::Bool(*value),
+        Value::Int(value) => MarkValue::Int(*value),
+        Value::Text(text) if schema.names_block(key.as_str()) => MarkValue::Block {
+            id: Uuid::parse_str(text.as_str()).ok()?,
+        },
+        Value::Text(text) => MarkValue::Text(text.as_str().to_owned()),
+    })
+}
+
+fn pasted_value(schema: &dyn Schema, key: &str, value: &MarkValue) -> Option<Value> {
+    let names_block = schema.names_block(key);
+    let value = match value {
+        MarkValue::Bool(value) => Some(Value::Bool(*value)),
+        MarkValue::Int(value) => Some(Value::Int(*value)),
+        MarkValue::Text(text) => (!names_block).then(|| Value::text(text)),
+        MarkValue::Block { id } => names_block.then(|| Value::text(&id.to_string())),
+    }?;
+    schema.admits(key, &value).then_some(value)
+}
+
+/// `at` within `inserted`, moved back to the start of its character when the
+/// bytes are `utf8`, so a mark never splits one.
+fn char_boundary(inserted: &[u8], utf8: bool, at: usize) -> usize {
+    let mut at = at.min(inserted.len());
+    if utf8 {
+        while at > 0 && at < inserted.len() && inserted[at] & 0xc0 == 0x80 {
+            at -= 1;
+        }
+    }
+    at
+}
+
+/// Puts a fragment's `marks` on the bytes it just `inserted` at `at`, each
+/// cut to whole characters. A block mark gives its props to the line it
+/// starts only where it starts a line here too.
+pub(super) fn paste_marks(
+    edit: &mut dyn DocumentEdit,
+    schema: &dyn Schema,
+    at: usize,
+    inserted: &[u8],
+    marks: &[TextMark],
+) {
+    let utf8 = std::str::from_utf8(inserted).is_ok();
+    for mark in marks {
+        let Some(value) = pasted_value(schema, &mark.key, &mark.value) else {
+            continue;
+        };
+        let start = at + char_boundary(inserted, utf8, mark.range.start);
+        let end = at + char_boundary(inserted, utf8, mark.range.end);
+        let key = Name::new(&mark.key);
+        if mark.block {
+            let line_start =
+                start == 0 || edit.document().slice(start - 1..start).first() == Some(&b'\n');
+            if line_start {
+                edit.format(start..start, &block(&key, Some(value)));
+            }
+        } else if start < end {
+            let expand = schema.expand(&mark.key);
+            edit.format(start..end, &inline(&key, expand, Some(value)));
+        }
+    }
 }
 
 fn joined_block(edit: &dyn DocumentEdit, index: usize, removed: usize) -> Option<MarkSet> {

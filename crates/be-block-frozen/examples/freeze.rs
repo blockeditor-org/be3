@@ -783,11 +783,12 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &owner.connection(),
         vec![be_block_protocol::ObjectLength {
             hash: be_block_store::Hash::of(scene::PENDING_UPLOAD),
-            length: scene::PENDING_UPLOAD.len() as u64,
+            length: Some(scene::PENDING_UPLOAD.len() as u64),
         }],
     ))
     .await?
     .pop()
+    .flatten()
     .ok_or("the server answered no upload URL")?;
     let headers: Vec<(String, String)> = upload
         .headers

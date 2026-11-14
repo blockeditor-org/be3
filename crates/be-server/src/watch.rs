@@ -58,6 +58,7 @@ pub enum Push {
         kind: be_block_protocol::RelayKind,
         /// Shared by every participant's queue, so a relay to many costs one copy.
         payload: std::sync::Arc<[u8]>,
+        received: i64,
     },
     Paired(PairingMessage),
     ContactsChanged,
@@ -108,7 +109,7 @@ struct Interest {
     references: HashSet<Uuid>,
     open_settings: usize,
     /// The listings that count against `MAX_LISTINGS_PER_CONNECTION`: every one but a block's
-    /// own (`read-block`), which a client never unlists. Those are bounded instead by the blocks
+    /// own (`Listing::Block`), which a client never unlists. Those are bounded instead by the blocks
     /// the caller may know of, and refused ones by `REFUSED_LISTINGS`.
     counted: usize,
     known: HashMap<Uuid, Facts>,

@@ -88,6 +88,24 @@ pub struct Commit {
     pub id: Hash,
 }
 
+impl Commit {
+    /// This commit as a reader whose clock allows times up to `latest` takes it: a time past
+    /// that is not believed, and counts as the oldest. Any editor of a root may write its index
+    /// and its blocks' commits, so a forged far-future time would otherwise win every
+    /// comparison, and its document could never be updated again. Only a comparison key: an
+    /// index stores the time as it was given, so a reader whose `latest` is too early never
+    /// rewrites an honest one.
+    pub fn believed(self, latest: i64) -> Self {
+        match self.time > latest {
+            true => Self {
+                time: i64::MIN,
+                ..self
+            },
+            false => self,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PartKind {
     Dictionary,
@@ -223,6 +241,9 @@ pub struct Put {
     /// indexed for it from that same source, it comes back in
     /// `Written::needs_text`.
     pub text: Option<Text>,
+    /// Its text is all a device could read of it, not its type's (the block's name, where no
+    /// module for its type runs): a put of the same commit that is not partial replaces it.
+    pub partial: bool,
 }
 
 /// One batch of changes, which adds at most one segment.
@@ -235,6 +256,10 @@ pub struct Batch {
     pub removed_blocks: Vec<(Vec<u8>, Commit)>,
     /// The sequence of changes (`changed-since`) the index has now seen every change up to.
     pub watermark: Option<u64>,
+    /// When the writing device applies it, on its own clock (milliseconds): a block it removes
+    /// is remembered from then (`Index::forget_before`), whatever its commit's author's clock
+    /// said.
+    pub at: i64,
 }
 
 /// A document table entry: what the index holds for a document.
@@ -252,6 +277,9 @@ pub struct Entry {
     pub digest: Option<Hash>,
     /// None for a removed document.
     place: Option<Place>,
+    /// Its text came from a partial put (`Put::partial`): a full put at the same commit
+    /// replaces it, here and in a merge.
+    pub partial: bool,
 }
 
 impl Entry {
@@ -267,7 +295,19 @@ impl Entry {
             source: None,
             digest: None,
             place: None,
+            partial: false,
         }
+    }
+
+    /// Whether `change` replaces this entry: it is newer, or a full put of the commit this
+    /// entry holds partially.
+    fn replaced_by(&self, change: &Change, latest: i64) -> bool {
+        let (held, by) = (
+            self.commit.believed(latest),
+            change.commit().believed(latest),
+        );
+        held < by
+            || held == by && self.partial && matches!(change, Change::Put(put) if !put.partial)
     }
 }
 
@@ -285,8 +325,8 @@ const BODY: u8 = 1;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Retired {
     id: Id,
-    /// The watermark when it was retired.
-    at: u64,
+    /// When it was retired, in milliseconds.
+    at: i64,
 }
 
 /// A block that left the tree, masking its documents at older commits,
@@ -295,7 +335,8 @@ struct Retired {
 struct RemovedBlock {
     block: Vec<u8>,
     commit: Commit,
-    at: u64,
+    /// When it was recorded: its removal's commit time, in milliseconds.
+    at: i64,
 }
 
 /// The header of an index: its segments, its document table's chunks and its
@@ -337,13 +378,18 @@ impl Index {
         self.segments.len()
     }
 
-    /// Forgets retired segments and removed blocks recorded before
-    /// `watermark`, once no index that predates them can still be merged in
-    /// (the index block's history retention says when).
-    pub fn forget_before(&mut self, watermark: u64) {
-        self.retired.retain(|retired| retired.at >= watermark);
-        self.removed_blocks
-            .retain(|removed| removed.at >= watermark);
+    /// How many retired segments and removed blocks the header remembers
+    /// (`forget_before` forgets them).
+    pub fn remembered(&self) -> usize {
+        self.retired.len() + self.removed_blocks.len()
+    }
+
+    /// Forgets retired segments and removed blocks recorded before `time`
+    /// (milliseconds), once no index that predates them can still be merged
+    /// in: the index block's history retention says when.
+    pub fn forget_before(&mut self, time: i64) {
+        self.retired.retain(|retired| retired.at >= time);
+        self.removed_blocks.retain(|removed| removed.at >= time);
     }
 
     /// Every part the header names, the header aside.
@@ -368,34 +414,43 @@ impl Index {
         table.entries_of(parts, block).await
     }
 
-    /// The newest commit a block was removed from the index at, if it was.
-    pub fn removed_at(&self, block: &[u8]) -> Option<Commit> {
-        self.block_removed_at(block)
-    }
-
-    fn block_removed_at(&self, block: &[u8]) -> Option<Commit> {
+    /// The commit a block was last removed from the index at, if it was: the newest as believed
+    /// (`Commit::believed`), with its time as stored.
+    pub fn removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
         self.removed_blocks
             .iter()
             .filter(|removed| removed.block == block)
             .map(|removed| removed.commit)
+            .max_by_key(|commit| commit.believed(latest))
+    }
+
+    fn block_removed_at(&self, block: &[u8], latest: i64) -> Option<Commit> {
+        self.removed_blocks
+            .iter()
+            .filter(|removed| removed.block == block)
+            .map(|removed| removed.commit.believed(latest))
             .max()
     }
 
     /// Applies a batch: a new segment for the documents with new text, the
     /// table chunks they change and the deletion bitmaps of what they mask.
+    /// Commit times past `latest` are not believed (`Commit::believed`).
     pub async fn apply(
         &mut self,
         parts: &impl Parts,
         origin: Id,
         batch: Batch,
+        latest: i64,
     ) -> Result<Written, Error> {
         let mut written = Written::default();
         let mut table = table::Edit::new(&self.table);
         let mut masks: Vec<Place> = Vec::new();
+        // Commits are compared as believed and stored as they are, so a reader whose clock is
+        // behind never rewrites an honest time.
         for (block, commit) in batch.removed_blocks {
             if self
-                .block_removed_at(&block)
-                .is_some_and(|known| known >= commit)
+                .block_removed_at(&block, latest)
+                .is_some_and(|known| known >= commit.believed(latest))
             {
                 continue;
             }
@@ -403,40 +458,40 @@ impl Index {
             self.removed_blocks.push(RemovedBlock {
                 block: block.clone(),
                 commit,
-                at: self.watermark,
+                at: commit.time.max(batch.at),
             });
             for entry in table.entries_of(parts, &block).await? {
-                if entry.commit < commit {
+                if entry.commit.believed(latest) < commit.believed(latest) {
                     masks.extend(entry.place);
                     table.put(Entry::tombstone(entry.doc, commit));
                 }
             }
         }
-        let mut latest: BTreeMap<DocId, Change> = BTreeMap::new();
+        let mut newest: BTreeMap<DocId, Change> = BTreeMap::new();
         for item in batch.put {
-            latest
+            newest
                 .entry(item.doc.clone())
                 .or_insert(Change::Put(item.clone()))
-                .newest(Change::Put(item));
+                .newest(Change::Put(item), latest);
         }
         for (doc, commit) in batch.removed {
-            latest
+            newest
                 .entry(doc.clone())
                 .or_insert(Change::Remove(commit))
-                .newest(Change::Remove(commit));
+                .newest(Change::Remove(commit), latest);
         }
         let mut fresh = Vec::new();
-        for (doc, change) in latest {
+        for (doc, change) in newest {
             if self
-                .block_removed_at(&doc.block)
-                .is_some_and(|removed| removed >= change.commit())
+                .block_removed_at(&doc.block, latest)
+                .is_some_and(|removed| removed >= change.commit().believed(latest))
             {
                 continue;
             }
             let old = table.get(parts, &doc).await?.cloned();
             if old
                 .as_ref()
-                .is_some_and(|old| old.commit >= change.commit())
+                .is_some_and(|old| !old.replaced_by(&change, latest))
             {
                 continue;
             }
@@ -451,6 +506,7 @@ impl Index {
                     text: Some(text),
                     commit,
                     source,
+                    partial,
                     ..
                 }) if old
                     .as_ref()
@@ -459,6 +515,7 @@ impl Index {
                     if let Some(mut entry) = old {
                         entry.commit = commit;
                         entry.source = source;
+                        entry.partial = partial;
                         table.put(entry);
                     }
                 }
@@ -466,10 +523,11 @@ impl Index {
                     text: Some(text),
                     commit,
                     source,
+                    partial,
                     ..
                 }) => {
                     masks.extend(old_place);
-                    fresh.push((doc, commit, source, text));
+                    fresh.push((doc, commit, source, text, partial));
                 }
                 Change::Put(Put {
                     text: None,
@@ -494,9 +552,9 @@ impl Index {
                 origin,
                 fresh
                     .iter()
-                    .map(|(doc, commit, _, text)| (doc, *commit, text)),
+                    .map(|(doc, commit, _, text, _)| (doc, *commit, text)),
             );
-            for ((doc, commit, source, text), local) in fresh.into_iter().zip(places) {
+            for ((doc, commit, source, text, partial), local) in fresh.into_iter().zip(places) {
                 table.put(Entry {
                     doc,
                     commit,
@@ -507,6 +565,7 @@ impl Index {
                         segment: origin,
                         local,
                     }),
+                    partial,
                 });
             }
             written.added.extend(segment_parts);
@@ -567,8 +626,14 @@ impl Change {
         }
     }
 
-    fn newest(&mut self, other: Change) {
-        if other.commit() > self.commit() {
+    /// Keeps the newer change, and of two at one commit a full put over a partial one.
+    fn newest(&mut self, other: Change, latest: i64) {
+        let partial = |change: &Change| matches!(change, Change::Put(put) if put.partial);
+        let (held, by) = (
+            self.commit().believed(latest),
+            other.commit().believed(latest),
+        );
+        if by > held || by == held && partial(self) && !partial(&other) {
             *self = other;
         }
     }

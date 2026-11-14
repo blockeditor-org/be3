@@ -122,7 +122,9 @@ its head.
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
-  with the real session, replaying what happened meanwhile. A seal asked of a
+  with the real session, replaying what happened meanwhile; an editor that made
+  an edit kept for that and has detached since is attached for its edits to be
+  given again (`Open::departed`), or the replica would drop them. A seal asked of a
   joining replica with unconfirmed edits first gives it a session it owns, so
   flush and stop never wait for a join.
 - **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
@@ -174,8 +176,8 @@ outbox adds or moves (`Peer::listed`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
 owns and joins (`Replicas::created`). A command that needs the server to know a
 block waits first for a drain to send what this device made of it
-(`Tasks::sent`; an export or a version command waits for the whole outbox, since
-it reads a tree).
+(`Tasks::sent`; an export, and a version command in the lane, waits for the
+whole outbox, since it reads a tree).
 
 **Commands that need the server.** Those that need only the server and no open
 block (share, list access, read a head, leave, approve pairing, members, block
@@ -189,10 +191,14 @@ the lane holds a block it needs (`Command::needs`); one that is not order-safe
 (`Command::order_safe`: it may reach blocks it does not name, as a version
 command or an import reaches a tree) waits until the lane is empty; and none
 overtakes a command deferred before it. An open block whose key the lane
-rotates is resealed once that command ends. Version commands and merging still
-run in the loop: they interleave server reads with the open replicas (sealing
-them, checking content out into them), so on a server that stopped answering
-the commands behind one wait until the connection is declared lost.
+rotates is resealed once that command ends. A version command (merging
+included) is split: the loop seals the open replicas, and the rest runs in the
+lane (`Served::version`), which waits for the outbox to be sent and then reads
+and writes the server between steps, reaching the replicas and type modules
+through the loop (`version::Reach`, `LoopCalls`: describing, applying and
+merging content, moving an open replica to a head it published), so a server
+that stopped answering holds up only the lane. A merge reads its sides from the
+server in the lane first, so the loop finds them on the device.
 
 ## The graph mirror
 
@@ -343,6 +349,16 @@ index and search it locally.
   head, and drops hits the mirror shows
   detached, unviewable or outside `within`; it lists each hit block
   (`Owner::Search`) and shows a hit only once the mirror holds it.
+- **Opening a hit.** Quick open (`OpenableBlock::at`) and the file tree's hit
+  rows (`EditorHost::open_block_at`) open a hit's block with a
+  `search-location`: its document key and the words its first match covers.
+  be-host keeps it (`reveals::Reveals`) until the editor showing that block
+  is open, a few seconds at most, then sends it `editor-event.reveal`; a later
+  open of the block, or its editor closing, lets go of it. be-sdk hands it on
+  as `Pushed::Reveal` and `EditorHost::take_reveal`. The text app, once its
+  content has loaded and its saved position is back, selects the first place
+  the words occur as whole words, compared as the index folds them
+  (`be_lib_search::fold`); an editor that supports no location ignores it.
 - **Apps** watch a search with `search-watch` (`Editor::search` in
   be-sdk-beui); the file tree's filter lists the hits under "In content", and
   be-host's quick open (`found_blocks` in `compositor/palette.rs`) lists them
@@ -397,6 +413,11 @@ says `children.reorder`. `be_host_stack::duplicate`
 copies what the source's replica shows (or its head) into a new id before
 anything opens the copy. `be_host_stack::hold` keeps a block open for the host
 (settings, the shell's session).
+
+A block being placed counts as held by its parent (`Graph::placing`) until the parent's
+references take it in. Should they drop it again while it still names the parent, it reads as
+deleted: the mirror notes it (`Graph::take_dropped`) and the worker logs it with what it knows
+of the parent (`Shared::log_dropped`), which a host test's failure shows in the app's log.
 
 ## Undo
 

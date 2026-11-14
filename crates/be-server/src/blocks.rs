@@ -41,7 +41,7 @@ const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
-    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_METADATA_BYTES},
+    limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_METADATA_BYTES},
     store::{
         Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
         usage::{forget_objects, payer_for_new, persist_sizes},
@@ -217,6 +217,20 @@ fn require_parent_of(
     match content_type == SETTINGS_TYPE {
         true => require_manage(graph, seen, parent),
         false => require_edit(graph, seen, parent),
+    }
+}
+
+/// A head moves only to a commit that descends from it: a publish onto a head lists that head
+/// among its parents. A publish onto no head may list parents: a merge onto a block with no
+/// commit yet carries the commit the server refused it. Other parents need not be on the server
+/// yet either: a merge carries them, objects and all.
+fn require_descends(expected: Option<CommitId>, parents: &[CommitId]) -> Result<(), ServerError> {
+    match expected {
+        Some(expected) if !parents.contains(&expected) => Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            format!("a commit onto {expected} lists it among its parents"),
+        )),
+        _ => Ok(()),
     }
 }
 
@@ -462,7 +476,7 @@ impl ServerStore {
             node.owner_only = owner_only;
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let payer = payer_for_new(&transaction, identity.organization, parent, identity.account)?;
             transaction.execute(
                 "INSERT INTO blocks
@@ -524,7 +538,7 @@ impl ServerStore {
             require_one_index(graph, block, &references)?;
             let relinked = relinked(graph, block, &references);
             let organization = identity.organization.to_string();
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
                 params![organization, block.to_string(), metadata],
@@ -718,6 +732,13 @@ impl ServerStore {
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        let latest = be_block_commit::now_milliseconds().saturating_add(MAX_COMMIT_AHEAD);
+        if time > latest {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!("a commit's time may be at most {latest}, not {time}: is this clock fast?"),
+            ));
+        }
         let change = held;
         let mut sent = vec![commit.hash()];
         sent.extend(change.added.iter().copied());
@@ -732,6 +753,7 @@ impl ServerStore {
                 if current == Some(commit) {
                     return Ok(PublishOutcome::Published(commit, None));
                 }
+                require_descends(expected, &parents)?;
                 let organization = identity.organization.to_string();
                 let base = match expected {
                     Some(expected) => {
@@ -743,6 +765,45 @@ impl ServerStore {
                 };
                 let mut held = vec![commit.hash()];
                 held.extend(change.apply(&base));
+                if graph
+                    .get(block)
+                    .is_some_and(|node| node.content_type == SEARCH_INDEX_TYPE)
+                {
+                    // The base's total in one query, then only what the change moves: the
+                    // objects it adds that the base lacks, and those it drops that the base
+                    // held and it does not add back (`ObjectChange::apply` keeps those). An
+                    // object with no size recorded counts as nothing, so the total errs low
+                    // only for objects the server does not hold, which the publish refuses.
+                    let base_set: BTreeSet<Hash> = base.iter().copied().collect();
+                    let added_set: BTreeSet<Hash> = change.added.iter().copied().collect();
+                    let added: Vec<Hash> = std::iter::once(commit.hash())
+                        .chain(change.added.iter().copied())
+                        .filter(|hash| !base_set.contains(hash))
+                        .collect();
+                    let removed: Vec<Hash> =
+                        expected
+                            .map(CommitId::hash)
+                            .into_iter()
+                            .chain(change.removed.iter().copied().filter(|hash| {
+                                base_set.contains(hash) && !added_set.contains(hash)
+                            }))
+                            .collect();
+                    let base_bytes = match expected {
+                        Some(expected) => {
+                            store.commit_bytes(database, identity.organization, block, expected)?
+                        }
+                        None => 0,
+                    };
+                    let bytes = base_bytes
+                        .saturating_add(store.stored_bytes(database, &added)?)
+                        .saturating_sub(store.stored_bytes(database, &removed)?);
+                    if bytes > store.max_index_bytes() {
+                        return Err(crate::limits::too_many(
+                            "a search index's bytes",
+                            store.max_index_bytes(),
+                        ));
+                    }
+                }
                 // A first commit lists every reference, replacing any its block was made with.
                 let listed = match expected {
                     Some(_) => graph.references(block),
@@ -757,7 +818,7 @@ impl ServerStore {
                         .get(block)
                         .is_some_and(|node| node.metadata != metadata))
                 .then(|| relinked.clone().unwrap_or_default());
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let existing: Option<i64> = transaction
                     .query_row(
                         "SELECT 1 FROM block_commits
@@ -900,22 +961,19 @@ impl ServerStore {
         .await
     }
 
-    /// Which of `hashes` the caller lacks, as far as it may know: an object it neither uploaded
-    /// nor may read is missing to it whether or not someone else stored it.
-    pub async fn missing_objects(
+    /// Whether the caller holds each of `hashes`, as far as it may know: an object it neither
+    /// uploaded nor may read is not held by it whether or not someone else stored it.
+    pub async fn held_objects(
         &self,
         identity: Identity,
         hashes: Vec<Hash>,
-    ) -> Result<Vec<Hash>, ServerError> {
+    ) -> Result<Vec<bool>, ServerError> {
         self.confirm_uploads(identity, hashes.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
-            let mut missing = Vec::new();
-            for hash in hashes {
-                if !store.holdable(graph, database, identity, hash)? {
-                    missing.push(hash);
-                }
-            }
-            Ok(missing)
+            hashes
+                .into_iter()
+                .map(|hash| store.holdable(graph, database, identity, hash))
+                .collect()
         })
         .await
     }
@@ -1046,7 +1104,7 @@ impl ServerStore {
             store.keeping_refs(database, || {
                 require_edit(graph, &visibility(identity), block)?;
                 store.require_holdable(graph, database, identity, &objects, "held")?;
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let holding =
                     store.before_holding(&transaction, graph, identity, block, &objects)?;
                 let organization = identity.organization.to_string();
@@ -1148,7 +1206,7 @@ impl ServerStore {
                                 .push(Hash::from_hex(&hash).ok_or(ServerError::Corrupt)?);
                         }
                     }
-                    let transaction = database.unchecked_transaction()?;
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     let mut refs = store.object_refs();
                     let mut released = Vec::new();
                     let mut freed = Vec::new();
@@ -1258,7 +1316,7 @@ impl ServerStore {
                     block,
                 )?),
             };
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             store_keys(
                 graph,
                 &transaction,
@@ -1651,7 +1709,7 @@ impl ServerStore {
                     chosen.insert(block);
                 }
                 let detached = removable(graph, chosen);
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let mut refs = store.object_refs();
                 let mut freed = Vec::new();
                 let mut removed = Vec::new();
@@ -1816,7 +1874,7 @@ impl ServerStore {
                 }
             }
             let before = graph.audience(block);
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             revoke_or_grant(
                 graph,
                 &transaction,

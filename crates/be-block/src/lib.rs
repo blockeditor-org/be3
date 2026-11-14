@@ -247,6 +247,17 @@ pub trait LiveEdit: BlockContent {
 
     fn apply(&mut self, operation: &Self::Op);
 
+    /// What `account` added to this content that `server` (the head the server last held)
+    /// lacks, as the operations that would add it: how a replica opened after a restart, with
+    /// commits of this device still in its outbox, shows what is still sending. What others
+    /// added, which the device's commits may hold too (an owner seals what it relayed), is
+    /// theirs to show. None by default, so a type that does not show sending state answers
+    /// nothing.
+    fn unsent_over(&self, server: &Self, account: Uuid) -> Vec<Self::Op> {
+        let _ = (server, account);
+        Vec::new()
+    }
+
     /// What `operation` announces (`Announcement`), asked when the edit is made on this device
     /// of content that holds it. The replica hands it to the host with the edit, and the host
     /// keeps it beside the journal entry or commit holding the edit and sends it once the
@@ -254,6 +265,24 @@ pub trait LiveEdit: BlockContent {
     fn announcements(&self, operation: &Self::Op) -> Vec<Announcement> {
         let _ = operation;
         Vec::new()
+    }
+
+    /// Where `operation` keeps when the server took it (milliseconds since the Unix epoch by
+    /// the server's clock), or none for an operation that keeps no such time, as for every
+    /// operation of content that keeps none. An operation holding other operations exposes one
+    /// slot at most, or the replica could not check them all: such content refuses an edit
+    /// whose operations would need more.
+    ///
+    /// Only the owner fills the slot: the replica refuses an edit made on a device with it
+    /// filled, and the owner drops a participant's operation with it filled, so only the
+    /// owner's stamp is ever held. The owner fills it on a participant's operation as it
+    /// sequences it, then relays and saves it stamped. Some operations stay unstamped, their
+    /// arrival unknown: the owner's own, one that travels as a part, and one that stamping
+    /// would make too large to relay inline. Content shows no time for those, never a time
+    /// the edit claims.
+    fn arrival(operation: &mut Self::Op) -> Option<&mut Option<i64>> {
+        let _ = operation;
+        None
     }
 
     fn apply_touching(&mut self, operation: &Self::Op, touched: &mut Vec<Touched>) {

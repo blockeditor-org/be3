@@ -79,7 +79,7 @@ pub fn ask<W: Stacked>(
 ) -> Option<(usize, Gesture)> {
     match request {
         WindowRequest::Open(open) => {
-            let size = vec2(open.size.width.max(1.0), open.size.height.max(1.0));
+            let size = vec2(open.size.x.max(1.0), open.size.y.max(1.0));
             let rect = Rect::from_min_size(point_of(windows, host, open.placement.clone()), size);
             let held = find(windows, host, open.view);
             let opener = find(windows, host, open.opener.view).map(|index| &windows[index]);
@@ -112,7 +112,7 @@ pub fn ask<W: Stacked>(
         }
         WindowRequest::Resize(resize) => {
             if let Some(index) = find(windows, host, resize.view) {
-                let size = vec2(resize.size.width.max(1.0), resize.size.height.max(1.0));
+                let size = vec2(resize.size.x.max(1.0), resize.size.y.max(1.0));
                 let rect = Rect::from_min_size(windows[index].rect().min, size);
                 windows[index].set_rect(rect);
             }

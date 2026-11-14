@@ -68,8 +68,11 @@ Bulk object bytes never travel inside frames (guides/blocks/server.md,
 `MAX_OBJECT_BYTES` and `TRANSFERS` at once (`peer/transfers.rs`); an object
 with no URL, or one the store answers 404 for, is missing, and bytes that do
 not hash to what was asked are `ClientError::Tampered`. `push` and imports ask
-`upload-urls` with each object's length and PUT the bytes with the headers
-given, natively and from the web build alike (`crate::http`: in the browser a
+`upload-urls` with each object's length and PUT the bytes of each one it answers a
+URL for (none for one the server holds already) with the headers given; an
+object the device does not hold (a part reused by its ref) is asked for with no
+length, which the server answers none for or refuses as not found, which is
+`ClientError::MissingObject`. Uploads go natively and from the web build alike (`crate::http`: in the browser a
 `fetch` without credentials). An import uploads a batch's objects before
 sending its creates and publishes, since those are sent as soon as they are
 made. A transfer that may succeed later (`http::Error::Failed`: unreachable,
@@ -150,7 +153,7 @@ with the block key; the server keeps it beside history, never in it
   (written with the seal's commit in one refs write, dropped by the next rebase:
   `Peer::sealing`) and holds the seal's last entry in its generation
   (`reaches_seal`; guides/type_modules.md, Peers).
-- Joining (`Peer::join_session`) answers the journal as of joining, so a
+- Joining (`Connection::join_session`) answers the journal as of joining, so a
   replica opening on its base needs no state from the owner
   (`be_block_type_host::Replicas` picks the server's or the device's,
   whichever holds more). `read_contents` answers each block's journal
@@ -174,11 +177,21 @@ account and organization: local and last-known remote heads, the newest head
 whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
 key rows and wraps, verified contacts and escrow chain, the workspace list, the
 outbox, the unsent area and each block's journal. A sealed commit and its local
-head are written in one transaction (`Refs::push_publish`); a record that no
+head are written in one transaction (`Refs::push_publish`), and so is a publish
+settling: its outbox entries leave as the remote and local heads move on
+(`Refs::settle`), so no reader sees an empty outbox beside the old heads. The
+remote head never moves back to one it descends from (`Peer::behind`): the
+server's head only moves on, so such a head was heard of late, from a summary
+read before this device published and answered after, or from a merge settling
+a divergence a later one already settled. A server restored from a backup, whose
+head is older, is caught up by the next publish: rejected with the server's
+real head, the device merges against it (`Peer::reconcile`) and the published
+merge moves the remote head on. A record that no
 longer decodes is skipped on load.
 
-It keeps one summary per block, the newest revision winning, and a listing is
-the ids it held: a copy kept per listing went stale offline (a listing fetched
+`Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
+only shorthands). The refs database keeps one summary per block, the newest
+revision winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 listing answers as the summaries place its blocks now:
 
@@ -245,7 +258,9 @@ sends it. `Peer::write` does both.
   (`UnsentBlock::refused`, `Drained::SetAside`): the host shows it, an
   organization's lost-access policy never deletes it, and cached listings leave
   it out. What is made in it is set aside with its refusal, and restoring it
-  restores them. A refused move or define puts back the summary the server has
+  restores them. A publish refused as a change the server will never take
+  (`InvalidRequest`, `ObjectTooLarge`) is set aside the same way rather than
+  sent again every round. A refused move or define puts back the summary the server has
   (`unchanged`, `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.

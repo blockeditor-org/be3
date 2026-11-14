@@ -1,4 +1,4 @@
-use be_sdk_api::{Size, ViewRef, WindowOpen, WindowOver};
+use be_sdk_api::{Vec2, ViewRef, WindowOpen, WindowOver};
 use beui::{PointerButton, PointerEvent, PointerId, WindowPlacement as Placed};
 
 use super::*;
@@ -83,10 +83,7 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
                 },
                 at: pos2(100.0, 100.0),
             }),
-            size: Size {
-                width: 300.0,
-                height: 200.0,
-            },
+            size: Vec2 { x: 300.0, y: 200.0 },
             level: be_sdk_api::WindowLevel::Normal,
         })],
     );

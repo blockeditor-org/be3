@@ -3,4 +3,5 @@ use super::*;
 mod a_new_profile_takes_this_devices_class_and_its_defaults;
 mod a_session_opens_in_the_editor_its_view_names;
 mod a_session_that_names_no_editor_opens_in_the_default_shell;
+mod settings_are_not_made_again_by_a_host_that_has_not_heard_the_roots_listed;
 mod what_was_read_is_read_again_once_a_notice_names_it;

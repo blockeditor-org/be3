@@ -327,6 +327,9 @@ Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says
   `snapshot`) paints twice with a settle between and fails with "the painting is not settled"
   if the two differ, whatever the test did: a hover, an animation's last step or an app's late
   frame is caught the first time it shows, on any machine. Wait for it, not for time.
+- `paint` does not wait for the outbox: a painting that shows whether everything is saved (the
+  host menu's first row) waits for `synced` first, or it shows "Syncing changes..." on a busy
+  machine.
 - `drive pause 200` before a `shot`, as drive.md says, is for a hosted Wayland or X11 program,
   which draws on its own after input; it is not a way to wait in a host test.
 - Do not read the clock, the machine's speed or the order threads finish in. A test that

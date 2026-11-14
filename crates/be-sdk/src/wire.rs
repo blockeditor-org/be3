@@ -295,9 +295,7 @@ impl OpenEditor {
                 });
             }
             EditorEvent::Resized(size) => {
-                wire.call(instance, move |session| {
-                    session.resized(be_lib_geometry::vec2(size.width, size.height))
-                });
+                wire.call(instance, move |session| session.resized(size));
             }
             EditorEvent::Drag(drag) => {
                 let dragged = drag.map(|drag| (drag.view, dragged(&drag)));
@@ -311,6 +309,9 @@ impl OpenEditor {
             EditorEvent::ShowDialog(DialogRequest { block, dialog }) => {
                 let block = uuid::Uuid::from_bytes(block);
                 wire.call(instance, move |session| session.show_dialog(block, dialog));
+            }
+            EditorEvent::Reveal(at) => {
+                wire.call(instance, move |session| session.reveal(at));
             }
         }
     }

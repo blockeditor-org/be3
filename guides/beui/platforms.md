@@ -157,7 +157,7 @@ types encoded with postcard: `TextFragment`, `Blocks`, `CanvasItems`, `Files`)
 are in `be-lib-ui-types/src/clipboard.rs`; standard ones keep their MIME type
 (`text/plain`, `text/html`, `image/png`). An item names blocks only in its
 `refs`, beside its bytes, which index them by position (a format's
-`ClipFormat::refs` and `set_refs`; its ids are `#[serde(skip)]`), so whoever
+`ClipFormat::refs` and `set_refs`; its ids are `#[serde(skip)]`, as a `TextFragment`'s embeds are), so whoever
 carries a clip translates them without decoding it: be-host-runtime does for an
 instance in a checkout on every path a clip crosses (a copy, a render on
 request, a drag, a paste into a screen). `reactive::copy(Clip)` or
@@ -170,18 +170,28 @@ while it is still the clipboard's, so lazy representations and be3 formats
 survive where the system clipboard cannot carry them. Windows knows by the
 clipboard's sequence number and carries be3 formats as registered formats; the
 web writes them as `web ` types where `ClipboardItem.supports` says so
-(Chromium) and reads them from the async clipboard; both hold an item's
-`ClipItem::stored` bytes, refs and all. Elsewhere the plain text on the clipboard is compared with the text
-written, as beui's HTML core does too (`page::copy` and `page::held`): a
-`paste` event on a node answers from the held clip when its text matches. On
-the system clipboard a platform puts the plain text and the PNG together where
-it can: X11 (and Wayland, through XWayland) by owning the CLIPBOARD selection
-from a thread of its own (`beui-platform-winit/src/clipboard/x11.rs`, INCR for
-large data, handing the clip to a clipboard manager with SAVE_TARGETS when the
-program closes), Windows as `CF_DIB` and a registered `PNG` beside the text;
-elsewhere the plain text, or a PNG when there is none. Its Xvfb tests run
+(Chromium) and reads them from the async clipboard; X11 offers them as targets
+of its selection and reads them from another program's; macOS knows by the
+pasteboard's change count and writes them as pasteboard types, reverse-DNS UTIs
+made from their format id (`org.be3.clip.blocks`); Android lists them among
+the clip's description's MIME types and keeps them, base64, in its extras, with
+a nonce of the copy that tells its clip from another's, and leaves out what
+would overrun 256 KB there (`clip::fitting`), which stays in the held clip
+(`beui-platform-android/src/clipboard.rs`, written without an emulator: only
+its compiling is checked). All of them hold an item's
+`ClipItem::stored` bytes, refs and all. Elsewhere the plain text on the
+clipboard is compared with the text written, as beui's HTML core does too
+(`page::copy` and `page::held`): a `paste` event on a node answers from the
+held clip when its text matches. On the system clipboard a platform puts the
+plain text and the PNG together where it can: X11 (and Wayland, through
+XWayland) by owning the CLIPBOARD selection from a thread of its own
+(`beui-platform-winit/src/clipboard/x11.rs`, INCR for large data, handing the
+clip to a clipboard manager with SAVE_TARGETS when the program closes), Windows
+as `CF_DIB` and a registered `PNG` beside the text, macOS as `public.png` beside
+it; elsewhere the plain text, or a PNG when there is none. Its Xvfb tests run
 where `Xvfb` is installed and skip with a message where it is not, as on the
-build workers.
+build workers. The macOS code has no Mac to run on: only its compiling is
+checked, and the rule it shares with Windows (`beside`) is tested.
 
 The focus reads the clipboard only by pasting: an `Interactive`'s `pastes`
 lists the format ids it takes, preferred first, and its `on_paste` gets a
