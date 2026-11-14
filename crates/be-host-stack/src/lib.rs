@@ -357,6 +357,13 @@ pub fn retry_now() {
     }
 }
 
+/// Seals what the open blocks owe and waits for the worker to answer, then returns what closing
+/// now would lose, as the worker counted it when it answered: open blocks whose edits the
+/// device's journal does not hold yet, commands sent before the flush that still wait their turn
+/// (behind an upload or the server lane), and unfinished imports. Commands sent after the flush
+/// do not count. When the worker does not answer in time, and on the web, which cannot wait, it
+/// is `status().unsaved` as read before the flush. The close and switch guards ask while it is
+/// above zero.
 pub fn flush() -> usize {
     let unsaved = status().unsaved;
     let (done, sealed) = std::sync::mpsc::channel();

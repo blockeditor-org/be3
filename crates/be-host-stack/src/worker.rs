@@ -1470,7 +1470,9 @@ impl Session<'_> {
                     kept_for_flushes = false;
                     // Measured now, not read from `Shared::pending` after the answer, which
                     // counts commands sent since: a close asked as the window keeps sending
-                    // would otherwise never find the device saved.
+                    // would otherwise never find the device saved. A flush that itself waited
+                    // its turn in `Served` (behind a command that is not order-safe) may count
+                    // commands sent after it that wait there too: that only over-counts.
                     let (.., undurable) = self.replicas.counts();
                     let unsaved = undurable.len()
                         + self.uploads.deferred()
