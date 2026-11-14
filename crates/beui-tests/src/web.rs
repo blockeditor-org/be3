@@ -8,7 +8,7 @@ mod live;
 
 #[wasm_bindgen]
 pub fn start(fixture: String) -> Result<(), JsValue> {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     beui::html::run("app", move || {
         view! {
             <Fixture name={fixture} />
@@ -26,6 +26,6 @@ pub async fn automate(words: Vec<String>) -> Result<String, JsValue> {
 
 #[wasm_bindgen]
 pub fn checks() -> String {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     live::run()
 }

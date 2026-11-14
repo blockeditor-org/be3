@@ -11,7 +11,7 @@ use wasm_bindgen_futures::JsFuture;
 
 #[wasm_bindgen]
 pub async fn run_review(root_id: String) -> Result<(), JsValue> {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("no browser window"))?;
     let page = web_sys::Url::new(&window.location().href()?)?;
     let parameters = page.search_params();

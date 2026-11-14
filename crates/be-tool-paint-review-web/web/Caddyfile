@@ -1,12 +1,15 @@
-# PAINT_REVIEW_ROOT at PAINT_REVIEW_ADDRESS, laid out as CI uploads it: the
-# bundle under site/, beside the lists of paintings and their images. The
-# module's memory is shared, which a browser only hands to a cross-origin
+# PAINT_REVIEW_ROOT at the site PAINT_REVIEW_SITE on PAINT_REVIEW_BIND, laid out
+# as CI uploads it: the bundle under site/, beside the lists of paintings and
+# their images. default_bind keeps Caddy off every interface but the one named,
+# loopback unless serve.sh is given another (guides/hosting.md, "Listening").
+# The module's memory is shared, which a browser only hands to a cross-origin
 # isolated page.
 {
 	admin off
+	default_bind {$PAINT_REVIEW_BIND:127.0.0.1}
 }
 
-{$PAINT_REVIEW_ADDRESS} {
+{$PAINT_REVIEW_SITE} {
 	header {
 		Cross-Origin-Opener-Policy same-origin
 		Cross-Origin-Embedder-Policy require-corp

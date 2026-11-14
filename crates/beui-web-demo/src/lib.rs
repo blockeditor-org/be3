@@ -6,7 +6,7 @@ use beui_demo::DemoRoot;
 
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn run_demo(root_id: String) -> Result<(), wasm_bindgen::JsValue> {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     let options = beui_host::native::RunOptions::default();
     let demo = beui_host::native::build(|| {
         view! {

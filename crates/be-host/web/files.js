@@ -726,13 +726,16 @@ async function serve(control, args) {
     for (;;) {
         const state = Atomics.load(control, CONTROL.STATE);
         if (state !== CONTROL.ASKED) {
+            // forward() notifies STATE once it stores ASKED. Without waitAsync this worker
+            // blocks, which a worker may: the only message it could miss meanwhile is the
+            // memory, which answer() waits for.
             if (typeof Atomics.waitAsync === "function") {
                 const waiting = Atomics.waitAsync(control, CONTROL.STATE, state);
                 if (waiting.async) {
                     await waiting.value;
                 }
             } else {
-                await new Promise((resolve) => setTimeout(resolve, 1));
+                Atomics.wait(control, CONTROL.STATE, state);
             }
             continue;
         }

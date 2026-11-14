@@ -9,7 +9,7 @@ cargo_package()
 # ROOT/site/HASH/index.html and reads ROOT/CHANGES.json, where CHANGES is its
 # `changes` query parameter, and each image as ROOT/IMAGE.webp.
 # `./scripts/buck run //crates/be-tool-paint-review-web:web` serves the bundle with
-# Caddy on http://127.0.0.1:8075, or on the address after `--`.
+# Caddy on http://127.0.0.1:8075, or on the address given as `-- --addr HOST:PORT`.
 web_library(
     role = "program",
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
