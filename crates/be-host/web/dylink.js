@@ -181,7 +181,7 @@ function locked(memory, plan, body) {
     const words = new Int32Array(memory.buffer);
     const lock = plan.region >>> 2;
     while (Atomics.compareExchange(words, lock, 0, 1) !== 0) {
-        Atomics.wait(words, lock, 1, 1);
+        Atomics.wait(words, lock, 1);
     }
     try {
         return body(lock + 1);

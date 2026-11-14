@@ -15,8 +15,9 @@
 // (bindFiles), every call on a descriptor other than the standard streams is
 // forwarded to that worker, which answers it from the origin private file
 // system, and the caller waits for the answer. A worker waits with
-// Atomics.wait; the page, which may not block, spins. An app binds no
-// channel and has no file system at all.
+// Atomics.wait; the page, which may not block, spins until
+// plans/web_page_never_waits.md moves its file calls into a worker. An app
+// binds no channel and has no file system at all.
 //
 // The memory is shared, so it is a SharedArrayBuffer. TextDecoder and
 // getRandomValues both refuse to look at one, and every call that reads or
@@ -88,7 +89,7 @@ export function filesChannel() {
 function waitWhile(control, index, value) {
     while (Atomics.load(control, index) === value) {
         if (canBlock) {
-            Atomics.wait(control, index, value, 1000);
+            Atomics.wait(control, index, value);
         }
     }
 }

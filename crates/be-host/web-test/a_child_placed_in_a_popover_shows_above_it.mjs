@@ -30,6 +30,7 @@ export default async function (test) {
     await drive("click", 'TreeItem "Canvas"', "right");
     await drive("click", "#file-tree.open-with");
     await drive("click", "#file-tree.open-with.777b1dfa-5369-402e-b22d-7eb56877ad4d");
+    await drive("wait", "#block-debug.preview");
     await drive("click", "#block-debug.preview");
     await drive("wait", "#block-debug.preview.child");
     await drive("wait", 'Pane "Text"');

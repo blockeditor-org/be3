@@ -232,7 +232,10 @@ adds. Keys go through a hidden textarea, so paste and composition behave like
 any input on the page. A press on the canvas, or a text field taking beui's
 focus any other way, focuses that textarea; the on-screen keyboard opens only
 within a user gesture. Pointer events push every one of
-`getCoalescedEvents()`. guides/running/web.md runs it.
+`getCoalescedEvents()`. The page's thread may never wait: a browser traps
+`Atomics.wait` there, so a page module starts with `be_wasm_threads::initialize_page`
+and anything that waits runs in a worker (guides/running/web.md, "Files and offline").
+guides/running/web.md runs it.
 
 **Android.** The activity extends `com.be3.beui.BeuiActivity`, whose
 `BeuiView` is the surface and takes touches, keys, the soft keyboard's input

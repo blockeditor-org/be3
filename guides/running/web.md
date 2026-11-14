@@ -102,11 +102,19 @@ survives a reload. Traps that shape this code:
   behind, so `be_block_sqlite_schema::open` uses the `unix-none` VFS on WASI; the `block-files`
   Web Lock keeps one tab as owner (a second tab waits for it).
 - The block stack (`be_host_stack::start`) runs in its own worker, `web/be-worker.js`: a second
-  instance of the module on the page's shared memory, with its own sockets and timers. A browser
-  traps `memory.atomic.wait` on the page's thread, so a lock shared with that worker is
-  `be_wasm_threads::Mutex`, which spins. A server connection's `Peer` locks a
-  `std::sync::Mutex`, so connections never cross between the page and the worker
-  (`be_host_stack::link` keeps them per thread on wasm).
+  instance of the module on the page's shared memory, with its own sockets and timers. Each
+  stack it starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it.
+- Nothing may spin or poll while it waits; a worker waits with `Atomics.wait` (std's locks and
+  `Condvar`, `web/wasi.js`'s file calls, `web/dylink.js`'s lock), woken by the side that
+  changed the state. A browser traps `memory.atomic.wait` on the page's thread, so the page
+  may never wait at all. A module's page entry calls `be_wasm_threads::initialize_page` and a
+  worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. Two waits on the
+  page remain until plans/web_page_never_waits.md lands: `be_wasm_threads::Mutex::lock`, for
+  the locks the page shares with the stack's worker, spins on the page (and waits for real
+  everywhere else), and the page's file calls spin until `files.js` answers. Don't add a
+  third: a page that needs something another thread holds asks for it with a message.
+- A server connection's `Peer` locks a `std::sync::Mutex`, so connections never cross between
+  the page and the worker (`be_host_stack::link` keeps them per thread on wasm).
 - An unload cannot wait for the worker, so durability does not depend on it: a replica seals
   within `APPEND_INTERVAL` of an edit (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
   (`be_host_stack::status().unsaved`), and the worker seals while the browser asks.
