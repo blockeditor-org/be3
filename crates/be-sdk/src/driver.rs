@@ -91,6 +91,9 @@ pub struct Ran {
     pub asks: Vec<(ViewRef, WindowRequest)>,
     pub repaint_after: Option<Duration>,
     pub animating: bool,
+    /// The frame has not yet taken in all the input it was sent
+    /// (`present-commit.input-waiting`).
+    pub input_waiting: bool,
 }
 
 pub struct Driver<R: Regions> {
@@ -214,6 +217,7 @@ impl<R: Regions> ViewHandler for Driver<R> {
                 let frame = Frame {
                     repaint_after: ran.repaint_after.filter(|_| keyboard == Some(id)),
                     animating: ran.animating,
+                    input_waiting: ran.input_waiting,
                     asks: mine,
                     ..self.regions.framed(&mut self.surfaces, region, keyboard)
                 };

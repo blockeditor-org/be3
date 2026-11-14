@@ -42,6 +42,10 @@ use super::{
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
+/// How many frames in a row an app may say its input is still waiting (`input-waiting`) before
+/// the host counts one as answering it all the same, so an app that always says so cannot hold
+/// a press's answer for ever.
+const INPUT_WAITING_FRAMES: u32 = 4;
 const UNKNOWN_REFRESH: Duration = Duration::from_micros(16_667);
 const UNMEASURED_COMPOSITE: Duration = Duration::from_millis(4);
 const SUBMIT_MARGIN: Duration = Duration::from_millis(1);
@@ -406,9 +410,13 @@ struct Pacing {
     painting: bool,
     needed_again: bool,
     /// Frames asked of the app and answered by it, so the host can tell when the app has drawn
-    /// a frame that took input it sent: the first answer to a request made after it.
+    /// a frame that took input it sent: the first answer to a request made after it. A frame
+    /// that says it has not taken in all its input yet (`input-waiting`) does not count as
+    /// answered, for up to `INPUT_WAITING_FRAMES` in a row.
     asked: u64,
     answered: u64,
+    /// The frames in a row that said their input was still waiting.
+    waiting: u32,
 }
 
 impl Pacing {
@@ -421,6 +429,7 @@ impl Pacing {
         self.painting = false;
         self.needed_again = false;
         self.answered = self.asked;
+        self.waiting = 0;
     }
 
     fn due(&self, now: Duration, pass: u64) -> bool {
@@ -462,8 +471,14 @@ impl Pacing {
         }
     }
 
-    fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
-        self.answered = self.asked;
+    fn ready(&mut self, now: Duration, repaint_after: Option<Duration>, input_waiting: bool) {
+        match input_waiting && self.waiting < INPUT_WAITING_FRAMES {
+            true => self.waiting += 1,
+            false => {
+                self.answered = self.asked;
+                self.waiting = 0;
+            }
+        }
         self.needed = std::mem::take(&mut self.needed_again);
         self.requested_at = None;
         self.drawn_at = now;
@@ -1451,10 +1466,11 @@ impl Runtime {
             repaint_after_micros,
             animating,
             presented,
+            input_waiting,
         } = presented;
         self.pacing.animating = animating;
         self.pacing.painting = false;
-        self.await_next_frame(repaint_after_micros);
+        self.await_next_frame(repaint_after_micros, input_waiting);
         self.presents_applied += 1;
         if let Some(closing) = &mut self.closing
             && self.presents_applied == closing.presented_by
@@ -1513,9 +1529,9 @@ impl Runtime {
         changed
     }
 
-    fn await_next_frame(&mut self, repaint_after_micros: Option<u64>) {
+    fn await_next_frame(&mut self, repaint_after_micros: Option<u64>, input_waiting: bool) {
         let delay = repaint_after_micros.map(Duration::from_micros);
-        self.pacing.ready(self.now(), delay);
+        self.pacing.ready(self.now(), delay, input_waiting);
         if let Some(delay) = delay {
             host::request_repaint_after(delay);
         }
