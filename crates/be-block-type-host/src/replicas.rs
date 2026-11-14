@@ -908,7 +908,9 @@ impl<H: Host> Replicas<H> {
                 self.lock(shared, block);
                 return;
             }
-            // Keys arrived while it opened, after `unlock` ran: it opens again.
+            // Defensive: keys arrived while it opened, after `unlock` ran, so it opens again.
+            // `keys_changed` runs on the worker's loop, which this open holds, so the count
+            // does not move while it runs today.
             Err(ClientError::Locked(_)) => {
                 return Box::pin(self.open((peer, shared), block, content_type, reader)).await;
             }
@@ -1400,18 +1402,19 @@ impl<H: Host> Replicas<H> {
     }
 
     /// Opens a replica again to read what a missing key kept from it, if that loses nothing:
-    /// one that never joined its session, or that holds no edit it has not sealed and
-    /// reported. Opening again drops the instance, so one with edits keeps it instead, and its
-    /// next read asks for the key again. One the host is closing stays closed.
+    /// every edit it holds is journaled (`journal_for` replays it as it opens again) or it
+    /// holds none, and it either never joined its session or holds nothing unsealed. Opening
+    /// again drops the instance, so any other keeps it instead, and its next read asks for the
+    /// key again. One the host is closing stays closed.
     fn read_again(&mut self, block: Uuid) {
         let Some((_, open)) = self.replica_of(block) else {
             return;
         };
+        let durable = !open.unreported && (open.status.clean || open.status.journaled);
         let settled = open.status.clean
             && !open.status.owes_seal
-            && !open.unreported
             && !open.replay.iter().any(Replayed::local_edit);
-        if !open.closing && (open.made_up || settled) {
+        if !open.closing && durable && (open.made_up || settled) {
             self.reopen(block);
         }
     }
