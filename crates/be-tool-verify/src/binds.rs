@@ -6,19 +6,34 @@
 //! a wildcard address outside a comment, except the one place a deployment
 //! asks for it.
 
-/// The files that may write a wildcard address: `--domain`, a public
-/// deployment, and this check and its test.
+/// The files that write wildcard addresses to look for them: this check and
+/// its test.
 const ALLOWED: &[&str] = &[
-    "crates/be-host/web/serve.sh",
     "crates/be-tool-verify/src/binds.rs",
     "crates/be-tool-verify/src/tests/a_wildcard_bind_outside_a_deployment_is_reported.rs",
 ];
+
+/// The lines, as a path and the line trimmed, that may write a wildcard
+/// address: `--domain`, a public deployment.
+const ALLOWED_LINES: &[(&str, &str)] = &[("crates/be-host/web/serve.sh", "bind=\"[::]\"")];
 
 /// The Caddyfiles of servers deployed by hand, which face the internet on
 /// purpose (guides/build_server.md).
 const DEPLOYED: &str = "scripts/internal/";
 
-const WILDCARDS: &[&str] = &["0.0.0.0", "[::]:", "\"[::]\"", "Addr::UNSPECIFIED"];
+const WILDCARDS: &[&str] = &[
+    "0.0.0.0",
+    "[::]:",
+    "\"[::]\"",
+    "'[::]'",
+    "=[::]",
+    "Addr::UNSPECIFIED",
+];
+
+/// What a Node `listen` must name, or it listens on every interface.
+const LOOPBACK: &[&str] = &["127.0.0.1", "localhost", "::1"];
+
+const SCRIPTS: &[&str] = &[".js", ".mjs", ".cjs", ".ts"];
 
 /// What is wrong with the tracked file at `path`, holding `text`, as a line each.
 pub fn wildcard_binds(path: &str, text: &str) -> Vec<String> {
@@ -42,6 +57,18 @@ pub fn wildcard_binds(path: &str, text: &str) -> Vec<String> {
             .any(|comment| code.starts_with(comment))
         {
             continue;
+        }
+        if ALLOWED_LINES.contains(&(path, code.trim_end())) {
+            continue;
+        }
+        if SCRIPTS.iter().any(|extension| path.ends_with(extension))
+            && code.contains(".listen(")
+            && !LOOPBACK.iter().any(|host| code.contains(host))
+        {
+            problems.push(format!(
+                "{path}:{}: a `listen` that names no host listens on every interface; pass \"127.0.0.1\"",
+                index + 1
+            ));
         }
         if let Some(wildcard) = WILDCARDS.iter().find(|wildcard| code.contains(*wildcard)) {
             problems.push(format!(

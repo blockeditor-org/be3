@@ -60,10 +60,11 @@ names its site `http://:PORT`; the script that runs it sets `NAME_BIND` to the h
 `--addr`. The build server's Caddyfile (scripts/internal/nativelink) is its front door on the
 internet and binds every interface on purpose.
 
-`./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`): it fails on a Caddyfile
-outside scripts/internal without a loopback `default_bind`, and on `0.0.0.0`, `[::]` or
-`Addr::UNSPECIFIED` written outside a comment, a guide, scripts/internal or `--domain`'s line
-in crates/be-host/web/serve.sh.
+`./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`). It fails on a Caddyfile
+outside scripts/internal without a loopback `default_bind`; on `0.0.0.0`, `Addr::UNSPECIFIED`, or
+`[::]` written as an address (`[::]:PORT`, quoted, or after `=`), outside a comment, a guide,
+scripts/internal or `--domain`'s line in crates/be-host/web/serve.sh; and on a Node
+`.listen(` line that names no loopback host, which listens on every interface.
 
 ## Routes, the proxy and the gateway
 

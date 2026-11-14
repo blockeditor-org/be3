@@ -15,6 +15,10 @@ case "$*" in
     "--addr "*) [ $# -eq 2 ] && address="$2" || { echo "Expected --addr HOST:PORT." >&2; exit 1; } ;;
     *) echo "Unknown arguments $*; expected --addr HOST:PORT." >&2; exit 1 ;;
 esac
+case "$address" in
+    *:*) ;;
+    *) echo "--addr takes HOST:PORT, such as 127.0.0.1:8080, not $address." >&2; exit 1 ;;
+esac
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
 echo "Serving http://$address"
 BUNDLE_BIND="${address%:*}" BUNDLE_PORT="${address##*:}" BUNDLE_ROOT="$(cd "$bundle" && pwd)" \

@@ -32,4 +32,17 @@ fn a_wildcard_bind_outside_a_deployment_is_reported() {
     assert_eq!(wildcard_binds("crates/a/src/tests.rs", rust).len(), 1);
     assert!(wildcard_binds("crates/be-host/web/serve.sh", "bind=\"[::]\"\n").is_empty());
     assert!(wildcard_binds("guides/hosting.md", "`--addr 0.0.0.0:8080`\n").is_empty());
+
+    let domain = "    bind=\"[::]\"\n    address=0.0.0.0:8080\n";
+    let found = wildcard_binds("crates/be-host/web/serve.sh", domain);
+    assert_eq!(found.len(), 1);
+    assert!(found[0].starts_with("crates/be-host/web/serve.sh:2:"));
+    assert_eq!(wildcard_binds("buck/program/serve.sh", "bind=[::]\n").len(), 1);
+
+    let node = "server.listen(0, \"127.0.0.1\", ready);\nserver.listen(8080);\nprobe.listen(0, () => {});\n";
+    let found = wildcard_binds("buck/program/harness.mjs", node);
+    assert_eq!(found.len(), 2);
+    assert!(found[0].starts_with("buck/program/harness.mjs:2:"));
+    assert!(found[1].starts_with("buck/program/harness.mjs:3:"));
+    assert!(wildcard_binds("crates/a/src/lib.rs", "link.listen(callback);\n").is_empty());
 }

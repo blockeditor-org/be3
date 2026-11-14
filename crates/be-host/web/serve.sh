@@ -31,6 +31,10 @@ while [ "$index" -lt "$count" ]; do
     esac
 done
 
+case "$address" in
+    *:*) ;;
+    *) echo "--addr takes HOST:PORT, such as 127.0.0.1:8080, not $address." >&2; exit 1 ;;
+esac
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
 if [ -n "$domain" ]; then
     site="$domain"

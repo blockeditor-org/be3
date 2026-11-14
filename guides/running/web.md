@@ -28,14 +28,15 @@ the bundle: `dev-workspace` signs in through the ordinary portal against the pag
 through the bundle's `automate` export.
 
 `./scripts/buck run //crates/be-host:web` serves the bundle with every app and a be-server
-behind it on http://127.0.0.1:8080 without a browser (`-- --backend HOST:PORT` moves the server).
-It and every other web bundle `./scripts/buck run` serves (`//crates/beui-web-demo:web`,
-`//crates/beui-demo:web-html`, `//crates/be-tool-paint-review-web:web`) listen on loopback
-alone; `-- --addr HOST:PORT` moves them, and `-- --addr 0.0.0.0:PORT` is how to open one from
-another machine. A browser hands shared memory only to a secure page, which plain http is only
-on localhost, so be-host's page served elsewhere needs `--domain`. Caddy serves them, which binds every
-interface unless its Caddyfile says otherwise: guides/hosting.md, "Listening", has the rule and
-the check that holds it.
+behind it on http://127.0.0.1:8080 without a browser (`-- --backend HOST:PORT` moves the
+server). It and every other web bundle `./scripts/buck run` serves
+(`//crates/beui-web-demo:web`, `//crates/beui-demo:web-html`,
+`//crates/be-tool-paint-review-web:web`) listen on loopback alone; `-- --addr HOST:PORT` moves
+them, and `-- --addr 0.0.0.0:PORT` is how to open one from another machine. A browser hands
+shared memory only to a secure page, which plain http is only on localhost, so be-host's page
+served elsewhere needs `--domain`. Caddy serves them, which binds every interface unless its
+Caddyfile says otherwise: guides/hosting.md, "Listening", has the rule and the check that holds
+it.
 
 ## Driving the page
 
