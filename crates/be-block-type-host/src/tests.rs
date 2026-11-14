@@ -23,8 +23,8 @@ mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
-mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
+mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
@@ -133,14 +133,18 @@ fn with_another_device<F: Future<Output = ()>>(
         Replicas<Quiet>,
     ) -> F,
 ) {
-    with_devices(true, be_block_client::Clock::real(), |peer, another, shared, replicas| {
-        test(
-            peer,
-            another.expect("another device signed in"),
-            shared,
-            replicas,
-        )
-    });
+    with_devices(
+        true,
+        be_block_client::Clock::real(),
+        |peer, another, shared, replicas| {
+            test(
+                peer,
+                another.expect("another device signed in"),
+                shared,
+                replicas,
+            )
+        },
+    );
 }
 
 fn with_devices<F: Future<Output = ()>>(

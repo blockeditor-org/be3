@@ -48,7 +48,8 @@ fn type_at_start(
     text: &str,
 ) {
     let shown = mirror.content().expect("the editor was sent the text");
-    let typed = TextBlock::insert(shown, 3, 0, text.as_bytes()).expect("there is somewhere to type");
+    let typed =
+        TextBlock::insert(shown, 3, 0, text.as_bytes()).expect("there is somewhere to type");
     let message = mirror.operate(typed).expect("the editor has content");
     replicas.relay_from_editor(block, editor, message.encode(), Instant::now());
 }

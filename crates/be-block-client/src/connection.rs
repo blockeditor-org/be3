@@ -459,7 +459,9 @@ impl Connection {
     /// Whether the connection closed, or was asked to (`close`): one asked to close is never
     /// handed on, though its socket may take a moment to shut.
     pub fn is_closed(&self) -> bool {
-        self.asked_to_close.load(std::sync::atomic::Ordering::Acquire) || *self.closed.borrow()
+        self.asked_to_close
+            .load(std::sync::atomic::Ordering::Acquire)
+            || *self.closed.borrow()
     }
 
     pub fn close(&self) {

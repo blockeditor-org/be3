@@ -2553,7 +2553,11 @@ impl<H: Host> Replicas<H> {
             .collect();
         for replica in settled {
             self.holding.remove(&replica);
-            if let Some(io) = self.open.get_mut(&replica).and_then(|open| open.held.take()) {
+            if let Some(io) = self
+                .open
+                .get_mut(&replica)
+                .and_then(|open| open.held.take())
+            {
                 self.answered(ctx, io);
             }
         }
