@@ -43,6 +43,9 @@ struct Row {
     author: String,
     mine: bool,
     time: String,
+    /// When the server took it, for a message that arrived well after its claimed time: it was
+    /// written offline (`Message::arrived_late`).
+    arrived: Option<String>,
     body: String,
     edited: bool,
     reply: Option<String>,
@@ -998,6 +1001,10 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
         mine: message.message.author == me,
         proofs: Vec::new(),
         time: time(message.message.time, today),
+        arrived: message
+            .message
+            .arrived_late()
+            .map(|arrival| format!("sent offline, arrived {}", time(arrival, today))),
         body: message.body.clone(),
         edited: message.edited,
         reply,
@@ -1118,6 +1125,7 @@ fn deleted_row(message: ObjectId, deletion: &Deletion, me: Uuid, today: i64) -> 
         author: author(deletion.author, me),
         mine: false,
         time: time(deletion.time, today),
+        arrived: None,
         body: "Message deleted".to_owned(),
         edited: false,
         reply: None,
@@ -1389,6 +1397,8 @@ fn MessageRow(
     let forged = create_memo(move || signer.get() == Some(Signer::Bad));
     let author = create_memo(move || row.with(|row| row.author.clone()));
     let time = create_memo(move || row.with(|row| row.time.clone()));
+    let arrived = create_memo(move || row.with(|row| row.arrived.clone().unwrap_or_default()));
+    let late = create_memo(move || row.with(|row| row.arrived.is_some()));
     let body = create_memo(move || row.with(|row| row.body.clone()));
     let edited = create_memo(move || row.with(|row| row.edited));
     let mine = create_memo(move || row.with(|row| row.mine));
@@ -1534,6 +1544,14 @@ fn MessageRow(
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Text weight=Weight::Bold>{author}</Text>
                             <Text style=TextStyle::CAPTION>{time}</Text>
+                            <Show condition={late}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={format!("chat.message.{id}.arrived")}
+                                >
+                                    {arrived}
+                                </Text>
+                            </Show>
                             <Show condition={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
                             </Show>

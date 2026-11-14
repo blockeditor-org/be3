@@ -1,7 +1,6 @@
 # Authorship
 
-Depends on: plans/chat.md, "Arrival time" (the server stamping relayed
-operations), for step 2.
+Depends on: none.
 
 Signing what a person writes, so nobody with Edit can post as someone else.
 The signing key, its verification and the `sign` and `verify` host calls have
@@ -24,15 +23,12 @@ or that is forged.
   recovery phrase, its old key shows as changed, not forged, since its earlier
   messages are real; someone holding the old phrase can sign with it, and
   arrival times are what would tell them apart.
-- **Timestamps.** A signed time is only what the author claims. The server is
-  to stamp each relayed operation with when it received it (plans/chat.md,
-  "Arrival time"), so a message carries an arrival time no member chose. The
-  stamp is stored in content, which a dishonest session owner could alter;
-  accepted.
+- **Timestamps.** A signed time is only what the author claims. A follower's
+  message carries when the server took it, stamped by the session owner
+  (guides/chat.md, "Arrival time"), which no member chooses; the owner's own
+  messages carry none yet (plans/chat.md). The stamp is stored in content,
+  which a dishonest session owner could alter; accepted. A member with Edit
+  who removes a message and sends it again under its id gives it a later,
+  honest arrival.
 - Signatures detect forgery; they don't stop someone with Edit rewriting or
   removing messages (plans/deferred/chat_moderation.md).
-
-## Order of work
-
-1. **Arrival times** in chat, once the server stamps relayed operations. Done:
-   a message sent offline shows when it arrived; a painting.

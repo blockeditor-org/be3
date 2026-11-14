@@ -1326,7 +1326,7 @@ impl ChatRoom {
                 block,
                 be_type_chat::Message::new(member.account(), 1, format!("{name} is in")),
             );
-            chat.apply(&be_type_chat::ChatOp::Edit(said));
+            chat.apply(&be_type_chat::ChatOp::from(said));
             joined.push((*name, *mode, *connected, member));
         }
         create(
@@ -1400,7 +1400,7 @@ impl ChatRoom {
         });
         let message = be_type_chat::Message::new(self.me, 2, body).replying_to(quoted);
         let (_, edit) = content.send(self.block, message);
-        editor.operate(be_type_chat::ChatOp::Edit(edit));
+        editor.operate(be_type_chat::ChatOp::from(edit));
     }
 
     /// The next push: whom it went to, its urgency and the text it carries, opened as the

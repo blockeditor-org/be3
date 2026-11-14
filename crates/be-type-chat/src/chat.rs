@@ -69,7 +69,16 @@ pub struct Message {
     /// The hash of the last message its author saw when writing it.
     pub seen: Option<MessageHash>,
     pub signature: Signature,
+    /// When the server took the operation that sent it, in milliseconds since the Unix epoch
+    /// by the server's clock, as the session owner stamped it (`LiveEdit::arrival`); none when
+    /// that is unknown. Not signed, and written only through that stamp: a change that sets it
+    /// is dropped, and a message sent is given its operation's stamp, so no member chooses it.
+    pub arrival: Option<i64>,
 }
+
+/// How long after its claimed time a message must arrive to show as sent offline: past the
+/// clock drift between a device and the server, and a slow connection's delay.
+pub const OFFLINE_AFTER: i64 = 5 * 60 * 1000;
 
 /// A signature over a record's signed bytes, empty until messages are signed
 /// (plans/authorship.md).
@@ -186,6 +195,14 @@ impl Message {
 
     pub fn hash(&self, chat: Uuid, id: ObjectId) -> MessageHash {
         MessageHash::of(&self.signed_bytes(chat, id))
+    }
+
+    /// When the server took it, if that was `OFFLINE_AFTER` or more after the time its author
+    /// claims: it was written offline and sent once its device was back. None while its
+    /// arrival is unknown, never its claimed time.
+    pub fn arrived_late(&self) -> Option<i64> {
+        self.arrival
+            .filter(|arrival| arrival.saturating_sub(self.time) >= OFFLINE_AFTER)
     }
 }
 
@@ -319,8 +336,10 @@ enum Held {
 /// An operation on a chat.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ChatOp {
-    /// A change to the header: a message sent, edited or deleted, a reaction.
-    Edit(Edit),
+    /// A change to the header: a message sent, edited or deleted, a reaction. `arrival` is
+    /// when the server took it, which only the session owner fills (`LiveEdit::arrival`), and
+    /// which each message it sends keeps (`Message::arrival`).
+    Edit { edit: Edit, arrival: Option<i64> },
     /// The oldest recent messages become a segment: the header's change (they leave its
     /// messages, the index gains an entry) and the segment's bytes. Every replica that applies
     /// it holds the bytes, so an owner that takes the session over can save the part.
@@ -336,8 +355,51 @@ pub struct Closing {
 
 impl From<Edit> for ChatOp {
     fn from(edit: Edit) -> Self {
-        Self::Edit(edit)
+        Self::Edit {
+            edit,
+            arrival: None,
+        }
     }
+}
+
+/// `edit` as a replica applies it, with `arrival` its operation's stamp: a change setting a
+/// message's `arrival` is dropped, and each message it sends is given the stamp (none when
+/// unknown), so a message's arrival is only ever what the owner stamped.
+fn stamped(edit: &Edit, arrival: Option<i64>) -> Edit {
+    let messages = Place {
+        object: ObjectId::ROOT,
+        field: ChatHeader::MESSAGES.index(),
+    };
+    let field = Message::ARRIVAL.index();
+    let mut sent = Vec::new();
+    let mut changes: Vec<Change> = edit
+        .0
+        .iter()
+        .filter(|change| match change {
+            Change::Set {
+                object, field: set, ..
+            }
+            | Change::SetIf {
+                object, field: set, ..
+            }
+            | Change::Add {
+                object, field: set, ..
+            } => *object == ObjectId::ROOT || *set != field,
+            Change::Insert { place, objects, .. } => {
+                if *place == messages {
+                    sent.extend(objects.iter().map(|(id, _)| *id));
+                }
+                true
+            }
+            _ => true,
+        })
+        .cloned()
+        .collect();
+    changes.extend(
+        sent.into_iter()
+            .map(|id| Message::ARRIVAL.set(id, &arrival)),
+    );
+    Edit(changes)
 }
 
 /// A message as an editor shows it: what it says now and who reacted how.
@@ -488,7 +550,10 @@ impl ChatContent {
     /// The messages `operation` sends: what an editor marks as sending while the server lacks
     /// the edit (`ContentProjection::lacking`).
     pub fn sent_in(operation: &ChatOp) -> Vec<ObjectId> {
-        let ChatOp::Edit(operation) = operation else {
+        let ChatOp::Edit {
+            edit: operation, ..
+        } = operation
+        else {
             return Vec::new();
         };
         let messages = Place {
@@ -1308,14 +1373,16 @@ impl LiveEdit for ChatContent {
                 let message = self
                     .message(id)
                     .filter(|message| message.author == account)?;
-                Some(ChatOp::Edit(Self::send_as(id, &message)))
+                Some(Self::send_as(id, &message).into())
             })
             .collect()
     }
 
     fn apply(&mut self, operation: &ChatOp) {
         match operation {
-            ChatOp::Edit(edit) => LiveEdit::apply(&mut self.header, edit),
+            ChatOp::Edit { edit, arrival } => {
+                LiveEdit::apply(&mut self.header, &stamped(edit, *arrival));
+            }
             ChatOp::Close(closing) => self.close(closing),
         }
     }
@@ -1345,9 +1412,20 @@ impl LiveEdit for ChatContent {
             .collect()
     }
 
+    /// An edit's stamp, which each message it sends keeps; a close keeps none, since the
+    /// messages it moves keep theirs.
+    fn arrival(operation: &mut ChatOp) -> Option<&mut Option<i64>> {
+        match operation {
+            ChatOp::Edit { arrival, .. } => Some(arrival),
+            ChatOp::Close(_) => None,
+        }
+    }
+
     fn apply_touching(&mut self, operation: &ChatOp, touched: &mut Vec<Touched>) {
         match operation {
-            ChatOp::Edit(edit) => self.header.apply_touching(edit, touched),
+            ChatOp::Edit { edit, arrival } => self
+                .header
+                .apply_touching(&stamped(edit, *arrival), touched),
             ChatOp::Close(closing) => {
                 self.close(closing);
                 touched.push(Touched::Everything);
@@ -1365,14 +1443,18 @@ impl LiveEdit for ChatContent {
         let edits: Option<Vec<Edit>> = local
             .iter()
             .map(|operation| match operation {
-                ChatOp::Edit(edit) => Some(edit.clone()),
+                ChatOp::Edit { edit, arrival } => Some(stamped(edit, *arrival)),
                 ChatOp::Close(_) => None,
             })
             .collect();
         match (operation, edits) {
-            (ChatOp::Edit(edit), Some(local)) => {
-                self.header
-                    .apply_beneath(&mut confirmed.header, edit, &local, touched);
+            (ChatOp::Edit { edit, arrival }, Some(local)) => {
+                self.header.apply_beneath(
+                    &mut confirmed.header,
+                    &stamped(edit, *arrival),
+                    &local,
+                    touched,
+                );
             }
             _ => {
                 confirmed.apply(operation);
@@ -1388,14 +1470,29 @@ impl LiveEdit for ChatContent {
     fn child_operations(&self, change: ChildChange) -> Option<Vec<ChatOp>> {
         self.header
             .child_operations(change)
-            .map(|edits| edits.into_iter().map(ChatOp::Edit).collect())
+            .map(|edits| edits.into_iter().map(ChatOp::from).collect())
     }
 
     fn absorb_operation(operation: &mut ChatOp, next: ChatOp) -> Option<ChatOp> {
         match (operation, next) {
-            (ChatOp::Edit(operation), ChatOp::Edit(next)) => {
-                <Document<ChatHeader> as LiveEdit>::absorb_operation(operation, next)
-                    .map(ChatOp::Edit)
+            // Two operations the server took at different times stay apart, so each message
+            // keeps its own stamp.
+            (
+                ChatOp::Edit {
+                    edit: operation,
+                    arrival,
+                },
+                ChatOp::Edit {
+                    edit: next,
+                    arrival: next_arrival,
+                },
+            ) if *arrival == next_arrival => {
+                <Document<ChatHeader> as LiveEdit>::absorb_operation(operation, next).map(|edit| {
+                    ChatOp::Edit {
+                        edit,
+                        arrival: next_arrival,
+                    }
+                })
             }
             (_, next) => Some(next),
         }
@@ -1403,13 +1500,18 @@ impl LiveEdit for ChatContent {
 
     fn carry_over(operation: &ChatOp, before: &Self, after: &Self, client: u64) -> Option<ChatOp> {
         match operation {
-            ChatOp::Edit(edit) => <Document<ChatHeader> as LiveEdit>::carry_over(
+            // It keeps its own stamp, never another operation's: a stamp carried onto an
+            // operation that lacked one would be a claim the owner drops.
+            ChatOp::Edit { edit, arrival } => <Document<ChatHeader> as LiveEdit>::carry_over(
                 edit,
                 &before.header,
                 &after.header,
                 client,
             )
-            .map(ChatOp::Edit),
+            .map(|edit| ChatOp::Edit {
+                edit,
+                arrival: *arrival,
+            }),
             ChatOp::Close(closing) => after.closes_here(closing).then(|| operation.clone()),
         }
     }
@@ -1646,7 +1748,7 @@ impl Undo for ChatContent {
 
     fn step(&self, operation: &ChatOp) -> Option<Step> {
         match operation {
-            ChatOp::Edit(edit) => Undo::step(&self.header, edit),
+            ChatOp::Edit { edit, .. } => Undo::step(&self.header, edit),
             ChatOp::Close(_) => None,
         }
     }
@@ -1663,7 +1765,7 @@ impl Undo for ChatContent {
         self.header
             .revert(step)
             .into_iter()
-            .map(ChatOp::Edit)
+            .map(ChatOp::from)
             .collect()
     }
 
@@ -1671,7 +1773,7 @@ impl Undo for ChatContent {
         self.header
             .reapply(step)
             .into_iter()
-            .map(ChatOp::Edit)
+            .map(ChatOp::from)
             .collect()
     }
 }
