@@ -565,8 +565,8 @@
   {
    "id": 12,
    "type": "timeseries",
-   "title": "CAS reads found",
-   "description": "Share of the CAS's reads that found the blob.",
+   "title": "CAS reads not found",
+   "description": "Reads of the CAS each minute that found no blob: a client or the worker asked for something evicted or never uploaded. Nearly every read finds its blob, so a share would always show 100%.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -579,7 +579,7 @@
    },
    "fieldConfig": {
     "defaults": {
-     "unit": "percentunit",
+     "unit": "short",
      "custom": {
       "fillOpacity": 15,
       "lineWidth": 1,
@@ -588,8 +588,7 @@
        "mode": "none"
       }
      },
-     "min": 0,
-     "max": 1
+     "min": 0
     },
     "overrides": []
    },
@@ -609,8 +608,8 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "sum(rate(store_tier_operations_total{store_result=\"hit\"}[5m])) / sum(rate(store_tier_operations_total{store_result=~\"hit|miss\"}[5m]))",
-     "legendFormat": "found"
+     "expr": "sum(rate(store_tier_operations_total{store_result=\"miss\"}[5m])) * 60",
+     "legendFormat": "per minute"
     }
    ]
   },
