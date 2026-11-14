@@ -289,12 +289,45 @@ pub async fn make_link(
     Ok(code)
 }
 
-/// A link of either kind, and its owner's card opened with the code.
+/// Which kind of link a caller opens: the host's Contacts dialog and its join dialog each ask
+/// consent for one kind, so a code of the other kind is refused before anything is accepted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Expected {
+    Contact,
+    Invitation,
+}
+
+impl Expected {
+    fn refusal(self) -> ClientError {
+        ClientError::Refused(
+            ErrorCode::InvalidRequest,
+            match self {
+                Self::Contact => {
+                    "That is an invitation into an organization, not a contact link: join it from Organizations."
+                }
+                Self::Invitation => {
+                    "That is a contact link, not an invitation: open it from Contacts."
+                }
+            }
+            .into(),
+        )
+    }
+}
+
+/// A link of the kind `expected`, and its owner's card opened with the code.
 pub async fn open_link(
     connection: &Arc<Connection>,
     code: &InviteCode,
+    expected: Expected,
 ) -> Result<(Link, ContactCard), ClientError> {
     let link = client::contacts::get_link(connection, link_id(code)).await??;
+    let kind = match link.kind {
+        LinkKind::Contact(_) => Expected::Contact,
+        LinkKind::Invitation(_) => Expected::Invitation,
+    };
+    if kind != expected {
+        return Err(expected.refusal());
+    }
     let card = ContactCard::open(code, CardRole::Owner, &link.card).map_err(|_| tampered())?;
     if card.account != link.owner.into_bytes() {
         return Err(tampered());
@@ -302,15 +335,16 @@ pub async fn open_link(
     Ok((link, card))
 }
 
-/// Accepts a link of either kind: a contact link's grant, or an invitation's escrow key, is
-/// sealed to `identity` as it is taken.
+/// Accepts a link of the kind `expected`: a contact link's grant, or an invitation's escrow
+/// key, is sealed to `identity` as it is taken.
 pub async fn accept_link(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     code: &InviteCode,
+    expected: Expected,
 ) -> Result<(Link, ContactCard), ClientError> {
-    let (link, card) = open_link(connection, code).await?;
+    let (link, card) = open_link(connection, code, expected).await?;
     let key = match &link.kind {
         LinkKind::Contact(Some(grant)) => {
             let secret = code

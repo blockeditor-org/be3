@@ -264,8 +264,8 @@ pub(super) enum Command {
         name: String,
         reply: BlockAgentReply,
     },
-    /// An app's `rotate-agent-token` or `remove-agent`, refused for an agent of the person's
-    /// own (one the Agents menu lists).
+    /// An app's `rotate-agent-token` or `remove-agent`, refused for anything but a block's agent
+    /// the person made.
     BlockAgent {
         agent: Uuid,
         change: AgentChange,
@@ -2668,17 +2668,17 @@ async fn create_agent(
 async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange) {
     let connection = peer.connection();
     let organization = peer.organization();
-    // Only a block's agent the person made: an administrator may remove any member, which an
-    // app must not do in their name. One not listed is left for the server to answer.
-    let refused = match ask(client::members::list_members(&connection)).await {
-        Ok(members) => members.iter().any(|listed| {
-            listed.account == agent
-                && (listed.bound_to.is_none() || listed.created_by != Some(peer.account()))
-        }),
+    // Only a block's agent the person made: an administrator may remove any member, and an app
+    // must never do that in their name. A listed member that is not one is refused.
+    let listed = match ask(client::members::list_members(&connection)).await {
+        Ok(members) => members.into_iter().find(|listed| listed.account == agent),
         Err(error) => return change.fail(error.to_string()),
     };
-    if refused {
-        return change.fail("That agent is not a block's agent.".to_owned());
+    let own = listed
+        .as_ref()
+        .map(|listed| listed.bound_to.is_some() && listed.created_by == Some(peer.account()));
+    if own == Some(false) {
+        return change.fail("That agent is not a block's agent of yours.".to_owned());
     }
     match change {
         AgentChange::Rotate(reply) => reply(
@@ -2690,10 +2690,11 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
             .await
             .map_err(|error| error.to_string()),
         ),
-        // An agent the server no longer has (removed, or collected with its block) is as
-        // removed as asked.
-        AgentChange::Remove(reply) => reply(
-            match ask(client::members::remove_member(&connection, agent)).await {
+        // An agent not listed (removed, or collected with its block) is as removed as asked,
+        // and is never sent to `remove-member`, which would remove whoever the id now names.
+        AgentChange::Remove(reply) => reply(match own {
+            None => Ok(()),
+            Some(_) => match ask(client::members::remove_member(&connection, agent)).await {
                 Ok(_)
                 | Err(be_block_client::ClientError::Refused(
                     be_block_protocol::ErrorCode::MemberNotFound,
@@ -2701,7 +2702,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
                 )) => Ok(()),
                 Err(error) => Err(error.to_string()),
             },
-        ),
+        }),
     }
 }
 
@@ -2746,14 +2747,14 @@ async fn contact(
             );
         }
         ContactCommand::Open { code, reply } => {
-            let opened = be_block_client::contacts::open_link(&peer.connection(), &code)
+            let opened = be_block_client::contacts::open_link(&peer.connection(), &code, be_block_client::contacts::Expected::Contact)
                 .await
                 .map(|(_, card)| card);
             reply(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Accept { code, reply } => {
             let accepted =
-                be_block_client::contacts::accept_link(&peer.connection(), identity, &me, &code)
+                be_block_client::contacts::accept_link(&peer.connection(), identity, &me, &code, be_block_client::contacts::Expected::Contact)
                     .await
                     .map(|(_, card)| card);
             if accepted.is_ok() {

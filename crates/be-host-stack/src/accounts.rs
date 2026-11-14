@@ -268,24 +268,29 @@ pub struct Invited {
     pub invitation: Invitation,
 }
 
-/// The invitation `code` opens; a contact link's code is refused as not one.
+/// The invitation `code` opens; a contact link's code is refused as not one
+/// (`contacts::Expected`).
 pub async fn invitation(
     server_url: String,
     token: String,
     code: be_block_keys::InviteCode,
 ) -> Result<Invited, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let (link, _) = be_block_client::contacts::open_link(&connection, &code).await?;
-    match link.kind {
-        LinkKind::Invitation(invitation) => Ok(Invited {
-            organization_name: link.organization_name,
-            invitation,
-        }),
-        LinkKind::Contact(_) => Err(not_an_invitation()),
-    }
+    let (link, _) = be_block_client::contacts::open_link(
+        &connection,
+        &code,
+        be_block_client::contacts::Expected::Invitation,
+    )
+    .await?;
+    let organization_name = link.organization_name.clone();
+    Ok(Invited {
+        organization_name,
+        invitation: invitation_of(link)?,
+    })
 }
 
-/// Accepts the invitation `code` opens; answers the organization joined.
+/// Accepts the invitation `code` opens, refusing a contact link's; answers the organization
+/// joined.
 pub async fn accept_invitation(
     server_url: String,
     token: String,
@@ -293,23 +298,25 @@ pub async fn accept_invitation(
     code: be_block_keys::InviteCode,
 ) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let (opened, _) = be_block_client::contacts::open_link(&connection, &code).await?;
-    if let LinkKind::Contact(_) = opened.kind {
-        return Err(not_an_invitation());
-    }
-    let (link, _) =
-        be_block_client::contacts::accept_link(&connection, &me.secret(), &me.card(), &code)
-            .await?;
-    match link.kind {
-        LinkKind::Invitation(invitation) => Ok(invitation.organization),
-        LinkKind::Contact(_) => Err(not_an_invitation()),
-    }
+    let (link, _) = be_block_client::contacts::accept_link(
+        &connection,
+        &me.secret(),
+        &me.card(),
+        &code,
+        be_block_client::contacts::Expected::Invitation,
+    )
+    .await?;
+    Ok(invitation_of(link)?.organization)
 }
 
-fn not_an_invitation() -> AccountError {
-    AccountError {
-        message: "That is a contact link, not an invitation: open it from Contacts.".into(),
-        invalid_token: false,
+/// The invitation a link opened as one carries.
+fn invitation_of(link: be_block_protocol::Link) -> Result<Invitation, AccountError> {
+    match link.kind {
+        LinkKind::Invitation(invitation) => Ok(invitation),
+        LinkKind::Contact(_) => Err(AccountError {
+            message: "That is a contact link, not an invitation: open it from Contacts.".into(),
+            invalid_token: false,
+        }),
     }
 }
 

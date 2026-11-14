@@ -93,7 +93,9 @@ Notes on particular calls:
   (guides/terminal.md, A terminal host in a boat.dev sandbox). Removing an
   agent the server no longer has (`member-not-found`) answers success. The
   host denies them unless the manifest sets `"block_agents": true`, and
-  refuses to rotate or remove an agent the Agents menu lists.
+  refuses to rotate or remove anything but a block's agent the person made
+  (`member.bound-to` and `created-by`); removing one no longer listed answers
+  success without asking the server.
 - `sign(bytes)` signs as the person and `verify(account, bytes, signature)`
   answers a `Signer` (verified, unverified, changed or bad), both in the block
   the editor shows, with a key the app never holds (guides/blocks/keys.md,

@@ -542,11 +542,15 @@ impl ServerStore {
                             "you are already a member of that organization".into(),
                         ));
                     }
-                    database.query_row(
-                        "SELECT name FROM organizations WHERE id = ?1",
-                        [invitation.organization.to_string()],
-                        |row| row.get(0),
-                    )?
+                    // An invitation into an organization gone since is no link at all.
+                    database
+                        .query_row(
+                            "SELECT name FROM organizations WHERE id = ?1",
+                            [invitation.organization.to_string()],
+                            |row| row.get(0),
+                        )
+                        .optional()?
+                        .ok_or_else(link_not_found)?
                 }
             };
             Ok(Link {
