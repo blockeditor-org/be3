@@ -3012,8 +3012,12 @@ impl<H: Host> Replicas<H> {
                 let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
                     let resumed = async {
+                        // Commits this device kept that the server has yet to take (a definition
+                        // the worker wrote beside the replica) go on top of the server's head:
+                        // the replica reconciles with them, as it opens on them, or it would
+                        // seal beside them and the server would refuse one side.
                         let remote = match peer.is_attached() && !joining {
-                            true => peer.remote_head(block).await?,
+                            true => peer.newest_head(block).await?,
                             false => match peer.local_head(block) {
                                 Some(head) => Some(head),
                                 None => peer.remote_head(block).await?,

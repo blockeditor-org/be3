@@ -55,7 +55,14 @@ the server are in guides/blocks/keys.md.
 - **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
   having been away), and `Sequencer`/`Follower`. Operations carry an `OpId`, so
-  work resubmitted after a reconnect is deduplicated. Lease length is
+  work resubmitted after a reconnect is deduplicated: the owner answers an id it
+  took already with `Accepted` and the number it gave (`Sequencer::accepted_as`),
+  to the submitter only, and a follower drops its own operation at or below
+  what it has applied from pending (`Follower::included`); one past
+  `applied + 1` makes it catch up instead. A `ClientId` is shared by the
+  replicas made again on one connection, so a replica numbers every operation it
+  makes, owner or follower, from one counter that starts at a random point:
+  an owner refuses an id it took already. Lease length is
   `ServerConfig::lease`; tests that claim pass zero (be-host's
   `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`).
 - **be-block-graph**: liveness and access.
