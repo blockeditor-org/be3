@@ -1,4 +1,4 @@
-use be_block_client::{Drained, Saved, Sealed, Write};
+use be_block_client::Drained;
 
 use super::*;
 
@@ -9,37 +9,7 @@ use super::*;
 #[test]
 fn an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it() {
     with_test_types(async |peer, shared, mut replicas| {
-        let block = block(&peer).await;
-        let head = match peer.save(block, &base(), None).await {
-            Ok(Saved::Published(head)) => head,
-            saved => panic!("the base publishes: {saved:?}"),
-        };
-        peer.keep_definition(block, |metadata| {
-            metadata.insert(&be_block_content::NAME, &"Renamed".to_owned());
-        })
-        .await
-        .expect("the definition is kept here");
-        let definition = peer.local_head(block).expect("the definition is sealed");
-        assert_ne!(definition, head);
-
-        let edited = written(&peer, block, &[(2, "TWO")]).await;
-        let edit = match peer
-            .seal(block, Write::written(edited, Some(head)))
-            .await
-            .expect("the edit is sealed")
-        {
-            Sealed::Sealed(edit) => edit,
-            sealed => panic!("the edit changes the block: {sealed:?}"),
-        };
-        let published = peer
-            .publish_sealed(block, edit)
-            .await
-            .expect("the edit is kept");
-        assert_eq!(
-            published,
-            Saved::Unchanged(edit),
-            "the edit waits behind the definition sealed before it"
-        );
+        let (block, _, definition, edit) = sealed_beside_a_definition(&peer).await;
 
         let drained = peer.drain(|_| false).await.expect("the outbox drains");
         assert!(
@@ -49,50 +19,27 @@ fn an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it() {
             }),
             "the definition goes first: {drained:?}"
         );
-        let remote = drained
-            .iter()
-            .find_map(|outcome| match *outcome {
-                Drained::Diverged {
-                    block: diverged,
-                    local,
-                    remote,
-                } if diverged == block => Some((local, remote)),
-                _ => None,
-            })
-            .unwrap_or_else(|| panic!("the edit is refused as stale: {drained:?}"));
-        assert_eq!(remote, (edit, Some(definition)));
+        assert!(
+            drained.contains(&Drained::Diverged {
+                block,
+                local: edit,
+                remote: Some(definition),
+            }),
+            "the edit is refused as stale: {drained:?}"
+        );
 
         replicas
             .merge_diverged((&peer, &shared), block, Some(definition))
             .await
-            .expect("the edit merges with the definition");
+            .expect("the edit merges with the definition")
+            .expect("the merge reaches the server");
         assert!(
             peer.pending_commits(block).is_empty(),
             "the merge settles the edit"
         );
-        let head = peer
-            .remote_head(block)
-            .await
-            .expect("the head is read")
-            .expect("the block has a head");
-        let name = peer
-            .metadata_of(head)
-            .await
-            .expect("the metadata is read")
-            .get(&be_block_content::NAME);
-        let manifest = peer
-            .load_commit(head)
-            .await
-            .expect("the head is read")
-            .manifest;
-        let stored = peer
-            .load_manifest(&manifest)
-            .await
-            .expect("the head's content is read");
-        let content = Sections::from_stored(&stored).expect("the sections decode");
         assert_eq!(
-            (name.as_deref(), content.section(2)),
-            (Some("Renamed"), Some(&b"TWO"[..])),
+            on_the_server(&peer, block, &[2]).await,
+            (Some("Renamed".to_owned()), vec![Some(b"TWO".to_vec())]),
             "the server's head holds both the definition and the edit"
         );
     });

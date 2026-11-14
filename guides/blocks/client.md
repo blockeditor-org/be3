@@ -247,7 +247,8 @@ sends it. `Peer::write` does both.
   behind a commit of it sealed earlier that it does not build on (a definition
   `keep_definition` sealed on the head it went on too): sent first, it would
   leave that commit behind, so the drain sends both in order and merges them
-  (`Drained::Diverged`). Every
+  (`Drained::Diverged`). A publish that waits answers `Saved::Kept`, never a
+  head the server has. Every
   summary the server gives is laid over with what the outbox has yet to send of
   its block, a waiting move's parent and a waiting define's metadata, as it is
   kept (`RefsDb::set_listing`, which `Peer::note` and listings keep it

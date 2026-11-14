@@ -1003,7 +1003,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
                  commands not run: {}, edits owed: {} {:?} (sealed what was owed {} time(s)), asking the modules for {:?}, not yet durable: {}, draining the outbox: {}\n  \
                  listings loading: {}, listings failed: {}\n  \
-                 progressed: {}, wakes: {}, open blocks: {}, saves: {}, graph revision: {}\n",
+                 progressed: {}, wakes: {}, passes in a row woken for nothing: {}, open blocks: {}, saves: {}, graph revision: {}\n",
                 held.connected,
                 held.reached,
                 held.error,
@@ -1022,6 +1022,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.graph.failed_listings(),
                 held.progressed,
                 held.wakes,
+                held.idle_passes,
                 held.blocks.len(),
                 held.saves,
                 held.graph.revision

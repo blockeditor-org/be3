@@ -742,7 +742,7 @@ impl<H: Host> Replicas<H> {
     }
 
     /// What is asked of the modules and not yet answered, by block.
-    fn asking(&self) -> Vec<String> {
+    pub(crate) fn asking(&self) -> Vec<String> {
         self.asked
             .values()
             .map(|(replica, asked)| {
@@ -1764,6 +1764,9 @@ impl<H: Host> Replicas<H> {
         })
     }
 
+    /// Merges a block the drain found diverged (`Drained::Diverged`) and publishes the merge:
+    /// the server's head after it, or none when nothing reached the server (no type merges the
+    /// block, or the merge waits in the outbox, `Saved::Kept`, for a drain this asks for).
     pub async fn merge_diverged(
         &mut self,
         (peer, shared): Ctx<'_, H>,
@@ -1805,20 +1808,24 @@ impl<H: Host> Replicas<H> {
                         .merging(base, ours),
                 )
                 .await?;
+            if conflicts > 0 && !matches!(saved, Saved::Rejected { .. }) {
+                H::conflict(
+                    shared,
+                    block,
+                    crate::Conflict {
+                        ours,
+                        theirs,
+                        count: conflicts,
+                    },
+                );
+            }
             match saved {
-                Saved::Published(head) | Saved::Unchanged(head) => {
-                    if conflicts > 0 {
-                        H::conflict(
-                            shared,
-                            block,
-                            crate::Conflict {
-                                ours,
-                                theirs,
-                                count: conflicts,
-                            },
-                        );
-                    }
-                    remote = Some(head);
+                Saved::Published(head) | Saved::Unchanged(head) => remote = Some(head),
+                // The merge waits in the outbox behind what goes first, and the server does not
+                // have it: the next drain sends them in order.
+                Saved::Kept(_) => {
+                    self.kept = true;
+                    return Ok(None);
                 }
                 Saved::Rejected { head } => remote = head,
             }
@@ -2330,16 +2337,15 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             if !open.status.clean || !peer.pending_commits(block).is_empty() {
-                // Asked once, while nothing seals it: this runs every pass of the loop, and a
-                // seal asked again while one is on its way, or of a replica with nothing to
-                // seal whose commits only wait for the drain, wakes its module and the loop
-                // again, so the loop never rests and what it waits for never runs.
+                // This runs every pass of the loop: asked again while a seal is on its way, or
+                // while it owes none (its commits wait for the drain, its seal for a timer),
+                // its module would wake the loop every pass.
                 let sealing = open.publishing > 0
                     || self
                         .asked
                         .values()
                         .any(|(asked, ask)| *asked == replica && matches!(ask, Asked::Seal(_)));
-                if !open.status.clean && !sealing {
+                if open.status.owes_seal && !sealing {
                     self.seal_later(block, false);
                 }
                 continue;
@@ -2976,12 +2982,16 @@ impl<H: Host> Replicas<H> {
                         Ok(Saved::Published(head)) => {
                             (Ok(PublishOutcome::Published(head)), Some(head))
                         }
-                        Ok(Saved::Unchanged(head))
+                        // Kept in the outbox, or nothing to seal on a head that waits there.
+                        Ok(Saved::Kept(head) | Saved::Unchanged(head))
                             if peer.pending_commits(block).contains(&head) =>
                         {
                             (Ok(PublishOutcome::Kept(head)), None)
                         }
-                        Ok(Saved::Unchanged(head)) => (Ok(PublishOutcome::Published(head)), None),
+                        // Kept, and a drain has sent it since; or nothing to seal.
+                        Ok(Saved::Kept(head) | Saved::Unchanged(head)) => {
+                            (Ok(PublishOutcome::Published(head)), None)
+                        }
                         Ok(Saved::Rejected { head }) => (Ok(PublishOutcome::Rejected(head)), None),
                         Err(error) => (Err(error.to_string()), None),
                     };
@@ -3262,18 +3272,18 @@ async fn commit<H: Host>(
     publishing.keep(commit);
     sealed();
     if local || !peer.is_attached() {
-        return Ok(Saved::Unchanged(commit));
+        return Ok(Saved::Kept(commit));
     }
     let saved = peer.publish_sealed(block, commit).await;
     if !publishing.settle() {
-        return Ok(Saved::Unchanged(commit));
+        return Ok(Saved::Kept(commit));
     }
     match saved {
         Ok(Saved::Rejected { head }) => {
             peer.withdraw(block, commit, before)?;
             Ok(Saved::Rejected { head })
         }
-        Err(error) if unreachable(&error) => Ok(Saved::Unchanged(commit)),
+        Err(error) if unreachable(&error) => Ok(Saved::Kept(commit)),
         saved => saved,
     }
 }
@@ -3291,6 +3301,11 @@ async fn reset<H: Host>(
     kind: &types::Kind,
 ) -> Result<(), ClientError> {
     let mut expected = peer.remote_head(block).await?;
+    // What this device kept of the block and has not sent goes with what the reset replaces,
+    // rather than waiting ahead of the blank to be merged into it.
+    for commit in peer.pending_commits(block) {
+        peer.withdraw(block, commit, expected)?;
+    }
     for _ in 0..4 {
         match peer
             .write(

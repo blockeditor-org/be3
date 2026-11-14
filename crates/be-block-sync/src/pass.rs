@@ -1764,7 +1764,9 @@ impl Change {
                 )
                 .await
             {
-                Ok(Published::Published(new) | Published::Unchanged(new)) => head = Some(new),
+                Ok(
+                    Published::Published(new) | Published::Unchanged(new) | Published::Kept(new),
+                ) => head = Some(new),
                 Ok(Published::Rejected { .. }) => return Err(Retry),
                 Err(error) => return Err(Refused(explain(error))),
             }
@@ -1834,7 +1836,7 @@ async fn list_children<S: ObjectStore>(
             .map_err(explain)?
         {
             Published::Rejected { .. } => continue,
-            Published::Published(_) | Published::Unchanged(_) => return Ok(()),
+            Published::Published(_) | Published::Unchanged(_) | Published::Kept(_) => return Ok(()),
         }
     }
     Err("it kept changing".to_owned())

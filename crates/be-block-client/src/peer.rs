@@ -118,15 +118,23 @@ impl PeerConfig {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Saved {
+    /// The write changed nothing: the block stays at this head.
     Unchanged(CommitId),
+    /// The server took the commit: its head.
     Published(CommitId),
-    Rejected { head: Option<CommitId> },
+    /// Sealed and kept in the outbox, which sends it later (`Peer::drain`): the server does not
+    /// have it yet.
+    Kept(CommitId),
+    Rejected {
+        head: Option<CommitId>,
+    },
 }
 
 impl Saved {
+    /// The head the write left the block at on this device, unless it was rejected.
     pub fn published(self) -> Option<CommitId> {
         match self {
-            Self::Unchanged(head) | Self::Published(head) => Some(head),
+            Self::Unchanged(head) | Self::Published(head) | Self::Kept(head) => Some(head),
             Self::Rejected { .. } => None,
         }
     }
@@ -1669,8 +1677,9 @@ impl<S: ObjectStore> Peer<S> {
         )
     }
 
-    /// `seal` then `publish_sealed`. On `Rejected` it drops the commit from the outbox, since
-    /// the caller retries or merges.
+    /// `seal` then `publish_sealed`: `Kept` when the commit waits in the outbox behind what
+    /// goes first. On `Rejected` it drops the commit from the outbox, since the caller retries
+    /// or merges.
     pub async fn write(&self, block: Uuid, write: Write<'_>) -> Result<Saved, ClientError> {
         let before = self.local_head(block);
         let commit = match self.seal(block, write).await? {
@@ -1847,16 +1856,18 @@ impl<S: ObjectStore> Peer<S> {
                 || self.refs.refused(block).is_some()
                 || self.beside(block, sequence, commit)?)
         {
-            return Ok(Saved::Unchanged(commit));
+            return Ok(Saved::Kept(commit));
         }
-        let saved = self.send_pending(&pending).await?;
-        if let Saved::Published(head) = saved {
-            self.settle(sequence, &pending, head)?;
-        }
-        Ok(saved)
+        Ok(match self.send_pending(&pending).await? {
+            PublishOutcome::Published(head) => {
+                self.settle(sequence, &pending, head)?;
+                Saved::Published(head)
+            }
+            PublishOutcome::Rejected(head) => Saved::Rejected { head },
+        })
     }
 
-    async fn send_pending(&self, pending: &Pending) -> Result<Saved, ClientError> {
+    async fn send_pending(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
         let Pending {
             block,
             commit: id,
@@ -1918,15 +1929,10 @@ impl<S: ObjectStore> Peer<S> {
                 None => break publish(Vec::new()).await?,
             }
         };
-        match response {
-            PublishOutcome::Published(head) => Ok(Saved::Published(head)),
-            PublishOutcome::Rejected(head) => {
-                if let Some(head) = head {
-                    self.refs.set_remote(block, head, self.behind())?;
-                }
-                Ok(Saved::Rejected { head })
-            }
+        if let PublishOutcome::Rejected(Some(head)) = response {
+            self.refs.set_remote(block, head, self.behind())?;
         }
+        Ok(response)
     }
 
     fn carried(
@@ -2152,15 +2158,18 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<(), ClientError> {
         // The key goes first: the grant tells the account's devices at once, and a device that
         // finds no key for the block then shows it locked until something else opens a key.
-        if access.can_view() {
+        // Only when the grant may go through, though: one the server refuses leaves the block
+        // as it was, not made a scope of its own.
+        if access.can_view() && self.summary(block).await?.access.can_manage() {
             self.seal_share(block, account, public).await?;
         }
         self.grant(block, account, access).await
     }
 
     pub async fn open_inside(&self, block: Uuid, access: Access) -> Result<(), ClientError> {
-        // As `share`: the key before the grant.
-        if access.can_view() {
+        // As `share`: the key before the grant. Its author opens a kind of settings while
+        // editing it, so editing is the least the server takes.
+        if access.can_view() && self.summary(block).await?.access.can_edit() {
             let keys = self.own_scope(block).await?;
             self.put_keys(keys).await?;
         }

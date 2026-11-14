@@ -3,11 +3,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use be_block_commit::{CommitId, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{BlockSummary, ErrorCode, Listing, client};
+use be_block_protocol::{BlockSummary, ErrorCode, Listing, PublishOutcome, client};
 use be_block_store::ObjectStore;
 use uuid::Uuid;
 
-use super::{Drained, Peer, Reconciled, Saved};
+use super::{Drained, Peer, Reconciled};
 use crate::{
     ClientError,
     refs::{Creation, Defining, Moving, Op, Pending, PendingCounts, UnsentBlock},
@@ -442,11 +442,11 @@ impl<S: ObjectStore> Peer<S> {
                 });
             };
             match self.send_pending(pending).await? {
-                Saved::Published(head) | Saved::Unchanged(head) => {
+                PublishOutcome::Published(head) => {
                     self.settle(*sequence, pending, head)?;
                     remote = Some(head);
                 }
-                Saved::Rejected { head } => remote = head,
+                PublishOutcome::Rejected(head) => remote = head,
             }
         }
         Err(ClientError::Contended)
@@ -624,17 +624,17 @@ impl<S: ObjectStore> Peer<S> {
     async fn drain_publish(&self, sequence: u64, pending: Pending) -> Result<Drained, ClientError> {
         let block = pending.block;
         match self.send_pending(&pending).await {
-            Ok(Saved::Published(head) | Saved::Unchanged(head)) => {
+            Ok(PublishOutcome::Published(head)) => {
                 self.settle(sequence, &pending, head)?;
                 Ok(Drained::Published { block, head })
             }
-            Ok(Saved::Rejected { head: Some(head) })
+            Ok(PublishOutcome::Rejected(Some(head)))
                 if self.contains(head, pending.commit).await? =>
             {
                 self.settle(sequence, &pending, head)?;
                 Ok(Drained::Published { block, head })
             }
-            Ok(Saved::Rejected { head }) => Ok(Drained::Diverged {
+            Ok(PublishOutcome::Rejected(head)) => Ok(Drained::Diverged {
                 block,
                 local: self.local_head(block).unwrap_or(pending.commit),
                 remote: head,

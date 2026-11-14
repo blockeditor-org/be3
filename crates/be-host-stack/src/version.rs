@@ -2065,7 +2065,7 @@ async fn change<R: Root + Model + Default>(
             .await
             .map_err(failed)?
         {
-            Saved::Published(head) | Saved::Unchanged(head) => {
+            Saved::Published(head) | Saved::Unchanged(head) | Saved::Kept(head) => {
                 settle(context, block, head).await?;
                 return Ok(());
             }
@@ -2137,7 +2137,7 @@ async fn relist(
             .await
             .map_err(failed)?
         {
-            Saved::Published(head) | Saved::Unchanged(head) => {
+            Saved::Published(head) | Saved::Unchanged(head) | Saved::Kept(head) => {
                 return settle(context, parent, head).await;
             }
             Saved::Rejected { .. } => {}
@@ -2367,7 +2367,7 @@ async fn publish(
             .await
             .map_err(failed)?
         {
-            Saved::Published(head) | Saved::Unchanged(head) => {
+            Saved::Published(head) | Saved::Unchanged(head) | Saved::Kept(head) => {
                 settle(context, block, head).await?;
                 let summary = context.peer.summary(block).await.map_err(failed)?;
                 let node = node_of(context.peer, &summary);

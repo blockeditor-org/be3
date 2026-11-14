@@ -61,7 +61,9 @@ over a `FileStore` (on the web in the origin private file system).
 Nothing in the worker runs on a timer: it waits on commands and the
 connection's broadcast, with one deadline for the autosave a dirty session is
 owed. `status().wakes` counts wakes, and a test asserts an idle peer never
-wakes.
+wakes. The tasks beside the loop run only while it waits, so a pass the modules
+woke for nothing yields once; a wait that fails reports how many such passes
+came in a row.
 
 Tests wait on the stack with `be_host_stack::wait_until`, which fails at the
 caller after `WAIT_LIMIT` without the stack saying anything (or `WAIT_CAP` in
@@ -187,12 +189,11 @@ creation (`Peer::create_block`), `Peer::summary` answers from the device until
 the server knows it, and a listing the server answers is laid over with what the
 outbox adds or moves (`Peer::listed`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
-owns and joins (`Replicas::created`, run every pass, asks for that seal only
-while nothing seals it: a module asked every pass wakes the loop every pass, and
-in process the loop then never yields to the publish it waits on). A command that needs the server to know a
-block waits first for a drain to send what this device made of it
-(`Tasks::sent`; an export, and a version command in the lane, waits for the
-whole outbox, since it reads a tree).
+owns and joins (`Replicas::created` asks for that seal once, while it owes one
+and none is on its way). A command that needs the server to know a block waits
+first for a drain to send what this device made of it (`Tasks::sent`; an
+export, and a version command in the lane, waits for the whole outbox, since it
+reads a tree).
 
 **Commands that need the server.** Those that need only the server and no open
 block (share, list access, read a head, leave, approve pairing, members, block
