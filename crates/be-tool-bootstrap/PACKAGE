@@ -22,6 +22,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "bootstrap": [
+                    "//crates/be-lib-build-record:be-lib-build-record",
                     "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//third-party/rust:flate2-1.1.9",
@@ -31,6 +32,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-lib-build-record:be-lib-build-record",
                 "//crates/be-lib-crate-pins:be-lib-crate-pins",
                 "//crates/be-lib-prompt:be-lib-prompt",
                 "//third-party/rust:flate2-1.1.9",
@@ -46,6 +48,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "bootstrap": [
+                    "//crates/be-lib-build-record:be-lib-build-record",
                     "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//third-party/rust:flate2-1.1.9",
@@ -55,6 +58,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-lib-build-record:be-lib-build-record",
                 "//crates/be-lib-crate-pins:be-lib-crate-pins",
                 "//crates/be-lib-prompt:be-lib-prompt",
                 "//third-party/rust:flate2-1.1.9",
@@ -70,6 +74,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "bootstrap": [
+                    "//crates/be-lib-build-record:be-lib-build-record",
                     "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//third-party/rust:flate2-1.1.9",
@@ -79,6 +84,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-lib-build-record:be-lib-build-record",
                 "//crates/be-lib-crate-pins:be-lib-crate-pins",
                 "//crates/be-lib-prompt:be-lib-prompt",
                 "//third-party/rust:flate2-1.1.9",
@@ -94,6 +100,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "bootstrap": [
+                    "//crates/be-lib-build-record:be-lib-build-record",
                     "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//third-party/rust:flate2-1.1.9",
@@ -103,6 +110,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-lib-build-record:be-lib-build-record",
                 "//crates/be-lib-crate-pins:be-lib-crate-pins",
                 "//crates/be-lib-prompt:be-lib-prompt",
                 "//third-party/rust:flate2-1.1.9",
@@ -118,6 +126,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "bootstrap": [
+                    "//crates/be-lib-build-record:be-lib-build-record",
                     "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//third-party/rust:flate2-1.1.9",
@@ -127,6 +136,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-lib-build-record:be-lib-build-record",
                 "//crates/be-lib-crate-pins:be-lib-crate-pins",
                 "//crates/be-lib-prompt:be-lib-prompt",
                 "//third-party/rust:flate2-1.1.9",
@@ -142,6 +152,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "bootstrap": [
+                    "//crates/be-lib-build-record:be-lib-build-record",
                     "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//third-party/rust:flate2-1.1.9",
@@ -151,6 +162,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-lib-build-record:be-lib-build-record",
                 "//crates/be-lib-crate-pins:be-lib-crate-pins",
                 "//crates/be-lib-prompt:be-lib-prompt",
                 "//third-party/rust:flate2-1.1.9",
@@ -166,6 +178,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "bootstrap": [
+                    "//crates/be-lib-build-record:be-lib-build-record",
                     "//crates/be-lib-crate-pins:be-lib-crate-pins",
                     "//crates/be-lib-prompt:be-lib-prompt",
                     "//third-party/rust:flate2-1.1.9",
@@ -175,6 +188,7 @@ write_package_value("be3.cargo", {
                 ],
             },
             "deps": [
+                "//crates/be-lib-build-record:be-lib-build-record",
                 "//crates/be-lib-crate-pins:be-lib-crate-pins",
                 "//crates/be-lib-prompt:be-lib-prompt",
                 "//third-party/rust:flate2-1.1.9",

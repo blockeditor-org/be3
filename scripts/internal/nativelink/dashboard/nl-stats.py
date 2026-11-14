@@ -2,7 +2,7 @@
 """The build server's records of builds, and its count of running actions (nl-stats.service).
 
 - POST /__be3-stats/build (Caddy checks the token and forwards it here) takes the JSON record
-  crates/be-tool-verify/src/stats.rs makes of each ./scripts/verify and ./scripts/ci build, and stores it in
+  crates/be-lib-build-record makes of each build (guides/build_server.md, The dashboard), and stores it in
   /var/lib/nl-stats/builds.db, which Grafana reads (grafana-datasources.yaml).
 - Every 5 s it counts the actions running on the worker, one directory each under /var/lib/nativelink/run, and
   writes the count where node_exporter's textfile collector reads it, as nl_actions_running.

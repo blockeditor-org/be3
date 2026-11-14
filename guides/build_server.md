@@ -98,12 +98,14 @@ which `setup.sh` installs). Caddy lets a browser through when it holds the cooki
   always tries), where the OpenTelemetry Collector (`otel-collector.yaml`) keeps them for Prometheus, minus a series
   per action digest: queue depth and queue time, actions finished, each action's peak memory, CAS reads and bytes.
   Prometheus keeps a year of both (`/var/lib/nl-prometheus`).
-- **Builds**: at its end, every `./scripts/verify` and `./scripts/ci` that built on a named server sends a record
-  (crates/be-tool-verify's stats.rs, from buck2's event log) to `/__be3-stats/build` with the build token, which
-  `nl-stats.py` keeps in `/var/lib/nl-stats/builds.db`: how long buck2 took, the actions that ran and were cached,
-  their total queue time, the critical path, every test run and every other action over 10 s. Its kind is
-  `ci-EVENT` in CI, `verify-cloud` behind a proxy, and `verify` otherwise; `target/verify-record.json` is the last one
-  sent. Ask it anything with `sqlite3 /var/lib/nl-stats/builds.db` on the server.
+- **Builds**: every build sends a record when buck2 finishes (crates/be-lib-build-record, from buck2's event log) to
+  `/__be3-stats/build` with the build token, when it built on a named server: be-tool-verify for `./scripts/verify` and
+  `./scripts/ci`, and the bootstrap for `./scripts/test` and `./scripts/buck` build, run (before the program starts),
+  test and bxl. `nl-stats.py` keeps them in `/var/lib/nl-stats/builds.db`: how long buck2 took, the actions that ran
+  and were cached, their total queue time, the critical path, every test run and every other action over 10 s. Its
+  kind is the command (`verify`, `test`, `build`, `run`, `bxl`), with `-cloud` behind a proxy; in CI it is `ci-EVENT`
+  for `./scripts/ci` and `ci-EVENT-COMMAND` for the rest. `target/build-record.json` is the last one sent. Ask it
+  anything with `sqlite3 /var/lib/nl-stats/builds.db` on the server.
 - The dashboard is `build-server.json`; the UI cannot save changes to it, so change the file and run `setup.sh`.
 
 ## When a build keeps failing
