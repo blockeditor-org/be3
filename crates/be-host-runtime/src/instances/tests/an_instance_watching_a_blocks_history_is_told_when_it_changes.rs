@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_api::blocks::{BlockHistory, BlockSubject, BlockValue};
 use be_type_checklist::{Checklist, ChecklistContent};
 

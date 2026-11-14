@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockMetadata, NAME};
+use be_block_content::{BlockMetadata, NAME};
 use be_type_example_counter::CounterContent;
 
 #[tokio::test]

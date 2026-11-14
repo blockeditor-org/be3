@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::{cmp::Ordering, collections::HashMap};
 
-use be_sdk_beui::be_block::{Edit, ObjectId};
+use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::Root;
 use be_sdk_beui::beui::{Key, PointerButton, Pos2, Vec2};
@@ -253,7 +253,7 @@ struct Tracker {
 }
 
 impl Tracker {
-    fn row(&self, index: usize) -> be_sdk_beui::be_block::ObjectId {
+    fn row(&self, index: usize) -> be_sdk_beui::be_block_content::ObjectId {
         self.fixture.database().rows.get_index(index).unwrap().id
     }
 

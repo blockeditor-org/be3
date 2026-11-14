@@ -62,7 +62,7 @@ impl be_block_type_host::Host for Shared {
             .unwrap_or_else(PoisonError::into_inner)
             .graph
             .get(block)
-            .and_then(|node| node.metadata.get(&be_block::SCHEMA))
+            .and_then(|node| node.metadata.get(&be_block_content::SCHEMA))
             .is_some_and(|stamped| stamped != schema)
     }
 

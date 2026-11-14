@@ -1,10 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use be_block::{
-    BlockMetadata, Entries,
-    version_control::{local_id, masked, scope_mask},
-};
+use be_block::version_control::{local_id, masked, scope_mask};
 use be_block_commit::CommitId;
+use be_block_content::{BlockMetadata, Entries};
 use be_block_graph::{Access, BlockParent};
 pub use be_block_protocol::Listing;
 use be_sdk_api::BlockIdRole;
@@ -697,7 +695,7 @@ impl Graph {
     #[cfg(test)]
     pub(crate) fn forget_name(&mut self, block: Uuid) {
         if let Some(node) = self.nodes.get_mut(&block) {
-            node.metadata.remove(&be_block::NAME);
+            node.metadata.remove(&be_block_content::NAME);
         }
     }
 
@@ -765,7 +763,7 @@ impl Graph {
         let mut current = self.nodes.get(&block)?.parent.and_then(BlockParent::block);
         while let Some(parent) = current {
             let node = self.nodes.get(&parent)?;
-            if node.content_type == <be_block::Checkout as be_block::Root>::CONTENT_TYPE {
+            if node.content_type == <be_block::Checkout as be_block_content::Root>::CONTENT_TYPE {
                 return Some(Scope {
                     checkout: parent,
                     mask: scope_mask(parent),
@@ -792,7 +790,7 @@ impl Graph {
         }
         let copy = masked(local, scope.mask);
         match self.nodes.get(&copy) {
-            Some(node) if node.metadata.get(&be_block::LOCAL_ID) == Some(local) => copy,
+            Some(node) if node.metadata.get(&be_block_content::LOCAL_ID) == Some(local) => copy,
             _ => local,
         }
     }

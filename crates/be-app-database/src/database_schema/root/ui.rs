@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::BlockContent;
-use be_sdk_beui::be_block::Edit;
+use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_block_content::Edit;
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_database::{ChoiceMark, choice_color_label, choice_glyph, choice_icon_label};

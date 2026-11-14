@@ -2,7 +2,7 @@ use be_sdk_beui::desktop;
 use std::time::Duration;
 
 use be_sdk_beui::be_block::DisplaySettings;
-use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_block_content::ViewState;
 use be_sdk_beui::beui::datetime::{HourCycle, SECONDS_PER_DAY, Time};
 use be_sdk_beui::beui::dock::DockState;
 use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};

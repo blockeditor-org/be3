@@ -27,7 +27,7 @@ pub struct Placed {
 
 pub fn file_name(file: &PlainFile) -> String {
     let name = file.name.as_deref().unwrap_or_default();
-    let name = be_block::plain::export_name(name, &file.extension);
+    let name = be_block_content::plain::export_name(name, &file.extension);
     match name.starts_with('.') {
         true => format!("_{name}"),
         false => name,

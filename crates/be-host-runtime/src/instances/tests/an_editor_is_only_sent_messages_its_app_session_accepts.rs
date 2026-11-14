@@ -1,5 +1,5 @@
 use super::*;
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_type_example_counter::CounterContent;
 
 use be_sdk_type_guest::editor::FromEditor;

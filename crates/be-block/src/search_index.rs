@@ -14,7 +14,7 @@ use be_lib_search::{Batch, DocId, Error, Id, Index, PartName, Parts, Written};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use be_block_content::{
     BlockContent, ContentError, LiveEdit, Loads, Merge, MergeParts, Part, PartReader, PartRef,
     Stored,
 };

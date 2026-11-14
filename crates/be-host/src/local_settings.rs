@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use be_block::be_block_model::{Document, Edit};
-use be_block::{BlockContent, Layered, Layers, LiveEdit, Root, SettingsLayer, layered};
+use be_block_content::be_block_model::{Document, Edit};
+use be_block_content::{BlockContent, Layered, Layers, LiveEdit, Root, SettingsLayer, layered};
 use uuid::Uuid;
 
 use be_host_base::host_state::{HostStateError, HostStateStore};

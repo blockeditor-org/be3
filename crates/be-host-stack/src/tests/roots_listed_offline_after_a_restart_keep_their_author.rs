@@ -14,7 +14,7 @@ fn roots_listed_offline_after_a_restart_keep_their_author() {
         made,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

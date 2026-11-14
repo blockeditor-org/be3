@@ -1,7 +1,7 @@
 use be_block::{
-    BlockMetadata, TAGGED, Tag, TagColor, TagContent, Tags, TagsContent,
-    workspace_settings::retagged,
+    TAGGED, Tag, TagColor, TagContent, Tags, TagsContent, workspace_settings::retagged,
 };
+use be_block_content::BlockMetadata;
 use beui::reactive::*;
 use uuid::Uuid;
 
@@ -42,8 +42,8 @@ impl Editor {
         };
         let content = TagContent::new(&tag);
         let created = self.blocks().create_with(
-            <TagContent as be_block::BlockContent>::CONTENT_TYPE,
-            Some(be_block::BlockContent::encode(&content)),
+            <TagContent as be_block_content::BlockContent>::CONTENT_TYPE,
+            Some(be_block_content::BlockContent::encode(&content)),
             BlockParent::Block(tags),
             BlockMetadata::default(),
         );
@@ -57,7 +57,7 @@ impl Editor {
             .operate(Tags::remove(tag));
         self.host().delete_block(
             tag,
-            <TagContent as be_block::BlockContent>::CONTENT_TYPE,
+            <TagContent as be_block_content::BlockContent>::CONTENT_TYPE,
             BlockParent::Block(tags),
         );
     }

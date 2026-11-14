@@ -158,14 +158,14 @@ pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
     .unwrap_or_default()
 }
 
-pub fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
+pub fn wire_entries(entries: &be_block_content::Entries) -> MetadataEntries {
     entries
         .iter()
         .map(|(key, value)| (key.into_bytes(), value.clone()))
         .collect()
 }
 
-pub fn entries_of(entries: MetadataEntries) -> be_block::Entries {
+pub fn entries_of(entries: MetadataEntries) -> be_block_content::Entries {
     entries
         .into_iter()
         .map(|(key, value)| (Uuid::from_bytes(key), value))

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use be_sdk_beui::be_block::Edit;
+use be_sdk_beui::be_block_content::Edit;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor, WebViewEvent, WebViewId};
 use be_type_browser_tab::{BrowserTab, BrowserTabContent, HistoryItem};

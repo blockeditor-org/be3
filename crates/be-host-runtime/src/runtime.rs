@@ -1599,8 +1599,13 @@ pub fn place_screens(
     super::web::set_background(background);
     let mut layers = super::web::overlays(blits, viewport, pixels_per_point, scale);
     let mut placed = HashMap::<u32, Vec<super::web::Placement>>::default();
-    for (order, blit) in blits.iter().enumerate() {
-        if let Some(placement) = super::web::placement(blit, order, scale) {
+    let lifted = super::presenter::lifted(
+        blits
+            .iter()
+            .map(|blit| (blit.quad.rect, blit.layer.is_some())),
+    );
+    for (order, (blit, above)) in blits.iter().zip(lifted).enumerate() {
+        if let Some(placement) = super::web::placement(blit, order, above, scale) {
             placed.entry(blit.surface).or_default().push(placement);
         }
     }

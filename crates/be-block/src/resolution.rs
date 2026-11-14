@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::settings::{Follows, KindRule, Layered, layered};
+use be_block_content::layered::{Follows, KindRule, Layered, layered};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SettingsSource {

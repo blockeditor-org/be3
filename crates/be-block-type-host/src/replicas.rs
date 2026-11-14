@@ -91,8 +91,8 @@ pub(crate) fn answer_in(
 }
 
 /// An announcement as the type module sent it.
-fn announcement(sent: be_sdk_type_api::Announcement) -> be_block::Announcement {
-    be_block::Announcement {
+fn announcement(sent: be_sdk_type_api::Announcement) -> be_block_content::Announcement {
+    be_block_content::Announcement {
         key: sent.key,
         text: sent.text,
         several: sent.several,
@@ -1660,7 +1660,7 @@ impl<H: Host> Replicas<H> {
         }))
     }
 
-    /// A commit's searchable text (`be_block::BlockContent::search_text`), as the indexer can
+    /// A commit's searchable text (`be_block_content::BlockContent::search_text`), as the indexer can
     /// trust it whatever the type answered: only the documents `keys` names (none for every
     /// one), each key once, a `source` only if it is a part of this commit, and no body for a
     /// document whose source is in `indexed`, the hashes of parts whose text the index holds
@@ -2665,7 +2665,7 @@ impl<H: Host> Replicas<H> {
                 relay,
                 announcements,
             } => {
-                let announcements: Vec<(u64, be_block::Announcement)> = announcements
+                let announcements: Vec<(u64, be_block_content::Announcement)> = announcements
                     .into_iter()
                     .map(|announced| (announced.sequence, announcement(announced.announcement)))
                     .collect();

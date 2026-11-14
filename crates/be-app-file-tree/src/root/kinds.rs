@@ -1,4 +1,5 @@
-use be_sdk_beui::be_block::{BlockContent, Home, PREFERRED_EDITOR, TAG_COLOR, TagsContent};
+use be_sdk_beui::be_block::{Home, PREFERRED_EDITOR, TAG_COLOR, TagsContent};
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_HOUSE, ICON_LAYOUT_TEMPLATE, ICON_PIN, ICON_SETTINGS, ICON_TAG,
 };
@@ -173,7 +174,7 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     let template = create_memo(move || {
         block.is_some_and(|block| held.with(|held| held.templates.contains_key(&block)))
     });
-    let change = move |edit: be_sdk_beui::be_block::Edit| {
+    let change = move |edit: be_sdk_beui::be_block_content::Edit| {
         if let Some(workspace) = workspace {
             editor.change_block_kind::<Home>(workspace, edit);
         }

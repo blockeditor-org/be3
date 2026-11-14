@@ -4,7 +4,7 @@ use be_block_model::{Anchor, Change, Document, Edit, Item, List, Model, ObjectId
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::{ChildChange, Follows, Layered, Root};
+use be_block_content::{ChildChange, Follows, Layered, Root};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum SlotKind {

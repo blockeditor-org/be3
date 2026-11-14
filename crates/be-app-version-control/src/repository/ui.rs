@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::Root as _;
 use be_sdk_beui::be_block::{Repository, RepositoryContent};
+use be_sdk_beui::be_block_content::Root as _;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

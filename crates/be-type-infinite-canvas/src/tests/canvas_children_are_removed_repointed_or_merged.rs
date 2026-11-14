@@ -4,7 +4,7 @@ use crate::{
     CanvasComponent, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
     InfiniteCanvasOperation,
 };
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 use be_type_database::database::DatabaseValue;
 use uuid::Uuid;
 
@@ -66,7 +66,7 @@ fn canvas_children_are_removed_repointed_or_merged() {
         content.apply(&edit);
     }
     assert_eq!(
-        be_block::BlockContent::references(&content),
+        be_block_content::BlockContent::references(&content),
         [shown, old, new, linked]
     );
 

@@ -9,7 +9,7 @@ name = "host-bench"
 path = "src/main.rs"
 
 [dependencies]
-be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
 be-tool-drive = { path = "../be-tool-drive" }
 be-server = { path = "../be-server" }

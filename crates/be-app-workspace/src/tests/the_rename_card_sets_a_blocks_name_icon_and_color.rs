@@ -1,5 +1,5 @@
 use be_sdk_beui::DialogAnswer;
-use be_sdk_beui::be_block::metadata::{BlockMetadata, ICON, ICON_COLOR};
+use be_sdk_beui::be_block_content::metadata::{BlockMetadata, ICON, ICON_COLOR};
 use be_sdk_beui::beui::{Key, Modifiers};
 
 use super::*;

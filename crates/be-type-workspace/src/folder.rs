@@ -1,7 +1,7 @@
 use be_block_model::{Anchor, BlockRef, Change, Document, Edit, FieldRef, List, Model, ObjectId};
 use uuid::Uuid;
 
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 #[model(kind = "folder")]

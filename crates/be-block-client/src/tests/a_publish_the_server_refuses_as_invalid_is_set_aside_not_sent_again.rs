@@ -29,7 +29,7 @@ async fn a_publish_the_server_refuses_as_invalid_is_set_aside_not_sent_again() {
     let offline = harness.offline(&owner, &refs, &store);
     let _ = offline
         .define(note, |metadata| {
-            *metadata = be_block::BlockMetadata::named("n".repeat(70 * 1024));
+            *metadata = be_block_content::BlockMetadata::named("n".repeat(70 * 1024));
         })
         .await;
     let _ = offline

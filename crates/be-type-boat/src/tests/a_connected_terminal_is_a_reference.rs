@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::Root;
+use be_block_content::Root;
 use uuid::Uuid;
 
 #[test]

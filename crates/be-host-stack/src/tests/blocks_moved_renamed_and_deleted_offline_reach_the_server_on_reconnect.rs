@@ -16,7 +16,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Folder"),
+        be_block_content::BlockMetadata::named("Folder"),
         None,
         false,
     );
@@ -24,7 +24,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
         inside,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::named("Inside"),
+        be_block_content::BlockMetadata::named("Inside"),
         Some(be_type_text::TextBlock::of("inside").encode()),
         false,
     );

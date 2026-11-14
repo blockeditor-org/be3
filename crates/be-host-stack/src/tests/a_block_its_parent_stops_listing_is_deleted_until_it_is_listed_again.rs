@@ -1,7 +1,7 @@
 use super::*;
 use be_type_workspace::FolderContent;
 
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_block_graph::BlockParent;
 
 #[test]
@@ -16,7 +16,7 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
         folder,
         FolderContent::CONTENT_TYPE,
         BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         Some(listing.encode()),
         false,
     );
@@ -24,7 +24,7 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
         note,
         CounterContent::CONTENT_TYPE,
         BlockParent::Block(folder),
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

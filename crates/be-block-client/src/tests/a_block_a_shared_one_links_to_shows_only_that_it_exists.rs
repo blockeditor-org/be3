@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::block_url::block_url;
+use be_block_content::block_url::block_url;
 use be_block_graph::Access;
 use be_block_protocol::{BlockSummary, KeyKind};
 use be_type_text::{TextBlock, TextContent};

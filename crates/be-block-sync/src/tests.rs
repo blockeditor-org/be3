@@ -1,8 +1,8 @@
 use be_type_workspace::{FileContent, FolderContent, WorkspaceContent};
 use std::path::{Path, PathBuf};
 
-use be_block::{BlockContent, BlockMetadata, EXECUTABLE, LiveEdit};
 use be_block_client::{Credentials, Peer, PeerConfig};
+use be_block_content::{BlockContent, BlockMetadata, EXECUTABLE, LiveEdit};
 use be_block_graph::BlockParent;
 use be_block_store::MemoryStore;
 use be_server::Running;
@@ -87,10 +87,10 @@ async fn folder(peer: &Peer<MemoryStore>, parent: Uuid, name: &str) -> Uuid {
 }
 
 async fn list_in(peer: &Peer<MemoryStore>, parent: Uuid, child: Uuid) {
-    relist(peer, parent, be_block::ChildChange::Add(child)).await;
+    relist(peer, parent, be_block_content::ChildChange::Add(child)).await;
 }
 
-async fn relist(peer: &Peer<MemoryStore>, parent: Uuid, change: be_block::ChildChange) {
+async fn relist(peer: &Peer<MemoryStore>, parent: Uuid, change: be_block_content::ChildChange) {
     let summary = peer.summary(parent).await.unwrap();
     match summary.content_type == WorkspaceContent::CONTENT_TYPE {
         true => relist_in::<WorkspaceContent>(peer, parent, change).await,
@@ -101,7 +101,7 @@ async fn relist(peer: &Peer<MemoryStore>, parent: Uuid, change: be_block::ChildC
 async fn relist_in<C: BlockContent + LiveEdit + Default>(
     peer: &Peer<MemoryStore>,
     parent: Uuid,
-    change: be_block::ChildChange,
+    change: be_block_content::ChildChange,
 ) {
     let mut content = peer.open::<C>(parent).await.unwrap().unwrap_or_default();
     let head = peer.local_head(parent);

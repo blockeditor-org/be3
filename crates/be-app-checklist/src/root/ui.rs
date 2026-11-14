@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, TextAlign};

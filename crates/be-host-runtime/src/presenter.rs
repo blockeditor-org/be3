@@ -859,5 +859,24 @@ pub(super) fn release(slot: u32, status: &PresenterStatus) {
 
 const UNSUPPORTED: &str = "This build has no presenter for that app surface.";
 
+/// Which of a frame's blits, each its target and whether it is an anchored view's, the web
+/// puts above the host's canvas: a screen over an anchored view painted before it (a child
+/// placed in one), which must show above that view as it does natively. Every other screen
+/// stays below, under the host's own chrome. Anchored views place themselves (overlay.rs).
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn lifted(blits: impl IntoIterator<Item = (Rect, bool)>) -> Vec<bool> {
+    let mut anchored: Vec<Rect> = Vec::new();
+    blits
+        .into_iter()
+        .map(|(target, layer)| {
+            if layer {
+                anchored.push(target);
+                return false;
+            }
+            anchored.iter().any(|view| view.intersects(target))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests;

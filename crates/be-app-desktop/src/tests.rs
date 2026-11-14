@@ -1,9 +1,10 @@
-use be_sdk_beui::be_block::BlockMetadata;
 use be_sdk_beui::be_block::display_settings::{DisplayMode, Rotation};
 use be_sdk_beui::be_block::{
-    DESKTOP_EDITOR, DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent,
-    SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
+    DESKTOP_EDITOR, DisplaySettings, DisplaySettingsContent, Settings, SettingsContent,
+    SettingsProfile, SettingsProfileContent, WORKSPACE_EDITOR,
 };
+use be_sdk_beui::be_block_content::BlockMetadata;
+use be_sdk_beui::be_block_content::{Root, VIEW_EDITOR};
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, KeyChord, Modifiers, NodeId, Pos2, Rect, Vec2};
 use be_sdk_beui::{
@@ -17,7 +18,7 @@ use be_sdk_beui::{
     WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
 };
 
-use be_sdk_beui::be_block::{EditorView, EditorViewContent};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_shell::{SHELL_BARS, SavedProgram, saved_programs};
 use be_sdk_test::BeuiTest;
 use std::collections::HashMap;

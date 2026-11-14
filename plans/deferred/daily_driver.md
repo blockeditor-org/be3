@@ -109,7 +109,7 @@ Needed before daily use:
   the host with notes, and this is also a second, plaintext backup. Today
   "Export as" writes one block as its plain file or a block file, and import
   takes one picked file. `be sync` (guides/sync.md) already writes a folder as a
-  directory and reads it back on native, with `be_block::plain` as the one
+  directory and reads it back on native, with `be_block_content::plain` as the one
   mapping between a block and a file; build on those. What is left is the
   host's side (a directory picker, the web's download as a zip) and rewriting
   links.

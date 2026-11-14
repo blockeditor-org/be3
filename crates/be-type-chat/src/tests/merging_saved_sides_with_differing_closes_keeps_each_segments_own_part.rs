@@ -31,7 +31,7 @@ fn merging_saved_sides_with_differing_closes_keeps_each_segments_own_part() {
 
     let reader = {
         let vault = Rc::clone(&vault);
-        be_block::PartReader::new(move |part, offset, length| {
+        be_block_content::PartReader::new(move |part, offset, length| {
             let read = vault
                 .read_part(part, offset, length)
                 .map_err(|error| error.to_string());

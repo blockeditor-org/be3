@@ -1,5 +1,5 @@
 use crate::logic_grid::{LogicGridContent, LogicGridOperation};
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 use logicgame::grid::{
     Component, ComponentId, ComponentKind, ComponentOrientation, ComponentPort, ComponentSide,
     Point, Scale, Size, Wire,

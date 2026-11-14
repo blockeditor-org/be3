@@ -37,7 +37,7 @@ fn a_listing_the_host_could_not_load_reaches_the_app_as_failed() {
         folder,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
