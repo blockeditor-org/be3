@@ -211,7 +211,14 @@ and the crate's `snapshots/`, writes `changed/` (each new or changed painting an
 `used/` (the SHA-256 of each accepted painting it compared with). So editing or accepting a
 painting reruns only that cheap compare, and a test that paints differently from run to run gives
 one painting per build of its code, from the cache, rather than flipping with the accepted
-painting it read. Only `buck2 test` (a plain `./scripts/test`)
+painting it read. That compare also writes `paintings-changed`, the names of the paintings that
+are new or differ; when it names any, a dynamic action (`_again`) runs the test once more as
+`record` does and `paint-compare --again` compares the second run's paintings with the first's,
+writing `[again]`'s `flaky`, a line per difference or for a second run that failed, which
+crates/be-tool-verify prints and be-tool-local's `ci` puts on the pull request's summary
+comment. It only reports. When nothing changed it is an empty directory and nothing runs; the
+second run's action is keyed on the test's code as the first is, so it runs once per build of a
+test whose paintings changed. Only `buck2 test` (a plain `./scripts/test`)
 still hands the test the accepted paintings (`hidden`), which it compares in-process to pass or
 fail.
 
@@ -245,7 +252,7 @@ fail.
 `./scripts/verify` and `./scripts/ci` are one `buck2 bxl --keep-going` of `buck/dev/verify.bxl`,
 with `--host` and a `--part` for each part asked for: `lint`, every `source_fix` in the root and
 toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check pass;
-`app-tests`, those that paint; `thorough`, the thorough tests (below), which the other two leave
+`app-tests`, those that paint, with each one's `[again]`; `thorough`, the thorough tests (below), which the other two leave
 out, and `tests` builds be-host's `:web-dist` in their place; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
 always the crates' rules and Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile
 generated anew, and crates/be-tool-verify. It finds

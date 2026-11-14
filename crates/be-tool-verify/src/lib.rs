@@ -191,6 +191,7 @@ impl Run {
         if self.options.app_tests {
             self.paintings();
             self.unpainted();
+            self.flakes();
         }
         if self.options.previews.is_some() {
             self.local_tools();
@@ -629,6 +630,34 @@ impl Run {
                 println!("  {} could not be deleted", slashed(painting));
                 self.failed = true;
             }
+        }
+    }
+
+    /// What the second run of each test whose paintings changed found
+    /// (_again in buck/dev/test.bzl). It only reports: the paintings the first
+    /// run made are the ones accepted.
+    fn flakes(&mut self) {
+        let mut found = Vec::new();
+        for (package, directory) in self.built_in("flaky") {
+            let flaky = fs::read_to_string(directory.join("flaky")).unwrap_or_default();
+            for line in flaky.lines() {
+                found.push(format!("  {}: {line}", slashed(&package)));
+            }
+            if !flaky.is_empty() {
+                found.push(format!(
+                    "    the second run's paintings and log are in {}",
+                    directory.display()
+                ));
+            }
+        }
+        if found.is_empty() {
+            return;
+        }
+        println!(
+            "These tests painted differently, or failed, when run once more, so these paintings are flaky; fix what the test reads that varies (guides/testing_a_gui.md, 6):"
+        );
+        for line in found {
+            println!("{line}");
         }
     }
 

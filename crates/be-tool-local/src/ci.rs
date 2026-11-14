@@ -13,7 +13,9 @@ struct Options {
 
 struct Run {
     options: Options,
-    built: Vec<(String, PathBuf, bool)>,
+    /// Each line of the manifest: its kind, its package (empty but for a
+    /// test's paintings and their second run), its path and whether it exists.
+    built: Vec<(String, String, PathBuf, bool)>,
     failed: bool,
 }
 
@@ -39,11 +41,12 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
     };
     let built = manifest
         .lines()
-        .filter_map(|line| line.split_once('\t'))
+        .filter_map(|line| line.rsplit_once('\t'))
         .map(|(kind, path)| {
+            let (kind, package) = kind.split_once('\t').unwrap_or((kind, ""));
             let path = PathBuf::from(path);
             let exists = path.exists();
-            (kind.to_owned(), path, exists)
+            (kind.to_owned(), package.to_owned(), path, exists)
         })
         .collect();
     let mut run = Run {
@@ -81,11 +84,36 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
 
 impl Run {
     fn built(&self, kind: &str) -> Vec<PathBuf> {
+        self.built_in(kind)
+            .into_iter()
+            .map(|(_, path)| path)
+            .collect()
+    }
+
+    fn built_in(&self, kind: &str) -> Vec<(String, PathBuf)> {
         self.built
             .iter()
-            .filter(|(each, _, exists)| each == kind && *exists)
-            .map(|(_, path, _)| path.clone())
+            .filter(|(each, _, _, exists)| each == kind && *exists)
+            .map(|(_, package, path, _)| (package.clone(), path.clone()))
             .collect()
+    }
+
+    /// The comment's section on the tests whose second run disagreed with
+    /// their first (_again in buck/dev/test.bzl), empty when none did.
+    fn flaky(&self) -> String {
+        let mut section = String::new();
+        for (package, directory) in self.built_in("flaky") {
+            let flaky = fs::read_to_string(directory.join("flaky")).unwrap_or_default();
+            for line in flaky.lines() {
+                section.push_str(&format!("- `{package}`: {line}\n"));
+            }
+        }
+        if section.is_empty() {
+            return section;
+        }
+        format!(
+            "## Flaky paintings\n\nThese tests painted differently, or failed, when CI ran them once more, so the paintings this pull request accepted from them may flip:\n\n{section}\n"
+        )
     }
 
     fn previews(&self, base: &str, out: &Path) -> Result<(), String> {
@@ -114,7 +142,8 @@ impl Run {
         ])
         .ok_or("could not list the files that were added")?;
         let added: Vec<&str> = added.lines().collect();
-        let mut comment = "## Lines of code\n\n".to_owned();
+        let mut comment = self.flaky();
+        comment.push_str("## Lines of code\n\n");
         comment.push_str(&lines::summary(&numstat, &added));
         comment.push_str(&unsafe_counts::summary(
             &unsafe_at(from)?,
