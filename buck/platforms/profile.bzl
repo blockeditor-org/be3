@@ -68,16 +68,20 @@ def dev_only(flags):
 #   compiling at 2 and 270 at 0. The modules are about two and a half times the
 #   size and take half as long again to precompile, and the app tests ran no
 #   slower.
-# - app_test, a crate's tests compiled to wasm (app_tests): 0 in every profile.
-#   Every module instantiates beui's generics anew, so a change to beui
-#   recompiles about thirty of them at once, and at 2 LLVM is most of that: the
-#   step took twice as long, though the tests run faster and the modules are
-#   smaller to precompile.
+# - app_test, a crate's tests compiled to wasm (app_tests): 1 on wasm, 0 in a
+#   release build. Every module instantiates beui's generics anew, so a change
+#   to beui recompiles about thirty of them at once, and each is then
+#   precompiled (wasm_test_harness), which costs about as much CPU again. At 2
+#   LLVM is most of that: the step took twice as long, though the tests run
+#   faster and the modules are smaller to precompile. At 1 rather than 0
+#   checklist's tests took the same CPU to compile (93 s against 95) and 15%
+#   less to precompile (60 s against 71), since most of a module's code is
+#   its dependencies', compiled at their own levels.
 # - fuzz, a fuzz target and the library under it (cargo_fuzz): optimised, as
 #   cargo-fuzz builds one.
 OPT_LEVELS = {
     "app": (None, 0, None),
-    "app_test": (None, 0, 0),
+    "app_test": (None, 1, 0),
     "fuzz": (3, 3, 3),
     "member": (None, 1, None),
     "toolchain": (0, 2, 3),

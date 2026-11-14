@@ -22,11 +22,13 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "verify": [
+                    "//crates/be-tool-run-test:be-tool-run-test",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-tool-run-test:be-tool-run-test",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:sha2-0.10.9",
             ],
@@ -38,11 +40,13 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "verify": [
+                    "//crates/be-tool-run-test:be-tool-run-test",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-tool-run-test:be-tool-run-test",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:sha2-0.10.9",
             ],
@@ -54,11 +58,13 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "verify": [
+                    "//crates/be-tool-run-test:be-tool-run-test",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-tool-run-test:be-tool-run-test",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:sha2-0.10.9",
             ],
@@ -70,11 +76,13 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "verify": [
+                    "//crates/be-tool-run-test:be-tool-run-test",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-tool-run-test:be-tool-run-test",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:sha2-0.10.9",
             ],
@@ -86,11 +94,13 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "verify": [
+                    "//crates/be-tool-run-test:be-tool-run-test",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-tool-run-test:be-tool-run-test",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:sha2-0.10.9",
             ],
@@ -102,11 +112,13 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "verify": [
+                    "//crates/be-tool-run-test:be-tool-run-test",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-tool-run-test:be-tool-run-test",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:sha2-0.10.9",
             ],
@@ -118,11 +130,13 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "verify": [
+                    "//crates/be-tool-run-test:be-tool-run-test",
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
             },
             "deps": [
+                "//crates/be-tool-run-test:be-tool-run-test",
                 "//third-party/rust:serde_json-1.0.150",
                 "//third-party/rust:sha2-0.10.9",
             ],

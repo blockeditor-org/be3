@@ -1,7 +1,7 @@
 load("@prelude//rust:cargo_buildscript.bzl", "buildscript_run")
 load("@prelude//rust:cargo_package.bzl", "cargo")
 load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
+load("@root//buck/platforms:profile.bzl", "OPT_LEVELS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "dev_only")
 load(":defs.bzl", "proc_macro_visibility")
 
 # The rules for every third-party crate a workspace crate depends on, from
@@ -58,13 +58,33 @@ def _platforms(crate, fixup, script = False):
 # overflow checks stay on, as rustc turns them off above opt-level 0 and cargo's
 # dev profile keeps them. First-party crates stay at 0: at 1 every compile on a
 # verify's critical path took about twice as long.
+_THIRD_PARTY_HOST_OPT = 1
+
 THIRD_PARTY_OPT = select({
     "DEFAULT": select({
-        "DEFAULT": ["-Copt-level=1", "-Cdebug-assertions=on", "-Coverflow-checks=on"],
+        "DEFAULT": ["-Copt-level={}".format(_THIRD_PARTY_HOST_OPT), "-Cdebug-assertions=on", "-Coverflow-checks=on"],
         "prelude//cpu:wasm32": [],
     }),
     "root//buck/constraints:release": [],
 })
+
+# OPT_LEVEL for a crate's build script, as cargo gives it: the level its Rust is compiled at
+# (THIRD_PARTY_OPT, or its [profile.dev.package] level), which is what cc-rs compiles its C at.
+# Left to the toolchain's, the C under a host build was compiled at -O0 while its Rust was at 1:
+# SQLite, which every server, host and host test queries, ran unoptimised.
+def _build_script_opt(crate):
+    _, wasm, release = OPT_LEVELS["toolchain"]
+    host = str(_THIRD_PARTY_HOST_OPT)
+    for flag in crate.get("profile_flags", []):
+        if flag.startswith("-Copt-level="):
+            host = flag.removeprefix("-Copt-level=")
+    return select({
+        "DEFAULT": select({
+            "DEFAULT": host,
+            "prelude//cpu:wasm32": str(wasm),
+        }),
+        "root//buck/constraints:release": str(release),
+    })
 
 # A fixup's rustc_flags for one plan's platforms only.
 def _plan_flags(fixup):
@@ -140,6 +160,7 @@ def _crate(key, crate, fixup):
     run_env = {name: value for name, value in env.items() if name != "CARGO_MANIFEST_DIR"}
     if "links" in crate:
         run_env["CARGO_MANIFEST_LINKS"] = crate["links"]
+    run_env["OPT_LEVEL"] = _build_script_opt(crate)
     run_env.update(fixup.get("build_script_env", {}))
     buildscript_run(
         name = key + "-build-script-run",
