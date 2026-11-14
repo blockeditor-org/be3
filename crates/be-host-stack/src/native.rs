@@ -82,7 +82,6 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     tokio::task::spawn_local(task);
 }
 
-pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<()>) -> bool {
-    let _ = sealed.recv_timeout(FLUSH_TIMEOUT);
-    true
+pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<usize>) -> Option<usize> {
+    sealed.recv_timeout(FLUSH_TIMEOUT).ok()
 }
