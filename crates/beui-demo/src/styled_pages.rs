@@ -639,7 +639,7 @@ fn QuotedNames() -> NodeId {
             </Text>
             <Text>{Phrase::new().text("Leave ").quoted(name).text("?")}</Text>
             <Text style=TextStyle::CAPTION>
-                "A name someone typed is isolated for bidi, so a right-to-left name cannot carry the words beside it across itself."
+                "A name someone typed is isolated for bidi, so a right-to-left name cannot carry the words beside it across itself. The browser applies it today; native layout will once it has bidi."
             </Text>
         </List>
     }

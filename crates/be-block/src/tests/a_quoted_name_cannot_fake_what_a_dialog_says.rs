@@ -83,4 +83,19 @@ fn a_quoted_name_cannot_fake_what_a_dialog_says() {
         "Cafe\u{0301}",
         "an accent stays"
     );
+    assert_eq!(
+        quotable_name("\u{0301}\u{0301}a \u{20dd}b"),
+        "a b",
+        "a mark with no letter under it goes, at the start or after a space"
+    );
+    assert_eq!(
+        quotable_name("\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467} \u{0645}\u{06cc}\u{200c}\u{0634}\u{0648}\u{0645}"),
+        "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467} \u{0645}\u{06cc}\u{200c}\u{0634}\u{0648}\u{0645}",
+        "joiners between letters stay: an emoji family, a Persian spelling"
+    );
+    assert_eq!(
+        quotable_name("\u{200d}a\u{200d} \u{200c}b\u{200c}"),
+        "a b",
+        "a joiner at either end of a word goes"
+    );
 }

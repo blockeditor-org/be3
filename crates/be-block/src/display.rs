@@ -11,7 +11,9 @@ const MAX_QUOTED_NAME: usize = 60;
 const MAX_COMBINING: usize = 2;
 
 /// A block's name made fit to quote inside a dialog's words. The name loses control and format
-/// characters (newlines, bidi overrides and isolates, zero-width marks), blank-looking letters
+/// characters (newlines, bidi overrides and isolates, zero-width spaces; a zero-width joiner or
+/// non-joiner stays only between two letters) and any combining mark with no letter under it;
+/// blank-looking letters
 /// become spaces, whitespace collapses, every quotation mark and lookalike is made straight so a
 /// name cannot close the dialog's quote and fake what follows, runs of combining marks are cut to
 /// `MAX_COMBINING`, and it is cut at `MAX_QUOTED_NAME` characters on a grapheme boundary. The
@@ -20,8 +22,13 @@ const MAX_COMBINING: usize = 2;
 pub fn quotable_name(name: &str) -> String {
     let categories = CodePointMapData::<GeneralCategory>::new();
     let mut cleaned = String::with_capacity(name.len());
-    // Marks on the last kept character: what is dropped between marks does not end their run.
-    let mut combining = 0;
+    // Marks on the last kept character: what is dropped between marks does not end their run. It
+    // starts full, and a space fills it, so a mark with no kept letter under it goes.
+    let mut combining = MAX_COMBINING;
+    // A zero-width joiner or non-joiner waits for the next kept letter: it stays only between two
+    // letters (an emoji sequence, a Persian or Indic spelling), where it can neither hide nor
+    // move a word.
+    let mut joiner = None;
     for c in name.chars() {
         let category = categories.get(c);
         let kept = match category {
@@ -33,13 +40,26 @@ pub fn quotable_name(name: &str) -> String {
                 continue;
             }
             _ if c.is_whitespace() || is_blank_letter(c) => ' ',
+            _ if matches!(c, '\u{200c}' | '\u{200d}') => {
+                if cleaned.chars().next_back().is_some_and(|last| last != ' ') {
+                    joiner = Some(c);
+                }
+                continue;
+            }
             GeneralCategory::Control
             | GeneralCategory::Format
             | GeneralCategory::LineSeparator
             | GeneralCategory::ParagraphSeparator => continue,
             _ => straight_quote(c).unwrap_or(c),
         };
-        combining = 0;
+        match (kept, joiner.take()) {
+            (' ', _) => combining = MAX_COMBINING,
+            (_, Some(joiner)) => {
+                cleaned.push(joiner);
+                combining = 0;
+            }
+            (_, None) => combining = 0,
+        }
         cleaned.push(kept);
     }
     let collapsed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
