@@ -152,9 +152,9 @@ its head.
   behind it, for one search per key (`Replicas::searching`), started by the
   first such message whatever else searches for the key (`Peer::learn` may
   answer only after it arrived). Once a search for its key has answered
-  (`searched`, cleared when a search opens keys), a message still locked is
-  dropped and recorded, so a peer sealing with a key this device cannot get
-  costs one search.
+  (`searched`, cleared when a search opens keys and on reconnecting), a message
+  still locked is dropped and recorded, so a peer sealing with a key this device
+  cannot get costs one search.
 - **Stopping**: `be_host_stack::stop`, `stop_and_wait`. Tests stop as a crash
   would with `crash`: the worker ends without keeping the open blocks, so only
   what the device had written survives.

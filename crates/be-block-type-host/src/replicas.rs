@@ -491,6 +491,9 @@ impl std::fmt::Display for Owing {
 /// How many commits sealed here `Replicas` remembers per block.
 const SEALED_REMEMBERED: usize = 16;
 
+/// The most keys `Replicas::searched` holds before it starts over.
+const MOST_SEARCHED_KEYS: usize = 4096;
+
 pub struct Replicas<H: Host> {
     pub modules: Modules,
     answers: UnboundedReceiver<Io>,
@@ -510,8 +513,8 @@ pub struct Replicas<H: Host> {
     unsealing: HashMap<Uuid, VecDeque<Event>>,
     /// Keys a search is on its way for, which relayed messages wait on.
     searching: HashSet<Uuid>,
-    /// Keys a search answered for since a search last opened any: a message still sealed with
-    /// one is let go.
+    /// Keys a search answered for since a search last opened any or this device last
+    /// reconnected: a message still sealed with one is let go.
     searched: HashSet<Uuid>,
     /// How many searches for keys relayed messages started.
     #[cfg(test)]
@@ -2072,6 +2075,9 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn resynchronize(&mut self, (peer, _): Ctx<'_, H>) {
+        // A search that ended as the connection dropped answered nothing, and the server may
+        // have keys now that it lacked: what is relayed from here on is searched for again.
+        self.searched.clear();
         for (replica, block) in self
             .open
             .iter()
@@ -2234,6 +2240,11 @@ impl<H: Host> Replicas<H> {
                     Ok(_) => {}
                     Err(error) if unreachable(&error) => {}
                     Err(error) => H::record(shared, error),
+                }
+                // Keys peers name that this device cannot get, forged ones too, are kept only
+                // up to a bound: past it, they are searched for again.
+                if self.searched.len() >= MOST_SEARCHED_KEYS {
+                    self.searched.clear();
                 }
                 self.searched.insert(key);
                 // Each waiting message is unsealed now, let go, or waits again for its own key.
