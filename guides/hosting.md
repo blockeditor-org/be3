@@ -66,13 +66,14 @@ header too, so a page on another origin that rebinds its name to 127.0.0.1 is no
   that address, not a hostname that resolves to it;
 - on a wildcard `--addr`, `http://:PORT`, any Host.
 
-The build server's Caddyfile (scripts/internal/nativelink) is its front door on the internet and
-binds every interface on purpose.
+The build server's Caddyfile (scripts/internal/nativelink) and the deployed servers' under
+servers/ (`servers/api/Caddyfile`) are front doors on the internet and bind every interface on
+purpose.
 
 `./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`). It fails on a Caddyfile
-outside scripts/internal without a loopback `default_bind`; on `0.0.0.0`, `Addr::UNSPECIFIED`,
+outside scripts/internal and servers/ without a loopback `default_bind`; on `0.0.0.0`, `Addr::UNSPECIFIED`,
 or `[::]` written as an address (`[::]:PORT`, quoted, or after `=`), outside a comment, a guide,
-scripts/internal or the lines `ALLOWED_LINES` names (`--domain`'s bind, and the scripts' check
+scripts/internal, servers/ or the lines `ALLOWED_LINES` names (`--domain`'s bind, and the scripts' check
 for a wildcard `--addr`); and on a Node `.listen(` line that names no loopback host, which
 listens on every interface.
 
