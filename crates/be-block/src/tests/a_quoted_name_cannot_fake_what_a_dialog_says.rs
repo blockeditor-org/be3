@@ -78,5 +78,9 @@ fn a_quoted_name_cannot_fake_what_a_dialog_says() {
         "x\u{fe0f}\u{fe0f}y",
         "variation selectors are cut"
     );
-    assert_eq!(quotable_name("Cafe\u{0301}"), "Cafe\u{0301}", "an accent stays");
+    assert_eq!(
+        quotable_name("Cafe\u{0301}"),
+        "Cafe\u{0301}",
+        "an accent stays"
+    );
 }

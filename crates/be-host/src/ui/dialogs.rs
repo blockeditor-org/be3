@@ -3,8 +3,8 @@ use beui::NodeId;
 use beui::Overflow;
 use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
-use beui::text::Phrase;
 use beui::styled::*;
+use beui::text::Phrase;
 use uuid::Uuid;
 
 use be_host_accounts_ui::ErrorText;

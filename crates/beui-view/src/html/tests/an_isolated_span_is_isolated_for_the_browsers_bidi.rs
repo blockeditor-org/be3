@@ -18,7 +18,11 @@ fn an_isolated_span_is_isolated_for_the_browsers_bidi() {
     let (isolated, text) = scope.run(|| {
         let isolated = create_signal(true);
         let text = view! {
-            <Text color={INK}>"Leave \u{201c}"<Span isolate={isolated}>"Team"</Span>"\u{201d}?"</Text>
+            <Text color={INK}>
+                "Leave \u{201c}"
+                <Span isolate={isolated}>"Team"</Span>
+                "\u{201d}?"
+            </Text>
         };
         (isolated, text)
     });
@@ -37,10 +41,7 @@ fn an_isolated_span_is_isolated_for_the_browsers_bidi() {
     painting([320, 80], || {
         view! {
             <Root clear_color={PAPER}>
-                <List spacing={12.0}>
-                    {posts(false)}
-                    {posts(true)}
-                </List>
+                <List spacing={12.0}>{posts(false)}{posts(true)}</List>
             </Root>
         }
     })

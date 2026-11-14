@@ -1,8 +1,8 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::LayerLevel;
-use beui_view::types::text::Phrase;
 use beui_view::types::icons::ICON_X;
+use beui_view::types::text::Phrase;
 
 use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::scroll::{Bleed, Scroll};

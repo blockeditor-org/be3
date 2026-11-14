@@ -2,11 +2,11 @@ use crate::reactive::{
     BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp,
     IntoSegment, Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
 };
-use crate::types::icons::Glyph;
 use crate::reactive::{DynamicSegment, ForEach, create_memo};
+use crate::types::icons::Glyph;
 use crate::types::text::{FontPatch, IconSpan, Phrase, PhraseRun};
-use beui_macros::view;
 use crate::types::{Color, FontFamily, FontId, SpanBackground};
+use beui_macros::view;
 
 pub enum TextChild {
     Span(Span),
@@ -234,9 +234,7 @@ impl IntoSegment<TextChild> for Memo<Phrase> {
         let keys: Memo<Vec<usize>> =
             create_memo(move || phrase.with(|phrase| (0..phrase.runs().len()).collect()));
         let runs: DynamicSegment<TextChild> = view! {
-            <ForEach keys={keys}>|index: usize| {
-                Span::of_run(phrase, index)
-            }</ForEach>
+            <ForEach keys={keys}>|index: usize| { Span::of_run(phrase, index) }</ForEach>
         };
         ChildSegment::Dynamic(runs)
     }

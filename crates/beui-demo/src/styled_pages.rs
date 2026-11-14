@@ -2,7 +2,6 @@ use super::*;
 use beui::KeyAt;
 use beui::Pos2;
 use beui::TextAlign;
-use beui::text::Phrase;
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE,
@@ -11,6 +10,7 @@ use beui::icons::{
     ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
+use beui::text::Phrase;
 use beui::{Align, CanvasView, Extent};
 
 const COLUMN_SPACING: Space = Space::Xl2;
