@@ -734,7 +734,9 @@ impl Refs {
         summary
     }
 
-    /// Keeps a summary unless this device already has a newer one of the block.
+    /// Keeps a summary unless this device already has a newer one of the block. Server answers
+    /// go through `set_listing_locked`, which lays the outbox over them; `put` keeps this
+    /// device's own writes as given.
     fn put(state: &mut State, summary: &BlockSummary, rows: &mut Vec<Row>) {
         let newer = state
             .summaries
