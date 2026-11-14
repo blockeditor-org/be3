@@ -72,8 +72,8 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
-     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -85,8 +85,8 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
-     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -98,8 +98,8 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
-     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -150,8 +150,8 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, remote AS \"ran\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
-     "rawQueryText": "SELECT started AS time, remote AS \"ran\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "queryText": "SELECT started AS time, remote AS \"ran\" FROM builds WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, remote AS \"ran\" FROM builds WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -163,8 +163,8 @@
       "uid": "builds"
      },
      "queryType": "time series",
-     "queryText": "SELECT started AS time, cached AS \"cached\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
-     "rawQueryText": "SELECT started AS time, cached AS \"cached\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "queryText": "SELECT started AS time, cached AS \"cached\" FROM builds WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "rawQueryText": "SELECT started AS time, cached AS \"cached\" FROM builds WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "timeColumns": [
       "time"
      ]
@@ -202,8 +202,8 @@
       "uid": "builds"
      },
      "queryType": "table",
-     "queryText": "SELECT started AS time, kind, branch, substr(commit_sha, 1, 9) AS \"commit\", parts, round(seconds / 60.0, 1) AS minutes, CASE passed WHEN 1 THEN 'passed' ELSE 'failed' END AS result, remote AS ran, cached, round(queue_seconds / 60.0, 1) AS \"queued minutes\", (SELECT what || ' (' || CAST(round(seconds) AS INTEGER) || ' s)' FROM critical_path c WHERE c.build_id = b.id ORDER BY seconds DESC LIMIT 1) AS \"longest critical step\" FROM builds b WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started DESC LIMIT 200",
-     "rawQueryText": "SELECT started AS time, kind, branch, substr(commit_sha, 1, 9) AS \"commit\", parts, round(seconds / 60.0, 1) AS minutes, CASE passed WHEN 1 THEN 'passed' ELSE 'failed' END AS result, remote AS ran, cached, round(queue_seconds / 60.0, 1) AS \"queued minutes\", (SELECT what || ' (' || CAST(round(seconds) AS INTEGER) || ' s)' FROM critical_path c WHERE c.build_id = b.id ORDER BY seconds DESC LIMIT 1) AS \"longest critical step\" FROM builds b WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started DESC LIMIT 200",
+     "queryText": "SELECT started AS time, kind, branch, substr(commit_sha, 1, 9) AS \"commit\", parts, round(seconds / 60.0, 1) AS minutes, CASE passed WHEN 1 THEN 'passed' ELSE 'failed' END AS result, remote AS ran, cached, round(queue_seconds / 60.0, 1) AS \"queued minutes\", (SELECT what || ' (' || CAST(round(seconds) AS INTEGER) || ' s)' FROM critical_path c WHERE c.build_id = b.id ORDER BY seconds DESC LIMIT 1) AS \"longest critical step\" FROM builds b WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started DESC LIMIT 200",
+     "rawQueryText": "SELECT started AS time, kind, branch, substr(commit_sha, 1, 9) AS \"commit\", parts, round(seconds / 60.0, 1) AS minutes, CASE passed WHEN 1 THEN 'passed' ELSE 'failed' END AS result, remote AS ran, cached, round(queue_seconds / 60.0, 1) AS \"queued minutes\", (SELECT what || ' (' || CAST(round(seconds) AS INTEGER) || ' s)' FROM critical_path c WHERE c.build_id = b.id ORDER BY seconds DESC LIMIT 1) AS \"longest critical step\" FROM builds b WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started DESC LIMIT 200",
      "timeColumns": [
       "time"
      ]
@@ -241,8 +241,8 @@
       "uid": "builds"
      },
      "queryType": "table",
-     "queryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
-     "rawQueryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
+     "queryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
      "timeColumns": [
       "time"
      ]
@@ -280,8 +280,8 @@
       "uid": "builds"
      },
      "queryType": "table",
-     "queryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
-     "rawQueryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "queryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
      "timeColumns": [
       "time"
      ]
@@ -493,8 +493,8 @@
   {
    "id": 11,
    "type": "timeseries",
-   "title": "Peak memory of an action",
-   "description": "The most memory one action used, as NativeLink measured it: a release build's LTO link reaches about 10 GB.",
+   "title": "Actions by peak memory",
+   "description": "Actions an hour whose most memory used, as NativeLink measured it, fell in each band. NativeLink's buckets go up by four, so the bands are its own. A release build's LTO link uses about 10 GB.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -507,7 +507,79 @@
    },
    "fieldConfig": {
     "defaults": {
-     "unit": "bytes",
+     "unit": "short",
+     "custom": {
+      "fillOpacity": 80,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      },
+      "drawStyle": "bars"
+     },
+     "min": 0,
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(execution_peak_memory_bytes_bucket{le=\"4.294967296e+09\"}[1h])) - sum(increase(execution_peak_memory_bytes_bucket{le=\"1.073741824e+09\"}[1h]))",
+     "legendFormat": "1-4 GiB"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(execution_peak_memory_bytes_bucket{le=\"1.7179869184e+10\"}[1h])) - sum(increase(execution_peak_memory_bytes_bucket{le=\"4.294967296e+09\"}[1h]))",
+     "legendFormat": "4-16 GiB"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(increase(execution_peak_memory_bytes_bucket{le=\"+Inf\"}[1h])) - sum(increase(execution_peak_memory_bytes_bucket{le=\"1.7179869184e+10\"}[1h]))",
+     "legendFormat": "over 16 GiB"
+    }
+   ],
+   "interval": "1h"
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "CAS reads not found",
+   "description": "Reads of the CAS each minute that found no blob: a client or the worker asked for something evicted or never uploaded. Nearly every read finds its blob, so a share would always show 100%.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 41
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
      "custom": {
       "fillOpacity": 15,
       "lineWidth": 1,
@@ -536,69 +608,8 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "histogram_quantile(0.5, sum by (le) (rate(execution_peak_memory_bytes_bucket[15m])))",
-     "legendFormat": "median"
-    },
-    {
-     "refId": "B",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "prometheus"
-     },
-     "expr": "histogram_quantile(0.99, sum by (le) (rate(execution_peak_memory_bytes_bucket[15m])))",
-     "legendFormat": "99th percentile"
-    }
-   ]
-  },
-  {
-   "id": 12,
-   "type": "timeseries",
-   "title": "CAS reads found",
-   "description": "Share of the CAS's reads that found the blob.",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "h": 8,
-    "w": 8,
-    "x": 8,
-    "y": 41
-   },
-   "fieldConfig": {
-    "defaults": {
-     "unit": "percentunit",
-     "custom": {
-      "fillOpacity": 15,
-      "lineWidth": 1,
-      "showPoints": "never",
-      "stacking": {
-       "mode": "none"
-      }
-     },
-     "min": 0,
-     "max": 1
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   },
-   "targets": [
-    {
-     "refId": "A",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "prometheus"
-     },
-     "expr": "sum(rate(store_tier_operations_total{store_result=\"hit\"}[5m])) / sum(rate(store_tier_operations_total{store_result=~\"hit|miss\"}[5m]))",
-     "legendFormat": "found"
+     "expr": "sum(rate(store_tier_operations_total{store_result=\"miss\"}[5m])) * 60",
+     "legendFormat": "per minute"
     }
    ]
   },
