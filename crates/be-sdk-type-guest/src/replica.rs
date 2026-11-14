@@ -3353,6 +3353,16 @@ where
                 // Only from an earlier owner: any other editor may not sequence.
                 Role::Owner(_) if self.past_owners.contains(&from) => self.inherit_accepted(&op),
                 Role::Owner(_) => {}
+                // One of its own the owner tells it of again, past what it has applied: it was
+                // taken after operations this follower never heard, so it is caught up rather
+                // than applying it out of order.
+                Role::Follower(ref follower)
+                    if !self.catching_up
+                        && follower.is_mine(op.id)
+                        && op.sequence > follower.applied() + 1 =>
+                {
+                    self.catch_up();
+                }
                 Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
                 Role::Follower(_) => {}
             },

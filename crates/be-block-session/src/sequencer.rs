@@ -145,8 +145,9 @@ pub struct Sequencer {
     sequence: u64,
     head: Option<CommitId>,
     log: VecDeque<SessionOp>,
-    /// Every operation it took, by id, with the number it has.
-    accepted: HashMap<OpId, u64>,
+    /// Every operation it took, by id, with the number it has here: none for one it inherited
+    /// and could not number (`Inherited::Unnumbered`), which waits for a reload.
+    accepted: HashMap<OpId, Option<u64>>,
     inherited: u64,
 }
 
@@ -178,7 +179,7 @@ impl Sequencer {
             return None;
         }
         self.sequence += 1;
-        self.accepted.insert(id, self.sequence);
+        self.accepted.insert(id, Some(self.sequence));
         let op = SessionOp {
             id,
             sequence: self.sequence,
@@ -190,7 +191,7 @@ impl Sequencer {
 
     /// The number `id` was taken as, if it was: a follower that did not hear so submits it again.
     pub fn accepted_as(&self, id: OpId) -> Option<u64> {
-        self.accepted.get(&id).copied()
+        self.accepted.get(&id).copied().flatten()
     }
 
     pub fn inherit(&mut self, op: &SessionOp) -> Inherited {
@@ -200,10 +201,11 @@ impl Sequencer {
                 false => Inherited::Renumbered,
             };
         }
-        self.accepted.insert(op.id, op.sequence);
         if op.sequence != self.sequence + 1 {
+            self.accepted.insert(op.id, None);
             return Inherited::Unnumbered;
         }
+        self.accepted.insert(op.id, Some(op.sequence));
         self.sequence = op.sequence;
         self.log.push_back(op.clone());
         Inherited::Continued
@@ -212,7 +214,7 @@ impl Sequencer {
     /// Takes an operation replayed from the journal, numbered as its owner numbered it: a
     /// folded entry skips the numbers it absorbed.
     pub fn replayed(&mut self, op: SessionOp) {
-        self.accepted.insert(op.id, op.sequence);
+        self.accepted.insert(op.id, Some(op.sequence));
         self.sequence = self.sequence.max(op.sequence);
         self.log.push_back(op);
     }
