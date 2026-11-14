@@ -145,6 +145,12 @@ pub(crate) enum Input {
     Attach {
         editor: EditorId,
         editable: bool,
+        /// How many of the editor's operations the opened content holds (`attach`).
+        acknowledged: u64,
+    },
+    /// What the host kept of an editor's edits was given again (`resent`).
+    Resent {
+        editor: EditorId,
     },
     Detach {
         editor: EditorId,
@@ -261,6 +267,7 @@ impl<C> Job<C> {
                     from: Endpoint::Editor(_),
                     ..
                 } | Input::Attach { .. }
+                    | Input::Resent { .. }
                     | Input::Detach { .. }
                     | Input::Content { .. }
                     | Input::Change {
@@ -531,6 +538,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     history: H,
     editors: BTreeMap<EditorId, bool>,
     acknowledged: BTreeMap<EditorId, u64>,
+    /// Editors attached that wait for `resent` before they are sent their snapshot, and
+    /// nothing of the content until then.
+    holding: BTreeSet<EditorId>,
     projected: Settling<C>,
     landed: Vec<(Landed<C::Op>, Option<EditorId>)>,
     resnapshot: bool,
@@ -827,6 +837,7 @@ where
             history: H::default(),
             editors: BTreeMap::new(),
             acknowledged: BTreeMap::new(),
+            holding: BTreeSet::new(),
             landed: Vec::new(),
             resnapshot: false,
             described: false,
@@ -1550,9 +1561,16 @@ where
                 from: Endpoint::Host | Endpoint::Peer(_),
                 ..
             } => {}
-            Input::Attach { editor, editable } => self.attach(editor, editable),
+            Input::Attach {
+                editor,
+                editable,
+                acknowledged,
+            } => self.attach(editor, editable, acknowledged),
+            Input::Resent { editor } => self.resent(editor),
             Input::Detach { editor } => {
                 self.editors.remove(&editor);
+                self.acknowledged.remove(&editor);
+                self.holding.remove(&editor);
                 self.lacking.unfollow(editor);
             }
             Input::Head(HeadEvent::Moved { head }) => self.moved(head),
@@ -2820,12 +2838,16 @@ where
             return;
         };
         match message {
-            FromEditor::Operate(bytes) if editable => {
-                let Ok(operation) = C::decode_operation(&bytes) else {
-                    return;
-                };
-                if self.record_and_edit(operation, Some(editor)) {
-                    *self.acknowledged.entry(editor).or_default() += 1;
+            FromEditor::Operate(bytes) => {
+                // Counted taken or refused, as the host counts what it relays (`attach`).
+                *self.acknowledged.entry(editor).or_default() += 1;
+                let took = editable
+                    && C::decode_operation(&bytes)
+                        .is_ok_and(|operation| self.record_and_edit(operation, Some(editor)));
+                // A refused operation never lands as the editor's, so it is told what holds
+                // now: otherwise it would take a later one landing as its own for this one.
+                if !took && !self.holding.contains(&editor) {
+                    self.snapshot_to(editor);
                 }
             }
             FromEditor::FollowLacking => self.lacking.follow(editor),
@@ -2889,7 +2911,7 @@ where
                     result: Err("the editor is attached read-only".to_owned()),
                 },
             ),
-            FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
+            FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
         }
     }
 
@@ -3107,14 +3129,16 @@ where
         }
     }
 
-    fn attach(&mut self, editor: EditorId, editable: bool) {
+    fn attach(&mut self, editor: EditorId, editable: bool, acknowledged: u64) {
         let first = self.editors.is_empty();
         if self.editors.insert(editor, editable).is_some() {
             return;
         }
-        match first {
-            true => self.journal(Journaled::Replaced, None),
-            false => self.snapshot_to(editor),
+        self.acknowledged.insert(editor, acknowledged);
+        // Its snapshot waits for `resent`, after what the host gives again of its edits.
+        self.holding.insert(editor);
+        if first {
+            self.journal(Journaled::Replaced, None);
         }
         if !self.presence.is_empty() {
             let presence = self.peer_presence();
@@ -3122,7 +3146,16 @@ where
         }
     }
 
+    /// The host gave this replica again what `editor` sent before it was opened (`resent`):
+    /// the editor's snapshot holds all of it now, as `applied` counts.
+    fn resent(&mut self, editor: EditorId) {
+        if self.holding.remove(&editor) && self.editors.contains_key(&editor) {
+            self.snapshot_to(editor);
+        }
+    }
+
     fn snapshot_to(&mut self, editor: EditorId) {
+        self.holding.remove(&editor);
         let applied = self.acknowledged.get(&editor).copied().unwrap_or_default();
         let settled = self.projected.settled();
         let bytes = settled.encode();
@@ -3196,9 +3229,15 @@ where
 
     fn flush_editors(&mut self) {
         let editors: Vec<EditorId> = self.editors.keys().copied().collect();
+        // One still held (`attach`) is sent everything at once in its snapshot.
+        let shown: Vec<EditorId> = editors
+            .iter()
+            .copied()
+            .filter(|editor| !self.holding.contains(editor))
+            .collect();
         if std::mem::take(&mut self.resnapshot) {
             self.landed.clear();
-            for editor in &editors {
+            for editor in &shown {
                 self.snapshot_to(*editor);
             }
         }
@@ -3208,7 +3247,7 @@ where
                 .iter()
                 .map(|(landed, origin)| (landed.map(C::encode_operation), *origin))
                 .collect();
-            for editor in &editors {
+            for editor in &shown {
                 let operations = encoded
                     .iter()
                     .map(|(landed, origin)| {

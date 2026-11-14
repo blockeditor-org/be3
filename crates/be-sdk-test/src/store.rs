@@ -100,6 +100,9 @@ struct Inner {
     next_commit: u64,
     blocks: BTreeMap<Uuid, Block>,
     attached: BTreeMap<Uuid, BTreeSet<EditorId>>,
+    /// How many operations each attached editor sent its block's replicas: what a replica
+    /// opened again under it holds of them (the replicas' `attach`).
+    forwarded: BTreeMap<(Uuid, EditorId), u64>,
     presence: BTreeMap<Uuid, BTreeMap<(ClientId, Uuid), Vec<u8>>>,
     outbox: Vec<(Uuid, EditorId, Vec<u8>)>,
     replies: BTreeMap<OpId, Outcome>,
@@ -159,6 +162,7 @@ impl Default for Inner {
             next_commit: 0,
             blocks: BTreeMap::new(),
             attached: BTreeMap::new(),
+            forwarded: BTreeMap::new(),
             presence: BTreeMap::new(),
             outbox: Vec::new(),
             replies: BTreeMap::new(),
@@ -598,7 +602,8 @@ impl Inner {
         }
         self.replicas.insert(replica.op(), block);
         self.on_replica(replica, |replica, host| {
-            replica.attach(host, STORE, false);
+            replica.attach(host, STORE, false, 0);
+            replica.resent(host, STORE);
         });
         let presence: Vec<((ClientId, Uuid), Vec<u8>)> = self
             .presence
@@ -625,8 +630,10 @@ impl Inner {
             .map(|held| held.iter().copied().collect())
             .unwrap_or_default();
         for editor in editors {
+            let held = self.forwarded_by(block, editor);
             self.on_replica(replica, |replica, host| {
-                replica.attach(host, editor, true);
+                replica.attach(host, editor, true, held);
+                replica.resent(host, editor);
             });
         }
         for operation in unapplied {
@@ -751,14 +758,24 @@ impl Inner {
             return false;
         }
         if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
+            let held = self.forwarded_by(block, editor);
             self.on_replica(replica, |replica, host| {
-                replica.attach(host, editor, true);
+                replica.attach(host, editor, true, held);
+                replica.resent(host, editor);
             });
         }
         true
     }
 
+    fn forwarded_by(&self, block: Uuid, editor: EditorId) -> u64 {
+        self.forwarded
+            .get(&(block, editor))
+            .copied()
+            .unwrap_or_default()
+    }
+
     fn detach(&mut self, block: Uuid, editor: EditorId) {
+        self.forwarded.remove(&(block, editor));
         let removed = self
             .attached
             .get_mut(&block)
@@ -804,6 +821,9 @@ impl Inner {
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
         };
+        if let FromEditor::Operate(_) = &message {
+            *self.forwarded.entry((block, editor)).or_default() += 1;
+        }
         let send = move |inner: &mut Self| {
             let now = inner.now;
             inner.on_replica(replica, |replica, host| {

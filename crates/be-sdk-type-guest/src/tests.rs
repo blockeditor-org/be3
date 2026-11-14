@@ -88,6 +88,7 @@ mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_on
 mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
+mod a_snapshot_counts_an_editors_refused_operation;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
 mod a_stamp_that_would_not_fit_inline_is_left_off;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
@@ -96,6 +97,7 @@ mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_is_lacking_until_the_server_holds_it;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
+mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
@@ -699,7 +701,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             .map(|(_, editor)| *editor)
             .collect();
         for editor in editors {
-            self.with_replica(device, |replica, host| replica.attach(host, editor, true));
+            // The journal holds what each editor was told landed, as the host would count it.
+            let acknowledged = self.editors[&(device, editor)].acknowledged();
+            self.with_replica(device, |replica, host| {
+                replica.attach(host, editor, true, acknowledged);
+                replica.resent(host, editor)
+            });
         }
         self.settle();
     }
@@ -723,7 +730,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.editors
             .insert((device, editor), EditorMirror::default());
         self.with_replica(device, |replica, host| {
-            replica.attach(host, editor, editable)
+            replica.attach(host, editor, editable, 0);
+            replica.resent(host, editor)
         });
         self.settle();
     }

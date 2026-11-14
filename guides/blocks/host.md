@@ -56,7 +56,11 @@ A module runs on its own thread natively, in a web worker on the web
 waits on one. A module that stops (a panic, or a step past `STEP_TIMEOUT`) is
 restarted and its replicas reopened from their last heads with this device's
 journal on them (Opening again, below), editors attached and messages since
-the last seal replayed. `native.rs` and `web.rs` run the loop
+the last seal replayed. `Replicas::forwarded` counts each attached editor's
+operations per block, kept across reopens until it detaches and less any a
+replica that ended never took; attaching an editor again tells the replica that
+count less those about to be given again, and its snapshot waits for `resent`,
+after them (guides/type_modules.md, Editors are endpoints). `native.rs` and `web.rs` run the loop
 over a `FileStore` (on the web in the origin private file system).
 
 Nothing in the worker runs on a timer: it waits on commands and the

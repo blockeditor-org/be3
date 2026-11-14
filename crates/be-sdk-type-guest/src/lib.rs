@@ -1059,15 +1059,26 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn attach(&self, editor: EditorId, editable: bool) -> LocalFuture<()> {
-        self.module
-            .input(self.id, Input::Attach { editor, editable });
+    fn attach(&self, editor: EditorId, editable: bool, acknowledged: u64) -> LocalFuture<()> {
+        self.module.input(
+            self.id,
+            Input::Attach {
+                editor,
+                editable,
+                acknowledged,
+            },
+        );
         Box::pin(ready(()))
     }
 
     fn drained(&self, refused: bool, commits: Vec<CommitId>) -> LocalFuture<()> {
         self.module
             .input(self.id, Input::Drained { refused, commits });
+        Box::pin(ready(()))
+    }
+
+    fn resent(&self, editor: EditorId) -> LocalFuture<()> {
+        self.module.input(self.id, Input::Resent { editor });
         Box::pin(ready(()))
     }
 
