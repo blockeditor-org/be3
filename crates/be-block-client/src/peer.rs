@@ -277,6 +277,8 @@ pub struct Peer<S: ObjectStore> {
     resolver: Mutex<Option<Resolver>>,
     keys: KeyBook,
     current: Mutex<HashMap<Uuid, Uuid>>,
+    /// Keys looked for and found missing, not asked for again until keys are stored
+    /// (`keys_changed`) or a key opens.
     tried: Mutex<HashSet<Uuid>>,
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
@@ -421,6 +423,8 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<(), ClientError> {
         *self.connection.lock().unwrap() = connection;
         *self.token.lock().unwrap() = token;
+        // Keys may have been stored while it was away, with nobody to tell it.
+        self.keys_changed();
         self.open_session().await
     }
 
@@ -711,6 +715,12 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    /// Keys this account may open were stored (`Event::KeysChanged`): a key looked for and
+    /// missing is asked for again, by `learn` or a read, rather than taken for locked.
+    pub fn keys_changed(&self) {
+        self.tried.lock().unwrap().clear();
+    }
+
     pub async fn learn(&self, summaries: &[BlockSummary]) -> Result<(), ClientError> {
         let mut wanted = Vec::new();
         {
@@ -722,30 +732,41 @@ impl<S: ObjectStore> Peer<S> {
                     && !self.keys.has(key)
                     && tried.insert(key)
                 {
-                    wanted.push(summary.id);
+                    wanted.push((summary.id, key));
                 }
             }
         }
-        if !wanted.is_empty() {
-            self.refresh_keys(Some(wanted)).await?;
+        while !wanted.is_empty() {
+            self.refresh_keys(Some(wanted.iter().map(|(block, _)| *block).collect()))
+                .await?;
+            self.again(&mut wanted);
         }
         Ok(())
+    }
+
+    /// Keeps the keys of `wanted` to ask for once more: those still missing whose search was
+    /// forgotten while it was asked (`keys_changed`), since the keys stored then may have come
+    /// after the server answered.
+    fn again<T>(&self, wanted: &mut Vec<(T, Uuid)>) {
+        let mut tried = self.tried.lock().unwrap();
+        wanted.retain(|(_, key)| !self.keys.has(*key) && tried.insert(*key));
     }
 
     async fn retrying<T>(
         &self,
         attempt: impl Fn() -> Result<T, ClientError>,
     ) -> Result<T, ClientError> {
-        match attempt() {
-            Err(ClientError::Store(StoreError::MissingKey(key))) => {
-                if self.tried.lock().unwrap().insert(key) {
-                    self.refresh_keys(None).await?;
-                    return attempt().map_err(locked);
-                }
-                Err(ClientError::Locked(key))
+        let mut outcome = attempt();
+        while let Err(ClientError::Store(StoreError::MissingKey(key))) = outcome {
+            let mut wanted = vec![((), key)];
+            self.again(&mut wanted);
+            if wanted.is_empty() {
+                return Err(ClientError::Locked(key));
             }
-            outcome => outcome,
+            self.refresh_keys(None).await?;
+            outcome = attempt();
         }
+        outcome
     }
 
     pub async fn sealing_key(&self, block: Uuid) -> Result<Uuid, ClientError> {

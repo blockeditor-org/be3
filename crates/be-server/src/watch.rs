@@ -55,6 +55,8 @@ pub enum Push {
     Paired(PairingMessage),
     ContactsChanged,
     KeyWorkChanged,
+    /// Keys the account may open were stored (`keys-changed`).
+    KeysChanged,
     /// The account's notification modes changed through another of its connections.
     NotifyModesChanged,
 }

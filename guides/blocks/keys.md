@@ -46,7 +46,14 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   database, so `Peer::cached` unwraps offline) and unwraps what it can
   (`KeyBook::absorb`). A read meeting an unknown key refetches once, then fails
   with `ClientError::Locked`; `Peer::learn` fetches rows for blocks that appear
-  later.
+  later. A key found missing is not asked for again until keys arrive, so a key
+  stored later must be told: `PutKeys` pushes `keys-changed` to every other
+  connection of the accounts it seals keys to and of the viewers of the blocks
+  its rows are of (`Event::KeysChanged`), and an attach counts as one too.
+  `Peer::keys_changed` forgets what was found missing (a `learn` or read asking
+  then asks once more), and the worker reads its locked nodes again. So a grant
+  may reach a device before its key: a share's seal, a pending grant sealed
+  later, or a seal key work asks of another editor all unlock it.
 - **Moving and sharing.** `Peer::set_parent` into another scope rewraps the
   moved DEKs (old epochs too) under the destination KEK, gives each block a
   fresh DEK and rewraps scope roots inside, all in one `SetParent`. A move

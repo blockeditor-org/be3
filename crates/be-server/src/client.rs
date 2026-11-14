@@ -176,7 +176,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             | keys::Call::PutKeys { .. }
             | keys::Call::PinEscrow { .. }
             | keys::Call::GetSigningKeys { .. } => Rule::Organization,
-            keys::Call::KeyWorkChanged { .. } => Rule::SignedIn,
+            keys::Call::KeyWorkChanged { .. } | keys::Call::KeysChanged { .. } => Rule::SignedIn,
         },
     }
 }
@@ -282,6 +282,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
             | keys::Call::KeyWorkChanged { .. }
+            | keys::Call::KeysChanged { .. }
             | keys::Call::PinEscrow { .. }
             | keys::Call::ResealKeys { .. }
             | keys::Call::GetRecoveryKey { .. }
@@ -353,6 +354,7 @@ enum Route {
     Changes,
     Paired,
     Contacts,
+    Keys,
     /// A key work stream, by its op, so one opened takes its first value alone.
     KeyWork(OpId),
     NotifyModes,
@@ -712,6 +714,9 @@ impl Client {
                 streams.send(&mut lock, (), |route| *route == Route::Contacts)?;
             }
             Push::KeyWorkChanged => {}
+            Push::KeysChanged => {
+                streams.send(&mut lock, (), |route| *route == Route::Keys)?;
+            }
             Push::NotifyModesChanged => {
                 streams.send(&mut lock, (), |route| *route == Route::NotifyModes)?;
             }
@@ -2216,10 +2221,10 @@ impl Client {
             Call::PutKeys { reply, keys } => {
                 let put = async {
                     prelude?;
-                    connection
-                        .store
-                        .put_keys(connection.identity()?, keys)
-                        .await
+                    let identity = connection.identity()?;
+                    let told = connection.store.put_keys(identity, keys).await?;
+                    connection.keys_changed(identity.organization, told).await;
+                    Ok(())
                 }
                 .await;
                 self.reply(reply, put);
@@ -2281,6 +2286,13 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, resealed);
+            }
+            Call::KeysChanged { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams
+                    .open_with(&mut self.peer.lock(), stream, Route::Keys, Backlog::Latest);
             }
             Call::KeyWorkChanged { stream } => {
                 if prelude.is_err() {
@@ -2620,6 +2632,16 @@ impl Connection {
                     },
                 )
                 .await;
+        }
+    }
+
+    /// Tells every other connection in the organization of `accounts` that keys they may open
+    /// were stored (`keys-changed`), so one that found a key missing asks again.
+    async fn keys_changed(&self, organization: Uuid, accounts: BTreeSet<Uuid>) {
+        for (client, _) in self.hub.audience(organization, &accounts).await {
+            if client != self.client {
+                self.hub.send_to(client, Push::KeysChanged).await;
+            }
         }
     }
 

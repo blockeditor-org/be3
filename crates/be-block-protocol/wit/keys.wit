@@ -43,6 +43,9 @@ interface keys {
     /// The keys of `blocks`, or every key the caller holds with none.
     get-keys: async func(blocks: option<list<block-id>>) -> result<key-set, error>;
 
+    /// Stores rows, and tells `keys-changed` to every other connection of an
+    /// account a key in them is sealed to or that may view a block they are
+    /// of.
     put-keys: async func(keys: key-set) -> result<_, error>;
 
     get-recovery-key: async func() -> result<recovery-key, error>;
@@ -75,6 +78,12 @@ interface keys {
     /// current value, and one whose first value cannot be read ends with the
     /// failure.
     key-work-changed: func() -> stream<key-work>;
+
+    /// An item whenever `put-keys` stored rows the account may open through
+    /// another connection, so the client asks again for keys it found
+    /// missing; a latest-value stream, so changes the client has not taken
+    /// yet are one item.
+    keys-changed: func() -> stream;
 
     /// Gives every block below `roots` a new key.
     rotate: async func(roots: list<block-id>, keys: key-set) -> result<_, error>;

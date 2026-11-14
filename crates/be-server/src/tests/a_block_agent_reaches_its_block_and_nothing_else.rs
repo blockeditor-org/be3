@@ -59,6 +59,7 @@ const CONNECTING: &[&str] = &[
     "reseal-keys",
     "get-key-work",
     "key-work-changed",
+    "keys-changed",
     "pin-escrow",
     "logout",
 ];

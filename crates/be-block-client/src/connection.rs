@@ -89,6 +89,9 @@ pub enum Event {
     },
     Paired(PairingMessage),
     ContactsChanged,
+    /// Keys this account may open were stored through another connection (`keys-changed`):
+    /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
+    KeysChanged,
     /// The account's notification modes changed on another of its devices.
     NotifyModesChanged,
     /// The organization's key work for this account, as it opens and as it changes
@@ -259,6 +262,13 @@ impl Connection {
         self.pump(async move {
             while contacts.recv().await.is_some() {
                 let _ = events.send(Event::ContactsChanged);
+            }
+        });
+        let events = self.events.clone();
+        let mut keys = client::keys::keys_changed(&self.peer);
+        self.pump(async move {
+            while keys.recv().await.is_some() {
+                let _ = events.send(Event::KeysChanged);
             }
         });
         let events = self.events.clone();

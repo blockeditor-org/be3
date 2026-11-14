@@ -808,20 +808,40 @@ impl ServerStore {
         .await
     }
 
-    pub async fn put_keys(&self, identity: Identity, set: KeySet) -> Result<(), ServerError> {
+    /// Stores `set` and answers who may open something in it: each account a key in it is
+    /// sealed to, and each viewer of a block its rows are of.
+    pub async fn put_keys(
+        &self,
+        identity: Identity,
+        set: KeySet,
+    ) -> Result<BTreeSet<Uuid>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
+            let organization = identity.organization;
             let seen = visibility(identity);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             store_keys(
                 graph,
                 &transaction,
-                identity.organization,
+                organization,
                 identity.account,
                 &set,
                 |graph, block| seen.can_edit(graph, block),
             )?;
+            let mut blocks: BTreeSet<Uuid> = set.keys.iter().map(|row| row.block).collect();
+            let mut told = BTreeSet::new();
+            for wrap in &set.wrapped {
+                if let WrappedBy::Account(account) = wrap.wrapped_by {
+                    told.insert(account);
+                }
+                if let Some(row) = key_row(&transaction, organization, wrap.key)? {
+                    blocks.insert(row.block);
+                }
+            }
             transaction.commit()?;
-            Ok(())
+            for block in blocks {
+                told.extend(graph.viewers(block));
+            }
+            Ok(told)
         })
         .await
     }

@@ -3649,6 +3649,20 @@ async fn heard(
             asked_to_pair(shared, from, &payload);
         }
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
+        Some(Event::KeysChanged) => {
+            peer.keys_changed();
+            let locked: Vec<Uuid> = shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .nodes()
+                .filter(|node| node.locked)
+                .map(|node| node.id)
+                .collect();
+            for block in locked {
+                tasks.refresh(peer, shared, block);
+            }
+        }
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
         Some(Event::KeyWork(work)) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
