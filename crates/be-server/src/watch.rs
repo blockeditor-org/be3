@@ -103,6 +103,9 @@ struct Interest {
     /// the caller may know of, and refused ones by `REFUSED_LISTINGS`.
     counted: usize,
     known: HashMap<Uuid, Facts>,
+    /// Listings registered and still being read: until `listed` records what they hold, any
+    /// block may be among it, so a change to any block is offered (`WatchHub::knowing`).
+    reading: usize,
 }
 
 fn counts(listing: Listing) -> bool {
@@ -264,12 +267,14 @@ impl WatchHub {
     pub async fn list(&self, client: u64, listing: Listing) -> Result<bool, ServerError> {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
-        interest.list(listing).ok_or_else(|| {
+        let new = interest.list(listing).ok_or_else(|| {
             crate::limits::too_many(
                 "listings one connection holds; unlist some first",
                 MAX_LISTINGS_PER_CONNECTION,
             )
-        })
+        })?;
+        interest.reading += 1;
+        Ok(new)
     }
 
     /// A listing the store refused. One the connection held before stays as it was; a new one is
@@ -277,6 +282,7 @@ impl WatchHub {
     pub async fn refused(&self, client: u64, listing: Listing, new: bool) {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
+        interest.reading = interest.reading.saturating_sub(1);
         if !new {
             return;
         }
@@ -293,6 +299,7 @@ impl WatchHub {
     pub async fn listed(&self, client: u64, listing: Listing, blocks: &[BlockSummary]) {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
+        interest.reading = interest.reading.saturating_sub(1);
         interest.refused.remove(&listing);
         for summary in blocks {
             interest.told(summary.id, Facts::of(summary, listing == Listing::Shared));
@@ -330,9 +337,11 @@ impl WatchHub {
         }
     }
 
-    /// The connections to `organization` already told of `block`: the only ones a change that
-    /// moves nothing but its head can reach, since it leaves which listings match the block as
-    /// they were.
+    /// The connections to `organization` already told of `block`, or reading a listing that may
+    /// hold it: the only ones a change that moves nothing but its head can reach, since it
+    /// leaves which listings match the block as they were. `tell` still matches the block
+    /// against each one's listings, so one reading something else costs a summary and no
+    /// message.
     pub async fn knowing(&self, organization: Uuid, block: Uuid) -> Vec<(u64, Identity)> {
         let joined = self.joined.lock().await;
         joined
@@ -341,10 +350,9 @@ impl WatchHub {
             .into_iter()
             .flatten()
             .filter(|client| {
-                joined
-                    .interests
-                    .get(client)
-                    .is_some_and(|interest| interest.known.contains_key(&block))
+                joined.interests.get(client).is_some_and(|interest| {
+                    interest.reading > 0 || interest.known.contains_key(&block)
+                })
             })
             .filter_map(|client| {
                 joined

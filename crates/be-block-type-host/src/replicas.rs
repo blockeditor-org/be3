@@ -1225,6 +1225,10 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
+        #[cfg(test)]
+        if let Replayed::Moved { .. } = replayed {
+            self.heads_told += 1;
+        }
         open.replay.push(replayed.clone());
         self.with_replica(replica, |handle, connection| {
             replayed.send(handle, connection);
@@ -1351,10 +1355,6 @@ impl<H: Host> Replicas<H> {
         if let Some(index) = open.published.iter().position(|held| *held == head) {
             open.published.drain(..=index);
             return;
-        }
-        #[cfg(test)]
-        {
-            self.heads_told += 1;
         }
         self.replay(replica, Replayed::Moved { head });
     }
