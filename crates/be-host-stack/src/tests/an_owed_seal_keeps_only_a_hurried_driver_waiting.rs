@@ -25,7 +25,8 @@ fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
         shared
             .busy(true)
             .iter()
-            .any(|reason| reason.contains("owes edits a seal") && reason.contains(&block.to_string())),
+            .any(|reason| reason.contains("owes edits a seal")
+                && reason.contains(&block.to_string())),
         "hurried, the host seals at once, so an owed seal is waited for: {:?}",
         shared.busy(true)
     );
