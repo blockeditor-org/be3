@@ -64,8 +64,11 @@ export default async function (test) {
     await test.drive("click", "#dock.editors.pin.editor.share");
     await test.drive("wait", "#share.query");
     await test.drive("click", "#share.query");
+    await test.drive("wait", 'TextInput "Add contacts" focused');
     await test.drive("type", "Ada");
-    await test.drive("key", "Enter");
+    // Ada is suggested once the block's access listing has loaded from the server.
+    await test.drive("wait", 'Button "Ada (ada@localhost)"');
+    await test.drive("click", 'Button "Ada (ada@localhost)"');
     await test.drive("wait", "#share.add");
     await test.drive("click", "#share.add");
     await test.drive("wait", 'Label value="ada@localhost"');
