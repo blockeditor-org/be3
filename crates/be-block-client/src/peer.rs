@@ -1336,7 +1336,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         // The server does not know a block whose creation waits in the outbox, or was refused.
-        if (self.refs.creating(block) || self.refs.refused(block).is_some())
+        if self.uncreated(block)
             && let Some(summary) = self.refs.summary(block)
         {
             return Ok(self.refs.current(vec![summary]).remove(0));

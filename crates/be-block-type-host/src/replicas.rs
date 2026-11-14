@@ -820,7 +820,7 @@ impl<H: Host> Replicas<H> {
         let known = peer
             .known_summary(block)
             .is_some_and(|summary| summary.content_type == content_type);
-        let uncreated = waits_creation(peer, block);
+        let uncreated = cannot_join(peer, block);
         let joined = if known
             && peer.is_attached()
             && !uncreated
@@ -859,8 +859,9 @@ impl<H: Host> Replicas<H> {
                     peer.ensure_type(block, content_type, BlockParent::Detached)
                         .await?;
                 }
-                // Until the drain sends its creation, the server does not know the block: it
-                // opens as offline does and joins once that is sent (`created`).
+                // Until the drain sends its creation the server does not know the block, and
+                // without access to it the server refuses its session: it opens as offline does
+                // and joins once that changes (`created`).
                 if !peer.is_attached() || uncreated {
                     return Ok((OFFLINE_CLIENT, offline_session(None), None, true, None));
                 }
@@ -2305,7 +2306,7 @@ impl<H: Host> Replicas<H> {
             .open
             .iter()
             .filter(|(_, open)| {
-                !self.uncreated.contains(&open.block) || !waits_creation(peer, open.block)
+                !self.uncreated.contains(&open.block) || !cannot_join(peer, open.block)
             })
             .map(|(replica, _)| *replica)
             .collect();
@@ -2329,7 +2330,7 @@ impl<H: Host> Replicas<H> {
             .uncreated
             .iter()
             .copied()
-            .filter(|block| !waits_creation(peer, *block))
+            .filter(|block| !cannot_join(peer, *block))
             .collect();
         for block in sent {
             let Some((replica, open)) = self.replica_of(block) else {
@@ -3225,10 +3226,13 @@ impl<H: Host> Replicas<H> {
     }
 }
 
-/// Whether the server does not have `block` yet (`Peer::uncreated`): its replica does not join
-/// until the drain sends its creation.
-fn waits_creation<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
+/// Whether `block`'s replica stays out of its session: the server does not have the block yet
+/// (`Peer::uncreated`), or this account may not view it. It joins once that changes (`created`).
+fn cannot_join<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
     peer.uncreated(block)
+        || peer
+            .known_summary(block)
+            .is_some_and(|summary| !summary.access.can_view())
 }
 
 /// Joins `block`'s session, for a replica that shows before it has (`Replicas::open`).
@@ -3299,6 +3303,11 @@ async fn reset<H: Host>(
     block: Uuid,
     kind: &types::Kind,
 ) -> Result<(), ClientError> {
+    // All a block the server lacks has is this device's: nothing else to reset to, and its
+    // creation is not set aside.
+    if peer.uncreated(block) {
+        return Ok(());
+    }
     let mut expected = peer.remote_head(block).await?;
     // What this device kept of the block and has not sent is set aside among the unsent edits,
     // to be restored or discarded, before the blank is written, rather than waiting ahead of it
