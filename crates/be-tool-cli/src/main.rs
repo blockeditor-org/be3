@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::process::ExitCode;
 
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_tool_cli::cli::{self, Outcome, USAGE};
 use be_tool_cli::session::{Settings, connect, connect_live};
 use be_tool_cli::terminal_host::{Host, HostOptions};

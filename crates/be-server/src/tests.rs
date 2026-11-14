@@ -192,6 +192,12 @@ const KEY: Uuid = Uuid::from_u128(0x006b_6579);
 
 const BUILD: &str = "a test build";
 
+/// Opens the server's metadata database in `directory` beside a running server, with the busy
+/// timeout every server connection has, so it waits on the server's writes rather than failing.
+fn metadata_database(directory: &std::path::Path) -> rusqlite::Connection {
+    be_block_sqlite_schema::open(directory.join("metadata.sqlite")).unwrap()
+}
+
 struct Harness {
     mail: Arc<CapturedMail>,
     server: Running,

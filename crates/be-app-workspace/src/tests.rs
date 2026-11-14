@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{EditorView, EditorViewContent, ViewState};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState};
 use be_type_workspace::{FolderContent, WorkspaceContent};
 
 use be_sdk_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
@@ -516,7 +516,7 @@ fn renaming(beside: &Fixture, block: Uuid) -> Fixture<RenameRoot> {
 }
 
 fn catalog() -> be_sdk_beui::Catalog {
-    use be_sdk_beui::be_block::BlockContent;
+    use be_sdk_beui::be_block_content::BlockContent;
     let kind = |block_type: Uuid, name: &str, icon: &str| {
         let holds =
             [FolderContent::CONTENT_TYPE, WorkspaceContent::CONTENT_TYPE].contains(&block_type);
@@ -619,7 +619,7 @@ struct Places {
 
 fn places<A: be_sdk_beui::BeuiRoot>(fixture: &mut Fixture<A>) -> Places {
     use be_sdk_beui::BlockInfo;
-    use be_sdk_beui::be_block::BlockContent;
+    use be_sdk_beui::be_block_content::BlockContent;
     let places = PLACES;
     let block = |id: Uuid, block_type: Uuid, parent: BlockParent, name: &str, children: &[Uuid]| {
         let mut info = BlockInfo::new(id, block_type, parent);

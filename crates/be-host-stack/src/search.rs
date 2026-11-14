@@ -26,13 +26,10 @@ use std::{
     time::Duration,
 };
 
-use be_block::{
-    BlockContent, BlockMetadata, SEARCH_INDEX,
-    be_block_model::BlockRef,
-    search_index::{AsyncRead, SearchIndexContent},
-};
+use be_block::search_index::{AsyncRead, SearchIndexContent};
 use be_block_client::{Peer, Write};
 use be_block_commit::CommitId;
+use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
 use be_block_store::{ObjectStore, PartRef};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
@@ -1511,7 +1508,7 @@ pub(crate) async fn make_index<S: ObjectStore>(
     .await?;
     let empty = SearchIndexContent::default();
     let write = Write::encoded(SEARCH_INDEX_TYPE, empty.parts(), None)
-        .described(Vec::new(), be_block::derived_metadata(&empty));
+        .described(Vec::new(), be_block_content::derived_metadata(&empty));
     peer.seal(index, write).await?;
     Ok(())
 }
@@ -2099,7 +2096,7 @@ async fn write_at<S: ObjectStore>(
             .map_err(|error| unwritten(error.to_string()))?;
     }
     let write = Write::encoded(SEARCH_INDEX_TYPE, content.parts(), Some(head))
-        .described(Vec::new(), be_block::derived_metadata(&content));
+        .described(Vec::new(), be_block_content::derived_metadata(&content));
     peer.seal(index, write).await?;
     Ok(needs_text)
 }

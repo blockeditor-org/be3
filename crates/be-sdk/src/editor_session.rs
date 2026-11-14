@@ -1,4 +1,4 @@
-use be_block::presence::{PresenceKind, UserActive, pick_free_color};
+use be_block_content::presence::{PresenceKind, UserActive, pick_free_color};
 use be_lib_geometry::{Pos2, Rect, Vec2, vec2};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::WebViewCommand;

@@ -189,7 +189,7 @@ struct ContentLink {
     delivered: bool,
     awaiting_preview: bool,
     gesturing: bool,
-    described: Option<be_block::Entries>,
+    described: Option<be_block_content::Entries>,
 }
 
 impl ContentLink {

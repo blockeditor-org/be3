@@ -1,7 +1,8 @@
 use super::*;
 use be_sdk_beui::be_block::{
-    InputSettings, Root, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
+    InputSettings, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
 };
+use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{BlockInfo, BlockParent};
 

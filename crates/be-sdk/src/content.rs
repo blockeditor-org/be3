@@ -4,8 +4,8 @@ use std::{
     rc::Rc,
 };
 
-use be_block::be_block_model::{Document, FieldRef, List, Model};
-use be_block::{LiveEdit, ObjectId, Root, Touched};
+use be_block_content::be_block_model::{Document, FieldRef, List, Model};
+use be_block_content::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture, LackingEdit};
 
 use crate::EditorHost;
@@ -169,7 +169,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     /// The whole stored form's length, of which a type that loads only its first part
-    /// (`be_block::Loads::FirstPart`) holds the start.
+    /// (`be_block_content::Loads::FirstPart`) holds the start.
     pub fn stored_length(&self) -> Result<u64, Unready> {
         self.ready()
             .map(|()| self.0.mirror.borrow().stored_length())

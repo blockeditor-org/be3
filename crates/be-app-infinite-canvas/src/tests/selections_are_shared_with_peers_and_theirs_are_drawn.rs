@@ -1,7 +1,7 @@
 use super::*;
 use crate::presence::CanvasCursor;
 use be_sdk_beui::PeerPresence;
-use be_sdk_beui::be_block::presence::{PresenceColor, PresenceKind};
+use be_sdk_beui::be_block_content::presence::{PresenceColor, PresenceKind};
 use be_type_infinite_canvas::CanvasColor;
 
 #[test]

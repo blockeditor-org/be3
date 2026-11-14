@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::Modifiers;
 use be_type_logic_grid::CompiledLogicContent;
 

@@ -5,7 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 beui = { path = "../beui" }
 be-sdk = { path = "../be-sdk" }
 serde = { version = "1", features = ["derive"] }

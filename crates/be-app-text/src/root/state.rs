@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use be_sdk_beui::BlockQuery;
-use be_sdk_beui::be_block::presence::pick_free_color;
+use be_sdk_beui::be_block_content::presence::pick_free_color;
 use be_sdk_beui::{BlockList, Blocks};
 use be_sdk_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBaseWatch};
 use be_sdk_text::SharedCaret;

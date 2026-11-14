@@ -1,4 +1,5 @@
-use be_block::{BlockContent, PREFIXES, PrefixRegistryContent};
+use be_block::{PREFIXES, PrefixRegistryContent};
+use be_block_content::BlockContent;
 use be_block_graph::BlockParent;
 use be_block_store::ObjectStore;
 use be_type_database::database::DatabaseContent;

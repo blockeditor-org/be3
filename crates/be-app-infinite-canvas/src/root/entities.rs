@@ -3,8 +3,8 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use be_sdk_beui::ContentProjection;
-use be_sdk_beui::be_block::be_block_model::Place;
-use be_sdk_beui::be_block::{ObjectId, Touched};
+use be_sdk_beui::be_block_content::be_block_model::Place;
+use be_sdk_beui::be_block_content::{ObjectId, Touched};
 use be_sdk_beui::beui::reactive::*;
 use be_type_infinite_canvas::{
     Canvas, CanvasEntity, CanvasPoint, CanvasRaster, CanvasShape, CanvasTransform, Entity,

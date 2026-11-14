@@ -105,7 +105,9 @@ if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^W
     echo "The page did not start; see $dir/browser.log." >&2
     exit 1
 fi
-drive --timeout=120 dev-sign-in "$dir/server.log" || exit 1
+# Registering the account the first time needs an invite code.
+invite="$("$server" invite-code create --data-dir "$dir/server" 2> /dev/null)"
+drive --timeout=120 dev-sign-in "$dir/server.log" "$invite" || exit 1
 drive --timeout=120 settle || exit 1
 drive size 1280 800
 cat <<INFO

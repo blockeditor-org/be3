@@ -30,6 +30,7 @@ write_package_value("be3.cargo", {
                 "block-file": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -54,6 +55,7 @@ write_package_value("be3.cargo", {
                 "freeze": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -79,6 +81,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-client:be-block-client",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -107,6 +110,7 @@ write_package_value("be3.cargo", {
                 "block-file": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -131,6 +135,7 @@ write_package_value("be3.cargo", {
                 "freeze": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -156,6 +161,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-client:be-block-client",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -184,6 +190,7 @@ write_package_value("be3.cargo", {
                 "block-file": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -208,6 +215,7 @@ write_package_value("be3.cargo", {
                 "freeze": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -233,6 +241,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-client:be-block-client",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -261,6 +270,7 @@ write_package_value("be3.cargo", {
                 "block-file": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -285,6 +295,7 @@ write_package_value("be3.cargo", {
                 "freeze": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -310,6 +321,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-client:be-block-client",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -338,6 +350,7 @@ write_package_value("be3.cargo", {
                 "block-file": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -362,6 +375,7 @@ write_package_value("be3.cargo", {
                 "freeze": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -387,6 +401,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-client:be-block-client",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -415,6 +430,7 @@ write_package_value("be3.cargo", {
                 "block-file": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -439,6 +455,7 @@ write_package_value("be3.cargo", {
                 "freeze": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -464,6 +481,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-client:be-block-client",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -492,6 +510,7 @@ write_package_value("be3.cargo", {
                 "block-file": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -516,6 +535,7 @@ write_package_value("be3.cargo", {
                 "freeze": {
                     "deps": [
                         "//crates/be-block-client:be-block-client",
+                        "//crates/be-block-content:be-block-content",
                         "//crates/be-block-graph:be-block-graph",
                         "//crates/be-block-keys:be-block-keys",
                         "//crates/be-block-protocol:be-block-protocol",
@@ -541,6 +561,7 @@ write_package_value("be3.cargo", {
             "features": [],
             "test_deps": [
                 "//crates/be-block-client:be-block-client",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",

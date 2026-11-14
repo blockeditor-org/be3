@@ -1,4 +1,4 @@
-use be_block::be_block_model::BlockRef;
+use be_block_content::be_block_model::BlockRef;
 
 use super::*;
 
@@ -10,7 +10,7 @@ fn a_block_s_children_leave_out_what_its_metadata_points_to() {
     let settings = Uuid::from_u128(4);
     let mut metadata = BlockMetadata::default();
     metadata.insert(&be_block::TAGGED, &vec![BlockRef(tag)]);
-    metadata.insert(&be_block::SETTINGS, &BlockRef(settings));
+    metadata.insert(&be_block_content::SETTINGS, &BlockRef(settings));
     let mut graph = Graph::default();
     listed(
         &mut graph,

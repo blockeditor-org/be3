@@ -1,6 +1,6 @@
 use super::*;
 use crate::PresentationContent;
-use be_block::{ChildChange, ObjectId, Root};
+use be_block_content::{ChildChange, ObjectId, Root};
 use uuid::Uuid;
 
 fn shown(presentation: &PresentationContent) -> Vec<Option<Uuid>> {

@@ -56,7 +56,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
             Uuid::now_v7(),
             SETTINGS_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::default(),
+            &be_block_content::BlockMetadata::default(),
             false,
         )
         .await
@@ -67,7 +67,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
             Uuid::now_v7(),
             TextContent::CONTENT_TYPE,
             BlockParent::Block(settings),
-            &be_block::BlockMetadata::default(),
+            &be_block_content::BlockMetadata::default(),
             true,
         )
         .await
@@ -137,7 +137,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
                     Uuid::now_v7(),
                     TextContent::CONTENT_TYPE,
                     BlockParent::Block(parent),
-                    &be_block::BlockMetadata::default(),
+                    &be_block_content::BlockMetadata::default(),
                     true,
                 )
                 .await

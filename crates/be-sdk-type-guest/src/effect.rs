@@ -39,7 +39,7 @@ pub(crate) enum Effect {
     ReadPart {
         replica: ReplicaId,
         token: Token,
-        part: be_block::PartRef,
+        part: be_block_content::PartRef,
         offset: u64,
         length: u64,
     },
@@ -60,7 +60,7 @@ pub(crate) enum Effect {
     /// Announcements of edits made here that the server already holds.
     Announce {
         replica: ReplicaId,
-        announcements: Vec<be_block::Announcement>,
+        announcements: Vec<be_block_content::Announcement>,
     },
     ReportClean {
         replica: ReplicaId,
@@ -75,7 +75,7 @@ pub(crate) enum Effect {
         /// The first sequence number the entries hold, folded ones included.
         from: u64,
         /// The announcements of the edits made here among the entries, by sequence.
-        announcements: Vec<(u64, be_block::Announcement)>,
+        announcements: Vec<(u64, be_block_content::Announcement)>,
     },
     Rebase {
         replica: ReplicaId,

@@ -1,4 +1,4 @@
-use be_block::presence::PresenceColor;
+use be_block_content::presence::PresenceColor;
 use beui_text_editor_core::Position;
 use serde::{Deserialize, Serialize};
 

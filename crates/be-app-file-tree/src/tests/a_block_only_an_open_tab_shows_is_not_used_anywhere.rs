@@ -1,11 +1,12 @@
-use be_sdk_beui::be_block::{SettingsProfileContent, VIEW_TYPE};
+use be_sdk_beui::be_block::SettingsProfileContent;
+use be_sdk_beui::be_block_content::VIEW_TYPE;
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;
 
 #[test]
 fn a_block_only_an_open_tab_shows_is_not_used_anywhere() {
-    use be_sdk_beui::be_block::BlockContent;
+    use be_sdk_beui::be_block_content::BlockContent;
     let mut fixture = editor();
     my_files(&mut fixture, Vec::new());
     fixture.settle();

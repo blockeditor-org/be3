@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use be_sdk_beui::be_block::Edit;
+use be_sdk_beui::be_block_content::Edit;
 use be_sdk_beui::be_sdk_ui::BlockLabel;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Image, Pos2, Rect, Vec2};

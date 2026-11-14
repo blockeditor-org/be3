@@ -1,10 +1,10 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_type_logic_grid::{Hotbar, HotbarContent};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::root_settings::RootSetting;
 use be_sdk_beui::{BlockList, BlockParent, BlockQuery, ContentProjection, Editor};

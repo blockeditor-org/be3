@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::Root;
+use be_sdk_beui::be_block_content::Root;
 use be_type_chat::{ChatReads, ChatReadsContent};
 
 use super::*;

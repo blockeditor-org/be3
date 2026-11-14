@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::{BlockContent, Root};
+use be_sdk_beui::be_block_content::{BlockContent, Root};
 use be_sdk_beui::{BeuiRoot, BlockParent, GraphCommand};
 use be_type_database::database_schema::DatabaseSchemaContent;
 

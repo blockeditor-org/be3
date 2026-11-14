@@ -9,6 +9,7 @@ testing = []
 
 [dependencies]
 be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
 be-block-commit = { path = "../be-block-commit" }
 be-block-graph = { path = "../be-block-graph" }

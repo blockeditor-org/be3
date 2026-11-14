@@ -11,7 +11,7 @@ fn a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once() {
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Trip"),
+        be_block_content::BlockMetadata::named("Trip"),
         None,
         false,
     );
@@ -19,7 +19,7 @@ fn a_block_made_while_the_server_is_silent_shows_and_takes_edits_at_once() {
         counter,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

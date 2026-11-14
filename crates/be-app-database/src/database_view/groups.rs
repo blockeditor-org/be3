@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_type_database::database::{DatabaseRow, DatabaseValue, RowRef};
 use be_type_database::database_schema::{DatabaseEnumOption, DatabaseField, DatabaseFieldType};
 use uuid::Uuid;

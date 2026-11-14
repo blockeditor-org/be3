@@ -392,7 +392,7 @@ impl ServerStore {
         }
         let columns = kind_columns(&kind);
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             if let LinkKind::Contact(_) = &kind {
                 let open: i64 = transaction
                     .prepare_cached(
@@ -582,7 +582,7 @@ impl ServerStore {
             LinkKind::Contact(None) => {
                 return self
                     .with_database(move |_, database| {
-                        let transaction = database.unchecked_transaction()?;
+                        let transaction = be_block_sqlite_schema::write_transaction(database)?;
                         mark_accepted(&transaction, link, caller, &card)?;
                         befriend(&transaction, owner, &[], caller, &contact)?;
                         transaction.commit()?;
@@ -596,7 +596,7 @@ impl ServerStore {
             LinkKind::Invitation(invitation) => {
                 return self
                     .with_database(move |_, database| {
-                        let transaction = database.unchecked_transaction()?;
+                        let transaction = be_block_sqlite_schema::write_transaction(database)?;
                         mark_accepted(&transaction, link, caller, &card)?;
                         befriend(&transaction, owner, &[], caller, &contact)?;
                         crate::keys::pin_escrow(
@@ -625,7 +625,7 @@ impl ServerStore {
         };
         let granted = self
             .with_graph(grant.organization, move |store, graph, database| {
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 mark_accepted(&transaction, link, caller, &card)?;
                 befriend(&transaction, owner, &[], caller, &contact)?;
                 let owner_role = role_in(&transaction, owner, grant.organization)?;
@@ -789,7 +789,7 @@ impl ServerStore {
     ) -> Result<Vec<Granted>, ServerError> {
         let shared = {
             self.with_database(move |_, database| {
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 transaction.execute(
                     "DELETE FROM contacts WHERE (account_id = ?1 AND contact_id = ?2)
                         OR (account_id = ?2 AND contact_id = ?1)",
@@ -864,7 +864,7 @@ impl ServerStore {
                             }
                         }
                     }
-                    let transaction = database.unchecked_transaction()?;
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     let mut revoked = Vec::new();
                     for (block, grantee) in grants {
                         let before = graph.audience(block);

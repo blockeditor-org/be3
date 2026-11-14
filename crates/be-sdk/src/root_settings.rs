@@ -1,5 +1,6 @@
+use be_block::SettingsContent;
 use be_block::settings::{Settings, SettingsProfile};
-use be_block::{BlockContent, Edit, Root, SettingsContent, SettingsLayer};
+use be_block_content::{BlockContent, Edit, Root, SettingsLayer};
 use uuid::Uuid;
 
 use crate::BlockParent;
@@ -108,7 +109,7 @@ impl RootSettings {
     }
 }
 
-pub use be_block::Layers;
+pub use be_block_content::Layers;
 
 pub fn layers(graph: &dyn SettingsGraph, held: &HeldSettings, kind: Uuid, client: Uuid) -> Layers {
     let own = held

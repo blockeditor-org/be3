@@ -2,7 +2,7 @@ use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::Root;
+use be_block_content::Root;
 
 /// A view of boat.dev sandboxes: only which account it shows and how it filters them. The
 /// sandboxes themselves are never content: each viewer fetches them with their own key, so

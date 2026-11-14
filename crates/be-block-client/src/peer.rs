@@ -3,11 +3,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use be_block::{
-    BlockContent, BlockMetadata, Entries, OrganizationPolicies, Root, Streamed, derived_metadata,
-    payload_start,
-};
+use be_block::OrganizationPolicies;
 use be_block_commit::{Commit, CommitId, CommitStore, now_milliseconds};
+use be_block_content::{
+    BlockContent, BlockMetadata, Entries, Root, Streamed, derived_metadata, payload_start,
+};
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
@@ -825,7 +825,7 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
-    /// The stored form's first part, without the rest (`be_block::Loads::FirstPart`).
+    /// The stored form's first part, without the rest (`be_block_content::Loads::FirstPart`).
     pub async fn load_first_part(&self, manifest: &Manifest) -> Result<Stored, ClientError> {
         self.fetch_nodes(manifest).await?;
         let end = self
@@ -2008,11 +2008,11 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         let prefix = self
-            .read_span(&manifest, 0, be_block::HEADER_PREFIX_BYTES as u64)
+            .read_span(&manifest, 0, be_block_content::HEADER_PREFIX_BYTES as u64)
             .await?;
         let start = payload_start(&prefix)?;
         let header = self.read_span(&manifest, 0, start as u64).await?;
-        let (header, _) = be_block::decode_streamed::<C::Header>(&header[..start])?;
+        let (header, _) = be_block_content::decode_streamed::<C::Header>(&header[..start])?;
         Ok(Some(header))
     }
 
@@ -2026,7 +2026,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Vec::new());
         };
         let prefix = self
-            .read_span(&manifest, 0, be_block::HEADER_PREFIX_BYTES as u64)
+            .read_span(&manifest, 0, be_block_content::HEADER_PREFIX_BYTES as u64)
             .await?;
         let start = payload_start(&prefix)? as u64;
         self.read_span(&manifest, start + offset, length).await

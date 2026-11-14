@@ -1,5 +1,5 @@
-use be_block::{BlockContent, Edit, LiveEdit, Merge, Undo};
 use be_block_commit::MergeResult;
+use be_block_content::{BlockContent, Edit, LiveEdit, Merge, Undo};
 use be_type_database::database::DatabaseValue;
 use uuid::Uuid;
 

@@ -35,7 +35,7 @@ fn a_forged_arrival_is_never_sequenced() {
         .write(
             SEALING,
             Uuid::nil(),
-            be_block::Part::from(Arrivals::encode_operation(&large).as_slice()),
+            be_block_content::Part::from(Arrivals::encode_operation(&large).as_slice()),
         )
         .unwrap();
     let part = Payload::Part(manifest.root.expect("the part has bytes"));

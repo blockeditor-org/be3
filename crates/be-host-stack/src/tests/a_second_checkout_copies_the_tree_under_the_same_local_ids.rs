@@ -18,7 +18,7 @@ fn a_second_checkout_copies_the_tree_under_the_same_local_ids() {
         Some(be_block_graph::BlockParent::Block(second))
     );
     assert_eq!(
-        copied.metadata.get(&be_block::LOCAL_ID),
+        copied.metadata.get(&be_block_content::LOCAL_ID),
         Some(versioned.folder)
     );
     assert_eq!(copied.references, vec![note]);

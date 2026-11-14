@@ -29,7 +29,7 @@ fn a_block_made_while_a_listing_is_answered_stays_listed() {
         block,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Made meanwhile"),
+        be_block_content::BlockMetadata::named("Made meanwhile"),
         None,
         false,
     );

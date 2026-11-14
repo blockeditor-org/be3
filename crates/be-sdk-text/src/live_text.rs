@@ -2,9 +2,9 @@ use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use be_block::Root;
-use be_block::be_block_model::marks::Rich;
-use be_block::be_block_model::{
+use be_block_content::Root;
+use be_block_content::be_block_model::marks::Rich;
+use be_block_content::be_block_model::{
     Change, Document as Content, Edit, FieldRef, ObjectId, RichText, Text, Value,
 };
 use be_sdk::{EditorHost, LiveContent, Projected, Waker};

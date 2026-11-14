@@ -18,7 +18,7 @@ fn an_owner_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can() {
         .write(
             SEALING,
             Uuid::nil(),
-            be_block::Part::from(&b"a closed segment"[..]),
+            be_block_content::Part::from(&b"a closed segment"[..]),
         )
         .unwrap()
         .root
