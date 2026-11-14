@@ -165,7 +165,10 @@ pub fn run(options: &Options) -> Result<i32, String> {
         }
     };
     if let (Some(before), Some(after)) = (before, process::children_usage()) {
-        report(log.as_deref(), &after.since(&before).describe(started.elapsed()));
+        report(
+            log.as_deref(),
+            &after.since(&before).describe(started.elapsed()),
+        );
     }
     if status == TIMED_OUT
         && let Some((limit, _)) = &options.time_limit
