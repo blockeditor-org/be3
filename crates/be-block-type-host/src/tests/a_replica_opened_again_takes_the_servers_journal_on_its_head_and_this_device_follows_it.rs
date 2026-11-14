@@ -27,12 +27,13 @@ fn held(journal: &Journal) -> Vec<(u64, u64, Vec<u8>)> {
         .collect()
 }
 
-/// This device journaled 6 to 8 in a session it made up offline while another device, owning
-/// the session, journaled its own 6 and 7 on the server, both on the same head. Opened again on
-/// joining, the replica takes the server's journal, however many entries this device's holds,
-/// and this device's journal becomes the server's: what it journals next follows the session's
-/// numbering rather than being dropped beneath entries of its own. With no server journal on
-/// the head it takes this device's whole journal; one on another commit is not taken.
+/// A replica opened again on joining takes the server's journal on its head. When this
+/// device's journal there holds nothing the server's lacks (here its 6, which the server's holds
+/// too), it becomes the server's, so what the replica journals next follows the session's
+/// numbering. When it holds entries of its own (6 to 8, journaled offline beside another owner's
+/// 6 and 7), it is left as it was, holding what no other journal does, and the replica is told
+/// those edits are lost to it. With no server journal on the head, or one on another commit, the
+/// replica takes this device's whole journal.
 #[test]
 fn a_replica_opened_again_takes_the_servers_journal_on_its_head_and_this_device_follows_it() {
     with_test_types(|peer, _, _| async move {
@@ -46,46 +47,28 @@ fn a_replica_opened_again_takes_the_servers_journal_on_its_head_and_this_device_
             sequence: 5,
             state: b"positions".to_vec(),
         };
+        let journal = |generation, entries: Vec<JournalEntry>| {
+            let (peer, base) = (&peer, base.clone());
+            async move {
+                peer.rebase_journal(block, generation, tag(), base, entries, false, false)
+                    .await
+                    .expect("the journal is kept");
+            }
+        };
         // The server's journal, sealed with the block's key as the server keeps it.
-        peer.rebase_journal(
-            block,
-            1,
-            tag(),
-            base.clone(),
-            entries(1, &[6, 7], 0xB),
-            false,
-            false,
-        )
-        .await
-        .expect("the server's journal is sealed");
+        journal(1, entries(1, &[6, 7], 0xB)).await;
         let server = (
             peer.sealed_journal(block).expect("sealed"),
             peer.local_journal(block).unwrap().expect("opened"),
         );
-        // This device's own, journaled offline beside it.
-        peer.rebase_journal(block, 2, tag(), base.clone(), Vec::new(), false, false)
-            .await
-            .expect("the journal starts on the head");
-        peer.append(
-            block,
-            2,
-            tag(),
-            entries(2, &[6, 7, 8], 0xA),
-            false,
-            false,
-            Vec::new(),
-        )
-        .await
-        .expect("this device journals 6 to 8");
+        let kept = || held(&peer.local_journal(block).unwrap().expect("kept"));
 
-        let (taken, from) = reopening_journal(&peer, block, Some(server.clone()), head);
+        // This device holds what the server's holds, and no more.
+        journal(1, entries(1, &[6], 0xB)).await;
+        let (taken, from, lost) = reopening_journal(&peer, block, Some(server.clone()), head);
         assert_eq!(from, Some(Reopening::Server));
-        assert_eq!(
-            held(&taken.expect("a journal on the head")),
-            vec![(1, 6, vec![0xB]), (1, 7, vec![0xB])],
-            "the server's journal, not this device's longer one"
-        );
-        // The replica journals its next edit after the server's entries.
+        assert!(!lost);
+        assert_eq!(held(&taken.expect("on the head")), held(&server.1));
         peer.append(
             block,
             1,
@@ -97,30 +80,45 @@ fn a_replica_opened_again_takes_the_servers_journal_on_its_head_and_this_device_
         )
         .await
         .expect("the next edit is journaled");
-        let kept = peer.local_journal(block).unwrap().expect("kept");
         assert_eq!(
-            held(&kept),
+            kept(),
             vec![(1, 6, vec![0xB]), (1, 7, vec![0xB]), (1, 8, vec![0xC])],
             "this device's journal follows the server's numbering"
         );
 
-        let (own, from) = reopening_journal(&peer, block, None, head);
+        // This device journaled 6 to 8 of its own.
+        journal(2, entries(2, &[6, 7, 8], 0xA)).await;
+        let (taken, from, lost) = reopening_journal(&peer, block, Some(server.clone()), head);
+        assert_eq!(from, Some(Reopening::Server));
+        assert_eq!(
+            held(&taken.expect("on the head")),
+            held(&server.1),
+            "the server's journal, not this device's longer one"
+        );
+        assert!(
+            lost,
+            "the replica is told the edits only this device holds are lost to it"
+        );
+        let own = vec![(2, 6, vec![0xA]), (2, 7, vec![0xA]), (2, 8, vec![0xA])];
+        assert_eq!(kept(), own, "this device's journal keeps them");
+
+        let (taken, from, _) = reopening_journal(&peer, block, None, head);
         assert_eq!(from, Some(Reopening::Device));
         assert_eq!(
-            held(&own.expect("on the head")),
-            held(&kept),
+            held(&taken.expect("on the head")),
+            own,
             "this device's whole journal"
         );
 
         let mut elsewhere = server.clone();
         elsewhere.0.base.commit = None;
         elsewhere.1.base.commit = None;
-        let (taken, from) = reopening_journal(&peer, block, Some(elsewhere), head);
+        let (taken, from, _) = reopening_journal(&peer, block, Some(elsewhere), head);
         assert_eq!(
             from,
             Some(Reopening::Device),
             "a server journal on another commit"
         );
-        assert_eq!(held(&taken.expect("on the head")), held(&kept));
+        assert_eq!(held(&taken.expect("on the head")), own);
     });
 }

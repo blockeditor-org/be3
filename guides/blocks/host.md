@@ -133,17 +133,23 @@ the connection a stopping stack closed.
   restart) starts on a head: rejoining and a restart on the last head it
   reported, joining on the server's head unless it was edited meanwhile or
   holds commits ahead of it. It is handed the journal on that head
-  (`reopening_journal`): the server's when there is one, which this device's
-  journal then becomes so what it journals next follows the session's
-  numbering, otherwise this device's, entries included. The journal carries the
-  session's state, which numbers each writer's next edit: without it an edit an
-  editor made on what it was shown is refused as out of order. It is given again
-  the local edits its module took that neither the head nor that journal holds
-  (`Open::replay`): every status cuts `replay` at what its head holds
-  (`status.sealed-taken`, every edit taken once it is clean), and a reopen
-  handed a journal with this device's appends in it at what that journal holds
-  too (`status.journaled-taken`). What it opens on therefore holds exactly the
-  editors' edits not in `replay`.
+  (`reopening_journal`): the server's when there is one, otherwise this
+  device's, entries included. The journal carries the session's state, which
+  numbers each writer's next edit: without it an edit an editor made on what it
+  was shown is refused as out of order. When the server's is taken, this
+  device's journal becomes it if it holds no entry the server's lacks, so what
+  the replica journals next follows the session's numbering; otherwise it is
+  left as it is and the replica is told those edits are lost to it
+  (`lost-edits`). The replica is given again the local edits its module took
+  that neither the head nor this device's journal holds (`Open::replay`):
+  every status cuts `replay` at `status.sealed-taken` (for an owner what its
+  head holds, a replacement on its way not included; for a follower, once it is
+  clean, what its owner accepted into the session's journal), and a reopen
+  handed this device's journal at `status.journaled-taken` too, unless the
+  replica's last append to it failed. One count is conservative: an edit a
+  follower took before it was promoted and that waits for its part to be put is
+  not known among the local edits, so none taken since it was last clean counts
+  as sequenced.
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened

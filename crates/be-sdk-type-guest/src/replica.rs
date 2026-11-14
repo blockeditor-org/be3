@@ -572,6 +572,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// How many local edits were taken when this replica was last clean: all of them are in
     /// its head.
     clean_taken: u64,
+    /// The first local edit that replaces the content and has not landed yet: the replacement
+    /// is published as a commit of its own, not sequenced, so none taken since counts as
+    /// sequenced until it lands or fails.
+    replacing_from: Option<u64>,
     /// How many local edits its seal on the way holds: those sequenced when it began.
     sealing_taken: u64,
     /// How many local edits its head holds (`Status::sealed_taken`).
@@ -850,6 +854,7 @@ where
             taken: 0,
             held_from: 0,
             clean_taken: 0,
+            replacing_from: None,
             sealing_taken: 0,
             sealed_taken: 0,
             journaled_taken: 0,
@@ -1500,6 +1505,7 @@ where
             } => self.reply(id, Answer::Unknown),
             _ => {}
         }
+        self.replace_settled();
     }
 
     fn release(&mut self) {
@@ -2183,6 +2189,11 @@ where
     }
 
     fn answer_awaited(&mut self, event: HeadEvent) {
+        self.answer_wait(event);
+        self.replace_settled();
+    }
+
+    fn answer_wait(&mut self, event: HeadEvent) {
         if !matches!(event, HeadEvent::Published { .. }) {
             self.sealing_through = None;
         }
@@ -2556,10 +2567,12 @@ where
     /// How many local edits an owner has sequenced, so that its confirmed content holds them:
     /// every one taken, but for those whose operations wait in `held`.
     fn sequenced_taken(&self) -> u64 {
-        match self.held.is_empty() {
+        let held = match self.held.is_empty() {
             true => self.taken,
             false => self.held_from.saturating_sub(1),
-        }
+        };
+        self.replacing_from
+            .map_or(held, |from| held.min(from.saturating_sub(1)))
     }
 
     /// Loads a journal on the base just read: its session state, then every operation in it,
@@ -2840,6 +2853,7 @@ where
             FromEditor::Replace(bytes) if editable => {
                 if let Ok(content) = C::decode(&bytes) {
                     self.history.clear();
+                    self.replacing_from.get_or_insert(self.taken);
                     self.jobs.push_front(Job::Replace {
                         content,
                         reply: None,
@@ -3064,11 +3078,33 @@ where
             return self.reply(id, Answer::Changed(false));
         };
         self.history.clear();
+        self.replacing_from.get_or_insert(self.taken);
         self.jobs.push_front(Job::Replace {
             content,
             reply: Some(id),
             outright: true,
         });
+    }
+
+    /// Lets go of `replacing_from` once no replacement is queued or on its way.
+    fn replace_settled(&mut self) {
+        let queued = self
+            .jobs
+            .iter()
+            .any(|job| matches!(job, Job::Replace { .. }));
+        let waiting = matches!(
+            &self.waiting,
+            Some(Wait::Publish {
+                then: AfterPublish::Replace { .. },
+                ..
+            }) | Some(Wait::Stash {
+                then: AfterStash::Replace { .. },
+                ..
+            })
+        );
+        if !queued && !waiting {
+            self.replacing_from = None;
+        }
     }
 
     fn attach(&mut self, editor: EditorId, editable: bool) {
@@ -3220,14 +3256,16 @@ where
     fn report(&mut self) {
         let clean = self.loaded && self.is_clean();
         if clean {
-            self.clean_taken = self.taken;
+            self.clean_taken = self.sequenced_taken();
         }
-        // What its head holds: every local edit once it is clean, otherwise what its last seal
-        // held, or for a follower what it held when it was last clean.
+        // What the host need not give it again: once it is clean, every local edit but a
+        // replacement on its way (an owner's head holds them; a follower's owner accepted them,
+        // into the session's journal), otherwise what an owner's head holds, from its last seal
+        // or its last clean status.
         let sealed_taken = match (&self.role, clean) {
-            (_, true) => self.taken,
+            (_, true) => self.clean_taken,
             (Role::Owner(_), false) => self.sealed_taken.max(self.clean_taken),
-            (Role::Follower(_), false) => self.clean_taken,
+            (Role::Follower(_), false) => 0,
         };
         // An owner's journal holds every edit it sequenced once nothing waits to be appended.
         let journaled_taken = match &self.role {
@@ -4111,7 +4149,7 @@ where
             if let Some(id) = reply {
                 self.reply(id, Answer::Changed(false));
             }
-            return;
+            return self.replace_settled();
         }
         // An outright replace keeps what it replaces as its merge's second parent, which history
         // never prunes: unsaved edits, and on a follower also the saved head, which only the
