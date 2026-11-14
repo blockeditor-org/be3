@@ -2,8 +2,8 @@ use be_type_text::TextContent;
 
 use super::*;
 
-/// The server does not know of a move that waits in this device's outbox: a summary read
-/// meanwhile shows the block where this device moved it, and keeps it there.
+/// The server does not know of a move that waits in this device's outbox: a summary read or
+/// heard meanwhile shows the block where this device moved it, and keeps it there.
 #[tokio::test]
 async fn a_summary_read_while_a_move_waits_to_be_sent_shows_the_move() {
     let harness = Harness::start().await;
@@ -29,6 +29,19 @@ async fn a_summary_read_while_a_move_waits_to_be_sent_shows_the_move() {
         laptop.known_summary(note).unwrap().parent,
         Some(BlockParent::Root),
         "the server's answer replaced the move this device keeps"
+    );
+    // A summary the server sends of its own accord (news of the block) is kept the same way.
+    let told = owner.summary(note).await.unwrap();
+    assert_eq!(told.parent, Some(BlockParent::Block(team)));
+    laptop.learn(std::slice::from_ref(&told)).await.unwrap();
+    assert_eq!(
+        laptop.known_summary(note).unwrap().parent,
+        Some(BlockParent::Root),
+        "news of the block from the server undid the move this device keeps"
+    );
+    assert_eq!(
+        laptop.summary_with_outbox(told).parent,
+        Some(BlockParent::Root)
     );
 
     laptop.drain(|_| false).await.unwrap();

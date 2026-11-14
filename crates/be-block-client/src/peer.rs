@@ -1334,29 +1334,13 @@ impl<S: ObjectStore> Peer<S> {
         self.server_summary(block).await
     }
 
-    /// `summary` as the server answered it, with what this device's outbox still has to tell it
-    /// of the block: where a move waiting there puts it, and the metadata a definition gives it.
-    /// Kept as the server said it, a read answered before those reach the server would undo
-    /// them here until they did.
-    fn with_pending(&self, mut summary: BlockSummary) -> BlockSummary {
-        for (_, op) in self.refs.pending_for(summary.id) {
-            match op {
-                Op::Move(moving) => summary.parent = Some(moving.parent),
-                Op::Define(defining) => summary.metadata = defining.metadata,
-                Op::Create(_) | Op::Publish(_) => {}
-            }
-        }
-        summary
-    }
-
     /// What the server says of a block, or offline what this device last heard.
     pub(super) async fn server_summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         let response = crate::ask(client::blocks::read_block(&self.connection(), block)).await;
         match response {
             Ok(block) => {
-                let block = self.with_pending(block);
                 self.note(&block);
-                Ok(block)
+                Ok(self.summary_with_outbox(block))
             }
             Err(error) if error.is_unreachable() => match self.refs.summary(block) {
                 Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
@@ -1385,6 +1369,10 @@ impl<S: ObjectStore> Peer<S> {
         match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
             Ok(be_block_protocol::Listed { revision, blocks }) => {
                 self.observe(&blocks);
+                let blocks = blocks
+                    .into_iter()
+                    .map(|summary| self.summary_with_outbox(summary))
+                    .collect();
                 let blocks = self.with_outbox(listing, blocks);
                 let _ = self.refs.listed(listing, &blocks, revision);
                 Ok(blocks)
@@ -1419,6 +1407,13 @@ impl<S: ObjectStore> Peer<S> {
             _ => Vec::new(),
         };
         self.with_outbox(listing, blocks)
+    }
+
+    /// A summary the server answered, as this device has it: where a move waiting in the
+    /// outbox puts the block, and the metadata a waiting definition gives it
+    /// (`RefsDb::with_outbox`).
+    pub fn summary_with_outbox(&self, summary: BlockSummary) -> BlockSummary {
+        self.refs.with_outbox(summary)
     }
 
     /// A listing the server answered, as this device has it: what a creation or move waiting in
@@ -1532,7 +1527,10 @@ impl<S: ObjectStore> Peer<S> {
             for summary in &blocks {
                 self.note(summary);
             }
-            summaries.extend(blocks.into_iter().zip(journals));
+            let blocks = blocks
+                .into_iter()
+                .map(|summary| self.summary_with_outbox(summary));
+            summaries.extend(blocks.zip(journals));
         }
         futures_util::future::try_join_all(summaries.into_iter().map(
             |(summary, journal)| async move {

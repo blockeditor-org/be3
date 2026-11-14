@@ -235,8 +235,13 @@ sends it. `Peer::write` does both.
   content (`Op::Define`); these rewrite the cached summary so listings show
   them, and later ones for a block queue behind earlier ones. `keep_creation`,
   `keep_definition` and `keep_move` put them there online too (the host's
-  path); a publish waits behind a creation, move or define of its block, and a
-  server listing is laid over with what the outbox adds or moves. Sending a
+  path); a publish waits behind a creation, move or define of its block. Every
+  summary the server gives is laid over with what the outbox has yet to send of
+  its block, a waiting move's parent and a waiting define's metadata, as it is
+  kept (`RefsDb::put`) and where it is returned (`Peer::summary_with_outbox`),
+  and a server listing with what the outbox adds or moves (`Peer::with_outbox`):
+  an answer the server gave before those reached it would otherwise undo them
+  here. Sending a
   move carries its databases' prefixes along (`Moving::from`). Sharing, access,
   members, invites, agents, contacts and pairing need the server.
 - **`Peer::drain`** publishes the outbox in order once attached and reports a

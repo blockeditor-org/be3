@@ -717,7 +717,28 @@ impl Refs {
     }
 
     /// Keeps a summary unless this device already has a newer one of the block.
+    /// `summary` with what the outbox has yet to tell the server of its block: where a waiting
+    /// move puts it, and the metadata a waiting definition gives it. Kept as the server said it,
+    /// an answer the server gave before those reached it would undo them here.
+    pub fn with_outbox(&self, summary: BlockSummary) -> BlockSummary {
+        Self::with_outbox_locked(&self.state.lock().unwrap(), summary)
+    }
+
+    fn with_outbox_locked(state: &State, mut summary: BlockSummary) -> BlockSummary {
+        for op in state.outbox.values().filter(|op| op.block() == summary.id) {
+            match op {
+                Op::Move(moving) => summary.parent = Some(moving.parent),
+                Op::Define(defining) => summary.metadata = defining.metadata.clone(),
+                Op::Create(_) | Op::Publish(_) => {}
+            }
+        }
+        summary
+    }
+
+    /// Keeps `summary`, every summary this device keeps passing here, with what the outbox has
+    /// yet to send laid over it (`with_outbox`).
     fn put(state: &mut State, summary: &BlockSummary, rows: &mut Vec<Row>) {
+        let summary = &Self::with_outbox_locked(state, summary.clone());
         let newer = state
             .summaries
             .get(&summary.id)

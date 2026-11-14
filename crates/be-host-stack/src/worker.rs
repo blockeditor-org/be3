@@ -3572,6 +3572,7 @@ async fn heard(
 ) {
     match event {
         Some(Event::BlockChanged(block)) => {
+            let block = peer.summary_with_outbox(block);
             if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
                 record(shared, error);
             }
@@ -4158,6 +4159,7 @@ async fn settled(
     }
     match reply {
         Ok(summary) => {
+            let summary = peer.summary_with_outbox(summary);
             if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
                 record(shared, error);
             }
