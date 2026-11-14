@@ -27,6 +27,12 @@ export default async function (test) {
     await ada.drive("wait", 'Label value="Dev"');
     await ada.drive("key", "Escape");
     await ada.drive("wait", "not", 'Dialog "Contacts"');
+    // Dev's device hears of Ada as a contact, which it names her by and shares with.
+    await test.drive("click", "#file-tree.host-menu");
+    await test.drive("click", "#host.menu.contacts");
+    await test.drive("wait", 'Label value="Ada"');
+    await test.drive("key", "Escape");
+    await test.drive("wait", "not", 'Dialog "Contacts"');
 
     // Dev turns notifications on, which registers this browser's endpoint with the server.
     await test.drive("click", 'Tab "Settings"');
@@ -53,6 +59,7 @@ export default async function (test) {
     await test.drive("click", "#share.query");
     await test.drive("type", "Ada");
     await test.drive("key", "Enter");
+    await test.drive("wait", "#share.add");
     await test.drive("click", "#share.add");
     await test.drive("wait", 'Label value="ada@localhost"');
     await test.drive("click", "#share.close");

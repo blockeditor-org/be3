@@ -31,7 +31,9 @@ async fn an_unauthenticated_connection_is_closed_unless_it_signs_in() {
         .call(|peer| client::account::authenticate(peer, Some(token)))
         .await;
     assert!(response.is_ok(), "{response:?}");
-    let response = logging_out.call(|peer| client::account::logout(peer, None)).await;
+    let response = logging_out
+        .call(|peer| client::account::logout(peer, None))
+        .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     logging_out.ended().await;
 

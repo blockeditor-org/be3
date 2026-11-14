@@ -528,7 +528,10 @@ impl TestClient {
                     .await,
             ),
         ));
-        answers.push(("logout", answered(client::account::logout(peer, None).await)));
+        answers.push((
+            "logout",
+            answered(client::account::logout(peer, None).await),
+        ));
         answers
     }
 

@@ -30,7 +30,13 @@ async fn a_logout_naming_the_devices_endpoint_forgets_it_in_every_organization()
         kept[0].address.ends_with("/other"),
         "another device's endpoint is kept: {kept:?}"
     );
-    assert!(store.push_endpoints(account, team).await.unwrap().is_empty());
+    assert!(
+        store
+            .push_endpoints(account, team)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     harness.stop().await;
 }
