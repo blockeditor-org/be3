@@ -6,8 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use std::{env, fs, thread};
 
-const USAGE: &str =
-    "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]";
+const USAGE: &str = "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]";
 const HARNESS: &str = "//crates/be-host-tests:test-harness";
 const BUNDLE: &str = "//crates/be-host-tests:host-with-all";
 const LIBRARIES: &str = "//crates/be-host-tests:host-libraries";
@@ -156,8 +155,7 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
                     }
                     let log = output.join(format!("{run}.log"));
                     let paintings = output.join(run.to_string());
-                    if let Err(reason) = once(&built, &options, &log, &paintings)
-                    {
+                    if let Err(reason) = once(&built, &options, &log, &paintings) {
                         failures
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -268,7 +266,14 @@ fn host_with(apps: &[String]) -> String {
 /// what `apart_env` sets instead for a test that names them.
 fn build(apps: Option<&[String]>) -> Result<Built, String> {
     let bundle_target = apps.map_or_else(|| BUNDLE.to_owned(), host_with);
-    let mut targets = vec![HARNESS, bundle_target.as_str(), HOST, AMD64_TEST, AMD64, LAVAPIPE];
+    let mut targets = vec![
+        HARNESS,
+        bundle_target.as_str(),
+        HOST,
+        AMD64_TEST,
+        AMD64,
+        LAVAPIPE,
+    ];
     if apps.is_some() {
         targets.push(LIBRARIES);
     }
@@ -305,30 +310,30 @@ fn build(apps: Option<&[String]>) -> Result<Built, String> {
         ),
     };
     let mut environment = vec![
-            (bundle, bundled),
-            (host, path(HOST)?.display().to_string()),
-            (
-                libraries_variable,
-                format!(
-                    "{}:{}",
-                    libraries(&amd64_test).display(),
-                    libraries(&amd64).display()
-                ),
+        (bundle, bundled),
+        (host, path(HOST)?.display().to_string()),
+        (
+            libraries_variable,
+            format!(
+                "{}:{}",
+                libraries(&amd64_test).display(),
+                libraries(&amd64).display()
             ),
-            (icd, path(LAVAPIPE)?.display().to_string()),
-            (
-                xkb,
-                amd64_test.join("usr/share/X11/xkb").display().to_string(),
-            ),
-            (
-                manifest,
-                env::current_dir()
-                    .map_err(|error| format!("no working directory: {error}"))?
-                    .join("crates/be-host-tests")
-                    .display()
-                    .to_string(),
-            ),
-        ];
+        ),
+        (icd, path(LAVAPIPE)?.display().to_string()),
+        (
+            xkb,
+            amd64_test.join("usr/share/X11/xkb").display().to_string(),
+        ),
+        (
+            manifest,
+            env::current_dir()
+                .map_err(|error| format!("no working directory: {error}"))?
+                .join("crates/be-host-tests")
+                .display()
+                .to_string(),
+        ),
+    ];
     if let Some(apps) = apps {
         let mut staged: Vec<&str> = BASE_APPS
             .into_iter()

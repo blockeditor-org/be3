@@ -20,5 +20,8 @@ fn a_status_counts_the_local_edits_its_replica_took_since_it_opened() {
     assert_eq!(sim.devices[0].status.taken, 3);
     sim.reopen(0);
     sim.settle();
-    assert_eq!(sim.devices[0].status.taken, 0, "opened again, it counts from none");
+    assert_eq!(
+        sim.devices[0].status.taken, 0,
+        "opened again, it counts from none"
+    );
 }

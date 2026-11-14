@@ -55,9 +55,8 @@ fn a_child_added_to_a_folder_whose_creation_waits_stays_in_it_once_it_joins() {
         .block_on(joins.wait_for(|joins| *joins > joined_before))
         .expect("the folder's replica joined its session once it was sent");
     flush_and_send();
-    let references = crate::wait_until(|shared| {
-        shared.graph.get(folder).map(|node| node.references.clone())
-    });
+    let references =
+        crate::wait_until(|shared| shared.graph.get(folder).map(|node| node.references.clone()));
     assert!(
         references.contains(&child),
         "the folder's references keep the child: {references:?}"
