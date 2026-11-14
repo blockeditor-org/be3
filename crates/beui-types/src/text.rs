@@ -284,6 +284,9 @@ pub enum Piece<'a> {
         text: &'a str,
         style: SpanStyle,
         break_after: bool,
+        /// Isolated for bidi, as HTML's `<bdi>`: its own direction, and a neutral to the
+        /// text around it.
+        isolate: bool,
     },
     Inline {
         index: usize,
@@ -306,6 +309,7 @@ impl<'a> Piece<'a> {
             text,
             style,
             break_after: false,
+            isolate: false,
         }
     }
 
@@ -366,4 +370,89 @@ impl From<FontId> for FontPatch {
 pub struct IconSpan {
     pub scale: f32,
     pub spacing_em: f32,
+}
+
+/// Text as runs, for a prop that takes a string (a dialog's title) when part of it is what
+/// someone typed: a run can be isolated for bidi, as HTML's `<bdi>`, so a right-to-left name
+/// cannot carry the words or punctuation around it across itself. A `Text` takes a `Phrase` as
+/// content and lays each run out as a `Span` (an isolated one with `isolate`); anything that
+/// reads the phrase as one string (an accessibility label) joins its runs. A string converts to a
+/// phrase of one plain run, so a prop of `Phrase` takes a string as before.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub struct Phrase {
+    runs: Vec<PhraseRun>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct PhraseRun {
+    pub text: String,
+    pub isolate: bool,
+}
+
+impl Phrase {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a run in the phrase's own direction.
+    pub fn text(mut self, text: impl Into<String>) -> Self {
+        self.push(text.into(), false);
+        self
+    }
+
+    /// Adds a run isolated for bidi.
+    pub fn isolated(mut self, text: impl Into<String>) -> Self {
+        self.push(text.into(), true);
+        self
+    }
+
+    /// Adds `text` in curly quotes, isolated inside them: the quotes belong to the words around
+    /// it, so they stay where those words put them.
+    pub fn quoted(self, text: impl Into<String>) -> Self {
+        self.text("\u{201c}").isolated(text).text("\u{201d}")
+    }
+
+    fn push(&mut self, text: String, isolate: bool) {
+        if text.is_empty() {
+            return;
+        }
+        match self.runs.last_mut() {
+            Some(last) if !isolate && !last.isolate => last.text.push_str(&text),
+            _ => self.runs.push(PhraseRun { text, isolate }),
+        }
+    }
+
+    pub fn runs(&self) -> &[PhraseRun] {
+        &self.runs
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.runs.is_empty()
+    }
+}
+
+impl std::fmt::Display for Phrase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.runs.iter().try_for_each(|run| f.write_str(&run.text))
+    }
+}
+
+impl From<String> for Phrase {
+    fn from(text: String) -> Self {
+        Self::new().text(text)
+    }
+}
+
+impl From<&str> for Phrase {
+    fn from(text: &str) -> Self {
+        Self::new().text(text)
+    }
+}
+
+beui_tree::reactive::into_prop_via!(Phrase, String, Phrase::from);
+
+impl beui_tree::reactive::IntoProp<Phrase> for &'static str {
+    fn into_prop(self) -> beui_tree::reactive::Prop<Phrase> {
+        beui_tree::reactive::Prop::Static(Phrase::from(self))
+    }
 }

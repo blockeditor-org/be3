@@ -182,6 +182,7 @@ impl Span {
             strikethrough: self.strikethrough.get_untracked(),
             background: self.background.get_untracked(),
             break_after: self.break_after.get_untracked(),
+            isolate: self.isolate.get_untracked(),
             icon: self.icon,
         }
     }
@@ -208,6 +209,9 @@ impl Span {
         });
         bind(text, &handle, self.break_after, |content, value| {
             content.break_after = value;
+        });
+        bind(text, &handle, self.isolate, |content, value| {
+            content.isolate = value;
         });
         handle
     }
