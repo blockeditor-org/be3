@@ -293,9 +293,8 @@ pub async fn accept_invitation(
     code: be_block_keys::InviteCode,
 ) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    if let (LinkKind::Contact(_), _) =
-        be_block_client::contacts::open_link(&connection, &code).await?
-    {
+    let (opened, _) = be_block_client::contacts::open_link(&connection, &code).await?;
+    if let LinkKind::Contact(_) = opened.kind {
         return Err(not_an_invitation());
     }
     let (link, _) =

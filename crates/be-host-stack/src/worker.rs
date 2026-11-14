@@ -2755,7 +2755,8 @@ async fn contact(
         ContactCommand::Accept { code, reply } => {
             let accepted =
                 be_block_client::contacts::accept_link(&peer.connection(), identity, &me, &code)
-                    .await;
+                    .await
+                    .map(|(_, card)| card);
             if accepted.is_ok() {
                 tasks.sync_contacts(peer, shared).await;
             }
