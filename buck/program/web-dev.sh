@@ -71,7 +71,7 @@ rm -rf "$dir/profile/Default/Sessions"
 setsid "$server" --build-info-file "$bundle/build-info.json" --addr "127.0.0.1:$backend" --data-dir "$dir/server" --allow-login --allow-registration --auth-origin "http://127.0.0.1:$port" \
     > "$dir/server.log" 2>&1 < /dev/null &
 echo $! > "$dir/server.pid"
-BE3_DOMAIN_NAME="http://127.0.0.1:$port" BE3_BACKEND_URL="127.0.0.1:$backend" \
+BE3_SITE="http://127.0.0.1:$port, http://localhost:$port" BE3_BIND=127.0.0.1 BE3_BACKEND_URL="127.0.0.1:$backend" \
     BE3_WEB_ROOT="$(cd "$bundle" && pwd)" CADDY_ADMIN="127.0.0.1:$admin" \
     setsid "$caddy" run --adapter caddyfile --config "$caddyfile" \
     > "$dir/caddy.log" 2>&1 < /dev/null &
