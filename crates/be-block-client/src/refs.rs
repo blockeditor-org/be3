@@ -346,7 +346,6 @@ struct JournalHead {
     /// A seal this device made of the journal, with the last sequence it holds, written with
     /// the seal's commit in one write and dropped by the next rebase: while it stands, the
     /// seal's commit holds the journal through that sequence (`Peer::sealing`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     sealing: Option<(CommitId, u64)>,
 }
 

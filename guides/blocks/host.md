@@ -122,6 +122,18 @@ block. Meanwhile it keeps serving from the same `Peer` (the loop's `Line`:
 and each is asked to seal at once, locally, since reconnecting reopens it from
 its head.
 
+- **Reopening a replica** (joining, rejoining, a module restart) starts it on
+  the last head it reported, with the journal on that head (`journal_on`: the
+  server's or this device's, whichever holds more), and gives it again the
+  editors' edits since its last clean report. The journal carries the session's
+  state, which numbers each writer's next edit: without it an edit an editor made
+  on what it was shown is refused as out of order. A join's answer waits
+  (`Replicas::settling`) while a seal of the replica is asked, on its way, or
+  answered and not yet reported, since its head is moving past the reported one.
+- **A connection asked to close** reads as closed at once
+  (`Connection::is_closed`), so be-host's link never hands a new stack the one a
+  stopping stack closed.
+
 - **Opening early.** A block this device knows opens from its local head as a
   follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
