@@ -183,7 +183,9 @@ A `-sys` crate's pkg-config is answered from the sysroot by the `_PKG_CONFIG` fi
 Every test is one rule, `be_test` (buck/dev/test.bzl): a harness (`:test-harness`, the test
 binary, or a wasm module, a fuzz target, a browser script), its arguments and environment, run
 through crates/be-tool-run-test, which gives it a short `TMPDIR` of its own, its
-`LD_LIBRARY_PATH`, a time limit (`TEST_TIME_LIMIT`) and the outputs below. Its
+`LD_LIBRARY_PATH`, a time limit (`TEST_TIME_LIMIT`) and the outputs below, stops what the test
+left running in its process group, and ends the output with the CPU the test's processes used
+(guides/performance.md, Keeping verify cheap). Its
 `TestRunInfo` says what it runs. buck2 test runs it again every time unless a worker ran it and
 the build server caches the result (`supports_test_execution_caching`), and brings back no
 files, so each `:test` also has `[run]`, the same command as an action, cached like any other;
@@ -243,7 +245,8 @@ fail.
 `./scripts/verify` and `./scripts/ci` are one `buck2 bxl --keep-going` of `buck/dev/verify.bxl`,
 with `--host` and a `--part` for each part asked for: `lint`, every `source_fix` in the root and
 toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check pass;
-`app-tests`, those that paint; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
+`app-tests`, those that paint; `thorough`, the thorough tests (below), which the other two leave
+out, and `tests` builds be-host's `:web-dist` in their place; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
 always the crates' rules and Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile
 generated anew, and crates/be-tool-verify. It finds
 each by kind, so a new package, test or crate needs no list. Each test is configured for its own
@@ -254,6 +257,21 @@ shares: an action declared in BXL would have its output under a path keyed by th
 arguments. It prints the manifest crates/be-tool-verify reads, a `kind<TAB>path` line each,
 worked out before anything builds, so the bootstrap writes it whole to
 `target/verify-manifest.txt` even when something failed, and buck2 still exits non-zero.
+
+**Thorough tests** carry the label `THOROUGH` (buck/dev/test.bzl): each run stays costly on the
+build server however it is written, and a change most verifies make reruns it, so
+`./scripts/verify` leaves them out and `./scripts/verify --thorough` runs them alone, one buck2
+command as verify is. .github/workflows/thorough.yml runs that when started by hand. Run it
+too after a change to what they cover; `./scripts/test` runs one by name as any other. A
+thorough test may not paint (verify's paintings part would find its paintings unused). They are:
+
+- every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test` and
+  `//crates/be-host:push-web-host-test`, the whole web page with every app in Chromium, drawn on
+  SwiftShader. In November 2026 a run took about 84 and 159 CPU seconds, a fifth of all test CPU
+  when every test reran, and depends on be-host and every app (guides/performance.md, Keeping
+  verify cheap). They were the only per-change build of the web bundle, so the `tests` part
+  builds `//crates/be-host:web-dist` (the bundle without its apps: be-host for wasi, the gpu
+  shim, wasm-bindgen and the page) to keep catching a change that breaks its compile or link.
 
 The check pass is rustc's `[check]` over the first-party `rust_library` and `rust_binary`
 targets on `linux_x86_64` that nothing else verify builds compiles, found in the configured

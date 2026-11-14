@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>be3</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; display: grid; place-items: center; min-height: 80vh; }
+  form { display: grid; gap: 12px; width: min(100%, 360px); }
+  input, button { font: inherit; padding: 8px 10px; }
+</style>
+</head>
+<body>
+<!-- The only page api.be3.pfg.pw serves without the gateway key (Caddyfile): it stores the key as the cookie Caddy
+     checks, then goes back where the browser was headed (/#next=PATH) or on to the web build. JavaScript can set
+     only a cookie it can also read, which is enough here. -->
+<form id="gate">
+  <label for="key">Gateway key</label>
+  <input id="key" type="password" autocomplete="current-password" required autofocus>
+  <button type="submit">Continue</button>
+</form>
+<script>
+  document.getElementById("gate").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const key = document.getElementById("key").value.trim();
+    document.cookie = "be3_gateway=" + encodeURIComponent(key) + "; Path=/; Max-Age=31536000; Secure; SameSite=Lax";
+    const next = location.hash.startsWith("#next=") ? location.hash.slice(6) : "";
+    location.href = next.startsWith("/") && !next.startsWith("//") ? next : "https://be3.pfg.pw/";
+  });
+</script>
+</body>
+</html>

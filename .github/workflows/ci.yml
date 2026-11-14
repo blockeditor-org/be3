@@ -123,7 +123,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
 
-      - uses: ./.github/actions/buck2
+      - uses: $/.github/actions/buck2
         if: ${{ !cancelled() }}
 
       # What draws the browser paintings in the previews: Playwright, driving
@@ -158,7 +158,7 @@ jobs:
           # release builds, four for Windows and macOS, are made only when a
           # pull request changes one of these (guides/bootstrap.md).
           BOOTSTRAP_INPUTS: >-
-            crates/be-tool-bootstrap crates/be-lib-prompt crates/be-lib-crate-pins Cargo.lock
+            crates/be-tool-bootstrap crates/be-lib-prompt crates/be-lib-crate-pins crates/be-lib-build-record Cargo.lock
             buck/cargo buck/platforms buck/sysroot buck/toolchains buck/tools
             third-party/rust scripts/internal/pins .buckconfig
         run: |

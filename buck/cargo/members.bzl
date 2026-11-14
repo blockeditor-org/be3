@@ -64,6 +64,7 @@ members = [
     "crates/be-host-win32-capture",
     "crates/be-host-win32-input",
     "crates/be-lib-build-id",
+    "crates/be-lib-build-record",
     "crates/be-lib-crate-pins",
     "crates/be-lib-dmabuf",
     "crates/be-lib-geometry",

@@ -1,10 +1,10 @@
-use super::super::stats::{Context, record};
+use super::super::{Context, record};
 
 #[test]
 fn a_builds_record_counts_what_ran_and_what_was_cached() {
     let action = |kind: u64, category: &str, name: &str, wall: u64| {
         format!(
-            r#"{{"Event":{{"timestamp":[100,0],"trace_id":"t","data":{{"SpanEnd":{{"data":{{"ActionExecution":{{"key":{{"owner":{{"TargetLabel":{{"label":{{"package":"root//crates/a","name":"{name}"}}}}}}}},"name":{{"category":"{category}","identifier":""}},"execution_kind":{kind},"wall_time_us":{wall},"failed":false,"commands":[{{"details":{{"metadata":{{"queue_duration_us":2000000}}}}}}]}}}}}}}}}}}}"#
+            r#"{{"Event":{{"timestamp":[100,0],"trace_id":"t","data":{{"SpanEnd":{{"data":{{"ActionExecution":{{"key":{{"owner":{{"TargetLabel":{{"label":{{"package":"root//crates/a","name":"{name}"}}}}}}}},"name":{{"category":"{category}","identifier":""}},"execution_kind":{kind},"wall_time_us":{wall},"failed":false,"commands":[{{"details":{{"stderr":"ok\nrun-test: the test used 7.5 s of CPU (7.0 user, 0.5 system) in 3.0 s, at most 9 MB resident\n","metadata":{{"queue_duration_us":2000000}}}}}}]}}}}}}}}}}}}"#
         )
     };
     let events = [
@@ -44,6 +44,7 @@ fn a_builds_record_counts_what_ran_and_what_was_cached() {
         .map(|action| action["target"].as_str().unwrap())
         .collect();
     assert_eq!(slow, ["crates/a:test", "crates/a:slow"]);
+    assert_eq!(record["slow"][0]["cpu_seconds"], 7.5);
     assert_eq!(
         record["critical_path"],
         serde_json::json!([{"what": "rustc link crates/a:slow", "seconds": 12.0, "queue_seconds": 2.0}])

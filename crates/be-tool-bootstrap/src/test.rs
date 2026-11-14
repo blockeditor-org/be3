@@ -108,6 +108,11 @@ fn run(buck2: &Path, targets: &[String], name: &str) -> Result<bool> {
         arguments.push(name.to_owned());
     }
     let (status, _) = buck::retrying(buck2, &arguments, false, true, Some(&log))?;
+    be_lib_build_record::report(
+        &repository(),
+        &events,
+        &be_lib_build_record::Context::here("test", String::new(), status == 0),
+    );
     let results = results(&events)?;
     let mut failed = status != 0;
     let mut reported = BTreeSet::new();

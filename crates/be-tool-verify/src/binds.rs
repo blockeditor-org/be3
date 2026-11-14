@@ -28,9 +28,14 @@ const ALLOWED_LINES: &[(&str, &str)] = &[
 
 const WILDCARD_SITE: &str = "0.0.0.0 | \"[::]\") site=\"http://:$port\" ;;";
 
-/// The Caddyfiles of servers deployed by hand, which face the internet on
-/// purpose (guides/build_server.md).
-const DEPLOYED: &str = "scripts/internal/";
+/// Where the configurations of deployed servers live, which face the internet
+/// on purpose: the build server (guides/build_server.md) and the servers under
+/// servers/ (guides/hosting.md).
+const DEPLOYED: &[&str] = &["scripts/internal/", "servers/"];
+
+fn deployed(path: &str) -> bool {
+    DEPLOYED.iter().any(|dir| path.starts_with(dir))
+}
 
 const WILDCARDS: &[&str] = &[
     "0.0.0.0",
@@ -51,14 +56,14 @@ pub fn wildcard_binds(path: &str, text: &str) -> Vec<String> {
     let name = path.rsplit('/').next().unwrap_or(path);
     let mut problems = Vec::new();
     if (name == "Caddyfile" || name.ends_with(".Caddyfile"))
-        && !path.starts_with(DEPLOYED)
+        && !deployed(path)
         && !text.lines().any(binds_loopback)
     {
         problems.push(format!(
             "{path}: a Caddyfile needs `default_bind {{$NAME_BIND:127.0.0.1}}` in its global options, or Caddy listens on every interface"
         ));
     }
-    if ALLOWED.contains(&path) || path.ends_with(".md") || path.starts_with(DEPLOYED) {
+    if ALLOWED.contains(&path) || path.ends_with(".md") || deployed(path) {
         return problems;
     }
     for (index, line) in text.lines().enumerate() {

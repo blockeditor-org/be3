@@ -7,6 +7,12 @@ load("@root//buck/tools:defs.bzl", "worker_properties")
 # and every later run of the same action would wait on that one.
 TEST_TIME_LIMIT = "20m"
 
+# The label of a thorough test: one that stays costly however it is written, which
+# ./scripts/verify leaves out and ./scripts/verify --thorough runs alone
+# (buck/dev/verify.bxl; guides/buck2.md, What verify builds, names each and why).
+# A thorough test may not paint, since verify's own part would then find its paintings unused.
+THOROUGH = "thorough"
+
 # What a test runs, for ./scripts/verify and ./scripts/test --update
 # (buck/dev/verify.bxl and buck/dev/test.bxl), which run it as an action
 # (run_test) rather than through buck2 test: `launcher` is crates/be-tool-run-test with the test's

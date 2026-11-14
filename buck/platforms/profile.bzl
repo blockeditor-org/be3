@@ -49,18 +49,32 @@ def dev_only(flags):
     })
 
 # Every opt level the build sets, by what is compiled: (cargo's dev profile on
-# the host, the dev profile on wasm, the release profile), None where the kind
-# keeps the toolchain's. The toolchain's applies to every crate, third-party
-# ones included; the rest are added to a first-party crate's own flags, after
-# the toolchain's, which they override.
+# the host, the dev profile on wasm, the release profile, the release profile on
+# wasm32-unknown-unknown), None where the kind keeps the toolchain's. The
+# toolchain's applies to every crate, third-party ones included; the rest are
+# added to a first-party crate's own flags, after the toolchain's, which they
+# override.
 #
 # - toolchain: cargo's dev profile on the host, its app profile on wasm, since
 #   cranelift is far slower at an unoptimised module, and its release profile.
-#   The opt level is also what tells build scripts OPT_LEVEL.
+#   The opt level is also what tells build scripts OPT_LEVEL, so the
+#   toolchain's release level is 3 everywhere: libm's build script fails at s.
 # - member, every workspace crate: on wasm outside a release build, 1 rather
 #   than the app profile's 2. A change under beui recompiles each of them for
 #   the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
-#   change to geometry, for modules no slower to precompile or test.
+#   change to geometry, for modules no slower to precompile or test. In a
+#   release build on wasm32-unknown-unknown, which is the type modules (and
+#   the games, input remaps and the browser's gpu shim, whose heavy part is
+#   third-party), `s`: the checklist's module went from 2.29 MB to 1.67 MB
+#   (1.64 MB at z), every type module a quarter to a third smaller, and
+#   compiling them took about half the CPU it did at 3. Saving a 50 MB paste
+#   in be-host-bench, which is the text type module's seal and its publish to a
+#   server 30 ms away, took a third longer by wall time (3.5 s to 4.6 s, the
+#   medians of three runs each), and half again at z. The type module's own CPU
+#   in a perf profile of the whole bench was a twentieth to a fifth more (two
+#   runs each, which disagreed), so the wall time is partly noise. Apps and their libraries (WASI)
+#   keep 3: at s their frames were a fifth to a third slower, and at z the
+#   canvas's slowest frame took four times as long, for apps two fifths smaller.
 # - app, an app's own crate (app_module in buck/wasm/defs.bzl): 0 outside a
 #   release build. Most of an app's code is beui's generics instantiated anew,
 #   so a change under beui recompiles every app, and at 2 LLVM made that the
@@ -68,19 +82,23 @@ def dev_only(flags):
 #   compiling at 2 and 270 at 0. The modules are about two and a half times the
 #   size and take half as long again to precompile, and the app tests ran no
 #   slower.
-# - app_test, a crate's tests compiled to wasm (app_tests): 0 in every profile.
-#   Every module instantiates beui's generics anew, so a change to beui
-#   recompiles about thirty of them at once, and at 2 LLVM is most of that: the
-#   step took twice as long, though the tests run faster and the modules are
-#   smaller to precompile.
+# - app_test, a crate's tests compiled to wasm (app_tests): 1 on wasm, 0 in a
+#   release build. Every module instantiates beui's generics anew, so a change
+#   to beui recompiles about thirty of them at once, and each is then
+#   precompiled (wasm_test_harness), which costs about as much CPU again. At 2
+#   LLVM is most of that: the step took twice as long, though the tests run
+#   faster and the modules are smaller to precompile. At 1 rather than 0
+#   checklist's tests took the same CPU to compile (93 s against 95) and 15%
+#   less to precompile (60 s against 71), since most of a module's code is
+#   its dependencies', compiled at their own levels.
 # - fuzz, a fuzz target and the library under it (cargo_fuzz): optimised, as
 #   cargo-fuzz builds one.
 OPT_LEVELS = {
-    "app": (None, 0, None),
-    "app_test": (None, 0, 0),
-    "fuzz": (3, 3, 3),
-    "member": (None, 1, None),
-    "toolchain": (0, 2, 3),
+    "app": (None, 0, None, None),
+    "app_test": (None, 1, 0, 0),
+    "fuzz": (3, 3, 3, 3),
+    "member": (None, 1, None, "s"),
+    "toolchain": (0, 2, 3, 3),
 }
 
 def _opt_flag(level):
@@ -88,15 +106,18 @@ def _opt_flag(level):
 
 # A kind's opt level other than the toolchain's, as flags.
 def opt_flags(kind):
-    host, wasm, release = OPT_LEVELS[kind]
-    if host == wasm and wasm == release:
+    host, wasm, release, release_wasm32 = OPT_LEVELS[kind]
+    if host == wasm and wasm == release and release == release_wasm32:
         return _opt_flag(host)
     return select({
         "DEFAULT": select({
             "DEFAULT": _opt_flag(host),
             "prelude//cpu:wasm32": _opt_flag(wasm),
         }),
-        "root//buck/constraints:release": _opt_flag(release),
+        "root//buck/constraints:release": select({
+            "DEFAULT": _opt_flag(release),
+            "prelude//os:none": _opt_flag(release_wasm32),
+        }),
     })
 
 # A target in cargo's release profile whatever the command asked for, for what
