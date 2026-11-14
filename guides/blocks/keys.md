@@ -39,7 +39,7 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   epoch) and `wrapped_keys` (key, `wrapped_by`: a key id or `account:{uuid}`,
   sender set by the server to the storing account). `GetKeys` serves rows of
   blocks the account can view and wraps by its account or a key it is served,
-  a page at a time in the order of key ids (`KEY_PAGE_BYTES`, each key with its
+  a page at a time in the order of key ids (`ServerConfig::key_page_bytes`, each key with its
   wraps), which `Peer::refresh_keys` reads through;
   `PutKeys`, `CreateBlock` and `SetParent` store rows only for blocks the
   caller may edit, never replace a sealed row, and refuse a seal to any account

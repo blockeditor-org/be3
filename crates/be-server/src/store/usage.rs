@@ -36,6 +36,8 @@ pub struct StorageLimits {
     pub upload_grace: Duration,
     /// The bytes one commit of a search index may hold (`ServerConfig::max_index_bytes`).
     pub max_index_bytes: u64,
+    /// The bytes of keys one `get-keys` page holds (`ServerConfig::key_page_bytes`).
+    pub key_page_bytes: usize,
 }
 
 impl StorageLimits {
@@ -43,6 +45,7 @@ impl StorageLimits {
         account_quota: Some(DEFAULT_ACCOUNT_QUOTA),
         upload_grace: DEFAULT_UPLOAD_GRACE,
         max_index_bytes: crate::limits::MAX_INDEX_BYTES,
+        key_page_bytes: crate::limits::KEY_PAGE_BYTES,
     };
 }
 
@@ -373,6 +376,10 @@ impl ServerStore {
     /// How long an upload no block took, or an `until-committed` hold, lasts.
     pub(crate) fn max_index_bytes(&self) -> u64 {
         self.limits.max_index_bytes
+    }
+
+    pub(crate) fn key_page_bytes(&self) -> usize {
+        self.limits.key_page_bytes
     }
 
     pub(crate) fn upload_grace(&self) -> Duration {

@@ -1167,7 +1167,7 @@ impl<S: ObjectStore> Peer<S> {
         owner_only: bool,
     ) -> Result<Creation, ClientError> {
         let (key, keys) = self.new_keys(block, parent, owner_only).await?;
-        let references = deduplicated(self.resolve(block, metadata.references()));
+        let references = bounded(deduplicated(self.resolve(block, metadata.references())))?;
         let metadata = self.commits.vault().seal(key, &metadata.encode())?;
         Ok(Creation {
             block,
@@ -1206,7 +1206,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         let Some(head) = head else {
             let sealed = self.seal_metadata(block, &next).await?;
-            let references = deduplicated(self.resolve(block, next.references()));
+            let references = bounded(deduplicated(self.resolve(block, next.references())))?;
             return self.define_locally(summary, sealed, references);
         };
         let commit = self.load_commit(head).await?;
@@ -1243,7 +1243,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             let Some(head) = head else {
                 let sealed = self.seal_metadata(block, &next).await?;
-                let references = deduplicated(self.resolve(block, next.references()));
+                let references = bounded(deduplicated(self.resolve(block, next.references())))?;
                 if !self.is_attached() || self.refs.has_structural(block) {
                     return self.define_locally(summary, sealed, references);
                 }
@@ -1408,6 +1408,7 @@ impl<S: ObjectStore> Peer<S> {
         let response = crate::ask(client::blocks::list_blocks(
             &self.connection(),
             Listing::Block(block),
+            None,
         ))
         .await
         .and_then(|listed| {
@@ -1467,27 +1468,84 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// The server's answer to `listing`, with the summaries of its `rest` read after it.
+    /// The server's answer to `listing`, every page of it, with the summaries of each page's
+    /// `rest` read after it. Summaries read after the first page are newer than the listing's
+    /// revision, so one the listing would no longer hold is left out (`still_in`).
     async fn list_online(&self, listing: Listing) -> Result<(u64, Vec<BlockSummary>), ClientError> {
-        let be_block_protocol::Listed {
-            revision,
-            mut blocks,
-            rest,
-        } = crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await?;
-        let mut rest = &rest[..];
-        while !rest.is_empty() {
-            let read = crate::ask(client::blocks::read_summaries(
+        let mut first_revision = None;
+        let mut after = None;
+        // The listing in order: a summary given, or an id whose summary is read below.
+        let mut entries: Vec<Result<BlockSummary, Uuid>> = Vec::new();
+        loop {
+            let page = crate::ask(client::blocks::list_blocks(
                 &self.connection(),
-                rest.to_vec(),
+                listing,
+                after,
             ))
             .await?;
-            if read.is_empty() || read.len() > rest.len() {
-                return Err(ClientError::Unexpected);
+            let later = first_revision.is_some();
+            first_revision.get_or_insert(page.revision);
+            entries.extend(
+                page.blocks
+                    .into_iter()
+                    .filter(|summary| !later || still_in(listing, summary))
+                    .map(Ok),
+            );
+            entries.extend(page.rest.into_iter().map(Err));
+            match page.next {
+                Some(next) => after = Some(next),
+                None => break,
             }
-            rest = &rest[read.len()..];
-            blocks.extend(read.into_iter().flatten());
         }
-        Ok((revision, blocks))
+        let ids: Vec<Uuid> = entries
+            .iter()
+            .filter_map(|entry| entry.as_ref().err().copied())
+            .collect();
+        let mut read: HashMap<Uuid, BlockSummary> = self
+            .read_summaries(&ids)
+            .await?
+            .into_iter()
+            .filter(|summary| still_in(listing, summary))
+            .map(|summary| (summary.id, summary))
+            .collect();
+        let mut seen = HashSet::new();
+        let blocks = entries
+            .into_iter()
+            .filter_map(|entry| match entry {
+                Ok(summary) => Some(summary),
+                Err(id) => read.remove(&id),
+            })
+            .filter(|summary| seen.insert(summary.id))
+            .collect();
+        Ok((first_revision.unwrap_or_default(), blocks))
+    }
+
+    /// The summaries of `blocks` the server still lets this device know of, read
+    /// `MAX_SUMMARIES_ASKED` at a time with every group asked at once, and the rest of a group
+    /// asked again when an answer holds only its first.
+    async fn read_summaries(&self, blocks: &[Uuid]) -> Result<Vec<BlockSummary>, ClientError> {
+        let ask =
+            |group: &[Uuid]| client::blocks::read_summaries(&self.connection(), group.to_vec());
+        let asked: Vec<_> = blocks
+            .chunks(be_block_protocol::MAX_SUMMARIES_ASKED)
+            .map(|group| (group, ask(group)))
+            .collect();
+        let mut summaries = Vec::with_capacity(blocks.len());
+        for (mut group, mut answer) in asked {
+            loop {
+                let read = crate::ask(answer).await?;
+                if read.is_empty() || read.len() > group.len() {
+                    return Err(ClientError::Unexpected);
+                }
+                group = &group[read.len()..];
+                summaries.extend(read.into_iter().flatten());
+                if group.is_empty() {
+                    break;
+                }
+                answer = ask(group);
+            }
+        }
+        Ok(summaries)
     }
 
     /// A listing about a block whose creation waits in the outbox, which the server cannot
@@ -1831,7 +1889,7 @@ impl<S: ObjectStore> Peer<S> {
         let mut references = self.resolve(block, std::mem::take(&mut write.references));
         let metadata = BlockMetadata { defined, derived };
         references.extend(self.resolve(block, metadata.references()));
-        write.references = deduplicated(references);
+        write.references = bounded(deduplicated(references))?;
         Ok((manifest, parents, metadata))
     }
 
@@ -2508,6 +2566,22 @@ fn locked(error: impl Into<ClientError>) -> ClientError {
     }
 }
 
+/// Refuses a block's references past what the server keeps (`MAX_REFERENCES`) before anything
+/// is sealed or put in the outbox, so a change that could never be sent is never kept.
+fn bounded(references: Vec<Uuid>) -> Result<Vec<Uuid>, ClientError> {
+    match references.len() <= be_block_protocol::MAX_REFERENCES {
+        true => Ok(references),
+        false => Err(ClientError::Refused(
+            ErrorCode::InvalidRequest,
+            format!(
+                "a block may reference at most {} blocks, not {}",
+                be_block_protocol::MAX_REFERENCES,
+                references.len()
+            ),
+        )),
+    }
+}
+
 fn deduplicated(references: Vec<Uuid>) -> Vec<Uuid> {
     let mut seen = std::collections::HashSet::new();
     references
@@ -2517,6 +2591,20 @@ fn deduplicated(references: Vec<Uuid>) -> Vec<Uuid> {
 }
 
 /// The block a listing is about, which the server must know to answer it.
+/// Whether a summary read after its listing's revision still belongs to it, as far as the
+/// summary tells: a block the reader may only know exists carries no parent or references, so
+/// it is kept.
+fn still_in(listing: Listing, summary: &BlockSummary) -> bool {
+    let viewed = summary.access.can_view();
+    match listing {
+        Listing::Children(parent) => !viewed || summary.parent == Some(parent),
+        Listing::Deleted => !viewed || (summary.parent.is_some() && !summary.held),
+        Listing::Backrefs(target) => !viewed || summary.references.contains(&target),
+        Listing::Shared | Listing::OpenSettings(_) => viewed,
+        Listing::References(_) | Listing::Block(_) => true,
+    }
+}
+
 fn about(listing: Listing) -> Option<Uuid> {
     match listing {
         Listing::Block(block)

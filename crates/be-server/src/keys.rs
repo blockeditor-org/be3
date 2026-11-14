@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Bound;
 
 use be_block_graph::BlockGraph;
 use be_block_protocol::{
@@ -146,13 +147,15 @@ pub(crate) fn wraps_of(
     Ok(wraps)
 }
 
-pub(crate) fn served_keys(
+/// The key rows `get-keys` serves of `blocks`, by id: those of the blocks the caller may view,
+/// and to an administrator the organization's escrow keys.
+fn served_rows(
     graph: &BlockGraph,
     connection: &Connection,
     identity: Identity,
     seen: &Visibility,
     blocks: impl IntoIterator<Item = Uuid>,
-) -> Result<KeySet, ServerError> {
+) -> Result<BTreeMap<Uuid, KeyRow>, ServerError> {
     let mut keys = BTreeMap::new();
     for block in blocks {
         if !seen.can_view(graph, block) {
@@ -167,63 +170,45 @@ pub(crate) fn served_keys(
             keys.insert(row.id, row);
         }
     }
-    let mut wrapped = Vec::new();
-    for key in keys.keys() {
-        for wrap in wraps_of(connection, identity.organization, *key)? {
-            let served = match wrap.wrapped_by {
-                WrappedBy::Account(account) => account == identity.account,
-                WrappedBy::Key(by) => keys.contains_key(&by),
-            };
-            if served {
-                wrapped.push(wrap);
-            }
-        }
-    }
-    Ok(KeySet {
-        keys: keys.into_values().collect(),
-        wrapped,
-    })
+    Ok(keys)
 }
 
-/// The bytes of keys and their wraps one `get-keys` page holds. Tests page through a few keys.
-const KEY_PAGE_BYTES: usize = if cfg!(test) {
-    2 * 1024
-} else {
-    be_block_protocol::MAX_FRAME_BYTES / 2
-};
-
-/// The keys of `served` after `after`, in the order of their ids, each with its wraps, while
-/// they fit in `room` bytes and at least one.
-fn page_of(served: KeySet, after: Option<Uuid>, mut room: usize) -> KeyPage {
-    let mut wraps: BTreeMap<Uuid, Vec<WrappedKey>> = BTreeMap::new();
-    for wrap in served.wrapped {
-        wraps.entry(wrap.key).or_default().push(wrap);
-    }
-    let mut rows: Vec<KeyRow> = served
-        .keys
-        .into_iter()
-        .filter(|row| after.is_none_or(|after| row.id > after))
-        .collect();
-    rows.sort_by_key(|row| row.id);
+/// The rows of `served` after `after`, in the order of their ids, each with its wraps by the
+/// caller's account or by a served key, while they fit in `room` bytes and at least one. Only
+/// the page's own wraps are read.
+fn page_of(
+    connection: &Connection,
+    identity: Identity,
+    served: &BTreeMap<Uuid, KeyRow>,
+    after: Option<Uuid>,
+    mut room: usize,
+) -> Result<KeyPage, ServerError> {
+    let rows = match after {
+        Some(after) => served.range((Bound::Excluded(after), Bound::Unbounded)),
+        None => served.range(..),
+    };
     let mut page = KeySet::default();
-    let mut next = None;
-    let total = rows.len();
-    for (index, row) in rows.into_iter().enumerate() {
-        let wrapped = wraps.remove(&row.id).unwrap_or_default();
-        let size = be_block_protocol::encoded_len(&row) + be_block_protocol::encoded_len(&wrapped);
+    for (id, row) in rows {
+        let wrapped: Vec<WrappedKey> = wraps_of(connection, identity.organization, *id)?
+            .into_iter()
+            .filter(|wrap| match wrap.wrapped_by {
+                WrappedBy::Account(account) => account == identity.account,
+                WrappedBy::Key(by) => served.contains_key(&by),
+            })
+            .collect();
+        let size = be_block_protocol::encoded_len(row) + be_block_protocol::encoded_len(&wrapped);
         if size > room && !page.keys.is_empty() {
-            break;
+            let next = page.keys.last().map(|row| row.id);
+            return Ok(KeyPage { keys: page, next });
         }
         room = room.saturating_sub(size);
-        if index + 1 < total {
-            next = Some(row.id);
-        } else {
-            next = None;
-        }
-        page.keys.push(row);
+        page.keys.push(row.clone());
         page.wrapped.extend(wrapped);
     }
-    KeyPage { keys: page, next }
+    Ok(KeyPage {
+        keys: page,
+        next: None,
+    })
 }
 
 /// Whether `row` is the scope key of an owner-only block, which is sealed to the block's author
@@ -840,7 +825,7 @@ pub(crate) fn forget_block_keys(
 
 impl ServerStore {
     /// A page of the keys `get-keys` serves: those after `after` in the order of their ids, each
-    /// with its wraps, while they fit in `KEY_PAGE_BYTES` (at least one). A key made with a
+    /// with its wraps, while they fit in `ServerConfig::key_page_bytes` (at least one). A key made with a
     /// smaller id while a client pages is not skipped for good: `keys-changed` tells it to
     /// read again.
     pub async fn get_keys(
@@ -880,8 +865,8 @@ impl ServerStore {
                     })
                     .collect(),
             };
-            let served = served_keys(graph, database, identity, &seen, wanted)?;
-            Ok(page_of(served, after, KEY_PAGE_BYTES))
+            let served = served_rows(graph, database, identity, &seen, wanted)?;
+            page_of(database, identity, &served, after, store.key_page_bytes())
         })
         .await
     }

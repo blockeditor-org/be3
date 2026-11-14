@@ -33,6 +33,7 @@ async fn a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_fram
     let listed = crate::ask(be_block_protocol::client::blocks::list_blocks(
         &author.connection(),
         Listing::Children(BlockParent::Block(workspace)),
+        None,
     ))
     .await
     .unwrap();

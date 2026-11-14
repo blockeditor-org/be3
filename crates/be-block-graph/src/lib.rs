@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, hash_map::Entry},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
     error::Error,
     fmt,
 };
@@ -468,15 +468,15 @@ impl BlockGraph {
     }
 
     pub fn set_references(&mut self, id: Uuid, references: &[Uuid]) -> Result<(), GraphError> {
-        let mut ordered = Vec::with_capacity(references.len());
-        for reference in references {
-            if !ordered.contains(reference) {
-                ordered.push(*reference);
-            }
-        }
+        let mut kept = HashSet::with_capacity(references.len());
+        let ordered: Vec<Uuid> = references
+            .iter()
+            .copied()
+            .filter(|reference| kept.insert(*reference))
+            .collect();
         let previous = std::mem::replace(&mut self.node_mut(id)?.references, ordered.clone());
         for reference in &previous {
-            if !ordered.contains(reference)
+            if !kept.contains(reference)
                 && let Some(backrefs) = self.backrefs.get_mut(reference)
             {
                 backrefs.remove(&id);

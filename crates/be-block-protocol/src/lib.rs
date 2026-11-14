@@ -42,6 +42,16 @@ pub use sessions::*;
 pub use types::*;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+/// The most blocks one `read-summaries` names.
+pub const MAX_SUMMARIES_ASKED: usize = 4096;
+/// What a frame spends on more than its answer's items: the op's envelope and the lengths and
+/// fixed fields around them. An answer sized to fit leaves this much of a frame spare.
+pub const FRAME_ENVELOPE_BYTES: usize = 64 * 1024;
+/// The blocks one block references, which its server refuses past (`create-block`,
+/// `set-metadata`, `publish`) and a client before it sends them. Every summary lists them, so
+/// with a block's largest metadata (64 KiB on the server) a summary still fits a frame on its
+/// own, which every answer of many summaries sends alone if it must.
+pub const MAX_REFERENCES: usize = 250_000;
 /// The bytes `value` takes in a frame, whose values are postcard: what a server measures an
 /// answer by so that it fits.
 pub fn encoded_len<T: Serialize + ?Sized>(value: &T) -> usize {
@@ -190,6 +200,31 @@ impl ReferenceChange {
             .filter(|reference| !removed.contains(reference))
             .copied()
             .collect();
+        let added: std::collections::HashSet<Uuid> =
+            self.added.iter().map(|placed| placed.block).collect();
+        // As `between` makes it, each added reference is new and its index past the last: they
+        // merge in in one pass, which putting each in at its index would match in many.
+        let merges = added.len() == self.added.len()
+            && self
+                .added
+                .windows(2)
+                .all(|pair| pair[0].index < pair[1].index)
+            && !references.iter().any(|reference| added.contains(reference));
+        if merges {
+            let mut merged = Vec::with_capacity(references.len() + self.added.len());
+            let mut kept = references.into_iter().peekable();
+            for placed in &self.added {
+                let index = usize::try_from(placed.index).unwrap_or(usize::MAX);
+                while merged.len() < index
+                    && let Some(reference) = kept.next()
+                {
+                    merged.push(reference);
+                }
+                merged.push(placed.block);
+            }
+            merged.extend(kept);
+            return merged;
+        }
         for placed in &self.added {
             references.retain(|reference| *reference != placed.block);
             let index = usize::try_from(placed.index)

@@ -141,13 +141,18 @@ interface blocks {
     /// that changes after the answer does so at a later revision.
     record listed {
         revision: u64,
-        /// The first of the listing's blocks, as many as fit in a quarter of a
-        /// frame and at least one.
+        /// The first of the listing's blocks (after `after`), as many as fit
+        /// in a quarter of a frame and at least one.
         blocks: list<block-summary>,
-        /// The rest of the listing's blocks, in order, at the same revision:
-        /// a client reads their summaries with `read-summaries`. The
-        /// connection is told of their changes as of `blocks`'.
+        /// The listing's next blocks after those, in order, as many ids as
+        /// fit in an eighth of a frame: the ids are as of `revision`, and a
+        /// client reads their summaries with `read-summaries`, which are as
+        /// of when it reads them. The connection is told of their changes
+        /// as of `blocks`'.
         rest: list<block-id>,
+        /// The last block of `rest` when the listing goes on past it: a
+        /// client lists again from there.
+        next: option<block-id>,
     }
 
     /// What `collect-detached` deleted and freed.
@@ -247,13 +252,15 @@ interface blocks {
     set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
 
     /// The blocks of a listing, which the connection's `changes` stream then
-    /// follows until `unlist`.
-    list-blocks: async func(listing: listing) -> result<listed, error>;
+    /// follows until `unlist`: from the start, or after the block `after`
+    /// (a `listed.next`) as the listing is now, or from the start again
+    /// when `after` has left it, so a client keeps each block once.
+    list-blocks: async func(listing: listing, after: option<block-id>) -> result<listed, error>;
 
-    /// The summaries of the first of `blocks`, as many as fit in a sixteenth
-    /// of a frame and at least one, in order: none for a block the caller
-    /// may not know of, or that no longer exists. A client asks again for
-    /// the rest. Lists nothing.
+    /// The summaries of the first of `blocks` (at most 4096 asked), as many
+    /// as fit in a sixteenth of a frame and at least one, in order: none
+    /// for a block the caller may not know of, or that no longer exists. A
+    /// client asks again for the rest. Lists nothing.
     read-summaries: async func(blocks: list<block-id>) -> result<list<option<block-summary>>, error>;
 
     /// Stops following a listing.

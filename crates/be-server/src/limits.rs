@@ -45,12 +45,13 @@ pub const MAX_STREAMS_PER_CONNECTION: usize = 16_384;
 /// on display names.
 pub const MAX_NAME_BYTES: usize = 200;
 /// A block's metadata. It is kept in memory in the graph and sent in every summary, so it is
-/// small next to a frame: one summary fits in a sixteenth of one (`SUMMARY_BYTES`), and calls
-/// answering many summaries split their answers by bytes rather than by count.
+/// small next to a frame: one summary, with `MAX_REFERENCES` references too, fits a frame, and
+/// calls answering many summaries split their answers by bytes rather than by count, sending a
+/// large one alone.
 pub const MAX_METADATA_BYTES: usize = 64 * 1024;
-/// The blocks one block references. Every summary lists them, so with `MAX_METADATA_BYTES` of
-/// metadata one summary still fits in `SUMMARY_BYTES`.
-pub const MAX_REFERENCES: usize = 16 * 1024;
+pub use be_block_protocol::MAX_REFERENCES;
+/// The bytes of keys, with their wraps, one `get-keys` page holds.
+pub const KEY_PAGE_BYTES: usize = MAX_FRAME_BYTES / 2;
 /// A sealed blob the server keeps for a client: contact cards and their sealed copies, invitation
 /// payloads, pinned escrows, pending grants.
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;

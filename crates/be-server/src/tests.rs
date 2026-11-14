@@ -67,6 +67,7 @@ mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_notification_sent_again_with_the_keys_it_told_pushes_nothing;
+mod a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_block;
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
@@ -163,6 +164,7 @@ mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
 mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents;
+mod read_summaries_leaves_out_what_the_caller_may_not_know_of;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
 mod registration_checks_its_invite_code_before_hashing_the_password;
@@ -789,7 +791,7 @@ impl TestClient {
     }
 
     async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
-        self.call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent)))
+        self.call(|peer| client::blocks::list_blocks(peer, Listing::Children(parent), None))
             .await
             .expect("listing failed")
             .blocks
@@ -839,7 +841,7 @@ fn read_block(
     peer: &Peer,
     block: Uuid,
 ) -> impl Future<Output = Result<Result<BlockSummary, Error>, be_wasm_ops::OpError>> + use<> {
-    let listing = client::blocks::list_blocks(peer, Listing::Block(block));
+    let listing = client::blocks::list_blocks(peer, Listing::Block(block), None);
     async move {
         Ok(listing.await?.map(|listed| {
             listed

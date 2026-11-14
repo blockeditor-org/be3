@@ -35,9 +35,15 @@ fn tree_of(graph: &BlockGraph, block: Uuid) -> Option<Uuid> {
 /// The most blocks of either kind a page of `changed-since` holds.
 const MAX_CHANGES_PER_PAGE: usize = 500;
 /// The summaries of one `changed-since` page: once they come to this, the page ends, so with
-/// one summary more (whose metadata is at most `MAX_METADATA_BYTES`) it stays well inside a
-/// frame.
+/// one summary more, however large, it stays inside a frame.
 const MAX_PAGE_SUMMARY_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 4;
+const _: () = assert!(
+    MAX_PAGE_SUMMARY_BYTES
+        + crate::LARGEST_SUMMARY_BYTES
+        + MAX_CHANGES_PER_PAGE * 17
+        + be_block_protocol::FRAME_ENVELOPE_BYTES
+        <= be_block_protocol::MAX_FRAME_BYTES
+);
 
 /// The most changes one page of `changed-since` looks at, those of other trees included.
 const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
@@ -2427,15 +2433,17 @@ fn relinked(graph: &BlockGraph, block: Uuid, references: &[Uuid]) -> Option<Vec<
     if before == references {
         return None;
     }
+    let had: HashSet<Uuid> = before.iter().copied().collect();
+    let has: HashSet<&Uuid> = references.iter().collect();
     let added = references
         .iter()
-        .filter(|reference| !before.contains(reference))
+        .filter(|reference| !had.contains(reference))
         .copied()
         .collect::<Vec<_>>();
     Some(
         before
             .into_iter()
-            .filter(|reference| !references.contains(reference))
+            .filter(|reference| !has.contains(reference))
             .chain(added)
             .collect(),
     )
@@ -2591,5 +2599,6 @@ fn listed(graph: &BlockGraph, blocks: Vec<BlockSummary>) -> Listed {
         revision: graph.revision(),
         blocks,
         rest: Vec::new(),
+        next: None,
     }
 }

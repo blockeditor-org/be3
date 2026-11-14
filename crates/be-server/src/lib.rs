@@ -147,6 +147,9 @@ pub struct ServerConfig {
     /// The bytes one commit of a search index may hold (`limits::MAX_INDEX_BYTES` unless a test
     /// sets a smaller one).
     pub max_index_bytes: u64,
+    /// The bytes of keys one `get-keys` page holds (`limits::KEY_PAGE_BYTES` unless a test pages
+    /// through a few keys).
+    pub key_page_bytes: usize,
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
     /// only this host, where the reverse proxy runs.
     pub trusted_proxies: Cow<'static, [IpAddr]>,
@@ -179,6 +182,7 @@ impl ServerConfig {
         account_quota: Some(store::DEFAULT_ACCOUNT_QUOTA),
         upload_grace: store::DEFAULT_UPLOAD_GRACE,
         max_index_bytes: limits::MAX_INDEX_BYTES,
+        key_page_bytes: limits::KEY_PAGE_BYTES,
         trusted_proxies: Cow::Borrowed(&[
             IpAddr::V4(Ipv4Addr::LOCALHOST),
             IpAddr::V6(Ipv6Addr::LOCALHOST),
@@ -314,19 +318,39 @@ fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
 }
 
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
-/// The share of a `read-contents` answer its objects take; its journals take half that, and
-/// its summaries `SUMMARY_BYTES`, leaving the rest of a frame to spare.
+/// The share of a `read-contents` answer its objects take at most; its journals take half that,
+/// and its summaries `SUMMARY_BYTES` (`contents_room`).
 const CONTENTS_BYTES: usize = MAX_FRAME_BYTES / 2;
-/// The summaries of one `read-contents` answer: hundreds of blocks as they usually are, and a
-/// few with metadata near `limits::MAX_METADATA_BYTES`. The client asks again for those left
-/// out.
+/// The summaries of one `read-contents` or `read-summaries` answer: hundreds of blocks as they
+/// usually are, and a few with metadata near `limits::MAX_METADATA_BYTES`. The client asks again
+/// for those left out.
 const SUMMARY_BYTES: usize = MAX_FRAME_BYTES / 16;
-// One summary, with the most metadata and references a block may have, fits in `SUMMARY_BYTES`:
+/// What room a `read-contents` answer whose summaries took `summaries` bytes leaves its objects
+/// and its journals: `CONTENTS_BYTES` and half that, or less beside one summary larger than
+/// `SUMMARY_BYTES`, sent alone.
+fn contents_room(summaries: usize) -> (usize, usize) {
+    let left =
+        (MAX_FRAME_BYTES - be_block_protocol::FRAME_ENVELOPE_BYTES).saturating_sub(summaries);
+    let journals = (CONTENTS_BYTES / 2).min(left / 3);
+    (CONTENTS_BYTES.min(left - journals), journals)
+}
+// One summary, with the most metadata and references a block may have, fits a frame on its own:
 // each reference is a length byte and 16 bytes, and the rest of a summary is well under 1 KiB.
+pub(crate) const LARGEST_SUMMARY_BYTES: usize =
+    limits::MAX_METADATA_BYTES + limits::MAX_REFERENCES * 17 + 1024;
 const _: () =
-    assert!(limits::MAX_METADATA_BYTES + limits::MAX_REFERENCES * 17 + 1024 <= SUMMARY_BYTES);
-/// The summaries one `list-blocks` answers; the rest of the listing goes as ids.
+    assert!(LARGEST_SUMMARY_BYTES + be_block_protocol::FRAME_ENVELOPE_BYTES <= MAX_FRAME_BYTES);
+const _: () = assert!(
+    SUMMARY_BYTES + CONTENTS_BYTES + CONTENTS_BYTES / 2 + be_block_protocol::FRAME_ENVELOPE_BYTES
+        <= MAX_FRAME_BYTES
+);
+/// The summaries one `list-blocks` page answers; the rest of the page goes as ids.
 const LISTING_BYTES: usize = MAX_FRAME_BYTES / 4;
+/// The ids of one `list-blocks` page past its summaries; a client lists again for more.
+const REST_BYTES: usize = MAX_FRAME_BYTES / 8;
+const _: () = assert!(
+    LARGEST_SUMMARY_BYTES + REST_BYTES + be_block_protocol::FRAME_ENVELOPE_BYTES <= MAX_FRAME_BYTES
+);
 
 pub async fn serve_with_config(
     listener: TcpListener,
@@ -362,6 +386,7 @@ pub async fn serve_with_mail(
             account_quota: config.account_quota,
             upload_grace: config.upload_grace,
             max_index_bytes: config.max_index_bytes,
+            key_page_bytes: config.key_page_bytes,
         },
         config.bucket.as_ref(),
     )?);

@@ -269,7 +269,8 @@ impl TestClient {
             (
                 "list-blocks",
                 answered(
-                    client::blocks::list_blocks(peer, Listing::Children(BlockParent::Root)).await,
+                    client::blocks::list_blocks(peer, Listing::Children(BlockParent::Root), None)
+                        .await,
                 ),
             ),
             (

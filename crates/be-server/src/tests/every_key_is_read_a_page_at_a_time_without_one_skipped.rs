@@ -2,11 +2,15 @@ use super::*;
 
 #[tokio::test]
 async fn every_key_is_read_a_page_at_a_time_without_one_skipped() {
-    let harness = Harness::start().await;
+    let harness = Harness::configured(ServerConfig {
+        key_page_bytes: 2 * 1024,
+        ..ServerConfig::OPEN
+    })
+    .await;
     let mut owner = harness.client().await;
     owner.register("owner@example.com").await;
     owner.organization("keys").await;
-    // Each block's key row comes to tens of bytes, so these take several of the test's pages.
+    // Each block's key row comes to tens of bytes, so these take several pages.
     let mut made = Vec::new();
     for _ in 0..200 {
         made.push(owner.create_block(BlockParent::Root).await);

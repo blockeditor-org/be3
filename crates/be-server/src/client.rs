@@ -16,10 +16,10 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
-    CONTENTS_BYTES, Identity, LISTING_BYTES, PublishOutcome, SUMMARY_BYTES, ServerConfig,
-    ServerError, ServerStore, Services, SessionRegistry, WatchHub,
+    Identity, LISTING_BYTES, PublishOutcome, REST_BYTES, SUMMARY_BYTES, ServerConfig, ServerError,
+    ServerStore, Services, SessionRegistry, WatchHub,
     address::{Anonymous, Eviction},
-    browser_auth, contacts,
+    browser_auth, contacts, contents_room,
     limits::{
         MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
     },
@@ -1631,13 +1631,15 @@ impl Client {
                         .store
                         .read_contents(connection.identity()?, blocks, held, SUMMARY_BYTES)
                         .await?;
-                    let objects = connection.store.get_objects(hashes, CONTENTS_BYTES).await?;
+                    let (objects_room, journals_room) =
+                        contents_room(be_block_protocol::encoded_len(&blocks));
+                    let objects = connection.store.get_objects(hashes, objects_room).await?;
                     let journals = connection
                         .store
                         .read_journals(
                             connection.identity()?.organization,
                             blocks.iter().map(|summary| summary.id).collect(),
-                            CONTENTS_BYTES / 2,
+                            journals_room,
                         )
                         .await?;
                     Ok(Contents {
@@ -1689,10 +1691,14 @@ impl Client {
                 .await;
                 self.reply(reply, moved);
             }
-            Call::ListBlocks { reply, listing } => {
+            Call::ListBlocks {
+                reply,
+                listing,
+                after,
+            } => {
                 let listed = async {
                     prelude?;
-                    connection.list(listing).await
+                    connection.list(listing, after).await
                 }
                 .await;
                 self.reply(reply, listed);
@@ -1700,6 +1706,15 @@ impl Client {
             Call::ReadSummaries { reply, blocks } => {
                 let read = async {
                     prelude?;
+                    if blocks.len() > be_block_protocol::MAX_SUMMARIES_ASKED {
+                        return Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            format!(
+                                "ask for at most {} summaries at a time",
+                                be_block_protocol::MAX_SUMMARIES_ASKED
+                            ),
+                        ));
+                    }
                     connection
                         .store
                         .read_summaries(connection.identity()?, blocks, SUMMARY_BYTES)
@@ -2733,7 +2748,11 @@ impl Connection {
         }
     }
 
-    async fn list(&self, listing: Listing) -> Result<be_block_protocol::Listed, ServerError> {
+    async fn list(
+        &self,
+        listing: Listing,
+        after: Option<Uuid>,
+    ) -> Result<be_block_protocol::Listed, ServerError> {
         let identity = self.identity()?;
         let new = self.hub.list(self.client, listing).await?;
         let listed = async {
@@ -2749,6 +2768,7 @@ impl Connection {
                         revision: summary.revision,
                         blocks: vec![summary],
                         rest: Vec::new(),
+                        next: None,
                     }
                 }
                 Listing::OpenSettings(block) => {
@@ -2769,7 +2789,7 @@ impl Connection {
             crate::store::held::listing(block).await;
         }
         self.hub.listed(self.client, listing, &listed.blocks).await;
-        Ok(fitting(listed))
+        Ok(page(listed, after))
     }
 
     async fn announce(&self, block: Place, state: &SessionState) {
@@ -2786,9 +2806,16 @@ impl Connection {
     }
 }
 
-/// A listing's first blocks whose summaries fit in `LISTING_BYTES`, at least one, and the rest
-/// as ids for the client to read with `read-summaries`.
-fn fitting(mut listed: be_block_protocol::Listed) -> be_block_protocol::Listed {
+/// A page of a listing: after the block `after` (from the start when it has left the
+/// listing), the first blocks whose summaries fit in `LISTING_BYTES` (at least one), then the
+/// next ids that fit in `REST_BYTES` for the client to read with `read-summaries`, and `next`
+/// when the listing goes on.
+fn page(mut listed: be_block_protocol::Listed, after: Option<Uuid>) -> be_block_protocol::Listed {
+    if let Some(after) = after
+        && let Some(position) = listed.blocks.iter().position(|summary| summary.id == after)
+    {
+        listed.blocks.drain(..=position);
+    }
     let mut room = LISTING_BYTES;
     let fit = listed
         .blocks
@@ -2801,12 +2828,25 @@ fn fitting(mut listed: be_block_protocol::Listed) -> be_block_protocol::Listed {
             fits
         })
         .count();
-    listed.rest = listed
-        .blocks
-        .split_off(fit)
-        .into_iter()
-        .map(|summary| summary.id)
-        .collect();
+    let rest = listed.blocks.split_off(fit);
+    let mut room = REST_BYTES;
+    let mut ids = rest.iter().map(|summary| summary.id).peekable();
+    while let Some(id) = ids.next_if(|id| {
+        let size = be_block_protocol::encoded_len(id);
+        let fits = size <= room;
+        room = room.saturating_sub(size);
+        fits
+    }) {
+        listed.rest.push(id);
+    }
+    listed.next = match ids.peek() {
+        Some(_) => listed
+            .rest
+            .last()
+            .or(listed.blocks.last().map(|summary| &summary.id))
+            .copied(),
+        None => None,
+    };
     listed
 }
 
