@@ -1,0 +1,38 @@
+name: Thorough tests
+
+# The tests ./scripts/verify leaves out because each run stays costly however it is
+# written (THOROUGH in buck/dev/test.bzl; guides/buck2.md, What verify builds, names
+# them and why), in one buck2 command: ./scripts/verify --thorough. By hand only, on any
+# ref that has this file.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The build server and its token, as in ci.yml.
+  BE3_BUILD_SERVER: nl.be3.pfg.pw
+  BE3_NL_TOKEN: ${{ secrets.BE3_NL_TOKEN }}
+  # The checkout's own bootstrap, built with cargo (guides/bootstrap.md, Recovery): a pinned release
+  # older than --thorough refuses the flag. Remove it once a release that knows --thorough is pinned.
+  BE3_BOOTSTRAP: cargo
+
+jobs:
+  thorough:
+    name: thorough tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/buck2
+
+      - name: Run the thorough tests
+        run: ./scripts/verify --thorough

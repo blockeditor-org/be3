@@ -24,5 +24,6 @@ rules:
     ignore:
       - broad.yml
       - ci.yml
+      - thorough.yml
       - tracker.yml
 

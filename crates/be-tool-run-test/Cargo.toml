@@ -8,5 +8,8 @@ license.workspace = true
 name = "run-test"
 path = "src/main.rs"
 
+[dependencies]
+be-lib-build-record = { path = "../be-lib-build-record" }
+
 [lints]
 workspace = true

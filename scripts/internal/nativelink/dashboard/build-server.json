@@ -226,7 +226,7 @@
   {
    "id": 5,
    "type": "table",
-   "title": "Slowest test runs",
+   "title": "Costliest tests, by CPU",
    "description": "Each test binary's runs that were not cached, over the time range. A host test file runs as its own action.",
    "datasource": {
     "type": "frser-sqlite-datasource",
@@ -254,8 +254,8 @@
       "uid": "builds"
      },
      "queryType": "table",
-     "queryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
-     "rawQueryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
+     "queryText": "SELECT target, round(avg(cpu_seconds), 1) AS \"average CPU s\", round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY coalesce(avg(cpu_seconds), avg(seconds)) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, round(avg(cpu_seconds), 1) AS \"average CPU s\", round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target ORDER BY coalesce(avg(cpu_seconds), avg(seconds)) DESC LIMIT 40",
      "timeColumns": [
       "time"
      ]
@@ -293,8 +293,8 @@
       "uid": "builds"
      },
      "queryType": "table",
-     "queryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
-     "rawQueryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "queryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category NOT IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category NOT IN ('test_run', 'painting_test') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
      "timeColumns": [
       "time"
      ]

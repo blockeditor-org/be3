@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS builds (
 );
 CREATE INDEX IF NOT EXISTS builds_started ON builds (started);
 -- Each action of a build that ran and took long, and every test run: what the slowest tests and
--- compiles are, and how they change.
+-- compiles are, and how they change. cpu_seconds is what a test's processes used, as its launcher
+-- (crates/be-tool-run-test) counts it: what a test costs a server short of CPU.
 CREATE TABLE IF NOT EXISTS actions (
     build_id TEXT NOT NULL REFERENCES builds (id) ON DELETE CASCADE,
     started REAL NOT NULL,
@@ -50,7 +51,8 @@ CREATE TABLE IF NOT EXISTS actions (
     category TEXT NOT NULL,
     seconds REAL NOT NULL,
     queue_seconds REAL,
-    failed INTEGER NOT NULL
+    failed INTEGER NOT NULL,
+    cpu_seconds REAL
 );
 CREATE INDEX IF NOT EXISTS actions_started ON actions (started);
 CREATE INDEX IF NOT EXISTS actions_build ON actions (build_id);
@@ -98,7 +100,8 @@ def store(record):
             ),
         )
         database.executemany(
-            "INSERT INTO actions VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO actions (build_id, started, target, category, seconds, queue_seconds, failed, cpu_seconds)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     build,
@@ -108,6 +111,7 @@ def store(record):
                     float(action["seconds"]),
                     action.get("queue_seconds"),
                     1 if action.get("failed") else 0,
+                    action.get("cpu_seconds"),
                 )
                 for action in record.get("slow", [])
             ],
@@ -161,6 +165,9 @@ def main():
     os.makedirs(os.path.dirname(DATABASE), exist_ok=True)
     with connect() as database:
         database.executescript(SCHEMA)
+        # A database made before actions had cpu_seconds.
+        if "cpu_seconds" not in {row[1] for row in database.execute("PRAGMA table_info(actions)")}:
+            database.execute("ALTER TABLE actions ADD COLUMN cpu_seconds REAL")
     os.chmod(DATABASE, 0o644)
     threading.Thread(target=count_running, daemon=True).start()
     ThreadingHTTPServer(LISTEN, Handler).serve_forever()

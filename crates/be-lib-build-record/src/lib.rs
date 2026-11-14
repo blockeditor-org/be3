@@ -1,7 +1,8 @@
 //! A record of each build, sent to the build server's dashboard (scripts/internal/nativelink/dashboard,
 //! guides/build_server.md): how long buck2 took, what ran and what was cached, the critical path, every test run and
-//! every other action over 10 s. buck2's event log has it all. crates/be-tool-verify sends one for ./scripts/verify
-//! and ./scripts/ci, and crates/be-tool-bootstrap for ./scripts/test and ./scripts/buck's build, run, test and bxl.
+//! every other action over 10 s. buck2's event log has it all, down to the CPU each test that ran used, which its
+//! launcher (crates/be-tool-run-test) writes last. crates/be-tool-verify sends one for ./scripts/verify and
+//! ./scripts/ci, and crates/be-tool-bootstrap for ./scripts/test and ./scripts/buck's build, run, test and bxl.
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -9,6 +10,15 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use serde_json::{Value, json};
+
+/// What starts the line crates/be-tool-run-test writes last, saying how much CPU the test used.
+pub const USAGE_LINE: &str = "run-test: the test used ";
+
+/// The CPU seconds a launcher's line says the test used, or None for a line that is not one.
+pub fn cpu_seconds(line: &str) -> Option<f64> {
+    let rest = line.trim_start().strip_prefix(USAGE_LINE)?;
+    rest.split(' ').next()?.parse().ok()
+}
 
 /// What the event log does not say about a build.
 pub struct Context {
@@ -150,12 +160,19 @@ pub fn record(events: &str, context: &Context) -> Option<Value> {
             queue_us += queue.unwrap_or(0);
         }
         let category = action["name"]["category"].as_str().unwrap_or("?");
-        if category == "test_run" || wall >= SLOW_US {
+        let test = matches!(category, "test_run" | "painting_test");
+        if test || wall >= SLOW_US {
+            let output = action["commands"]
+                .as_array()
+                .and_then(|commands| commands.last())
+                .and_then(|command| command["details"]["stderr"].as_str());
+            let cpu = output.and_then(|output| output.lines().rev().find_map(cpu_seconds));
             slow.push(json!({
                 "target": target(&action["key"]["owner"]),
                 "category": category,
                 "seconds": wall as f64 / 1e6,
                 "queue_seconds": queue.map(|us| us as f64 / 1e6),
+                "cpu_seconds": cpu,
                 "failed": action["failed"] == true,
             }));
         }

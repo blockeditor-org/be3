@@ -8,7 +8,8 @@ async fn contents_read_together_match_what_each_block_saved() {
     let workspace = workspace(&author, "Archive").await;
     let mut wanted = vec![(workspace, None)];
     let mut expected = vec![None];
-    for index in 0..300 {
+    // Enough blocks that reading them takes three calls.
+    for index in 0..2 * crate::peer::CONTENTS_BLOCKS + 3 {
         let note = author
             .create::<TextContent>(BlockParent::Block(workspace))
             .await

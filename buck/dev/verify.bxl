@@ -1,4 +1,4 @@
-load("@root//buck/dev:test.bzl", "TestRunInfo")
+load("@root//buck/dev:test.bzl", "THOROUGH", "TestRunInfo")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command,
 # found by query rather than named in a list:
@@ -12,8 +12,11 @@ load("@root//buck/dev:test.bzl", "TestRunInfo")
 # - lint: every package's autofixes, each source_fix in the root and
 #   toolchains cells (package_fix, buck/dev/verify.bzl);
 # - tests: every test that does not paint (_be_test, buck/dev/test.bzl), run
-#   as its [run] action, and the check pass (_checks);
+#   as its [run] action, the check pass (_checks), and be-host's :web-dist,
+#   which only the thorough tests would build otherwise;
 # - app-tests: every test that paints, the same way;
+# - thorough: every thorough test (THOROUGH in buck/dev/test.bzl), which tests and
+#   app-tests leave out;
 # - previews: the paint preview renderer and the paint review site;
 # - bootstrap: crates/be-tool-bootstrap's binaries scripts/internal/pins does
 #   not name (//scripts/internal:bootstrap-unpinned[publish]).
@@ -37,17 +40,22 @@ load("@root//buck/dev:test.bzl", "TestRunInfo")
 
 _LINUX = "root//buck/platforms:linux_x86_64"
 
-_PARTS = ["lint", "tests", "app-tests", "previews", "bootstrap"]
+_PARTS = ["lint", "tests", "app-tests", "thorough", "previews", "bootstrap"]
 
 def _output(ctx: bxl.Context, label: str, platform: str = _LINUX) -> Artifact:
     providers = ctx.analysis(ctx.configured_targets(label, target_platform = platform)).providers()
     return providers[DefaultInfo].default_outputs[0]
 
-# Every test, configured for its own default platform; one incompatible with
-# that is left out.
-def _tests(ctx: bxl.Context):
-    labels = [str(target.label) for target in ctx.uquery().kind("^_be_test$", "root//...")]
-    return ctx.configured_targets(labels)
+# Every test, configured for its own default platform, and the thorough ones
+# among them apart; one incompatible with that is left out.
+def _tests(ctx: bxl.Context) -> (list, list):
+    tests = ctx.uquery().kind("^_be_test$", "root//...")
+    thorough = {str(target.label): True for target in ctx.uquery().attrfilter("labels", THOROUGH, tests)}
+    every = ctx.configured_targets([str(target.label) for target in tests])
+    return (
+        [target for target in every if str(target.label.raw_target()) not in thorough],
+        [target for target in every if str(target.label.raw_target()) in thorough],
+    )
 
 # The check pass ([check], rustc's metadata build with every lint) over each
 # first-party Rust library and binary on linux_x86_64 that nothing else verify
@@ -110,12 +118,23 @@ def _impl(ctx: bxl.Context):
         fixes = ctx.uquery().kind("^source_fix$", ctx.uquery().eval("root//... + toolchains//..."))
         for fix in ctx.configured_targets([str(target.label) for target in fixes]):
             read.append(("fix", ctx.analysis(fix).providers()[DefaultInfo].default_outputs[0]))
+    if "tests" in args.part or "app-tests" in args.part or "thorough" in args.part:
+        tests, thorough = _tests(ctx)
+    if "thorough" in args.part:
+        if not thorough:
+            fail("--part thorough found no test labelled {}".format(THOROUGH))
+        plain, paintings = _runs(ctx, thorough)
+        if paintings:
+            fail("a thorough test may not paint: {}".format(", ".join([package.removeprefix("paintings\t") for package, _ in paintings])))
+        built.extend(plain)
     if "tests" in args.part or "app-tests" in args.part:
-        tests = _tests(ctx)
         plain, paintings = _runs(ctx, tests)
         if "tests" in args.part:
             built.extend(plain)
             built.extend(_checks(ctx, tests))
+            # The web bundle without its apps: the thorough web host tests are what else builds it,
+            # so this keeps a change that breaks its compile or link from passing verify.
+            built.append(_output(ctx, "root//crates/be-host:web-dist"))
         if "app-tests" in args.part:
             read.extend(paintings)
     if "previews" in args.part:

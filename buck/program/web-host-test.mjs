@@ -53,6 +53,9 @@ import { pathToFileURL } from "node:url";
 import { signIn } from "./web-sign-in.mjs";
 
 const TIMEOUT = 120;
+// The page's size. SwiftShader draws every pixel on the CPU, and the build server is short of CPU: at 1280×800
+// these tests took a third more CPU than at this size, which is still the desktop layout.
+const VIEWPORT = { width: 960, height: 600 };
 const option = (name) => process.argv.find((argument) => argument.startsWith(`--${name}=`))?.slice(name.length + 3);
 const bundle = resolve(option("bundle"));
 const server = resolve(option("server"));
@@ -316,7 +319,7 @@ try {
 
     const account = async ({ name, email }) => {
         const slug = name.toLowerCase();
-        const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+        const context = await browser.newContext({ viewport: VIEWPORT });
         await context.addInitScript(standInPushService, {
             address: `http://127.0.0.1:${push}/push/${slug}`,
             p256dh: receiver.getPublicKey().toString("base64"),
@@ -358,8 +361,8 @@ try {
         };
         // The host takes its window's size from a resize, as web-dev's `drive size` gives it.
         const ready = async () => {
-            await opened.page.setViewportSize({ width: 1279, height: 800 });
-            await opened.page.setViewportSize({ width: 1280, height: 800 });
+            await opened.page.setViewportSize({ ...VIEWPORT, width: VIEWPORT.width - 1 });
+            await opened.page.setViewportSize(VIEWPORT);
             await opened.page.waitForFunction(() => globalThis.blockStarted !== undefined, null, {
                 timeout: TIMEOUT * 1000,
             });

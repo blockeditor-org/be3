@@ -2459,6 +2459,9 @@ dependencies = [
 [[package]]
 name = "be-tool-run-test"
 version = "0.1.0"
+dependencies = [
+ "be-lib-build-record",
+]
 
 [[package]]
 name = "be-tool-terminal-emulator"
