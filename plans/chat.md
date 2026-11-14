@@ -37,16 +37,6 @@ counts are built (guides/chat.md). What is left:
   "Not sent" after a host or module restart: `refused-commits` names commits,
   not edits. An `unsent_over` against the refused commit's parent would name
   them.
-- **A host test of sending state.** `HostTest::offline` cuts the server, so a
-  host test can cover it: send a message, wait for `synced`, go offline, send
-  another and wait for "Sending" on it, then come back and see it go. Written
-  that way it fails about one run in seven under `local-tools stress`, with
-  nothing lost (a second device gets the message once the first is back): in
-  the failing runs a drain publishes the offline message's kept commit with
-  the peer attached, before the test brings the device back. Find whether the
-  harness lets the device reach the server while offline (be-block-fault-relay,
-  `drive offline`) or the device does, fix that, and land the test with a
-  painting. Done: it passes 50 runs of 50 under stress.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a
   follower's message is told by the follower's replica once the owner accepts
   it, so a follower that closes or restarts before then tells nobody, as its

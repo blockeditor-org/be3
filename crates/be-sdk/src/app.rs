@@ -136,6 +136,9 @@ pub struct Frame {
     pub changed: bool,
     pub repaint_after: Option<Duration>,
     pub animating: bool,
+    /// The frame has not yet taken in all the input it was sent
+    /// (`present-commit.input-waiting`).
+    pub input_waiting: bool,
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,

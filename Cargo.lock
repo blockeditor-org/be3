@@ -2407,6 +2407,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-tool-paint-compare"
+version = "0.1.0"
+dependencies = [
+ "beui-paint-snapshot",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "be-tool-paint-review"
 version = "0.1.0"
 dependencies = [

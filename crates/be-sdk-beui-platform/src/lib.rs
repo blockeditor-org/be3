@@ -91,6 +91,7 @@ impl Platform for AppPlatform {
                 escaped: HashMap::default(),
                 spaces: HashMap::default(),
                 placements: HashMap::default(),
+                held: Vec::new(),
                 ratio: 1.0,
             };
             // An app holds no keyboard until its host gives one of its views the keyboard
@@ -191,7 +192,24 @@ struct ModuleRunner {
     escaped: HashMap<ViewRef, Vec<escaped::Shown>>,
     spaces: HashMap<ViewRef, be_sdk_api::AnchorSpace>,
     placements: HashMap<ViewRef, ViewPlacement>,
+    /// Input that waits for the app's next frame: input for a view the host announced after
+    /// the app's last frame, whose window that frame opens, and everything heard after it, so
+    /// the runner hears it all in the order it came.
+    held: Vec<Held>,
     ratio: f32,
+}
+
+/// Input held for the next frame (`ModuleRunner::held`).
+enum Held {
+    /// Input for `target`'s window, heard through `region`, with the time that stamps it.
+    Window {
+        target: ViewRef,
+        region: ViewRef,
+        incoming: Incoming,
+        time: Option<Incoming>,
+    },
+    /// Input already routed, held only to keep its place.
+    Routed(Incoming),
 }
 
 /// What a view's actions were last worked out from: the context's `actions_version` and the
@@ -523,6 +541,65 @@ impl ModuleRunner {
         }
     }
 
+    /// Hands the runner the input held for this frame, now that it has opened the windows of
+    /// the views announced before it, in the order it came, and says whether any reached it.
+    fn release_held(&mut self) -> bool {
+        let mut released = false;
+        for held in std::mem::take(&mut self.held) {
+            match held {
+                Held::Routed(incoming) => {
+                    self.runner.push(incoming);
+                    released = true;
+                }
+                Held::Window {
+                    target,
+                    region,
+                    incoming,
+                    time,
+                } => released |= self.push_for(target, region, incoming, time),
+            }
+        }
+        released
+    }
+
+    /// Hands the runner input for `target`, heard through `region`, and its time, and says
+    /// whether it took them. Input goes to the target's window, else the region's, so a press
+    /// that moved over another view is released where it was pressed. Pointer input for
+    /// neither has nowhere to go and is dropped, never sent to another view's window; keys,
+    /// text and modifiers change state every window shares, so they go in as they are.
+    fn push_for(
+        &mut self,
+        target: ViewRef,
+        region: ViewRef,
+        incoming: Incoming,
+        time: Option<Incoming>,
+    ) -> bool {
+        let window = self
+            .windows
+            .get(&target)
+            .or_else(|| self.windows.get(&region))
+            .copied();
+        let incoming = match window {
+            Some(window) => incoming.in_window(window),
+            None if incoming.points_into_window() => return false,
+            None => incoming,
+        };
+        self.runner.push(incoming);
+        if let Some(time) = time {
+            self.runner.push(time);
+        }
+        true
+    }
+
+    /// Hands the runner input already routed, unless input before it is held for the next
+    /// frame, in which case it waits behind that.
+    fn send(&mut self, incoming: Incoming) {
+        match self.held.is_empty() {
+            true => self.runner.push(incoming),
+            false => self.held.push(Held::Routed(incoming)),
+        }
+    }
+
     fn keyboard_view(&self) -> Option<ViewRef> {
         let keyboard = self.runner.context().keyboard_window();
         self.windows
@@ -831,8 +908,7 @@ impl Regions for ModuleRunner {
         let window = self.windows.get(&id).copied();
         if let Input::Focus(focused) = event.input {
             if let Some(window) = window {
-                self.runner
-                    .push(Incoming::Window(WindowReport::Focused { window, focused }));
+                self.send(Incoming::Window(WindowReport::Focused { window, focused }));
             }
             let was = !self.focused.is_empty();
             match focused {
@@ -841,7 +917,7 @@ impl Regions for ModuleRunner {
             };
             let now = !self.focused.is_empty();
             if was != now {
-                self.runner.push(Incoming::logical(Input::Focus(now)));
+                self.send(Incoming::logical(Input::Focus(now)));
             }
             self.tell_keyboard();
         } else {
@@ -854,21 +930,31 @@ impl Regions for ModuleRunner {
                     };
                     if let Some(space) = space {
                         let input = escaped::to_host(event.input.clone(), space.to_host);
-                        self.runner.push(Incoming::layer(layer, input));
+                        self.send(Incoming::layer(layer, input));
                     }
                 }
                 None => {
                     let incoming = input::translate(event);
-                    let window = self.windows.get(&target).copied().or(window);
-                    self.runner.push(match window {
-                        Some(window) => incoming.in_window(window),
-                        None => incoming,
-                    });
+                    let time = input::time(event).map(Incoming::Time);
+                    let unframed =
+                        !self.windows.contains_key(&target) && !self.listed.contains(&target);
+                    match unframed || !self.held.is_empty() {
+                        true => self.held.push(Held::Window {
+                            target,
+                            region: id,
+                            incoming,
+                            time,
+                        }),
+                        false => {
+                            self.push_for(target, id, incoming, time);
+                        }
+                    }
+                    return;
                 }
             }
         }
         if let Some(at) = input::time(event) {
-            self.runner.push(Incoming::Time(at));
+            self.send(Incoming::Time(at));
         }
     }
 
@@ -927,6 +1013,14 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
+        let released = self.release_held();
+        debug_assert!(
+            regions
+                .iter()
+                .filter(|region| region.view.is_main())
+                .all(|region| self.windows.contains_key(&region.id())),
+            "every main view the app frames has a window to hear its input"
+        );
         self.follow_actions(regions);
         self.count_toggles(regions, active);
         self.overflows = self
@@ -937,8 +1031,13 @@ impl Regions for ModuleRunner {
         Ok(Ran {
             keyboard: self.keyboard_view(),
             asks: std::mem::take(&mut self.asks),
-            repaint_after: frame.wait(),
+            repaint_after: match released {
+                true => Some(std::time::Duration::ZERO),
+                false => frame.wait(),
+            },
             animating: frame.animating,
+            // Input released after the runner's frame is taken in by the next one.
+            input_waiting: released,
         })
     }
 
