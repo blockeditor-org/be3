@@ -16,8 +16,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
-    CONTENTS_BYTES, Identity, PublishOutcome, SUMMARY_BYTES, ServerConfig, ServerError,
-    ServerStore, Services, SessionRegistry, WatchHub,
+    CONTENTS_BYTES, Identity, LISTING_BYTES, PublishOutcome, SUMMARY_BYTES, ServerConfig,
+    ServerError, ServerStore, Services, SessionRegistry, WatchHub,
     address::{Anonymous, Eviction},
     browser_auth, contacts,
     limits::{
@@ -142,7 +142,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
             // before the store answers, which refuses less than `KnowExists` as not found.
+            // A listing's `rest`, which leaves out what the caller may not know of.
             blocks::Call::ListBlocks { .. }
+            | blocks::Call::ReadSummaries { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::CollectDetached { .. } => Rule::Organization,
             blocks::Call::Changes { .. } => Rule::SignedIn,
@@ -260,6 +262,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             blocks::Call::SetMetadata { .. }
             | blocks::Call::Publish { .. }
             | blocks::Call::ReadContents { .. }
+            | blocks::Call::ReadSummaries { .. }
             | blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::ListHistory { .. }
@@ -1694,6 +1697,17 @@ impl Client {
                 .await;
                 self.reply(reply, listed);
             }
+            Call::ReadSummaries { reply, blocks } => {
+                let read = async {
+                    prelude?;
+                    connection
+                        .store
+                        .read_summaries(connection.identity()?, blocks, SUMMARY_BYTES)
+                        .await
+                }
+                .await;
+                self.reply(reply, read);
+            }
             Call::Unlist { reply, listing } => {
                 let unlisted = async {
                     prelude?;
@@ -2208,12 +2222,16 @@ impl Client {
         use embed::keys::Call;
         let connection = &self.connection;
         match call {
-            Call::GetKeys { reply, blocks } => {
+            Call::GetKeys {
+                reply,
+                blocks,
+                after,
+            } => {
                 let keys = async {
                     prelude?;
                     connection
                         .store
-                        .get_keys(connection.identity()?, blocks)
+                        .get_keys(connection.identity()?, blocks, after)
                         .await
                 }
                 .await;
@@ -2730,6 +2748,7 @@ impl Connection {
                     be_block_protocol::Listed {
                         revision: summary.revision,
                         blocks: vec![summary],
+                        rest: Vec::new(),
                     }
                 }
                 Listing::OpenSettings(block) => {
@@ -2750,7 +2769,7 @@ impl Connection {
             crate::store::held::listing(block).await;
         }
         self.hub.listed(self.client, listing, &listed.blocks).await;
-        Ok(listed)
+        Ok(fitting(listed))
     }
 
     async fn announce(&self, block: Place, state: &SessionState) {
@@ -2765,6 +2784,30 @@ impl Connection {
             )
             .await;
     }
+}
+
+/// A listing's first blocks whose summaries fit in `LISTING_BYTES`, at least one, and the rest
+/// as ids for the client to read with `read-summaries`.
+fn fitting(mut listed: be_block_protocol::Listed) -> be_block_protocol::Listed {
+    let mut room = LISTING_BYTES;
+    let fit = listed
+        .blocks
+        .iter()
+        .enumerate()
+        .take_while(|(index, summary)| {
+            let size = be_block_protocol::encoded_len(summary);
+            let fits = *index == 0 || size <= room;
+            room = room.saturating_sub(size);
+            fits
+        })
+        .count();
+    listed.rest = listed
+        .blocks
+        .split_off(fit)
+        .into_iter()
+        .map(|summary| summary.id)
+        .collect();
+    listed
 }
 
 /// Refuses an `upload-urls` or `download-urls` call that names more objects than one answer

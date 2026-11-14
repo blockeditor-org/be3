@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use be_block_graph::BlockGraph;
 use be_block_protocol::{
-    ErrorCode, EscrowKey, KeyChange, KeyKind, KeyRow, KeySet, KeyWork, OrganizationKind, OwnKind,
-    OwnSealed, SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
+    ErrorCode, EscrowKey, KeyChange, KeyKind, KeyPage, KeyRow, KeySet, KeyWork, OrganizationKind,
+    OwnKind, OwnSealed, SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -183,6 +183,47 @@ pub(crate) fn served_keys(
         keys: keys.into_values().collect(),
         wrapped,
     })
+}
+
+/// The bytes of keys and their wraps one `get-keys` page holds. Tests page through a few keys.
+const KEY_PAGE_BYTES: usize = if cfg!(test) {
+    2 * 1024
+} else {
+    be_block_protocol::MAX_FRAME_BYTES / 2
+};
+
+/// The keys of `served` after `after`, in the order of their ids, each with its wraps, while
+/// they fit in `room` bytes and at least one.
+fn page_of(served: KeySet, after: Option<Uuid>, mut room: usize) -> KeyPage {
+    let mut wraps: BTreeMap<Uuid, Vec<WrappedKey>> = BTreeMap::new();
+    for wrap in served.wrapped {
+        wraps.entry(wrap.key).or_default().push(wrap);
+    }
+    let mut rows: Vec<KeyRow> = served
+        .keys
+        .into_iter()
+        .filter(|row| after.is_none_or(|after| row.id > after))
+        .collect();
+    rows.sort_by_key(|row| row.id);
+    let mut page = KeySet::default();
+    let mut next = None;
+    let total = rows.len();
+    for (index, row) in rows.into_iter().enumerate() {
+        let wrapped = wraps.remove(&row.id).unwrap_or_default();
+        let size = be_block_protocol::encoded_len(&row) + be_block_protocol::encoded_len(&wrapped);
+        if size > room && !page.keys.is_empty() {
+            break;
+        }
+        room = room.saturating_sub(size);
+        if index + 1 < total {
+            next = Some(row.id);
+        } else {
+            next = None;
+        }
+        page.keys.push(row);
+        page.wrapped.extend(wrapped);
+    }
+    KeyPage { keys: page, next }
 }
 
 /// Whether `row` is the scope key of an owner-only block, which is sealed to the block's author
@@ -798,11 +839,16 @@ pub(crate) fn forget_block_keys(
 }
 
 impl ServerStore {
+    /// A page of the keys `get-keys` serves: those after `after` in the order of their ids, each
+    /// with its wraps, while they fit in `KEY_PAGE_BYTES` (at least one). A key made with a
+    /// smaller id while a client pages is not skipped for good: `keys-changed` tells it to
+    /// read again.
     pub async fn get_keys(
         &self,
         identity: Identity,
         blocks: Option<Vec<Uuid>>,
-    ) -> Result<KeySet, ServerError> {
+        after: Option<Uuid>,
+    ) -> Result<KeyPage, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             if identity.bound.is_none() {
@@ -834,7 +880,8 @@ impl ServerStore {
                     })
                     .collect(),
             };
-            served_keys(graph, database, identity, &seen, wanted)
+            let served = served_keys(graph, database, identity, &seen, wanted)?;
+            Ok(page_of(served, after, KEY_PAGE_BYTES))
         })
         .await
     }

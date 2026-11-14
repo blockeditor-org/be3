@@ -418,7 +418,10 @@ children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`, or one
 `Block`, which is how a client reads a block's summary) registers with
 `WatchHub` *before* reading, so nothing changed
 during the read is missed, and the hub remembers each block it told a
-connection of. A change is sent to each connected member in the block's
+connection of. It answers the summaries that fit in `LISTING_BYTES` and the
+rest of the listing as ids (`listed.rest`), which the hub counts as told all
+the same; the client reads their summaries with `read-summaries`, which lists
+nothing. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
 member's access allows or a `BlockRemoved`, when a listing matches the block
 now or the connection heard of it before (so a block moving out of a listed
@@ -534,12 +537,17 @@ the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
 journals while they fit in a quarter of a frame.
 
 **Answers that fit a frame.** A summary carries metadata of up to
-`MAX_METADATA_BYTES`, so a call answering many summaries bounds them by their
-encoded size (`be_block_protocol::encoded_len`), not by count:
+`MAX_METADATA_BYTES` and at most `MAX_REFERENCES` references (refused past it
+by `create-block`, `set-metadata` and `publish`), so one summary fits in
+`SUMMARY_BYTES`, and a call answering many summaries bounds them by their
+encoded size (`be_block_protocol::encoded_len`), not by count: `list-blocks`
+and `read-summaries` as above;
 `read-contents` answers the first of the blocks asked whose summaries fit in
 `SUMMARY_BYTES` (at least one) and the client asks again for the rest, with
 the objects of their heads in `CONTENTS_BYTES` and their journals in half that;
-`changed-since` ends a page at `MAX_PAGE_SUMMARY_BYTES`.
+`changed-since` ends a page at `MAX_PAGE_SUMMARY_BYTES`; `get-keys` pages by
+key id (guides/blocks/keys.md). `list-history` still answers every entry
+kept at once.
 
 Nothing the store does blocks the runtime's threads. Its SQL runs as owned
 jobs on tokio's blocking pool, one at a time under the database lock:

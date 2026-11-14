@@ -256,6 +256,10 @@ impl TestClient {
                 answered(client::blocks::read_contents(peer, vec![block], Vec::new()).await),
             ),
             (
+                "read-summaries",
+                answered(client::blocks::read_summaries(peer, vec![block]).await),
+            ),
+            (
                 "set-parent",
                 answered(
                     client::blocks::set_parent(peer, block, BlockParent::Root, KeySet::default())
@@ -305,7 +309,7 @@ impl TestClient {
             ),
             (
                 "get-keys",
-                answered(client::keys::get_keys(peer, Some(vec![block])).await),
+                answered(client::keys::get_keys(peer, Some(vec![block]), None).await),
             ),
             (
                 "put-keys",

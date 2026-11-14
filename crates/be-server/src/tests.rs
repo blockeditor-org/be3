@@ -134,6 +134,7 @@ mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod email_changes_wait_for_verification_and_notify_the_old_address;
 mod every_call_states_who_may_make_it;
 mod every_graph_change_advances_a_blocks_version;
+mod every_key_is_read_a_page_at_a_time_without_one_skipped;
 mod every_member_connection_hears_how_the_graph_changes;
 mod expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded;
 mod fcm_sends_a_data_message_with_the_service_accounts_token;
@@ -691,10 +692,23 @@ impl TestClient {
         assert!(response.is_ok(), "{response:?}");
     }
 
+    /// Every page of `get-keys`, as a client reads them.
     async fn keys(&mut self, blocks: Option<Vec<Uuid>>) -> KeySet {
-        self.call(|peer| client::keys::get_keys(peer, blocks))
-            .await
-            .expect("reading keys failed")
+        let mut keys = KeySet::default();
+        let mut after = None;
+        loop {
+            let asked = blocks.clone();
+            let page = self
+                .call(|peer| client::keys::get_keys(peer, asked, after))
+                .await
+                .expect("reading keys failed");
+            keys.keys.extend(page.keys.keys);
+            keys.wrapped.extend(page.keys.wrapped);
+            match page.next {
+                Some(next) => after = Some(next),
+                None => return keys,
+            }
+        }
     }
 
     async fn upload(&mut self, store: &MemoryStore, hashes: &[Hash]) {

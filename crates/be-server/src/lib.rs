@@ -321,6 +321,12 @@ const CONTENTS_BYTES: usize = MAX_FRAME_BYTES / 2;
 /// few with metadata near `limits::MAX_METADATA_BYTES`. The client asks again for those left
 /// out.
 const SUMMARY_BYTES: usize = MAX_FRAME_BYTES / 16;
+// One summary, with the most metadata and references a block may have, fits in `SUMMARY_BYTES`:
+// each reference is a length byte and 16 bytes, and the rest of a summary is well under 1 KiB.
+const _: () =
+    assert!(limits::MAX_METADATA_BYTES + limits::MAX_REFERENCES * 17 + 1024 <= SUMMARY_BYTES);
+/// The summaries one `list-blocks` answers; the rest of the listing goes as ids.
+const LISTING_BYTES: usize = MAX_FRAME_BYTES / 4;
 
 pub async fn serve_with_config(
     listener: TcpListener,

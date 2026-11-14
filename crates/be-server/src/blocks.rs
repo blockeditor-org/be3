@@ -448,6 +448,7 @@ impl ServerStore {
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        crate::limits::references(&references)?;
         self.with_graph(identity.organization, move |store, graph, database| {
             if graph.authored(identity.account) >= MAX_BLOCKS_PER_ACCOUNT {
                 return Err(crate::limits::too_many(
@@ -530,6 +531,7 @@ impl ServerStore {
     ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        crate::limits::references(&references)?;
         self.with_graph(identity.organization, move |_, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             if let Some(head) = graph.head(block) {
@@ -686,6 +688,32 @@ impl ServerStore {
     }
 
     /// The summaries of the first of `blocks` that fit in `room` bytes (the first always does),
+    /// as a listing has them: none for a block the caller may not know of or that is gone.
+    pub async fn read_summaries(
+        &self,
+        identity: Identity,
+        blocks: Vec<Uuid>,
+        mut room: usize,
+    ) -> Result<Vec<Option<BlockSummary>>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, _| {
+            let seen = visibility(identity);
+            let mut summaries = Vec::new();
+            for block in blocks {
+                let summary = summary_with(graph, &seen, block)
+                    .filter(|summary| summary.access.can_know_exists());
+                let size = be_block_protocol::encoded_len(&summary);
+                if size > room && !summaries.is_empty() {
+                    break;
+                }
+                room = room.saturating_sub(size);
+                summaries.push(summary);
+            }
+            Ok(summaries)
+        })
+        .await
+    }
+
+    /// The summaries of the first of `blocks` that fit in `room` bytes (the first always does),
     /// and the objects of their heads but those `held`.
     pub async fn read_contents(
         &self,
@@ -826,6 +854,7 @@ impl ServerStore {
                     None => Vec::new(),
                 };
                 let references = distinct(references.apply(&listed));
+                crate::limits::references(&references)?;
                 require_keeping_settings(graph, &visibility(identity), block, &references)?;
                 require_one_index(graph, block, &references)?;
                 let relinked = relinked(graph, block, &references);
@@ -2561,5 +2590,6 @@ fn listed(graph: &BlockGraph, blocks: Vec<BlockSummary>) -> Listed {
     Listed {
         revision: graph.revision(),
         blocks,
+        rest: Vec::new(),
     }
 }

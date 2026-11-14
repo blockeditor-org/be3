@@ -141,7 +141,13 @@ interface blocks {
     /// that changes after the answer does so at a later revision.
     record listed {
         revision: u64,
+        /// The first of the listing's blocks, as many as fit in a quarter of a
+        /// frame and at least one.
         blocks: list<block-summary>,
+        /// The rest of the listing's blocks, in order, at the same revision:
+        /// a client reads their summaries with `read-summaries`. The
+        /// connection is told of their changes as of `blocks`'.
+        rest: list<block-id>,
     }
 
     /// What `collect-detached` deleted and freed.
@@ -243,6 +249,12 @@ interface blocks {
     /// The blocks of a listing, which the connection's `changes` stream then
     /// follows until `unlist`.
     list-blocks: async func(listing: listing) -> result<listed, error>;
+
+    /// The summaries of the first of `blocks`, as many as fit in a sixteenth
+    /// of a frame and at least one, in order: none for a block the caller
+    /// may not know of, or that no longer exists. A client asks again for
+    /// the rest. Lists nothing.
+    read-summaries: async func(blocks: list<block-id>) -> result<list<option<block-summary>>, error>;
 
     /// Stops following a listing.
     unlist: async func(listing: listing) -> result<_, error>;

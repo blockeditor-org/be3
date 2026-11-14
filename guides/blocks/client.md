@@ -195,7 +195,7 @@ merge moves the remote head on. A record that no
 longer decodes is skipped on load.
 
 `Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
-only shorthands). The refs database keeps one summary per block, the newest
+only shorthands), and the summaries of a long listing's `rest` after it. The refs database keeps one summary per block, the newest
 revision winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 listing answers as the summaries place its blocks now:

@@ -669,7 +669,18 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn refresh_keys(&self, blocks: Option<Vec<Uuid>>) -> Result<usize, ClientError> {
-        let keys = client::keys::get_keys(&self.connection(), blocks).await??;
+        let mut keys = KeySet::default();
+        let mut after = None;
+        loop {
+            let page = client::keys::get_keys(&self.connection(), blocks.clone(), after).await??;
+            keys.keys.extend(page.keys.keys);
+            keys.wrapped.extend(page.keys.wrapped);
+            match page.next {
+                Some(next) if after.is_none_or(|after| next > after) => after = Some(next),
+                Some(_) => return Err(ClientError::Unexpected),
+                None => break,
+            }
+        }
         self.refs.add_keys(&keys)?;
         let unknown = keys.wrapped.iter().any(|wrap| {
             wrap.wrapped_by == WrappedBy::Account(self.account)
@@ -1437,8 +1448,8 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(self.listed_here(listing, block));
         }
-        match crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await {
-            Ok(be_block_protocol::Listed { revision, blocks }) => {
+        match self.list_online(listing).await {
+            Ok((revision, blocks)) => {
                 self.observe(&blocks);
                 let blocks = blocks
                     .into_iter()
@@ -1454,6 +1465,29 @@ impl<S: ObjectStore> Peer<S> {
             },
             Err(error) => Err(error),
         }
+    }
+
+    /// The server's answer to `listing`, with the summaries of its `rest` read after it.
+    async fn list_online(&self, listing: Listing) -> Result<(u64, Vec<BlockSummary>), ClientError> {
+        let be_block_protocol::Listed {
+            revision,
+            mut blocks,
+            rest,
+        } = crate::ask(client::blocks::list_blocks(&self.connection(), listing)).await?;
+        let mut rest = &rest[..];
+        while !rest.is_empty() {
+            let read = crate::ask(client::blocks::read_summaries(
+                &self.connection(),
+                rest.to_vec(),
+            ))
+            .await?;
+            if read.is_empty() || read.len() > rest.len() {
+                return Err(ClientError::Unexpected);
+            }
+            rest = &rest[read.len()..];
+            blocks.extend(read.into_iter().flatten());
+        }
+        Ok((revision, blocks))
     }
 
     /// A listing about a block whose creation waits in the outbox, which the server cannot
