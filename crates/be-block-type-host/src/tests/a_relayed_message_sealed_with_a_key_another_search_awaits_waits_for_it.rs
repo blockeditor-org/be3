@@ -53,5 +53,11 @@ fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
         }
         let errors = std::mem::take(&mut shared.lock().unwrap().errors);
         assert!(errors.is_empty(), "the message was unsealed: {errors:?}");
+        assert_eq!(replicas.key_searches(), 1);
+        assert_eq!(
+            replicas.heard_from_peers(),
+            [b"from the phone".to_vec()],
+            "the replica was handed what the phone said"
+        );
     });
 }

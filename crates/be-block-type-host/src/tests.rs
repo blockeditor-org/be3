@@ -19,6 +19,7 @@ mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
+mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
@@ -45,6 +46,7 @@ impl Host for Quiet {
     fn wake() {}
 
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
+        eprintln!("{error}");
         shared.lock().unwrap().errors.push(error.to_string());
     }
 
