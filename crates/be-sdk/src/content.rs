@@ -249,6 +249,15 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.announce();
     }
 
+    /// Whether anything `notify` or `announce` would tell is waiting: what was touched, a
+    /// change to the lacking edits, or a revision not yet announced.
+    fn unannounced(&self) -> bool {
+        let mirror = self.0.mirror.borrow();
+        !self.0.touched.borrow().is_empty()
+            || self.0.lacking_revision.get() != mirror.lacking_revision()
+            || self.0.announced.get() != mirror.revision()
+    }
+
     fn announce(&self) {
         let lacking = self.0.mirror.borrow().lacking_revision();
         if self.0.lacking_revision.replace(lacking) != lacking {
@@ -293,8 +302,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.adopt();
         // What a read took is announced at the next pump, which only this asks for now: the
         // host lists for pumping only blocks whose updates are still waiting.
-        let lacking = self.0.mirror.borrow().lacking_revision();
-        if self.0.touched.borrow().is_empty() && self.0.lacking_revision.get() == lacking {
+        if !self.unannounced() {
             return;
         }
         let due = self.0.due.borrow().clone();

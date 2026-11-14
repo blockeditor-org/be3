@@ -13,17 +13,16 @@ fn a_chat_message_sent_offline_shows_as_sending_until_the_device_reconnects() {
     phone.click("#chat.send");
     phone.wait("\"Hello\"");
     phone.synced();
-    assert!(
-        !phone.tree().contains("Sending"),
-        "a message the server took is not sending"
-    );
+    // A message the server took is not sending.
+    phone.gone("Sending");
 
     phone.offline();
     phone.click("#chat.draft");
     phone.type_text("Anyone there");
     phone.click("#chat.send");
     phone.wait("\"Anyone there\"");
-    // The owner groups what it sends for `APPEND_INTERVAL` before it seals, on the stopped clock.
+    // The owner groups what it sends for `APPEND_INTERVAL` (250 ms) before it seals: twice
+    // that, on the stopped clock.
     phone.run(&["pause", "500"]);
     phone.wait("Sending");
     phone.snapshot("a_chat_message_sent_offline_shows_as_sending_until_the_device_reconnects");
