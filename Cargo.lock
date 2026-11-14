@@ -1153,8 +1153,10 @@ dependencies = [
  "be-block-graph",
  "be-block-model",
  "be-block-store",
+ "be-lib-graphemes",
  "be-lib-search",
  "be-lib-ui-preferences",
+ "icu_properties",
  "postcard",
  "serde",
  "uuid",
@@ -3228,6 +3230,7 @@ dependencies = [
  "libloading 0.9.0",
  "openxr",
  "pollster",
+ "rustix 1.1.4",
  "serde_json",
  "wgpu",
 ]

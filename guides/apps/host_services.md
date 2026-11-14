@@ -141,6 +141,14 @@ Notes on particular calls:
 - The shell-only calls (share dialog, access lists, show and dialog requests,
   `close_editor`, ...) serve the instance that draws the host's window; no
   other editor has any use for them.
+- The host's leave confirm and the shell's share dialog name the block in their
+  own words, from the host's graph. Each passes the name through
+  `be_block::quotable_name`, which drops control and format characters,
+  straightens every quotation mark and lookalike, caps runs of combining marks
+  and shortens it on a grapheme boundary, then quotes it with
+  `Phrase::quoted`, which isolates it for bidi (guides/beui/text.md), so no
+  name can pass for the dialog's own words. Quote any name a person typed into
+  the host's words the same way.
 
 ## The graph
 

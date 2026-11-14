@@ -42,6 +42,38 @@ preflighted) and exposing `Content-Length`, `Content-Range` and `ETag`. Requests
 credentials; the signature is the authority. Without a bucket, the server's own S3 endpoint
 answers these itself.
 
+## Listening
+
+Nothing in the repository listens on every interface unless whoever runs it asks. Every
+server, script and harness listens on loopback by default: be-server's `--addr` is
+`127.0.0.1:9090` and the build helper's `127.0.0.1:9091`, the scripts that serve web bundles
+take `--addr` with a `127.0.0.1` default, and tests and `:dev` targets bind `127.0.0.1` (port
+0 where they can). The one way to listen elsewhere is to give that address to `--addr`, the
+same flag on each of them: `--addr 0.0.0.0:PORT` (or `[::]:PORT`) to reach a server or a web
+build from another machine. `//crates/be-host:web`'s `--domain` serves a public deployment on
+ports 80 and 443 of every interface. No test, `:dev` target, CI job or verify step passes either.
+
+Caddy listens on every interface whatever host a site address names; only `default_bind` (or
+`bind`) narrows it. So each Caddyfile run on this machine or in a test sets
+`default_bind {$NAME_BIND:127.0.0.1}` in its global options, which falls back to loopback, and
+the script that runs it sets `NAME_BIND` to the host of its `--addr`. The site matches the Host
+header too, so a page on another origin that rebinds its name to 127.0.0.1 is not answered:
+
+- on loopback, `http://127.0.0.1:PORT, http://localhost:PORT`;
+- on any other single address, such as a LAN IP, only `http://HOST:PORT`, so clients must use
+  that address, not a hostname that resolves to it;
+- on a wildcard `--addr`, `http://:PORT`, any Host.
+
+The build server's Caddyfile (scripts/internal/nativelink) is its front door on the internet and
+binds every interface on purpose.
+
+`./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`). It fails on a Caddyfile
+outside scripts/internal without a loopback `default_bind`; on `0.0.0.0`, `Addr::UNSPECIFIED`,
+or `[::]` written as an address (`[::]:PORT`, quoted, or after `=`), outside a comment, a guide,
+scripts/internal or the lines `ALLOWED_LINES` names (`--domain`'s bind, and the scripts' check
+for a wildcard `--addr`); and on a Node `.listen(` line that names no loopback host, which
+listens on every interface.
+
 ## Routes, the proxy and the gateway
 
 The server speaks WebSockets at `/api/be` and the same protocol over HTTP posts at

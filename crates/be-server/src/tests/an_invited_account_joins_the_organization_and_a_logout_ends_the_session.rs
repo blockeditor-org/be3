@@ -75,7 +75,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     );
 
     let token = guest.token.clone();
-    let response = guest.call(|peer| client::account::logout(peer)).await;
+    let response = guest.call(|peer| client::account::logout(peer, None)).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let mut returning = harness.client().await;
     let response = returning

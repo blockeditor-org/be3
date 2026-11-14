@@ -503,7 +503,10 @@ impl Workspace {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        // An action for a block the dialog no longer shows closes it, rather than act on either.
+        // Apps have no log to note it in.
         if share.block != block {
+            self.close_dialog();
             return;
         }
         if let ShareAction::InviteNew = action {

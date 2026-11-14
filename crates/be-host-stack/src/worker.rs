@@ -154,7 +154,10 @@ pub(super) enum Command {
         content_type: Uuid,
         bytes: Vec<u8>,
     },
-    Flush(std::sync::mpsc::Sender<()>),
+    /// Answered with how many open blocks keep edits the device's journal does not hold yet,
+    /// commands sent before it that still wait their turn, and imports unfinished, as of the
+    /// answer: commands sent since do not count.
+    Flush(std::sync::mpsc::Sender<usize>),
     /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
     /// `Flush`, nothing stays to seal what is edited later.
     SealOwed,
@@ -1465,8 +1468,21 @@ impl Session<'_> {
                 }
                 if self.replicas.reported() {
                     kept_for_flushes = false;
+                    // Measured now, not read from `Shared::pending` after the answer, which
+                    // counts commands sent since: a close asked as the window keeps sending
+                    // would otherwise never find the device saved. A flush that itself waited
+                    // its turn in `Served` (behind a command that is not order-safe) may count
+                    // commands sent after it that wait there too: that only over-counts.
+                    let (.., undurable) = self.replicas.counts();
+                    let unsaved = undurable.len()
+                        + self.uploads.deferred()
+                        + self.served.deferred()
+                        + shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .importing;
                     for done in flushes.drain(..) {
-                        let _ = done.send(());
+                        let _ = done.send(unsaved);
                     }
                 }
             }
@@ -1545,28 +1561,24 @@ impl Session<'_> {
         if !self.tasks.0.syncing() {
             self.replicas.created((peer, shared));
         }
-        // A seal kept since the drain answered keeps its edits sending.
-        for (block, refused) in self.tasks.0.take_published() {
-            if refused || peer.pending_commits(block).is_empty() {
-                let commits = match refused {
-                    true => be_block_type_host::replicas::refused_commits(peer, block),
-                    false => Vec::new(),
-                };
-                self.replicas.drained(block, refused, commits);
-            }
+        // Only what was published drains: a seal kept since stays sending.
+        for (block, head, refused) in self.tasks.0.take_published() {
+            let commits = match refused {
+                true => be_block_type_host::replicas::refused_commits(peer, block),
+                false => head.into_iter().collect(),
+            };
+            self.replicas.drained(block, refused, commits);
         }
         let diverged = self.tasks.0.take_diverged();
         let merged = !diverged.is_empty();
-        for (block, remote) in diverged {
+        for (block, local, remote) in diverged {
             match self
                 .replicas
                 .merge_diverged((peer, shared), block, remote)
                 .await
             {
-                Ok(_) if peer.pending_commits(block).is_empty() => {
-                    self.replicas.drained(block, false, Vec::new());
-                }
-                Ok(_) => {}
+                // The merge holds what this device kept up to its diverged head.
+                Ok(_) => self.replicas.drained(block, false, vec![local]),
                 Err(error) => record(shared, error),
             }
         }
@@ -1696,12 +1708,15 @@ fn shared_offline(shared: &Arc<Mutex<Shared>>) {
     held.connection = None;
 }
 
-/// Publishes the outbox: answers the blocks that diverged, and those whose kept commits all
-/// reached the server (false) or that the server refused (true, `Replicas::drained`).
+/// Publishes the outbox: answers the blocks that diverged, and those with the head the drain
+/// published (false) or that the server refused (true, `Replicas::drained`).
 async fn drain_outbox(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
-) -> (Vec<(Uuid, Option<CommitId>)>, Vec<(Uuid, bool)>) {
+) -> (
+    Vec<(Uuid, CommitId, Option<CommitId>)>,
+    Vec<(Uuid, Option<CommitId>, bool)>,
+) {
     let mut diverged = Vec::new();
     let mut published = Vec::new();
     if peer.pending().operations == 0 {
@@ -1731,7 +1746,7 @@ async fn drain_outbox(
                 })
                 .chain(refused.iter().copied())
                 .collect();
-            published.extend(refused.iter().map(|block| (*block, true)));
+            published.extend(refused.iter().map(|block| (*block, None, true)));
             for outcome in drained {
                 // The graph follows what the drain published of a block no replica holds
                 // (`Graph::drained_head`), and asks again for listings a creation or move it
@@ -1783,14 +1798,24 @@ async fn drain_outbox(
                     _ => {}
                 }
                 match outcome {
-                    be_block_client::Drained::Published { block, .. }
-                    | be_block_client::Drained::Created { block }
+                    // Each published head names what drained, so a seal kept meanwhile stays
+                    // sending.
+                    be_block_client::Drained::Published { block, head }
+                        if !missed.contains(&block) =>
+                    {
+                        published.push((block, Some(head), false));
+                    }
+                    be_block_client::Drained::Created { block }
                         if !missed.contains(&block) && peer.pending_commits(block).is_empty() =>
                     {
-                        published.push((block, false));
+                        published.push((block, None, false));
                     }
-                    be_block_client::Drained::Diverged { block, remote, .. } => {
-                        diverged.push((block, remote));
+                    be_block_client::Drained::Diverged {
+                        block,
+                        local,
+                        remote,
+                    } => {
+                        diverged.push((block, local, remote));
                     }
                     be_block_client::Drained::SetAside { block, code } => {
                         // Named by the block that was refused, not what was made in it.
@@ -2157,7 +2182,7 @@ struct Ran<'a> {
     wanted: &'a mut Wanted,
     shared: &'a Arc<Mutex<Shared>>,
     config: &'a Config,
-    flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &'a mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &'a Tasks,
     served: &'a mut Served,
     calls: &'a LoopCalls,
@@ -2937,7 +2962,7 @@ async fn apply(
     replicas: &mut Replicas,
     wanted: &mut Wanted,
     shared: &Arc<Mutex<Shared>>,
-    flushes: &mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &Tasks,
     command: Command,
 ) -> bool {
@@ -3591,6 +3616,7 @@ async fn heard(
 ) {
     match event {
         Some(Event::BlockChanged { block, .. }) => {
+            let block = peer.summary_with_outbox(block);
             if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
                 record(shared, error);
             }
@@ -3791,10 +3817,12 @@ pub(crate) const STORAGE_FAILED: &str =
 struct Outbox {
     draining: bool,
     again: bool,
-    diverged: Vec<(Uuid, Option<CommitId>)>,
+    diverged: Vec<(Uuid, CommitId, Option<CommitId>)>,
     /// Blocks whose kept commits all reached the server, or were refused
     /// (`Replicas::drained`).
-    published: Vec<(Uuid, bool)>,
+    /// Each block a drain published, with the head it published (none for one only created),
+    /// or that the server refused.
+    published: Vec<(Uuid, Option<CommitId>, bool)>,
 }
 
 impl Tasks {
@@ -3920,11 +3948,11 @@ impl Tasks {
         self.outbox.borrow().draining
     }
 
-    fn take_published(&self) -> Vec<(Uuid, bool)> {
+    fn take_published(&self) -> Vec<(Uuid, Option<CommitId>, bool)> {
         std::mem::take(&mut self.outbox.borrow_mut().published)
     }
 
-    fn take_diverged(&self) -> Vec<(Uuid, Option<CommitId>)> {
+    fn take_diverged(&self) -> Vec<(Uuid, CommitId, Option<CommitId>)> {
         std::mem::take(&mut self.outbox.borrow_mut().diverged)
     }
 
@@ -4166,6 +4194,7 @@ async fn settled(
     }
     match reply {
         Ok(summary) => {
+            let summary = peer.summary_with_outbox(summary);
             if let Err(error) = peer.learn(std::slice::from_ref(&summary)).await {
                 record(shared, error);
             }

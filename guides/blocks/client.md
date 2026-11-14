@@ -243,13 +243,20 @@ sends it. `Peer::write` does both.
   content (`Op::Define`); these rewrite the cached summary so listings show
   them, and later ones for a block queue behind earlier ones. `keep_creation`,
   `keep_definition` and `keep_move` put them there online too (the host's
-  path); a publish waits behind a creation, move or define of its block, and a
-  server listing is laid over with what the outbox adds or moves. Sending a
-  move carries its databases' prefixes along (`Moving::from`). Sharing, access,
-  members, invites, agents, contacts and pairing need the server.
+  path); a publish waits behind a creation, move or define of its block. Every
+  summary the server gives is laid over with what the outbox has yet to send of
+  its block, a waiting move's parent and a waiting define's metadata, as it is
+  kept (`RefsDb::set_listing`, which `Peer::note` and listings keep it
+  through) and where it is returned (`Peer::summary_with_outbox`), and a server
+  listing with what the outbox adds or moves (`Peer::with_outbox`): an answer
+  the server gave before those reached it would otherwise undo them here.
+  Sending a move carries its databases' prefixes along (`Moving::from`).
+  Sharing, access, members, invites, agents, contacts and pairing need the
+  server.
 - **Links** (`contacts.rs`): `make_link` and `invite` make a contact link or an
-  invitation, and `open_link` and `accept_link` read and accept either kind,
-  answering the `Link` with its owner's card; accepting an invitation pins the
+  invitation, and `open_link` and `accept_link` read and accept the kind the
+  caller asks consent for (`Expected`), refusing the other, and answer the
+  `Link` with its owner's card; accepting an invitation pins the
   escrow key it carries. Agents are members: `Peer::members` lists them with
   their creator, and `Peer::remove_member` removes one.
 - **`Peer::drain`** publishes the outbox in order once attached and reports a

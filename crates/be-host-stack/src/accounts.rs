@@ -210,10 +210,16 @@ async fn authenticated(
     )
 }
 
-pub async fn logout(server_url: String, token: String) -> Result<(), AccountError> {
+/// Ends the session `token` names; with `push_address`, this device's push endpoint, the
+/// account forgets it in every organization too.
+pub async fn logout(
+    server_url: String,
+    token: String,
+    push_address: Option<String>,
+) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token.clone()).await?;
     crate::link::forget(&server_url, &token).await;
-    ask(client::account::logout(&connection)).await?;
+    ask(client::account::logout(&connection, push_address)).await?;
     Ok(())
 }
 

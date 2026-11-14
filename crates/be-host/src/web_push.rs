@@ -62,12 +62,16 @@ where
 /// The server's VAPID public key, which the browser subscribes with.
 #[wasm_bindgen]
 pub async fn push_server_key() -> Result<Vec<u8>, JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     answered(be_host_stack::push_key).await
 }
 
 /// Registers the subscription the browser made.
 #[wasm_bindgen]
 pub async fn push_register(address: String, p256dh: Vec<u8>, auth: Vec<u8>) -> Result<(), JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     let endpoint = PushEndpoint {
         service: PushService::WebPush,
         address,
@@ -79,6 +83,8 @@ pub async fn push_register(address: String, p256dh: Vec<u8>, auth: Vec<u8>) -> R
 
 #[wasm_bindgen]
 pub async fn push_unregister(address: String) -> Result<(), JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     answered(|reply| be_host_stack::unregister_push_endpoint(address, reply)).await
 }
 
@@ -87,6 +93,8 @@ pub async fn push_unregister(address: String) -> Result<(), JsValue> {
 /// null when this device cannot open it (no key yet, another block's, too old).
 #[wasm_bindgen]
 pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     let Some(message) = PushMessage::decode(&bytes) else {
         return Ok(JsValue::NULL);
     };
@@ -121,6 +129,8 @@ pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
 /// A notification was pressed: the host opens its block on the next frame.
 #[wasm_bindgen]
 pub fn push_open_block(organization: String, block: String) {
+    // A page entry the host can call before run_web: the page never waits.
+    be_wasm_threads::initialize_page();
     if let (Ok(organization), Ok(block)) = (organization.parse::<Uuid>(), block.parse::<Uuid>()) {
         hold(Opening {
             organization,
@@ -131,27 +141,26 @@ pub fn push_open_block(organization: String, block: String) {
     }
 }
 
-/// Signing out: asks the server to forget this browser's endpoint for the account, and drops
-/// the browser's subscription too when `unsubscribe` (no saved account is left to use it). The
-/// server's request may not get through before the account's connection closes; a dropped
-/// subscription makes the push service answer 404 or 410 to the next push, and the server drops
-/// the endpoint then. Another account removed while this one is open keeps its endpoint until
-/// then.
-pub(crate) fn forget_this_device(unsubscribe: bool) {
+/// Signing out of an account on this browser: drops the browser's subscription when
+/// `unsubscribe` (no saved account is left to use it), then ends the account's session
+/// (`accounts::logout`), naming the endpoint, which the server forgets for the account in every
+/// organization. The subscription goes before the server's round trip, so a later sign-in that
+/// turns pushes on keeps the one it makes. It needs no organization open, so it works from the
+/// accounts screen too. A server that cannot be reached keeps the endpoint until the push
+/// service answers 404 or 410 to a push to a dropped subscription.
+pub(crate) fn sign_out(server_url: String, token: String, unsubscribe: bool) {
     wasm_bindgen_futures::spawn_local(async move {
-        if let Some(address) = call("address")
+        let address = call("address")
             .await
             .ok()
-            .and_then(|address| address.as_string())
-        {
-            let _ = push_unregister(address).await;
-        }
+            .and_then(|address| address.as_string());
         if unsubscribe && let Err(error) = call("unsubscribe").await {
             web_sys::console::warn_1(&JsValue::from_str(&format!(
                 "be-host: the browser's push subscription was not dropped: {error}"
             )));
         }
         refresh().await;
+        let _ = be_host_stack::accounts::logout(server_url, token, address).await;
     });
 }
 

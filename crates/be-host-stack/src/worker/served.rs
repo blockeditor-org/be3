@@ -159,6 +159,11 @@ impl Served {
         None
     }
 
+    /// Commands for the loop that wait their turn: sent, but not yet carried out.
+    pub(super) fn deferred(&self) -> usize {
+        self.deferred.borrow().len()
+    }
+
     pub(super) fn runnable(&mut self) -> Vec<Command> {
         let mut runnable = Vec::new();
         let mut waiting = HashSet::new();

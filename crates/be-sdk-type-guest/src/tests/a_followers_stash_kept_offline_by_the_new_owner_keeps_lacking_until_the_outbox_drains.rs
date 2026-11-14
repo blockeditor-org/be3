@@ -26,7 +26,8 @@ fn a_followers_stash_kept_offline_by_the_new_owner_keeps_lacking_until_the_outbo
         "the stash sits in this device's outbox: the server lacks it"
     );
 
-    sim.with_replica(1, |replica, host| replica.drained(host, false, Vec::new()));
+    let head = sim.head.expect("the new owner published its replacement");
+    sim.with_replica(1, |replica, host| replica.drained(host, false, vec![head]));
     sim.settle();
     assert_eq!(sim.lacking(1, 1), 0, "the outbox drained");
 }

@@ -15,7 +15,8 @@ again reopens the same organization, which is how to pick up a rebuild.
 - `-- --fresh` deletes the data and browser profile first; `-- --stop` stops everything.
 - `-- --webgl` starts the browser without WebGPU, so everything draws with WebGL.
 - `BLOCK_WEB_DEV_DIR` moves the directory; `BLOCK_WEB_DEV_PORT` moves the page, and the server,
-  debugging and Caddy admin ports take the three after it, for running two at once.
+  debugging and Caddy admin ports take the three after it, for running two at once. All of
+  them listen on 127.0.0.1 only.
 - It needs Node and Playwright's Chromium (`npm install -g playwright`,
   `npx playwright install chromium`).
 - The page's and its workers' console goes to `browser.log` (`INFO:CONSOLE` lines), the
@@ -25,6 +26,18 @@ The launcher opens `/?dev-workspace&automation`, and both parameters work on any
 the bundle: `dev-workspace` signs in through the ordinary portal against the page's own server
 (the launcher completes the portal flow; by hand you would), and `automation` answers `drive`
 through the bundle's `automate` export.
+
+`./scripts/buck run //crates/be-host:web` serves the bundle with every app and a be-server
+behind it on http://127.0.0.1:8080 without a browser (`-- --backend HOST:PORT` moves the
+server). be-server's `--auth-origin` is `http://` and the `--addr` given, so sign in from
+http://127.0.0.1:8080, not localhost. It and every other web bundle `./scripts/buck run` serves
+(`//crates/beui-web-demo:web`, `//crates/beui-demo:web-html`,
+`//crates/be-tool-paint-review-web:web`) listen on loopback alone; `-- --addr HOST:PORT` moves
+them, and `-- --addr 0.0.0.0:PORT` is how to open one from another machine. A browser hands
+shared memory only to a secure page, which plain http is only on localhost, so be-host's page
+served elsewhere needs `--domain`. Caddy serves them, which binds every interface unless its
+Caddyfile says otherwise: guides/hosting.md, "Listening", has the rule and the check that holds
+it.
 
 ## Driving the page
 
@@ -89,11 +102,19 @@ survives a reload. Traps that shape this code:
   behind, so `be_block_sqlite_schema::open` uses the `unix-none` VFS on WASI; the `block-files`
   Web Lock keeps one tab as owner (a second tab waits for it).
 - The block stack (`be_host_stack::start`) runs in its own worker, `web/be-worker.js`: a second
-  instance of the module on the page's shared memory, with its own sockets and timers. A browser
-  traps `memory.atomic.wait` on the page's thread, so a lock shared with that worker is
-  `be_wasm_threads::Mutex`, which spins. A server connection's `Peer` locks a
-  `std::sync::Mutex`, so connections never cross between the page and the worker
-  (`be_host_stack::link` keeps them per thread on wasm).
+  instance of the module on the page's shared memory, with its own sockets and timers. Each
+  stack it starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it.
+- Nothing may spin or poll while it waits; a worker waits with `Atomics.wait` (std's locks and
+  `Condvar`, `web/wasi.js`'s file calls, `web/dylink.js`'s lock), woken by the side that
+  changed the state. A browser traps `memory.atomic.wait` on the page's thread, so the page
+  may never wait at all. A module's page entry calls `be_wasm_threads::initialize_page` and a
+  worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. Two waits on the
+  page remain until plans/web_page_never_waits.md lands: `be_wasm_threads::Mutex::lock`, for
+  the locks the page shares with the stack's worker, spins on the page (and waits for real
+  everywhere else), and the page's file calls spin until `files.js` answers. Don't add a
+  third: a page that needs something another thread holds asks for it with a message.
+- A server connection's `Peer` locks a `std::sync::Mutex`, so connections never cross between
+  the page and the worker (`be_host_stack::link` keeps them per thread on wasm).
 - An unload cannot wait for the worker, so durability does not depend on it: a replica seals
   within `APPEND_INTERVAL` of an edit (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
   (`be_host_stack::status().unsaved`), and the worker seals while the browser asks.
@@ -112,26 +133,29 @@ survives a reload. Traps that shape this code:
     pressed comes back as "New message" without a sound. The store is deleted with the
     subscription.
   - *The switch.* `globalThis.bePush.enable()` asks permission, subscribes and registers the
-    endpoint (call it from a gesture); `disable()` and signing out unregister. The settings
+    endpoint (call it from a gesture); `disable()` unregisters it. The settings
     list's "Notifications" row asks the host through `set_push_device`
     (`be_host_base::push_device`, installed by `web_push::install` and published as
     `PushDeviceWatch`).
   - *Registering.* An endpoint is registered per organization, so the host registers the
     browser's subscription again (`bePush.sync`) each time it connects to an organization with
     pushes on, which also finds a subscription the push service replaced
-    (`pushsubscriptionchange`, which `sw.js` renews). Signing out unregisters the endpoint and
-    drops the browser's subscription only when no saved account is left; another account
-    removed while one is open keeps its endpoint until a push to it fails.
+    (`pushsubscriptionchange`, which `sw.js` renews).
+  - *Signing out.* Logging an account out (`web_push::sign_out`) sends the browser's endpoint
+    with `logout`, so the server forgets it for that account in every organization, with no
+    organization open; the browser's subscription is dropped only when no saved account is left.
   - *Pressing.* A pressed notification focuses a window and posts the block to it
     (`push_open_block`), or opens `?open-block=ORGANIZATION/BLOCK`, which any link can do. A block
     of another organization first opens that organization, unless changes are unsaved; the host
     holds it until the organizations, the graph or the unsaved changes change, and drops it
     after 30 s. A worker killed before a loading page says it is ready (30 s) loses a press.
-  - *Test.* `//crates/be-host:push-web-test` runs the real `sw.js` and `push.js` in Chromium with
-    pushes delivered through DevTools (`deliverPush` in buck/program/page-test.mjs); headless
-    Chromium never grants the permission to show a notification, so the test's worker
-    (`web-test/sw.js`) reports what `sw.js` would show, moves its clock on, and raises the press
-    and subscription-change events.
+  - *Tests.* `//crates/be-host:push-web-host-test` runs the whole page (`web_host_test`, below):
+    Ada writes in a chat Dev shared while Dev's tab is closed, be-server pushes it to Dev's
+    endpoint, and Dev's worker shows it named, once, or "New message" without a tab or the key;
+    signing out forgets the endpoint. `//crates/be-host:push-web-test` runs the real `sw.js` and
+    `push.js` beside a page standing in for the host, with pushes delivered through DevTools
+    (`deliverPush` in buck/program/page-test.mjs); its worker (`web-test/sw.js`) reports what
+    `sw.js` would show, moves its clock on, and raises the press and subscription-change events.
 - The host closes its tab when it exits, unless the page is already leaving.
 
 `web_host_test` (buck/program/drive.bzl) tests the whole page: `//crates/be-host:web-host-test`
@@ -139,8 +163,16 @@ serves `:web` through caddy with a fresh be-server behind it, signs dev@localhos
 portal (buck/program/web-sign-in.mjs, which registers it first), sizes the page by resizing it
 (the host takes its window's size from a resize, as `drive size` gives it), waits for the
 workspace, and hands a script in crates/be-host/web-test/ `drive(...)`, answered like `drive` by
-the page's `automate`, with the Playwright page beside it. A failure prints the host's tree and
-the ends of the server's and caddy's logs.
+the page's `automate`, with the Playwright page beside it; `test.account(name)` signs another
+account in, in a browser context of its own. A failure prints the host's tree and the ends of the
+server's and caddy's logs.
+
+The harness stands in for the push service, which headless Chromium lacks along with the
+permission to show notifications: each page's `PushManager` subscribes to an endpoint the
+harness serves and decrypts (RFC 8291) what be-server posts to it (`pushes.next()`), the worker's
+`showNotification` and `getNotifications` keep what it shows (`notifications()`), and
+`deliverPush` dispatches a push in the worker, since DevTools' `deliverPushMessage` carries text,
+not a push's bytes, and needs an open page. buck/program/web-host-test.mjs lists the rest.
 
 Typing offline then reloading is checked by hand: open a text block, `kill -STOP` the
 instance's be-server (or Playwright's `context.setOffline(true)`), type with

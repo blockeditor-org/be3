@@ -213,6 +213,22 @@ impl ServerStore {
         .await
     }
 
+    /// Forgets `account`'s endpoint at `address` in every organization: the device signed out.
+    pub(crate) async fn forget_endpoint_of(
+        &self,
+        account: Uuid,
+        address: String,
+    ) -> Result<(), ServerError> {
+        self.with_database(move |_, database| {
+            database.execute(
+                "DELETE FROM push_endpoints WHERE account_id = ?1 AND address = ?2",
+                params![account.to_string(), address],
+            )?;
+            Ok(())
+        })
+        .await
+    }
+
     /// Drops an endpoint its push service said is gone, for every account that registered it.
     pub(crate) async fn drop_endpoint(&self, address: String) -> Result<(), ServerError> {
         self.with_database(move |_, database| {

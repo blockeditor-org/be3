@@ -1,0 +1,16 @@
+# Grafana's data sources (nl-grafana.service): Prometheus's metrics and nl-stats.py's records of builds.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://127.0.0.1:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 10s
+  - name: Builds
+    uid: builds
+    type: frser-sqlite-datasource
+    jsonData:
+      path: /var/lib/nl-stats/builds.db

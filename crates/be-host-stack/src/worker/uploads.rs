@@ -125,6 +125,11 @@ impl Uploads {
         None
     }
 
+    /// Commands that wait for an upload: sent, but not yet carried out.
+    pub(super) fn deferred(&self) -> usize {
+        self.deferred.len()
+    }
+
     pub(super) fn runnable(&mut self) -> Vec<Command> {
         let mut runnable = Vec::new();
         let mut waiting: HashSet<Uuid> = HashSet::new();
