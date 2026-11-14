@@ -192,11 +192,23 @@ struct ModuleRunner {
     escaped: HashMap<ViewRef, Vec<escaped::Shown>>,
     spaces: HashMap<ViewRef, be_sdk_api::AnchorSpace>,
     placements: HashMap<ViewRef, ViewPlacement>,
-    /// Input for a view the host announced after the app's last frame. Its window opens in the
-    /// app's next frame, so what it hears waits for that frame rather than landing in whatever
-    /// window is there now.
-    held: Vec<(ViewRef, Incoming)>,
+    /// Input that waits for the app's next frame: input for a view the host announced after
+    /// the app's last frame, whose window that frame opens, and everything heard after it, so
+    /// the runner hears it all in the order it came.
+    held: Vec<Held>,
     ratio: f32,
+}
+
+/// Input held for the next frame (`ModuleRunner::held`).
+enum Held {
+    /// Pointer or key input for `target`'s window, heard through `region`.
+    Window {
+        target: ViewRef,
+        region: ViewRef,
+        incoming: Incoming,
+    },
+    /// Input already routed, held only to keep its place.
+    Routed(Incoming),
 }
 
 /// What a view's actions were last worked out from: the context's `actions_version` and the
@@ -528,22 +540,46 @@ impl ModuleRunner {
         }
     }
 
-    /// Hands the runner what views announced since the last frame heard, now that the frame
-    /// has opened their windows, and says whether there was any. A view that closed meanwhile
-    /// drops its own.
+    /// Hands the runner the input held for this frame, now that it has opened the windows of
+    /// the views announced before it, in the order it came, and says whether any reached it.
     fn release_held(&mut self) -> bool {
-        let held = std::mem::take(&mut self.held);
-        let released = !held.is_empty();
-        for (view, incoming) in held {
-            if !self.listed.contains(&view) {
-                continue;
+        let mut released = false;
+        for held in std::mem::take(&mut self.held) {
+            let incoming = match held {
+                Held::Routed(incoming) => Some(incoming),
+                Held::Window {
+                    target,
+                    region,
+                    incoming,
+                } => self
+                    .window_for(target, region)
+                    .map(|window| incoming.in_window(window)),
+            };
+            if let Some(incoming) = incoming {
+                self.runner.push(incoming);
+                released = true;
             }
-            self.runner.push(match self.windows.get(&view) {
-                Some(window) => incoming.in_window(*window),
-                None => incoming,
-            });
         }
         released
+    }
+
+    /// The window input for `target`, heard through `region`, goes to: the target's, else the
+    /// region's, so a press that moved over another view is released where it was pressed.
+    /// Input for neither has nowhere to go and is dropped, never sent to another view.
+    fn window_for(&self, target: ViewRef, region: ViewRef) -> Option<WindowId> {
+        self.windows
+            .get(&target)
+            .or_else(|| self.windows.get(&region))
+            .copied()
+    }
+
+    /// Hands the runner input already routed, unless input before it is held for the next
+    /// frame, in which case it waits behind that.
+    fn send(&mut self, incoming: Incoming) {
+        match self.held.is_empty() {
+            true => self.runner.push(incoming),
+            false => self.held.push(Held::Routed(incoming)),
+        }
     }
 
     fn keyboard_view(&self) -> Option<ViewRef> {
@@ -854,8 +890,7 @@ impl Regions for ModuleRunner {
         let window = self.windows.get(&id).copied();
         if let Input::Focus(focused) = event.input {
             if let Some(window) = window {
-                self.runner
-                    .push(Incoming::Window(WindowReport::Focused { window, focused }));
+                self.send(Incoming::Window(WindowReport::Focused { window, focused }));
             }
             let was = !self.focused.is_empty();
             match focused {
@@ -864,7 +899,7 @@ impl Regions for ModuleRunner {
             };
             let now = !self.focused.is_empty();
             if was != now {
-                self.runner.push(Incoming::logical(Input::Focus(now)));
+                self.send(Incoming::logical(Input::Focus(now)));
             }
             self.tell_keyboard();
         } else {
@@ -877,30 +912,27 @@ impl Regions for ModuleRunner {
                     };
                     if let Some(space) = space {
                         let input = escaped::to_host(event.input.clone(), space.to_host);
-                        self.runner.push(Incoming::layer(layer, input));
+                        self.send(Incoming::layer(layer, input));
                     }
                 }
                 None => {
                     let incoming = input::translate(event);
-                    let unframed = !target.view.is_main()
-                        && !self.windows.contains_key(&target)
-                        && !self.listed.contains(&target);
-                    if unframed {
-                        self.held.push((target, incoming));
-                        let time = input::time(event).map(|at| (target, Incoming::Time(at)));
-                        self.held.extend(time);
-                        return;
+                    let unframed =
+                        !self.windows.contains_key(&target) && !self.listed.contains(&target);
+                    if unframed || !self.held.is_empty() {
+                        self.held.push(Held::Window {
+                            target,
+                            region: id,
+                            incoming,
+                        });
+                    } else if let Some(window) = self.window_for(target, id) {
+                        self.runner.push(incoming.in_window(window));
                     }
-                    let window = self.windows.get(&target).copied().or(window);
-                    self.runner.push(match window {
-                        Some(window) => incoming.in_window(window),
-                        None => incoming,
-                    });
                 }
             }
         }
         if let Some(at) = input::time(event) {
-            self.runner.push(Incoming::Time(at));
+            self.send(Incoming::Time(at));
         }
     }
 
