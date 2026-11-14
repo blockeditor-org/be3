@@ -669,7 +669,11 @@ pub struct Shared {
     /// The account's notification mode for each block it set to other than `all`, once read
     /// (`Tasks::notify_modes`).
     pub notify_modes: Option<HashMap<Uuid, be_block_protocol::NotifyMode>>,
+    /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
     pub locked: std::collections::HashSet<Uuid>,
+    /// Whether locked nodes are being read again as keys arrived (`Tasks::relearn_locked`), and
+    /// whether more arrived meanwhile.
+    pub(crate) relearning: Option<bool>,
     pub version_watch: std::collections::HashSet<Uuid>,
     pub versions: HashMap<Uuid, super::version::VersionState>,
     pub pending: usize,
@@ -1387,11 +1391,18 @@ impl Session<'_> {
                         if matches!(event, Some(Event::BlockChanged { .. }) | None) {
                             self.versions.announced();
                         }
+                        let keyed = matches!(event, Some(Event::KeysChanged));
+                        if keyed {
+                            peer.keys_changed();
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
                         }
                         heard(peer, shared, &self.tasks.0, self.replicas, event).await;
+                        if keyed {
+                            self.unlock(peer, shared).await;
+                        }
                     }
                     false
                 }
@@ -1623,6 +1634,25 @@ impl Session<'_> {
         shared_offline(self.shared);
         self.changed.notify_all();
         be_host_base::host::wake();
+    }
+
+    /// Keys arrived: the replicas found locked open again, and so does a block still wanted that
+    /// a lock kept from opening.
+    async fn unlock(&mut self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let wanted = self.wanted.blocks();
+        for block in self.replicas.unlock(shared) {
+            if let Some(content_type) = wanted.get(&block) {
+                open_wanted(
+                    peer,
+                    shared,
+                    &self.wanted,
+                    self.replicas,
+                    block,
+                    *content_type,
+                )
+                .await;
+            }
+        }
     }
 
     async fn arrive(&mut self, open: Opened) {
@@ -3649,20 +3679,7 @@ async fn heard(
             asked_to_pair(shared, from, &payload);
         }
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
-        Some(Event::KeysChanged) => {
-            peer.keys_changed();
-            let locked: Vec<Uuid> = shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .nodes()
-                .filter(|node| node.locked)
-                .map(|node| node.id)
-                .collect();
-            for block in locked {
-                tasks.refresh(peer, shared, block);
-            }
-        }
+        Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
         Some(Event::KeyWork(work)) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
@@ -3968,6 +3985,45 @@ impl Tasks {
 
     fn take_diverged(&self) -> Vec<(Uuid, CommitId, Option<CommitId>)> {
         std::mem::take(&mut self.outbox.borrow_mut().diverged)
+    }
+
+    /// Reads the locked nodes again as keys arrived, with one `learn` over all of them: one at
+    /// a time, and once more if keys arrive while it runs.
+    fn relearn_locked(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            if held.relearning.is_some() {
+                held.relearning = Some(true);
+                return;
+            }
+            held.relearning = Some(false);
+        }
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        self.spawn(async move {
+            loop {
+                let summaries: Vec<BlockSummary> = shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .nodes()
+                    .filter(|node| node.locked)
+                    .filter_map(|node| peer.known_summary(node.id))
+                    .map(|summary| peer.summary_with_outbox(summary))
+                    .collect();
+                if let Err(error) = peer.learn(&summaries).await {
+                    record(&shared, error);
+                }
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                for summary in &summaries {
+                    held.graph.reread(node_of(&peer, summary));
+                }
+                if held.relearning != Some(true) {
+                    held.relearning = None;
+                    return;
+                }
+                held.relearning = Some(false);
+            }
+        });
     }
 
     pub(super) fn spawn(&self, task: impl Future<Output = ()> + 'static) {

@@ -282,11 +282,12 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
             | keys::Call::KeyWorkChanged { .. }
-            | keys::Call::KeysChanged { .. }
             | keys::Call::PinEscrow { .. }
             | keys::Call::ResealKeys { .. }
             | keys::Call::GetRecoveryKey { .. }
             | keys::Call::Rotate { .. } => true,
+            // It tells of keys for any block the account may open.
+            keys::Call::KeysChanged { .. } => false,
             // The organization's members, as `list-members` would name them.
             keys::Call::GetSigningKeys { .. }
             | keys::Call::SetRecoveryKey { .. }
@@ -2222,8 +2223,9 @@ impl Client {
                 let put = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    let told = connection.store.put_keys(identity, keys).await?;
-                    connection.keys_changed(identity.organization, told).await;
+                    if let Some(told) = connection.store.put_keys(identity, keys).await? {
+                        connection.keys_changed(identity.organization, told).await;
+                    }
                     Ok(())
                 }
                 .await;

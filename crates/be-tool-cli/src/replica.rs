@@ -63,10 +63,12 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         held(shared).errors.push(message);
     }
 
-    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid) {
-        held(shared).errors.push(format!(
-            "this account holds no key that opens block {block}"
-        ));
+    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid, locked: bool) {
+        if locked {
+            held(shared).errors.push(format!(
+                "this account holds no key that opens block {block}"
+            ));
+        }
     }
 
     fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
@@ -266,6 +268,11 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         match woken {
             Woken::Closed => return Err("the connection to the server closed".to_owned()),
             Woken::Event(event) => match *event {
+                Some(Event::KeysChanged) => {
+                    self.peer.keys_changed();
+                    // The session's block opened before this woke, so none is left closed.
+                    self.replicas.unlock(&self.shared);
+                }
                 Some(event) => self.replicas.heard(ctx, &event),
                 None => self.replicas.resynchronize(ctx),
             },

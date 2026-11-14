@@ -219,6 +219,18 @@ fn passed_on(
         && sealed_to(connection, graph, organization, row.block)?.contains(&account))
 }
 
+/// What `store_keys` stored, so whoever it may open something for can be told.
+#[derive(Default)]
+pub(crate) struct Stored {
+    /// Whether it inserted or changed any row.
+    pub any: bool,
+    /// Blocks with a new key, or a key newly wrapped under one that is not the escrow key:
+    /// what their viewers may now open.
+    pub opened: BTreeSet<Uuid>,
+    /// Keys newly sealed to an account: the block each is of, and the account.
+    pub sealed: BTreeSet<(Uuid, Uuid)>,
+}
+
 pub(crate) fn store_keys(
     graph: &mut BlockGraph,
     connection: &Connection,
@@ -226,7 +238,7 @@ pub(crate) fn store_keys(
     caller: Uuid,
     set: &KeySet,
     allowed: impl Fn(&BlockGraph, Uuid) -> bool,
-) -> Result<(), ServerError> {
+) -> Result<Stored, ServerError> {
     let administrator = crate::contacts::role_in(connection, caller, organization)?
         .is_some_and(|role| role == be_block_protocol::OrganizationRole::Administrator);
     let allowed = |graph: &BlockGraph, row: &KeyRow| match row.kind {
@@ -333,6 +345,11 @@ pub(crate) fn store_keys(
     }
     let server = crate::organization::server_account(connection)?;
     let created = now_milliseconds();
+    let mut stored = Stored {
+        any: !fresh.is_empty(),
+        opened: fresh.values().map(|row| row.block).collect(),
+        sealed: BTreeSet::new(),
+    };
     for row in fresh.values() {
         connection.execute(
             "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
@@ -368,7 +385,7 @@ pub(crate) fn store_keys(
         graph.set_key(block, row.id)?;
     }
     for wrap in &set.wrapped {
-        connection.execute(
+        let changed = connection.execute(
             "INSERT INTO wrapped_keys
                 (organization_id, key_id, wrapped_by, sender, sealed)
              VALUES (?1, ?2, ?3, ?4, ?5)
@@ -384,11 +401,25 @@ pub(crate) fn store_keys(
                 server.to_string()
             ],
         )?;
+        let block = known(wrap.key)?.map(|row| row.block);
+        if changed > 0 {
+            stored.any = true;
+        }
         let WrappedBy::Key(by) = wrap.wrapped_by else {
+            if let (true, Some(block), WrappedBy::Account(account)) =
+                (changed > 0, block, wrap.wrapped_by)
+            {
+                stored.sealed.insert((block, account));
+            }
             continue;
         };
         if known(by)?.is_some_and(|row| row.kind == KeyKind::Escrow) {
             continue;
+        }
+        if changed > 0
+            && let Some(block) = block
+        {
+            stored.opened.insert(block);
         }
         for other in wraps_of(connection, organization, wrap.key)? {
             let WrappedBy::Key(other_by) = other.wrapped_by else {
@@ -408,7 +439,7 @@ pub(crate) fn store_keys(
             )?;
         }
     }
-    Ok(())
+    Ok(stored)
 }
 
 pub(crate) fn escrow_chain(
@@ -808,40 +839,40 @@ impl ServerStore {
         .await
     }
 
-    /// Stores `set` and answers who may open something in it: each account a key in it is
-    /// sealed to, and each viewer of a block its rows are of.
+    /// Stores `set` and answers whom to tell (`keys-changed`), none when it stored nothing:
+    /// the viewers of each block it gave a key or wrapped one of under another, and each account
+    /// it sealed a key to that views the key's block. Administrators are told anyway, which is
+    /// all an escrow wrap tells.
     pub async fn put_keys(
         &self,
         identity: Identity,
         set: KeySet,
-    ) -> Result<BTreeSet<Uuid>, ServerError> {
+    ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
-            let organization = identity.organization;
             let seen = visibility(identity);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            store_keys(
+            let stored = store_keys(
                 graph,
                 &transaction,
-                organization,
+                identity.organization,
                 identity.account,
                 &set,
                 |graph, block| seen.can_edit(graph, block),
             )?;
-            let mut blocks: BTreeSet<Uuid> = set.keys.iter().map(|row| row.block).collect();
-            let mut told = BTreeSet::new();
-            for wrap in &set.wrapped {
-                if let WrappedBy::Account(account) = wrap.wrapped_by {
-                    told.insert(account);
-                }
-                if let Some(row) = key_row(&transaction, organization, wrap.key)? {
-                    blocks.insert(row.block);
-                }
-            }
             transaction.commit()?;
-            for block in blocks {
+            if !stored.any {
+                return Ok(None);
+            }
+            let mut told = BTreeSet::new();
+            for block in stored.opened {
                 told.extend(graph.viewers(block));
             }
-            Ok(told)
+            for (block, account) in stored.sealed {
+                if graph.viewers(block).contains(&account) {
+                    told.insert(account);
+                }
+            }
+            Ok(Some(told))
         })
         .await
     }

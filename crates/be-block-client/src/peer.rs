@@ -280,6 +280,9 @@ pub struct Peer<S: ObjectStore> {
     /// Keys looked for and found missing, not asked for again until keys are stored
     /// (`keys_changed`) or a key opens.
     tried: Mutex<HashSet<Uuid>>,
+    /// How many times keys arrived (`keys_changed`): a search for keys under way as it changes
+    /// asks once more, since what arrived may have come after the server answered.
+    keys_arrived: std::sync::atomic::AtomicU64,
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
     draining: std::sync::atomic::AtomicUsize,
@@ -400,6 +403,7 @@ impl<S: ObjectStore> Peer<S> {
             keys,
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
+            keys_arrived: std::sync::atomic::AtomicU64::new(0),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
             forged: Mutex::new(authorship::Forged::default()),
@@ -423,8 +427,6 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<(), ClientError> {
         *self.connection.lock().unwrap() = connection;
         *self.token.lock().unwrap() = token;
-        // Keys may have been stored while it was away, with nobody to tell it.
-        self.keys_changed();
         self.open_session().await
     }
 
@@ -719,10 +721,17 @@ impl<S: ObjectStore> Peer<S> {
     /// missing is asked for again, by `learn` or a read, rather than taken for locked.
     pub fn keys_changed(&self) {
         self.tried.lock().unwrap().clear();
+        self.keys_arrived
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn arrivals(&self) -> u64 {
+        self.keys_arrived.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     pub async fn learn(&self, summaries: &[BlockSummary]) -> Result<(), ClientError> {
         let mut wanted = Vec::new();
+        let mut arrivals = self.arrivals();
         {
             let mut tried = self.tried.lock().unwrap();
             for summary in summaries {
@@ -739,34 +748,46 @@ impl<S: ObjectStore> Peer<S> {
         while !wanted.is_empty() {
             self.refresh_keys(Some(wanted.iter().map(|(block, _)| *block).collect()))
                 .await?;
-            self.again(&mut wanted);
+            self.again(&mut wanted, &mut arrivals);
         }
         Ok(())
     }
 
-    /// Keeps the keys of `wanted` to ask for once more: those still missing whose search was
-    /// forgotten while it was asked (`keys_changed`), since the keys stored then may have come
-    /// after the server answered.
-    fn again<T>(&self, wanted: &mut Vec<(T, Uuid)>) {
+    /// Keeps the keys of `wanted` to ask for once more: those still missing, if keys arrived
+    /// while they were asked for (`keys_changed` since `arrivals`), since what arrived may
+    /// have come after the server answered.
+    fn again<T>(&self, wanted: &mut Vec<(T, Uuid)>, arrivals: &mut u64) {
+        let now = self.arrivals();
+        if now == *arrivals {
+            wanted.clear();
+            return;
+        }
+        *arrivals = now;
         let mut tried = self.tried.lock().unwrap();
-        wanted.retain(|(_, key)| !self.keys.has(*key) && tried.insert(*key));
+        wanted.retain(|(_, key)| {
+            tried.insert(*key);
+            !self.keys.has(*key)
+        });
     }
 
     async fn retrying<T>(
         &self,
         attempt: impl Fn() -> Result<T, ClientError>,
     ) -> Result<T, ClientError> {
-        let mut outcome = attempt();
-        while let Err(ClientError::Store(StoreError::MissingKey(key))) = outcome {
-            let mut wanted = vec![((), key)];
-            self.again(&mut wanted);
-            if wanted.is_empty() {
-                return Err(ClientError::Locked(key));
-            }
-            self.refresh_keys(None).await?;
-            outcome = attempt();
+        let mut arrivals = self.arrivals();
+        let key = match attempt() {
+            Err(ClientError::Store(StoreError::MissingKey(key))) => key,
+            outcome => return outcome,
+        };
+        if !self.tried.lock().unwrap().insert(key) {
+            return Err(ClientError::Locked(key));
         }
-        outcome
+        let mut wanted = vec![((), key)];
+        while !wanted.is_empty() {
+            self.refresh_keys(None).await?;
+            self.again(&mut wanted, &mut arrivals);
+        }
+        attempt().map_err(locked)
     }
 
     pub async fn sealing_key(&self, block: Uuid) -> Result<Uuid, ClientError> {

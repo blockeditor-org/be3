@@ -59,7 +59,7 @@ impl Host for Quiet {
         eprintln!("{message}");
     }
 
-    fn set_locked(_: &Arc<Mutex<Self>>, _: Uuid) {}
+    fn set_locked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
 
     fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
         false

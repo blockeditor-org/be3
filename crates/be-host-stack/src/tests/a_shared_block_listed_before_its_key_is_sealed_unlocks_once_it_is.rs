@@ -1,10 +1,11 @@
 use super::*;
 use be_type_workspace::WorkspaceContent;
 
-use be_type_text::TextContent;
+use be_type_text::{TextBlock, TextContent};
 
 /// A grant reaches this account before the key it needs (as `Peer::share` sends them, or a
-/// pending grant sealed later): the block shows locked, then opens as the key is sealed to it.
+/// pending grant sealed later): the block shows locked, listed and opened, then opens as the
+/// key is sealed to it.
 #[test]
 fn a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is() {
     let harness = Harness::start();
@@ -58,6 +59,9 @@ fn a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is() {
             .await
             .unwrap()
             .id;
+        peer.save(roadmap, &TextBlock::of("the plan"), None)
+            .await
+            .unwrap();
         peer.grant(roadmap, harness.account, be_block_graph::Access::View)
             .await
             .unwrap();
@@ -70,6 +74,10 @@ fn a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is() {
             .get(roadmap)
             .is_some_and(|node| node.locked && node.metadata.name().is_none())
     });
+    open(roadmap, TextContent::CONTENT_TYPE);
+    wait_until("opens the block, locked", |held| {
+        held.locked.contains(&roadmap)
+    });
 
     runtime
         .block_on(peer.seal_share(roadmap, harness.account, &public))
@@ -78,5 +86,10 @@ fn a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is() {
         held.graph
             .get(roadmap)
             .is_some_and(|node| !node.locked && node.metadata.name().as_deref() == Some("Roadmap"))
+            && text_of(held, roadmap).as_deref() == Some("the plan")
     });
+    assert!(
+        !crate::locked(roadmap),
+        "the opened block still shows locked"
+    );
 }

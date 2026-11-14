@@ -514,8 +514,10 @@ pub struct Replicas<H: Host> {
     /// Keys a search is on its way for, which relayed messages wait on.
     searching: HashSet<Uuid>,
     /// Keys a search answered for since a search last opened any or this device last
-    /// reconnected: a message still sealed with one is let go.
+    /// reconnected or keys arrived (`unlock`): a message still sealed with one is let go.
     searched: HashSet<Uuid>,
+    /// Blocks a read here found locked (`H::set_locked`), until keys arrive (`unlock`).
+    locked: HashSet<Uuid>,
     /// How many searches for keys relayed messages started.
     #[cfg(test)]
     key_searches: usize,
@@ -567,6 +569,7 @@ impl<H: Host> Replicas<H> {
             unsealing: HashMap::new(),
             searching: HashSet::new(),
             searched: HashSet::new(),
+            locked: HashSet::new(),
             #[cfg(test)]
             key_searches: 0,
             #[cfg(test)]
@@ -896,7 +899,7 @@ impl<H: Host> Replicas<H> {
             }
             Ok(joined) => joined,
             Err(ClientError::Locked(_)) => {
-                H::set_locked(shared, block);
+                self.lock(shared, block);
                 return;
             }
             Err(error) => {
@@ -1059,7 +1062,8 @@ impl<H: Host> Replicas<H> {
             Err(error) if unreachable(&error) => return,
             Err(error) => {
                 if let ClientError::Locked(_) = &error {
-                    H::set_locked(shared, block);
+                    self.locked.insert(block);
+                    H::set_locked(shared, block, true);
                 } else {
                     H::record(shared, error);
                 }
@@ -1341,6 +1345,28 @@ impl<H: Host> Replicas<H> {
         self.with_replica(replica, |handle, connection| {
             handle.resource_drop(connection)
         });
+    }
+
+    fn lock(&mut self, shared: &Arc<Mutex<H>>, block: Uuid) {
+        self.locked.insert(block);
+        H::set_locked(shared, block, true);
+    }
+
+    /// Keys this account may open arrived (`Event::KeysChanged`, after `Peer::keys_changed`):
+    /// every block found locked is no longer, an open one is opened again, and relayed
+    /// messages search for their keys again. Answers the locked blocks that are not open, for
+    /// the host to open again if it still wants them.
+    pub fn unlock(&mut self, shared: &Arc<Mutex<H>>) -> Vec<Uuid> {
+        self.searched.clear();
+        let mut closed = Vec::new();
+        for block in std::mem::take(&mut self.locked) {
+            H::set_locked(shared, block, false);
+            match self.blocks.contains_key(&block) {
+                true => self.reopen(block),
+                false => closed.push(block),
+            }
+        }
+        closed
     }
 
     pub fn reopen(&mut self, block: Uuid) {
@@ -2197,8 +2223,8 @@ impl<H: Host> Replicas<H> {
                 }
             }
             Io::Locked { replica } => {
-                if let Some(open) = self.open.get(&replica) {
-                    H::set_locked(shared, open.block);
+                if let Some(block) = self.open.get(&replica).map(|open| open.block) {
+                    self.lock(shared, block);
                 }
             }
             Io::Published {

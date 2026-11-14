@@ -44,8 +44,8 @@ impl be_block_type_host::Host for Shared {
         held.progressed += 1;
     }
 
-    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid) {
-        super::worker::set_locked(shared, block, true);
+    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid, locked: bool) {
+        super::worker::set_locked(shared, block, locked);
     }
 
     fn owned(shared: &Arc<Mutex<Self>>, block: Uuid) -> bool {
