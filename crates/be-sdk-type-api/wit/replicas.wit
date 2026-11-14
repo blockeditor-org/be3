@@ -51,6 +51,11 @@ interface replicas {
         /// session through `sealed-head.through`, and keeps journaled what came
         /// after.
         sealed-head: option<sealed-head>,
+        /// Which opening of this replica this is: the host counts each
+        /// `reopen`, and the replica says it with every `status`, so a status
+        /// an earlier opening made that reaches the host after it reopened is
+        /// told apart and ignored.
+        epoch: u64,
     }
 
     record sealed-head {

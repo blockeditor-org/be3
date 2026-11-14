@@ -438,10 +438,63 @@ struct Open {
     rejoining: Option<u64>,
     made_up: bool,
     early: Vec<Replayed>,
-    unreported: bool,
+    /// How many local edits (`Replayed::local_edit`) were sent its module since the replica
+    /// was opened or opened again, which the module counts too: those past what its status
+    /// says it took (`Status::taken`) a status does not yet reflect.
+    sent: u64,
     reporting: Option<CommitId>,
     /// Why its last publish failed, if it did: what a host stuck owing a seal names.
     publish_error: Option<String>,
+}
+
+impl Open {
+    /// Whether it was sent a local edit its module has not reported on yet.
+    fn unreported(&self) -> bool {
+        self.sent > self.status.taken
+    }
+
+    /// Gives its module again the local edits it holds, as one opened again counts them
+    /// from none: those it took before are in what it opens from or in its journal.
+    fn resent(&mut self) {
+        self.sent = self
+            .replay
+            .iter()
+            .filter(|replayed| replayed.local_edit())
+            .count() as u64;
+        self.status.taken = 0;
+    }
+
+    /// Drops what a clean status covers from what would be given a replica opened again: up to
+    /// and including the last local edit it took (`Status::taken`), keeping what came after,
+    /// which it may not reflect. Once it took them all there is nothing to give again, and what
+    /// came between (heads, leases, peers' messages) is had afresh by whatever opens it again.
+    fn reported_clean(&mut self, taken: u64) {
+        let local = self
+            .replay
+            .iter()
+            .filter(|replayed| replayed.local_edit())
+            .count() as u64;
+        // The replay holds the last `local` edits sent: those before it were dropped already.
+        let covered = taken.saturating_sub(self.sent.saturating_sub(local));
+        if covered >= local {
+            self.replay.clear();
+            self.departed.clear();
+            return;
+        }
+        let mut seen = 0;
+        let cut = match covered {
+            0 => 0,
+            _ => self
+                .replay
+                .iter()
+                .position(|replayed| {
+                    seen += u64::from(replayed.local_edit());
+                    seen == covered
+                })
+                .map_or(0, |at| at + 1),
+        };
+        self.replay.drain(..cut);
+    }
 }
 
 /// An open block that owes a seal, and what its seal may be waiting on: what a host names when
@@ -468,7 +521,7 @@ impl Owing {
             content_type: open.content_type,
             publish_error: open.publish_error.clone(),
             journaled: open.status.journaled,
-            unreported: open.unreported,
+            unreported: open.unreported(),
             publishing: open.publishing,
             joining: open.joining,
             closing: open.closing,
@@ -995,6 +1048,7 @@ impl<H: Host> Replicas<H> {
             refused_commits: kept.1,
             server_head: peer.known_remote_head(block),
             sealed_head,
+            epoch: 0,
         };
         let handle = self
             .modules
@@ -1031,7 +1085,7 @@ impl<H: Host> Replicas<H> {
                 rejoining: None,
                 made_up: joining,
                 early: Vec::new(),
-                unreported: false,
+                sent: 0,
                 reporting: None,
                 publish_error: None,
             },
@@ -1163,6 +1217,7 @@ impl<H: Host> Replicas<H> {
         open.reporting = None;
         open.status.head = head;
         open.replay.retain(Replayed::local_edit);
+        open.resent();
         let (module, handle) = (open.module, open.handle);
         let opening = Opening {
             block: open.block,
@@ -1180,6 +1235,7 @@ impl<H: Host> Replicas<H> {
             refused_commits: commits_kept.1,
             server_head,
             sealed_head: None,
+            epoch: open.epoch,
         };
         let editors: Vec<(EditorId, bool)> = open
             .editors
@@ -1289,9 +1345,20 @@ impl<H: Host> Replicas<H> {
             self.heads_told += 1;
         }
         open.replay.push(replayed.clone());
-        self.with_replica(replica, |handle, connection| {
-            replayed.send(handle, connection);
-        });
+        let (module, handle) = (open.module, open.handle);
+        let sent = self
+            .modules
+            .call(module, |connection| {
+                replayed.send(handle, connection);
+            })
+            .is_some();
+        // Counted once its module has it, as `change_now` counts a change (`Open::sent`).
+        if sent
+            && replayed.local_edit()
+            && let Some(open) = self.open.get_mut(&replica)
+        {
+            open.sent += 1;
+        }
     }
 
     pub fn attach(&mut self, block: Uuid, editor: EditorId, editable: bool) {
@@ -1341,9 +1408,6 @@ impl<H: Host> Replicas<H> {
             return;
         };
         self.modules.tick_at(open.module, at);
-        if let Some(open) = self.open.get_mut(&replica) {
-            open.unreported = true;
-        }
         let at = self.modules.millis_at(at);
         self.replay(
             replica,
@@ -1411,7 +1475,7 @@ impl<H: Host> Replicas<H> {
         let Some((_, open)) = self.replica_of(block) else {
             return;
         };
-        let durable = !open.unreported && (open.status.clean || open.status.journaled);
+        let durable = !open.unreported() && (open.status.clean || open.status.journaled);
         let settled = open.status.clean
             && !open.status.owes_seal
             && !open.replay.iter().any(Replayed::local_edit);
@@ -1487,6 +1551,7 @@ impl<H: Host> Replicas<H> {
             .call(module, |connection| replayed.send(handle, connection))
             .flatten()?;
         let open = self.open.get_mut(&replica)?;
+        open.sent += 1;
         open.replay.push(match replayed {
             Replayed::Change { change, .. } => Replayed::Change {
                 change,
@@ -2007,6 +2072,14 @@ impl<H: Host> Replicas<H> {
             }
             Err(error) => Err(format!("the type module answered: {error}")),
         }
+    }
+
+    /// Whether the block's open replica holds nothing unsealed: clean, owing no seal, and
+    /// reported on every local edit it was sent, which its last status may predate.
+    pub fn settled(&self, block: Uuid) -> bool {
+        self.replica_of(block).is_none_or(|(_, open)| {
+            open.status.clean && !open.status.owes_seal && !open.unreported()
+        })
     }
 
     pub fn status(&self, block: Uuid) -> Option<Status> {
@@ -2563,6 +2636,7 @@ impl<H: Host> Replicas<H> {
             open.epoch += 1;
             open.publishing = 0;
             open.moved.clear();
+            open.resent();
             let kept = kept_commits(peer, open.block);
             let opening = Opening {
                 block: open.block,
@@ -2580,6 +2654,7 @@ impl<H: Host> Replicas<H> {
                 refused_commits: kept.1,
                 server_head: peer.known_remote_head(open.block),
                 sealed_head: None,
+                epoch: open.epoch,
             };
             let editors: Vec<(EditorId, bool)> = open
                 .editors
@@ -2621,6 +2696,71 @@ impl<H: Host> Replicas<H> {
             open.handle = handle;
             self.handles.insert((module, handle.op()), replica);
         }
+    }
+
+    /// Takes a status the replica's module reported.
+    async fn take_status(
+        &mut self,
+        (peer, shared): Ctx<'_, H>,
+        replica: ReplicaId,
+        status: Status,
+    ) -> bool {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return false;
+        };
+        let (block, content_type) = (open.block, open.content_type);
+        // Made before the replica was opened again: it says nothing of this opening.
+        if status.epoch != open.epoch {
+            return false;
+        }
+        if open.reporting.is_some() && open.status.head != status.head {
+            open.reporting = None;
+        }
+        // A status the module made before it took the edits sent since covers only those it
+        // took (`Status::taken`): the rest stay to be given again.
+        if status.clean && status.head.is_some() && !status.owes_seal {
+            open.reported_clean(status.taken);
+        }
+        let became_unreadable = status.unreadable.is_some() && open.status.unreadable.is_none();
+        open.status = status.clone();
+        if became_unreadable {
+            let owned = H::owned(shared, block);
+            if let Some(kind) = types::kind_of(content_type)
+                && owned
+                && !kind.frozen
+            {
+                match reset::<H>(peer, block, &kind).await {
+                    Ok(()) => {
+                        if let Some(open) = self.open.get_mut(&replica) {
+                            open.reopen = true;
+                            open.closing = true;
+                        }
+                        self.with_replica(replica, |handle, connection| {
+                            handle.resource_drop(connection);
+                        });
+                        return true;
+                    }
+                    Err(error) => H::record(shared, error),
+                }
+            }
+        }
+        H::status(shared, block, &status);
+        self.counted(shared);
+        true
+    }
+
+    /// Takes `status` as the block's replica reporting it with this opening's epoch, as a
+    /// module that made it earlier would.
+    #[cfg(test)]
+    pub(crate) async fn report(&mut self, ctx: Ctx<'_, H>, block: Uuid, status: Status) {
+        let Some((replica, open)) = self.replica_of(block) else {
+            return;
+        };
+        let status = Status {
+            epoch: open.epoch,
+            ..status
+        };
+        self.take_status(ctx, replica, status).await;
     }
 
     async fn heard_from(&mut self, ctx: Ctx<'_, H>, module: usize, heard: Heard) -> bool {
@@ -3201,44 +3341,7 @@ impl<H: Host> Replicas<H> {
             }
             Call::ReportStatus { reply, status } => {
                 self.acknowledge(module, reply);
-                let Some(open) = self.open.get_mut(&replica) else {
-                    return false;
-                };
-                open.unreported = false;
-                if open.reporting.is_some() && open.status.head != status.head {
-                    open.reporting = None;
-                }
-                if status.clean && status.head.is_some() && !status.owes_seal {
-                    open.replay.clear();
-                    open.departed.clear();
-                }
-                let became_unreadable =
-                    status.unreadable.is_some() && open.status.unreadable.is_none();
-                open.status = status.clone();
-                if became_unreadable {
-                    let owned = H::owned(shared, block);
-                    if let Some(kind) = types::kind_of(content_type)
-                        && owned
-                        && !kind.frozen
-                    {
-                        match reset::<H>(peer, block, &kind).await {
-                            Ok(()) => {
-                                if let Some(open) = self.open.get_mut(&replica) {
-                                    open.reopen = true;
-                                    open.closing = true;
-                                }
-                                self.with_replica(replica, |handle, connection| {
-                                    handle.resource_drop(connection);
-                                });
-                                return true;
-                            }
-                            Err(error) => H::record(shared, error),
-                        }
-                    }
-                }
-                H::status(shared, block, &status);
-                self.counted(shared);
-                true
+                self.take_status((peer, shared), replica, status).await
             }
             Call::Described { reply, description } => {
                 self.acknowledge(module, reply);
@@ -3291,7 +3394,7 @@ impl<H: Host> Replicas<H> {
         let unsealed = self
             .open
             .values()
-            .filter(|open| !open.status.clean || open.unreported)
+            .filter(|open| !open.status.clean || open.unreported())
             .count();
         let owing = self
             .open
@@ -3302,7 +3405,7 @@ impl<H: Host> Replicas<H> {
         let undurable = self
             .open
             .values()
-            .filter(|open| open.unreported || (!open.status.clean && !open.status.journaled))
+            .filter(|open| open.unreported() || (!open.status.clean && !open.status.journaled))
             .map(Owing::of)
             .collect();
         (unsealed, owing, undurable)

@@ -169,6 +169,13 @@ interface types {
         unreadable: option<string>,
         /// None until the replica has loaded, and once it was released.
         undo: option<undo-state>,
+        /// How many local edits (an editor's messages and the host's changes)
+        /// the replica has taken since it was opened or reopened, in the order
+        /// the host sent them: what this status reflects of them.
+        taken: u64,
+        /// The `opening.epoch` the replica was opened with, which `taken`
+        /// counts from.
+        epoch: u64,
     }
 
     variant endpoint {

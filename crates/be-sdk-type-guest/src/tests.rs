@@ -89,6 +89,7 @@ mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
 mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
 mod a_stamp_that_would_not_fit_inline_is_left_off;
+mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
 mod a_submit_relayed_as_less_than_it_asks_is_not_applied;
 mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
@@ -402,6 +403,7 @@ fn opening(
         refused_commits: Vec::new(),
         server_head: None,
         sealed_head: None,
+        epoch: 0,
     }
 }
 
