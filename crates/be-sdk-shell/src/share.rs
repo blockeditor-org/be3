@@ -71,6 +71,8 @@ pub(crate) struct Share {
     pub(crate) members: Ready<()>,
     pub(crate) error: Option<String>,
     pub(crate) query: String,
+    /// Enter was pressed before the members were listed: the listing carries it out.
+    pub(crate) submit_waiting: bool,
     pub(crate) pending: Vec<Person>,
     pub(crate) pending_access: AccessLevel,
     pub(crate) inviting: Option<u64>,
@@ -88,6 +90,7 @@ impl Share {
             members: Err(Pending::Loading),
             error: None,
             query: String::new(),
+            submit_waiting: false,
             pending: Vec::new(),
             pending_access: AccessLevel::Edit,
             inviting: None,
@@ -95,8 +98,9 @@ impl Share {
         }
     }
 
-    pub(crate) fn listed(&mut self, listing: Result<AccessListing, Failure>) {
+    pub(crate) fn listed(&mut self, listing: Result<AccessListing, Failure>, me: Uuid) {
         self.request = None;
+        let submit = std::mem::take(&mut self.submit_waiting);
         match listing {
             Ok(AccessListing {
                 grants,
@@ -107,8 +111,18 @@ impl Share {
                 self.company = company;
                 self.set_inside = set_inside;
                 self.members = Ok(());
+                if submit {
+                    self.submit(me);
+                }
             }
             Err(error) => self.members = Err(Pending::Failed(error.to_string())),
+        }
+    }
+
+    fn submit(&mut self, me: Uuid) {
+        if let Some(person) = self.candidates(me).first().cloned() {
+            self.pending.push(person);
+            self.query.clear();
         }
     }
 
@@ -126,13 +140,16 @@ impl Share {
         let mut grants = Vec::new();
         let mut reload = false;
         match action {
-            ShareAction::Query(query) => self.query = query,
-            ShareAction::Submit => {
-                if let Some(person) = self.candidates(me).first().cloned() {
-                    self.pending.push(person);
-                    self.query.clear();
+            ShareAction::Query(query) => {
+                if query != self.query {
+                    self.submit_waiting = false;
                 }
+                self.query = query;
             }
+            ShareAction::Submit if self.members.is_err() => {
+                self.submit_waiting = !self.query.trim().is_empty();
+            }
+            ShareAction::Submit => self.submit(me),
             ShareAction::Pick(id) => {
                 if let Some(person) = self
                     .candidates(me)

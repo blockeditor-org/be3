@@ -128,6 +128,8 @@ pub enum CursorLeftRightStop {
     UnicodeWord,
     Line,
     VisualLine,
+    /// The document's start or end: Ctrl+Home and Ctrl+End.
+    Document,
 }
 
 /// What a vertical move keeps steady across rows.
@@ -903,7 +905,10 @@ impl Core {
         let mut opened = Vec::new();
         for cursor in &mut self.cursor_positions {
             let current = resolve_selection(&document, cursor.pos);
-            if current.left != current.right && mode == MoveMode::Move {
+            if current.left != current.right
+                && mode == MoveMode::Move
+                && stop != CursorLeftRightStop::Document
+            {
                 let index = match direction {
                     LRDirection::Left => current.left,
                     LRDirection::Right => current.right,
@@ -913,6 +918,7 @@ impl Core {
             }
             let focus = cursor.pos.focus.resolve(&document);
             if direction == LRDirection::Right
+                && stop != CursorLeftRightStop::Document
                 && let Some(section) = sections
                     .iter()
                     .find(|section| section.collapsed && section.line_end == focus)
@@ -972,6 +978,13 @@ impl Core {
                 classification = UndoClassification::AlwaysSplit;
             } else {
                 let focus = cursor.pos.focus.resolve(&document);
+                // At a line's edge a delete to it takes the line break, not the next line.
+                let stop = match stop == CursorLeftRightStop::Line
+                    && at_line_edge(document.bytes(), focus, direction)
+                {
+                    true => CursorLeftRightStop::UnicodeGraphemeCluster,
+                    false => stop,
+                };
                 let moved = to_boundary(
                     document.bytes(),
                     focus,
@@ -2524,6 +2537,12 @@ fn to_boundary(
     ) {
         return source.min(bytes.len());
     }
+    if stop == CursorLeftRightStop::Document {
+        return match direction {
+            LRDirection::Left => 0,
+            LRDirection::Right => bytes.len(),
+        };
+    }
     let mut index = source.min(bytes.len());
     if !may_stay || !boundary_matches(bytes, index, direction, stop, mode, stops) {
         match direction {
@@ -2629,7 +2648,9 @@ fn has_stop(
                 None
             }
         }
-        CursorLeftRightStop::UnicodeWord | CursorLeftRightStop::VisualLine => None,
+        CursorLeftRightStop::UnicodeWord
+        | CursorLeftRightStop::VisualLine
+        | CursorLeftRightStop::Document => None,
     }
 }
 

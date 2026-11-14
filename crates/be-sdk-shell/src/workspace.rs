@@ -591,7 +591,7 @@ impl Workspace {
         if share.request != Some(ask) {
             return;
         }
-        share.listed(listing);
+        share.listed(listing, self.host().account_id());
         self.share.set(Some(share));
     }
 

@@ -32,7 +32,7 @@ pub fn apple() -> bool {
 /// each web core calls it when it starts.
 #[cfg(target_arch = "wasm32")]
 pub fn name_keys() {
-    beui_types::input::name_keys_as_apple(apple());
+    beui_types::input::set_apple_keys(apple());
 }
 
 #[cfg(target_arch = "wasm32")]
