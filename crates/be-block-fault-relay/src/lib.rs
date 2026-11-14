@@ -304,15 +304,19 @@ async fn pump(
             std::future::pending::<()>().await;
         }
         let due = delayed.front().map(|(due, _)| *due);
-        let read = tokio::select! {
-            read = from.read(&mut buffer) => Some(read),
+        let woke = tokio::select! {
+            read = from.read(&mut buffer) => Woke::Read(read),
             let_go = let_go.wait_for(|holding| !*holding), if !held.is_empty() => {
                 drop(let_go);
-                None
+                Woke::LetGo
             }
             () = tokio::time::sleep_until(due.unwrap_or_else(tokio::time::Instant::now)),
-                if due.is_some() =>
-            {
+                if due.is_some() => Woke::Due,
+        };
+        let read = match woke {
+            Woke::Read(read) => Some(read),
+            Woke::LetGo => None,
+            Woke::Due => {
                 if let Some((_, bytes)) = delayed.pop_front()
                     && let Some(to) = &mut to
                     && to.write_all(&bytes).await.is_err()
@@ -408,6 +412,15 @@ async fn pump(
             return;
         }
     }
+}
+
+/// What a pump woke for.
+enum Woke {
+    Read(std::io::Result<usize>),
+    /// What was held back is let go.
+    LetGo,
+    /// The first delayed answer is due.
+    Due,
 }
 
 const RECEIVE_BUFFER: u32 = 64 * 1024;

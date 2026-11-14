@@ -64,14 +64,7 @@ fn an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining(
         type_in(&peer, &shared, &mut replicas, block, editor, b"socks ").await;
         // The status the module made before it took the edit reaches the host only now.
         replicas
-            .report(
-                (&peer, &shared),
-                block,
-                Status {
-                    taken: 0,
-                    ..clean
-                },
-            )
+            .report((&peer, &shared), block, Status { taken: 0, ..clean })
             .await;
 
         replicas.reconnect((&peer, &shared));
