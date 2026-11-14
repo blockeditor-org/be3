@@ -137,10 +137,10 @@ the connection a stopping stack closed.
   device's, entries included. The journal carries the session's state, which
   numbers each writer's next edit: without it an edit an editor made on what it
   was shown is refused as out of order. When the server's is taken, this
-  device's journal becomes it if it holds no entry the server's lacks, so what
-  the replica journals next follows the session's numbering; otherwise it is
-  left as it is and the replica is told those edits are lost to it
-  (`lost-edits`). The replica is given again the local edits its module took
+  device's journal becomes it, so what the replica journals next follows the
+  session's numbering and a later start opens on the session's journal; entries
+  it held that the server's lacks (journaled offline beside another owner, or on
+  another commit) are reported lost to the replica (`lost-edits`). The replica is given again the local edits its module took
   that neither the head nor this device's journal holds (`Open::replay`):
   every status cuts `replay` at `status.sealed-taken` (for an owner what its
   head holds, a replacement on its way not included; for a follower, once it is

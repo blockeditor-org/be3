@@ -3833,23 +3833,21 @@ pub(crate) enum Reopening {
 }
 
 /// The journal on `head` a replica opened again starts from, whose it is, and whether this
-/// device's journal there holds entries the replica is not given (`lost_edits`): the server's
-/// when it is on `head`, otherwise this device's. This device's journal becomes the server's
-/// when each entry it holds past the base is the server's too, so what the replica journals
-/// next follows the session's numbering; otherwise it is left as it is, holding what no other
-/// journal does.
+/// device's journal held entries the replica is not given (`lost_edits`): the server's when it
+/// is on `head`, otherwise this device's. When the server's is taken this device's journal
+/// becomes it, so what the replica journals next follows the session's numbering and a later
+/// start opens on the session's journal; entries this device's held that the server's lacks
+/// (journaled offline beside another owner, or on another commit) are reported lost, not left in
+/// a journal they would be mixed into.
 pub(crate) fn reopening_journal<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     server: Option<ServerJournal>,
     head: Option<CommitId>,
 ) -> (Option<be_block_protocol::Journal>, Option<Reopening>, bool) {
-    let device = peer
-        .local_journal(block)
-        .ok()
-        .flatten()
-        .filter(|journal| journal.base.commit == head);
+    let device = peer.local_journal(block).ok().flatten();
     let Some((sealed, server)) = server.filter(|(_, opened)| opened.base.commit == head) else {
+        let device = device.filter(|journal| journal.base.commit == head);
         let from = device.as_ref().map(|_| Reopening::Device);
         return (device, from, false);
     };
@@ -3861,16 +3859,17 @@ pub(crate) fn reopening_journal<S: be_block_store::ObjectStore>(
             .collect()
     };
     let lost = match device {
-        Some(device) if !same_journal(&device, &server) => {
+        Some(device) if same_journal(&device, &server) => false,
+        Some(device) => {
+            let on_head =
+                device.base.commit == head && device.base.sequence == server.base.sequence;
             let theirs = held(&server);
-            let extra = device.base.sequence != server.base.sequence
-                || held(&device).iter().any(|entry| !theirs.contains(entry));
-            if !extra {
-                let _ = peer.keep_journal(block, &sealed);
-            }
-            extra
+            let lost = held(&device)
+                .iter()
+                .any(|entry| !on_head || !theirs.contains(entry));
+            let _ = peer.keep_journal(block, &sealed);
+            lost
         }
-        Some(_) => false,
         None => {
             let _ = peer.keep_journal(block, &sealed);
             false
