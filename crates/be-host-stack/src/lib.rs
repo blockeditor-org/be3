@@ -361,10 +361,7 @@ pub fn flush() -> usize {
     let unsaved = status().unsaved;
     let (done, sealed) = std::sync::mpsc::channel();
     send(Command::Flush(done));
-    match platform::await_flush(sealed) {
-        true => status().unsaved,
-        false => unsaved,
-    }
+    platform::await_flush(sealed).unwrap_or(unsaved)
 }
 
 #[cfg(any(test, feature = "testing"))]
