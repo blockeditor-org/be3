@@ -42,8 +42,18 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             .await
             .is_err()
     );
+    let role = store
+        .membership(profile.account, organization)
+        .await
+        .unwrap();
+    let identity = Identity {
+        account: profile.account,
+        organization,
+        role,
+        bound: None,
+    };
     store
-        .remove_agent(profile.account, organization, agents[0].account)
+        .remove_member(identity, agents[0].account)
         .await
         .unwrap();
     store

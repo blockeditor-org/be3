@@ -125,7 +125,7 @@ from outside be-host waits until someone opens the boat block. An answer for a t
 meanwhile is dropped, and Disconnect waits for a check in flight.
 
 Disconnect stops the service while the sandbox runs and removes the agent; only once the agent is
-gone (or the server no longer has it, `agent-not-found`) is the terminal forgotten, and the block
+gone (or the server no longer has it, `member-not-found`) is the terminal forgotten, and the block
 stays in Unfiled. A terminal whose sandbox an unfiltered list no longer shows offers Remove, which
 does the same; a list with a name or label filter calls no terminal gone. Connect needs the key's
 `exec` and `file.write` actions; boat.dev's API refusing a command or file (403) offers Reconnect.

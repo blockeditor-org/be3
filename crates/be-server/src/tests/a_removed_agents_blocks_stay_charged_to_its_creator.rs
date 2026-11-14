@@ -27,7 +27,7 @@ async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
     let block = helper.create_block(BlockParent::Root).await;
     drop(helper);
     let removed = creator
-        .call(|peer| client::members::remove_agent(peer, organization, agent.account))
+        .call(|peer| client::members::remove_member(peer, agent.account))
         .await;
     assert!(removed.is_ok(), "{removed:?}");
 

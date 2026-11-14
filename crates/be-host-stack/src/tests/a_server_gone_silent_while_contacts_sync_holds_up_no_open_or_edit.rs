@@ -31,6 +31,7 @@ fn a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit() {
             &guest.phrase.secret(),
             &guest.me().card(),
             &code,
+            be_block_client::contacts::Expected::Contact,
         ))
         .expect("the guest accepts");
     runtime.block_on(harness.relay().heard_beyond(heard));

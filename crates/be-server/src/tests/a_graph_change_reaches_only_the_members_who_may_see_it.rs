@@ -12,22 +12,24 @@ async fn join(
     let account = member.register(email).await;
     let response = owner
         .call(|peer| {
-            client::organizations::invite(
+            client::contacts::create_link(
                 peer,
                 Uuid::from_u128(invitation),
-                organization,
-                email.into(),
-                OrganizationRole::Editor,
                 Vec::new(),
                 Vec::new(),
-                Vec::new(),
+                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    organization,
+                    email: email.into(),
+                    role: OrganizationRole::Editor,
+                    escrow: Vec::new(),
+                }),
             )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = member
         .call(|peer| {
-            client::organizations::accept_invitation(
+            client::contacts::accept_link(
                 peer,
                 Uuid::from_u128(invitation),
                 Vec::new(),

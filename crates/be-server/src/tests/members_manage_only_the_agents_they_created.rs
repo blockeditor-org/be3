@@ -14,7 +14,10 @@ async fn members_manage_only_the_agents_they_created() {
         .add_member(company, other_account, OrganizationRole::Editor)
         .await
         .unwrap();
-    for organization in [personal, company] {
+    // The owner administers the company, and only is a member of the personal organization.
+    for (organization, administers) in [(personal, false), (company, true)] {
+        owner.open(organization).await;
+        other.open(organization).await;
         let response = other
             .call(|peer| {
                 client::members::create_agent(
@@ -33,21 +36,31 @@ async fn members_manage_only_the_agents_they_created() {
             panic!("a member could not create an agent: {response:?}");
         };
         let listed = owner
-            .call(|peer| client::members::list_agents(peer, organization))
-            .await;
-        assert!(matches!(listed, Ok(agents) if agents.is_empty()));
-        let listed = other
-            .call(|peer| client::members::list_agents(peer, organization))
-            .await;
-        assert!(
-            matches!(listed, Ok(agents) if agents.len() == 1 && agents[0].account == agent.account)
+            .call(|peer| client::members::list_members(peer))
+            .await
+            .expect("listing members failed");
+        assert_eq!(
+            listed.iter().any(|member| member.account == agent.account
+                && member.created_by == Some(other_account)),
+            administers,
+            "only an administrator lists another's agent: {listed:?}"
         );
-        let denied = owner
-            .call(|peer| client::members::remove_agent(peer, organization, agent.account))
-            .await;
-        assert!(matches!(denied, Err(_)));
+        let listed = other
+            .call(|peer| client::members::list_members(peer))
+            .await
+            .expect("listing members failed");
+        assert!(
+            listed.len() == 1 && listed[0].account == agent.account,
+            "a member lists the agents it made, and no one else: {listed:?}"
+        );
+        if !administers {
+            let denied = owner
+                .call(|peer| client::members::remove_member(peer, agent.account))
+                .await;
+            assert!(refused_as(&denied, ErrorCode::MemberNotFound), "{denied:?}");
+        }
         let removed = other
-            .call(|peer| client::members::remove_agent(peer, organization, agent.account))
+            .call(|peer| client::members::remove_member(peer, agent.account))
             .await;
         assert!(matches!(removed, Ok(())), "{removed:?}");
         let mut bot = harness.client().await;

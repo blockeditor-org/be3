@@ -42,7 +42,7 @@ async fn a_block_holds_a_bounded_number_of_agents_of_its_own() {
     assert!(owner.block_agent(organization, other).await.is_ok());
 
     let response = owner
-        .call(|peer| client::members::remove_agent(peer, organization, bound[0]))
+        .call(|peer| client::members::remove_member(peer, bound[0]))
         .await;
     assert!(response.is_ok(), "{response:?}");
     assert!(owner.block_agent(organization, terminal).await.is_ok());

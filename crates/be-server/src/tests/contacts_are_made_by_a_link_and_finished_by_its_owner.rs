@@ -28,26 +28,26 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            client::contacts::create_contact_link(
+            client::contacts::create_link(
                 peer,
                 link,
                 owner_card.seal(&code, CardRole::Owner),
                 owner_secret.seal_own(&code.to_bytes()),
-                None,
+                be_block_protocol::LinkKind::Contact(None),
             )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
     let own = owner
-        .call(|peer| client::contacts::get_contact_link(peer, link))
+        .call(|peer| client::contacts::get_link(peer, link))
         .await;
     assert!(
         matches!(own, Err(_)),
         "the owner opened its own link: {own:?}"
     );
     let Ok(found) = other
-        .call(|peer| client::contacts::get_contact_link(peer, link))
+        .call(|peer| client::contacts::get_link(peer, link))
         .await
     else {
         panic!("the other account could not read the link");
@@ -58,7 +58,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
 
     let response = other
         .call(|peer| {
-            client::contacts::accept_contact_link(
+            client::contacts::accept_link(
                 peer,
                 link,
                 other_card.seal(&code, CardRole::Accepter),
@@ -97,7 +97,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     );
 
     let Ok(links) = owners_device
-        .call(|peer| client::contacts::list_contact_links(peer))
+        .call(|peer| client::contacts::list_links(peer))
         .await
     else {
         panic!("listing links failed");
@@ -114,12 +114,9 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = owners_device
-        .call(|peer| client::contacts::delete_contact_link(peer, link))
+        .call(|peer| client::contacts::delete_link(peer, link))
         .await;
-    let Ok(links) = owner
-        .call(|peer| client::contacts::list_contact_links(peer))
-        .await
-    else {
+    let Ok(links) = owner.call(|peer| client::contacts::list_links(peer)).await else {
         panic!("listing links failed");
     };
     assert!(links.is_empty());

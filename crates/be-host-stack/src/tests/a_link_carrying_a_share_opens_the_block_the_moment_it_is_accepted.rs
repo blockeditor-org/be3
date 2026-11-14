@@ -28,6 +28,7 @@ fn a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted() {
             &guest.phrase.secret(),
             &guest.me().card(),
             &code,
+            be_block_client::contacts::Expected::Contact,
         ))
         .expect("the guest accepts");
     assert_eq!(runtime.block_on(read_text(&peer, block)), "the plan");
