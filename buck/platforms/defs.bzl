@@ -1,4 +1,5 @@
 load("@prelude//cfg/exec_platform:marker.bzl", "get_exec_platform_marker")
+load("@root//buck/platforms:profile.bzl", "REMOTE_PRIORITY")
 
 # prelude//platforms:defs.bzl's execution_platform. With `remote`, actions run on
 # the build server unless their rule asks to run locally; without it, every action
@@ -20,6 +21,7 @@ def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
         executor_config = CommandExecutorConfig(
             allow_cache_uploads = False,
             local_enabled = True,
+            priority = REMOTE_PRIORITY,
             remote_cache_enabled = remote,
             remote_enabled = remote,
             remote_execution_properties = ctx.attrs.remote_execution_properties,

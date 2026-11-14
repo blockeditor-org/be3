@@ -77,6 +77,11 @@ pub fn configure(buck2: &Path) -> Result<()> {
             let _ = writeln!(config, "http_headers = {header}");
         }
         let _ = writeln!(config, "tls = {tls}");
+        if crate::in_ci() {
+            // Behind everyone else's actions on the build server (REMOTE_PRIORITY in buck/platforms/profile.bzl).
+            let _ = writeln!(config, "[be3]");
+            let _ = writeln!(config, "remote_priority = -1");
+        }
     }
     if std::fs::read(&path).is_ok_and(|existing| existing == config.as_bytes()) {
         return Ok(());

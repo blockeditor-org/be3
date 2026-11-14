@@ -13,11 +13,16 @@ on:
   merge_group:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Every merge queue run shares one group, and the newest cancels the rest:
+  # each entry's merge group holds every entry ahead of it, so the last one's
+  # run checks them all. The queue is set not to require every entry's checks
+  # to pass, so when the last passes, the entries ahead of it, whose runs were
+  # cancelled, merge with it. If it fails, they all leave the queue.
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && 'merge-queue' || github.ref }}
   # A superseded pull request run is work on a commit nobody is waiting for any
-  # more. A run on main is not: it is the one that fills the caches, and a merge
-  # queue run is what a merge is waiting on, so neither is cancelled.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # more, as is a merge queue run a later entry's run covers. A run on main is
+  # not: it is the one that fills the caches, so it is not cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 permissions:
   contents: read

@@ -1,5 +1,5 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/platforms:profile.bzl", "LOCAL_BUILD")
+load("@root//buck/platforms:profile.bzl", "LOCAL_BUILD", "REMOTE_PRIORITY")
 load("@root//buck/tools:defs.bzl", "worker_properties")
 
 # How long a test may run before crates/be-tool-run-test stops it. A test that
@@ -39,6 +39,7 @@ def _executor(local: bool):
         return CommandExecutorConfig(local_enabled = True, remote_enabled = False)
     return CommandExecutorConfig(
         local_enabled = False,
+        priority = REMOTE_PRIORITY,
         remote_cache_enabled = True,
         remote_enabled = True,
         remote_execution_properties = worker_properties(),
