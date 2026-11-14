@@ -4,6 +4,7 @@ use beui_text_editor_core::{
 };
 
 use beui_view::reactive::*;
+use beui_view::types::input::apple_keys;
 use beui_view::types::{Key, KeyPress};
 
 use super::{Context, TextAreaState};
@@ -91,66 +92,32 @@ fn command(cx: &Context, press: KeyPress) -> bool {
         _ => {}
     }
 
-    let direction = match press.key {
-        Key::ArrowLeft | Key::Home => Some(LRDirection::Left),
-        Key::ArrowRight | Key::End => Some(LRDirection::Right),
-        _ => None,
-    };
-    if let Some(direction) = direction {
-        state.execute(EditorCommand::MoveCursorLeftRight {
-            mode: match modifiers.shift {
-                true => MoveMode::Select,
-                false => MoveMode::Move,
-            },
-            direction,
-            stop: if matches!(press.key, Key::Home | Key::End) && modifiers.ctrl {
-                CursorLeftRightStop::Document
-            } else if matches!(press.key, Key::Home | Key::End) {
-                CursorLeftRightStop::Line
-            } else if modifiers.alt || modifiers.ctrl {
-                CursorLeftRightStop::Word
-            } else {
-                CursorLeftRightStop::UnicodeGraphemeCluster
-            },
-        });
-        return true;
-    }
-
-    if matches!(press.key, Key::ArrowUp | Key::ArrowDown) {
-        let direction = match press.key {
-            Key::ArrowUp => UDDirection::Up,
-            _ => UDDirection::Down,
+    if let Some(caret) = caret_key(press, apple_keys()) {
+        let mode = match modifiers.shift {
+            true => MoveMode::Select,
+            false => MoveMode::Move,
         };
-        if modifiers.alt && modifiers.ctrl {
-            state.move_by_row(direction, VerticalMoveMode::Duplicate);
-        } else if modifiers.ctrl {
-            // Cmd+Up and Cmd+Down on Apple's systems, where Command is `ctrl`.
-            state.execute(EditorCommand::MoveCursorLeftRight {
-                mode: match modifiers.shift {
-                    true => MoveMode::Select,
-                    false => MoveMode::Move,
-                },
-                direction: match direction {
-                    UDDirection::Up => LRDirection::Left,
-                    UDDirection::Down => LRDirection::Right,
-                },
-                stop: CursorLeftRightStop::Document,
-            });
-        } else if modifiers.alt {
-            state.execute(EditorCommand::SelectSyntaxNode(
-                match direction == UDDirection::Up {
-                    true => SyntaxNodeDirection::Parent,
-                    false => SyntaxNodeDirection::Child,
-                },
-            ));
-        } else {
-            state.move_by_row(
+        match caret {
+            CaretKey::Across(direction, stop) => {
+                state.execute(EditorCommand::MoveCursorLeftRight {
+                    mode,
+                    direction,
+                    stop,
+                })
+            }
+            CaretKey::Row(direction) => state.move_by_row(
                 direction,
                 match modifiers.shift {
                     true => VerticalMoveMode::Select,
                     false => VerticalMoveMode::Move,
                 },
-            );
+            ),
+            CaretKey::Duplicate(direction) => {
+                state.move_by_row(direction, VerticalMoveMode::Duplicate)
+            }
+            CaretKey::SyntaxNode(direction) => {
+                state.execute(EditorCommand::SelectSyntaxNode(direction))
+            }
         }
         return true;
     }
@@ -196,6 +163,61 @@ fn command(cx: &Context, press: KeyPress) -> bool {
         _ => return false,
     }
     true
+}
+
+/// What an arrow, Home or End key does to the carets; Shift selects instead of moving.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaretKey {
+    Across(LRDirection, CursorLeftRightStop),
+    Row(UDDirection),
+    Duplicate(UDDirection),
+    SyntaxNode(SyntaxNodeDirection),
+}
+
+/// The caret key `press` is, on Apple's systems (`apple`, where Command is held as `ctrl`)
+/// or elsewhere. Home and End go to the line's ends, and with Ctrl to the document's,
+/// everywhere; Apple's Cmd+Left and Cmd+Right go to the line's ends and Cmd+Up and
+/// Cmd+Down to the document's, where elsewhere Ctrl+Left and Ctrl+Right go by word and
+/// Ctrl+Up and Ctrl+Down by row.
+pub fn caret_key(press: KeyPress, apple: bool) -> Option<CaretKey> {
+    let modifiers = press.modifiers;
+    let across = |direction| {
+        let stop = match press.key {
+            Key::Home | Key::End if modifiers.ctrl => CursorLeftRightStop::Document,
+            Key::Home | Key::End => CursorLeftRightStop::Line,
+            _ if apple && modifiers.ctrl => CursorLeftRightStop::Line,
+            _ if modifiers.alt || modifiers.ctrl => CursorLeftRightStop::Word,
+            _ => CursorLeftRightStop::UnicodeGraphemeCluster,
+        };
+        Some(CaretKey::Across(direction, stop))
+    };
+    let vertical = |direction: UDDirection| {
+        Some(if modifiers.alt && modifiers.ctrl {
+            CaretKey::Duplicate(direction)
+        } else if apple && modifiers.ctrl {
+            CaretKey::Across(
+                match direction {
+                    UDDirection::Up => LRDirection::Left,
+                    UDDirection::Down => LRDirection::Right,
+                },
+                CursorLeftRightStop::Document,
+            )
+        } else if modifiers.alt {
+            CaretKey::SyntaxNode(match direction {
+                UDDirection::Up => SyntaxNodeDirection::Parent,
+                UDDirection::Down => SyntaxNodeDirection::Child,
+            })
+        } else {
+            CaretKey::Row(direction)
+        })
+    };
+    match press.key {
+        Key::ArrowLeft | Key::Home => across(LRDirection::Left),
+        Key::ArrowRight | Key::End => across(LRDirection::Right),
+        Key::ArrowUp => vertical(UDDirection::Up),
+        Key::ArrowDown => vertical(UDDirection::Down),
+        _ => None,
+    }
 }
 
 fn shortcut(state: TextAreaState, key: Key) -> bool {

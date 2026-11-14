@@ -49,9 +49,10 @@ fn ctrl_home_and_ctrl_end_go_to_the_ends_of_a_text_area_and_shift_extends() {
     harness.key(Key::Home, shift(true));
     assert_eq!(state.selection_ranges(), vec![0..middle]);
 
-    // Cmd+Down and Cmd+Up on Apple's systems, where Command arrives as `ctrl`.
+    // Off Apple's systems Ctrl+Up and Ctrl+Down move by row, as Up and Down do.
     harness.key(Key::ArrowDown, Modifiers::CTRL);
-    assert_eq!(state.caret_indices(), vec![end]);
-    harness.key(Key::ArrowUp, shift(true));
-    assert_eq!(state.selection_ranges(), vec![0..end]);
+    let row = state.caret_indices()[0];
+    assert!(row > 0 && row < end, "Ctrl+Down moved one row: {row}");
+    harness.key(Key::End, shift(true));
+    assert_eq!(state.selection_ranges(), vec![row..end]);
 }

@@ -36,9 +36,12 @@ control's exact keys are in its code and tests. The patterns that span them:
 - In a multiline text area Up and Down move through the rows on screen, so a
   wrapped line takes one press per row, keeping the column they started from
   (guides/beui/text.md, Text areas); Home and End go to the source line's ends,
-  and Ctrl+Home and Ctrl+End (Ctrl+Up and Ctrl+Down too, so Cmd+Up and
-  Cmd+Down on Apple's systems) to the document's, with Shift extending the
-  selection (`CursorLeftRightStop::Document`).
+  and Ctrl+Home and Ctrl+End to the document's (`CursorLeftRightStop::Document`).
+  Alt+Left and Alt+Right go by word. Elsewhere Ctrl+Left and Ctrl+Right go by
+  word too and Ctrl+Up and Ctrl+Down by row; on Apple's systems Cmd+Left and
+  Cmd+Right go to the line's ends and Cmd+Up and Cmd+Down to the document's
+  (`text_area::keys::caret_key`; the hex view follows it). Shift extends the
+  selection with any of them.
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
 - The inspector is a document of its own; Ctrl+Shift+F moves the focus into
@@ -113,10 +116,11 @@ modifier pressed and released alone is a tap, judged from key events alone
 (runners disagree on whether `Event::Modifiers` comes first), offered on the
 release as a `KeyInput::Tap` to host and window capture listeners. React to one
 with an action on `Chord::tap(Key::Logo)`. Super is `logo`, except on macOS,
-where Command acts as Ctrl. `KeyChord::label` names chords for menus, the
+where Command acts as Ctrl. A control whose keys differ on Apple's systems
+asks `apple_keys()`. `KeyChord::label` names chords for menus, the
 palette and screen readers as the platform does: "Ctrl+P" elsewhere, "Cmd+P"
 and Option for `alt` on Apple's systems, which a build for them knows and the
-web cores learn from the browser when they start (`name_keys_as_apple`).
+web cores learn from the browser when they start (`set_apple_keys`).
 
 **Naming a key.** `Key` is what shortcuts match, and `Key::from_typed` names it
 the same on every platform: the ASCII letter or digit the key types under the

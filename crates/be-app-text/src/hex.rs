@@ -229,22 +229,42 @@ fn copy_bytes(state: State, cut: bool) {
     }
 }
 
-fn navigate(state: State, press: KeyPress) -> bool {
-    let len = document_len(state);
-    let current = cursor_range(state).start;
-    let modifiers = press.modifiers;
-    let target = match press.key {
-        Key::ArrowUp | Key::Home if modifiers.ctrl => 0,
-        Key::ArrowDown | Key::End if modifiers.ctrl => len,
+/// Where a navigation key takes the hex caret from `current`, as a text area's keys
+/// would on Apple's systems (`apple`) or elsewhere, with a row standing for a line.
+pub(crate) fn hex_target(
+    press: KeyPress,
+    current: usize,
+    len: usize,
+    apple: bool,
+) -> Option<usize> {
+    let ctrl = press.modifiers.ctrl;
+    let row_start = current - current % BYTES_PER_ROW;
+    let row_end = (row_start + BYTES_PER_ROW - 1).min(len);
+    Some(match press.key {
+        Key::Home if ctrl => 0,
+        Key::End if ctrl => len,
+        Key::ArrowUp if ctrl && apple => 0,
+        Key::ArrowDown if ctrl && apple => len,
+        Key::ArrowLeft if ctrl && apple => row_start,
+        Key::ArrowRight if ctrl && apple => row_end,
         Key::ArrowLeft => current.saturating_sub(1),
         Key::ArrowRight => (current + 1).min(len),
         Key::ArrowUp => current.saturating_sub(BYTES_PER_ROW),
         Key::ArrowDown => (current + BYTES_PER_ROW).min(len),
-        Key::Home => current - current % BYTES_PER_ROW,
-        Key::End => (current - current % BYTES_PER_ROW + BYTES_PER_ROW - 1).min(len),
+        Key::Home => row_start,
+        Key::End => row_end,
         Key::PageUp => current.saturating_sub(BYTES_PER_ROW * PAGE_ROWS),
         Key::PageDown => (current + BYTES_PER_ROW * PAGE_ROWS).min(len),
-        _ => return false,
+        _ => return None,
+    })
+}
+
+fn navigate(state: State, press: KeyPress) -> bool {
+    let len = document_len(state);
+    let current = cursor_range(state).start;
+    let modifiers = press.modifiers;
+    let Some(target) = hex_target(press, current, len, beui::input::apple_keys()) else {
+        return false;
     };
     state.inner().hex_pending_nibble.set(None);
     if modifiers.shift {
