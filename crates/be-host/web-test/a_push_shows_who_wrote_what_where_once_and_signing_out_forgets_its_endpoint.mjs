@@ -23,6 +23,8 @@ export default async function (test) {
     await ada.drive("click", "#host.contacts.paste");
     await ada.drive("type", link);
     await ada.drive("click", "#host.contacts.open");
+    // The offer comes from the server.
+    await ada.drive("wait", "#host.contacts.offered.accept");
     await ada.drive("click", "#host.contacts.offered.accept");
     await ada.drive("wait", 'Label value="Dev"');
     await ada.drive("key", "Escape");
@@ -36,6 +38,7 @@ export default async function (test) {
 
     // Dev turns notifications on, which registers this browser's endpoint with the server.
     await test.drive("click", 'Tab "Settings"');
+    await test.drive("wait", "#settings.push-device");
     await test.drive("click", "#settings.push-device");
     await test.drive("wait", 'Switch "Notifications on this device" toggled=True');
     const [endpoint] = await test.until(async () => {
@@ -47,7 +50,9 @@ export default async function (test) {
     await test.drive("click", 'Tab "Files"');
     await test.drive("click", "#file-tree.new");
     await test.drive("click", 'MenuItem "New in My files…"');
+    await test.drive("wait", "#picker.more");
     await test.drive("click", "#picker.more");
+    await test.drive("wait", 'Button "Chat"');
     await test.drive("click", 'Button "Chat"');
     await test.drive("wait", 'TextInput "Name" value="Chat"');
     await test.drive("click", 'TextInput "Name" value="Chat"');
@@ -55,14 +60,21 @@ export default async function (test) {
     await test.drive("type", "Roadmap");
     await test.drive("key", "Enter");
     await test.drive("wait", 'TreeItem "Roadmap"');
+    await test.drive("wait", "#dock.editors.pin.editor.share");
     await test.drive("click", "#dock.editors.pin.editor.share");
+    await test.drive("wait", "#share.query");
     await test.drive("click", "#share.query");
+    await test.drive("wait", 'TextInput "Add contacts" focused');
     await test.drive("type", "Ada");
-    await test.drive("key", "Enter");
+    // Ada is suggested once the block's access listing has loaded from the server.
+    await test.drive("wait", 'Button "Ada (ada@localhost)"');
+    await test.drive("click", 'Button "Ada (ada@localhost)"');
     await test.drive("wait", "#share.add");
     await test.drive("click", "#share.add");
     await test.drive("wait", 'Label value="ada@localhost"');
     await test.drive("click", "#share.close");
+    // The share reaches Ada's files from the server.
+    await ada.drive("wait", 'TreeItem "Roadmap"');
     await ada.drive("click", 'TreeItem "Roadmap"');
     await ada.drive("wait", "#chat.draft");
 
@@ -108,7 +120,9 @@ export default async function (test) {
     // Signing out has the server forget the endpoint, and drops the browser's subscription.
     await test.drive("click", "#file-tree.host-menu");
     await test.drive("click", "#host.menu.accounts");
+    await test.drive("wait", "#account.options.Dev");
     await test.drive("click", "#account.options.Dev");
+    await test.drive("wait", 'MenuItem "Log out"');
     await test.drive("click", 'MenuItem "Log out"');
     await test.drive("wait", 'Label value="No accounts yet. Add one to get started."');
     await test.until(
