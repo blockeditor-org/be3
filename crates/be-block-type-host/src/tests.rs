@@ -20,16 +20,21 @@ mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
+mod a_replica_opened_again_takes_the_servers_journal_on_its_head_and_this_device_follows_it;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
+mod an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica;
+mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
 mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
+mod what_a_replica_opened_offline_replayed_from_its_journal_survives_a_restart_of_its_module;
+mod what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining;
 mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
 
 /// A host that keeps nothing but which editors it was given frames for, for tests of stateless
@@ -37,6 +42,8 @@ mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
 #[derive(Default)]
 struct Quiet {
     to_editors: Vec<EditorId>,
+    /// What each editor was sent, in order.
+    frames: Vec<(EditorId, Vec<u8>)>,
     /// What was recorded as failing.
     errors: Vec<String>,
 }
@@ -79,8 +86,10 @@ impl Host for Quiet {
         None
     }
 
-    fn to_editor(shared: &Arc<Mutex<Self>>, _: Uuid, editor: EditorId, _: Vec<u8>) -> bool {
-        shared.lock().unwrap().to_editors.push(editor);
+    fn to_editor(shared: &Arc<Mutex<Self>>, _: Uuid, editor: EditorId, frame: Vec<u8>) -> bool {
+        let mut held = shared.lock().unwrap();
+        held.to_editors.push(editor);
+        held.frames.push((editor, frame));
         false
     }
 
@@ -104,7 +113,15 @@ impl Host for Quiet {
 fn with_test_types<F: Future<Output = ()>>(
     test: impl FnOnce(Arc<Peer<MemoryStore>>, Arc<Mutex<Quiet>>, Replicas<Quiet>) -> F,
 ) {
-    with_devices(false, |peer, _, shared, replicas| {
+    with_test_types_on(be_block_client::Clock::real(), test);
+}
+
+/// As `with_test_types`, its modules on `clock`.
+fn with_test_types_on<F: Future<Output = ()>>(
+    clock: be_block_client::Clock,
+    test: impl FnOnce(Arc<Peer<MemoryStore>>, Arc<Mutex<Quiet>>, Replicas<Quiet>) -> F,
+) {
+    with_devices(false, clock, |peer, _, shared, replicas| {
         test(peer, shared, replicas)
     });
 }
@@ -119,18 +136,23 @@ fn with_another_device<F: Future<Output = ()>>(
         Replicas<Quiet>,
     ) -> F,
 ) {
-    with_devices(true, |peer, another, shared, replicas| {
-        test(
-            peer,
-            another.expect("another device signed in"),
-            shared,
-            replicas,
-        )
-    });
+    with_devices(
+        true,
+        be_block_client::Clock::real(),
+        |peer, another, shared, replicas| {
+            test(
+                peer,
+                another.expect("another device signed in"),
+                shared,
+                replicas,
+            )
+        },
+    );
 }
 
 fn with_devices<F: Future<Output = ()>>(
     another: bool,
+    clock: be_block_client::Clock,
     test: impl FnOnce(
         Arc<Peer<MemoryStore>>,
         Option<Peer<MemoryStore>>,
@@ -167,15 +189,7 @@ fn with_devices<F: Future<Output = ()>>(
             true => Some(device(Some(peer.organization())).await),
             false => None,
         };
-        let modules = started(
-            vec![
-                in_process::<sections::BlockTypes>("test.sections"),
-                in_process::<probe::BlockTypes>("test.probe"),
-                in_process::<be_type_text::BlockTypes>("be3.text"),
-            ],
-            be_block_client::Clock::real(),
-        )
-        .await;
+        let modules = test_modules(clock).await;
         test(
             Arc::new(peer),
             another,
@@ -185,6 +199,86 @@ fn with_devices<F: Future<Output = ()>>(
         .await;
         server.stop().await;
     });
+}
+
+/// Gives `mirror` what the replica sent `editor` since the frames were last taken, as the
+/// editor would take it.
+fn receive_frames<C: be_block_content::LiveEdit + Clone + Default>(
+    shared: &Arc<Mutex<Quiet>>,
+    editor: EditorId,
+    mirror: &mut be_sdk_type_guest::editor::EditorMirror<C>,
+) {
+    let frames: Vec<Vec<u8>> = std::mem::take(&mut shared.lock().unwrap().frames)
+        .into_iter()
+        .filter(|(to, _)| *to == editor)
+        .map(|(_, frame)| frame)
+        .collect();
+    for frame in frames {
+        let message = frame
+            .split_first_chunk::<4>()
+            .filter(|(length, payload)| u32::from_be_bytes(**length) as usize == payload.len())
+            .and_then(|(_, payload)| be_sdk_type_guest::editor::ToEditor::decode(payload))
+            .or_else(|| be_sdk_type_guest::editor::ToEditor::decode(&frame));
+        if let Some(message) = message {
+            mirror.receive(message);
+        }
+    }
+}
+
+/// Attaches `editor` to the open `block` and waits until it is shown its content.
+async fn attach_mirror<C: be_block_content::LiveEdit + Clone + Default>(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    editor: EditorId,
+) -> be_sdk_type_guest::editor::EditorMirror<C> {
+    let mut mirror = be_sdk_type_guest::editor::EditorMirror::<C>::default();
+    replicas.attach(block, editor, true);
+    replicas.relay_from_editor(
+        block,
+        editor,
+        be_sdk_type_guest::editor::FromEditor::Resend.encode(),
+        std::time::Instant::now(),
+    );
+    replicas.pump((peer, shared)).await;
+    receive_frames(shared, editor, &mut mirror);
+    while mirror.content().is_none() {
+        replicas.woken().await;
+        replicas.pump((peer, shared)).await;
+        receive_frames(shared, editor, &mut mirror);
+    }
+    mirror
+}
+
+/// Types `text` at the start of what `mirror` shows, as its editor, numbered by the session
+/// state it was shown, as an editor's edits are.
+fn type_at_start(
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    editor: EditorId,
+    mirror: &mut be_sdk_type_guest::editor::EditorMirror<be_type_text::TextContent>,
+    text: &str,
+) {
+    let shown = mirror.content().expect("the editor was shown the text");
+    let typed = be_type_text::TextBlock::insert(shown, 3, 0, text.as_bytes())
+        .expect("there is somewhere to type");
+    let message = mirror.operate(typed).expect("the editor has content");
+    replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
+}
+
+/// The modules of the `Sections`, `Probe` and text types, on `clock`.
+async fn test_modules(clock: be_block_client::Clock) -> crate::Modules {
+    started(
+        vec![
+            in_process::<sections::BlockTypes>("test.sections"),
+            in_process::<probe::BlockTypes>("test.probe"),
+            in_process::<be_type_text::BlockTypes>("be3.text"),
+            in_process::<be_type_example_counter::BlockTypes>("be3.counter"),
+        ],
+        clock,
+    )
+    .await
 }
 
 /// The ten sections, `changed` ones replaced, as a part of the block of their own: the

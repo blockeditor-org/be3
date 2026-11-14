@@ -566,6 +566,22 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// since it opened, applied or dropped, which its status reports (`Status::taken`): the
     /// host keeps each one it sent past that count to give again should the replica reopen.
     taken: u64,
+    /// The first of those whose operations wait in `held`, not yet sequenced: an owner
+    /// sequences local edits in the order it takes them, so every one taken before it is.
+    held_from: u64,
+    /// How many local edits were taken when this replica was last clean: all of them are in
+    /// its head.
+    clean_taken: u64,
+    /// The first local edit that replaces the content and has not landed yet: the replacement
+    /// is published as a commit of its own, not sequenced, so none taken since counts as
+    /// sequenced until it lands or fails.
+    replacing_from: Option<u64>,
+    /// How many local edits its seal on the way holds: those sequenced when it began.
+    sealing_taken: u64,
+    /// How many local edits its head holds (`Status::sealed_taken`).
+    sealed_taken: u64,
+    /// How many local edits its head and its journal hold (`Status::journaled_taken`).
+    journaled_taken: u64,
     /// Which opening this is (`Opened::epoch`), said with every status.
     epoch: u64,
     beaten: Option<u64>,
@@ -836,6 +852,12 @@ where
             restarted_at: None,
             lost_edits: opened.lost_edits,
             taken: 0,
+            held_from: 0,
+            clean_taken: 0,
+            replacing_from: None,
+            sealing_taken: 0,
+            sealed_taken: 0,
+            journaled_taken: 0,
             epoch: opened.epoch,
             beaten: None,
             active: false,
@@ -1341,6 +1363,9 @@ where
         if ops.is_empty() {
             return;
         }
+        if self.is_owner() {
+            self.journaled_taken = self.sequenced_taken();
+        }
         let from = ops[0].sequence;
         match self.alone() {
             true => {
@@ -1480,6 +1505,7 @@ where
             } => self.reply(id, Answer::Unknown),
             _ => {}
         }
+        self.replace_settled();
     }
 
     fn release(&mut self) {
@@ -2163,6 +2189,11 @@ where
     }
 
     fn answer_awaited(&mut self, event: HeadEvent) {
+        self.answer_wait(event);
+        self.replace_settled();
+    }
+
+    fn answer_wait(&mut self, event: HeadEvent) {
         if !matches!(event, HeadEvent::Published { .. }) {
             self.sealing_through = None;
         }
@@ -2221,6 +2252,7 @@ where
         match then {
             AfterPublish::Seal { reply, .. } => {
                 if let Some(head) = head {
+                    self.sealed_taken = self.sealed_taken.max(self.sealing_taken);
                     self.settle_at(head);
                 }
                 self.sealing = false;
@@ -2532,6 +2564,17 @@ where
         matches!(self.role, Role::Owner(_))
     }
 
+    /// How many local edits an owner has sequenced, so that its confirmed content holds them:
+    /// every one taken, but for those whose operations wait in `held`.
+    fn sequenced_taken(&self) -> u64 {
+        let held = match self.held.is_empty() {
+            true => self.taken,
+            false => self.held_from.saturating_sub(1),
+        };
+        self.replacing_from
+            .map_or(held, |from| held.min(from.saturating_sub(1)))
+    }
+
     /// Loads a journal on the base just read: its session state, then every operation in it,
     /// answered in order. An owner opening with it continues from its numbering without
     /// rebasing; one that took it over rebases first (`adopt`).
@@ -2705,6 +2748,9 @@ where
         if self.is_owner() && (oversized || sealing || !self.held.is_empty()) {
             self.lacking.add(payload, Until::Waiting, announcements);
             let first = self.held.is_empty();
+            if first {
+                self.held_from = self.taken;
+            }
             self.held.push_back(operation);
             if first && !sealing {
                 self.sequence_held();
@@ -2807,6 +2853,7 @@ where
             FromEditor::Replace(bytes) if editable => {
                 if let Ok(content) = C::decode(&bytes) {
                     self.history.clear();
+                    self.replacing_from.get_or_insert(self.taken);
                     self.jobs.push_front(Job::Replace {
                         content,
                         reply: None,
@@ -3031,11 +3078,33 @@ where
             return self.reply(id, Answer::Changed(false));
         };
         self.history.clear();
+        self.replacing_from.get_or_insert(self.taken);
         self.jobs.push_front(Job::Replace {
             content,
             reply: Some(id),
             outright: true,
         });
+    }
+
+    /// Lets go of `replacing_from` once no replacement is queued or on its way.
+    fn replace_settled(&mut self) {
+        let queued = self
+            .jobs
+            .iter()
+            .any(|job| matches!(job, Job::Replace { .. }));
+        let waiting = matches!(
+            &self.waiting,
+            Some(Wait::Publish {
+                then: AfterPublish::Replace { .. },
+                ..
+            }) | Some(Wait::Stash {
+                then: AfterStash::Replace { .. },
+                ..
+            })
+        );
+        if !queued && !waiting {
+            self.replacing_from = None;
+        }
     }
 
     fn attach(&mut self, editor: EditorId, editable: bool) {
@@ -3185,6 +3254,26 @@ where
     }
 
     fn report(&mut self) {
+        let clean = self.loaded && self.is_clean();
+        if clean {
+            self.clean_taken = self.sequenced_taken();
+        }
+        // What the host need not give it again: once it is clean, every local edit but a
+        // replacement on its way (an owner's head holds them; a follower's owner accepted them,
+        // into the session's journal), otherwise what an owner's head holds, from its last seal
+        // or its last clean status.
+        let sealed_taken = match (&self.role, clean) {
+            (_, true) => self.clean_taken,
+            (Role::Owner(_), false) => self.sealed_taken.max(self.clean_taken),
+            (Role::Follower(_), false) => 0,
+        };
+        // An owner's journal holds every edit it sequenced once nothing waits to be appended.
+        let journaled_taken = match &self.role {
+            Role::Owner(_) if self.unappended.is_empty() => self.sequenced_taken(),
+            Role::Owner(_) => self.journaled_taken,
+            Role::Follower(_) => 0,
+        }
+        .max(sealed_taken);
         let undo = (self.loaded && !self.released).then(|| UndoState {
             can_undo: self.history.can_undo(),
             can_redo: self.history.can_redo(),
@@ -3201,6 +3290,8 @@ where
             },
             owes_seal: self.loaded && self.seal_would_settle(),
             taken: self.taken,
+            sealed_taken,
+            journaled_taken,
             epoch: self.epoch,
             incompatible: self.incompatible,
             diverged: self.diverged,
@@ -3846,6 +3937,11 @@ where
         let mut unsent = std::mem::take(&mut self.unsent).into_iter();
         for (operation, bound, _) in unsent.by_ref() {
             if bound > LARGEST_RELAYED_OPERATION {
+                // Taken as a follower, after it was last clean: which edit it came from is not
+                // known, so none since is counted as sequenced.
+                if self.held.is_empty() {
+                    self.held_from = self.clean_taken + 1;
+                }
                 self.held.push_back(operation);
                 break;
             }
@@ -4027,6 +4123,7 @@ where
         // What it sequenced reaches the journal first, with what it announces, which the host
         // then keeps with this commit (`rebase-journal`).
         self.append_unappended();
+        self.sealing_taken = self.sequenced_taken();
         self.restarting = self.restart_due();
         self.sealing_through = match (&self.role, self.restarting) {
             (Role::Owner(sequencer), false) => {
@@ -4052,7 +4149,7 @@ where
             if let Some(id) = reply {
                 self.reply(id, Answer::Changed(false));
             }
-            return;
+            return self.replace_settled();
         }
         // An outright replace keeps what it replaces as its merge's second parent, which history
         // never prunes: unsaved edits, and on a follower also the saved head, which only the
