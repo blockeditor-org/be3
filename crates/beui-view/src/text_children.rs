@@ -3,7 +3,9 @@ use crate::reactive::{
     IntoSegment, Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
 };
 use crate::types::icons::Glyph;
-use crate::types::text::{FontPatch, IconSpan};
+use crate::reactive::{DynamicSegment, ForEach, create_memo};
+use crate::types::text::{FontPatch, IconSpan, Phrase, PhraseRun};
+use beui_macros::view;
 use crate::types::{Color, FontFamily, FontId, SpanBackground};
 
 pub enum TextChild {
@@ -38,6 +40,7 @@ pub struct Span {
     pub(crate) strikethrough: Prop<Option<bool>>,
     pub(crate) background: Prop<Option<SpanBackground>>,
     pub(crate) break_after: Prop<bool>,
+    pub(crate) isolate: Prop<bool>,
     pub(crate) icon: Option<IconSpan>,
 }
 
@@ -69,6 +72,7 @@ impl Span {
             strikethrough: Prop::Static(None),
             background: Prop::Static(None),
             break_after: Prop::Static(false),
+            isolate: Prop::Static(false),
             icon: None,
         }
     }
@@ -80,6 +84,7 @@ impl Span {
             && matches!(self.strikethrough, Prop::Static(None))
             && matches!(self.background, Prop::Static(None))
             && matches!(self.break_after, Prop::Static(false))
+            && matches!(self.isolate, Prop::Static(false))
             && self.icon.is_none()
     }
 }
@@ -96,6 +101,7 @@ pub(crate) fn span(
     strikethrough: Prop<Option<bool>>,
     background: Prop<Option<SpanBackground>>,
     break_after: Prop<bool>,
+    isolate: Prop<bool>,
     children: Children<SpanText>,
 ) -> Span {
     let text = match children.into_only() {
@@ -131,6 +137,7 @@ pub(crate) fn span(
         strikethrough,
         background,
         break_after,
+        isolate,
         icon: None,
     }
 }
@@ -188,6 +195,64 @@ text_child_from!(
     ReadSignal<String>,
     Signal<String>
 );
+
+impl Span {
+    /// The span of a phrase's run `index`, following the phrase as it changes.
+    fn of_run(phrase: Memo<Phrase>, index: usize) -> Self {
+        let run = move |read: fn(&PhraseRun) -> String| {
+            Prop::dynamic(move || phrase.with(|phrase| phrase.runs().get(index).map(read)))
+        };
+        Self {
+            isolate: Prop::dynamic(move || {
+                phrase.with(|phrase| phrase.runs().get(index).is_some_and(|run| run.isolate))
+            }),
+            ..Self::plain(run(|run| run.text.clone()).map(Option::unwrap_or_default))
+        }
+    }
+}
+
+impl IntoSegment<TextChild> for Phrase {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::Many(
+            self.runs()
+                .iter()
+                .map(|run| {
+                    TextChild::Span(Span {
+                        isolate: Prop::Static(run.isolate),
+                        ..Span::plain(Prop::Static(run.text.clone()))
+                    })
+                })
+                .collect(),
+        )
+    }
+}
+
+/// A changing phrase keeps a span per run and changes only what each shows.
+impl IntoSegment<TextChild> for Memo<Phrase> {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        let phrase = self;
+        let keys: Memo<Vec<usize>> =
+            create_memo(move || phrase.with(|phrase| (0..phrase.runs().len()).collect()));
+        let runs: DynamicSegment<TextChild> = view! {
+            <ForEach keys={keys}>|index: usize| {
+                Span::of_run(phrase, index)
+            }</ForEach>
+        };
+        ChildSegment::Dynamic(runs)
+    }
+}
+
+impl IntoSegment<TextChild> for Prop<Phrase> {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        match self {
+            Prop::Static(phrase) => phrase.into_segment(),
+            Prop::Dynamic(_) => {
+                let phrase = self;
+                create_memo(move || phrase.get()).into_segment()
+            }
+        }
+    }
+}
 
 impl IntoChild<TextChild> for Span {
     fn into_child(self) -> TextChild {

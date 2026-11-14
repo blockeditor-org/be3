@@ -34,7 +34,7 @@ pub use be_block_model;
 pub use be_block_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
 pub use device_class::{ClassDefault, DeviceClass};
-pub use display::quoted_name;
+pub use display::quotable_name;
 pub use display_settings::{DisplaySettings, DisplaySettingsContent, Motion, ThemeKind};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use input_remapper::{InputRemapper, InputRemapperContent};

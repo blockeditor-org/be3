@@ -1,6 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::LayerLevel;
+use beui_view::types::text::Phrase;
 use beui_view::types::icons::ICON_X;
 
 use crate::button::{Button, ButtonSize, ButtonVariant};
@@ -71,7 +72,7 @@ pub fn Modal(
 pub fn Dialog(
     open: Prop<bool>,
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
-    #[prop(default = String::new())] title: Prop<String>,
+    #[prop(default = Phrase::new())] title: Prop<Phrase>,
     #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
@@ -163,7 +164,7 @@ pub fn DialogCard(
 #[component]
 pub fn DialogBody(
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
-    #[prop(default = String::new())] title: Prop<String>,
+    #[prop(default = Phrase::new())] title: Prop<Phrase>,
     #[prop(default = String::new())] id: Prop<String>,
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] focuses: Prop<bool>,
@@ -207,7 +208,7 @@ fn DialogBodyFace(
 ) -> NodeId {
     let title = handle.title;
     let closable = handle.kind == DialogKind::Dialog;
-    let titled = create_memo(move || !title.get().is_empty());
+    let titled = create_memo(move || !title.with(Phrase::is_empty));
     let footer = handle.footer;
     let footed = create_memo(move || !footer.get().is_empty());
     let bleed = create_memo(move || Bleed::dialog(titled.get(), footed.get()));

@@ -49,35 +49,13 @@ impl<N> TreeLine for Line<N> {
     }
 }
 
-/// `text` without the format characters that draw nothing and only steer text around them (bidi
-/// marks, overrides and isolates, zero-width spaces and joiners between words): the tree prints
-/// a label as it reads, and a selector names it as it reads, whichever of these it holds.
-pub fn without_invisibles(text: &str) -> String {
-    text.chars()
-        .filter(|c| {
-            !matches!(
-                c,
-                '\u{00ad}'
-                    | '\u{061c}'
-                    | '\u{200b}'
-                    | '\u{200e}'
-                    | '\u{200f}'
-                    | '\u{202a}'..='\u{202e}'
-                    | '\u{2060}'..='\u{2064}'
-                    | '\u{2066}'..='\u{2069}'
-                    | '\u{feff}'
-            )
-        })
-        .collect()
-}
-
 pub fn describe<N>(depth: usize, description: Description, node: N) -> Line<N> {
     let mut text = description.role.to_owned();
     if let Some(label) = description.label.filter(|label| !label.is_empty()) {
-        let _ = write!(text, " {:?}", without_invisibles(label));
+        let _ = write!(text, " {label:?}");
     }
     if let Some(value) = description.value.filter(|value| !value.is_empty()) {
-        let _ = write!(text, " value={:?}", without_invisibles(value));
+        let _ = write!(text, " value={value:?}");
     }
     if let Some(toggled) = description.toggled {
         let _ = write!(text, " toggled={toggled}");
@@ -155,7 +133,7 @@ pub fn waited<'a, L: TreeLine>(lines: &'a [L], text: &str, over: Option<Pos2>) -
     lines.iter().find(|line| {
         let matches = match text.strip_prefix('#') {
             Some(id) => line.test_ids().iter().any(|named| named == id),
-            None => line.text().contains(&without_invisibles(text)),
+            None => line.text().contains(text),
         };
         matches && over.is_none_or(|over| line.bounds().is_some_and(|bounds| bounds.contains(over)))
     })

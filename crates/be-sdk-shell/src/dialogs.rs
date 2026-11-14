@@ -13,6 +13,7 @@ use uuid::Uuid;
 use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
+use be_sdk_beui::beui::text::Phrase;
 use beui::{Align, Direction};
 
 const MEMBERS_HEIGHT: Size = Size::Custom(280.0);
@@ -196,7 +197,9 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     .info(block)
                     .map(|info| workspace.label(info.id, info.block_type).name)
                     .unwrap_or_default();
-                format!("Share {}", be_sdk_beui::be_block::quoted_name(&name))
+                Phrase::new()
+                    .text("Share ")
+                    .quoted(be_sdk_beui::be_block::quotable_name(&name))
             })
             .unwrap_or_default()
     });

@@ -138,7 +138,6 @@ fn placed<L: TreeLine>(line: &L) -> Result<Rect, String> {
 }
 
 pub fn line_with<'a, L: TreeLine>(target: &str, lines: &'a [L]) -> Result<&'a L, String> {
-    let target = &crate::drive::without_invisibles(target);
     let found: Vec<usize> = (0..lines.len())
         .filter(|index| lines[*index].text().contains(target))
         .collect();

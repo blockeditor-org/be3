@@ -10,19 +10,14 @@ const MAX_QUOTED_NAME: usize = 60;
 /// stack two (Vietnamese, Thai), too few to stack marks over the dialog's own words.
 const MAX_COMBINING: usize = 2;
 
-/// A block's name as a dialog shows it inside its words: in curly quotes, isolated for bidi
-/// (FSI…PDI), so a right-to-left name cannot carry the quotes or the words around it across
-/// itself. The name loses control and format characters (newlines, bidi overrides, zero-width
-/// marks), blank-looking letters become spaces, whitespace collapses, every quotation mark and
-/// lookalike is made straight so a name cannot close the dialog's quote and fake what follows,
-/// runs of combining marks are cut to `MAX_COMBINING`, and it is cut at `MAX_QUOTED_NAME`
-/// characters on a grapheme boundary.
-pub fn quoted_name(name: &str) -> String {
-    format!("\u{201c}\u{2068}{}\u{2069}\u{201d}", plain_name(name))
-}
-
-/// `quoted_name`'s name, before it is quoted and isolated.
-fn plain_name(name: &str) -> String {
+/// A block's name made fit to quote inside a dialog's words. The name loses control and format
+/// characters (newlines, bidi overrides and isolates, zero-width marks), blank-looking letters
+/// become spaces, whitespace collapses, every quotation mark and lookalike is made straight so a
+/// name cannot close the dialog's quote and fake what follows, runs of combining marks are cut to
+/// `MAX_COMBINING`, and it is cut at `MAX_QUOTED_NAME` characters on a grapheme boundary. The
+/// dialog quotes it and isolates it for bidi through its text (beui's `Phrase::quoted`), not with
+/// characters in the string.
+pub fn quotable_name(name: &str) -> String {
     let categories = CodePointMapData::<GeneralCategory>::new();
     let mut cleaned = String::with_capacity(name.len());
     // Marks on the last kept character: what is dropped between marks does not end their run.

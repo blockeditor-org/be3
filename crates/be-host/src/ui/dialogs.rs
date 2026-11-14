@@ -3,6 +3,7 @@ use beui::NodeId;
 use beui::Overflow;
 use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
+use beui::text::Phrase;
 use beui::styled::*;
 use uuid::Uuid;
 
@@ -734,22 +735,25 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
     let open = create_memo(move || leaving.with(Option::is_some));
     let title = create_memo(move || {
         leaving.with(|leaving| match leaving {
-            Some(leaving) => format!("Leave {}?", be_block::quoted_name(&leaving.name)),
-            None => String::new(),
+            Some(leaving) => Phrase::new()
+                .text("Leave ")
+                .quoted(be_block::quotable_name(&leaving.name))
+                .text("?"),
+            None => Phrase::new(),
         })
     });
     let message = create_memo(move || {
         let within =
             leaving.with(|leaving| leaving.as_ref().and_then(|leaving| leaving.within.clone()));
         let from = match within {
-            Some(within) => format!(
-                "You will no longer see it, in {}, or anything inside it",
-                be_block::quoted_name(&within)
-            ),
-            None => "You will no longer see it or anything inside it".to_owned(),
+            Some(within) => Phrase::new()
+                .text("You will no longer see it, in ")
+                .quoted(be_block::quotable_name(&within))
+                .text(", or anything inside it"),
+            None => Phrase::new().text("You will no longer see it or anything inside it"),
         };
-        format!(
-            "{from}, unless someone shares it with you again. Whoever can edit it gives it new keys."
+        from.text(
+            ", unless someone shares it with you again. Whoever can edit it gives it new keys.",
         )
     });
     let busy = view.leave_busy;

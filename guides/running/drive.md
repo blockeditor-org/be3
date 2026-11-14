@@ -120,9 +120,7 @@ beside its `Pane`.
 - `#TEST_ID`, or `#TEST_ID+X,Y` for a point inside that node;
 - `X,Y` in the tree's pixels, or `X,Y,W,H` for an area;
 - text in one line of the tree: `'"Send invitation"'`, `'Button "Create"'`. A match inside
-  another match is the same target; unrelated matches are an error that lists them. Names are
-  printed and matched as they read: bidi marks and isolates and zero-width spaces
-  (`without_invisibles` in beui-types) are left out of both.
+  another match is the same target; unrelated matches are an error that lists them.
 
 Targets are found in the main window; `in WINDOW` at the end of an input command picks another
 from `drive windows` (each display's window in a login session, say).
