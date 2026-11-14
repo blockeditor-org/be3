@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Build server</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; display: grid; place-items: center; min-height: 80vh; }
+  form { display: grid; gap: 12px; width: min(100%, 360px); }
+  input, button { font: inherit; padding: 8px 10px; }
+</style>
+</head>
+<body>
+<!-- The only page nl.be3.pfg.pw serves without a token (Caddyfile): it stores the dashboard token as the cookie
+     Caddy checks. JavaScript can set only a cookie it can also read, which is enough here. -->
+<form id="gate">
+  <label for="token">Dashboard token</label>
+  <input id="token" type="password" autocomplete="current-password" required autofocus>
+  <button type="submit">Open the dashboard</button>
+</form>
+<script>
+  document.getElementById("gate").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const token = document.getElementById("token").value.trim();
+    document.cookie = "be3_dash=" + encodeURIComponent(token) + "; Path=/; Max-Age=31536000; Secure; SameSite=Lax";
+    location.href = "/";
+  });
+</script>
+</body>
+</html>

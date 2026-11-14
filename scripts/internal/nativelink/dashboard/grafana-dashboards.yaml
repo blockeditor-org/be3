@@ -1,0 +1,8 @@
+# The dashboards in this directory, which the UI cannot change: edit the JSON here and run setup.sh.
+apiVersion: 1
+providers:
+  - name: be3
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

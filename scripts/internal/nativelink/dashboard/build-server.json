@@ -1,0 +1,1178 @@
+{
+ "uid": "build-server",
+ "title": "Build server",
+ "tags": [
+  "be3"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "editable": false,
+ "refresh": "30s",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "row",
+   "title": "Builds",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "panels": []
+  },
+  {
+   "id": 2,
+   "type": "timeseries",
+   "title": "Build time",
+   "description": "Minutes from buck2's start to its end for each ./scripts/verify and ./scripts/ci, by where it ran.",
+   "datasource": {
+    "type": "frser-sqlite-datasource",
+    "uid": "builds"
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 12,
+    "x": 0,
+    "y": 1
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "m",
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "fillOpacity": 0,
+      "lineWidth": 1,
+      "showPoints": "always"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "time series",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"CI\" FROM builds WHERE kind LIKE 'ci%' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "timeColumns": [
+      "time"
+     ]
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "time series",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, here\" FROM builds WHERE kind = 'verify' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "timeColumns": [
+      "time"
+     ]
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "time series",
+     "queryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"verify, cloud session\" FROM builds WHERE kind = 'verify-cloud' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "timeColumns": [
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "timeseries",
+   "title": "Actions each build ran on the server",
+   "description": "Actions that ran on the server against those it found in the cache: a cold build runs thousands.",
+   "datasource": {
+    "type": "frser-sqlite-datasource",
+    "uid": "builds"
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 12,
+    "x": 12,
+    "y": 1
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "points",
+      "pointSize": 6,
+      "fillOpacity": 0,
+      "lineWidth": 1,
+      "showPoints": "always"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "time series",
+     "queryText": "SELECT started AS time, remote AS \"ran\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "rawQueryText": "SELECT started AS time, remote AS \"ran\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "timeColumns": [
+      "time"
+     ]
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "time series",
+     "queryText": "SELECT started AS time, cached AS \"cached\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "rawQueryText": "SELECT started AS time, cached AS \"cached\" FROM builds WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started",
+     "timeColumns": [
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "table",
+   "title": "Recent builds",
+   "description": "Queued minutes add up every action's wait for a slot, so they exceed the build's time when many waited at once.",
+   "datasource": {
+    "type": "frser-sqlite-datasource",
+    "uid": "builds"
+   },
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 10
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "table",
+     "queryText": "SELECT started AS time, kind, branch, substr(commit_sha, 1, 9) AS \"commit\", parts, round(seconds / 60.0, 1) AS minutes, CASE passed WHEN 1 THEN 'passed' ELSE 'failed' END AS result, remote AS ran, cached, round(queue_seconds / 60.0, 1) AS \"queued minutes\", (SELECT what || ' (' || CAST(round(seconds) AS INTEGER) || ' s)' FROM critical_path c WHERE c.build_id = b.id ORDER BY seconds DESC LIMIT 1) AS \"longest critical step\" FROM builds b WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started DESC LIMIT 200",
+     "rawQueryText": "SELECT started AS time, kind, branch, substr(commit_sha, 1, 9) AS \"commit\", parts, round(seconds / 60.0, 1) AS minutes, CASE passed WHEN 1 THEN 'passed' ELSE 'failed' END AS result, remote AS ran, cached, round(queue_seconds / 60.0, 1) AS \"queued minutes\", (SELECT what || ' (' || CAST(round(seconds) AS INTEGER) || ' s)' FROM critical_path c WHERE c.build_id = b.id ORDER BY seconds DESC LIMIT 1) AS \"longest critical step\" FROM builds b WHERE started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() ORDER BY started DESC LIMIT 200",
+     "timeColumns": [
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "table",
+   "title": "Slowest test runs",
+   "description": "Each test binary's runs that were not cached, over the time range. A host test file runs as its own action.",
+   "datasource": {
+    "type": "frser-sqlite-datasource",
+    "uid": "builds"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 12,
+    "x": 0,
+    "y": 20
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "table",
+     "queryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", round(avg(queue_seconds), 1) AS \"average queued s\", count(*) AS runs, sum(failed) AS failed FROM actions WHERE category = 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target ORDER BY max(seconds) DESC LIMIT 40",
+     "timeColumns": [
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "table",
+   "title": "Slowest other actions",
+   "description": "Compiles, links and the rest that took over 10 s, over the time range.",
+   "datasource": {
+    "type": "frser-sqlite-datasource",
+    "uid": "builds"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 12,
+    "x": 12,
+    "y": 20
+   },
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "table",
+     "queryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "rawQueryText": "SELECT target, category, round(max(seconds), 1) AS \"slowest s\", round(avg(seconds), 1) AS \"average s\", count(*) AS runs FROM actions WHERE category != 'test_run' AND started BETWEEN $__unixEpochFrom() AND $__unixEpochTo() GROUP BY target, category ORDER BY max(seconds) DESC LIMIT 40",
+     "timeColumns": [
+      "time"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "type": "row",
+   "title": "Build server",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 32
+   },
+   "panels": []
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Actions running and queued",
+   "description": "Actions running on the worker, counted every 5 s from its work directories, against its 16 slots, and those NativeLink holds waiting for a slot. A queue with every slot busy means the server is the limit.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 33
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "nl_actions_running",
+     "legendFormat": "running"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max(scheduler_queue_depth)",
+     "legendFormat": "queued"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "vector(16)",
+     "legendFormat": "slots"
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Queue time",
+   "description": "How long actions waited for a slot.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 33
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.5, sum by (le) (rate(execution_queue_time_seconds_bucket[5m])))",
+     "legendFormat": "median"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(execution_queue_time_seconds_bucket[5m])))",
+     "legendFormat": "95th percentile"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "max(scheduler_queue_oldest_age_seconds)",
+     "legendFormat": "oldest queued now"
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "type": "timeseries",
+   "title": "Actions finished",
+   "description": "Actions the worker finished each minute.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 33
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(execution_total_duration_seconds_count[5m])) * 60",
+     "legendFormat": "per minute"
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "type": "timeseries",
+   "title": "Peak memory of an action",
+   "description": "The most memory one action used, as NativeLink measured it: a release build's LTO link reaches about 10 GB.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 41
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.5, sum by (le) (rate(execution_peak_memory_bytes_bucket[15m])))",
+     "legendFormat": "median"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "histogram_quantile(0.99, sum by (le) (rate(execution_peak_memory_bytes_bucket[15m])))",
+     "legendFormat": "99th percentile"
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "type": "timeseries",
+   "title": "CAS reads found",
+   "description": "Share of the CAS's reads that found the blob.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 41
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0,
+     "max": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(store_tier_operations_total{store_result=\"hit\"}[5m])) / sum(rate(store_tier_operations_total{store_result=~\"hit|miss\"}[5m]))",
+     "legendFormat": "found"
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "type": "timeseries",
+   "title": "CAS bytes",
+   "description": "Bytes read from and written to the CAS, by clients and the worker together.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 41
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Bps",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (store_direction) (rate(store_tier_io_bytes_total[5m]))",
+     "legendFormat": "{{store_direction}}"
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "type": "row",
+   "title": "Machine",
+   "collapsed": false,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 49
+   },
+   "panels": []
+  },
+  {
+   "id": 15,
+   "type": "timeseries",
+   "title": "CPU",
+   "description": "Share of the 16 vCPUs busy, by mode. Steal is time Hetzner gave a shared vCPU to another machine.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 50
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "fillOpacity": 60,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal"
+      }
+     },
+     "min": 0,
+     "max": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (mode) (rate(node_cpu_seconds_total{mode!~\"idle\"}[1m])) / scalar(count(count by (cpu) (node_cpu_seconds_total)))",
+     "legendFormat": "{{mode}}"
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "type": "timeseries",
+   "title": "Pressure",
+   "description": "Share of time some task waited for a CPU, for memory or for the disk: CPU waiting near 100% means more cores would help.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 50
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "rate(node_pressure_cpu_waiting_seconds_total[1m])",
+     "legendFormat": "CPU: some waiting"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "rate(node_pressure_memory_waiting_seconds_total[1m])",
+     "legendFormat": "memory: some waiting"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "rate(node_pressure_memory_stalled_seconds_total[1m])",
+     "legendFormat": "memory: all stalled"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "rate(node_pressure_io_waiting_seconds_total[1m])",
+     "legendFormat": "I/O: some waiting"
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "type": "timeseries",
+   "title": "Load",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 50
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_load1",
+     "legendFormat": "1 minute"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(count by (cpu) (node_cpu_seconds_total))",
+     "legendFormat": "vCPUs"
+    }
+   ]
+  },
+  {
+   "id": 18,
+   "type": "timeseries",
+   "title": "Memory",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 58
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+     "legendFormat": "used"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_memory_Cached_bytes",
+     "legendFormat": "page cache"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes",
+     "legendFormat": "swap used"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_memory_MemTotal_bytes",
+     "legendFormat": "total"
+    }
+   ]
+  },
+  {
+   "id": 19,
+   "type": "timeseries",
+   "title": "Disk space",
+   "description": "The CAS keeps up to 270 GB in content/ and as much again in content.exec/ (nativelink.json5).",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 58
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_filesystem_size_bytes{mountpoint=\"/\"} - node_filesystem_avail_bytes{mountpoint=\"/\"}",
+     "legendFormat": "used"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_filesystem_size_bytes{mountpoint=\"/\"}",
+     "legendFormat": "size"
+    }
+   ]
+  },
+  {
+   "id": 20,
+   "type": "timeseries",
+   "title": "Disk I/O",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 58
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Bps",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(node_disk_read_bytes_total{device!~\"loop.*\"}[1m]))",
+     "legendFormat": "read"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(node_disk_written_bytes_total{device!~\"loop.*\"}[1m]))",
+     "legendFormat": "written"
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "type": "timeseries",
+   "title": "Network",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 66
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Bps",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|docker.*|veth.*\"}[1m]))",
+     "legendFormat": "received"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|docker.*|veth.*\"}[1m]))",
+     "legendFormat": "sent"
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "type": "timeseries",
+   "title": "Processes",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 66
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "fillOpacity": 15,
+      "lineWidth": 1,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none"
+      }
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_procs_running",
+     "legendFormat": "running"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "node_procs_blocked",
+     "legendFormat": "blocked on I/O"
+    }
+   ]
+  }
+ ]
+}

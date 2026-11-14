@@ -85,6 +85,27 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
     CPU-bound: a second machine would be the way to more.
 - **Cost**: €110.99 a month flat with its IPv4 address and 20 TB of traffic, whatever it builds.
 
+### The dashboard
+
+https://nl.be3.pfg.pw/ is a Grafana dashboard of the server and of every build (`scripts/internal/nativelink/dashboard`,
+which `setup.sh` installs). Caddy lets a browser through when it holds the cookie `be3_dash=NL_DASH_TOKEN` (from
+`/etc/nl-caddy.env`); without it, the only page is `/gate`, which asks for the token and sets the cookie.
+
+- **The machine**: node_exporter's CPU by mode (steal is a shared vCPU given to another machine), pressure (the share of
+  time something waited for a CPU, memory or the disk), memory and swap, disk and network.
+- **The build server**: `nl-stats.py` counts the actions running, one directory each under `/var/lib/nativelink/run`,
+  every 5 s, for node_exporter's textfile collector. NativeLink sends its own metrics over OTLP to 127.0.0.1:4317 (it
+  always tries), where the OpenTelemetry Collector (`otel-collector.yaml`) keeps them for Prometheus, minus a series
+  per action digest: queue depth and queue time, actions finished, each action's peak memory, CAS reads and bytes.
+  Prometheus keeps a year of both (`/var/lib/nl-prometheus`).
+- **Builds**: at its end, every `./scripts/verify` and `./scripts/ci` that built on a named server sends a record
+  (crates/be-tool-verify's stats.rs, from buck2's event log) to `/__be3-stats/build` with the build token, which
+  `nl-stats.py` keeps in `/var/lib/nl-stats/builds.db`: how long buck2 took, the actions that ran and were cached,
+  their total queue time, the critical path, every test run and every other action over 10 s. Its kind is
+  `ci-EVENT` in CI, `verify-cloud` behind a proxy, and `verify` otherwise; `target/verify-record.json` is the last one
+  sent. Ask it anything with `sqlite3 /var/lib/nl-stats/builds.db` on the server.
+- The dashboard is `build-server.json`; the UI cannot save changes to it, so change the file and run `setup.sh`.
+
 ## When a build keeps failing
 
 Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw through `scripts/internal/re-relay`
