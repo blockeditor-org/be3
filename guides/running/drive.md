@@ -165,7 +165,8 @@ be-host is busy while an app starts, owes a frame or has unanswered input, while
 screen waits for content (its own block's, or a block it watches beside it, such as the text
 app's view state: one that is offline and not cached keeps `settle` waiting), while an account
 request is pending, and while the block store has
-work queued or edits to journal or seal. Sending the outbox and asking the server for a block's
+work queued or edits to journal, or, while hurried, to seal (unhurried, a type module seals after
+a quiet spell, which counts as out of step instead). Sending the outbox and asking the server for a block's
 revisions count as unsynced instead (below). A command that needs the server still runs in the
 block store's loop, so the commands queued behind it keep the host busy until it is answered or
 the connection is declared lost; the busy reason names the step the loop is in. It is never

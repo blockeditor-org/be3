@@ -905,8 +905,13 @@ fn send(command: Command) {
     }
 }
 
-pub fn busy() -> Vec<String> {
-    with_shared(Shared::busy).unwrap_or_default()
+/// Why the block store keeps a driver waiting (`Shared::busy`). `hurried` says whether the host
+/// seals what its blocks owe on every frame (`seal_owed`), as it does for a hurried driven run:
+/// only then is an owed seal work to wait for. Otherwise a type module seals after a quiet
+/// spell, as for a person, which is a timer rather than work, and counts as out of step
+/// (`unsynced`) instead.
+pub fn busy(hurried: bool) -> Vec<String> {
+    with_shared(|shared| shared.busy(hurried)).unwrap_or_default()
 }
 
 /// Why the device is not in step with the server yet (`Shared::unsynced`): connected, nothing

@@ -805,7 +805,7 @@ impl Shared {
         reasons
     }
 
-    pub fn busy(&self) -> Vec<String> {
+    pub fn busy(&self, hurried: bool) -> Vec<String> {
         let mut reasons: Vec<String> = [
             (
                 self.pending > 0,
@@ -832,7 +832,7 @@ impl Shared {
                 blocks.join(", ")
             ));
         }
-        if self.owing > 0 {
+        if hurried && self.owing > 0 {
             let blocks: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
             reasons.push(format!(
                 "the block store owes edits a seal, for {} (sealed what was owed {} time(s))",

@@ -22,6 +22,12 @@ const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
 const SHAPE: &str = "infinite-canvas.entity.";
+/// Puts the text's caret at its start, which scrolls it to the top: select all, then Left.
+const TEXT_START: &[&[&str]] = &[
+    &["click", "#text.surface"],
+    &["key", "ctrl+a"],
+    &["key", "Left"],
+];
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -171,12 +177,14 @@ fn first_device(
         "Canvas",
         "first.reopened.canvas",
         &settings.out.join("first-reopened-canvas.paint"),
+        &[],
     )?;
     let text = host.reopen(
         "TreeItem \"The quick brown fox",
         "Text",
         "first.reopened.text",
         &settings.out.join("first-reopened-text.paint"),
+        TEXT_START,
     )?;
     let closing = Instant::now();
     host.close()?;
@@ -283,12 +291,14 @@ fn second_device(
         "Canvas",
         "second.reopened.canvas",
         &settings.out.join("second-reopened-canvas.paint"),
+        &[],
     )?;
     let text = host.reopen(
         "TreeItem \"The quick brown fox",
         "Text",
         "second.reopened.text",
         &settings.out.join("second-reopened-text.paint"),
+        TEXT_START,
     )?;
     let export = host.export("second.export", &settings.out.join("second.block"))?;
     host.close()?;
@@ -572,12 +582,17 @@ impl Host {
         Ok(())
     }
 
+    /// Reopens the block at `row` and paints it. `to_start` is what puts its view at the start
+    /// first: the scroll and caret are the device's own view state (a session per device,
+    /// guides/blocks/workspaces.md), so the first device reopens where it left off and a new
+    /// device at the top, and the two paint the same only from the same place.
     fn reopen(
         &mut self,
         row: &str,
         label: &str,
         metric: &str,
         painting: &Path,
+        to_start: &[&[&str]],
     ) -> Result<Snapshot, String> {
         self.wait(row)?;
         let started = Instant::now();
@@ -585,6 +600,9 @@ impl Host {
         self.wait(&format!("Pane \"{label}\""))?;
         self.run(&["wait", "not", "#editor.loading"])?;
         be_tool_bench::time(&format!("{metric}-open"), started.elapsed());
+        for words in to_start {
+            self.run(words)?;
+        }
         let painted = self.paint(&format!("{metric}-paint"), painting)?;
         self.close_tab(label, &format!("{metric}-close"))?;
         Ok(painted)
@@ -677,17 +695,9 @@ impl Stroke {
 
     fn check(&self, export: &[u8]) -> Result<(), String> {
         let drawn = drawn_stroke(export)?;
-        if drawn.len() != self.kept.len() {
-            return Err(format!(
-                "the stroke holds {} points, but the canvas keeps {} of the {} samples drawn: each one more than a point from the last it kept",
-                drawn.len(),
-                self.kept.len(),
-                self.sent
-            ));
-        }
-        be_tool_bench::count("canvas.line-points", drawn.len() as u64);
-        let (first, last) = (self.kept[0], self.kept[self.kept.len() - 1]);
-        let (start, end) = (drawn[0], drawn[drawn.len() - 1]);
+        let both = drawn.len().min(self.kept.len());
+        let (first, last) = (self.kept[0], self.kept[both - 1]);
+        let (start, end) = (drawn[0], drawn[both - 1]);
         let scale = (end.0 - start.0) / (last.0 - first.0);
         let reach = scale * self.spacing / 2.0;
         for (index, (kept, drawn)) in self.kept.iter().zip(&drawn).enumerate() {
@@ -697,10 +707,22 @@ impl Stroke {
             );
             if (drawn.0 - expected.0).hypot(drawn.1 - expected.1) > reach {
                 return Err(format!(
-                    "point {index} of the stroke is at {drawn:?}, not at {expected:?} where the sample the canvas should have kept was"
+                    "point {index} of the {} the stroke holds is at {drawn:?}, not at {expected:?} where the sample the canvas should have kept was",
+                    self.kept.len()
                 ));
             }
         }
+        if drawn.len() != self.kept.len() {
+            return Err(format!(
+                "the stroke holds {} points, but the canvas keeps {} of the {} samples drawn: each one more than a point from the last it kept; the {} after those it should keep are {:?}",
+                drawn.len(),
+                self.kept.len(),
+                self.sent,
+                drawn.len().saturating_sub(self.kept.len()),
+                drawn.get(self.kept.len()..).unwrap_or_default()
+            ));
+        }
+        be_tool_bench::count("canvas.line-points", drawn.len() as u64);
         Ok(())
     }
 }
